@@ -1,0 +1,4 @@
+from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template import PromptTemplate, PromptType
+from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template_base import BasePromptTemplate
+from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template_mm import MMPromptTemplate
+from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template_multiturn import MultiTurnPromptTemplate

@@ -1,0 +1,1 @@
+from ais_bench_plugin_example_pkg.clients.example_client import ExampleClient

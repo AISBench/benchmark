@@ -1,0 +1,31 @@
+name: ❓ 使用疑问
+description: 咨询工具使用过程中的问题
+title: "[疑问] "
+labels: ["question", "待回复"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 👉 遇到问题先看这里
+        ### 🌟 第一次使用工具遇到问题？
+        按[🚀 快速入门](https://github.com/aisbench/benchmark#-%E5%BF%AB%E9%80%9F%E5%85%A5%E9%97%A8)走一遍能解决90%的工具基本使用问题！
+
+        ### 🧭 尝试检索FAQ查看共性问题解决方法
+        检索[📑 FAQ](https://github.com/aisbench/benchmark/wikis/FAQ/AISBench%20FAQ%E4%B8%BB%E9%A1%B5)，目前FAQ可以解决0%的共性问题
+
+        ### ❓ 搜索历史issue，查看冷门的同类问题
+        在[🔖 Issue](https://github.com/aisbench/benchmark/issues)中搜索历史类似问题
+  - type: textarea
+    id: current-content
+    attributes:
+      label: 疑问描述
+      description: 描述工具使用时遇到的疑问
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 前置检查
+      options:
+        - label: 我已读懂主页文档的快速入门，无法解答我的疑惑
+          required: true

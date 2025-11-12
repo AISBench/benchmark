@@ -1,0 +1,3 @@
+PRESSURE_TIME_MIN = 1 # 1 second
+PRESSURE_TIME_MAX = 24 * 60 * 60 # 1 day
+CONNECTION_ADD_RATE_MIN = 0.1 # 0.1 second

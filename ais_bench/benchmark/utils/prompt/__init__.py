@@ -1,0 +1,1 @@
+from ais_bench.benchmark.utils.prompt.prompt import *

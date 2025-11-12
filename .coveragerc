@@ -1,0 +1,40 @@
+[run]
+source = ais_bench
+data_file = test_reports/.coverage
+omit = 
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */venv/*
+    */env/*
+    */site-packages/*
+    setup.py
+    */migrations/*
+
+[report]
+# 覆盖率报告配置
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+
+# 覆盖率阈值
+fail_under = 80
+
+# 覆盖率报告格式
+show_missing = True
+precision = 1
+
+[html]
+directory = test_reports/htmlcov
+title = AISBench 测试覆盖率报告
+
+[xml]
+output = test_reports/coverage.xml

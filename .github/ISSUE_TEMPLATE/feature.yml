@@ -1,0 +1,41 @@
+name: 🔬 功能需求
+description: 提出新功能建议或现有功能优化
+title: "[需求] "
+labels: ["enhancement", "需求讨论"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题/痛点描述
+      description: 当前设计为何无法满足需求？是否与具体场景相关？
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 建议方案
+      description: 描述设想的解决方案或优化方向
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 备选方案
+      description: 是否考虑过其他实现方式？
+      placeholder: 例：通过扩展插件实现 vs 修改核心代码
+    validations:
+      required: false
+  - type: textarea
+    id: value
+    attributes:
+      label: 预期价值
+      description: 此功能对哪些用户群体有帮助？如何提升体验？
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 参与意向
+      options:
+        - label: "我愿意参与此功能的开发或测试"
+          required: false

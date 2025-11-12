@@ -1,0 +1,8 @@
+# Humaneval, Humaneval X
+human-eval
+
+# math500
+math-verify==0.5.2
+
+# IFEval
+langdetect

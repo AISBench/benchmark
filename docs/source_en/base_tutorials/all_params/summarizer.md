@@ -1,0 +1,7 @@
+# Supported Result Summary Tasks
+| Task Name | Description | Configuration File Path |
+| -------------- | -------------- | -------------- |
+| `example` | A simplified accuracy evaluation result summary template that covers all currently supported datasets and is the default template used. | [example.py](https://gitee.com/aisbench/benchmark/tree/master/ais_bench/benchmark/configs/summarizers/example.py)  |
+| `medium`  | A general accuracy evaluation result summary template, suitable for multiple basic datasets. | [medium.py](https://gitee.com/aisbench/benchmark/tree/master/ais_bench/benchmark/configs/summarizers/medium.py)    |
+| `default_perf` | A full-scale performance evaluation result summary template that aggregates performance data of all requests. It supports manual configuration of performance statistics indicators via `default_perf.py`. | [default_perf.py](https://gitee.com/aisbench/benchmark/tree/master/ais_bench/benchmark/configs/summarizers/perf/default_perf.py) |
+| `stable_stage` | A performance evaluation result summary template for the stable stage, which only aggregates request data when the system reaches the configured maximum concurrency. It supports manual configuration of performance statistics indicators via `stable_stage.py`. | [stable_stage.py](https://gitee.com/aisbench/benchmark/tree/master/ais_bench/benchmark/configs/summarizers/perf/stable_stage.py) |

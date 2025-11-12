@@ -1,0 +1,3 @@
+recursive-include ais_bench/benchmark/configs *.py *.yml *.json *.txt *.md
+recursive-include ais_bench/benchmark/openicl/icl_evaluator/hf_metrics *.py
+recursive-include ais_bench/benchmark/datasets *.py *.yml *.json *.txt *.md *.yaml

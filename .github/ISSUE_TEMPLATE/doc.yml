@@ -1,0 +1,33 @@
+name: 📃 文档问题
+description: 反馈文档中的错误或需要补充的内容
+title: "[文档] "
+labels: ["documentation", "待更新"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: 文档位置（可指定多个文档链接）
+      placeholder: 例：https://github.com/aisbench/benchmark/blob/master/doc/users_guide/performance_metric.md
+    validations:
+      required: true
+  - type: textarea
+    id: current-content
+    attributes:
+      label: 当前内容描述
+      description: 引用原文或描述问题段落
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: 修改建议
+      description: 提供更正内容或补充说明（支持Markdown）
+      placeholder: "错误描述：`用户需输入ID` → 应改为：`用户需输入UUID`"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 附加信息
+      description: 相关代码/截图/用户反馈等（拖拽上传图片）
+      required: false

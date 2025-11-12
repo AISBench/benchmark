@@ -1,0 +1,87 @@
+name: 🔧 Bug 报告
+description: 提交程序中的错误或异常
+title: "[Bug] "
+labels: ["bug", "待处理"]
+assignees: []  # 可添加默认指派用户，如 ["user1"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 👉 遇到问题先看这里
+        ### 🌟 第一次使用工具遇到问题？
+        按[🚀 快速入门](https://github.com/aisbench/benchmark#-%E5%BF%AB%E9%80%9F%E5%85%A5%E9%97%A8)走一遍能解决90%的工具基本使用问题！
+
+        ### 🧭 尝试检索FAQ查看共性问题解决方法
+        检索[📑 FAQ](https://github.com/aisbench/benchmark/wikis/FAQ/AISBench%20FAQ%E4%B8%BB%E9%A1%B5)，目前FAQ可以解决0%的共性问题
+
+        ### ❓ 搜索历史issue，查看冷门的同类问题
+        在[🔖 Issue](https://github.com/aisbench/benchmark/issues)中搜索历史类似问题
+  - type: input
+    id: os_and_version
+    attributes:
+      label: 操作系统及版本
+      placeholder: 例：ubuntu 20.04等
+    validations:
+      required: true
+  - type: dropdown
+    id: python_env
+    attributes:
+      label: 安装工具的python环境
+      options:
+        - "在anaconda/miniconda创建的python虚拟环境"
+        - "在物理机/虚拟机自带python环境"
+        - "docker容器中的python环境"
+        - "其他"
+    validations:
+      required: true
+  - type: dropdown
+    id: python_version
+    attributes:
+      label: python版本
+      options:
+        - "3.10"
+        - "3.11"
+        - "其他"
+    validations:
+      required: true
+  - type: input
+    id: tool_version
+    attributes:
+      label: AISBench工具版本
+      placeholder: 例：最新代码（请给出具体的commit id），某个tag/release版本（请给出链接）
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重现步骤
+      description: 清晰描述如何复现问题
+      placeholder: 1. 附上ais_bench命令。2. 附上这些命令执行时的使用的配置文件的内容(通过在 ais_bench命令基础上加上 --search执行可以得到实际执行的配置文件路径)。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: false
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 附错误日志或截图（可拖拽上传）
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 前置检查
+      options:
+        - label: 我已读懂主页文档的快速入门，无法解决问题
+          required: true
+        - label: 我已检索过FAQ，无重复问题
+          required: true
+        - label: 我已搜索过现有Issue，无重复问题
+          required: true
+        - label: 我已更新到最新版本，问题仍存在
+          required: false

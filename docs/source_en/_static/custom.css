@@ -1,0 +1,166 @@
+/* 自定义响应式样式 */
+
+/* 确保内容容器在不同设备上都能良好显示 */
+.wy-nav-content {
+    max-width: 100%;
+    padding: 1.618em 3.236em;
+}
+
+@media screen and (max-width: 768px) {
+    /* 移动设备上调整内容边距 */
+    .wy-nav-content {
+        padding: 1.618em;
+    }
+
+    /* 确保表格在移动设备上可以水平滚动 */
+    .wy-table-responsive table td,
+    .wy-table-responsive table th {
+        white-space: normal !important;
+    }
+
+    .wy-table-responsive {
+        overflow-x: auto;
+        display: block;
+    }
+}
+
+/* 优化代码块在小屏幕上的显示 */
+pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* 确保图片自适应容器宽度 */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* 项目链接样式 */
+.project-links {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: row; /* 从column改为row，实现左右排布 */
+    gap: 8px;
+    justify-content: center; /* 居中对齐链接 */
+    flex-wrap: wrap; /* 当空间不足时自动换行 */
+}
+
+.project-link {
+    display: inline-block;
+    padding: 8px 12px;
+    background-color: #2980b9;
+    color: white !important;
+    text-decoration: none !important;
+    border-radius: 4px;
+    font-size: 14px;
+    text-align: center;
+    transition: background-color 0.3s ease;
+    flex: 1; /* 让链接均匀分配空间 */
+    min-width: 120px; /* 设置最小宽度，确保显示完整 */
+}
+
+.project-link:hover {
+    background-color: #1f618d;
+    color: white !important;
+}
+
+.project-link i {
+    margin-right: 5px;
+}
+
+/* 自定义响应式右侧目录 */
+.right-toc {
+    position: fixed;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    width: 250px;
+    background-color: #f8f8f8;
+    border: 1px solid #e7e7e7;
+    border-radius: 4px;
+    padding: 15px;
+    max-height: 80vh;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.right-toc.visible {
+    display: block;
+}
+
+.right-toc-title {
+    font-weight: bold;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #e7e7e7;
+}
+
+.right-toc ul {
+    list-style-type: none;
+    padding-left: 10px;
+    margin: 0;
+}
+
+.right-toc li {
+    margin-bottom: 5px;
+}
+
+.right-toc a {
+    color: #2980b9;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.right-toc a:hover {
+    color: #1f618d;
+    text-decoration: underline;
+}
+
+.right-toc-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #2980b9;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.right-toc-toggle:hover {
+    background-color: #1f618d;
+}
+
+/* 响应式设计 */
+@media screen and (max-width: 1200px) {
+    .right-toc {
+        width: 200px;
+    }
+}
+
+@media screen and (max-width: 992px) {
+    .right-toc {
+        width: 100%;
+        right: 0;
+        left: 0;
+        transform: none;
+        top: auto;
+        bottom: 0;
+        max-height: 50vh;
+    }
+}
+
+/* 确保主内容区域不会被右侧目录遮挡 */
+@media screen and (min-width: 993px) {
+    .wy-nav-content {
+        margin-right: 270px;
+    }
+}
