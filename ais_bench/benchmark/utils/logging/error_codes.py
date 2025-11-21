@@ -225,9 +225,29 @@ class UNK_CODES:
 
 class UTILS_CODES:
     UNKNOWN_ERROR = BaseErrorCode("UTILS-UNK-001", ErrorModule.UTILS, ErrorType.UNKNOWN, 1, "unknown error of utils")
-    MATCH_CONFIG_FILE_FAILED = BaseErrorCode("UTILS-MATCH-001", ErrorModule.UTILS, ErrorType.MATCH, 1, "match config file failed")
-    DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "third party dependency module import error")
-    MODEL_CONFIG_VALIDATE_FAILED = BaseErrorCode("UTILS-CFG-002", ErrorModule.UTILS, ErrorType.CONFIG, 2, "model config validate failed")
+    
+    # Type validation errors
+    INVALID_TYPE = BaseErrorCode("UTILS-TYPE-001", ErrorModule.UTILS, ErrorType.TYPE, 1, "invalid object type")
+    INVALID_DATASET_TYPE = BaseErrorCode("UTILS-TYPE-002", ErrorModule.UTILS, ErrorType.TYPE, 2, "invalid dataset type")
+    INVALID_LIST_TYPE = BaseErrorCode("UTILS-TYPE-003", ErrorModule.UTILS, ErrorType.TYPE, 3, "invalid list type")
+    INVALID_STRING_TYPE = BaseErrorCode("UTILS-TYPE-004", ErrorModule.UTILS, ErrorType.TYPE, 4, "invalid string type")
+    INVALID_DICT_TYPE = BaseErrorCode("UTILS-TYPE-005", ErrorModule.UTILS, ErrorType.TYPE, 5, "invalid dict type")
+    INVALID_TYPE_SPECIFIER = BaseErrorCode("UTILS-TYPE-006", ErrorModule.UTILS, ErrorType.TYPE, 6, "invalid type specifier")
+    TYPE_MISMATCH = BaseErrorCode("UTILS-TYPE-007", ErrorModule.UTILS, ErrorType.TYPE, 7, "type mismatch in validation")
+
+    # Parameter validation errors
+    ROOT_PATH_NOT_SET = BaseErrorCode("UTILS-PARAM-001", ErrorModule.UTILS, ErrorType.PARAM, 1, "root_path not set")
+    INVALID_REQUEST_COUNT = BaseErrorCode("UTILS-PARAM-002", ErrorModule.UTILS, ErrorType.PARAM, 2, "invalid request_count value")
+    INVALID_MIN_MAX_VALUE = BaseErrorCode("UTILS-PARAM-003", ErrorModule.UTILS, ErrorType.PARAM, 3, "invalid min_value or max_value")
+    MIN_GREATER_THAN_MAX = BaseErrorCode("UTILS-PARAM-004", ErrorModule.UTILS, ErrorType.PARAM, 4, "min_value greater than max_value")
+    MISSING_PARAMS = BaseErrorCode("UTILS-PARAM-005", ErrorModule.UTILS, ErrorType.PARAM, 5, "missing required params")
+    INVALID_PERCENTAGE_DISTRIBUTE = BaseErrorCode("UTILS-PARAM-006", ErrorModule.UTILS, ErrorType.PARAM, 6, "invalid percentage_distribute format")
+    UNSUPPORTED_DISTRIBUTION_METHOD = BaseErrorCode("UTILS-PARAM-007", ErrorModule.UTILS, ErrorType.PARAM, 7, "unsupported distribution method")
+    ILLEGAL_KEYS_IN_CONFIG = BaseErrorCode("UTILS-PARAM-008", ErrorModule.UTILS, ErrorType.PARAM, 8, "illegal keys in configuration")
+
+    # Config validation errors
+    MODEL_CONFIG_VALIDATE_FAILED = BaseErrorCode("UTILS-CFG-001", ErrorModule.UTILS, ErrorType.CONFIG, 1, "model config validate failed")
+    SYNTHETIC_DS_MISS_REQUIRED_PARAM = BaseErrorCode("UTILS-CFG-002", ErrorModule.UTILS, ErrorType.CONFIG, 2, "synthetic dataset miss required param")
     ILLEGAL_MODEL_ATTR = BaseErrorCode("UTILS-CFG-003", ErrorModule.UTILS, ErrorType.CONFIG, 3, "illegal model attr in config")
     MIXED_MODEL_ATTRS = BaseErrorCode("UTILS-CFG-004", ErrorModule.UTILS, ErrorType.CONFIG, 4, "mixed model attrs in config")
     NON_FUNCTION_CALL_MODEL = BaseErrorCode("UTILS-CFG-005", ErrorModule.UTILS, ErrorType.CONFIG, 5, "non function call model found for BFCLDataset")

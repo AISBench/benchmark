@@ -92,3 +92,6 @@ class AISBenchModuleNotFoundError(AISBenchBaseException):
 
 class PredictionInvalidException(AISBenchBaseException):
     pass
+
+class AISBenchInvalidTypeException(AISBenchBaseException):
+    pass
