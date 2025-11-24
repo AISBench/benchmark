@@ -136,7 +136,7 @@ class TINFER_CODES:
     N_NOT_POSITIVE = BaseErrorCode("TINFER-PARAM-003", ErrorModule.TASK_INFER, ErrorType.PARAM, 3, "n expected a positive integer")
     INVALID_RAMP_UP_STRATEGY = BaseErrorCode("TINFER-PARAM-004", ErrorModule.TASK_INFER, ErrorType.PARAM, 4, "invalid ramp up strategy")
     VIRTUAL_MEMORY_USAGE_TOO_HIGH = BaseErrorCode("TINFER-PARAM-005", ErrorModule.TASK_INFER, ErrorType.PARAM, 5, "virtual memory usage too high")
-    
+
 class TEVAL_CODES:
     UNKNOWN_ERROR = BaseErrorCode("TEVAL-UNK-001", ErrorModule.TASK_EVALUATE, ErrorType.UNKNOWN, 1, "unknown error of evaluate task")
     N_K_ILLEGAL = BaseErrorCode("TEVAL-PARAM-001", ErrorModule.TASK_EVALUATE, ErrorType.PARAM, 1, "n and k parameters illegal")
@@ -156,7 +156,7 @@ class ICLI_CODES:
     IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED = BaseErrorCode("ICLI-IMPL-008", ErrorModule.ICL_INFERENCER, ErrorType.IMPLEMENTATION, 8, "ppl method not implemented")
     IMPLEMENTATION_ERROR_OUTPUT_NOT_PPL_RESPONSE_OUTPUT = BaseErrorCode("ICLI-IMPL-009", ErrorModule.ICL_INFERENCER, ErrorType.IMPLEMENTATION, 9, "output is not a PPLResponseOutput")
     PPL_COMPUTE_ERROR_NO_VALID_TOKENS = BaseErrorCode("ICLI-IMPL-010", ErrorModule.ICL_INFERENCER, ErrorType.IMPLEMENTATION, 10, "no valid tokens with log probabilities found for PPL computation")
-    
+
     WARMUP_GET_RESULT_FAILED = BaseErrorCode("ICLI-RUNTIME-001", ErrorModule.ICL_INFERENCER, ErrorType.RUNTIME, 1, "get result from cache queue failed")
     WARMUP_FAILED = BaseErrorCode("ICLI-RUNTIME-002", ErrorModule.ICL_INFERENCER, ErrorType.RUNTIME, 2, "warmup failed")
     WARMUP_EMPTY_RESULT = BaseErrorCode("ICLI-RUNTIME-003", ErrorModule.ICL_INFERENCER, ErrorType.RUNTIME, 3, "empty result from cache queue")
@@ -231,9 +231,6 @@ class UTILS_CODES:
     MODEL_CONFIG_VALIDATE_FAILED = BaseErrorCode("UTILS-CFG-002", ErrorModule.UTILS, ErrorType.CONFIG, 2, "model config validate failed")
     ILLEGAL_MODEL_ATTR = BaseErrorCode("UTILS-CFG-003", ErrorModule.UTILS, ErrorType.CONFIG, 3, "illegal model attr in config")
     MIXED_MODEL_ATTRS = BaseErrorCode("UTILS-CFG-004", ErrorModule.UTILS, ErrorType.CONFIG, 4, "mixed model attrs in config")
-    NON_FUNCTION_CALL_MODEL = BaseErrorCode("UTILS-CFG-005", ErrorModule.UTILS, ErrorType.CONFIG, 5, "non function call model found for BFCLDataset")
-    NON_BFCL_DATASET = BaseErrorCode("UTILS-CFG-006", ErrorModule.UTILS, ErrorType.CONFIG, 6, "non BFCL dataset found for VLLMFunctionCallAPIChat")
-    INCOMPATIBLE_MERGE_DS = BaseErrorCode("UTILS-CFG-007", ErrorModule.UTILS, ErrorType.CONFIG, 7, "incompatible --merge-ds option for function call task")
     SYNTHETIC_DS_MISS_REQUIRED_PARAM = BaseErrorCode("UTILS-CFG-001", ErrorModule.UTILS, ErrorType.CONFIG, 1, "synthetic dataset miss required param")
     MM_CUSTOM_DATASET_WRONG_FORMAT = BaseErrorCode("UTILS-CFG-008", ErrorModule.UTILS, ErrorType.CONFIG, 8, "invalid mm custom dataset")
 
@@ -252,12 +249,12 @@ class DATASETS_CODES:
 
 class DSET_CODES:
     UNKNOWN_ERROR = BaseErrorCode("DSET-UNK-001", ErrorModule.DATASET, ErrorType.UNKNOWN, 1, "unknown error of dataset")
-    
+
     # File related errors
     FILE_NOT_FOUND = BaseErrorCode("DSET-FILE-001", ErrorModule.DATASET, ErrorType.FILE, 1, "dataset file not found")
     FILE_READ_ERROR = BaseErrorCode("DSET-FILE-002", ErrorModule.DATASET, ErrorType.FILE, 2, "failed to read dataset file")
     FILE_FORMAT_ERROR = BaseErrorCode("DSET-FILE-003", ErrorModule.DATASET, ErrorType.FILE, 3, "invalid dataset file format")
-    
+
     # Data related errors
     DATA_EMPTY = BaseErrorCode("DSET-DATA-001", ErrorModule.DATASET, ErrorType.DATA, 1, "dataset is empty")
     DATA_INVALID_STRUCTURE = BaseErrorCode("DSET-DATA-002", ErrorModule.DATASET, ErrorType.DATA, 2, "dataset has invalid structure")
@@ -265,17 +262,17 @@ class DSET_CODES:
     DATA_LABEL_PARSE_ERROR = BaseErrorCode("DSET-DATA-004", ErrorModule.DATASET, ErrorType.DATA, 4, "failed to parse label")
     DATA_PREPROCESSING_ERROR = BaseErrorCode("DSET-DATA-005", ErrorModule.DATASET, ErrorType.DATA, 5, "data preprocessing or cleaning failed")
     INVALID_DATA_TYPE = BaseErrorCode("DSET-DATA-006", ErrorModule.DATASET, ErrorType.DATA, 6, "data type does not match expected type")
-    
+
     # Parameter related errors
     INVALID_SPLIT_NAME = BaseErrorCode("DSET-PARAM-001", ErrorModule.DATASET, ErrorType.PARAM, 1, "invalid split name")
     INVALID_REPEAT_FACTOR = BaseErrorCode("DSET-PARAM-002", ErrorModule.DATASET, ErrorType.PARAM, 2, "invalid repeat factor")
     INVALID_DATASET_NAME = BaseErrorCode("DSET-PARAM-003", ErrorModule.DATASET, ErrorType.PARAM, 3, "invalid dataset name")
     INVALID_PARAM_VALUE = BaseErrorCode("DSET-PARAM-004", ErrorModule.DATASET, ErrorType.PARAM, 4, "invalid parameter value")
-    
+
     # Dependency related errors
     MODELSCOPE_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-001", ErrorModule.DATASET, ErrorType.DEPENDENCY, 1, "ModelScope library not installed")
     EVALUATION_LIBRARY_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-002", ErrorModule.DATASET, ErrorType.DEPENDENCY, 2, "evaluation library not installed")
-    
+
     # Evaluation related errors
     PREDICTION_LENGTH_MISMATCH = BaseErrorCode("DSET-MTRC-001", ErrorModule.DATASET, ErrorType.METRIC, 1, "prediction and reference have different length")
     EVALUATION_FAILED = BaseErrorCode("DSET-MTRC-002", ErrorModule.DATASET, ErrorType.METRIC, 2, "evaluation failed")

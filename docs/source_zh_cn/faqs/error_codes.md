@@ -120,23 +120,46 @@ models = dict(
 
 ## UTILS-CFG-003
 ### 错误描述
+模型配置文件内参数取值在工具限定范围内
 ### 解决办法
+依据详细日志提示配置工具限定范围内的参数取值，例如配置文件内容为：
+```python
+# vllm_stream_api_chat.py中
+models = [
+    {
+        attr="service1",
+        # ......
+    }
+]
+```
+详细报错日志为：
+```bash
+Model config contain illegal attr, 'attr' in model config is 'service1', only 'local' and 'service' are supported!
+```
+这表明模型参数`attr`取值为`'service1'`，而工具限定范围内只支持`'local'`和`'service'`两种取值，需要将`attr`设置为合法的取值之一。
 
 ## UTILS-CFG-004
 ### 错误描述
+模型参数的部分配置项在每个模型的配置中必须一致，不能出现不同的取值。
 ### 解决办法
-
-## UTILS-CFG-005
-### 错误描述
-### 解决办法
-
-## UTILS-CFG-006
-### 错误描述
-### 解决办法
-
-## UTILS-CFG-007
-### 错误描述
-### 解决办法
+依据详细日志的提示统一配置的取值，例如配置文件内容为;
+```python
+# vllm_stream_api_chat.py中
+models = [
+    {
+        attr="service",
+        # ......
+    },
+    {
+        attr="local"
+    }
+]
+```
+详细报错日志为：
+```bash
+Cannot run local and service model together! Please check 'attr' parameter of models
+```
+因为`models`配置中包含了`'service'`和`'local'`两种参数取值，而工具只支持统一配置一种，因此需要将`models`配置中`attr`参数设置为`'service'`或`'local'`中的一种。
 
 ## PARTI-FILE-001
 ### 错误描述
