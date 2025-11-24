@@ -10,6 +10,7 @@ from datasets import Dataset, DatasetDict
 from ais_bench.benchmark.openicl import BaseEvaluator
 from ais_bench.benchmark.registry import LOAD_DATASET, TEXT_POSTPROCESSORS
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path
+from ais_bench.benchmark.utils.prompt import AIS_CONTENT_TAG, AIS_TEXT_START, AIS_AUDIO_START
 
 from .base import BaseDataset
 
@@ -61,8 +62,13 @@ class VocalSoundDataset(BaseDataset):
                     with open(str(file_path), 'rb') as f:
                         data = f.read()
                     audio_url = base64.b64encode(data).decode('utf-8')
+                question = "In this audio, what kind of sound can you hear? " + \
+                            "A: Laughter, B: Sigh, C: Cough, D: Throat clearing, E: Sneeze, F: Sniff, " + \
+                            "Please select the one closest to the correct answer. ASSISTANT:"
+                content = AIS_AUDIO_START + audio_url + AIS_CONTENT_TAG \
+                            + AIS_TEXT_START + question + AIS_CONTENT_TAG
                 dataset.append({"audio_url": audio_url,
-                                "question": "To be replaced!",
+                                "content": content,
                                 'answer': answer})
             except:
                 raise ValueError("Please check your datasets!")

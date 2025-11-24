@@ -1,16 +1,15 @@
 from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template_mm import MMPromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
-from ais_bench.benchmark.datasets import MMCustomDataset, MMCustomEvaluator
+from ais_bench.benchmark.datasets import DocVQADataset, DocVQAEvaluator
 
 
-mm_custom_reader_cfg = dict(
-    input_columns=['question', 'mm_url'],
+docvqa_reader_cfg = dict(
+    input_columns=['content'],
     output_column='answer'
 )
 
-
-mm_custom_infer_cfg = dict(
+docvqa_infer_cfg = dict(
     prompt_template=dict(
         type=MMPromptTemplate,
         template=dict(
@@ -22,25 +21,23 @@ mm_custom_infer_cfg = dict(
                     "audio": {"type": "audio_url", "audio_url": {"url": "file://{audio}"}},
                 })
             ]
-            )
+        )
     ),
     retriever=dict(type=ZeroRetriever),
     inferencer=dict(type=GenInferencer)
 )
 
-mm_custom_eval_cfg = dict(
-    evaluator=dict(type=MMCustomEvaluator)
+docvqa_eval_cfg = dict(
+    evaluator=dict(type=DocVQAEvaluator)
 )
 
-mm_custom_datasets = [
+docvqa_datasets = [
     dict(
-        abbr='mm_custom',
-        type=MMCustomDataset,
-        path='aisbench/datasets/mm_custom.jsonl',                           # Data path
-        mm_type="path",                                                     # Input mm data type: "path" or "base64"
-        num_frames=5,                                                       # Applies to video data only; number of frames to extract, default 5
-        reader_cfg=mm_custom_reader_cfg,
-        infer_cfg=mm_custom_infer_cfg,
-        eval_cfg=mm_custom_eval_cfg
+        abbr='DocVQA',
+        type=DocVQADataset,
+        path='ais_bench/datasets/DocVQA/DocVQA_VAL.tsv', # 数据集路径，使用相对路径时相对于源码根路径，支持绝对路径
+        reader_cfg=docvqa_reader_cfg,
+        infer_cfg=docvqa_infer_cfg,
+        eval_cfg=docvqa_eval_cfg
     )
 ]

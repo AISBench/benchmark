@@ -29,7 +29,7 @@ from ais_bench.benchmark.datasets.videobench import *
 from ais_bench.benchmark.datasets.vocalsound import *
 from ais_bench.benchmark.datasets.lambada import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.lcsts import * # noqa: F401, F403
-from ais_bench.benchmark.datasets.siqa import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.siqa import * # noqa: F401, F403  
 from ais_bench.benchmark.datasets.xsum import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.sharegpt import *
 from ais_bench.benchmark.datasets.mtbench import *
@@ -37,6 +37,15 @@ from ais_bench.benchmark.datasets.longbench import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.longbenchv2 import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.bfcl.bfcl import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.custom import *
+from ais_bench.benchmark.datasets.infovqa import *
+from ais_bench.benchmark.datasets.docvqa import *
 from ais_bench.benchmark.datasets.omnidocbench.omnidocbench import *
 from ais_bench.benchmark.datasets.mm_custom import *
 from ais_bench.benchmark.datasets.mmmu import *
+from ais_bench.benchmark.datasets.mmmu_pro import *
+from ais_bench.benchmark.datasets.csl import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.chid import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.huggingface import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.cluewsc import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.eprstmt import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.tnews import * # noqa: F401, F403

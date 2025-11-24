@@ -9,6 +9,7 @@ from datasets import Dataset, DatasetDict
 from ais_bench.benchmark.openicl import BaseEvaluator
 from ais_bench.benchmark.registry import LOAD_DATASET, TEXT_POSTPROCESSORS
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path
+from ais_bench.benchmark.utils.prompt import AIS_CONTENT_TAG, AIS_TEXT_START, AIS_IMAGE_START
 
 from .base import BaseDataset
 
@@ -288,6 +289,8 @@ class TEXTVQADataset(BaseDataset):
                         binary_data = f.read()
                     image_url = base64.b64encode(binary_data).decode("utf-8")
                 line["image_url"] = image_url
+                line["content"] = AIS_IMAGE_START + image_url + AIS_CONTENT_TAG \
+                                    + AIS_TEXT_START + line['question'] + AIS_CONTENT_TAG
                 dataset.append(line)
 
         return Dataset.from_list(dataset)

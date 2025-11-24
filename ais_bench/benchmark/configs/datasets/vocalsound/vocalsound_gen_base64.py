@@ -15,10 +15,12 @@ vocalsound_infer_cfg = dict(
         type=MMPromptTemplate,
         template=dict(
             round=[
-                dict(role="HUMAN", prompt_mm={"text": "In this audio, what kind of sound can you hear? " +
-                                            "A: Laughter, B: Sigh, C: Cough, D: Throat clearing, E: Sneeze, F: Sniff, " +
-                                            "Please select the one closest to the correct answer. ASSISTANT:",
-                                           "audio_url": {"url": "data:audio/wav;base64,{audio_url}"}})
+                dict(role="HUMAN", prompt_mm={
+                    "text": {"type": "text", "text": "{question}"},
+                    "image": {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,{image}"}},
+                    "video": {"type": "video_url", "video_url": {"url": "data:video/jpeg;base64,{video}"}},
+                    "audio": {"type": "audio_url", "audio_url": {"url": "data:audio/wav;base64,{audio}"}},
+                })
             ]
             )
     ),

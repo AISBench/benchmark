@@ -90,7 +90,8 @@ class PPLInferencer(BaseApiInferencer):
                 prompt = retriever.generate_label_prompt(**prompt_kwargs)
                 prompt_token_num = self.model.get_token_len_from_template(prompt, mode='ppl')
                 token_num_list.append(prompt_token_num)
-                data_list[idx]["qa"][label] = {"prompt": prompt, "token_num": prompt_token_num}
+                parsed_prompt = self.model.parse_template(prompt, mode="ppl")
+                data_list[idx]["qa"][label] = {"prompt": parsed_prompt, "token_num": prompt_token_num}
         max_out_lens = retriever.dataset_reader.get_max_out_len()
         if max_out_lens is not None:
             self.logger.warning(f"Dataset-specified max_out_len has highest priority, use dataset-specified max_out_len")

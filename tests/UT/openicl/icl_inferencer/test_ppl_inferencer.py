@@ -58,6 +58,14 @@ class DummyModel:
         output.ppl = 2.5
         output.input = prompt
         output.origin_prompt_logprobs = {"token1": {"logprob": -0.5}}
+    
+    def parse_template(self, template, mode="ppl"):
+        """
+        Minimal implementation for tests: return the template unchanged.
+        PPLInferencer expects a parsed prompt; returning the original string
+        is sufficient for unit tests that use DummyModel.
+        """
+        return template
 
 
 class DummyStatusCounter:

@@ -16,10 +16,13 @@ videobench_infer_cfg = dict(
         type=MMPromptTemplate,
         template=dict(
             round=[
-                dict(role="HUMAN", prompt_mm={"text": "{question}{choices_prompt}" 
-                                            + " Please respond with only the corresponding options and do not provide any explanations" 
-                                            + " or additional information. ASSISTANT:",
-                                           "video_url": "{video_url}"})
+                dict(role="HUMAN", prompt_mm={
+                    "text": {"type": "text", "text": "{question} Please respond with only the corresponding options and do not provide any explanations"
+                                                        + " or additional information. ASSISTANT:"},
+                    "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
+                    "video": {"type": "video_url", "video_url": {"url": "file://{video}"}},
+                    "audio": {"type": "audio_url", "audio_url": {"url": "file://{audio}"}},
+                })
             ]
             )
     ),

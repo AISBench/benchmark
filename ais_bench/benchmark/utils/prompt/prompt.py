@@ -8,6 +8,11 @@ from typing import Dict, List, Union
 
 from mmengine.config import ConfigDict
 
+AIS_TEXT_START = "<AIS_TEXT_START>"
+AIS_IMAGE_START = "<AIS_IMAGE_START>"
+AIS_VIDEO_START = "<AIS_VIDEO_START>"
+AIS_AUDIO_START = "<AIS_AUDIO_START>"
+AIS_CONTENT_TAG = "<AIS_CONTENT_TAG>"
 
 def safe_format(input_str: str, **kwargs) -> str:
     """Safely formats a string with the given keyword arguments. If a keyword
@@ -135,26 +140,45 @@ class PromptList(list):
                 if 'prompt_mm' in item:
                     mm = item.get('prompt_mm', {})
                     new_mm = new_item.setdefault('prompt_mm', {})
-                    # mmmu
-                    if isinstance(mm, str):
-                        new_item['prompt_mm'] = json.loads(safe_format(mm, **kwargs))
-                    if not isinstance(mm, dict):
-                        # Optional: raise or skip if unexpected type after parsing
-                        pass
-                    else:
-                        #image_url/video_url/audio_url
-                        for field in ('image_url', 'video_url', 'audio_url'):
-                            if field in mm:
-                                val = mm[field]
-                                if isinstance(val, dict) and val.get('url') is not None:
-                                    val = val.copy()
-                                    val['url'] = safe_format(val['url'], **kwargs)
-                                else:
-                                    val = safe_format(val, **kwargs)
-                                new_mm[field] = val
-                        # text
-                        if 'text' in mm:
-                            new_mm['text'] = safe_format(mm['text'], **kwargs)
+                    contents=[]
+                    content_str = kwargs["content"]
+                    for item in content_str.split(AIS_CONTENT_TAG):
+                        if item.startswith(AIS_TEXT_START):
+                            question = item.replace(AIS_TEXT_START, "")
+                            question = {"question": question}
+                            text_content = mm['text'].copy()
+                            text_content['text'] = safe_format(text_content['text'], **question)
+                            contents.append(text_content)
+                        elif item.startswith(AIS_IMAGE_START):
+                            image = item.replace(AIS_IMAGE_START, "")
+                            image = {"image": image}
+                            image_content = mm['image'].copy()
+                            if isinstance(image_content['image_url'], dict):
+                                image_content['image_url']['url'] = safe_format(image_content['image_url']['url'], **image)
+                            else:
+                                image_content['image_url'] = safe_format(image_content['image_url'], **image)
+                            contents.append(image_content)
+                        elif item.startswith(AIS_VIDEO_START):
+                            video = item.replace(AIS_VIDEO_START, "")
+                            video = {"video": video}
+                            video_content = mm['video'].copy()
+                            if isinstance(video_content['video_url'], dict):
+                                video_content['video_url']['url'] = safe_format(video_content['video_url']['url'], **video)
+                            else:
+                                video_content['video_url'] = safe_format(video_content['video_url'], **video)
+                            contents.append(video_content)
+                        elif item.startswith(AIS_AUDIO_START):
+                            audio = item.replace(AIS_AUDIO_START, "")
+                            audio = {"audio": audio}
+                            audio_content = mm['audio'].copy()
+                            if isinstance(audio_content['audio_url'], dict):
+                                audio_content['audio_url']['url'] = safe_format(audio_content['audio_url']['url'], **audio)
+                            else:
+                                audio_content['audio_url'] = safe_format(audio_content['audio_url'], **audio)
+                            contents.append(audio_content)
+                        else:
+                            continue
+                    new_item["prompt_mm"] = contents
                 new_list.append(new_item)
             else:
                 new_list.append(safe_format(item, **kwargs))

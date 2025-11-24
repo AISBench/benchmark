@@ -15,8 +15,12 @@ textvqa_infer_cfg = dict(
         type=MMPromptTemplate,
         template=dict(
             round=[
-                dict(role="HUMAN", prompt_mm={"text": "{question} Answer the question using a single word or phrase.",
-                                           "image_url": {"url": "data:image/jpeg;base64,{image_url}"}})
+                dict(role="HUMAN", prompt_mm={
+                    "text": {"type": "text", "text": "{question} Answer the question using a single word or phrase."},
+                    "image": {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,{image}"}},
+                    "video": {"type": "video_url", "video_url": {"url": "data:video/jpeg;base64,{video}"}},
+                    "audio": {"type": "audio_url", "audio_url": {"url": "data:audio/wav;base64,{audio}"}},
+                })
             ]
             )
     ),

@@ -12,7 +12,7 @@ from datasets import Dataset, DatasetDict
 from ais_bench.benchmark.openicl import BaseEvaluator
 from ais_bench.benchmark.registry import LOAD_DATASET, TEXT_POSTPROCESSORS
 from ais_bench.benchmark.utils.logging import AISLogger
-from ais_bench.benchmark.datasets.utils.datasets import get_data_path, toliststr, decode_base64_to_image_file
+from ais_bench.benchmark.datasets.utils.datasets import get_data_path, toliststr, decode_base64_to_image_file, get_content_str
 
 from .base import BaseDataset
 
@@ -208,9 +208,10 @@ class MMMUDataset(BaseDataset):
             msgs.append(dict(type='text', text=prompt))
             # split image text in order
             msgs = split_MMMU(msgs)
+            content = get_content_str(msgs)
             choices = build_choices(line)
-            dataset.append({"content": json.dumps(msgs), 
-                            "answer": {'choices': choices, 
+            dataset.append({"content": content, 
+                            "answer": {'choices': json.dumps(choices), 
                                         'answer': line['answer'],
                                         'split': line['split'] if 'split' in line else None,
                                         'l2-category': line['l2-category'] if 'l2-category' in line else None,
@@ -333,14 +334,12 @@ def sort_key(item):
 class MMMUEvaluator(BaseEvaluator):
 
     def score(self, predictions, references):
-        result = {"[validation]: Overall": [], "[dev]: Overall": []}
+        result = {}
         if len(predictions) != len(references):
             return {
                 'error': 'predictions and references have different '
                 'length'
             }
-        correct = 0
-        count = 0
         details = []
         special_characters = ['<|im_end|>']
         for pred, refer in zip(predictions, references):

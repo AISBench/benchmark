@@ -201,7 +201,7 @@ class HuggingFaceQwen2VLwithChatTemplate(BaseModel):
         outputs = outputs[:, inputs['input_ids'].shape[1]:]
 
         # step-3: decode the output
-        decodeds = self.tokenizer.batch_decode(outputs)
+        decodeds = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
         for stop in stopping_criteria:
             decodeds = [t.split(stop)[0] for t in decodeds]
 

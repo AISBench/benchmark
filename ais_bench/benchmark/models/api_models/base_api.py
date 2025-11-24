@@ -16,7 +16,7 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import MODEL_CODES
 from ais_bench.benchmark.utils.logging.exceptions import (
     AISBenchNotImplementedError, AISBenchValueError, AISBenchKeyError,
-    AISBenchTypeError, AISBenchRuntimeError)
+    AISBenchTypeError, AISBenchRuntimeError, AISBenchImplementationError)
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models import BaseModel
 from ais_bench.benchmark.models.output import Output
@@ -307,7 +307,69 @@ class BaseAPIModel(BaseModel):
             • Store results in `output` (ppl value, raw logprobs, success flag, error info).
             • Respect session lifecycle: only close if they created it.
         """
+        if session is None:
+            self.session = aiohttp.ClientSession(trust_env=True, timeout=AIOHTTP_TIMEOUT)
+            close_session = True
+        else:
+            self.session = session
+            close_session = False
+        request_body = await self.get_ppl_request_body(input_data, max_out_len, output, **args)
+        retry_count = 0
+        for _ in range(self.retry):
+            try:
+                async with self.session.post(
+                    url=self.url, json=request_body, headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        raw_data = await response.text()
+                        try:
+                            data = json.loads(raw_data)
+                        except json.JSONDecodeError as e:
+                            output.success = False
+                            output.error_info = f"Unexpected response format: {raw_data}. Please check if server is working correctly."
+                            continue
+                        prompt_logprobs = self.get_prompt_logprobs(data)
+                        output.origin_prompt_logprobs = prompt_logprobs
+                        loss = self._calc_ppl(prompt_logprobs)
+                        output.ppl = loss
+                        output.success = True
+                        break
+                    else:
+                        output.error_info = response.reason
+                        output.success = False
+                        continue
+            except asyncio.exceptions.CancelledError as e:
+                output.success = False
+                output.error_info = "Request cancelled by user"
+                break
+            except Exception as e:
+                retry_count += 1
+                output.success = False
+                exc_info = sys.exc_info()
+                output.error_info = (
+                    f"After {retry_count} retries, request failed with exception:\n"
+                    + "\n".join(traceback.format_exception(*exc_info))
+                )
+                continue
+        if close_session:
+            await self.session.close()
+
+    async def get_ppl_request_body(self, input_data:PromptType, max_out_len: int, output: PPLRequestOutput, **args):
         raise AISBenchNotImplementedError(ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED, f"PPL is not supported for this model.")
+
+    def get_prompt_logprobs(self, data: dict):
+        raise AISBenchNotImplementedError(ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED, f"PPL is not supported for this model.")
+
+    def _calc_ppl(self, prompt_logprobs: list):
+        logprobs = [list(item.values())[0]['logprob'] for item in prompt_logprobs if item is not None]
+        tokenids = [list(item.keys())[0] for item in prompt_logprobs if item is not None]
+        if len(tokenids) == 0:
+            raise AISBenchImplementationError(
+                ICLI_CODES.PPL_COMPUTE_ERROR_NO_VALID_TOKENS,
+                "No valid tokens with log probabilities found for PPL computation."
+            )
+        loss = -sum(logprobs) / len(tokenids)
+        return loss
 
 class APITemplateParser:
     """Intermidate prompt template parser, specifically for API models.

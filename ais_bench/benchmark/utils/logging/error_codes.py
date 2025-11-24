@@ -155,6 +155,7 @@ class ICLI_CODES:
     STREAM_MODE_NOT_SUPPORTED_FOR_PPL_INFERENCE = BaseErrorCode("ICLI-PARAM-007", ErrorModule.ICL_INFERENCER, ErrorType.PARAM, 7, "stream mode is not supported for ppl inference")
     IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED = BaseErrorCode("ICLI-IMPL-008", ErrorModule.ICL_INFERENCER, ErrorType.IMPLEMENTATION, 8, "ppl method not implemented")
     IMPLEMENTATION_ERROR_OUTPUT_NOT_PPL_RESPONSE_OUTPUT = BaseErrorCode("ICLI-IMPL-009", ErrorModule.ICL_INFERENCER, ErrorType.IMPLEMENTATION, 9, "output is not a PPLResponseOutput")
+    PPL_COMPUTE_ERROR_NO_VALID_TOKENS = BaseErrorCode("ICLI-IMPL-010", ErrorModule.ICL_INFERENCER, ErrorType.IMPLEMENTATION, 10, "no valid tokens with log probabilities found for PPL computation")
     
     WARMUP_GET_RESULT_FAILED = BaseErrorCode("ICLI-RUNTIME-001", ErrorModule.ICL_INFERENCER, ErrorType.RUNTIME, 1, "get result from cache queue failed")
     WARMUP_FAILED = BaseErrorCode("ICLI-RUNTIME-002", ErrorModule.ICL_INFERENCER, ErrorType.RUNTIME, 2, "warmup failed")

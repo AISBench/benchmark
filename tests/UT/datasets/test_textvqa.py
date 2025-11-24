@@ -19,7 +19,7 @@ class TestTEXTVQA(unittest.TestCase):
         annot = {"annotations": [{"question_id": 1, "answers": [{"answer": "foo"}]}]}
         m_ann = mock_open(read_data=str(annot).replace("'", '"'))
         # questions 文件（每行 JSON）
-        q_line = '{"question_id": 1, "image": "/img.png"}'
+        q_line = '{"question_id": 1, "image": "/img.png", "question": "xxx"}'
         m_q = mock_open(read_data=q_line + "\n")
         mock_open_file.side_effect = [m_ann.return_value, m_q.return_value]
         ds = TEXTVQADataset.load("/any", image_type="image_path")
@@ -32,7 +32,7 @@ class TestTEXTVQA(unittest.TestCase):
     def test_load_image_base64(self, mock_open_file, mock_get_path):
         annot = {"annotations": [{"question_id": 1, "answers": [{"answer": "foo"}]}]}
         m_ann = mock_open(read_data=str(annot).replace("'", '"'))
-        q_line = '{"question_id": 1, "image": "/img.png"}'
+        q_line = '{"question_id": 1, "image": "/img.png", "question": "xxx"}'
         m_q = mock_open(read_data=q_line + "\n")
         m_img = mock_open()
         m_img.return_value.read.return_value = b"bin"

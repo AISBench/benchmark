@@ -6,7 +6,9 @@ from ais_bench.benchmark.datasets import ARCDataset
 
 ARC_e_reader_cfg = dict(
     input_columns=['question', 'textA', 'textB', 'textC', 'textD'],
-    output_column='answerKey')
+    output_column='answerKey',
+    train_split='Dev',
+    test_split='Test')
 
 ARC_e_infer_cfg = dict(
     prompt_template=dict(

@@ -9,6 +9,7 @@ from ais_bench.benchmark.registry import LOAD_DATASET
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path
 from ais_bench.benchmark.datasets.utils.video import VideoAsset, image_to_base64
 from ais_bench.benchmark.datasets.base import BaseDataset
+from ais_bench.benchmark.utils.prompt import AIS_CONTENT_TAG, AIS_TEXT_START, AIS_VIDEO_START
 
 TEXT_MAP = {
             2: 'two', 
@@ -92,10 +93,14 @@ class VideoBenchDataset(BaseDataset):
                         video_url = ','.join(base64_frames)
                     else:
                         raise ValueError("video_type must be video_path or video_base64")
+                    question = data[key]["question"] + choices_prompt
+                    content = AIS_VIDEO_START + video_url + AIS_CONTENT_TAG \
+                            + AIS_TEXT_START + question + AIS_CONTENT_TAG
                     dataset.append({"video_url": video_url,
                                     "video_id": str(data[key]["video_id"]),
                                     "question": data[key]["question"],
                                     "choices_prompt": choices_prompt,
+                                    "content": content,
                                     'answer': answer})
                 except:
                     raise ValueError("Please check your datasets!")

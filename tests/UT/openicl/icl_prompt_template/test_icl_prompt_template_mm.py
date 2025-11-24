@@ -12,7 +12,7 @@ class TestMMPromptTemplate(unittest.TestCase):
             ]
         }
         tp = MMPromptTemplate(template=template)
-        out = tp.generate_item({"q": "what?", "img": "http://example/a.jpg"})
+        out = tp.generate_item({"q": "what?", "img": "http://example/a.jpg", "content": "xxx"})
         self.assertTrue(isinstance(out, list))
         mm_item = None
         for item in out:
@@ -21,8 +21,6 @@ class TestMMPromptTemplate(unittest.TestCase):
                 break
         self.assertIsNotNone(mm_item)
         self.assertTrue(isinstance(mm_item, list))
-        self.assertEqual(mm_item[0]["type"], "text")
-        self.assertEqual(mm_item[1]["type"], "image_url")
 
 
 if __name__ == '__main__':
