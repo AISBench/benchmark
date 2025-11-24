@@ -8,7 +8,7 @@ import random
 from openai import OpenAI
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import (
-    AISRuntimeError,
+    AISBenchRuntimeError,
     ParameterValueError,
 )
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
@@ -104,7 +104,7 @@ class NaiveExtractor:
                 base_url=chosen_url,
             )
         except Exception as e:
-            raise AISRuntimeError(
+            raise AISBenchRuntimeError(
                 UTILS_CODES.DEPENDENCY_MODULE_IMPORT_ERROR,
                 f"Failed to initialize OpenAI client: {type(e).__name__}: {str(e)}",
             ) from e
@@ -136,7 +136,7 @@ class NaiveExtractor:
                     js_response = json.loads(chat_response.model_dump_json())
                     response = js_response['choices'][0]['message']['content']
                 except (json.JSONDecodeError, KeyError, TypeError) as parse_err:
-                    raise AISRuntimeError(
+                    raise AISBenchRuntimeError(
                         UTILS_CODES.API_RESPONSE_PARSE_FAILED,
                         f"Failed to parse response JSON: {type(parse_err).__name__}: {str(parse_err)}",
                     ) from parse_err
@@ -151,7 +151,7 @@ class NaiveExtractor:
                 retry -= 1
         if retry == 0:
             elapsed = time.perf_counter() - t
-            raise AISRuntimeError(
+            raise AISBenchRuntimeError(
                 UTILS_CODES.API_RETRY_EXCEEDED,
                 f"API down or unresponsive after {self.retry} retries at {chosen_url} (elapsed {elapsed:.2f}s)"
             )

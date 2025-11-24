@@ -9,7 +9,7 @@ from ais_bench.benchmark.utils.postprocess.postprocessors.naive.extractor import
     Meta_Instruction,
 )
 from ais_bench.benchmark.utils.logging.exceptions import (
-    AISRuntimeError,
+    AISBenchRuntimeError,
     ParameterValueError,
 )
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
@@ -108,7 +108,7 @@ def test_openai_init_failure_raises_custom_error(monkeypatch):
     )
 
     ex = NaiveExtractor(model_name="m", url="http://u")
-    with pytest.raises(AISRuntimeError) as ei:
+    with pytest.raises(AISBenchRuntimeError) as ei:
         ex.openai_infer("q")
     assert ei.value.error_code_str == UTILS_CODES.DEPENDENCY_MODULE_IMPORT_ERROR.full_code
 
@@ -169,7 +169,7 @@ def test_openai_infer_parse_failure_raises(monkeypatch):
     )
 
     ex = NaiveExtractor(model_name="m", url="http://u")
-    with pytest.raises(AISRuntimeError) as ei:
+    with pytest.raises(AISBenchRuntimeError) as ei:
         ex.openai_infer("hello")
     assert ei.value.error_code_str == UTILS_CODES.API_RESPONSE_PARSE_FAILED.full_code
 
@@ -193,6 +193,6 @@ def test_openai_infer_retry_exhaustion_raises(monkeypatch):
     monkeypatch.setattr("time.perf_counter", lambda: 0.0)
 
     ex = NaiveExtractor(model_name="m", url="http://u")
-    with pytest.raises(AISRuntimeError) as ei:
+    with pytest.raises(AISBenchRuntimeError) as ei:
         ex.openai_infer("hello", retry=2)
     assert ei.value.error_code_str == UTILS_CODES.API_RETRY_EXCEEDED.full_code

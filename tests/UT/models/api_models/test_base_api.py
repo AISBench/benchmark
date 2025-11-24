@@ -6,13 +6,13 @@ from unittest import mock
 from copy import deepcopy
 import requests
 
-from ais_bench.benchmark.models.api_models.base_api import (
+from ais_bench.benchmark.models import (
     BaseAPIModel, APITemplateParser, PromptType
 )
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.utils.logging.exceptions import (
-    AISBenchNotImplementedError, AISBenchTypeError, AISBenchValueError,
+    AISBenchTypeError, AISBenchValueError,
     AISBenchRuntimeError, AISBenchKeyError
 )
 

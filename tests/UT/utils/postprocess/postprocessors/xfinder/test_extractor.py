@@ -7,7 +7,7 @@ from ais_bench.benchmark.utils.postprocess.postprocessors.xfinder.extractor impo
     Extractor,
 )
 from ais_bench.benchmark.utils.logging.exceptions import (
-    AISRuntimeError,
+    AISBenchRuntimeError,
 )
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
@@ -132,7 +132,7 @@ def test_openai_infer_client_init_failure_raises(monkeypatch):
     )
 
     ex = Extractor(model_name="xFinder-qwen1505", url="http://u")
-    with pytest.raises(AISRuntimeError) as ei:
+    with pytest.raises(AISBenchRuntimeError) as ei:
         ex.openai_infer("q")
     assert ei.value.error_code_str == UTILS_CODES.UNKNOWN_ERROR.full_code
 
@@ -192,7 +192,7 @@ def test_openai_infer_parse_failure_raises(monkeypatch):
     )
 
     ex = Extractor(model_name="xFinder-qwen1505", url="http://u")
-    with pytest.raises(AISRuntimeError) as ei:
+    with pytest.raises(AISBenchRuntimeError) as ei:
         ex.openai_infer("hello")
     assert ei.value.error_code_str == UTILS_CODES.API_RESPONSE_PARSE_FAILED.full_code
 
@@ -216,7 +216,7 @@ def test_openai_infer_retry_exhaustion_raises(monkeypatch):
     monkeypatch.setattr("time.perf_counter", lambda: 0.0)
 
     ex = Extractor(model_name="xFinder-qwen1505", url="http://u")
-    with pytest.raises(AISRuntimeError) as ei:
+    with pytest.raises(AISBenchRuntimeError) as ei:
         ex.openai_infer("hello", retry=2)
     assert ei.value.error_code_str == UTILS_CODES.API_RETRY_EXCEEDED.full_code
 

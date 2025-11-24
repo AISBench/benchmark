@@ -248,6 +248,11 @@ class UTILS_CODES:
     # Parameter errors (additional)
     MISSING_API_URL = BaseErrorCode("UTILS-PARAM-009",ErrorModule.UTILS,ErrorType.PARAM,9,"api_url is required")
 
+    # File errors
+    MATCH_CONFIG_FILE_FAILED = BaseErrorCode("UTILS-FILE-001", ErrorModule.UTILS, ErrorType.FILE, 1, "match config file failed")
+    TOKENIZER_PATH_NOT_FOUND = BaseErrorCode("UTILS-FILE-002", ErrorModule.UTILS, ErrorType.FILE, 2, "tokenizer path not found")
+    TOKENIZER_LOAD_FAILED = BaseErrorCode("UTILS-FILE-003", ErrorModule.UTILS, ErrorType.FILE, 3, "tokenizer load failed")
+
     # Config validation errors
     MODEL_CONFIG_VALIDATE_FAILED = BaseErrorCode("UTILS-CFG-001", ErrorModule.UTILS, ErrorType.CONFIG, 1, "model config validate failed")
     SYNTHETIC_DS_MISS_REQUIRED_PARAM = BaseErrorCode("UTILS-CFG-002", ErrorModule.UTILS, ErrorType.CONFIG, 2, "synthetic dataset miss required param")
@@ -256,10 +261,10 @@ class UTILS_CODES:
     NON_FUNCTION_CALL_MODEL = BaseErrorCode("UTILS-CFG-005", ErrorModule.UTILS, ErrorType.CONFIG, 5, "non function call model found for BFCLDataset")
     NON_BFCL_DATASET = BaseErrorCode("UTILS-CFG-006", ErrorModule.UTILS, ErrorType.CONFIG, 6, "non BFCL dataset found for VLLMFunctionCallAPIChat")
     INCOMPATIBLE_MERGE_DS = BaseErrorCode("UTILS-CFG-007", ErrorModule.UTILS, ErrorType.CONFIG, 7, "incompatible --merge-ds option for function call task")
-    SYNTHETIC_DS_MISS_REQUIRED_PARAM = BaseErrorCode("UTILS-CFG-001", ErrorModule.UTILS, ErrorType.CONFIG, 1, "synthetic dataset miss required param")
     MM_CUSTOM_DATASET_WRONG_FORMAT = BaseErrorCode("UTILS-CFG-008", ErrorModule.UTILS, ErrorType.CONFIG, 8, "invalid mm custom dataset")
 
     # Dependency/runtime errors (additional)
+    DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001",ErrorModule.UTILS,ErrorType.DEPENDENCY,1,"failed to import dependency module")
     API_RETRY_EXCEEDED = BaseErrorCode("UTILS-DEPENDENCY-002",ErrorModule.UTILS,ErrorType.DEPENDENCY,2,"API retries exhausted")
 
     # Data/response errors (additional)

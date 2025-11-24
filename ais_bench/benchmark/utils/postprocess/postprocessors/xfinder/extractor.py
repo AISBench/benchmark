@@ -6,7 +6,7 @@ import requests
 from openai import OpenAI
 
 from ais_bench.benchmark.utils.logging import AISLogger
-from ais_bench.benchmark.utils.logging.exceptions import AISRuntimeError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 from .xfinder_utils.PROMPT_TEMPLATE import PROMPT_TEMPLATE
 
@@ -134,7 +134,7 @@ class Extractor:
                 base_url=chosen_url,
             )
         except Exception as e:
-            raise AISRuntimeError(UTILS_CODES.UNKNOWN_ERROR, f"Failed to initialize OpenAI client: {type(e).__name__}: {str(e)}") from e
+            raise AISBenchRuntimeError(UTILS_CODES.UNKNOWN_ERROR, f"Failed to initialize OpenAI client: {type(e).__name__}: {str(e)}") from e
         self.retry = retry
 
         t = time.perf_counter()
@@ -167,7 +167,7 @@ class Extractor:
                 break
             except (ConnectionError, TimeoutError, OSError, RuntimeError, KeyError, IndexError, json.JSONDecodeError) as e:
                 if isinstance(e, (KeyError, IndexError, json.JSONDecodeError)):
-                    raise AISRuntimeError(UTILS_CODES.API_RESPONSE_PARSE_FAILED, f"Failed to parse API response: {e}") from e
+                    raise AISBenchRuntimeError(UTILS_CODES.API_RESPONSE_PARSE_FAILED, f"Failed to parse API response: {e}") from e
                 logger.warning(
                     f'Inference error at url={chosen_url}: {type(e).__name__}: {e}. retries_left={retry-1}'
                 )
@@ -176,7 +176,7 @@ class Extractor:
                 retry -= 1
         if retry == 0:
             elapsed = time.perf_counter() - t
-            raise AISRuntimeError(UTILS_CODES.API_RETRY_EXCEEDED, f'Failed to get response after retries {elapsed:.2f}s')
+            raise AISBenchRuntimeError(UTILS_CODES.API_RETRY_EXCEEDED, f'Failed to get response after retries {elapsed:.2f}s')
         return response.strip()
 
     def offline_infer(self, query: str) -> str:

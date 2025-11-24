@@ -3,12 +3,12 @@ import json
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from typing import List, Optional, Tuple, Any, Dict, Union, Callable
+from typing import List, Optional, Tuple, Union, Callable
 from tabulate import tabulate
 
-from ais_bench.benchmark.utils.logging.logging import get_logger
+from ais_bench.benchmark.utils.logging import AISLogger
 
-logger = get_logger()
+logger = AISLogger()
 
 _NORMAL_INDICES_MASK: np.ndarray = np.array([], dtype=int)
 _ADAPTIVE_WINDOW_SIZE: int = 0
@@ -1024,8 +1024,8 @@ def add_actual_rps_to_chart(
     # construct a valid output path
     output_path = _determine_output_path(base_chart, output_name)
     if not output_path:
-        logger.warning(f"Not invalid output path not provided: \n"
-                       f"got base chart: {base_chart}"
+        logger.warning(f"Invalid output path or output path not provided: \n"
+                       f"got base chart: {base_chart}\n"
                        f"got output name: {output_name}")
         logger.warning("Chart will not be saved.")
         return
@@ -1335,15 +1335,15 @@ def _export_to_html(fig: go.Figure, output_path: str, save_json: bool = True) ->
                     'responsive': True
                 }
             )
+            logger.info(f"Successfully saved RPS distribution HTML chart to {output_path}")
 
             if save_json:
                 filename: str = output_path.replace('.html', '.json')
                 _export_to_json(fig, filename)
-                logger.info(f"RPS distribution chart JSON data saved to {filename}")
         else:
             logger.warning("No figure to save.")
     except Exception as e:
-        logger.error(f"Unexpected error when saving HTML file: {e}")
+        logger.warning(f"Unexpected error when saving HTML file: {e}")
 
 
 def _export_to_json(fig: go.Figure, filename: str) -> None:
@@ -1352,8 +1352,9 @@ def _export_to_json(fig: go.Figure, filename: str) -> None:
         fig_dict = fig.to_dict()
         with open(filename, 'w') as f:
             json.dump(fig_dict, f, indent=2)
+        logger.info(f"Successfully saved RPS distribution JSON data to {filename}")
     except Exception as e:
-        logger.error(f"Unexpected error when saving JSON file: {e}")
+        logger.warning(f"Unexpected error when saving JSON file: {e}")
 
 
 def _merge_into_subplot(
@@ -1421,7 +1422,7 @@ def _merge_into_subplot(
     try:
         dst_dict = load_chart_data(dst)
     except Exception as e:
-        logger.info(f"Destination chart loading failed: {str(e)}.")
+        logger.warning(f"Destination chart loading failed: {str(e)}.")
         dst_dict = None
 
     try:
@@ -1434,21 +1435,21 @@ def _merge_into_subplot(
                     try:
                         rollback(merged_fig)
                     except Exception as e:
-                        logger.error(f"Callback function failed: {str(e)}")
+                        logger.warning(f"Callback function failed: {str(e)}")
                 return merged_fig
 
             except Exception as e_fig:
-                logger.error(f"Failed to create Figure from source: {str(e_fig)}")
+                logger.warning(f"Failed to create Figure from source: {str(e_fig)}")
                 logger.info(f"No information will be updated in any chart.")
                 return
 
     except Exception as e:
-        logger.error(f"Source chart loading failed: {str(e)}")
+        logger.warning(f"Source chart loading failed: {str(e)}")
         logger.info(f"No information will be updated in any chart.")
         return
 
     if 'data' not in dst_dict or 'layout' not in dst_dict:
-        logger.error("Invalid destination chart format")
+        logger.warning("Invalid destination chart format")
         logger.info(f"No information will be updated in any chart.")
         return
 
@@ -1530,7 +1531,7 @@ def _merge_into_subplot(
     try:
         merged_fig = go.Figure(dst_dict)
     except Exception as e:
-        logger.error(f"Failed to create Figure object: {str(e)}")
+        logger.warning(f"Failed to create Figure object: {str(e)}")
         logger.info(f"No information will be updated in any chart.")
         return
 
@@ -1538,7 +1539,7 @@ def _merge_into_subplot(
         try:
             callback(merged_fig, src_dict)
         except Exception as e:
-            logger.error(f"Callback function failed: {str(e)}")
+            logger.warning(f"Callback function failed: {str(e)}")
 
     return merged_fig
 

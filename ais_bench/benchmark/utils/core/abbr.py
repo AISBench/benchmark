@@ -5,7 +5,7 @@ from mmengine.config import ConfigDict
 
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
-from ais_bench.benchmark.utils.logging.exceptions import AISRuntimeError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError
 
 
 logger = AISLogger()
@@ -69,7 +69,7 @@ def get_infer_output_path(
 ) -> str:
     # change to raise exception
     if root_path is None:
-        raise AISRuntimeError(UTILS_CODES.ROOT_PATH_NOT_SET, "root_path is not set")
+        raise AISBenchRuntimeError(UTILS_CODES.ROOT_PATH_NOT_SET, "root_path is not set")
     model_abbr = model_abbr_from_cfg(model_cfg)
     if isinstance(dataset_cfgs, list):
         if len(dataset_cfgs) > 1:

@@ -36,7 +36,11 @@ def load_tokenizer(tokenizer_path: str):
         logger.info(f"Successfully loaded tokenizer from: {tokenizer_path}")
         return tokenizer
     except Exception as e:
-        raise ValueError(f"Failed to load tokenizer from {tokenizer_path}: {e}")
+        logger.warning(f"Failed to load tokenizer from {tokenizer_path}: {type(e).__name__}: {e}")
+        raise FileOperationError(
+            UTILS_CODES.TOKENIZER_LOAD_FAILED,
+            f"Failed to load tokenizer from {tokenizer_path}: {type(e).__name__}: {e}"
+        ) from e
     return tokenizer
 
 

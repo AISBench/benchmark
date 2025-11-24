@@ -12,7 +12,7 @@ from ais_bench.benchmark.utils.core.abbr import (
     get_infer_output_path,
     deal_with_judge_model_abbr,
 )
-from ais_bench.benchmark.utils.logging.exceptions import AISRuntimeError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError
 
 
 class TestAbbrUtilities(unittest.TestCase):
@@ -148,7 +148,7 @@ class TestAbbrUtilities(unittest.TestCase):
         model_cfg = ConfigDict({"abbr": "gpt-4"})
         dataset_cfg = ConfigDict({"abbr": "gsm8k"})
         
-        with self.assertRaises(AISRuntimeError):
+        with self.assertRaises(AISBenchRuntimeError):
             get_infer_output_path(model_cfg, dataset_cfg)
         
         mock_logger.warning.assert_not_called()
