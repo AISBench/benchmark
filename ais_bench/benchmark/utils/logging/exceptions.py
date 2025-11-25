@@ -26,7 +26,7 @@ class CommandError(AISBenchBaseException):
     pass
 
 
-class ConfigError(AISBenchBaseException):
+class AISBenchConfigError(AISBenchBaseException):
     pass
 
 
@@ -91,4 +91,7 @@ class AISBenchModuleNotFoundError(AISBenchBaseException):
 
 
 class PredictionInvalidException(AISBenchBaseException):
+    pass
+
+class AISBenchInvalidTypeException(AISBenchBaseException):
     pass

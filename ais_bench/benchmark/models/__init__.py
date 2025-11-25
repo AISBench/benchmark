@@ -1,5 +1,5 @@
 from ais_bench.benchmark.models.local_models.base import BaseModel, LMTemplateParser  # noqa: F401
-from ais_bench.benchmark.models.api_models.base_api import APITemplateParser, BaseAPIModel  # noqa: F401
+from ais_bench.benchmark.models.api_models.base_api import APITemplateParser, BaseAPIModel, PromptType  # noqa: F401
 from ais_bench.benchmark.models.api_models.vllm_custom_api import VLLMCustomAPI # noqa: F401
 from ais_bench.benchmark.models.api_models.vllm_custom_api_chat import VLLMCustomAPIChat # noqa: F401
 from ais_bench.benchmark.models.api_models.mindie_stream_api import MindieStreamApi

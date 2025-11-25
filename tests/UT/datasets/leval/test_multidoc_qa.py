@@ -5,7 +5,7 @@ from unittest.mock import patch
 from datasets import Dataset, DatasetDict
 
 from ais_bench.benchmark.datasets.leval.multidoc_qa import LEvalMultidocQADataset
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 
 
 class TestLEvalMultidocQADataset:
@@ -65,7 +65,7 @@ class TestLEvalMultidocQADataset:
 
     def test_multidoc_qa_load_missing_path(self):
         """Test that ConfigError is raised when 'path' argument is missing."""
-        with pytest.raises(ConfigError) as exc_info:
+        with pytest.raises(AISBenchConfigError) as exc_info:
             LEvalMultidocQADataset.load()
         
         # Verify the error message contains helpful information

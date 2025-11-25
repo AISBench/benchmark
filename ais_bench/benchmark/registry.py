@@ -59,8 +59,6 @@ MODELS = Registry('model', locations=get_locations('models'))
 LOAD_DATASET = Registry('load_dataset', locations=get_locations('datasets'))
 TEXT_POSTPROCESSORS = Registry(
     'text_postprocessors', locations=get_locations('utils.postprocess.text_postprocessors'))
-DICT_POSTPROCESSORS = Registry(
-    'base_postprocessors', locations=get_locations('utils.postprocess.base_postprocessors'))
 
 EVALUATORS = Registry('evaluators', locations=get_locations('evaluators'))
 

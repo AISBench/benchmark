@@ -12,7 +12,7 @@ import tabulate
 from mmengine import ConfigDict
 
 from ais_bench.benchmark.utils.logging.logger import AISLogger
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.core.abbr import dataset_abbr_from_cfg, get_infer_output_path, model_abbr_from_cfg
 from ais_bench.benchmark.utils.prompt import get_prompt_hash
 

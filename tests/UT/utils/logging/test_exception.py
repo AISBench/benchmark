@@ -6,7 +6,7 @@ from ais_bench.benchmark.utils.logging.exceptions import (
     AISBenchBaseException,
     PerfResultCalcException,
     CommandError,
-    ConfigError,
+    AISBenchConfigError,
     FileMatchError
 )
 from ais_bench.benchmark.utils.logging.error_codes import BaseErrorCode
@@ -103,7 +103,7 @@ class TestExceptionSubclasses(unittest.TestCase):
         """测试异常子类是否正确继承AISBenchBaseException"""
         self.assertTrue(issubclass(PerfResultCalcException, AISBenchBaseException))
         self.assertTrue(issubclass(CommandError, AISBenchBaseException))
-        self.assertTrue(issubclass(ConfigError, AISBenchBaseException))
+        self.assertTrue(issubclass(AISBenchConfigError, AISBenchBaseException))
         self.assertTrue(issubclass(FileMatchError, AISBenchBaseException))
     
     @patch('ais_bench.benchmark.utils.logging.exceptions.error_manager')
@@ -117,7 +117,7 @@ class TestExceptionSubclasses(unittest.TestCase):
         mock_get_formatted.return_value = "Formatted message"
         
         # 测试每个子类都能正确初始化
-        for exception_class in [PerfResultCalcException, CommandError, ConfigError, FileMatchError]:
+        for exception_class in [PerfResultCalcException, CommandError, AISBenchConfigError, FileMatchError]:
             exception = exception_class(mock_error_code)
             self.assertIsInstance(exception, AISBenchBaseException)
             self.assertEqual(exception.error_code_str, "TEST-ERR-001")
