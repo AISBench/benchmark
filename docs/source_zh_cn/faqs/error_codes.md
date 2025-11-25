@@ -182,23 +182,56 @@ Current user can't modify /path/to/workspace/outputs/default/20250628_151326/pre
 
 ## CALC-FILE-001
 ### 错误描述
+落盘性能结果数据失败
 ### 解决办法
+若详细的报错日志为；
+```bash
+Failed to write request level performance metrics to csv file '{/path/to/workspace/outputs/default/20250628_151326/performances/vllm-api-stream-chat/gsm8k.csv': XXXXXX
+```
+其中`XXXXXX`为具体落盘失败的原因，例如`Permission denied`表示该文件已存在且当前用户没有写权限，可以选择删除该文件或者给已存在的文件添加当前用户的写权限。
 
 ## CALC-DATA-001
 ### 错误描述
+所有结束的推理请求都没有获取到有效的性能指标数据，无法计算指标。
 ### 解决办法
+若具体日志为：
+```bash
+All requests failed, cannot calculate performance results. Please check the error logs from responses!
+```
+这表明推理过程中的所有请求都失败了，需要进一步去查看请求失败的日志，定位请求失败的原因。
+1. 如果命令中包含`--debug`，请求失败的日志将直接打屏，可以在打屏记录中查看
+2. 如果命令中不包含`--debug`，打屏记录中会有`[ERROR] [RUNNER-TASK-001]task failed. OpenICLApiInfervllm-api-stream-chat/synthetic failed with code 1, see outputs/default/20251125_160128/logs/infer/vllm-api-stream-chat/synthetic.out`类似的日志，可以在`outputs/default/20251125_160128/logs/infer/vllm-api-stream-chat/synthetic.out`中查看具体请求失败的原因。
 
 ## CALC-DATA-002
 ### 错误描述
+计算稳态性能指标时，在所有请求信息中找不到属于稳定阶段的请求，无法计算稳态指标。
 ### 解决办法
+可以检查一下推理请求的并发图（参考文档：https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/results_intro/performance_visualization.html），确认并发阶梯图中`Request Concurrency Count`是否达到模型配置文件中设置的并发数（`batch_size`参数）**且至少存在两个请求达到最大并发数**。
+若未满足上述条件，可以尝试以下方式达到稳定状态：
+#### 并发阶梯图中`Request Concurrency Count`持续增长之后直接持续下降
+1. 降低推理请求的并发数（模型配置文件中的`batch_size`参数）。
+2. 增加推理的总请求数。
+#### 并发阶梯图中`Request Concurrency Count`持续增长之后波动一段时间后持续下降
+1. 降低推理请求的并发数（模型配置文件中的`batch_size`参数）。
+2. 提高发送推理请求的频率（模型配置文件中的`request_tate`参数）
 
 ## SUMM-TYPE-001
 ### 错误描述
+所有数据集任务的`abbr`参数配置存在混用的情况
 ### 解决办法
+例如报错日志为：
+```bash
+mixed dataset_abbr type is not supported, dataset_abbr type only support (list, tuple) or str.
+```
+这表明在`datasets`配置中，所有数据集任务的`abbr`参数配置为不同的类型（例如`list`和`str`），需要将所有数据集任务的`abbr`参数配置统一为一个类型的值（例如`list`或`str`）。
 
 ## SUMM-FILE-001
 ### 错误描述
+在输出的工作路径下没有任何性能数据文件（`*_details.jsonl`）
 ### 解决办法
+1. 确认是否在执行评测时，通过`--mode perf_viz`误指定了性能结果重计算，如果是希望完整地跑一遍性能测试，请指定`--mode perf`
+2. 确认基础输出路径是否正确，例如`outputs/default/20250628_151326`（查找打屏中`Current exp folder: `）。
+3. 确认该路径下`performances/`文件夹内是否存在`*_details.jsonl`文件，若不存在，请排查之前的打屏日志中的其他报错信息，确认是否有其他错误导致性能数据文件未生成，依据其他错误日志的指引进一步定位。
 
 ## SUMM-MTRC-001
 ### 错误描述
