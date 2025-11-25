@@ -16,7 +16,6 @@ from ais_bench.benchmark.utils.file.file import (
     read_and_clear_statuses,
     match_files,
     match_cfg_file,
-    search_configs_from_args,
 )
 from ais_bench.benchmark.utils.logging.exceptions import FileMatchError
 
@@ -207,53 +206,6 @@ class TestMatchCfgFile(unittest.TestCase):
         # first match should come from wd1 due to order
         self.assertEqual(len(res), 1)
         self.assertTrue(res[0][1].startswith(self.wd1))
-
-
-class TestSearchConfigsFromArgs(unittest.TestCase):
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        # create expected config layout under config_dir
-        for sub in ("models", "datasets", "dataset_collections", "summarizers"):
-            os.makedirs(os.path.join(self.tmpdir, sub))
-        # files
-        with open(os.path.join(self.tmpdir, "models", "m1.py"), "w", encoding="utf-8"):
-            pass
-        with open(os.path.join(self.tmpdir, "datasets", "ds1.py"), "w", encoding="utf-8"):
-            pass
-        with open(os.path.join(self.tmpdir, "summarizers", "sum1.py"), "w", encoding="utf-8"):
-            pass
-
-    def tearDown(self):
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-
-    def test_search_prints_table_with_found_items(self):
-        args = SimpleNamespace(
-            models=["m1"],
-            datasets=["ds1/variant"],  # will use 'ds1'
-            summarizer="sum1/opt",     # will use 'sum1'
-            config_dir=self.tmpdir,
-        )
-
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            search_configs_from_args(args)
-        out = buf.getvalue()
-
-        self.assertIn("--models", out)
-        self.assertIn("m1", out)
-        self.assertIn("--datasets", out)
-        self.assertIn("ds1", out)
-        self.assertIn("--summarizer", out)
-        self.assertIn("sum1", out)
-
-    def test_search_with_empty_args_prints_header_only(self):
-        args = SimpleNamespace(models=[], datasets=[], summarizer=None, config_dir=self.tmpdir)
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            search_configs_from_args(args)
-        out = buf.getvalue()
-        # Has table header
-        self.assertIn("Task Type", out)
 
 
 if __name__ == "__main__":

@@ -89,8 +89,8 @@ class TestRPSDistributionPlot(unittest.TestCase):
         self.assertIsInstance(display_min, float)
         self.assertIsInstance(display_max, float)
         self.assertIsInstance(num_bins, int)
-        self.assertTrue(display_min < display_max)
-        self.assertTrue(num_bins > 0)
+        self.assertLess(display_min, display_max)
+        self.assertGreater(num_bins, 0)
 
     def test_calculate_theoretical_ramp(self):
         total_requests = 10

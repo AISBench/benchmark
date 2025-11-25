@@ -118,7 +118,7 @@ class TestSummarizePlot(unittest.TestCase):
         )
         
         # Should return traces for red lines and blue lines
-        self.assertTrue(len(traces) > 0)
+        self.assertGreater(len(traces), 0)
 
     def test_generate_concurrency_traces(self):
         adjusted_starts = np.array([0.0, 1.0])
@@ -131,7 +131,7 @@ class TestSummarizePlot(unittest.TestCase):
             unit
         )
         
-        self.assertTrue(len(traces) > 0)
+        self.assertGreater(len(traces), 0)
 
 if __name__ == '__main__':
     unittest.main()

@@ -7,8 +7,9 @@ from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import FileOperationError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
-logger = AISLogger()
+__all__ = ['load_tokenizer', 'AISTokenizer']
 
+logger = AISLogger()
 
 def load_tokenizer(tokenizer_path: str):
     """Load a tokenizer from the specified path.

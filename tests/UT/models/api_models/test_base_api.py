@@ -7,7 +7,7 @@ from copy import deepcopy
 import requests
 
 from ais_bench.benchmark.models import (
-    BaseAPIModel, APITemplateParser, PromptType
+    BaseAPIModel, APITemplateParser
 )
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models.output import Output

@@ -8,6 +8,14 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import FileMatchError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
+__all__ = [
+    'write_status',
+    'read_and_clear_statuses',
+    'match_files',
+    'match_cfg_file',
+    'check_mm_custom'
+]
+
 logger = AISLogger()
 
 def write_status(file_path, status):
@@ -211,99 +219,12 @@ def match_cfg_file(workdir: Union[str, List[str]],
         raise FileMatchError(UTILS_CODES.MATCH_CONFIG_FILE_FAILED, err_msg)
     return files
 
-def search_configs_from_args(args):
-    """Search and collect configuration files based on command line arguments.
-    
-    Args:
-        args: Command line arguments containing models, datasets, and summarizer
-        
-    Returns:
-        Prints a formatted table of found configuration files
-    """
-    logger.info('Searching for configuration files...')
-    table = [["Task Type", "Task Name", "Config File Path"]]
-    
-    # parse model args
-    if args.models:
-        logger.debug(f"Processing {len(args.models)} model argument(s): {args.models}")
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(script_dir)
-        default_configs_dir = os.path.join(parent_dir, 'configs')
-        models_dir = [
-            os.path.join(args.config_dir, 'models'),
-            os.path.join(default_configs_dir, './models'),
-        ]
-        for model_arg in args.models:
-            for model in match_cfg_file(models_dir, [model_arg]):
-                table.append(["--models", model[0], os.path.abspath(model[1])])
-                logger.debug(f"Found model config: {model[0]}")
-
-    # parse dataset args
-    if args.datasets:
-        logger.debug(f"Processing {len(args.datasets)} dataset argument(s): {args.datasets}")
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(script_dir)
-        default_configs_dir = os.path.join(parent_dir, 'configs')
-        datasets_dir = [
-            os.path.join(args.config_dir, 'datasets'),
-            os.path.join(args.config_dir, 'dataset_collections'),
-            os.path.join(default_configs_dir, './datasets'),
-            os.path.join(default_configs_dir, './dataset_collections')
-        ]
-        for dataset_arg in args.datasets:
-            if '/' in dataset_arg:
-                dataset_name, _ = dataset_arg.split('/', 1)
-                logger.debug(f"Dataset argument contains '/': using '{dataset_name}' from '{dataset_arg}'")
-            else:
-                dataset_name = dataset_arg
-
-            for dataset in match_cfg_file(datasets_dir, [dataset_name]):
-                table.append(["--datasets", dataset[0], os.path.abspath(dataset[1])])
-                logger.debug(f"Found dataset config: {dataset[0]}")
-
-    # parse summarizer args
-    if args.summarizer:
-        summarizer_arg = args.summarizer if args.summarizer is not None else 'example'
-        logger.debug(f"Processing summarizer argument: {summarizer_arg}")
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(script_dir)
-        default_configs_dir = os.path.join(parent_dir, 'configs')
-        summarizers_dir = [
-            os.path.join(args.config_dir, 'summarizers'),
-            os.path.join(default_configs_dir, './summarizers'),
-        ]
-
-        # Check if summarizer_arg contains '/'
-        if '/' in summarizer_arg:
-            # If it contains '/', split the string by '/'
-            # and use the second part as the configuration key
-            summarizer_file, _ = summarizer_arg.split('/', 1)
-            logger.debug(f"Summarizer argument contains '/': using '{summarizer_file}' from '{summarizer_arg}'")
-        else:
-            # If it does not contain '/', keep the original logic unchanged
-            summarizer_file = summarizer_arg
-
-        s = match_cfg_file(summarizers_dir, [summarizer_file])[0]
-        table.append(["--summarizer", s[0], os.path.abspath(s[1])])
-        logger.debug(f"Found summarizer config: {s[0]}")
-    
-    logger.info(f"Configuration search completed. Found {len(table) - 1} config file(s).")
-    print(
-        tabulate.tabulate(
-            table,
-            headers='firstrow',
-            tablefmt="fancy_grid",
-            stralign="left",
-            missingval="N/A",
-        )
-    )
-
 def check_mm_custom(path):
     with open(path, 'r', encoding='utf-8') as f:
         for line in f:
             line = json.loads(line.strip())
             if "type" not in line or "path" not in line:
                 return False
-            elif line["type"] not in ["image", "video", "audio"]:
+            if line["type"] not in ["image", "video", "audio"]:
                 return False
     return True
