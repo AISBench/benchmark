@@ -3,12 +3,12 @@
 本教程仅供临时性的、非正式的数据集使用。
 
 在本教程中，我们将会介绍如何在不实现 config，不修改 ais_bench 源码的情况下，对一新增数据集进行测试的方法。我们支持的任务类型包括选择 (`mcq`) 和问答 (`qa`) 两种，目前 `mcq` 和 `qa` 均仅支持 `gen` 推理。
-
-## 数据集格式
+## 1 自定义语言数据集
+### 数据集格式
 
 我们支持 `.jsonl` 和 `.csv` 两种格式的数据集。
 
-### 选择题 (`mcq`)
+#### 选择题 (`mcq`)
 
 对于选择 (`mcq`) 类型的数据，默认的字段（其他字段请参考[特殊字段](#特殊字段)部分内容）如下：
 
@@ -36,7 +36,7 @@ question,A,B,C,answer
 504+811+870+445=,2615,2630,2750,B
 ```
 
-### 问答题 (`qa`)
+#### 问答题 (`qa`)
 
 对于问答 (`qa`) 类型的数据，默认的字段（其他字段请参考[特殊字段](#特殊字段)部分内容）如下：
 
@@ -63,7 +63,7 @@ question,answer
 649+215+412+495+220+738+989+452=,4170
 ```
 
-## 通过命令行指定模型和自定义数据集
+### 通过命令行指定模型和自定义数据集
 
 自定义数据集可直接通过命令行来调用开始评测。
 
@@ -98,7 +98,7 @@ ais_bench \
 - 如果从数据集文件中可以解析出选项，如 `A`, `B`, `C` 等，则认定该数据集为 `mcq`，否则认定为 `qa`。
 - 默认 `--custom-dataset-infer-method` 为 `gen`。
 
-## 通过配置文件指定模型和自定义数据集
+### 通过配置文件指定模型和自定义数据集
 
 该方式目前仅支持精度测评场景。其余参数均和普通数据集一致，同样支持通过vllm和mindie两种api访问对应的推理服务化
 
@@ -122,7 +122,7 @@ datasets = [
 ]
 ```
 
-## 数据集补充信息`.meta.json`使用指南
+### 数据集补充信息`.meta.json`使用指南
 目前仅支持性能测评场景。ais_bench 会默认尝试对输入的数据集文件进行解析，因此在绝大多数情况下，`.meta.json` 文件都是 **不需要** 的。但是，如果原生数据集中没有指定max_tokens，或者需要通过配置进行数据采样等，则需要在 `.meta.json` 文件中进行指定。
 
 我们会在数据集同级目录下，以文件名+`.meta.json` 的形式放置一个表征数据集使用方法的文件，样例文件结构如下：
@@ -171,9 +171,9 @@ datasets = [
     }
 }
 ```
-## 特殊字段
+### 特殊字段
 
-### 最大输出长度：`max_tokens`
+#### 最大输出长度：`max_tokens`
 
 在`csv`与`jsonl`两种格式的数据集文件中，均支持以「每条请求」为粒度设置最大输出长度——只需在`jsonl`文件的每条对象或`csv`文件的每一行中新增`max_tokens`字段并赋予相应数值即可。该字段目前尚不适用于性能压测场景。
 
@@ -227,3 +227,73 @@ datasets = [
 
   - 性能测评结果示例图：
     ![custom_results_example.img](../img/custom_datasets/custom_results_example.png)
+
+## 2 自定义多模态数据集
+### 数据集格式
+
+我们支持 `.jsonl` 格式的数据集。当前仅支持多模态理解场景的自定义数据，包括`图片+文本`、`视频+文本`、`音频+文本`的输入格式，数据集中的一行对应一条数据。图片、视频、音频的文件格式按具体服务化支持为准，常见图片为`jpg`格式，视频为`mp4`格式，音频为`wav`格式。
+
+
+
+自定义多模态数据集默认的字段如下：
+
+- `type`: 数据的类型，包含图片`"image"`,视频`"video"`和音频`"audio"`。
+- `path`: 多模态数据的路径，支持传入多个同类型的值。
+- `question`: 表示多模态数据对应的文本数据。
+- `answer`: 表示对应的答案，不过当前仅支持性能测评，实际暂未使用。
+
+`.jsonl` 格式样例如下：
+
+```json
+{"type": "image", "path": ["/data/mm_custom/59027d7563eba210.jpg"], "question": "what is the brand of this camera?", "answer": "dakota"}
+{"type": "image", "path": ["/data/mm_custom/8abf34fc9c4016a6.jpg"], "question": "what does the small white text spell?", "answer": "copenhagen"}
+```
+#### 场景1：图片文本输入
+```json
+{"type": "image", "path": ["/data/mm_custom/59027d7563eba210.jpg"], "question": "what is the brand of this camera?", "answer": "dakota"}
+{"type": "image", "path": ["/data/mm_custom/8abf34fc9c4016a6.jpg"], "question": "what does the small white text spell?", "answer": "copenhagen"}
+```
+#### 场景2：图片视频音频混合输入
+如测试Qwen-Omni等全模态模型，输入可为`图片+文本`或`视频+文本`或`音频+文本`
+```json
+{"type": "image", "path": ["/data/mm_custom/59027d7563eba210.jpg"], "question": "what is the brand of this camera?", "answer": "dakota"}
+{"type": "video", "path": ["/data/mm_custom/93.mp4"], "question": "describe this video", "answer": "xxx"}
+{"type": "image", "path": ["/data/mm_custom/8abf34fc9c4016a6.jpg"], "question": "what does the small white text spell?", "answer": "copenhagen"}
+{"type": "video", "path": ["/data/mm_custom/83.mp4"], "question": "describe this video", "answer": "xxx"}
+{"type": "audio", "path": ["/data/mm_custom/f1874_0_cough.wav"], "question": "describe this audio", "answer": "xxx"}
+{"type": "audio", "path": ["/data/mm_custom/m1855_0_sniff.wav"], "question": "describe this audio", "answer": "xxx"}
+```
+#### 场景3：多图输入
+输入为`多张图片+文本`，多视频输入与多音频输入场景与之类似。
+```json
+{"type": "image", "path": ["/data/mm_custom/59027d7563eba210.jpg", "/data/mm_custom/8abf34fc9c4016a6.jpg"], "question": "compare these images", "answer": "dakota"}
+{"type": "image", "path": ["/data/mm_custom/8abf34fc9c4016a6.jpg", "/data/mm_custom/59027d7563eba210.jpg", "/data/mm_custom/cd34jojof2334jo34.jpg"], "question": "describe these images", "answer": "copenhagen"}
+```
+
+
+
+### 通过命令行指定模型和自定义数据集
+
+自定义数据集可直接通过命令行来调用开始评测。
+
+|参数|说明|样例|
+| ----- | ----- | ---- |
+|--models|和普通数据集使用方式一致，指定模型推理后端任务名称（对应ais_bench/benchmark/configs/models路径下一个已经实现的默认模型配置文件），支持传入多个任务名称，支持的任务范围请参考父级目录的README中使用普通数据集为例的方式|--models vllm_api_general|
+|--datasets|指定为mm_custom_gen，对应[mm_custom_gen.py](../../../ais_bench/benchmark/configs/datasets/mm_custom/mm_custom_gen.py)，按需修改配置文件中的数据集路径和输入数据prompt|--datasets mm_custom_gen|
+|
+
+其余参数均和普通数据集一致，同样支持通过vllm和mindie两种api访问对应的推理服务化
+
+```shell
+ais_bench \
+    --models vllm_api_general \
+    --datasets mm_custom_gen \
+    --mode perf
+```
+
+```shell
+ais_bench \
+    --models mindie_stream_api_general \
+    --datasets mm_custom_gen \
+    --mode perf
+```
