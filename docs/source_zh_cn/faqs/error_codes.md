@@ -173,7 +173,12 @@ Current user can't modify /path/to/workspace/outputs/default/20250628_151326/pre
 
 ## CALC-MTRC-001
 ### 错误描述
+性能结果数据无效，无法计算指标。
 ### 解决办法
+#### 场景 1：性能结果原始数据为空
+如果在执行命令时，通过`--mode perf_viz`指定了性能结果重计算，若基础输出路径为`outputs/default/20250628_151326`（查找打屏中`Current exp folder: `），那么检查该路径下`performances/`文件夹内的`*_details.jsonl`文件内容是否都为空，若为空，则需要先执行一次评测，生成性能结果数据。
+#### 场景 2：性能结果原始数据不包含任何有效值
+如果在执行命令时，通过`--mode perf_viz`指定了性能结果重计算，若基础输出路径为`outputs/default/20250628_151326`（查找打屏中`Current exp folder: `），那么检查该路径下`performances/`文件夹内的`*_details.jsonl`文件内容不包含任何有效字段（可能被篡改了），则需要重新执行性能测评，生成新的数据。
 
 ## CALC-FILE-001
 ### 错误描述
