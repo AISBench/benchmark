@@ -196,6 +196,7 @@ class VllmMultiturnAPIChatStream(VLLMCustomAPIChat):
     
     def __init__(self, *args, **kwargs):
         kwargs.pop("custom_client", None)
+        kwargs['stream'] = True
         super().__init__(*args, **kwargs)
         if not VllmMultiturnAPIChatStream._warning_printed:
             self.logger.warning("VllmMultiturnAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
