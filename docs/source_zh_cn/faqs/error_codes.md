@@ -163,7 +163,13 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 
 ## PARTI-FILE-001
 ### 错误描述
+输出路径文件的权限不足，工具无法将结果写入。
 ### 解决办法
+例如报错日志为:
+```bash
+Current user can't modify /path/to/workspace/outputs/default/20250628_151326/predictions/vllm-api-stream-chat/gsm8k.json, reuse will not enable.
+```
+执行`ls -l /path/to/workspace/outputs/default/20250628_151326/predictions/vllm-api-stream-chat/gsm8k.json`查看此路径属主和权限，发现该文件当前用户不可写，需要给该文件添加当前用户的写权限（例如执行`chmod u+w /path/to/workspace/outputs/default/20250628_151326/predictions/vllm-api-stream-chat/gsm8k.json`即可添加当前用户的写权限）。
 
 ## CALC-MTRC-001
 ### 错误描述
