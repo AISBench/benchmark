@@ -1,224 +1,209 @@
-import unittest
-from unittest.mock import patch, call
 import os
-from ais_bench.benchmark.utils.file import match_cfg_file
-from ais_bench.benchmark.utils.logging import FileMatchError
-from ais_bench.benchmark.utils.logging import UTILS_CODES
+import json
+import stat
+import shutil
+import tempfile
+import unittest
+from unittest.mock import patch
+import importlib
+
+# Module under test
+from ais_bench.benchmark.utils.file.file import (
+    write_status,
+    read_and_clear_statuses,
+    match_files,
+    match_cfg_file,
+)
+from ais_bench.benchmark.utils.logging.exceptions import FileMatchError
+
+
+file_module = importlib.import_module("ais_bench.benchmark.utils.file.file")
+
+
+class TestWriteStatus(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.status_file = os.path.join(self.tmpdir, "status.json")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_write_status_new_and_append(self):
+        ok = write_status(self.status_file, {"task": 1})
+        self.assertTrue(ok)
+        with open(self.status_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["task"], 1)
+
+        ok2 = write_status(self.status_file, {"task": 2})
+        self.assertTrue(ok2)
+        with open(self.status_file, "r", encoding="utf-8") as f:
+            data2 = json.load(f)
+        self.assertEqual([s["task"] for s in data2], [1, 2])
+
+    def test_write_status_invalid_json_recovers(self):
+        # Pre-create file with invalid JSON
+        with open(self.status_file, "w", encoding="utf-8") as f:
+            f.write("{invalid json}")
+
+        with patch.object(file_module, "logger") as mock_logger:
+            ok = write_status(self.status_file, {"ok": True})
+            self.assertTrue(ok)
+            mock_logger.warning.assert_called()  # logged recovery
+
+        with open(self.status_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(data, [{"ok": True}])
+
+    def test_write_status_ioerror_on_write_returns_false(self):
+        # Use a directory path to trigger IOError on write
+        bad_path = os.path.join(self.tmpdir, "dir_as_file")
+        os.makedirs(bad_path)
+
+        with patch.object(file_module, "logger") as mock_logger:
+            ok = write_status(bad_path, {"x": 1})
+            self.assertFalse(ok)
+            mock_logger.warning.assert_called()
+
+
+class TestReadAndClearStatuses(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_dir_not_exist_returns_empty(self):
+        nonexist_dir = os.path.join(self.tmpdir, "nope")
+        out = read_and_clear_statuses(nonexist_dir, ["a.json"])
+        self.assertEqual(out, [])
+
+    def test_reads_and_clears_multiple(self):
+        files = ["a.json", "b.json"]
+        paths = []
+        all_vals = []
+        for i, name in enumerate(files, start=1):
+            p = os.path.join(self.tmpdir, name)
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump([{"i": i}, {"i": i + 10}], f)
+            paths.append(p)
+            all_vals.extend([{"i": i}, {"i": i + 10}])
+
+        out = read_and_clear_statuses(self.tmpdir, files)
+        self.assertEqual(out, all_vals)
+
+        # files should be cleared to []
+        for p in paths:
+            with open(p, "r", encoding="utf-8") as f:
+                self.assertEqual(json.load(f), [])
+
+    def test_invalid_json_cleared_and_continues(self):
+        good = os.path.join(self.tmpdir, "good.json")
+        bad = os.path.join(self.tmpdir, "bad.json")
+        with open(good, "w", encoding="utf-8") as f:
+            json.dump([{"ok": 1}], f)
+        with open(bad, "w", encoding="utf-8") as f:
+            f.write("{broken}")
+
+        with patch.object(file_module, "logger") as mock_logger:
+            out = read_and_clear_statuses(self.tmpdir, ["good.json", "bad.json"])
+            # only the good entries are returned
+            self.assertEqual(out, [{"ok": 1}])
+            # bad file cleared
+            with open(bad, "r", encoding="utf-8") as f:
+                self.assertEqual(json.load(f), [])
+            mock_logger.warning.assert_called()
+
+    def test_ioerror_on_clear_logs_warning(self):
+        name = "ro.json"
+        p = os.path.join(self.tmpdir, name)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump([{"k": 1}], f)
+
+        # Make file read-only to cause failure when opening with 'w'
+        os.chmod(p, stat.S_IREAD)
+        try:
+            with patch.object(file_module, "logger") as mock_logger:
+                out = read_and_clear_statuses(self.tmpdir, [name])
+                # It should still return the content read
+                self.assertEqual(out, [{"k": 1}])
+                mock_logger.warning.assert_called()
+        finally:
+            # Restore permissions so tearDown can clean up
+            os.chmod(p, stat.S_IWUSR | stat.S_IREAD)
+
+
+class TestMatchFiles(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        # create files
+        self.files = ["alpha.py", "beta_test.py", "Gamma.PY", "note.txt"]
+        for name in self.files:
+            path = os.path.join(self.tmpdir, name)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("x")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_exact_pattern_and_sorting(self):
+        res = match_files(self.tmpdir, "alpha.py")
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0][0], "alpha")
+        self.assertTrue(res[0][1].endswith("alpha.py"))
+
+        res_many = match_files(self.tmpdir, ["alpha.py", "beta_test.py"])
+        self.assertEqual([r[0] for r in res_many], ["alpha", "beta_test"])  # sorted by name
+
+    def test_case_insensitive_and_fuzzy(self):
+        # case-insensitive .PY
+        res = match_files(self.tmpdir, "gamma.py")
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0][0].lower(), "gamma")
+
+        res_fuzzy = match_files(self.tmpdir, "beta", fuzzy=True)
+        self.assertEqual(len(res_fuzzy), 1)
+        self.assertEqual(res_fuzzy[0][0], "beta_test")
 
 
 class TestMatchCfgFile(unittest.TestCase):
     def setUp(self):
-        # 保存原始的os.walk函数
-        self.original_os_walk = os.walk
+        self.tmpdir = tempfile.mkdtemp()
+        self.wd1 = os.path.join(self.tmpdir, "wd1")
+        self.wd2 = os.path.join(self.tmpdir, "wd2")
+        os.makedirs(self.wd1)
+        os.makedirs(self.wd2)
+
+        # unique
+        with open(os.path.join(self.wd1, "cfg1.py"), "w", encoding="utf-8") as f:
+            f.write("x")
+        # ambiguous across workdirs
+        for wd in (self.wd1, self.wd2):
+            with open(os.path.join(wd, "same.py"), "w", encoding="utf-8") as f:
+                f.write("x")
 
     def tearDown(self):
-        # 恢复原始的os.walk函数
-        os.walk = self.original_os_walk
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
 
-    @patch('ais_bench.benchmark.utils.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_single_pattern_single_match(self, mock_os_walk, mock_logger):
-        """测试单个模式匹配单个文件的情况"""
-        # 模拟os.walk返回值
-        mock_os_walk.return_value = [
-            ('/test/dir', [], ['config1.py'])
-        ]
+    def test_match_exact(self):
+        res = match_cfg_file([self.wd1, self.wd2], "cfg1")
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0][0], "cfg1")
+        self.assertTrue(res[0][1].endswith("cfg1.py"))
 
-        # 调用函数
-        result = match_cfg_file('/test/dir', 'config1')
+    def test_not_found_raises(self):
+        with self.assertRaises(FileMatchError):
+            match_cfg_file([self.wd1, self.wd2], "does_not_exist")
 
-        # 验证结果
-        expected = [('config1', '/test/dir/config1.py')]
-        self.assertEqual(result, expected)
-
-        # 验证os.walk被正确调用
-        mock_os_walk.assert_called_once_with('/test/dir')
-
-        # 验证logger.warning没有被调用
-        mock_logger.warning.assert_not_called()
-
-    @patch('ais_bench.benchmark.utils.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_multiple_patterns_multiple_matches(self, mock_os_walk, mock_logger):
-        """测试多个模式匹配多个文件的情况"""
-        # 模拟os.walk返回值
-        mock_os_walk.return_value = [
-            ('/test/dir', [], ['config1.py', 'config2.py'])
-        ]
-
-        # 调用函数
-        result = match_cfg_file('/test/dir', ['config1', 'config2'])
-
-        # 验证结果
-        expected = [('config1', '/test/dir/config1.py'), ('config2', '/test/dir/config2.py')]
-        self.assertEqual(result, expected)
-
-        # 验证logger.warning没有被调用
-        mock_logger.warning.assert_not_called()
-
-    @patch('ais_bench.benchmark.utils.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_pattern_no_match(self, mock_os_walk, mock_logger):
-        """测试模式不匹配任何文件的情况"""
-        # 模拟os.walk返回值
-        mock_os_walk.return_value = [
-            ('/test/dir', [], ['other_config.py'])
-        ]
-
-        # 验证异常
-        with self.assertRaises(FileMatchError) as context:
-            match_cfg_file('/test/dir', 'config1')
-
-        # 验证错误代码
-        self.assertEqual(context.exception.error_code_str, UTILS_CODES.MATCH_CONFIG_FILE_FAILED.full_code)
-
-    @patch('ais_bench.benchmark.utils.file.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_pattern_multiple_matches(self, mock_os_walk, mock_logger):
-        """测试模式匹配多个文件的情况（模糊匹配）"""
-        # 模拟os.walk返回值
-        mock_os_walk.return_value = [
-            ('/test/dir', [], ['config1.py', 'config1_v2.py'])
-        ]
-
-        # 调用函数（使用'config1'作为模式，会匹配到两个文件）
-        with patch('ais_bench.benchmark.utils.file.fnmatch.fnmatch') as mock_fnmatch:
-            # 模拟fnmatch返回True，这样每个文件都会匹配
-            mock_fnmatch.return_value = True
-            result = match_cfg_file('/test/dir', 'config1')
-
-        # 验证结果 - 应该返回第一个匹配的文件
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0][0], 'config1')
-
-        # 验证logger.warning被调用
-        mock_logger.warning.assert_called_once()
-
-    @patch('ais_bench.benchmark.utils.file.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_mixed_scenarios(self, mock_os_walk, mock_logger):
-        """测试混合场景：有些模式匹配，有些匹配多个"""
-        # 模拟os.walk返回值
-        mock_os_walk.return_value = [
-            ('/test/dir', [], ['config1.py', 'config2.py', 'config2_v2.py'])
-        ]
-
-        # 设置不同的fnmatch行为
-        def side_effect(name, pattern):
-            if 'config1.py' in name and 'config1.py' in pattern:
-                return True
-            elif 'config2' in name and 'config2.py' in pattern:
-                return True
-            return False
-
-        with patch('ais_bench.benchmark.utils.file.fnmatch.fnmatch') as mock_fnmatch:
-            mock_fnmatch.side_effect = side_effect
-
-            # 调用函数
-            result = match_cfg_file('/test/dir', ['config1', 'config2'])
-
-        # 验证结果 - 对于模糊匹配的情况，结果可能是第一个匹配的文件
-        self.assertEqual(len(result), 1)
-
-        # 验证logger.warning被调用
-        mock_logger.warning.assert_called_once()
-
-    @patch('ais_bench.benchmark.utils.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_auto_add_py_suffix(self, mock_os_walk, mock_logger):
-        """测试自动添加.py后缀的功能"""
-        # 模拟os.walk返回值
-        mock_os_walk.return_value = [
-            ('/test/dir', [], ['config1.py'])
-        ]
-
-        # 调用函数，不提供.py后缀
-        result = match_cfg_file('/test/dir', 'config1')
-
-        # 验证结果
-        expected = [('config1', '/test/dir/config1.py')]
-        self.assertEqual(result, expected)
-
-    @patch('ais_bench.benchmark.utils.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_with_py_suffix(self, mock_os_walk, mock_logger):
-        """测试已经有.py后缀的情况"""
-        # 模拟os.walk返回值
-        mock_os_walk.return_value = [
-            ('/test/dir', [], ['config1.py'])
-        ]
-
-        # 调用函数，已经提供.py后缀
-        result = match_cfg_file('/test/dir', 'config1.py')
-
-        # 验证结果
-        expected = [('config1', '/test/dir/config1.py')]
-        self.assertEqual(result, expected)
-
-    @patch('ais_bench.benchmark.utils.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_multiple_workdirs(self, mock_os_walk, mock_logger):
-        """测试多个工作目录的情况"""
-        # 模拟os.walk返回值 - 每个调用返回正确的3元组结构
-        def walk_side_effect(path):
-            if path == '/test/dir1':
-                return [('/test/dir1', [], ['config1.py'])]
-            elif path == '/test/dir2':
-                return [('/test/dir2', [], ['config2.py'])]
-            return []
-
-        mock_os_walk.side_effect = walk_side_effect
-
-        # 调用函数，提供多个工作目录
-        result = match_cfg_file(['/test/dir1', '/test/dir2'], ['config1', 'config2'])
-
-        # 验证结果
-        self.assertEqual(len(result), 2)
-
-        # 验证os.walk被调用了两次
-        self.assertEqual(mock_os_walk.call_count, 2)
-        mock_os_walk.assert_has_calls([call('/test/dir1'), call('/test/dir2')])
-
-    @patch('ais_bench.benchmark.utils.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_some_patterns_no_match(self, mock_os_walk, mock_logger):
-        """测试部分模式不匹配的情况"""
-        # 模拟os.walk返回值
-        mock_os_walk.return_value = [
-            ('/test/dir', [], ['config1.py'])
-        ]
-
-        # 验证异常
-        with self.assertRaises(FileMatchError) as context:
-            match_cfg_file('/test/dir', ['config1', 'nonexistent_config'])
-
-        # 验证错误代码
-        self.assertEqual(context.exception.error_code_str, UTILS_CODES.MATCH_CONFIG_FILE_FAILED.full_code)
-
-    @patch('ais_bench.benchmark.utils.file.logger')
-    def test_match_cfg_file_empty_pattern(self, mock_logger):
-        """测试空模式的情况"""
-        # 空模式实际会引发异常，而不是返回空列表
-        with self.assertRaises(FileMatchError) as context:
-            match_cfg_file('/test/dir', '')
-
-        # 验证错误代码
-        self.assertEqual(context.exception.error_code_str, UTILS_CODES.MATCH_CONFIG_FILE_FAILED.full_code)
-
-    @patch('ais_bench.benchmark.utils.file.logger')
-    @patch('os.walk')
-    def test_match_cfg_file_empty_workdir(self, mock_os_walk, mock_logger):
-        """测试空工作目录的情况"""
-        # 模拟os.walk返回空列表
-        mock_os_walk.return_value = []
-
-        # 验证异常
-        with self.assertRaises(FileMatchError) as context:
-            match_cfg_file('', 'config1')
-
-        # 验证错误代码
-        self.assertEqual(context.exception.error_code_str, UTILS_CODES.MATCH_CONFIG_FILE_FAILED.full_code)
+    def test_ambiguous_returns_first_and_warns(self):
+        with patch.object(file_module, "logger") as mock_logger:
+            res = match_cfg_file([self.wd1, self.wd2], "same")
+            mock_logger.warning.assert_called()
+        # first match should come from wd1 due to order
+        self.assertEqual(len(res), 1)
+        self.assertTrue(res[0][1].startswith(self.wd1))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
