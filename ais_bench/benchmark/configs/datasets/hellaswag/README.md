@@ -28,3 +28,4 @@ rm hellaswag.zip
 | --- | --- | --- | --- | --- | --- |
 |hellaswag_gen_0_shot_chat_prompt|hellaswag数据集生成式任务|accuracy|0-shot|对话格式|[hellaswag_gen_0_shot_chat_prompt.py](hellaswag_gen_0_shot_chat_prompt.py)|
 |hellaswag_gen_10_shot_chat_prompt|hellaswag数据集生成式任务|accuracy|10-shot|对话格式|[hellaswag_gen_10_shot_chat_prompt.py](hellaswag_gen_10_shot_chat_prompt.py)|
+|hellaswag_ppl_0_shot_chat_prompt|hellaswag数据集PPL任务|accuracy|0-shot|对话格式|[hellaswag_ppl_0_shot_chat_prompt.py](hellaswag_ppl_0_shot_chat_prompt.py)|

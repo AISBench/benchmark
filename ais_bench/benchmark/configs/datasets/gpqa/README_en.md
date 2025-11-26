@@ -30,7 +30,7 @@ rm gpqa.zip
 | --- | --- | --- | --- | --- | --- |
 | gpqa_gen_0_shot_str | Generative task for the GPQA dataset | Accuracy (pass@1) | 0-shot | String format | [gpqa_gen_0_shot_str.py](gpqa_gen_0_shot_str.py) |
 | gpqa_gen_0_shot_cot_chat_prompt | Generative task for the GPQA dataset (aligned with DeepSeek R1 accuracy test) | Accuracy (pass@1) | 0-shot | Chat format | [gpqa_gen_0_shot_cot_chat_prompt.py](gpqa_gen_0_shot_cot_chat_prompt.py) |
-
+| gpqa_ppl_0_shot_str | PPL task for the GPQA dataset | Accuracy (pass@1) | 0-shot | String format | [gpqa_ppl_0_shot_str.py](gpqa_ppl_0_shot_str.py) |
 
 ### Translation Notes
 1. **Term Consistency**: Technical terms such as "生成式任务" (generative task), "评估指标" (evaluation metric), and "对齐DeepSeek R1精度测试" (aligned with DeepSeek R1 accuracy test) follow standard expressions in AI dataset documentation to ensure clarity for technical users.

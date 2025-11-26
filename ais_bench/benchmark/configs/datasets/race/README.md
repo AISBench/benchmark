@@ -36,3 +36,4 @@ rm -r OpenCompassData-core-20240207.zip
 |race_middle_gen_5_shot_cot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|[race_middle_gen_5_shot_cot_chat.py](race_middle_gen_5_shot_cot_chat.py)|
 |race_high_gen_5_shot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|[race_high_gen_5_shot_chat.py](race_high_gen_5_shot_chat.py)|
 |race_high_gen_5_shot_cot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|[race_high_gen_5_shot_cot_chat.py](race_high_gen_5_shot_cot_chat.py)|
+|race_ppl_0_shot_chat|race数据集PPL任务|accuracy|0-shot|对话格式|[race_ppl_0_shot_chat.py](race_ppl_0_shot_chat.py)|

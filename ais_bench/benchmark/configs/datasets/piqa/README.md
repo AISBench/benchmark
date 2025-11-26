@@ -41,3 +41,4 @@ rm physicaliqa-train-dev.zip
 | --- | --- | --- | --- | --- | --- |
 |piqa_gen_0_shot_chat_prompt|piqa数据集生成式任务|accuracy|0-shot|对话格式|[piqa_gen_0_shot_chat_prompt.py](piqa_gen_0_shot_chat_prompt.py)|
 |piqa_gen_0_shot_str|piqa数据集生成式任务|accuracy|0-shot|字符串格式|[piqa_gen_0_shot_str.py](piqa_gen_0_shot_str.py)|
+|piqa_ppl_0_shot_str|piqa数据集PPL任务|accuracy|0-shot|字符串格式|[piqa_ppl_0_shot_str.py](piqa_ppl_0_shot_str.py)|

@@ -29,3 +29,4 @@ rm gpqa.zip
 | --- | --- | --- | --- | --- | --- |
 |gpqa_gen_0_shot_str|gpqa数据集生成式任务|accuracy(pass@1)|0-shot|字符串格式|[gpqa_gen_0_shot_str.py](gpqa_gen_0_shot_str.py)|
 |gpqa_gen_0_shot_cot_chat_prompt|gpqa数据集生成式任务（对齐DeepSeek R1精度测试）|accuracy(pass@1)|0-shot|对话格式|[gpqa_gen_0_shot_cot_chat_prompt.py](gpqa_gen_0_shot_cot_chat_prompt.py)|
+|gpqa_ppl_0_shot_str|gpqa数据集PPL任务|accuracy(pass@1)|0-shot|字符串格式|[gpqa_ppl_0_shot_str.py](gpqa_ppl_0_shot_str.py)|

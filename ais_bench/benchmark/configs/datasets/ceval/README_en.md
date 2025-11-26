@@ -189,3 +189,4 @@ rm ceval-exam.zip
 | ceval_gen_0_shot_str | Generative task for the C-Eval dataset | Accuracy | 0-shot | String format | [ceval_gen_0_shot_str.py](ceval_gen_0_shot_str.py) |
 | ceval_gen_5_shot_str | Generative task for the C-Eval dataset | Accuracy | 5-shot | String format | [ceval_gen_5_shot_str.py](ceval_gen_5_shot_str.py) |
 | ceval_gen_0_shot_cot_chat_prompt | Generative task for the C-Eval dataset with logical chain in prompt (aligned with DeepSeek R1 accuracy test) | Accuracy | 0-shot | Chat format | [ceval_gen_0_shot_cot_chat_prompt.py](ceval_gen_0_shot_cot_chat_prompt.py) |
+| ceval_ppl_0_shot_str | PPL task for the C-Eval dataset | Accuracy | 0-shot | String format | [ceval_ppl_0_shot_str.py](ceval_ppl_0_shot_str.py) |

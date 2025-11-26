@@ -188,4 +188,5 @@ rm ceval-exam.zip
 | --- | --- | --- | --- | --- | --- |
 |ceval_gen_0_shot_str|C-Eval数据集生成式任务|accuracy|0-shot|字符串格式|[ceval_gen_0_shot_str.py](ceval_gen_0_shot_str.py)|
 |ceval_gen_5_shot_str|C-Eval数据集生成式任务|accuracy|5-shot|字符串格式|[ceval_gen_5_shot_str.py](ceval_gen_5_shot_str.py)|
-|ceval_gen_0_shot_cot_chat_prompt||C-Eval数据集生成式任务，prompt带逻辑链（对齐DeepSeek R1精度测试）|accuracy|0-shot|对话格式|[ceval_gen_0_shot_cot_chat_prompt.py](ceval_gen_0_shot_cot_chat_prompt.py)|
+|ceval_gen_0_shot_cot_chat_prompt|C-Eval数据集生成式任务，prompt带逻辑链（对齐DeepSeek R1精度测试）|accuracy|0-shot|对话格式|[ceval_gen_0_shot_cot_chat_prompt.py](ceval_gen_0_shot_cot_chat_prompt.py)|
+|ceval_ppl_0_shot_str|C-Eval数据集PPL任务|accuracy|0-shot|字符串格式|[ceval_ppl_0_shot_str.py](ceval_ppl_0_shot_str.py)|

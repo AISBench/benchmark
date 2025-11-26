@@ -161,3 +161,4 @@ rm cmmlu.zip
 | --- | --- | --- | --- | --- | --- |
 | cmmlu_gen_0_shot_cot_chat_prompt | Generative task for the CMMLU dataset with logical chain in prompt | Accuracy | 0-shot | Chat format | [cmmlu_gen_0_shot_cot_chat_prompt.py](cmmlu_gen_0_shot_cot_chat_prompt.py) |
 | cmmlu_gen_5_shot_cot_chat_prompt | Generative task for the CMMLU dataset with logical chain in prompt | Accuracy | 5-shot | Chat format | [cmmlu_gen_5_shot_cot_chat_prompt.py](cmmlu_gen_5_shot_cot_chat_prompt.py) |
+| cmmlu_ppl_0_shot_cot_chat_prompt | PPL task for the CMMLU dataset with logical chain in prompt | Accuracy | 0-shot | Chat format | [cmmlu_ppl_0_shot_cot_chat_prompt.py](cmmlu_ppl_0_shot_cot_chat_prompt.py) |

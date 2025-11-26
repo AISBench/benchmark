@@ -28,3 +28,4 @@ rm hellaswag.zip
 | --- | --- | --- | --- | --- | --- |
 | hellaswag_gen_0_shot_chat_prompt | Generative task for the HellaSwag dataset | Accuracy | 0-shot | Chat format | [hellaswag_gen_0_shot_chat_prompt.py](hellaswag_gen_0_shot_chat_prompt.py) |
 | hellaswag_gen_10_shot_chat_prompt | Generative task for the HellaSwag dataset | Accuracy | 10-shot | Chat format | [hellaswag_gen_10_shot_chat_prompt.py](hellaswag_gen_10_shot_chat_prompt.py) |
+| hellaswag_ppl_0_shot_chat_prompt | PPL task for the hellaswag dataset | Accuracy | 0-shot | Chat format | [hellaswag_ppl_0_shot_chat_prompt.py](hellaswag_ppl_0_shot_chat_prompt.py) |
