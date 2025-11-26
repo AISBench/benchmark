@@ -400,18 +400,40 @@ Multiturn dialogue infer model only supports every、last or every_with_gt, but 
 ```
 正确的配置应当将infer_mode参数配置为`every`、`last`或`every_with_gt`中的一个。
 
-
 ## ICLI-PARAM-003
 ### 错误描述
+命令行指定`--mode perf --pressure`进行性能压力测试时，模型配置文件中未指定batch_size参数
 ### 解决办法
+以`vllm_stream_api_chat.py`配置文件为例：
+```python
+# 在vllm_stream_api_chat.py中
+models = [
+    dict(
+        attr="service",
+        # ......
+        batch_size=16,
+        # ......
+    ),
+]
+```
 
 ## ICLI-PARAM-004
 ### 错误描述
+模型配置文件中的最大并发数`batch_size`不在合法范围内
 ### 解决办法
-
-## ICLI-PARAM-005
-### 错误描述
-### 解决办法
+若报错日志为`The range of batch_size is [1, 100000], but got -1. Please set it in datasets config`，则表示模型的最大并发数配置为-1，需要在模型配置文件中将`batch_size`参数配置为一个大于0且小于等于100000的整数。
+例如：
+```python
+# vllm_stream_api_chat.py中
+models = [
+    dict(
+        attr="service",
+        # ......
+        batch_size=100,
+        # ......
+    ),
+]
+```
 
 ## ICLI-RUNTIME-001
 ### 错误描述
