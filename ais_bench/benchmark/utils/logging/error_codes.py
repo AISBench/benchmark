@@ -126,26 +126,21 @@ class TSMAN_CODES:
 
 class TASK_CODES:
     UNKNOWN_ERROR = BaseErrorCode("TASK-UNK-001", ErrorModule.TASK, ErrorType.UNKNOWN, 1, "unknown error of task")
-    MODEL_MULTIPLE = BaseErrorCode("TASK-PARAM-001", ErrorModule.TASK, ErrorType.PARAM, 1, "task only supports one model")
 
 class TINFER_CODES:
     UNKNOWN_ERROR = BaseErrorCode("TINFER-UNK-001", ErrorModule.TASK_INFER, ErrorType.UNKNOWN, 1, "unknown error of infer task")
     CONCURRENCY_ERROR = BaseErrorCode("TINFER-PARAM-001", ErrorModule.TASK_INFER, ErrorType.PARAM, 1, "concurrency error of infer task")
     FAILED_TO_START_WORKER = BaseErrorCode("TINFER-IMPL-001", ErrorModule.TASK_INFER, ErrorType.IMPLEMENTATION, 1, "failed to start worker")
     NUM_RETURN_SEQUENCES_NOT_POSITIVE = BaseErrorCode("TINFER-PARAM-002", ErrorModule.TASK_INFER, ErrorType.PARAM, 2, "num_return sequences must be a positive integer")
-    N_NOT_POSITIVE = BaseErrorCode("TINFER-PARAM-003", ErrorModule.TASK_INFER, ErrorType.PARAM, 3, "n expected a positive integer")
     INVALID_RAMP_UP_STRATEGY = BaseErrorCode("TINFER-PARAM-004", ErrorModule.TASK_INFER, ErrorType.PARAM, 4, "invalid ramp up strategy")
     VIRTUAL_MEMORY_USAGE_TOO_HIGH = BaseErrorCode("TINFER-PARAM-005", ErrorModule.TASK_INFER, ErrorType.PARAM, 5, "virtual memory usage too high")
 
 class TEVAL_CODES:
     UNKNOWN_ERROR = BaseErrorCode("TEVAL-UNK-001", ErrorModule.TASK_EVALUATE, ErrorType.UNKNOWN, 1, "unknown error of evaluate task")
     N_K_ILLEGAL = BaseErrorCode("TEVAL-PARAM-001", ErrorModule.TASK_EVALUATE, ErrorType.PARAM, 1, "n and k parameters illegal")
-    MODEL_PRED_STRS_EMPTY = BaseErrorCode("TEVAL-PARAM-002", ErrorModule.TASK_EVALUATE, ErrorType.PARAM, 2, "model pred strs empty")
-
 
 class ICLI_CODES:
     UNKNOWN_ERROR = BaseErrorCode("ICLI-UNK-001", ErrorModule.ICL_INFERENCER, ErrorType.UNKNOWN, 1, "unknown error of icl inferencer")
-
     INVALID_PARAM_VALUE = BaseErrorCode("ICLI-PARAM-001", ErrorModule.ICL_INFERENCER, ErrorType.PARAM, 1, "invalid parameter value")
     MULTITRUN_MODE_OUT_OF_RANGE = BaseErrorCode("ICLI-PARAM-002", ErrorModule.ICL_INFERENCER, ErrorType.PARAM, 2, "multiturn mode out of range")
     CONCURRENCY_NOT_SET_IN_PRESSEURE_MODE = BaseErrorCode("ICLI-PARAM-003", ErrorModule.ICL_INFERENCER, ErrorType.PARAM, 3, "concurrency not set in pressure mode")

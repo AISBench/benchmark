@@ -126,10 +126,10 @@ models = dict(
 ```python
 # vllm_stream_api_chat.py中
 models = [
-    {
+    dict(
         attr="service1",
         # ......
-    }
+    )
 ]
 ```
 详细报错日志为：
@@ -146,13 +146,13 @@ Model config contain illegal attr, 'attr' in model config is 'service1', only 'l
 ```python
 # vllm_stream_api_chat.py中
 models = [
-    {
+    dict(
         attr="service",
         # ......
-    },
-    {
+    ),
+    dict(
         attr="local"
-    }
+    )
 ]
 ```
 详细报错日志为：
@@ -235,55 +235,171 @@ mixed dataset_abbr type is not supported, dataset_abbr type only support (list, 
 
 ## SUMM-MTRC-001
 ### 错误描述
+详细性能数据中每条请求的有效字段个数不同
 ### 解决办法
+检查基础输出路径例如`outputs/default/20250628_151326`（查找打屏中`Current exp folder: `）下的`*_details.jsonl`中每条请求的有效字段个数是否一致，若不一致，则需要检查打屏日志历史中是否有其他错误导致性能数据文件未生成，依据其他错误日志的指引进一步定位。
 
 ## RUNNER-TASK-001
 ### 错误描述
+测评任务执行失败
 ### 解决办法
-
-## TASK-PARAM-001
-### 错误描述
-### 解决办法
+例如具体报错为：`[ERROR] [RUNNER-TASK-001]task failed. OpenICLApiInfervllm-api-stream-chat/synthetic failed with code 1, see outputs/default/20251125_160128/logs/infer/vllm-api-stream-chat/synthetic.out`，请查看`outputs/default/20251125_160128/logs/infer/vllm-api-stream-chat/synthetic.out`中具体的报错信息，定位失败的原因。
 
 ## TINFER-PARAM-001
 ### 错误描述
+模型配置文件中的最大并发数`batch_size`不在合法范围内
 ### 解决办法
+若报错日志为`Concurrency must be greater than 0 and <= 100000, but got -1`，则表示模型的最大并发数配置为-1，需要在模型配置文件中将`batch_size`参数配置为一个大于0且小于等于100000的整数。
+例如：
+```python
+# vllm_stream_api_chat.py中
+models = [
+    dict(
+        attr="service",
+        # ......
+        batch_size=100,
+        # ......
+    ),
+]
+```
 
 ## TINFER-PARAM-002
 ### 错误描述
+模型配置文件中的`generation_kwargs`参数的返回序列数`num_return_sequences`参数不在合法范围内
 ### 解决办法
-
-## TINFER-PARAM-003
-### 错误描述
-### 解决办法
+若报错日志为`num_return sequences must be a positive integer, but got {0`，则表示模型的返回序列个数配置为0，需要在模型配置文件中将`num_return_sequences`参数配置为一个大于0的整数。
+例如：
+```python
+# vllm_stream_api_chat.py中
+models = [
+    dict(
+        attr="service",
+        # ......
+        generation_kwargs=dict(
+            num_return_sequences=1,
+        ),
+        # ......
+    ),
+]
+```
 
 ## TINFER-PARAM-004
 ### 错误描述
+模型配置文件中`traffic_cfg`参数的爬升策略`ramp_up_strategy`参数不在合法范围内
 ### 解决办法
+若报错日志为`Invalid ramp_up_strategy: {constant} only support 'linear' and 'exponential'`，则表示模型的请求发送策略配置为一个不在`['exponential', 'linear']`中的值，需要在模型配置文件中将`ramp_up_strategy`参数配置为`'exponential'`或`'linear'`。
+例如：
+```python
+# vllm_stream_api_chat.py中
+models = [
+    dict(
+        attr="service",
+        # ......
+        traffic_cfg=dict(
+            ramp_up_strategy="linear",
+        ),
+        # ......
+    ),
+]
+```
 
 ## TINFER-PARAM-005
 ### 错误描述
+工具运行推理时虚拟内存占用过高
 ### 解决办法
+若具体报错日志为：
+```bash
+Virtual memory usage too high: 90% > 80% (Total memory: 50 GB "Used: 45 GB, Available: 5 GB, Dataset needed memory size: 3000 MB)
+```
+说明当前系统内存为50GB，已使用45GB，可用5GB，而数据集需要3000MB内存，因此会触发该错误。解决方法分两种情况：
+1. 若系统总内存不够，需要增加系统内存。
+2. 若系统总内存足够，但是数据集需要的内存大于可用内存，需要清理当前服务器上被占用的内存或者缓存。
 
 ## TINFER-IMPL-001
 ### 错误描述
+执行服务化推理任务时，推理任务内拉起多个进程时某个进程启动失败。
 ### 解决办法
+若报错日志：
+```bash
+Failed to start worker x: XXXXXX, total workers to launch: 4
+```
+其中`x`为失败的进程编号，`XXXXXX`为具体失败的原因，`4`为总进程数。
+解决方法：
+1. 若该报错日志的出现次数与总进程数一致，则说明所有进程都启动失败，需要检查具体失败的原因并做相应处理后重试。
+2. 若该报错日志的出现次数小于总进程数，则说明有进程启动失败，部分进程启动失败不影响评测任务的执行，但是会影响实际的的最大并发数`batch_size`，请根据实际情况自行决定是否需要手动中断先定位具体失败的原因。
 
 ## TEVAL-PARAM-001
 ### 错误描述
+推理生成候选解个数`n`和从其中采集的样本数`k`的取值非法
 ### 解决办法
+若报错日志为
+```bash
+k and n must be greater than 0 and k <= n, but got k: 16, n: 8
+```
+则表示`k`大于`n`，需要将`k`配置为一个小于等于`n`的整数。
+例如：
+1. 在数据集配置文件中配置了`n`和`k`两个参数，则在配置文件中将两个参数的取值设置为合法范围的值：
+```python
+# 在aime2024_gen_0_shot_str.py中 k参数对应`k`
+aime2024_datasets = [
+    dict(
+        abbr='aime2024',
+        type=Aime2024Dataset,
+        # ......
+        k=4,
+        n=8,
+    )
+]
+```
+2. 若数据集配置文件中未配置`n`这个参数，模型配置文件中的`num_return_sequences`参数值将作为`n`的取值，需要将数据集配置文件中的`k`配置为一个小于等于模型配置文件中`num_return_sequences`的整数。
 
-## TEVAL-PARAM-002
-### 错误描述
-### 解决办法
+```python
+# 在vllm_stream_api_chat.py中 num_return_sequences参数对应`n`
+models = [
+    dict(
+        attr="service",
+        # ......
+        generation_kwargs=dict(
+            num_return_sequences=8,
+        ),
+        # ......
+    ),
+]
+
+aime2024_datasets = [
+    dict(
+        abbr='aime2024',
+        type=Aime2024Dataset,
+        # ......
+        k=4,
+    )
+]
+```
 
 ## ICLI-PARAM-001
 ### 错误描述
+数据集配置文件中构造提示词工程的retriever参数的type参数不是BaseRetriever的子类或者不是BaseRetriever的子类的list
 ### 解决办法
+1. 如果想使用自定义的retriever类`CustomedRetriever`，请确保`CustomedRetriever`是`BaseRetriever`的子类。
+2. 如果想使用多个自定义的retriever类`CustomedRetriever1, CustomedRetriever2`，则需要在数据集配置文件中配置`retriever`参数为`[CustomedRetriever1, CustomedRetriever2]`，且list中的每个类都需要继承自`BaseRetriever`。
 
 ## ICLI-PARAM-002
 ### 错误描述
+多轮对话数据集配置文件中inferencer参数的infer_mode参数取值不在合法范围内
 ### 解决办法
+以mtbench的配置文件为例，若mtbench_gen.py的配置如下:
+```python
+mtbench_infer_cfg = dict(
+    # ......
+    inferencer=dict(type=MultiTurnGenInferencer, infer_mode="every1")
+)
+```
+日志报错为：
+```bash
+Multiturn dialogue infer model only supports every、last or every_with_gt, but got every1
+```
+正确的配置应当将infer_mode参数配置为`every`、`last`或`every_with_gt`中的一个。
+
 
 ## ICLI-PARAM-003
 ### 错误描述

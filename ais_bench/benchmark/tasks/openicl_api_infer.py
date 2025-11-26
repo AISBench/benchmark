@@ -171,8 +171,8 @@ class OpenICLApiInferTask(BaseTask):
             self.logger.info(f"Keep {self.num_prompts} prompts from {len(data_list)} data")
             data_list = data_list[:self.num_prompts]
             global_indexes = [x for x in global_indexes if x < len(data_list)]
-        
-        # remove finished data in data_list and change indexes accordingly  
+
+        # remove finished data in data_list and change indexes accordingly
         picked_data_list = [data_list[i] for i in global_indexes]
         data_list = [data_list[i] for i in set(global_indexes)]
         pos_map = {v['data_abbr'] + '-' + str(v['index']): k for k, v in enumerate(data_list)}
@@ -225,7 +225,7 @@ class OpenICLApiInferTask(BaseTask):
         workers_num = max(1, workers_num)
         # Ensure total concurrency is integer and non-negative
         total_concurrency = int(self.concurrency) if self.concurrency is not None else 0
-        if total_concurrency <= 0:
+        if total_concurrency <= 0 or total_concurrency > MAX_BATCH_SIZE:
             raise ParameterValueError(
                 TINFER_CODES.CONCURRENCY_ERROR,
                 f"Concurrency must be greater than 0 and <= {MAX_BATCH_SIZE}, but got {self.concurrency}",
@@ -323,7 +323,8 @@ class OpenICLApiInferTask(BaseTask):
 
             except Exception as exc:
                 # Any error creating shm or starting process -> clean up message_shm if created
-                self.logger.error(TINFER_CODES.FAILED_TO_START_WORKER, f"Failed to start worker {i}: {exc}")
+                self.logger.error(TINFER_CODES.FAILED_TO_START_WORKER, f"Failed to start worker {i}: {exc}, " +
+                    f"total workers to launch: {len(per_worker_concurrency)}.")
                 # Cleanup any shm created for this iteration
                 if pid is not None and pid in message_shms and message_shms[pid] is not None:
                     message_shm = message_shms[pid]
@@ -347,7 +348,7 @@ class OpenICLApiInferTask(BaseTask):
         self.logger.info(f"Start warmup...")
         warm_up_inferencer:BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
         asyncio.run(warm_up_inferencer.warmup(data_list, self.warmup_size))
-        
+
         dataset_size, dataset_shm, indexes = self._dump_dataset_to_share_memory(data_list)
         # In pressure mode, treat the first `concurrency` requests as the dataset size
         if self.pressure:
@@ -365,7 +366,7 @@ class OpenICLApiInferTask(BaseTask):
         )
         message_shms = {}
         # Message queue collecting per-process request state; polled periodically
-        
+
         try:
             processes = []
             if debug:

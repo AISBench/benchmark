@@ -91,16 +91,16 @@ class TestBaseTask(unittest.TestCase):
         """测试使用单个模型初始化BaseTask"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         # 创建一个继承BaseTask的测试类
         class TestTask(BaseTask):
             name_prefix = 'TestTask'
             log_subdir = 'logs'
             output_subdir = 'outputs'
-            
+
             def run(self):
                 pass
-            
+
             def get_command(self, cfg_path, template):
                 return f"python {cfg_path}"
 
@@ -110,55 +110,22 @@ class TestBaseTask(unittest.TestCase):
         self.assertEqual(task.work_dir, self.temp_dir)
 
     @patch('ais_bench.benchmark.tasks.base.AISLogger')
-    def test_init_with_multiple_models(self, mock_logger_class):
-        """测试使用多个模型初始化BaseTask应该记录错误"""
-        mock_logger = MagicMock()
-        mock_logger_class.return_value = mock_logger
-        
-        cfg_multiple_models = ConfigDict({
-            "models": [
-                {"type": "test_model1"},
-                {"type": "test_model2"}
-            ],
-            "datasets": [{"type": "test_dataset"}],
-            "work_dir": self.temp_dir,
-            "cli_args": {}
-        })
-        
-        class TestTask(BaseTask):
-            name_prefix = 'TestTask'
-            log_subdir = 'logs'
-            output_subdir = 'outputs'
-            
-            def run(self):
-                pass
-            
-            def get_command(self, cfg_path, template):
-                return f"python {cfg_path}"
-
-        task = TestTask(cfg_multiple_models)
-        # 验证记录了错误日志
-        mock_logger.error.assert_called_once()
-        call_args = mock_logger.error.call_args
-        self.assertEqual(call_args[0][0], TASK_CODES.MODEL_MULTIPLE)
-
-    @patch('ais_bench.benchmark.tasks.base.AISLogger')
     def test_name_property(self, mock_logger_class):
         """测试name属性"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         with patch('ais_bench.benchmark.tasks.base.task_abbr_from_cfg') as mock_abbr:
             mock_abbr.return_value = "model_dataset"
-            
+
             class TestTask(BaseTask):
                 name_prefix = 'TestTask'
                 log_subdir = 'logs'
                 output_subdir = 'outputs'
-                
+
                 def run(self):
                     pass
-                
+
                 def get_command(self, cfg_path, template):
                     return f"python {cfg_path}"
 
@@ -170,15 +137,15 @@ class TestBaseTask(unittest.TestCase):
         """测试__repr__方法"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         class TestTask(BaseTask):
             name_prefix = 'TestTask'
             log_subdir = 'logs'
             output_subdir = 'outputs'
-            
+
             def run(self):
                 pass
-            
+
             def get_command(self, cfg_path, template):
                 return f"python {cfg_path}"
 
@@ -191,18 +158,18 @@ class TestBaseTask(unittest.TestCase):
         """测试get_log_path方法"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         with patch('ais_bench.benchmark.tasks.base.get_infer_output_path') as mock_get_path:
             mock_get_path.return_value = "/path/to/log.json"
-            
+
             class TestTask(BaseTask):
                 name_prefix = 'TestTask'
                 log_subdir = 'logs'
                 output_subdir = 'outputs'
-                
+
                 def run(self):
                     pass
-                
+
                 def get_command(self, cfg_path, template):
                     return f"python {cfg_path}"
 
@@ -216,18 +183,18 @@ class TestBaseTask(unittest.TestCase):
         """测试get_output_paths方法"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         with patch('ais_bench.benchmark.tasks.base.get_infer_output_path') as mock_get_path:
             mock_get_path.return_value = "/path/to/output.json"
-            
+
             class TestTask(BaseTask):
                 name_prefix = 'TestTask'
                 log_subdir = 'logs'
                 output_subdir = 'outputs'
-                
+
                 def run(self):
                     pass
-                
+
                 def get_command(self, cfg_path, template):
                     return f"python {cfg_path}"
 
@@ -236,7 +203,7 @@ class TestBaseTask(unittest.TestCase):
             # 需要模拟 model_cfgs 和 dataset_cfgs 为列表格式
             task.model_cfgs = [task.model_cfg]
             task.dataset_cfgs = [[task.dataset_cfgs]]  # 嵌套列表
-            
+
             output_paths = task.get_output_paths("json")
             self.assertEqual(len(output_paths), 1)
             self.assertEqual(output_paths[0], "/path/to/output.json")
@@ -263,14 +230,14 @@ class TestTaskStateManager(unittest.TestCase):
         """测试TaskStateManager初始化"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         manager = TaskStateManager(self.temp_dir, self.task_name, self.is_debug)
-        
+
         self.assertEqual(manager.task_state["task_name"], self.task_name)
         self.assertEqual(manager.task_state["process_id"], os.getpid())
         self.assertEqual(manager.is_debug, self.is_debug)
         self.assertTrue(os.path.exists(manager.tmp_file))
-        
+
         # 验证临时文件内容为空列表
         with open(manager.tmp_file, 'r') as f:
             data = json.load(f)
@@ -281,15 +248,15 @@ class TestTaskStateManager(unittest.TestCase):
         """测试初始化时如果文件已存在则删除"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         # 先创建文件
         tmp_file = os.path.join(self.temp_dir, f"tmp_{self.task_name.replace('/', '_')}.json")
         os.makedirs(self.temp_dir, exist_ok=True)
         with open(tmp_file, 'w') as f:
             json.dump([{"old": "data"}], f)
-        
+
         manager = TaskStateManager(self.temp_dir, self.task_name, self.is_debug)
-        
+
         # 验证文件被重新创建为空列表
         with open(manager.tmp_file, 'r') as f:
             data = json.load(f)
@@ -300,10 +267,10 @@ class TestTaskStateManager(unittest.TestCase):
         """测试update_task_state方法"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         manager = TaskStateManager(self.temp_dir, self.task_name, self.is_debug)
         manager.update_task_state({"status": "running", "progress": 50})
-        
+
         self.assertEqual(manager.task_state["status"], "running")
         self.assertEqual(manager.task_state["progress"], 50)
 
@@ -313,24 +280,24 @@ class TestTaskStateManager(unittest.TestCase):
         """测试_post_task_state方法"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         manager = TaskStateManager(self.temp_dir, self.task_name, self.is_debug, refresh_interval=0.1)
-        
+
         # 设置状态为finish，使得循环退出
         manager.task_state["status"] = "finish"
-        
+
         # 使用线程来运行_post_task_state，避免阻塞
         import threading
         import time
-        
+
         def run_post():
             manager._post_task_state()
-        
+
         thread = threading.Thread(target=run_post)
         thread.start()
         time.sleep(0.2)  # 等待一小段时间
         thread.join(timeout=1)
-        
+
         # 验证write_status被调用
         self.assertTrue(mock_write_status.called)
 
@@ -340,23 +307,23 @@ class TestTaskStateManager(unittest.TestCase):
         """测试_post_task_state方法在错误状态下的处理"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         manager = TaskStateManager(self.temp_dir, self.task_name, self.is_debug, refresh_interval=0.1)
-        
+
         # 设置状态为error，使得循环退出
         manager.task_state["status"] = "error"
-        
+
         import threading
         import time
-        
+
         def run_post():
             manager._post_task_state()
-        
+
         thread = threading.Thread(target=run_post)
         thread.start()
         time.sleep(0.2)
         thread.join(timeout=1)
-        
+
         # 验证write_status被调用
         self.assertTrue(mock_write_status.called)
         # 验证记录了警告日志
@@ -367,10 +334,10 @@ class TestTaskStateManager(unittest.TestCase):
         """测试debug模式下的launch方法"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         manager = TaskStateManager(self.temp_dir, self.task_name, is_debug=True)
         manager.launch()
-        
+
         # 验证start_time被设置
         self.assertIn("start_time", manager.task_state)
         # 验证debug模式下调用_display_task_state
@@ -381,23 +348,23 @@ class TestTaskStateManager(unittest.TestCase):
         """测试正常模式下的launch方法"""
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
-        
+
         manager = TaskStateManager(self.temp_dir, self.task_name, is_debug=False)
-        
+
         # 设置状态为finish，避免无限循环
         manager.task_state["status"] = "finish"
-        
+
         import threading
         import time
-        
+
         def run_launch():
             manager.launch()
-        
+
         thread = threading.Thread(target=run_launch)
         thread.start()
         time.sleep(0.2)
         thread.join(timeout=1)
-        
+
         # 验证start_time被设置
         self.assertIn("start_time", manager.task_state)
 
