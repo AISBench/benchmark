@@ -19,8 +19,10 @@ omnidocbench_infer_cfg = dict(
         type=MMPromptTemplate,
         template=dict(
             round=[
-                dict(role="HUMAN", prompt_mm={"text": "Parse the image",
-                                           "image_url": "{image_url}"})
+                dict(role="HUMAN", prompt_mm={
+                    "text": {"type": "text", "text": "{question}"},
+                    "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
+                })
             ]
         )
     ),
