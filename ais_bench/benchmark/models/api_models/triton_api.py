@@ -96,3 +96,14 @@ class TritonCustomAPI(BaseAPIModel):
     async def parse_stream_response(self, api_response:dict, output:Output):
         generated_text = api_response.get("text_output", "")
         output.content += generated_text
+
+
+class TritonCustomAPIStream(TritonCustomAPI):
+    _warning_printed = False
+    
+    def __init__(self, *args, **kwargs):
+        kwargs['stream'] = True
+        super().__init__(*args, **kwargs)
+        if not TritonCustomAPIStream._warning_printed:
+            self.logger.warning("TritonCustomAPIStream is deprecated, please use TritonCustomAPI with stream=True instead.")
+            TritonCustomAPIStream._warning_printed = True

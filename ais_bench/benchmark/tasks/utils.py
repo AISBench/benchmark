@@ -444,6 +444,16 @@ class TokenProducer:
         self.logger = AISLogger()
         self.request_rate = request_rate
         self.pressure_mode = mode == "pressure"
+        if self.pressure_mode:
+            try:
+                from ais_bench.benchmark.global_consts import CONNECTION_ADD_RATE
+                self.logger.warning("`CONNECTION_ADD_RATE` config in global_consts is deprecated, please set `request_rate` in model config instead.")
+                if CONNECTION_ADD_RATE >= 0:
+                    self.request_rate = CONNECTION_ADD_RATE
+                else:
+                    self.logger.warning(f"CONNECTION_ADD_RATE is invalid, using `request_rate` = {request_rate} of model config instead.")
+            except ImportError:
+                pass
         self.perf_mode = self.pressure_mode or mode == "perf"
         self.burstiness = 1.0
         self.work_dir = work_dir

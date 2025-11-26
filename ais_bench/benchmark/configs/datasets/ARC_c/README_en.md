@@ -32,3 +32,4 @@ rm -r OpenCompassData-core-20240207.zip
 | --- | --- | --- | --- | --- | --- |
 | ARC_c_gen_0_shot_chat_prompt | Generative task for the ARC Challenge Set dataset | Accuracy | 0-shot | Chat format | [ARC_c_gen_0_shot_chat_prompt.py](ARC_c_gen_0_shot_chat_prompt.py) |
 | ARC_c_gen_25_shot_chat_prompt | Generative task for the ARC Challenge Set dataset | Accuracy | 25-shot | Chat format | [ARC_c_gen_25_shot_chat_prompt.py](ARC_c_gen_25_shot_chat_prompt.py) |
+| ARC_c_ppl_0_shot_str | PPL task for ARC Challenge Set dataset | Accuracy | 0-shot | String format | [ARC_c_ppl_0_shot_str.py](ARC_c_ppl_0_shot_str.py) |

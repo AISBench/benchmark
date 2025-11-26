@@ -31,3 +31,4 @@ rm -r OpenCompassData-core-20240207.zip
 | --- | --- | --- | --- | --- | --- |
 |ARC_e_gen_0_shot_chat_prompt|ARC Easy Set数据集生成式任务|accuracy|0-shot|对话格式|[ARC_e_gen_0_shot_chat_prompt.py](ARC_e_gen_0_shot_chat_prompt.py)|
 |ARC_e_gen_25_shot_chat_prompt|ARC Easy Set数据集生成式任务|accuracy|25-shot|对话格式|[ARC_e_gen_25_shot_chat_prompt.py](ARC_e_gen_25_shot_chat_prompt.py)|
+|ARC_e_ppl_0_shot_str|ARC Easy Set数据集PPL任务|accuracy|0-shot|字符串模式|[ARC_e_ppl_0_shot_str.py](ARC_e_ppl_0_shot_str.py)|

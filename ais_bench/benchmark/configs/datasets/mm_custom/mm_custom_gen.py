@@ -36,7 +36,7 @@ mm_custom_datasets = [
     dict(
         abbr='mm_custom',
         type=MMCustomDataset,
-        path='aisbench/datasets/mm_custom.jsonl',                           # Data path
+        path='ais_bench/datasets/mm_custom/mm_custom.jsonl',                 # Data path
         mm_type="path",                                                     # Input mm data type: "path" or "base64"
         num_frames=5,                                                       # Applies to video data only; number of frames to extract, default 5
         reader_cfg=mm_custom_reader_cfg,

@@ -33,3 +33,4 @@ rm physicaliqa-train-dev.zip
 | --- | --- | --- | --- | --- | --- |
 | piqa_gen_0_shot_chat_prompt | Generative task for the piqa dataset | Accuracy | 0-shot | Chat Format | [piqa_gen_0_shot_chat_prompt.py](piqa_gen_0_shot_chat_prompt.py) |
 | piqa_gen_0_shot_str | Generative task for the piqa dataset | Accuracy | 0-shot | String Format | [piqa_gen_0_shot_str.py](piqa_gen_0_shot_str.py) |
+| piqa_ppl_0_shot_str | PPL task for the piqa dataset | Accuracy | 0-shot | String Format | [piqa_ppl_0_shot_str.py](piqa_ppl_0_shot_str.py) |

@@ -24,13 +24,6 @@ from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_ou
 from ais_bench.benchmark.utils.logging.error_codes import ICLI_CODES
 
 
-def handle_synthetic_input(func):
-    def wrapper(self, **args):
-        return func(self, **args)
-
-    return
-
-
 AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=20 * 60 * 60)
 
 PromptType = Union[PromptList, str]

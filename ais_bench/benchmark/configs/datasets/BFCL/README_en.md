@@ -36,7 +36,7 @@ Configure the [`vllm_api_function_call_chat`](../../models/vllm_api/vllm_api_fun
 
 ```python
 from ais_bench.benchmark.models import VLLMFunctionCallAPIChat
-from ais_bench.benchmark.utils.model_postprocessors import extract_non_reasoning_content
+from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content
 
 models = [
     dict(

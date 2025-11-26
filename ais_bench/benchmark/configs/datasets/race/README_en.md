@@ -36,3 +36,4 @@ rm -r OpenCompassData-core-20240207.zip
 | race_middle_gen_5_shot_cot_chat | Generative task for the RACE dataset (middle school level) with chain-of-thought in prompt | Accuracy | 5-shot | Chat Format | [race_middle_gen_5_shot_cot_chat.py](race_middle_gen_5_shot_cot_chat.py) |
 | race_high_gen_5_shot_chat | Generative task for the RACE dataset (senior high school level) | Accuracy | 5-shot | Chat Format | [race_high_gen_5_shot_chat.py](race_high_gen_5_shot_chat.py) |
 | race_high_gen_5_shot_cot_chat | Generative task for the RACE dataset (senior high school level) with chain-of-thought in prompt | Accuracy | 5-shot | Chat Format | [race_high_gen_5_shot_cot_chat.py](race_high_gen_5_shot_cot_chat.py) |
+| race_ppl_0_shot_chat | PPL task for the RACE dataset | Accuracy | 0-shot | Chat Format | [race_ppl_0_shot_chat.py](race_ppl_0_shot_chat.py) |

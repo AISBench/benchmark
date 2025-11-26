@@ -19,8 +19,10 @@ omnidocbench_infer_cfg = dict(
         type=MMPromptTemplate,
         template=dict(
             round=[
-                dict(role="HUMAN", prompt_mm={"text": "Parse the image",
-                                           "image_url": "{image_url}"})
+                dict(role="HUMAN", prompt_mm={
+                    "text": {"type": "text", "text": "{question}"},
+                    "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
+                })
             ]
         )
     ),
@@ -37,7 +39,7 @@ omnidocbench_datasets = [
         abbr='omnidocbench',
         type=OmniDocBenchDataset,
         path='ais_bench/datasets/OmniDocBench/OmniDocBench.json', # 数据集路径，使用相对路径时相对于源码根路径，支持绝对路径
-        image_path='ais_bench/datasets/images',
+        image_path='ais_bench/datasets/OmniDocBench/images',
         reader_cfg=omnidocbench_reader_cfg,
         infer_cfg=omnidocbench_infer_cfg,
         eval_cfg=omnidocbench_eval_cfg

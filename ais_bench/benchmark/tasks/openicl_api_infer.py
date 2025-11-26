@@ -82,6 +82,16 @@ class OpenICLApiInferTask(BaseTask):
         self.concurrency = self.model_cfg.get("batch_size", 1)
         self.pressure = self.cli_args.get("pressure", False)
         self.pressure_time = self.cli_args.get("pressure_time")
+        if self.pressure:
+            try:
+                from ais_bench.benchmark.global_consts import PRESSURE_TIME
+                self.logger.warning("`PRESSURE_TIME` config in global_consts is deprecated, please set `--pressure_time` in cli args instead.")
+                if PRESSURE_TIME > 0:
+                    self.pressure_time = PRESSURE_TIME
+                else:
+                    self.logger.warning(f"PRESSURE_TIME is invalid, using `--pressure_time {PRESSURE_TIME}` of cli args instead.")
+            except ImportError:
+                pass
         self.warmup_size = self.cli_args.get("num_warmups", 1)
         self.task_mode = self.cli_args.get("mode", "infer") if not self.pressure else "pressure"
         self.inferencer_cfg = self.dataset_cfgs[0]["infer_cfg"]["inferencer"]

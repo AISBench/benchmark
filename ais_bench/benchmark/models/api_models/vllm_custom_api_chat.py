@@ -166,4 +166,42 @@ class VLLMCustomAPIChat(BaseAPIModel):
         return request_body
 
     def get_prompt_logprobs(self, data: dict):
+<<<<<<< HEAD
         return data.get("prompt_logprobs", [])
+=======
+        return data.get("prompt_logprobs", [])
+
+@MODELS.register_module()
+class VLLMFunctionCallAPIChat(VLLMCustomAPIChat):
+    _warning_printed = False
+    
+    def __init__(self, *args, **kwargs):
+        kwargs['stream'] = False
+        super().__init__(*args, **kwargs)
+        if not VLLMFunctionCallAPIChat._warning_printed:
+            self.logger.warning("VLLMFunctionCallAPIChat is deprecated, please use VLLMCustomAPIChat instead.")
+            VLLMFunctionCallAPIChat._warning_printed = True
+
+@MODELS.register_module()
+class VLLMCustomAPIChatStream(VLLMCustomAPIChat):
+    _warning_printed = False
+    
+    def __init__(self, *args, **kwargs):
+        kwargs['stream'] = True
+        super().__init__(*args, **kwargs)
+        if not VLLMCustomAPIChatStream._warning_printed:
+            self.logger.warning("VLLMCustomAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
+            VLLMCustomAPIChatStream._warning_printed = True
+
+@MODELS.register_module()
+class VllmMultiturnAPIChatStream(VLLMCustomAPIChat):
+    _warning_printed = False
+    
+    def __init__(self, *args, **kwargs):
+        kwargs.pop("custom_client", None)
+        kwargs['stream'] = True
+        super().__init__(*args, **kwargs)
+        if not VllmMultiturnAPIChatStream._warning_printed:
+            self.logger.warning("VllmMultiturnAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
+            VllmMultiturnAPIChatStream._warning_printed = True
+>>>>>>> master_center

@@ -31,3 +31,4 @@ rm -r OpenCompassData-core-20240207.zip
 | --- | --- | --- | --- | --- | --- |
 | ARC_e_gen_0_shot_chat_prompt | Generative task for the ARC Easy Set dataset | Accuracy | 0-shot | Chat format | [ARC_e_gen_0_shot_chat_prompt.py](ARC_e_gen_0_shot_chat_prompt.py) |
 | ARC_e_gen_25_shot_chat_prompt | Generative task for the ARC Easy Set dataset | Accuracy | 25-shot | Chat format | [ARC_e_gen_25_shot_chat_prompt.py](ARC_e_gen_25_shot_chat_prompt.py) |
+| ARC_e_ppl_0_shot_str | PPL task for the ARC Easy Set dataset | Accuracy | 0-shot | String Format | [ARC_e_ppl_0_shot_str.py](ARC_e_ppl_0_shot_str.py) |

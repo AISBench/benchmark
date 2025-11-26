@@ -119,3 +119,13 @@ class VLLMCustomAPI(BaseAPIModel):
         choices = data.get("choices", [])
         prompt_logprobs = [item.get("prompt_logprobs", {}) for item in choices if item is not None][0]
         return prompt_logprobs
+
+class VLLMCustomAPIStream(VLLMCustomAPI):
+    _warning_printed = False
+
+    def __init__(self, *args, **kwargs):
+        kwargs['stream'] = True
+        super().__init__(*args, **kwargs)
+        if not VLLMCustomAPIStream._warning_printed:
+            self.logger.warning("VLLMCustomAPIStream is deprecated, please use VLLMCustomAPI with stream=True instead.")
+            VLLMCustomAPIStream._warning_printed = True

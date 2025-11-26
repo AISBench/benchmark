@@ -90,3 +90,14 @@ class TGICustomAPI(BaseAPIModel):
         generated_text = api_response.get("generated_text", "")
         # TGI will return the generated text in last chunk
         output.content = generated_text
+
+
+class TGICustomAPIStream(TGICustomAPI):
+    _warning_printed = False
+    
+    def __init__(self, *args, **kwargs):
+        kwargs['stream'] = True
+        super().__init__(*args, **kwargs)
+        if not TGICustomAPIStream._warning_printed:
+            self.logger.warning("TGICustomAPIStream is deprecated, please use TGICustomAPI with stream=True instead.")
+            TGICustomAPIStream._warning_printed = True

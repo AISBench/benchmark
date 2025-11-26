@@ -53,6 +53,11 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | textvqa | Multimodal Understanding (Image + Text) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/textvqa/README_en.md) |
 | videobench | Multimodal Understanding (Video) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videobench/README_en.md) |
 | vocalsound | Multimodal Understanding (Audio) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/vocalsound/README_en.md) |
+| Omnidocbench          | Image OCR (Image + Text)    | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/omnidocbench/README.md) |
+| MMMU       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu/README.md) |
+| MMMU_Pro       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README.md) |
+| InfoVQA       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README.md) |
+| DocVQA       | Multimodal Understanding (Image + Text)     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README.md) |
 
 ### Multi-Turn Dialogue Datasets
 | Dataset Name | Category | Detailed Introduction & Acquisition Method |

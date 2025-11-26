@@ -204,3 +204,4 @@ rm mmlu.zip
 | --- | --- | --- | --- | --- | --- |
 | mmlu_gen | Generative task for the MMLU dataset | Accuracy (naive_average) | 5-shot | String format | [mmlu_gen.py](mmlu_gen_5_shot_str.py) |
 | mmlu_gen | Generative task for the MMLU dataset, with a logical chain in the prompt (aligned with DeepSeek R1 accuracy test) | Accuracy (naive_average) | 0-shot | String format | [mmlu_gen.py](mmlu_gen_0_shot_cot_chat_prompt.py) |
+| mmlu_ppl | MMLU dataset PPL task | Accuracy (naive_average) | 0-shot | String format | [mmlu_ppl_0_shot_str.py](mmlu_ppl_0_shot_str.py) |

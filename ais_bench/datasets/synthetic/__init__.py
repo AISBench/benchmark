@@ -1,0 +1,1 @@
+from .synthetic_config import *

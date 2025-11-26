@@ -1,7 +1,7 @@
 # Introduction to Evaluation Scenarios
 ### Accuracy Evaluation
 #### Service-Oriented Accuracy Evaluation
-- **Function Description**: Evaluate the prediction accuracy of a model deployed as a service on specific datasets.
+- **Function Description**: Evaluate the prediction accuracy of a model deployed as a service on specific datasets. Currently supports accuracy evaluation based on generative and PPL (Perplexity-based) modes.
 
 - **Requirements**: The model has been deployed, and its actual service capabilities need to be tested.
 

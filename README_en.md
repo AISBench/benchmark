@@ -28,6 +28,7 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2025.11.25\]** Support for PPL (Perplexity-based) mode accuracy evaluation for service-deployed models.🔥🔥🔥
 - **\[2025.9.08\]** Support for 📚[Simulating Real Business Traffic](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/advanced_tutorials/rps_distribution.html): By controlling fluctuations in request sending rates, perceive the performance evaluation results of service deployment in simulated real-world scenarios! 🔥🔥🔥
 
 - **\[2025.8.28\]** Support for 📚[Multiple Independent Repeated Inference Accuracy Scenarios](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id12), calculating accuracy metrics across different dimensions such as pass@k/cons@k/avg@n! 🔬🔬🔬
