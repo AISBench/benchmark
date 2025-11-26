@@ -504,9 +504,12 @@ class TestOpenICLEvalTask(unittest.TestCase):
         mock_logger = MagicMock()
         mock_logger_class.return_value = mock_logger
         
-        task = self._create_task()
+        # 设置reader_cfg中的test_range来模拟num_prompts的效果
+        cfg = self.cfg.copy()
+        cfg["datasets"][0][0]["reader_cfg"]["test_range"] = "[:5]"
+        
+        task = self._create_task(cfg)
         task.logger = mock_logger
-        task.num_prompts = 5  # 设置num_prompts
         
         # 设置必要的属性
         if not isinstance(task.dataset_cfgs, list):
@@ -523,10 +526,9 @@ class TestOpenICLEvalTask(unittest.TestCase):
         if isinstance(task.cfg["datasets"][0], dict) and not isinstance(task.cfg["datasets"][0], list):
             task.cfg["datasets"] = [task.cfg["datasets"]]
         
-        # Mock dataset
+        # Mock dataset - test_range会在build_dataset_from_cfg时处理，所以test_set已经是限制后的
         mock_test_set = MagicMock()
-        mock_test_set.__len__ = MagicMock(return_value=10)
-        mock_test_set.select = MagicMock(return_value=mock_test_set)
+        mock_test_set.__len__ = MagicMock(return_value=5)  # 限制后的数量
         mock_dataset = MagicMock()
         mock_dataset.test = mock_test_set
         mock_build_dataset.return_value = mock_dataset
@@ -542,8 +544,8 @@ class TestOpenICLEvalTask(unittest.TestCase):
             
             task._score()
             
-            # 验证test_set.select被调用（因为test_size >= num_prompts）
-            mock_test_set.select.assert_called()
+            # 验证build_dataset_from_cfg被调用（test_range会在那里处理）
+            mock_build_dataset.assert_called()
 
     @patch('ais_bench.benchmark.tasks.openicl_eval.build_dataset_from_cfg')
     @patch('ais_bench.benchmark.tasks.openicl_eval.TEXT_POSTPROCESSORS')

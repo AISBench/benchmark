@@ -658,10 +658,16 @@ class TestConfigManager(unittest.TestCase):
     @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._update_and_init_work_dir')
     @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._update_cfg_of_workflow')
     @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._dump_and_reload_config')
-    def test_load_config(self, mock_dump_reload, mock_update_workflow, mock_update_work_dir, mock_get_config):
+    @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._fill_dataset_configs')
+    def test_load_config(self, mock_fill_dataset_configs, mock_dump_reload, mock_update_workflow, mock_update_work_dir, mock_get_config):
         """测试加载配置"""
-        # 配置模拟返回值
-        mock_cfg = {'test': 'config'}
+        # 配置模拟返回值 - 需要包含datasets键
+        mock_cfg = {
+            'test': 'config',
+            'datasets': [{'reader_cfg': {}, 'infer_cfg': {'retriever': {}}}],
+            'models': [{'path': '/path/to/model'}],
+            'cli_args': {'num_prompts': None}
+        }
         mock_get_config.return_value = mock_cfg
 
         # 创建模拟工作流
@@ -676,6 +682,7 @@ class TestConfigManager(unittest.TestCase):
         # 验证结果
         mock_get_config.assert_called_once()
         mock_update_work_dir.assert_called_once()
+        mock_fill_dataset_configs.assert_called_once()
         mock_update_workflow.assert_called_once_with(mock_workflow)
         mock_dump_reload.assert_called_once()
         self.assertEqual(result, config_manager.cfg)

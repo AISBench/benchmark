@@ -45,7 +45,7 @@ def fill_test_range_use_num_prompts(num_prompts: int, reader_cfg: dict):
         return
     if "test_range" in reader_cfg:
         if isinstance(num_prompts, int):
-            logger.warning("`test_range` has been set, `-num_prompts` will be ignored")
+            logger.warning("`test_range` has been set, `--num-prompts` will be ignored")
         return
     reader_cfg["test_range"] = f"[:{str(num_prompts)}]"
     logger.info(f"Keeping the first `{num_prompts}` prompts for testing")

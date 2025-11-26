@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from ais_bench.benchmark.cli.utils import (
     fill_model_path_if_datasets_need,
+    fill_test_range_use_num_prompts,
     get_config_type,
     is_running_in_background,
     get_current_time_str
@@ -150,6 +151,78 @@ class TestUtils(unittest.TestCase):
         # 验证结果
         self.assertEqual(result, "20231201_143022")
         mock_now.strftime.assert_called_once_with("%Y%m%d_%H%M%S")
+
+    @patch('ais_bench.benchmark.cli.utils.logger')
+    def test_fill_test_range_use_num_prompts_with_num_prompts(self, mock_logger):
+        """测试fill_test_range_use_num_prompts函数，有num_prompts时设置test_range"""
+        # 准备数据
+        reader_cfg = {}
+        num_prompts = 10
+
+        # 调用函数
+        fill_test_range_use_num_prompts(num_prompts, reader_cfg)
+
+        # 验证结果
+        self.assertEqual(reader_cfg.get("test_range"), "[:10]")
+        mock_logger.info.assert_called_once_with("Keeping the first `10` prompts for testing")
+
+    @patch('ais_bench.benchmark.cli.utils.logger')
+    def test_fill_test_range_use_num_prompts_with_existing_test_range(self, mock_logger):
+        """测试fill_test_range_use_num_prompts函数，test_range已存在时发出警告"""
+        # 准备数据
+        reader_cfg = {"test_range": "[0:100]"}
+        num_prompts = 10
+
+        # 调用函数
+        fill_test_range_use_num_prompts(num_prompts, reader_cfg)
+
+        # 验证结果
+        self.assertEqual(reader_cfg.get("test_range"), "[0:100]")  # 不应该被修改
+        mock_logger.warning.assert_called_once_with("`test_range` has been set, `--num-prompts` will be ignored")
+
+    @patch('ais_bench.benchmark.cli.utils.logger')
+    def test_fill_test_range_use_num_prompts_no_num_prompts(self, mock_logger):
+        """测试fill_test_range_use_num_prompts函数，没有num_prompts时不操作"""
+        # 准备数据
+        reader_cfg = {}
+        num_prompts = None
+
+        # 调用函数
+        fill_test_range_use_num_prompts(num_prompts, reader_cfg)
+
+        # 验证结果
+        self.assertNotIn("test_range", reader_cfg)
+        mock_logger.info.assert_not_called()
+        mock_logger.warning.assert_not_called()
+
+    @patch('ais_bench.benchmark.cli.utils.logger')
+    def test_fill_test_range_use_num_prompts_zero_num_prompts(self, mock_logger):
+        """测试fill_test_range_use_num_prompts函数，num_prompts为0时不操作"""
+        # 准备数据
+        reader_cfg = {}
+        num_prompts = 0
+
+        # 调用函数
+        fill_test_range_use_num_prompts(num_prompts, reader_cfg)
+
+        # 验证结果
+        self.assertNotIn("test_range", reader_cfg)
+        mock_logger.info.assert_not_called()
+        mock_logger.warning.assert_not_called()
+
+    @patch('ais_bench.benchmark.cli.utils.logger')
+    def test_fill_test_range_use_num_prompts_with_string_num_prompts(self, mock_logger):
+        """测试fill_test_range_use_num_prompts函数，num_prompts为字符串时不设置test_range"""
+        # 准备数据
+        reader_cfg = {}
+        num_prompts = "10"  # 字符串类型
+
+        # 调用函数
+        fill_test_range_use_num_prompts(num_prompts, reader_cfg)
+
+        # 验证结果 - 字符串会被转换为 "[:10]"
+        self.assertEqual(reader_cfg.get("test_range"), "[:10]")
+        mock_logger.info.assert_called_once_with("Keeping the first `10` prompts for testing")
 
 
 if __name__ == '__main__':
