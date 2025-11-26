@@ -73,12 +73,6 @@ class BaseTask:
         self.work_dir = cfg["work_dir"]
         self.logger.debug(f"Work directory: {self.work_dir}")
         self.cli_args = cfg["cli_args"]
-        self.num_prompts = (
-            self.cli_args["num_prompts"]
-            if "num_prompts" in self.cli_args.keys()
-            else None
-        )
-        #TODO: Check if all the inferencer are the same
 
     @abstractmethod
     def run(self):
