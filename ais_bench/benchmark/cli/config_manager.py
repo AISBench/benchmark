@@ -107,7 +107,7 @@ class ConfigManager:
     
     def _fill_dataset_configs(self):
         for dataset_cfg in self.cfg["datasets"]:
-            fill_test_range_use_num_prompts(self.cfg["cli_args"].get("num_prompts"), dataset_cfg["reader_cfg"])
+            fill_test_range_use_num_prompts(self.cfg["cli_args"].get("num_prompts"), dataset_cfg)
             fill_model_path_if_datasets_need(self.cfg["models"][0], dataset_cfg)
             retriever_cfg = dataset_cfg["infer_cfg"]["retriever"]
             infer_cfg = dataset_cfg["infer_cfg"]
