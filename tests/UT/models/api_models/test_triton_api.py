@@ -7,6 +7,7 @@ from copy import deepcopy
 import uuid
 
 from ais_bench.benchmark.models import TritonCustomAPI
+from ais_bench.benchmark.models.api_models import triton_api, base_api
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models.output import Output
 
@@ -27,7 +28,7 @@ class TestTritonCustomAPI(unittest.TestCase):
 
     def test_init_default_parameters(self):
         """测试使用默认参数初始化"""
-        with mock.patch('ais_bench.benchmark.models.api_models.base_api.BaseAPIModel._get_service_model_path') as mock_get_model_path:
+        with mock.patch.object(base_api.BaseAPIModel, '_get_service_model_path') as mock_get_model_path:
             mock_get_model_path.return_value = "default-model"
             model = TritonCustomAPI()
             self.assertEqual(model.path, "")
@@ -42,7 +43,7 @@ class TestTritonCustomAPI(unittest.TestCase):
 
     def test_init_with_model_name(self):
         """测试指定model_name的初始化"""
-        with mock.patch('ais_bench.benchmark.models.api_models.base_api.BaseAPIModel._get_service_model_path') as mock_get_model_path:
+        with mock.patch.object(base_api.BaseAPIModel, '_get_service_model_path') as mock_get_model_path:
             kwargs = self.default_kwargs.copy()
             model = TritonCustomAPI(**kwargs)
             self.assertEqual(model.model_name, "test-triton-model")
@@ -92,7 +93,7 @@ class TestTritonCustomAPI(unittest.TestCase):
         url = model._get_url()
         self.assertEqual(url, "http://localhost:8080/v2/models/test-triton-model/generate")
 
-    @mock.patch('ais_bench.benchmark.models.api_models.triton_api.LMTemplateParser')
+    @mock.patch.object(triton_api, 'LMTemplateParser')
     def test_init_with_meta_template(self, mock_template_parser):
         """测试带有meta_template的初始化"""
         kwargs = self.default_kwargs.copy()
@@ -282,7 +283,7 @@ class TestTritonCustomAPI(unittest.TestCase):
             await model.generate("test prompt", 100, output)
             mock_stream_infer.assert_called_once()
 
-    @mock.patch('ais_bench.benchmark.models.api_models.base_api.BaseAPIModel._get_service_model_path')
+    @mock.patch.object(base_api.BaseAPIModel, '_get_service_model_path')
     def test_get_service_model_path_call(self, mock_get_model_path):
         """测试_get_service_model_path方法的调用"""
         mock_get_model_path.return_value = "auto-detected-model"

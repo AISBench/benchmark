@@ -4,9 +4,9 @@ import torch
 from copy import deepcopy
 from typing import List
 
-from ais_bench.benchmark.models.local_models.base import BaseModel, LMTemplateParser, PromptType
+from ais_bench.benchmark.models.local_models import base
+from ais_bench.benchmark.models.local_models.base import BaseModel, LMTemplateParser
 from ais_bench.benchmark.utils.prompt import PromptList
-from ais_bench.benchmark.utils.logging.exceptions import AISBenchNotImplementedError
 
 
 # 创建一个具体的子类来测试BaseModel
@@ -35,7 +35,7 @@ class TestBaseModel(unittest.TestCase):
     
     def test_init_default_parameters(self):
         """测试使用默认参数初始化"""
-        with mock.patch('ais_bench.benchmark.models.local_models.base.LMTemplateParser') as mock_parser:
+        with mock.patch.object(base, 'LMTemplateParser') as mock_parser:
             model = ConcreteModel(**self.default_kwargs)
             
             # 验证基本属性
@@ -57,7 +57,7 @@ class TestBaseModel(unittest.TestCase):
         }
         kwargs["meta_template"] = meta_template
         
-        with mock.patch('ais_bench.benchmark.models.local_models.base.LMTemplateParser') as mock_parser:
+        with mock.patch.object(base, 'LMTemplateParser') as mock_parser:
             model = ConcreteModel(**kwargs)
             mock_parser.assert_called_once_with(meta_template)
             self.assertEqual(model.eos_token_id, 123)
@@ -126,11 +126,11 @@ class TestBaseModel(unittest.TestCase):
         
         # 模拟torch tensor和dist操作
         mock_tensor = torch.tensor([[1, 2, 3]])
-        with mock.patch('ais_bench.benchmark.models.local_models.base.dist', mock_dist):
+        with mock.patch.object(base, 'dist', mock_dist):
             with mock.patch.object(model, 'encode', return_value=mock_tensor):
                 with mock.patch.object(model, 'get_token_len', return_value=10):
                     with mock.patch.object(model, 'decode', return_value="synced text"):
-                        with mock.patch('ais_bench.benchmark.models.local_models.base.torch.tensor', return_value=mock_tensor):
+                        with mock.patch.object(base.torch, 'tensor', return_value=mock_tensor):
                             result = model.sync_inputs("test input")
                             
                             mock_dist.broadcast.assert_called_with(mock_tensor, src=0)
@@ -146,8 +146,8 @@ class TestBaseModel(unittest.TestCase):
         size_tensor = torch.tensor([[1, 3]])
         empty_tensor = torch.empty([1, 3], dtype=torch.long)
         
-        with mock.patch('ais_bench.benchmark.models.local_models.base.dist', mock_dist):
-            with mock.patch('ais_bench.benchmark.models.local_models.base.torch.empty', return_value=empty_tensor):
+        with mock.patch.object(base, 'dist', mock_dist):
+            with mock.patch.object(base.torch, 'empty', return_value=empty_tensor):
                 with mock.patch.object(model, 'decode', return_value="synced text"):
                     result = model.sync_inputs("test input")
                     
@@ -162,11 +162,11 @@ class TestBaseModel(unittest.TestCase):
         mock_dist = mock.MagicMock()
         mock_dist.get_rank.return_value = 0
         
-        with mock.patch('ais_bench.benchmark.models.local_models.base.dist', mock_dist):
+        with mock.patch.object(base, 'dist', mock_dist):
             with mock.patch.object(model, 'encode', return_value=torch.tensor([[1]])):
                 with mock.patch.object(model, 'get_token_len', return_value=3000):  # 超过2048
                     with mock.patch.object(model, 'decode', return_value="text"):
-                        with mock.patch('ais_bench.benchmark.models.local_models.base.torch.tensor'):
+                        with mock.patch.object(base.torch, 'tensor'):
                             model.sync_inputs("test")
                             model.logger.info.assert_called_with("Large tokens nums: 3000")
     
