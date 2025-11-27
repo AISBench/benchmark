@@ -1,5 +1,14 @@
 import argparse
-from ais_bench.benchmark.cli.utils import is_running_in_background, get_current_time_str
+from ais_bench.benchmark.cli.utils import (
+    is_running_in_background,
+    get_current_time_str,
+    validate_max_workers,
+    validate_max_workers_per_gpu,
+    validate_num_prompts,
+    validate_num_warmups,
+    validate_pressure_time
+)
+from ais_bench.benchmark.cli.utils import DEFAULT_PRESSURE_TIME
 
 
 class ArgumentParser():
@@ -90,31 +99,29 @@ class ArgumentParser():
         )
         parser.add_argument(
             '--max-num-workers',
-            help='Max number of workers to run in parallel. '
-            'Will be overrideen by the "max_num_workers" argument '
-            'in the config.',
-            type=int,
+            help='Max number of workers to run in parallel. ',
+            type=validate_max_workers,
             default=1
         )
         parser.add_argument(
             '--max-workers-per-gpu',
             help='Max task to run in parallel on one GPU. '
             'It will only be used in the local runner.',
-            type=int,
+            type=validate_max_workers_per_gpu,
             default=1
         )
         parser.add_argument(
             '--num-prompts',
             help='Num Prompts, Specify the number of prompts to infer and evaluate. '
             'Must be integer >= 1, If not provided, all prompts will be inferred and evaluated. ',
-            type=int,
+            type=validate_num_prompts,
             default=None
         )
         parser.add_argument(
             '--num-warmups',
             help='Number of warmups, Specify the number of warmups. '
             'Must be integer >= 0, use 0 to disable warmups. If not provided, the default is 1. ',
-            type=int,
+            type=validate_num_warmups,
             default=1
         )
 
@@ -149,8 +156,8 @@ class ArgumentParser():
         parser.add_argument(
             '--pressure-time',
             help='Pressure test time, only valid when --pressure is True.Must be integer >= 1, default is 15 seconds',
-            type=int,
-            default=15
+            type=validate_pressure_time,
+            default=DEFAULT_PRESSURE_TIME
         )
 
     def _custom_dataset_parser(self):

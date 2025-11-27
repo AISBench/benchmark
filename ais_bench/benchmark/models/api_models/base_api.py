@@ -22,12 +22,25 @@ from ais_bench.benchmark.models import BaseModel
 from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import PPLRequestOutput
 from ais_bench.benchmark.utils.logging.error_codes import ICLI_CODES
+from ais_bench.benchmark.global_consts import REQUEST_TIME_OUT
 
 
-AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=20 * 60 * 60)
+AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=REQUEST_TIME_OUT)
 
 PromptType = Union[PromptList, str]
 
+class MockAISLogger(AISLogger):
+    """Mock logger for API model. Because model will init in task for warmup and init in infer process, 
+    so we mock the logger to avoid the print each log in init process twice
+    """
+    def info(self, msg, *args, **kwargs):
+        pass
+
+    def debug(self, msg, *args, **kwargs):
+        pass
+
+    def warning(self, msg, *args, **kwargs):
+        pass
 
 class BaseAPIModel(BaseModel):
     """Base class for API model wrapper.
@@ -48,6 +61,7 @@ class BaseAPIModel(BaseModel):
     """
 
     is_api: bool = True
+    init_flag: bool = False
 
     def __init__(
         self,
@@ -64,7 +78,11 @@ class BaseAPIModel(BaseModel):
         verbose: bool = False,
         api_key: str = "",
     ):
-        self.logger = AISLogger()
+        if not BaseAPIModel.init_flag:
+            self.logger = MockAISLogger()
+            BaseAPIModel.init_flag = True
+        else:
+            self.logger = AISLogger()
         self.path = path
         self.stream = stream
         self.max_out_len = max_out_len
@@ -90,9 +108,10 @@ class BaseAPIModel(BaseModel):
         )
 
     def _get_base_url(self) -> str:
-        if self.url:
-            return self.url
         protocol = "https" if self.enable_ssl else "http"
+        if self.url:
+            self.logger.info(f"Using custom URL: [{self.url}], [host_ip: {self.host_ip}] and [host_port: {self.host_port}] will be ignored")
+            return f"{protocol}://{self.url}"
         base_url = f"{protocol}://{self.host_ip}:{self.host_port}/"
         return base_url
 

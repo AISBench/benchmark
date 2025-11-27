@@ -460,6 +460,8 @@ class TokenProducer:
         # When request_rate < 0.1, treat as infinite (no pacing applied here)
         if self.request_rate < FINAL_RPS_MINIMUM_THRESHOLD:
             self.token_bucket = None
+            if self.pressure_mode:
+                self.logger.warning("Pressure mode with no request rate applied, concurrency will increase rapidly")
         else:
             self.token_bucket = BoundedSemaphore(request_num + 1)
             # First release all tokens in token_bucket to make it empty

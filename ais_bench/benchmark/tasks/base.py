@@ -151,7 +151,7 @@ class TaskStateManager:
     def launch(self):
         self.task_state["start_time"] = time.time()
         if self.is_debug:
-            self.logger.info("debug mode, print progress directly")
+            self.logger.info("Debug mode, print progress directly")
             self._display_task_state()
         else:
             self._post_task_state()
