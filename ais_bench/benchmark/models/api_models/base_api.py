@@ -231,14 +231,16 @@ class BaseAPIModel(BaseModel):
                 break
             except json.JSONDecodeError:
                 break
-            except Exception:
+            except Exception as e:
                 # increase retry count and set output to failed
                 retry_count += 1
                 output.success = False
-                exc_info = sys.exc_info()
+                # Only print the last exception (the actual error), not the full traceback
+                exc_type = type(e).__name__
+                exc_msg = str(e)
                 output.error_info = (
-                    f"After {retry_count} retries, request failed with exception:\n"
-                    + "\n".join(traceback.format_exception(*exc_info))
+                    f"After {retry_count} retries, request failed with exception: "
+                    f"{exc_type}: {exc_msg}"
                 )
                 await output.clear_time_points()
                 continue
@@ -361,10 +363,12 @@ class BaseAPIModel(BaseModel):
             except Exception as e:
                 retry_count += 1
                 output.success = False
-                exc_info = sys.exc_info()
+                # Only print the last exception (the actual error), not the full traceback
+                exc_type = type(e).__name__
+                exc_msg = str(e)
                 output.error_info = (
-                    f"After {retry_count} retries, request failed with exception:\n"
-                    + "\n".join(traceback.format_exception(*exc_info))
+                    f"After {retry_count} retries, request failed with exception: "
+                    f"{exc_type}: {exc_msg}"
                 )
                 continue
         if close_session:

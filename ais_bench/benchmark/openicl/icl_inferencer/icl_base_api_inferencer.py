@@ -371,20 +371,23 @@ class BaseApiInferencer(BaseInferencer):
                         ICLI_CODES.CONCURRENCY_NOT_SET_IN_PRESSEURE_MODE,
                         f"Concurrency not set in pressure mode, please set `batch_size` in model config",
                     )
-            async with semaphore:
-                await self.do_request(data, token_bucket, session)
+            async with semaphore:      
                 # Pressure mode: continuously send requests until pressure_time
                 if self.pressure_mode:
+                    # Prefetch next data immediately after first request
+                    next_data_task = asyncio.create_task(self.wait_get_data(async_queue, stop_event))
+                    await self.do_request(data, token_bucket, session)
                     while time.perf_counter() - start_time < self.pressure_time:
                         if stop_event.is_set():
                             break
-                        data = await self.wait_get_data(async_queue, stop_event)
-
-                        # Main process interrupt -> put sentinel -> exit pressure test
-                        if data is None:
-                            await asyncio.wait_for(async_queue.put(None), timeout=1)
-                            break
+                        # Wait for next data
+                        data = await next_data_task
+                        # Start prefetching the next data immediately (before sending current request)
+                        next_data_task = asyncio.create_task(self.wait_get_data(async_queue, stop_event))
+                        # Send request (next data is being prefetched in parallel)
                         await self.do_request(data, token_bucket, session)
+                else:
+                    await self.do_request(data, token_bucket, session)
         tasks = []
         try:
             while not stop_event.is_set():
@@ -399,11 +402,7 @@ class BaseApiInferencer(BaseInferencer):
                 data = await self.wait_get_data(async_queue, stop_event)
 
                 # data == None -> sentinel
-                if data is None or (
-                    self.pressure_mode
-                    and time.perf_counter() - start_time
-                    > self.pressure_time  # pressure mode, exit when time is up even task not reach stable state
-                ):
+                if data is None:
                     await asyncio.wait_for(async_queue.put(None), timeout=1)
                     break
                 # Call user-provided async request

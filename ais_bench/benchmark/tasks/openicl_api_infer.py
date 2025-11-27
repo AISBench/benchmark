@@ -356,12 +356,7 @@ class OpenICLApiInferTask(BaseTask):
             warmup_results = asyncio.run(
                 warm_up_inferencer.warmup(data_list, self.warmup_size, self.concurrency)
             )
-            if warmup_results["success"] == 0:
-                task_state_manager.update_task_state({"status": "warup failed"})
-                raise AISBenchRuntimeError(
-                    TINFER_CODES.WARMUP_FAILED,
-                    f"All warmup requests failed, exit task, failed reasons: {warmup_results['failed_reasons']}",
-                )
+
             task_state_manager.update_task_state(
                 {
                     "status": "warmup finished",
@@ -380,6 +375,9 @@ class OpenICLApiInferTask(BaseTask):
                 if warmup_results['failed'] > 0:
                     warm_up_log += f"Failed Reasons:\n{dict(warmup_results['failed_reasons'])}"
                 self.logger.info(warm_up_log)
+            if warmup_results["success"] == 0:
+                task_state_manager.update_task_state({"status": "Warmup failed"})
+                raise AISBenchRuntimeError(TINFER_CODES.WARMUP_FAILED, f"Exit task because all warmup requests failed, failed reasons: {dict(warmup_results['failed_reasons'])}")
 
         else:
             self.logger.info(f"Warmup size is 0, skip...")
