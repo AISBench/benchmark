@@ -4,6 +4,7 @@ import threading
 import time
 import uuid
 from typing import List, Optional
+from abc import abstractmethod
 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -28,10 +29,9 @@ class BaseLocalInferencer(BaseInferencer):
         output_json_filepath (:obj:`str`, optional): File path for output
             `JSON` file.
     """
-
+    @abstractmethod
     def batch_inference(self, datum) -> List:
-        raise AISBenchImplementationError(ICLI_CODES.IMPLEMENTATION_ERROR_BATCH_INFERENCE_METHOD_NOT_IMPLEMENTED, 
-                                           f"Method {self.__class__.__name__} hasn't been implemented yet")
+        pass
 
     def inference(
         self,
@@ -81,9 +81,9 @@ class BaseLocalInferencer(BaseInferencer):
             self.logger.debug(f"Infer with single retriever, get data list from retriever")
             data_list = self.get_data_list(retriever)
         else:
-            raise ParameterValueError(ICLI_CODES.INVALID_PARAM_VALUE, 
+            raise ParameterValueError(ICLI_CODES.INVALID_PARAM_VALUE,
                                       f"retriever must be a BaseRetriever or a List of BaseRetriever, but got {type(retriever)}")
-            
+
         dataloader = self.get_dataloader(data_list, self.batch_size)
         try:
             # Execute inference tasks according to batch size

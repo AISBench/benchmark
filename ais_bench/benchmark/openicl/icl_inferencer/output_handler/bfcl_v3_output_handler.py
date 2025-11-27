@@ -25,7 +25,7 @@ class BFCLV3OutputHandler(BaseInferencerOutputHandler):
             AISBenchTypeError: If output is not a FunctionCallOutput instance
         """
         if not isinstance(output, FunctionCallOutput):
-            raise AISBenchTypeError(ICLI_CODES.IMPLEMENTATION_ERROR_OUTPUT_NOT_FUNCTION_CALL_OUTPUT, f"Expected FunctionCallOutput, but got {type(output)}")
+            raise AISBenchTypeError(ICLI_CODES.UNKNOWN_ERROR, f"Expected FunctionCallOutput, but got {type(output)}")
         result_data = {
             "uuid": output.uuid,
             "success": output.success,

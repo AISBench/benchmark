@@ -434,38 +434,81 @@ models = [
     ),
 ]
 ```
+## ICLI-PARAM-006
+### 错误描述
+PPL类的数据集不支持性能测试
+### 解决办法
+查看使用的数据集配置文件，例如：
+```python
+# ARC_c_ppl_0_shot_str.py中
+ARC_c_infer_cfg = dict(
+    # ......
+    inferencer=dict(type=PPLInferencer))
+```
+`inferencer`的type为`PPLInferencer`，这种数据集配置文件不支持性能测试，因此需要换成其他数据集配置文件或者指定`--mode all`执行精度测评
+
+## ICLI-PARAM-007
+### 错误描述
+PPL类的数据集不支持使用流式的模型配置进行推理
+### 解决办法
+查看使用的数据集配置文件，例如：
+```python
+# ARC_c_ppl_0_shot_str.py中
+ARC_c_infer_cfg = dict(
+    # ......
+    inferencer=dict(type=PPLInferencer))
+```
+`inferencer`的type为`PPLInferencer`，这种数据集配置文件不支持使用流式的模型配置进行推理，因此需要换成其他数据集配置文件，或者`--models`指定非流式的模型配置文件，例如`--models vllm_api_general_chat`
+
+## ICLI-IMPL-004
+### 错误描述
+BFCL数据集不支持性能测试
+### 解决办法
+1. 若希望使用BFCL数据集任务进行精度测试，单命令行中误指定`--mode perf`，则会进行性能测试，命令行中改为`--mode all`指定为精度测试。
+2. 若希望使用BFCL数据集任务进行性能测试，则当前不支持。
+
+## ICLI-IMPL-004
+### 错误描述
+接口类型为流式接口的模型任务不支持使用BFCL数据集进行精度测评
+### 解决办法
+参考[模型配置说明](../base_tutorials/all_params/models.md)，选取接口类型为文本接口（例如`vllm_api_general_chat`）的模型任务进行推理。
+
+## ICLI-IMPL-008
+### 错误描述
+当前模型配置文件对应的模型后端没有实现PPL推理所需的方法
+### 解决办法
+参考文档（暂时还没有）查看哪些模型配置支持PPL推理，例如`vllm_api_general_chat`
+
+## ICLI-IMPL-010
+### 错误描述
+PPL推理场景下某次推理结果中没有任何tokenid导致无法计算loss
+### 解决办法
+确认被测推理对象（推理服务）是否支持PPL推理，能否正常返回PPL推理所需的合法的`prompt_logprobs`
 
 ## ICLI-RUNTIME-001
 ### 错误描述
+预热访问推理服务时获取推理结果失败了
 ### 解决办法
+若日志为`Get result from cache queue failed: XXXXXX`其中`XXXXXX`为获取推理结果失败的具体原因，请依据具体原因做相应的处理（例如如果是超时相关的异常，请确认推理服务的超时时间是否设置合理或者检查当前配置能否正常访问推理服务）。
 
 ## ICLI-RUNTIME-002
 ### 错误描述
+预热访问推理服务时，推理服务返回的结果显示推理失败
 ### 解决办法
-
-## ICLI-RUNTIME-003
-### 错误描述
-### 解决办法
-
-## ICLI-IMPL-001
-### 错误描述
-### 解决办法
-
-## ICLI-IMPL-002
-### 错误描述
-### 解决办法
-
-## ICLI-IMPL-003
-### 错误描述
-### 解决办法
+若日志为`Warmup failed: XXXXXX`其中`XXXXXX`为预热访问推理服务失败的具体原因(**来自服务的错误信息**)，请依据具体原因检查推理服务本身配置是否正确，能否正常执行。
 
 ## ICLI-FILE-001
 ### 错误描述
+落盘推理结果文件失败。
 ### 解决办法
+1. 若日志为`Failed to write results to /path/to/outputs/default/20250628_151326/*/*/*.json: XXXXXX`，则表示精度场景推理结果落盘失败，请依据`XXXXXX`表示的具体保存原因（例如权限问题、磁盘空间不足等）进行排查和解决。
+2. 若日志为`Failed to write results to /path/to/outputs/default/20250628_151326/*/*/*.jsonl: XXXXXX`，则表示性能场景推理结果落盘失败，请依据`XXXXXX`表示的具体保存原因（例如权限问题、磁盘空间不足等）进行排查和解决。
 
 ## ICLI-FILE-002
 ### 错误描述
+将numpy格式的数据（例如每条请求的ITL数据）保存到数据库中失败
 ### 解决办法
+若日志为`Failed to save numpy array to database: XXXXXX`，则表示将numpy格式的数据保存到数据库中失败，请依据`XXXXXX`表示的具体保存原因（例如数据库连接问题、数据库表不存在等）进行排查和解决。
 
 ## ICLE-DATA-001
 ### 错误描述
