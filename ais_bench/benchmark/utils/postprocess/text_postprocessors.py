@@ -258,7 +258,7 @@ def general_eval_wrapper_postprocess(text: str,
         text = literal_eval(text)
     except Exception:
         # in case empty input or other error, skip eval
-        logger.warning(f"general_eval_wrapper_postprocess: eval failed, using raw {text}")
+        logger.warning(f"general_eval_wrapper_postprocess: literal_eval failed, using raw {text}")
 
     if postprocess:
         if isinstance(postprocess, str):
