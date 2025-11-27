@@ -177,11 +177,6 @@ class OpenICLApiInferTask(BaseTask):
             self.logger.info(f"Found {finish_index_nums} completed data in cache, "
                              "run infer task from the last interrupted position")
 
-        if isinstance(self.num_prompts, int) and len(data_list) > self.num_prompts:
-            self.logger.info(f"Keep {self.num_prompts} prompts from {len(data_list)} data")
-            data_list = data_list[:self.num_prompts]
-            global_indexes = [x for x in global_indexes if x < len(data_list)]
-
         # remove finished data in data_list and change indexes accordingly
         picked_data_list = [data_list[i] for i in global_indexes]
         data_list = [data_list[i] for i in set(global_indexes)]

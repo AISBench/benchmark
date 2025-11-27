@@ -53,14 +53,7 @@ class Infer(BaseWorker):
                 ),
             ),
         )
-        for data_config in cfg["datasets"]:
-            fill_model_path_if_datasets_need(cfg["models"][0], data_config)
-            retriever_cfg = data_config["infer_cfg"]["retriever"]
-            infer_cfg = data_config["infer_cfg"]
-            if "prompt_template" in infer_cfg:
-                retriever_cfg["prompt_template"] = infer_cfg["prompt_template"]
-            if "ice_template" in infer_cfg:
-                retriever_cfg["ice_template"] = infer_cfg["ice_template"]
+
         cfg.merge_from_dict(new_cfg)
         if cfg.cli_args.debug:
             cfg.infer.runner.debug = True
@@ -128,8 +121,6 @@ class Eval(BaseWorker):
             ),
         )
 
-        for data_config in cfg["datasets"]:
-            fill_model_path_if_datasets_need(cfg["models"][0], data_config)
         new_cfg["eval"]["runner"]["type"] = get_config_type(LocalRunner)
         new_cfg["eval"]["runner"]["max_workers_per_gpu"] = self.args.max_workers_per_gpu
         cfg.merge_from_dict(new_cfg)

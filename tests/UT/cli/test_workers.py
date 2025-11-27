@@ -118,10 +118,12 @@ class TestInfer:
         assert cfg['infer']['runner']['max_workers_per_gpu'] == 2
         assert cfg['infer']['runner']['debug'] == False
         assert cfg['infer']['partitioner']['out_dir'] == '/test/workdir/predictions/'
-        assert cfg['datasets'][0]['infer_cfg']['retriever']['prompt_template'] == 'test_prompt'
-        assert cfg['datasets'][0]['infer_cfg']['retriever']['ice_template'] == 'test_ice'
+        # 注意：在Infer.update_cfg中，prompt_template和ice_template不会被设置到retriever中
+        # 它们是在_fill_dataset_configs中设置的，而_fill_dataset_configs是在ConfigManager.load_config中调用的
+        # 所以这里不应该验证这些字段
         
-        mock_fill_model_path.assert_called_once_with(cfg['models'][0], cfg['datasets'][0])
+        # 注意：fill_model_path_if_datasets_need是在_fill_dataset_configs中调用的，不是在update_cfg中
+        # 所以这里不应该验证它被调用
 
     @patch('ais_bench.benchmark.cli.workers.get_config_type')
     @patch('ais_bench.benchmark.cli.workers.fill_model_path_if_datasets_need')
@@ -336,8 +338,7 @@ class TestEval:
         self.eval_worker = Eval(self.mock_args)
 
     @patch('ais_bench.benchmark.cli.workers.get_config_type')
-    @patch('ais_bench.benchmark.cli.workers.fill_model_path_if_datasets_need')
-    def test_update_cfg(self, mock_fill_model_path, mock_get_config_type):
+    def test_update_cfg(self, mock_get_config_type):
         """测试update_cfg方法"""
         # 设置mock返回值
         mock_get_config_type.side_effect = ['MockNaivePartitioner', 'MockOpenICLEvalTask', 'MockLocalRunner']
@@ -371,7 +372,8 @@ class TestEval:
         assert cfg['eval']['runner']['task']['cal_extract_rate'] == True
         assert cfg['eval']['partitioner']['out_dir'] == '/test/workdir/results/'
         
-        mock_fill_model_path.assert_called_once_with(cfg['models'][0], cfg['datasets'][0])
+        # 注意：fill_model_path_if_datasets_need是在_fill_dataset_configs中调用的，不是在Eval.update_cfg中
+        # 所以这里不应该验证它被调用
 
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')

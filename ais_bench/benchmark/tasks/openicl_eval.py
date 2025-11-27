@@ -113,12 +113,6 @@ class OpenICLEvalTask(BaseTask):
         })
 
         test_set = build_dataset_from_cfg(self.dataset_cfg).test
-        test_size = len(test_set)
-        # merge-ds mode the final test set size should be subtracted by the number of data in other sub-datasets
-        if isinstance(self.num_prompts, int) and self.num_prompts > 0:
-            if test_size >= self.num_prompts:
-                test_set = test_set.select(range(self.num_prompts))
-            self.num_prompts -= test_size
         # Postprocess dataset if necessary
         if 'dataset_postprocessor' in self.eval_cfg:
             self.logger.debug(f"Dataset postprocessor: {self.eval_cfg['dataset_postprocessor']}")
