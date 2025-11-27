@@ -28,19 +28,19 @@ class DummyRetriever:
         self.dataset = dataset
         self.dataset_reader = dataset.reader
         self._labels = labels or ["A", "B", "C"]
-    
+
     def retrieve(self):
         return [[0], [1]]
-    
+
     def generate_ice(self, idx_list):
         return "ICE"
-    
+
     def generate_label_prompt(self, idx, ice, label):
         return f"P{idx}|{ice}|{label}"
-    
+
     def get_gold_ans(self):
         return ["A", "B"]
-    
+
     def get_labels(self):
         return self._labels
 
@@ -49,16 +49,16 @@ class DummyModel:
     def __init__(self, is_api=True):
         self.max_out_len = 4
         self.is_api = is_api
-    
+
     def get_token_len_from_template(self, prompt, mode="ppl"):
         return len(prompt)
-    
+
     async def get_ppl(self, prompt, max_out_len, output, session=None, **kwargs):
         output.success = True
         output.ppl = 2.5
         output.input = prompt
         output.origin_prompt_logprobs = {"token1": {"logprob": -0.5}}
-    
+
     def parse_template(self, template, mode="ppl"):
         """
         Minimal implementation for tests: return the template unchanged.
@@ -71,16 +71,16 @@ class DummyModel:
 class DummyStatusCounter:
     async def post(self):
         pass
-    
+
     async def rev(self):
         pass
-    
+
     async def failed(self):
         pass
-    
+
     async def finish(self):
         pass
-    
+
     async def case_finish(self):
         pass
 
@@ -132,7 +132,7 @@ class TestPPLInferencer(unittest.TestCase):
         inf = PPLInferencer(model_cfg={}, batch_size=1)
         r = DummyRetriever(DummyDataset(), labels=["A", "B"])
         data_list = inf.get_data_list(r)
-        
+
         self.assertEqual(len(data_list), 2)
         self.assertEqual(data_list[0]["gold"], "A")
         self.assertEqual(data_list[1]["gold"], "B")
@@ -155,25 +155,9 @@ class TestPPLInferencer(unittest.TestCase):
         inf = PPLInferencer(model_cfg={}, batch_size=1)
         r = DummyRetriever(dataset, labels=["A", "B"])
         data_list = inf.get_data_list(r)
-        
+
         self.assertEqual(data_list[0]["max_out_len"], 5)
         self.assertEqual(data_list[1]["max_out_len"], 6)
-
-    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
-    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
-    def test_get_data_list_length_mismatch(self, m_abbr, m_build):
-        """测试get_data_list在data_list和gold_answer长度不匹配时抛出错误"""
-        m_build.return_value = DummyModel()
-        inf = PPLInferencer(model_cfg={}, batch_size=1)
-        
-        class MismatchRetriever(DummyRetriever):
-            def get_gold_ans(self):
-                return ["A"]  # 只有1个，但retrieve返回2个
-        
-        r = MismatchRetriever(DummyDataset(), labels=["A", "B"])
-        with self.assertRaises(AISBenchValueError) as ctx:
-            inf.get_data_list(r)
-        self.assertEqual(ctx.exception.error_code_str, ICLE_CODES.PREDICTION_LENGTH_MISMATCH.full_code)
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
@@ -228,11 +212,11 @@ class TestPPLInferencer(unittest.TestCase):
         m_build.return_value = DummyModel()
         inf = PPLInferencer(model_cfg={}, batch_size=1)
         inf.status_counter = DummyStatusCounter()
-        
+
         # Mock output_handler
         mock_handler = mock.AsyncMock()
         inf.output_handler = mock_handler
-        
+
         data = {
             "index": 0,
             "qa": {
@@ -243,12 +227,12 @@ class TestPPLInferencer(unittest.TestCase):
             "max_out_len": 4,
             "data_abbr": "test"
         }
-        
+
         async def run_test():
             token_bucket = mock.Mock()
             session = mock.Mock()
             await inf.do_request(data, token_bucket, session)
-            
+
             # 验证output_handler被调用
             mock_handler.report_cache_info.assert_called_once()
             call_args = mock_handler.report_cache_info.call_args
@@ -260,7 +244,7 @@ class TestPPLInferencer(unittest.TestCase):
             self.assertTrue(resp_output.success)
             self.assertIsNotNone(resp_output.content)
             self.assertEqual(len(resp_output.label_ppl_list), 2)
-        
+
         asyncio.run(run_test())
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
@@ -270,7 +254,7 @@ class TestPPLInferencer(unittest.TestCase):
         m_build.return_value = DummyModel()
         inf = PPLInferencer(model_cfg={}, batch_size=1)
         inf.status_counter = DummyStatusCounter()
-        
+
         # Mock model to fail on second call
         call_count = [0]
         async def mock_get_ppl(prompt, max_out_len, output, session=None, **kwargs):
@@ -283,13 +267,13 @@ class TestPPLInferencer(unittest.TestCase):
                 output.ppl = 2.5
                 output.input = prompt
                 output.origin_prompt_logprobs = {}
-        
+
         inf.model.get_ppl = mock_get_ppl
-        
+
         # Mock output_handler
         mock_handler = mock.AsyncMock()
         inf.output_handler = mock_handler
-        
+
         data = {
             "index": 0,
             "qa": {
@@ -300,12 +284,12 @@ class TestPPLInferencer(unittest.TestCase):
             "max_out_len": 4,
             "data_abbr": "test"
         }
-        
+
         async def run_test():
             token_bucket = mock.Mock()
             session = mock.Mock()
             await inf.do_request(data, token_bucket, session)
-            
+
             # 验证output_handler被调用
             mock_handler.report_cache_info.assert_called_once()
             call_args = mock_handler.report_cache_info.call_args
@@ -316,7 +300,7 @@ class TestPPLInferencer(unittest.TestCase):
             self.assertIsNone(resp_output.content)
             # 只有第一个成功的被添加到列表
             self.assertEqual(len(resp_output.label_ppl_list), 1)
-        
+
         asyncio.run(run_test())
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
@@ -326,18 +310,18 @@ class TestPPLInferencer(unittest.TestCase):
         m_build.return_value = DummyModel()
         inf = PPLInferencer(model_cfg={}, batch_size=1)
         inf.status_counter = DummyStatusCounter()
-        
+
         # Mock model to always fail
         async def mock_get_ppl(prompt, max_out_len, output, session=None, **kwargs):
             output.success = False
             output.error_info = "API error"
-        
+
         inf.model.get_ppl = mock_get_ppl
-        
+
         # Mock output_handler
         mock_handler = mock.AsyncMock()
         inf.output_handler = mock_handler
-        
+
         data = {
             "index": 0,
             "qa": {
@@ -347,12 +331,12 @@ class TestPPLInferencer(unittest.TestCase):
             "max_out_len": 4,
             "data_abbr": "test"
         }
-        
+
         async def run_test():
             token_bucket = mock.Mock()
             session = mock.Mock()
             await inf.do_request(data, token_bucket, session)
-            
+
             # 验证output_handler被调用
             mock_handler.report_cache_info.assert_called_once()
             call_args = mock_handler.report_cache_info.call_args
@@ -362,7 +346,7 @@ class TestPPLInferencer(unittest.TestCase):
             self.assertEqual(resp_output.error_info, "API error")
             self.assertIsNone(resp_output.content)
             self.assertEqual(len(resp_output.label_ppl_list), 0)
-        
+
         asyncio.run(run_test())
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
@@ -372,19 +356,19 @@ class TestPPLInferencer(unittest.TestCase):
         m_build.return_value = DummyModel()
         inf = PPLInferencer(model_cfg={}, batch_size=1)
         inf.status_counter = DummyStatusCounter()
-        
+
         # Mock model to return success=False but still add to list
         async def mock_get_ppl(prompt, max_out_len, output, session=None, **kwargs):
             output.success = False  # 但不会break，因为这是第一个
             output.ppl = None
             output.input = prompt
-        
+
         inf.model.get_ppl = mock_get_ppl
-        
+
         # Mock output_handler
         mock_handler = mock.AsyncMock()
         inf.output_handler = mock_handler
-        
+
         data = {
             "index": 0,
             "qa": {
@@ -394,12 +378,12 @@ class TestPPLInferencer(unittest.TestCase):
             "max_out_len": 4,
             "data_abbr": "test"
         }
-        
+
         async def run_test():
             token_bucket = mock.Mock()
             session = mock.Mock()
             await inf.do_request(data, token_bucket, session)
-            
+
             # 验证output_handler被调用
             mock_handler.report_cache_info.assert_called_once()
             call_args = mock_handler.report_cache_info.call_args
@@ -407,7 +391,7 @@ class TestPPLInferencer(unittest.TestCase):
             # 当success=False时，会break，所以不会添加到ppl_list
             self.assertFalse(resp_output.success)
             self.assertEqual(len(resp_output.label_ppl_list), 0)
-        
+
         asyncio.run(run_test())
 
 

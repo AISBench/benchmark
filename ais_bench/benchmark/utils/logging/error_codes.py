@@ -163,10 +163,7 @@ class ICLI_CODES:
 class ICLE_CODES:
     UNKNOWN_ERROR = BaseErrorCode("ICLE-UNK-001", ErrorModule.ICL_EVALUATOR, ErrorType.UNKNOWN, 1, "unknown error of icl evaluator")
 
-    PREDICTION_LENGTH_MISMATCH = BaseErrorCode("ICLE-DATA-001", ErrorModule.ICL_EVALUATOR, ErrorType.DATA, 1, "prediction result length mismatch")
     REPLICATION_LENGTH_MISMATCH = BaseErrorCode("ICLE-DATA-002", ErrorModule.ICL_EVALUATOR, ErrorType.DATA, 2, "replication length mismatch")
-
-    IMPLEMENTATION_ERROR = BaseErrorCode("ICLE-IMPL-001", ErrorModule.ICL_EVALUATOR, ErrorType.IMPLEMENTATION, 1, "not implemented error")
 
 class ICLR_CODES:
     UNKNOWN_ERROR = BaseErrorCode("ICLR-UNK-001", ErrorModule.ICL_RETRIEVER, ErrorType.UNKNOWN, 1, "unknown error of icl retriever")

@@ -53,7 +53,7 @@ class PPLInferencer(BaseApiInferencer):
             raise AISBenchValueError(ICLI_CODES.STREAM_MODE_NOT_SUPPORTED_FOR_PPL_INFERENCE, f"Stream mode is not supported for PPL inference")
         self.labels = labels
         # Reuse generation output handler in accuracy mode (stores simple prediction string/int)
-        self.output_handler = PPLInferencerOutputHandler(perf_mode=self.perf_mode, 
+        self.output_handler = PPLInferencerOutputHandler(perf_mode=self.perf_mode,
                                                         save_every=self.save_every)
 
     def get_data_list(
@@ -71,7 +71,7 @@ class PPLInferencer(BaseApiInferencer):
             labels = retriever.get_labels()
         else:
             labels = self.labels
-        
+
         # Generate in-context examples for testing inputs
         for idx in range(len(ice_idx_list)):
             ice.append(retriever.generate_ice(ice_idx_list[idx]))
@@ -79,7 +79,7 @@ class PPLInferencer(BaseApiInferencer):
         for idx in range(len(ice_idx_list)):
             token_num_list = []
             tmp_data = {"index": idx, "qa": {}, "gold": None}
-            data_list.append(tmp_data) 
+            data_list.append(tmp_data)
 
             for label in labels:
                 prompt_kwargs = {
@@ -101,8 +101,6 @@ class PPLInferencer(BaseApiInferencer):
             for idx in range(len(data_list)):
                 data_list[idx]["max_out_len"] = self.model.max_out_len
         gold_answer = retriever.get_gold_ans()
-        if len(data_list) != len(gold_answer):
-            raise AISBenchValueError(ICLE_CODES.PREDICTION_LENGTH_MISMATCH, f"The length of data_list and gold_answer is not the same: {len(data_list)} != {len(gold_answer)}")
         for idx in range(len(data_list)):
             data_list[idx]["gold"] = gold_answer[idx]
             data_list[idx]["data_abbr"] = data_abbr
@@ -122,7 +120,7 @@ class PPLInferencer(BaseApiInferencer):
         self, data: dict, token_bucket: BoundedSemaphore, session: aiohttp.ClientSession
     ):
         """Execute a single inference request.
-        
+
         Args:
             data: Dictionary containing request data
             token_bucket: Semaphore for rate limiting

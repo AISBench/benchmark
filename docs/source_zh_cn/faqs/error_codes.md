@@ -366,6 +366,7 @@ models = [
     ),
 ]
 
+# 在aime2024_gen_0_shot_str.py中 k参数对应`k`
 aime2024_datasets = [
     dict(
         abbr='aime2024',
@@ -510,33 +511,152 @@ PPL推理场景下某次推理结果中没有任何tokenid导致无法计算loss
 ### 解决办法
 若日志为`Failed to save numpy array to database: XXXXXX`，则表示将numpy格式的数据保存到数据库中失败，请依据`XXXXXX`表示的具体保存原因（例如数据库连接问题、数据库表不存在等）进行排查和解决。
 
-## ICLE-DATA-001
-### 错误描述
-### 解决办法
-
 ## ICLE-DATA-002
 ### 错误描述
+配置的推理生成候选解个数`n`与实际返回的候选解个数不一致。
 ### 解决办法
-
-## ICLE-IMPL-001
-### 错误描述
-### 解决办法
+1. 若命令行中指定`--mode all`或者不指定`--mode`，则表示执行infer + evaluate，这种场景触发此异常说明工具本身存在bug，可以在[issue](https://github.com/AISBench/benchmark/issues)中反馈。
+2. 若命令行中指定`--mode eval`则基于之前的推理结果进行evaluate，若异常报错为;
+`Replication length mismatch, len of replications: 4 != n: 8`，那么需要在数据集任务对应的配置文件中将参数`n`设置为replication的数量`4`:
+```python
+# 在aime2024_gen_0_shot_str.py中 k参数对应`k`
+aime2024_datasets = [
+    dict(
+        abbr='aime2024',
+        type=Aime2024Dataset,
+        # ......
+        n=4,
+    )
+]
+```
 
 ## ICLR-TYPE-001
 ### 错误描述
+数据集配置文件中，提示词模板的类型不正确，当前仅支持`str`或`dict`类型。
 ### 解决办法
+确认数据集配置文件中，推理配置中的提示词模板的类型为`str`或`dict`，例如：
+```python
+# 在aime2024_gen_0_shot_str.py中
+aime2024_infer_cfg = dict(
+    prompt_template=dict(
+        type=PromptTemplate,
+        template='{question}\nPlease reason step by step, and put your final answer within \\boxed{}.' # str类型
+    ),
+    # ......
+)
+
+# 在aime2024_gen_0_shot_chat_prompt.py中
+aime2024_infer_cfg = dict(
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict( # dict类型
+            round=[
+                dict(
+                    role="HUMAN",
+                    prompt="{question}\nPlease reason step by step, and put your final answer within \\boxed{}.",
+                ),
+            ],
+        ),
+    ),
+    # ......
+)
+```
+如果`template`参数的取值的类型不对，请更正为`str`或`dict`类型。
 
 ## ICLR-TYPE-002
 ### 错误描述
+数据集配置文件中，提示词模板的类型为`dict`时，其中所有键值对value的取值类型错误，取值类型当前仅支持`str`，`list`和`dict`。
 ### 解决办法
+确认数据集配置文件中，推理配置中的提示词模板中所有键值对value的取值类型为`str`，`list`或`dict`，例如：
+```python
+# 在aime2024_gen_0_shot_chat_prompt.py中
+aime2024_infer_cfg = dict(
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict( # dict类型
+            round=[
+                dict(
+                    role="HUMAN", # str 类型
+                    prompt="{question}\nPlease reason step by step, and put your final answer within \\boxed{}.", # str类型
+                ),
+            ],
+        ),
+    ),
+    # ......
+)
+```
 
 ## ICLR-PARAM-001
 ### 错误描述
+数据集配置文件中，提示词模板配置了`ice_token`参数时，`template`参数的取值中未包含`ice_token`参数的取值
 ### 解决办法
+1. 当`template`参数类型为`str`时，确认`template`取值的字符串中包含`ice_token`参数的取值。例如：
+```python
+# 在ceval_gen_5_shot_str.py中
+ceval_infer_cfg = dict(
+    ice_template=dict(
+        type=PromptTemplate,
+        template=f'以下是中国关于{_ch_name}考试的单项选择题，请选出其中的正确答案。\n</E>{{question}}\nA. {{A}}\nB. {{B}}\nC. {{C}}\nD. {{D}}\n答案: {{answer}}', # 字符串中包含ice_token的取值'</E>'
+        ice_token='</E>',
+    ),
+    retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4]),
+    inferencer=dict(type=GenInferencer),
+)
+
+```
+
+
+2. 当`template`参数类型为`dict`时，确认`template`取值的字典中所有键值对value的取值中存在`ice_token`参数的取值。例如：
+```python
+# 在aime2024_gen_0_shot_chat_prompt.py中
+cmmlu_infer_cfg = dict(
+    # ......
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict(
+            begin='</E>', # 与ice_token取值相同
+            round=[
+                dict(role='HUMAN', prompt=prompt_prefix+QUERY_TEMPLATE),
+            ],
+        ),
+        ice_token='</E>',
+    ),
+    # ......
+)
+```
 
 ## ICLR-PARAM-002
 ### 错误描述
+数据集配置文件需要基于训练集构造few-shots时未指定`ice_template`参数。
 ### 解决办法
+以cmmlu_gen_5_shot_cot_chat_prompt.py为例，该配置中指定`retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4]),`来构造few-shots，因此必须指定`ice_template`参数：
+```python
+cmmlu_infer_cfg = dict(
+    ice_template=dict( # 必须配置ice_template
+        type=PromptTemplate,
+        template=dict(round=[
+            dict(
+                role='HUMAN',
+                prompt=prompt_prefix+QUERY_TEMPLATE,
+            ),
+            dict(role='BOT', prompt="{answer}\n",)
+        ]),
+    ),
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict(
+            begin='</E>',
+            round=[
+                dict(role='HUMAN', prompt=prompt_prefix+QUERY_TEMPLATE),
+            ],
+        ),
+        ice_token='</E>',
+    ),
+    retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4]), # 指定了5-shots
+    inferencer=dict(type=GenInferencer),
+)
+
+```
 
 ## ICLR-PARAM-003
 ### 错误描述
