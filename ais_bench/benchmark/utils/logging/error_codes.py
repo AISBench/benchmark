@@ -231,7 +231,6 @@ class UTILS_CODES:
     INVALID_PERCENTAGE_DISTRIBUTE = BaseErrorCode("UTILS-PARAM-006", ErrorModule.UTILS, ErrorType.PARAM, 6, "invalid percentage_distribute format")
     UNSUPPORTED_DISTRIBUTION_METHOD = BaseErrorCode("UTILS-PARAM-007", ErrorModule.UTILS, ErrorType.PARAM, 7, "unsupported distribution method")
     ILLEGAL_KEYS_IN_CONFIG = BaseErrorCode("UTILS-PARAM-008", ErrorModule.UTILS, ErrorType.PARAM, 8, "illegal keys in configuration")
-    MISSING_API_URL = BaseErrorCode("UTILS-PARAM-009", ErrorModule.UTILS, ErrorType.PARAM,9,"api_url is required")
 
     # File errors
     MATCH_CONFIG_FILE_FAILED = BaseErrorCode("UTILS-FILE-001", ErrorModule.UTILS, ErrorType.FILE, 1, "match config file failed")
@@ -251,17 +250,13 @@ class UTILS_CODES:
 
     # Dependency/runtime errors (additional)
     DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "failed to import dependency module")
-    API_RETRY_EXCEEDED = BaseErrorCode("UTILS-DEPENDENCY-002", ErrorModule.UTILS, ErrorType.DEPENDENCY, 2, "API retries exhausted")
 
-    # Data/response errors (additional)
-    API_RESPONSE_PARSE_FAILED = BaseErrorCode("UTILS-DATA-001", ErrorModule.UTILS, ErrorType.DATA, 1, "failed to parse response data")
 class CALC_CODES:
     UNKNOWN_ERROR = BaseErrorCode("CALC-UNK-001", ErrorModule.CALCULATOR, ErrorType.UNKNOWN, 1, "unknown error of calculator")
     INVALID_METRIC_DATA = BaseErrorCode("CALC-MTRC-001", ErrorModule.CALCULATOR, ErrorType.METRIC, 1, "invalid content of metric data") # docs coverd
     DUMPING_RESULT_FAILED = BaseErrorCode("CALC-FILE-001", ErrorModule.CALCULATOR, ErrorType.FILE, 1, "fail to dump result to file") # docs coverd
     ALL_REQUEST_DATAS_INVALID = BaseErrorCode("CALC-DATA-001", ErrorModule.CALCULATOR, ErrorType.DATA, 1, "all request datas are invalid") # docs coverd
     CAN_NOT_FIND_STABLE_STAGE = BaseErrorCode("CALC-DATA-002", ErrorModule.CALCULATOR, ErrorType.DATA, 2, "invalid response datas") # docs coverd
-    OUTPUT_HANDLER_INVALID_OUTPUT = BaseErrorCode("CALC-DATA-003", ErrorModule.CALCULATOR, ErrorType.DATA, 3, "output handler invalid output")
 
 class DATASETS_CODES:
     UNKNOWN_ERROR = BaseErrorCode("DATASETS-UNK-001", ErrorModule.DATASETS, ErrorType.UNKNOWN, 1, "unknown error of datasets")

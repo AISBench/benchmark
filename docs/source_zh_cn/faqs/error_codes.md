@@ -161,6 +161,150 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 ```
 因为`models`配置中包含了`'service'`和`'local'`两种参数取值，而工具只支持统一配置一种，因此需要将`models`配置中`attr`参数设置为`'service'`或`'local'`中的一种。
 
+## UTILS-DEPENDENCY-001
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-001
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-002
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-003
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-004
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-005
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-006
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-007
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-PARAM-001
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-PARAM-002
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-PARAM-003
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-PARAM-004
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-PARAM-005
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-PARAM-006
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-PARAM-007
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-PARAM-008
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-FILE-001
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-FILE-002
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-FILE-003
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-FILE-004
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-CFG-005
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+
+## UTILS-CFG-006
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+
+## UTILS-CFG-007
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+
+## UTILS-CFG-008
+### 错误描述
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+
 ## PARTI-FILE-001
 ### 错误描述
 输出路径文件的权限不足，工具无法将结果写入。
