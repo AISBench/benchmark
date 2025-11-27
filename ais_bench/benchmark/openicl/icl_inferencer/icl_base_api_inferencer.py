@@ -377,15 +377,28 @@ class BaseApiInferencer(BaseInferencer):
                     # Prefetch next data immediately after first request
                     next_data_task = asyncio.create_task(self.wait_get_data(async_queue, stop_event))
                     await self.do_request(data, token_bucket, session)
-                    while time.perf_counter() - start_time < self.pressure_time:
-                        if stop_event.is_set():
-                            break
-                        # Wait for next data
-                        data = await next_data_task
-                        # Start prefetching the next data immediately (before sending current request)
-                        next_data_task = asyncio.create_task(self.wait_get_data(async_queue, stop_event))
-                        # Send request (next data is being prefetched in parallel)
-                        await self.do_request(data, token_bucket, session)
+                    try:
+                        while time.perf_counter() - start_time < self.pressure_time:
+                            if stop_event.is_set():
+                                break
+                            # Wait for next data
+                            data = await next_data_task
+                            # If sentinel (None) is received, exit the inner loop
+                            if data is None:
+                                stop_event.set()
+                                break
+                            # Start prefetching the next data immediately (before sending current request)
+                            next_data_task = asyncio.create_task(self.wait_get_data(async_queue, stop_event))
+                            # Send request (next data is being prefetched in parallel)
+                            await self.do_request(data, token_bucket, session)
+                    finally:
+                        # Cancel the prefetch task if it's still running
+                        if not next_data_task.done():
+                            next_data_task.cancel()
+                            try:
+                                await next_data_task
+                            except asyncio.CancelledError:
+                                pass
                 else:
                     await self.do_request(data, token_bucket, session)
         tasks = []

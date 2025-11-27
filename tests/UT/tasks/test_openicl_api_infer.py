@@ -103,6 +103,7 @@ class TestOpenICLApiInferTask(unittest.TestCase):
         # 继续OpenICLApiInferTask的初始化
         task.concurrency = task.model_cfg.get("batch_size", 1)
         task.pressure = task.cli_args.get("pressure", False)
+        task.debug = task.cli_args.get("debug", False)
         task.pressure_time = task.cli_args.get("pressure_time")
         task.warmup_size = task.cli_args.get("num_warmups", 1)
         task.task_mode = task.cli_args.get("mode", "infer") if not task.pressure else "pressure"
