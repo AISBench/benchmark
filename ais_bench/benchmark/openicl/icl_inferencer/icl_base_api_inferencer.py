@@ -8,7 +8,9 @@ import threading
 import time
 import uuid
 import copy
+import contextlib
 from abc import abstractmethod
+from collections import defaultdict
 from multiprocessing import BoundedSemaphore, Queue, shared_memory, Value
 from typing import Any, Dict, Optional, Tuple
 
@@ -116,36 +118,74 @@ class BaseApiInferencer(BaseInferencer):
         """
         pass
 
-    async def warmup(self, data_list: list, warmup_times: int = 1):
+    async def warmup(self, data_list: list, warmup_times: int = 1, concurrency: int = 1):
         """Warmup the inferencer.
 
         Args:
             data_list: Data list to warmup
             warmup_times: Warmup times
+            concurrency: Concurrency
         """
-        for i in tqdm(range(warmup_times), desc="Warmup"):
-            data = data_list[i % len(data_list)]
-            await self.do_request(copy.deepcopy(data), None, None)
-            res = None
-            # do request main producer multi results, warm up fail if any result is not success
-            while not self.output_handler.cache_queue.async_q.empty():
-                try:
-                    res = await asyncio.wait_for(self.output_handler.cache_queue.async_q.get(), timeout=1)
-                except Exception as e:
-                    raise AISBenchRuntimeError(ICLI_CODES.WARMUP_GET_RESULT_FAILED,
-                                        f"Get result from cache queue failed: {str(e)}")
-                data_id, data_abbr, input, output, gold = res
-                if not isinstance(output, Output) or not output.success:
-                    raise AISBenchRuntimeError(ICLI_CODES.WARMUP_FAILED, f"Warmup failed: {output.error_info}")
-                self.logger.debug(
-                    f"Warmup success: data_id: {data_id}, "
-                    f"data_abbr: {data_abbr}, "
-                    f"input: {input}, "
-                    f"output: {output.get_prediction()}, "
-                    f"gold: {gold}"
+        warmup_semaphore = (
+            asyncio.Semaphore(concurrency)
+            if concurrency
+            else contextlib.nullcontext()
+        )
+        session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(limit=concurrency + 1),
+            timeout=aiohttp.ClientTimeout(total=get_request_time_out()),
+            max_line_size=get_max_chunk_size(),
+        )
+        warmup_tasks = []
+        async def warmup_limited_request_func(data: dict):
+            async with warmup_semaphore:
+                await self.do_request(
+                    data=copy.deepcopy(data),
+                    token_bucket=None,
+                    session=session,
                 )
-            if not res:
-                raise AISBenchRuntimeError(ICLI_CODES.UNKNOWN_ERROR, f"Empty result from cache queue")
+        try:
+            for i in range(warmup_times):
+                data = data_list[i % len(data_list)]
+                request_task = asyncio.create_task(warmup_limited_request_func(data))
+                warmup_tasks.append(request_task)
+
+            with tqdm(total=warmup_times, desc="Warmup", unit="case") as pbar:
+                for coro in asyncio.as_completed(warmup_tasks):
+                    await coro
+                    pbar.update(1)
+        finally:
+            await session.close()
+
+        warmup_results = dict(
+            success=0,
+            failed=0,
+            failed_reasons=defaultdict(int),
+        )
+
+        while not self.output_handler.cache_queue.async_q.empty():
+            try:
+                res = await asyncio.wait_for(self.output_handler.cache_queue.async_q.get(), timeout=1)
+            except Exception as e:
+                raise AISBenchRuntimeError(ICLI_CODES.WARMUP_GET_RESULT_FAILED,
+                                    f"Get result from cache queue failed: {str(e)}")
+            data_id, data_abbr, input, output, gold = res
+            if not isinstance(output, Output):
+                raise AISBenchRuntimeError(ICLI_CODES.UNKNOWN_ERROR, f"Warmup expected Output object, but got {type(output)}")
+            if not output.success:
+                warmup_results["failed"] += 1
+                warmup_results["failed_reasons"][output.error_info] += 1
+                continue
+            warmup_results["success"] += 1
+
+            self.logger.debug(
+                f"Warmup success: data_id: {data_id}, "
+                f"data_abbr: {data_abbr}, "
+                f"input: {input}, "
+                f"output: {output.get_prediction()}, "
+                f"gold: {gold}"
+            )
+        return warmup_results
 
     def _read_and_unpickle(
         self, buf: memoryview, index_data: Tuple[int, int, int]

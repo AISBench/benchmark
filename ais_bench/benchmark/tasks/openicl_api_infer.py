@@ -25,7 +25,7 @@ from ais_bench.benchmark.openicl.icl_inferencer.icl_base_api_inferencer import B
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg, merge_dataset_abbr_from_cfg
 from ais_bench.benchmark.utils.config import build_dataset_from_cfg
 from ais_bench.benchmark.utils.logging.error_codes import TINFER_CODES
-from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError, AISBenchRuntimeError
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer import MAX_BATCH_SIZE
 from ais_bench.benchmark.utils.logging import AISLogger
 
@@ -81,6 +81,7 @@ class OpenICLApiInferTask(BaseTask):
         super().__init__(cfg)
         self.concurrency = self.model_cfg.get("batch_size", 1)
         self.pressure = self.cli_args.get("pressure", False)
+        self.debug = self.cli_args.get("debug", False)
         self.pressure_time = self.cli_args.get("pressure_time")
         if self.pressure:
             try:
@@ -339,21 +340,59 @@ class OpenICLApiInferTask(BaseTask):
                     self._cleanup_shms(message_shm)
         return processes
 
+    def warm_up(self, data_list: List, task_state_manager: TaskStateManager):
+        """Warm up the inferencer.
+
+        Args:
+            data_list: Data list to warm up
+        """
+        warm_up_inferencer: BaseApiInferencer = ICL_INFERENCERS.build(
+            self.inferencer_cfg
+        )
+        # warmup
+        if self.warmup_size > 0:
+            task_state_manager.update_task_state({"status": "warmup"})
+            self.logger.info(f"Start warmup, run with concurrency: 1")
+            warmup_results = asyncio.run(
+                warm_up_inferencer.warmup(data_list, self.warmup_size, self.concurrency)
+            )
+            if warmup_results["success"] == 0:
+                task_state_manager.update_task_state({"status": "warup failed"})
+                raise AISBenchRuntimeError(
+                    TINFER_CODES.WARMUP_FAILED,
+                    f"All warmup requests failed, exit task, failed reasons: {warmup_results['failed_reasons']}",
+                )
+            task_state_manager.update_task_state(
+                {
+                    "status": "warmup finished",
+                    "other_kwargs": {
+                        "Total Count": self.warmup_size,
+                        "Success Count": warmup_results["success"],
+                        "Failed Count": warmup_results["failed"],
+                        "Failed Reasons": dict(warmup_results["failed_reasons"]),
+                    },
+                })
+            if self.debug:
+                warm_up_log = f"Warmup finished "
+                warm_up_log += f"Total Count: {self.warmup_size} "
+                warm_up_log += f"Success Count: {warmup_results['success']} "
+                warm_up_log += f"Failed Count: {warmup_results['failed']} "
+                if warmup_results['failed'] > 0:
+                    warm_up_log += f"Failed Reasons:\n{dict(warmup_results['failed_reasons'])}"
+                self.logger.info(warm_up_log)
+
+        else:
+            self.logger.info(f"Warmup size is 0, skip...")
+
     def run(self, task_state_manager: TaskStateManager):
         self.logger.info(f"Task [{task_abbr_from_cfg(self.cfg)}]")
-        debug = self.cli_args.get("debug", False)
         self.inferencer:BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
 
         data_list, finish_data_count, global_indexes = self._get_data_list()
         if len(data_list) == 0:
             self.logger.warning(f"Get no data to infer, task finished")
             return
-
-        # warmup
-        self.logger.info(f"Start warmup...")
-        warm_up_inferencer:BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
-        asyncio.run(warm_up_inferencer.warmup(data_list, self.warmup_size))
-
+        self.warm_up(data_list, task_state_manager)
         dataset_size, dataset_shm, indexes = self._dump_dataset_to_share_memory(data_list)
         # In pressure mode, treat the first `concurrency` requests as the dataset size
         if self.pressure:
@@ -374,7 +413,7 @@ class OpenICLApiInferTask(BaseTask):
 
         try:
             processes = []
-            if debug:
+            if self.debug:
                 message_shm = create_message_share_memory()
                 message_shms[os.getpid()] = message_shm
                 # Create progress bar
@@ -383,7 +422,7 @@ class OpenICLApiInferTask(BaseTask):
                     self.stop_evt,
                     len(global_indexes),
                     finish_data_count,
-                    debug,
+                    self.debug,
                     self.pressure,
                     self.pressure_time,
                 )
@@ -447,7 +486,7 @@ class OpenICLApiInferTask(BaseTask):
                     self.stop_evt,
                     len(global_indexes),
                     finish_data_count,
-                    debug,
+                    self.debug,
                     self.pressure,
                     self.pressure_time,
                 )

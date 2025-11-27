@@ -111,6 +111,9 @@ class BaseAPIModel(BaseModel):
         protocol = "https" if self.enable_ssl else "http"
         if self.url:
             self.logger.info(f"Using custom URL: [{self.url}], [host_ip: {self.host_ip}] and [host_port: {self.host_port}] will be ignored")
+            # Check if URL already contains protocol
+            if self.url.startswith("http://") or self.url.startswith("https://"):
+                return self.url
             return f"{protocol}://{self.url}"
         base_url = f"{protocol}://{self.host_ip}:{self.host_port}/"
         return base_url
@@ -239,6 +242,7 @@ class BaseAPIModel(BaseModel):
                 )
                 await output.clear_time_points()
                 continue
+        # print(f"{output.to_dict()}")
         if close_session:
             self.logger.debug(f"Waiting for session close ...")
             await self.session.close()
@@ -268,7 +272,7 @@ class BaseAPIModel(BaseModel):
                         output.error_info = f"Unexpected response format: {raw_chunk}. Please check if server is working correctly."
                         raise AISBenchValueError(
                             MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                            f"Unexpected response format. Please check ***_detail.jsonl for more information."
+                            f"Unexpected response format. Please check ***_details.jsonl for more information."
                         )
                     await self.parse_stream_response(data, output)
                 output.success = True
@@ -291,7 +295,7 @@ class BaseAPIModel(BaseModel):
                     output.error_info = f"Unexpected response format: {raw_data}. Please check if server is working correctly."
                     raise AISBenchValueError(
                         MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                        f"Unexpected response format. Please check ***_detail.jsonl for more information."
+                        f"Unexpected response format. Please check ***_details.jsonl for more information."
                     )
                 await self.parse_text_response(data, output)
                 output.success = True

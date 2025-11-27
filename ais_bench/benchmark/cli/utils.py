@@ -11,6 +11,7 @@ DATASETS_NEED_MODELS = ["ais_bench.benchmark.datasets.synthetic.SyntheticDataset
                       "ais_bench.benchmark.datasets.sharegpt.ShareGPTDataset"]
 MAX_NUM_WORKERS = int(os.cpu_count() * 0.8)
 DEFAULT_PRESSURE_TIME = 15
+MAX_PRESSURE_TIME = 60 * 60 * 24 # 24 hours
 
 logger = AISLogger()
 
@@ -136,5 +137,7 @@ def validate_pressure_time(value):
     if pressure_time < 1:
         logger.warning(f"`pressure_time` must be greater than or equal to 1, but got {pressure_time}, setting to default value 15s")
         return DEFAULT_PRESSURE_TIME
-    
+    if pressure_time > MAX_PRESSURE_TIME:
+        logger.warning(f"`pressure_time` is more than 24 hours, setting to {MAX_PRESSURE_TIME}")
+        return MAX_PRESSURE_TIME
     return pressure_time
