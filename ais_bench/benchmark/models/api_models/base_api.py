@@ -508,8 +508,8 @@ class APITemplateParser:
                         section_stack.append((item["section"], i + 1))
                     else:
                         raise AISBenchValueError(
-                            MODEL_CODES.INVALID_POS_IN_PROMPT_TEMPLATE,
-                            f'Invalid prompt template item pos {item["pos"]}'
+                            MODEL_CODES.UNKNOWN_ERROR,
+                            f"Invalid prompt template item pos {item["pos"]}, legal item pos are 'begin' or 'end'."
                         )
                 elif section_stack[-1][0] in ["begin", "end"]:
                     role_dict = self._update_role_dict(item)
@@ -602,7 +602,7 @@ class APITemplateParser:
                     raise AISBenchKeyError(
                         MODEL_CODES.INVALID_ROLE_IN_PROMPT_TEMPLATE,
                         f"prompt template item {template} neither has an appropriate "
-                        "role nor a fallback role."
+                        "role nor a fallback_role."
                     )
             if role_idx <= last_role_idx:
                 cutoff_idxs.append(idx)

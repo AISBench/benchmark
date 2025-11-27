@@ -305,8 +305,8 @@ class LMTemplateParser:
                         section_stack.append((item['section'], i + 1))
                     else:
                         raise AISBenchValueError(
-                            MODEL_CODES.INVALID_POS_IN_PROMPT_TEMPLATE,
-                            f'Invalid prompt template item pos {item["pos"]}'
+                            MODEL_CODES.UNKNOWN_ERROR,
+                            f"Invalid prompt template item pos {item["pos"]}, legal item pos are 'begin' or 'end'."
                         )
                 # if in "begin" or "end" section
                 elif section_stack[-1][0] in ['begin', 'end']:

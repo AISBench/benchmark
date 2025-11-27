@@ -629,7 +629,7 @@ cmmlu_infer_cfg = dict(
 ### 错误描述
 数据集配置文件需要基于训练集构造few-shots时未指定`ice_template`参数。
 ### 解决办法
-以cmmlu_gen_5_shot_cot_chat_prompt.py为例，该配置中指定`retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4]),`来构造few-shots，因此必须指定`ice_template`参数：
+以cmmlu_gen_5_shot_cot_chat_prompt.py为例，该配置中指定`retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4]),`来构造few-shots，因此必须指定`ice_template`参数，可以参考其内容做修改：
 ```python
 cmmlu_infer_cfg = dict(
     ice_template=dict( # 必须配置ice_template
@@ -660,39 +660,161 @@ cmmlu_infer_cfg = dict(
 
 ## ICLR-PARAM-003
 ### 错误描述
+多模态类的数据集配置文件中，提示词模板中的`prompt_mm`参数的key取值不是["text", "image", "video", "audio"]之一。
 ### 解决办法
+以`textvqa_gen_base64.py`为例，该配置中提示词模板中的`prompt_mm`参数的key取值为"text"，"image"，"video"，"audio"之一，可以参考其内容做修改：
+```python
+textvqa_infer_cfg = dict(
+    prompt_template=dict(
+        type=MMPromptTemplate,
+        template=dict(
+            round=[
+                dict(role="HUMAN", prompt_mm={ # prompt_mm参数的key取值为"text"，"image"，"video"，"audio"之一
+                    "text": {"type": "text", "text": "{question} Answer the question using a single word or phrase."},
+                    "image": {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,{image}"}},
+                    "video": {"type": "video_url", "video_url": {"url": "data:video/jpeg;base64,{video}"}},
+                    "audio": {"type": "audio_url", "audio_url": {"url": "data:audio/wav;base64,{audio}"}},
+                })
+            ]
+            )
+    ),
+    retriever=dict(type=ZeroRetriever),
+    inferencer=dict(type=GenInferencer)
+)
+```
 
 ## ICLR-PARAM-004
 ### 错误描述
+数据集配置文件中构造few-shots的`fix_id_list`中的id取值超出了训练集可选取id的范围。
 ### 解决办法
-
-## ICLR-IMPL-001
-### 错误描述
-### 解决办法
+若数据集配置文件中的构造few-shots的配置如下:
+```python
+retriever=dict(type=FixKRetriever, fix_id_list=[1,2,5,8]),
+```
+详细报错日志为`Fix-K retriever index 8 is out of range of [0, 8)`，说明`fix_id_list`中的id取值超出了训练集可选取id的范围[0, 8)，需要修正在此范围内。
 
 ## ICLR-IMPL-002
 ### 错误描述
+在数据集配置文件中的提示词模板中，未配置`ice_token`参数。
 ### 解决办法
+1. 若同时存在`prompt_template`参数和`ice_template`参数，日志报错为`ice_token of prompt_template is not provided`，则`prompt_template`参数中必须存在`ice_token`参数，例如
+```python
+cmmlu_infer_cfg = dict(
+    ice_template=dict(
+        type=PromptTemplate,
+        template=dict(round=[
+            dict(
+                role='HUMAN',
+                prompt=prompt_prefix+QUERY_TEMPLATE,
+            ),
+            dict(role='BOT', prompt="{answer}\n",)
+        ]),
+    ),
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict(
+            begin='</E>',
+            round=[
+                dict(role='HUMAN', prompt=prompt_prefix+QUERY_TEMPLATE),
+            ],
+        ),
+        ice_token='</E>', # 必须设置
+    ),
+    retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4]), # 指定了5-shots
+    inferencer=dict(type=GenInferencer),
+)
+```
+2. 若仅存在`ice_template`参数，日志报错为`ice_token of ice_template is not provided`，则`ice_template`参数中必须存在`ice_token`参数，例如
+```python
+ceval_infer_cfg = dict(
+    ice_template=dict(
+        type=PromptTemplate,
+        template=f'以下是中国关于{_ch_name}考试的单项选择题，请选出其中的正确答案。\n</E>{{question}}\nA. {{A}}\nB. {{B}}\nC. {{C}}\nD. {{D}}\n答案: {{answer}}',
+        ice_token='</E>', # 必须存在
+    ),
+    retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4]),
+    inferencer=dict(type=GenInferencer),
+)
+```
 
 ## ICLR-IMPL-003
 ### 错误描述
+数据集配置文件中缺失必要的模板字段
 ### 解决办法
+若报错日志为`Leaving prompt as empty is not supported`，说明数据集配置文件中至少需要存在`prompt_template`参数和`ice_template`参数的其中一个。
+例如
+```python
+cmmlu_infer_cfg = dict( # ice_template和prompt_template至少存在一个
+    ice_template=dict(
+        type=PromptTemplate,
+        template=dict(round=[
+            dict(
+                role='HUMAN',
+                prompt=prompt_prefix+QUERY_TEMPLATE,
+            ),
+            dict(role='BOT', prompt="{answer}\n",)
+        ]),
+    ),
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict(
+            begin='</E>',
+            round=[
+                dict(role='HUMAN', prompt=prompt_prefix+QUERY_TEMPLATE),
+            ],
+        ),
+        ice_token='</E>', # 必须设置
+    ),
+    retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4]), # 指定了5-shots
+    inferencer=dict(type=GenInferencer),
+)
+```
 
 ## MODEL-IMPL-001
 ### 错误描述
+当基于`BaseAPIModel`类实现一个新的类时，未实现`parse_text_response`方法，无法通过文本接口测试推理服务。
 ### 解决办法
+（面向开发者）实现基于`BaseAPIModel`类的子类时，若希望通过文本接口测试推理服务，需要实现
+`parse_text_response`方法，用于解析模型返回的文本响应，将其转换为模型推理服务的输出格式。
 
 ## MODEL-IMPL-002
 ### 错误描述
+当基于`BaseAPIModel`类实现一个新的类时，未实现`parse_stream_response`方法，无法通过流式接口测试推理服务。
 ### 解决办法
-
-## MODEL-PARAM-001
-### 错误描述
-### 解决办法
+（面向开发者）实现基于`BaseAPIModel`类的子类时，若希望通过流式接口测试推理服务，需要实现
+`parse_stream_response`方法，用于解析模型返回的流式响应，将其转换为模型推理服务的输出格式。
 
 ## MODEL-PARAM-002
 ### 错误描述
+数据集配置文件中，chat类型的prompt template中没有包含`role`或`fallback_role`字段
 ### 解决办法
+参考以下配置文件内容：
+```python
+cmmlu_infer_cfg = dict(
+    ice_template=dict(
+        type=PromptTemplate,
+        template=dict(round=[
+            dict(
+                role='HUMAN', # 包含'role字段'
+                prompt=prompt_prefix+QUERY_TEMPLATE,
+            ),
+            dict(role='BOT', prompt="{answer}\n",)
+        ]),
+    ),
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict(
+            begin='</E>',
+            round=[
+                dict(role='HUMAN', prompt=prompt_prefix+QUERY_TEMPLATE),
+            ],
+        ),
+        ice_token='</E>',
+    ),
+    retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4]), # 指定了5-shots
+    inferencer=dict(type=GenInferencer),
+)
+```
 
 ## MODEL-PARAM-003
 ### 错误描述
