@@ -12,7 +12,7 @@ from ais_bench.benchmark.summarizers.default import (
     METRIC_WHITELIST,
     METRIC_BLACKLIST
 )
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from mmengine import ConfigDict
 
 

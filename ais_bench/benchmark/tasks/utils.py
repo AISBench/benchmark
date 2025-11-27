@@ -110,7 +110,7 @@ def check_virtual_memory_usage(dataset_bytes: int, threshold_percent: int = MAX_
         threshold_percent (int): Memory usage threshold percentage, default 80%
 
     Raises:
-        AISRuntimeError: When virtual memory usage exceeds threshold
+        AISBenchRuntimeError: When virtual memory usage exceeds threshold
     """
 
     # Get memory information using psutil

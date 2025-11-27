@@ -1,8 +1,8 @@
 import sys
 from datetime import datetime
 
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.logger import AISLogger
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
 DATASETS_NEED_MODELS = ["ais_bench.benchmark.datasets.synthetic.SyntheticDataset",
@@ -34,7 +34,7 @@ def fill_model_path_if_datasets_need(model_cfg, dataset_cfg):
     if data_type in DATASETS_NEED_MODELS:
         model_path = model_cfg.get("path")
         if not model_path:
-            raise ConfigError(
+            raise AISBenchConfigError(
                 UTILS_CODES.SYNTHETIC_DS_MISS_REQUIRED_PARAM,
                 "[path] in model config is required for synthetic(tokenid) and sharegpt dataset."
             )

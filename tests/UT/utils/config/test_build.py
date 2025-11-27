@@ -8,7 +8,7 @@ from ais_bench.benchmark.utils.config import (
     build_model_from_cfg,
     build_perf_metric_calculator_from_cfg,
 )
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 
 
 class MockDataset:
@@ -75,32 +75,32 @@ class TestConfigBuildUtilities(unittest.TestCase):
     def test_build_model_from_cfg_validation_errors(self, _mock_models, mock_logger):
         """Test model building with various validation errors"""
         # Invalid attr
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"attr": "invalid", "type": "model.Type"}))
         mock_logger.warning.assert_called()
 
         # Invalid request_rate
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"request_rate": 100000, "type": "model.Type"}))
 
         # Invalid retry
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"retry": 2000, "type": "model.Type"}))
 
         # Invalid host_port
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"host_port": 70000, "type": "model.Type"}))
 
         # Invalid max_out_len
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"max_out_len": 200000, "type": "model.Type"}))
 
         # Invalid batch_size
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"batch_size": 200000, "type": "model.Type"}))
 
         # Invalid generation_kwargs
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"generation_kwargs": "not a dict", "type": "model.Type"}))
 
     @patch("ais_bench.benchmark.utils.config.build.logger")
@@ -128,7 +128,7 @@ class TestConfigBuildUtilities(unittest.TestCase):
         self.assertIsNotNone(result)
 
         # Test invalid traffic_cfg
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(
                 ConfigDict(
                     {
@@ -139,7 +139,7 @@ class TestConfigBuildUtilities(unittest.TestCase):
             )
 
         # Test invalid burstiness
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(
                 ConfigDict(
                     {
@@ -150,7 +150,7 @@ class TestConfigBuildUtilities(unittest.TestCase):
             )
 
         # Test invalid ramp_up_strategy
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(
                 ConfigDict(
                     {

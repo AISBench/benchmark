@@ -3,14 +3,43 @@ import os
 from transformers import AutoTokenizer
 from typing import List, Tuple
 
+from ais_bench.benchmark.utils.logging import AISLogger
+from ais_bench.benchmark.utils.logging.exceptions import FileOperationError
+from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
+
+__all__ = ['load_tokenizer', 'AISTokenizer']
+
+logger = AISLogger()
+
 def load_tokenizer(tokenizer_path: str):
+    """Load a tokenizer from the specified path.
+    
+    Args:
+        tokenizer_path: Path to the tokenizer directory or model identifier
+        
+    Returns:
+        AutoTokenizer: Loaded tokenizer instance
+        
+    Raises:
+        FileOperationError: If tokenizer path doesn't exist or loading fails
+    """
+    logger.debug(f"Attempting to load tokenizer from: {tokenizer_path}")
+    
     if not os.path.exists(tokenizer_path):
-        raise FileNotFoundError(f"Tokenizer path {tokenizer_path} does not exist")
+        raise FileOperationError(
+            UTILS_CODES.TOKENIZER_PATH_NOT_FOUND,
+            f"Tokenizer path '{tokenizer_path}' does not exist"
+        )
+    
     try:
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        logger.info(f"Successfully loaded tokenizer from: {tokenizer_path}")
+        return tokenizer
     except Exception as e:
-        raise ValueError(f"Failed to load tokenizer from {tokenizer_path}: {e}")
-    return tokenizer
+        raise FileOperationError(
+            UTILS_CODES.TOKENIZER_LOAD_FAILED,
+            f"Failed to load tokenizer from {tokenizer_path}: {type(e).__name__}: {e}"
+        ) from e
 
 
 class AISTokenizer:

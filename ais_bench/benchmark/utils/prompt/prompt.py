@@ -8,6 +8,9 @@ from typing import Dict, List, Union
 
 from mmengine.config import ConfigDict
 
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchTypeError
+from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
+
 AIS_TEXT_START = "<AIS_TEXT_START>"
 AIS_IMAGE_START = "<AIS_IMAGE_START>"
 AIS_VIDEO_START = "<AIS_VIDEO_START>"
@@ -139,7 +142,6 @@ class PromptList(list):
                 new_item = deepcopy(item)
                 if 'prompt_mm' in item:
                     mm = item.get('prompt_mm', {})
-                    new_mm = new_item.setdefault('prompt_mm', {})
                     contents=[]
                     content_str = kwargs["content"]
                     for item in content_str.split(AIS_CONTENT_TAG):
@@ -195,7 +197,7 @@ class PromptList(list):
             PromptList: A new PromptList with 'src' replaced by 'dst'.
 
         Raises:
-            TypeError: If 'dst' is a PromptList and 'src' is in a dictionary's
+            AISBenchTypeError: If 'dst' is a PromptList and 'src' is in a dictionary's
             'prompt' key.
         """
         new_list = PromptList()
@@ -215,7 +217,8 @@ class PromptList(list):
                 if 'prompt' in item:
                     if src in item['prompt']:
                         if isinstance(dst, PromptList):
-                            raise TypeError(
+                            raise AISBenchTypeError(
+                                UTILS_CODES.INVALID_TYPE,
                                 f'Found keyword {src} in a dictionary\'s '
                                 'prompt key. Cannot replace with a '
                                 'PromptList.')
@@ -283,7 +286,7 @@ class PromptList(list):
             str: The string representation of the PromptList.
 
         Raises:
-            TypeError: If there's an item in the PromptList that is not a
+            AISBenchTypeError: If there's an item in the PromptList that is not a
             string or dictionary.
         """
         res = []
@@ -294,6 +297,8 @@ class PromptList(list):
                 if 'prompt' in item:
                     res.append(json.dumps(item['prompt']))
             else:
-                raise TypeError("Invalid type in prompt list when "
-                                "converting to string")
+                raise AISBenchTypeError(
+                    UTILS_CODES.INVALID_TYPE,
+                    "Invalid type in prompt list when converting to string"
+                )
         return "".join(res)

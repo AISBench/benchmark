@@ -5,7 +5,7 @@ import tempfile
 import shutil
 
 from ais_bench.benchmark.cli.config_manager import CustomConfigChecker, ConfigManager
-from ais_bench.benchmark.utils.logging.exceptions import CommandError, ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 
 class TestCustomConfigChecker(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': {'attr': {}}
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
 
@@ -42,7 +42,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': {'attr': {}}
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM.full_code)
 
@@ -54,7 +54,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': {'attr': {}}
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM.full_code)
 
@@ -66,7 +66,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': {'attr': {}}
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
 
@@ -77,7 +77,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': {'attr': {}}
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
 
@@ -89,7 +89,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': {'attr': {}}
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM.full_code)
 
@@ -101,7 +101,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': {'attr': {}}
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM.full_code)
 
@@ -113,7 +113,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': {'attr': {}}
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
 
@@ -124,7 +124,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'datasets': [{'type': 'test_dataset', 'abbr': 'test', 'reader_cfg': {}, 'infer_cfg': {}, 'eval_cfg': {}}]
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
 
@@ -136,7 +136,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': 'test_summarizer'  # 应该是字典
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM.full_code)
 
@@ -148,7 +148,7 @@ class TestCustomConfigChecker(unittest.TestCase):
             'summarizer': {}  # 缺少attr字段
         }
         checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             checker.check()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
 
@@ -248,7 +248,7 @@ class TestConfigManager(unittest.TestCase):
         config_manager = ConfigManager(self.args)
 
         # 验证异常
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             config_manager._get_config_from_arg()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT.full_code)
 
@@ -336,7 +336,7 @@ class TestConfigManager(unittest.TestCase):
         config_manager = ConfigManager(self.args)
 
         # 验证异常
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             config_manager._load_models_config()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
 
@@ -422,7 +422,7 @@ class TestConfigManager(unittest.TestCase):
         config_manager = ConfigManager(self.args)
 
         # 验证异常
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             config_manager._load_datasets_config()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
 
@@ -650,7 +650,7 @@ class TestConfigManager(unittest.TestCase):
         config_manager.cfg_time_str = self.args.dir_time_str
 
         # 验证异常
-        with self.assertRaises(ConfigError) as cm:
+        with self.assertRaises(AISBenchConfigError) as cm:
             config_manager._dump_and_reload_config()
         self.assertEqual(cm.exception.error_code_str, TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT.full_code)
 

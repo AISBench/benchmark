@@ -9,7 +9,7 @@ from ais_bench.benchmark.datasets.utils.datasets import get_data_path
 from ais_bench.benchmark.utils.file import check_mm_custom
 from ais_bench.benchmark.datasets.utils.video import VideoAsset, image_to_base64
 from ais_bench.benchmark.utils.logging.logger import AISLogger
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 from ais_bench.benchmark.utils.prompt import AIS_CONTENT_TAG, AIS_TEXT_START, AIS_IMAGE_START, AIS_VIDEO_START, AIS_AUDIO_START
 
@@ -49,7 +49,7 @@ class MMCustomDataset(BaseDataset):
         """
         path = get_data_path(path, local_mode=True)
         if not check_mm_custom(path):
-            raise ConfigError(UTILS_CODES.MM_CUSTOM_DATASET_WRONG_FORMAT,"Invalid dataset, please check it!")
+            raise AISBenchConfigError(UTILS_CODES.MM_CUSTOM_DATASET_WRONG_FORMAT,"Invalid dataset, please check it!")
 
         dataset = []
         with open(path, 'r', encoding='utf-8') as f:
@@ -83,7 +83,7 @@ class MMCustomDataset(BaseDataset):
                             content += data_base64
                             content += AIS_CONTENT_TAG
                 else:
-                    raise ConfigError(UTILS_CODES.MM_CUSTOM_DATASET_WRONG_FORMAT,"Invalid type in dataset, please check it!")
+                    raise AISBenchConfigError(UTILS_CODES.MM_CUSTOM_DATASET_WRONG_FORMAT,"Invalid type in dataset, please check it!")
                 content += AIS_TEXT_START
                 content += line['question']
                 line['content'] = content

@@ -7,7 +7,7 @@ from ais_bench.benchmark.cli.utils import (
     is_running_in_background,
     get_current_time_str
 )
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
 
@@ -49,7 +49,7 @@ class TestUtils(unittest.TestCase):
         }
 
         # 验证异常
-        with self.assertRaises(ConfigError) as context:
+        with self.assertRaises(AISBenchConfigError) as context:
             fill_model_path_if_datasets_need(model_cfg, dataset_cfg)
 
         # 验证错误信息

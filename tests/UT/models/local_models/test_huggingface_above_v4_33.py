@@ -1,16 +1,16 @@
 # flake8: noqa
 # yapf: disable
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock
 import torch
-import pytest
 import importlib
+import transformers
 
+from ais_bench.benchmark.models.local_models import huggingface_above_v4_33, base
 from ais_bench.benchmark.models.local_models.huggingface_above_v4_33 import (
     _get_stopping_criteria,
     _get_possible_max_seq_len,
     _convert_chat_messages,
-    _format_with_fast_chat_template,
     _get_meta_template,
     _set_model_kwargs_torch_dtype,
     drop_error_generation_kwargs,
@@ -18,9 +18,7 @@ from ais_bench.benchmark.models.local_models.huggingface_above_v4_33 import (
     HuggingFaceBaseModel,
     _convert_base_messages
 )
-from ais_bench.benchmark.utils.logging.exceptions import (
-    AISBenchModuleNotFoundError, AISBenchValueError
-)
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchValueError
 
 class TestHuggingFaceAboveV4_33(unittest.TestCase):
 
@@ -63,7 +61,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         expected = [[{"role": "user", "content": ""}, {"role": "assistant", "content": "Hi"}]]
         self.assertEqual(result, expected)
 
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33.APITemplateParser')
+    @patch.object(huggingface_above_v4_33, 'APITemplateParser')
     def test_get_meta_template(self, mock_api_template_parser):
         # 测试提供meta_template的情况
         mock_template = MagicMock()
@@ -143,10 +141,10 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
             instance.model = model
             return model
 
-        with patch('ais_bench.benchmark.models.local_models.base.BaseModel.__init__', autospec=True, side_effect=fake_base_init) as mock_base_init, \
-             patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33.LMTemplateParser', return_value=self.mock_template_parser) as mock_lm_template, \
-             patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._get_possible_max_seq_len', return_value=2048) as mock_get_max_len, \
-             patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._get_meta_template', return_value=self.mock_template_parser) as mock_get_meta_template, \
+        with patch.object(base.BaseModel, '__init__', autospec=True, side_effect=fake_base_init) as mock_base_init, \
+             patch.object(huggingface_above_v4_33, 'LMTemplateParser', return_value=self.mock_template_parser) as mock_lm_template, \
+             patch.object(huggingface_above_v4_33, '_get_possible_max_seq_len', return_value=2048) as mock_get_max_len, \
+             patch.object(huggingface_above_v4_33, '_get_meta_template', return_value=self.mock_template_parser) as mock_get_meta_template, \
              patch.object(HuggingFacewithChatTemplate, '_get_potential_stop_words', return_value=[]) as mock_get_stop_words, \
              patch.object(HuggingFaceBaseModel, '_load_tokenizer', autospec=True) as mock_load_tokenizer, \
              patch.object(HuggingFaceBaseModel, '_load_model', autospec=True) as mock_load_model:
@@ -282,9 +280,9 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
             # 处理可能的StopIteration异常
             pass
 
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._get_stopping_criteria')
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._convert_chat_messages')
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33.drop_error_generation_kwargs')
+    @patch.object(huggingface_above_v4_33, '_get_stopping_criteria')
+    @patch.object(huggingface_above_v4_33, '_convert_chat_messages')
+    @patch.object(huggingface_above_v4_33, 'drop_error_generation_kwargs')
     def test_generate_with_fastchat_template(self, mock_drop_kwargs, mock_convert_messages,
                                             mock_get_stopping):
         # 配置mock
@@ -305,7 +303,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         model.stop_words = ["</s>"]
 
         # 模拟_format_with_fast_chat_template函数
-        with patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._format_with_fast_chat_template',
+        with patch.object(huggingface_above_v4_33, '_format_with_fast_chat_template',
                   return_value=["formatted prompt"]):
             result = HuggingFacewithChatTemplate.generate(model, ["test"], 100)
 
@@ -318,9 +316,9 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
                                                                      max_length=model.max_seq_len)
             model.model.generate.assert_called_once()
 
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._get_stopping_criteria')
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._convert_chat_messages')
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33.drop_error_generation_kwargs')
+    @patch.object(huggingface_above_v4_33, '_get_stopping_criteria')
+    @patch.object(huggingface_above_v4_33, '_convert_chat_messages')
+    @patch.object(huggingface_above_v4_33, 'drop_error_generation_kwargs')
     def test_generate_with_mid_mode(self, mock_drop_kwargs, mock_convert_messages,
                                    mock_get_stopping):
         # 配置mock
@@ -372,8 +370,8 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
             instance.model = model
             return model
 
-        with patch('ais_bench.benchmark.models.local_models.base.BaseModel.__init__', autospec=True) as mock_base_init, \
-             patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._get_possible_max_seq_len', return_value=1024), \
+        with patch.object(base.BaseModel, '__init__', autospec=True) as mock_base_init, \
+             patch.object(huggingface_above_v4_33, '_get_possible_max_seq_len', return_value=1024), \
              patch.object(HuggingFaceBaseModel, '_load_tokenizer', autospec=True) as mock_load_tokenizer, \
              patch.object(HuggingFaceBaseModel, '_load_model', autospec=True) as mock_load_model:
 
@@ -390,12 +388,12 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
             model.do_performance = False
 
             inputs = ["test input"]
-            with patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._convert_base_messages', return_value=["converted input"]), \
-                 patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33.drop_error_generation_kwargs', return_value={}):
+            with patch.object(huggingface_above_v4_33, '_convert_base_messages', return_value=["converted input"]), \
+                 patch.object(huggingface_above_v4_33, 'drop_error_generation_kwargs', return_value={}):
                 result = model.generate(inputs, max_out_len=100)
                 self.assertEqual(result, ["generated text"])
 
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._convert_chat_messages')
+    @patch.object(huggingface_above_v4_33, '_convert_chat_messages')
     def test_get_token_len(self, mock_convert_chat):
         # 配置mock
         mock_convert_chat.return_value = [[{"role": "user", "content": "test"}]]
@@ -412,7 +410,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         self.assertEqual(result, 5)
         model.tokenizer.apply_chat_template.assert_called_once()
 
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._convert_base_messages')
+    @patch.object(huggingface_above_v4_33, '_convert_base_messages')
     def test_huggingface_base_model_get_token_len(self, mock_convert_base):
         # 配置mock
         mock_convert_base.return_value = ["test input"]
@@ -477,7 +475,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         model_kwargs['torch_dtype'] = torch.float  # 模拟函数效果
         self.assertEqual(model_kwargs['torch_dtype'], torch.float)
 
-    @patch('transformers.AutoConfig')
+    @patch.object(transformers, 'AutoConfig')
     def test_get_possible_max_seq_len(self, mock_auto_config):
         # 测试直接提供max_seq_len的情况
         test_value = 1024
@@ -505,7 +503,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         # 验证mock设置
         self.assertEqual(mock_config.model_max_length, 4096)
 
-    @patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._format_with_fast_chat_template')
+    @patch.object(huggingface_above_v4_33, '_format_with_fast_chat_template')
     def test_format_with_fast_chat_template(self, mock_format_function):
         # 配置mock
         mock_format_function.return_value = ["formatted prompt"]
@@ -613,7 +611,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         mock_generation_config = MagicMock()
         mock_generation_config.eos_token_id = 102
 
-        with patch('transformers.GenerationConfig.from_pretrained', return_value=mock_generation_config):
+        with patch.object(transformers.GenerationConfig, 'from_pretrained', return_value=mock_generation_config):
             result = HuggingFacewithChatTemplate._get_potential_stop_words(model, "dummy_path")
             self.assertIn("<eos>", result)
             self.assertIn("</s>", result)
@@ -624,7 +622,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         model.tokenizer = MagicMock()
         model.tokenizer.eos_token = "</s>"
 
-        with patch('transformers.GenerationConfig.from_pretrained', side_effect=Exception()):
+        with patch.object(transformers.GenerationConfig, 'from_pretrained', side_effect=Exception()):
             result = HuggingFacewithChatTemplate._get_potential_stop_words(model, "dummy_path")
             self.assertIn("</s>", result)
 
@@ -633,8 +631,8 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         model = MagicMock()
         model.logger = MagicMock()
 
-        with patch('transformers.AutoModelForCausalLM.from_pretrained', side_effect=ValueError()), \
-             patch('transformers.AutoModel.from_pretrained') as mock_auto_model:
+        with patch.object(transformers.AutoModelForCausalLM, 'from_pretrained', side_effect=ValueError()), \
+             patch.object(transformers.AutoModel, 'from_pretrained') as mock_auto_model:
             mock_model = MagicMock()
             mock_model.eval = MagicMock()
             mock_model.generation_config.do_sample = True
@@ -667,7 +665,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         model.tokenizer = MagicMock()
         model.tokenizer.eos_token = None
 
-        with patch('transformers.GenerationConfig.from_pretrained', side_effect=Exception()):
+        with patch.object(transformers.GenerationConfig, 'from_pretrained', side_effect=Exception()):
             result = HuggingFacewithChatTemplate._get_potential_stop_words(model, "dummy_path")
             self.assertEqual(result, [])
 
@@ -678,8 +676,8 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         model = MagicMock()
         model.logger = MagicMock()
 
-        with patch('transformers.AutoTokenizer.from_pretrained') as mock_auto_tokenizer, \
-             patch('transformers.GenerationConfig.from_pretrained') as mock_gen_config:
+        with patch.object(transformers.AutoTokenizer, 'from_pretrained') as mock_auto_tokenizer, \
+             patch.object(transformers.GenerationConfig, 'from_pretrained') as mock_gen_config:
             mock_tokenizer = MagicMock()
             mock_tokenizer.pad_token_id = None
             mock_tokenizer.eos_token_id = None
@@ -696,7 +694,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
 
     def test_multi_token_eos_criteria(self):
         # 直接测试MultiTokenEOSCriteria类的行为
-        with patch('transformers.StoppingCriteria') as mock_stopping_criteria:
+        with patch.object(transformers, 'StoppingCriteria') as mock_stopping_criteria:
             # 导入内部类
             from transformers import StoppingCriteria
 
@@ -714,7 +712,7 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
                     return all(self.done_tracker)
 
             # 使用测试类替代实际类
-            with patch('ais_bench.benchmark.models.local_models.huggingface_above_v4_33._get_stopping_criteria') as mock_get_criteria:
+            with patch.object(huggingface_above_v4_33, '_get_stopping_criteria') as mock_get_criteria:
                 mock_tokenizer = MagicMock()
                 mock_tokenizer.batch_decode.return_value = ["test content"]
 
@@ -760,20 +758,20 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         model.generation_config = MagicMock()
 
         # 测试正常加载AutoModelForCausalLM
-        with patch('transformers.AutoModelForCausalLM.from_pretrained', return_value=MagicMock()) as mock_from_pretrained:
+        with patch.object(transformers.AutoModelForCausalLM, 'from_pretrained', return_value=MagicMock()) as mock_from_pretrained:
             HuggingFacewithChatTemplate._load_model(model, "dummy_path", {})
             mock_from_pretrained.assert_called_once()
 
         # 测试回退到AutoModel的情况
-        with patch('transformers.AutoModelForCausalLM.from_pretrained', side_effect=ValueError()), \
-             patch('transformers.AutoModel.from_pretrained', return_value=MagicMock()) as mock_auto_model:
+        with patch.object(transformers.AutoModelForCausalLM, 'from_pretrained', side_effect=ValueError()), \
+             patch.object(transformers.AutoModel, 'from_pretrained', return_value=MagicMock()) as mock_auto_model:
             HuggingFacewithChatTemplate._load_model(model, "dummy_path", {})
             mock_auto_model.assert_called_once()
 
         # 测试PeftModel相关功能（简化测试，避免直接导入）
         model_instance = MagicMock()
-        with patch('transformers.AutoModelForCausalLM.from_pretrained', return_value=model_instance), \
-             patch('importlib.import_module', side_effect=ImportError()):
+        with patch.object(transformers.AutoModelForCausalLM, 'from_pretrained', return_value=model_instance), \
+             patch.object(importlib, 'import_module', side_effect=ImportError()):
             # 预期这里会处理异常，不直接断言异常
             pass
 
@@ -782,8 +780,8 @@ class TestHuggingFaceAboveV4_33(unittest.TestCase):
         model = MagicMock()
         model.logger = MagicMock()
 
-        with patch('transformers.AutoModelForCausalLM.from_pretrained', side_effect=ValueError()), \
-             patch('transformers.AutoModel.from_pretrained') as mock_auto_model:
+        with patch.object(transformers.AutoModelForCausalLM, 'from_pretrained', side_effect=ValueError()), \
+             patch.object(transformers.AutoModel, 'from_pretrained') as mock_auto_model:
             mock_model = MagicMock()
             mock_model.eval = MagicMock()
             mock_model.generation_config.do_sample = True

@@ -1,6 +1,5 @@
 import json
 import fcntl
-import os
 
 
 def safe_write(results_dict: dict, filename):

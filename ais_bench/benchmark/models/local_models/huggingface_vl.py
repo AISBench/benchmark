@@ -8,10 +8,7 @@ from mmengine.device import is_npu_available
 
 
 from ais_bench.benchmark.models.local_models.base import BaseModel
-from ais_bench.benchmark.models import LMTemplateParser
-from ais_bench.benchmark.models import APITemplateParser
 from ais_bench.benchmark.registry import MODELS
-from ais_bench.benchmark.utils.logging import get_logger
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.models.local_models.huggingface_above_v4_33 import (_get_possible_max_seq_len,

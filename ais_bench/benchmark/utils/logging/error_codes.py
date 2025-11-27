@@ -79,10 +79,10 @@ class ErrorCodeManager:
     def __init__(self):
         self._error_codes: Dict[str, BaseErrorCode] = {}
 
-    def register(self, error_code: BaseErrorCode) -> None:
-        if error_code.full_code in self._error_codes:
-            raise ValueError(f"error code {error_code.full_code} is exist!")
-        self._error_codes[error_code.full_code] = error_code
+    def register(self, ec: BaseErrorCode) -> None:
+        if ec.full_code in self._error_codes:
+            raise ValueError(f"error code {ec.full_code} is exist!")
+        self._error_codes[ec.full_code] = ec
 
     def get(self, full_code: str) -> Optional[BaseErrorCode]:
         return self._error_codes.get(full_code)
@@ -212,12 +212,49 @@ class UTILS_CODES:
     UNKNOWN_ERROR = BaseErrorCode("UTILS-UNK-001", ErrorModule.UTILS, ErrorType.UNKNOWN, 1, "unknown error of utils")
     MATCH_CONFIG_FILE_FAILED = BaseErrorCode("UTILS-MATCH-001", ErrorModule.UTILS, ErrorType.MATCH, 1, "match config file failed") # docs coverd
     DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "third party dependency module import error")
+
+    # Type validation errors
+    INVALID_TYPE = BaseErrorCode("UTILS-TYPE-001", ErrorModule.UTILS, ErrorType.TYPE, 1, "invalid object type")
+    INVALID_DATASET_TYPE = BaseErrorCode("UTILS-TYPE-002", ErrorModule.UTILS, ErrorType.TYPE, 2, "invalid dataset type")
+    INVALID_LIST_TYPE = BaseErrorCode("UTILS-TYPE-003", ErrorModule.UTILS, ErrorType.TYPE, 3, "invalid list type")
+    INVALID_STRING_TYPE = BaseErrorCode("UTILS-TYPE-004", ErrorModule.UTILS, ErrorType.TYPE, 4, "invalid string type")
+    INVALID_DICT_TYPE = BaseErrorCode("UTILS-TYPE-005", ErrorModule.UTILS, ErrorType.TYPE, 5, "invalid dict type")
+    INVALID_TYPE_SPECIFIER = BaseErrorCode("UTILS-TYPE-006", ErrorModule.UTILS, ErrorType.TYPE, 6, "invalid type specifier")
+    TYPE_MISMATCH = BaseErrorCode("UTILS-TYPE-007", ErrorModule.UTILS, ErrorType.TYPE, 7, "type mismatch in validation")
+
+    # Parameter validation errors
+    ROOT_PATH_NOT_SET = BaseErrorCode("UTILS-PARAM-001", ErrorModule.UTILS, ErrorType.PARAM, 1, "root_path not set")
+    INVALID_REQUEST_COUNT = BaseErrorCode("UTILS-PARAM-002", ErrorModule.UTILS, ErrorType.PARAM, 2, "invalid request_count value")
+    INVALID_MIN_MAX_VALUE = BaseErrorCode("UTILS-PARAM-003", ErrorModule.UTILS, ErrorType.PARAM, 3, "invalid min_value or max_value")
+    MIN_GREATER_THAN_MAX = BaseErrorCode("UTILS-PARAM-004", ErrorModule.UTILS, ErrorType.PARAM, 4, "min_value greater than max_value")
+    MISSING_PARAMS = BaseErrorCode("UTILS-PARAM-005", ErrorModule.UTILS, ErrorType.PARAM, 5, "missing required params")
+    INVALID_PERCENTAGE_DISTRIBUTE = BaseErrorCode("UTILS-PARAM-006", ErrorModule.UTILS, ErrorType.PARAM, 6, "invalid percentage_distribute format")
+    UNSUPPORTED_DISTRIBUTION_METHOD = BaseErrorCode("UTILS-PARAM-007", ErrorModule.UTILS, ErrorType.PARAM, 7, "unsupported distribution method")
+    ILLEGAL_KEYS_IN_CONFIG = BaseErrorCode("UTILS-PARAM-008", ErrorModule.UTILS, ErrorType.PARAM, 8, "illegal keys in configuration")
+    MISSING_API_URL = BaseErrorCode("UTILS-PARAM-009", ErrorModule.UTILS, ErrorType.PARAM,9,"api_url is required")
+
+    # File errors
+    MATCH_CONFIG_FILE_FAILED = BaseErrorCode("UTILS-FILE-001", ErrorModule.UTILS, ErrorType.FILE, 1, "match config file failed")
+    TOKENIZER_PATH_NOT_FOUND = BaseErrorCode("UTILS-FILE-002", ErrorModule.UTILS, ErrorType.FILE, 2, "tokenizer path not found")
+    TOKENIZER_LOAD_FAILED = BaseErrorCode("UTILS-FILE-003", ErrorModule.UTILS, ErrorType.FILE, 3, "tokenizer load failed")
+    CHART_FILE_NOT_FOUND = BaseErrorCode("UTILS-FILE-004", ErrorModule.UTILS, ErrorType.FILE, 4, "chart file not found")
+
+    # Config validation errors
+    SYNTHETIC_DS_MISS_REQUIRED_PARAM = BaseErrorCode("UTILS-CFG-001", ErrorModule.UTILS, ErrorType.CONFIG, 1, "synthetic dataset miss required param") # docs coverd
     MODEL_CONFIG_VALIDATE_FAILED = BaseErrorCode("UTILS-CFG-002", ErrorModule.UTILS, ErrorType.CONFIG, 2, "model config validate failed") # docs coverd
     ILLEGAL_MODEL_ATTR = BaseErrorCode("UTILS-CFG-003", ErrorModule.UTILS, ErrorType.CONFIG, 3, "illegal model attr in config") # docs coverd
     MIXED_MODEL_ATTRS = BaseErrorCode("UTILS-CFG-004", ErrorModule.UTILS, ErrorType.CONFIG, 4, "mixed model attrs in config") # docs coverd
-    SYNTHETIC_DS_MISS_REQUIRED_PARAM = BaseErrorCode("UTILS-CFG-001", ErrorModule.UTILS, ErrorType.CONFIG, 1, "synthetic dataset miss required param") # docs coverd
+    NON_FUNCTION_CALL_MODEL = BaseErrorCode("UTILS-CFG-005", ErrorModule.UTILS, ErrorType.CONFIG, 5, "non function call model found for BFCLDataset")
+    NON_BFCL_DATASET = BaseErrorCode("UTILS-CFG-006", ErrorModule.UTILS, ErrorType.CONFIG, 6, "non BFCL dataset found for VLLMFunctionCallAPIChat")
+    INCOMPATIBLE_MERGE_DS = BaseErrorCode("UTILS-CFG-007", ErrorModule.UTILS, ErrorType.CONFIG, 7, "incompatible --merge-ds option for function call task")
     MM_CUSTOM_DATASET_WRONG_FORMAT = BaseErrorCode("UTILS-CFG-008", ErrorModule.UTILS, ErrorType.CONFIG, 8, "invalid mm custom dataset")
 
+    # Dependency/runtime errors (additional)
+    DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "failed to import dependency module")
+    API_RETRY_EXCEEDED = BaseErrorCode("UTILS-DEPENDENCY-002", ErrorModule.UTILS, ErrorType.DEPENDENCY, 2, "API retries exhausted")
+
+    # Data/response errors (additional)
+    API_RESPONSE_PARSE_FAILED = BaseErrorCode("UTILS-DATA-001", ErrorModule.UTILS, ErrorType.DATA, 1, "failed to parse response data")
 class CALC_CODES:
     UNKNOWN_ERROR = BaseErrorCode("CALC-UNK-001", ErrorModule.CALCULATOR, ErrorType.UNKNOWN, 1, "unknown error of calculator")
     INVALID_METRIC_DATA = BaseErrorCode("CALC-MTRC-001", ErrorModule.CALCULATOR, ErrorType.METRIC, 1, "invalid content of metric data") # docs coverd

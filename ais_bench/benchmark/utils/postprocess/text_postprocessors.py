@@ -1,7 +1,12 @@
 import re
 from typing import Callable, Optional, Union
+from ast import literal_eval
 
 from ais_bench.benchmark.registry import TEXT_POSTPROCESSORS
+from ais_bench.benchmark.utils.logging import AISLogger
+
+
+logger = AISLogger()
 
 
 @TEXT_POSTPROCESSORS.register_module('general')
@@ -21,11 +26,13 @@ def general_postprocess(text: str) -> str:
     # Remove duplicated blank spaces
     cleaned_text = re.sub(r'\s+', ' ', no_articles).strip()
 
+    logger.debug(f"general_postprocess: result length={len(cleaned_text)}")
     return cleaned_text
 
 
 @TEXT_POSTPROCESSORS.register_module('general_cn')
 def general_cn_postprocess(text: str) -> str:
+    logger.debug("general_cn_postprocess: start")
     truncated_text = re.split(r'[\n.,]', text, 1)[0]
 
     no_punctuation = re.sub(r'[^\w\s]', '', truncated_text)
@@ -41,6 +48,7 @@ def general_cn_postprocess(text: str) -> str:
         warnings.filterwarnings('ignore', message='.*pkg_resources is deprecated.*', category=UserWarning)
         import jieba
     cleaned_text = ' '.join(jieba.cut(text))
+    logger.debug(f"general_cn_postprocess: result length={len(cleaned_text)}")
     return cleaned_text
 
 
@@ -48,7 +56,9 @@ def general_cn_postprocess(text: str) -> str:
 def first_capital_postprocess(text: str) -> str:
     for t in text:
         if t.isupper():
+            logger.debug(f"first_capital_postprocess: found '{t}'")
             return t
+    logger.debug("first_capital_postprocess: no capital found")
     return ''
 
 
@@ -56,7 +66,9 @@ def first_capital_postprocess(text: str) -> str:
 def last_capital_postprocess(text: str) -> str:
     for t in text[::-1]:
         if t.isupper():
+            logger.debug(f"last_capital_postprocess: found '{t}'")
             return t
+    logger.debug("last_capital_postprocess: no capital found")
     return ''
 
 
@@ -64,7 +76,11 @@ def first_option_postprocess_v1(text: str, options: str, cushion=True) -> str:
     """Find first valid option for text, prioritizing the latest match in the text."""
     cut_length = 200
     cut_text = text[-cut_length:]
-    return first_option_postprocess(cut_text, options, cushion)
+    result = first_option_postprocess(cut_text, options, cushion)
+    logger.debug(
+        f"first_option_postprocess_v1: options='{options}', found='{result or ''}'"
+    )
+    return result
 
 def first_option_postprocess(text: str, options: str, cushion=True) -> str:
     """Find first valid option for text."""
@@ -105,9 +121,9 @@ def first_option_postprocess(text: str, options: str, cushion=True) -> str:
         rf'[是为。]\s?([{options}])[。\.]?$',
         rf'因此\s?([{options}])[。\.]?$',
         rf'显然\s?([{options}])[。\.]?$',
-        rf'答案是\s?(\S+)(?:。|$)',
-        rf'答案应该是\s?(\S+)(?:。|$)',
-        rf'答案为\s?(\S+)(?:。|$)',
+        r'答案是\s?(\S+)(?:。|$)',
+        r'答案应该是\s?(\S+)(?:。|$)',
+        r'答案为\s?(\S+)(?:。|$)',
         rf'(?i)ANSWER\s*:\s*([{options}])',
         rf'[Tt]he answer is:?\s+\(?([{options}])\)?',
         rf'[Tt]he answer is:?\s+\(?\*?\*?([{options}])\*?\*?\)?',
@@ -121,7 +137,7 @@ def first_option_postprocess(text: str, options: str, cushion=True) -> str:
         rf'^选项\s?([{options}])',
         rf'^([{options}])\s?选?项',
         rf'(\s|^)[{options}][\s。，,：:\.$]',
-        rf'1.\s?(.*?)$',
+        r'1.\s?(.*?)$',
         rf'1.\s?([{options}])[.。$]?$',
     ]
     cushion_patterns = [
@@ -143,7 +159,11 @@ def first_option_postprocess(text: str, options: str, cushion=True) -> str:
                 outputs = match.group(0)
             for i in options:
                 if i in outputs:
+                    logger.debug(
+                        f"first_option_postprocess: options='{options}', found='{i}'"
+                    )
                     return i
+    logger.debug("first_option_postprocess: no option matched")
     return ''
 
 
@@ -151,14 +171,18 @@ def first_option_postprocess(text: str, options: str, cushion=True) -> str:
 def first_capital_postprocess_multi(text: str) -> str:
     match = re.search(r'([A-D]+)', text)
     if match:
+        logger.debug(f"first_capital_postprocess_multi: found '{match.group(1)}'")
         return match.group(1)
+    logger.debug("first_capital_postprocess_multi: no match")
     return ''
 
 
 def last_option_postprocess(text: str, options: str) -> str:
     match = re.findall(rf'([{options}])', text)
     if match:
+        logger.debug(f"last_option_postprocess: found '{match[-1]}'")
         return match[-1]
+    logger.debug("last_option_postprocess: no match")
     return ''
 
 
@@ -171,13 +195,19 @@ def first_number_postprocess(text: str) -> float:
     match = re.search(pattern, text)
 
     # if a match is found, return it. Otherwise, return None.
-    return float(match.group(1)) if match else None
+    result = float(match.group(1)) if match else None
+    logger.debug(f"first_number_postprocess: found '{result}'")
+    return result
 
 
 @TEXT_POSTPROCESSORS.register_module('multiple-select')
 def multiple_select_postprocess(text: str) -> str:
+    # Extracts all unique uppercase letters, sorts them alphabetically, and joins them.
+    # For example, 'Select A and B' will yield 'AB'.
     ret = set([t for t in text if t.isupper()])
-    return ''.join(sorted(ret))
+    result = ''.join(sorted(ret))
+    logger.debug(f"multiple_select_postprocess: result='{result}'")
+    return result
 
 
 @TEXT_POSTPROCESSORS.register_module('specific-xml-tag')
@@ -202,8 +232,12 @@ def xml_tag_postprocessor(text, tag):
         # Only keep the last one
         output = matches[-1].strip(
         )  # Extract the content and remove leading/trailing whitespace
+        logger.debug(
+            f"xml_tag_postprocessor: tag={tag}, matches={len(matches)}, returning last length={len(output)}"
+        )
     else:
         output = 'NO ANSWER FOUND'
+        logger.debug(f"xml_tag_postprocessor: tag={tag}, no match -> 'NO ANSWER FOUND'")
 
     return output
 
@@ -221,20 +255,31 @@ def general_eval_wrapper_postprocess(text: str,
         **kwargs: Other necessary kwargs for post processing function.
     """
     try:
-        text = eval(text)
+        text = literal_eval(text)
     except Exception:
         # in case empty input or other error, skip eval
-        pass
+        logger.warning(
+            f"general_eval_wrapper_postprocess: literal_eval failed, using raw text (truncated): {text[:100]}{'...' if len(text) > 100 else ''}"
+        )
 
     if postprocess:
         if isinstance(postprocess, str):
+            postprocess_name = postprocess
             postprocess = TEXT_POSTPROCESSORS.get(postprocess)
-        return postprocess(text, **kwargs)
-    else:
-        return text
+            logger.debug(
+                f"general_eval_wrapper_postprocess: resolved postprocess='{postprocess_name}' -> {postprocess}"
+            )
+        result = postprocess(text, **kwargs)
+        logger.debug("general_eval_wrapper_postprocess: postprocess applied")
+        return result
+    logger.debug("general_eval_wrapper_postprocess: no postprocess provided")
+    return text
 
 
 def match_answer_pattern(response_text: str, answer_pattern: str):
     match = re.search(answer_pattern, response_text)
     extracted_answer = match.group(1) if match else ''
+    logger.debug(
+        f"match_answer_pattern: pattern='{answer_pattern}', matched={bool(match)}, length={len(extracted_answer)}"
+    )
     return extracted_answer

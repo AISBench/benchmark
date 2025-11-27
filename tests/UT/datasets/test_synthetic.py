@@ -504,7 +504,6 @@ class TestSyntheticDataset(unittest.TestCase):
     def test_load_string_type(self):
         """测试load方法 - string类型（覆盖265-286行）"""
         from datasets import Dataset
-        from ais_bench.benchmark.utils.logging import get_logger
         
         config = {
             "Type": "string",
@@ -527,9 +526,7 @@ class TestSyntheticDataset(unittest.TestCase):
             }
         }
         
-        # 创建一个实例，但绕过BaseDataset的__init__，直接设置logger
         dataset_instance = object.__new__(SyntheticDataset)
-        dataset_instance.logger = get_logger()
         
         dataset = dataset_instance.load(config)
         
@@ -547,7 +544,6 @@ class TestSyntheticDataset(unittest.TestCase):
         """测试load方法 - tokenid类型（覆盖287-326行）"""
         from datasets import Dataset
         import tempfile
-        from ais_bench.benchmark.utils.logging import get_logger
         
         # 创建临时目录和tokenizer配置文件
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -576,9 +572,7 @@ class TestSyntheticDataset(unittest.TestCase):
                 "TrustRemoteCode": False
             }
             
-            # 创建一个实例，但绕过BaseDataset的__init__，直接设置logger
             dataset_instance = object.__new__(SyntheticDataset)
-            dataset_instance.logger = get_logger()
             
             dataset = dataset_instance.load(config, model_path=tmpdir)
             
@@ -591,12 +585,10 @@ class TestSyntheticDataset(unittest.TestCase):
     
     def test_load_invalid_type(self):
         """测试load方法 - 无效类型（覆盖328-329行）"""
-        from ais_bench.benchmark.utils.logging import get_logger
         
         # 创建一个mock来绕过_check_synthetic_config，直接测试else分支
         with patch.object(SyntheticDataset, '_check_synthetic_config'):
             dataset_instance = object.__new__(SyntheticDataset)
-            dataset_instance.logger = get_logger()
             invalid_config = {
                 "Type": "invalid",
                 "RequestCount": 100
@@ -851,7 +843,6 @@ class TestSyntheticDataset(unittest.TestCase):
     
     def test_load_tokenid_type_model_path_not_exist(self):
         """测试load方法 - tokenid类型，ModelPath不存在（覆盖292-294行）"""
-        from ais_bench.benchmark.utils.logging import get_logger
         
         config = {
             "Type": "tokenid",
@@ -863,7 +854,6 @@ class TestSyntheticDataset(unittest.TestCase):
         }
         
         dataset_instance = object.__new__(SyntheticDataset)
-        dataset_instance.logger = get_logger()
         
         # 需要绕过_check_synthetic_config，并传入不存在的model_path
         with patch.object(SyntheticDataset, '_check_synthetic_config'):
@@ -875,7 +865,6 @@ class TestSyntheticDataset(unittest.TestCase):
     @patch('ais_bench.benchmark.datasets.synthetic.SyntheticDataset.find_first_file_path')
     def test_load_tokenid_type_no_vocab_size(self, mock_find_file, mock_tokenizer):
         """测试load方法 - tokenid类型，没有vocab_size（覆盖304-308行）"""
-        from ais_bench.benchmark.utils.logging import get_logger
         import tempfile
         
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -902,7 +891,6 @@ class TestSyntheticDataset(unittest.TestCase):
             }
             
             dataset_instance = object.__new__(SyntheticDataset)
-            dataset_instance.logger = get_logger()
             
             # 需要传入model_path参数，因为load方法会从kwargs获取
             with self.assertRaises(ValueError) as cm:
@@ -914,7 +902,6 @@ class TestSyntheticDataset(unittest.TestCase):
     def test_load_tokenid_type_with_vocab_size_in_config(self, mock_find_file, mock_tokenizer):
         """测试load方法 - tokenid类型，使用配置中的vocab_size（覆盖305行）"""
         from datasets import Dataset
-        from ais_bench.benchmark.utils.logging import get_logger
         import tempfile
         
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -942,7 +929,6 @@ class TestSyntheticDataset(unittest.TestCase):
             }
             
             dataset_instance = object.__new__(SyntheticDataset)
-            dataset_instance.logger = get_logger()
             
             # 需要传入model_path参数
             dataset = dataset_instance.load(config, model_path=tmpdir)

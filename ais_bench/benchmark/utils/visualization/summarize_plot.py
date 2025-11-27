@@ -1,6 +1,6 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from ais_bench.benchmark.utils.logging import get_logger
+from ais_bench.benchmark.utils.logging import AISLogger
 from typing import List, Tuple, Optional, Dict, Any
 import numpy as np
 import time
@@ -28,6 +28,8 @@ MAX_POINTS_PER_TRACE = 10000  # maximum number of points per trace
 TIMELINE_POINTS_PER_REQUEST = 3  # each request takes 3 points in the timeline chart (start, end, break)
 
 
+logger = AISLogger()
+
 # ================== Helper functions ==================
 def validate_input_data(
     start_time_list: List[float],
@@ -35,16 +37,15 @@ def validate_input_data(
     end_time_list: List[float],
 ) -> bool:
     """Validate input data"""
-    logger = get_logger()
     n_requests = len(start_time_list)
     if n_requests == 0:
         logger.warning("No requests to plot!")
         return False
 
     if n_requests != len(prefill_latency_list) or n_requests != len(end_time_list):
-        logger.warning("Input list lengths mismatch! Details: ")
         logger.warning(
-            f"start_list:{n_requests}, prefill_latency_list:{len(prefill_latency_list)}"
+            f"Input list lengths mismatch! start_list:{n_requests}, "
+            f"prefill_latency_list:{len(prefill_latency_list)}, end_time_list:{len(end_time_list)}"
         )
         return False
 
@@ -80,7 +81,7 @@ def preprocess_data(
         no_decode_indices = np.where(np.abs(end_times - first_token_times) < 0.001)[0]
         if no_decode_indices.any():
             end_times[no_decode_indices] = first_token_times[no_decode_indices]
-            get_logger().debug(
+            logger.debug(
                 f"Adjusted {len(no_decode_indices)} requests with no decode tokens"
             )
             del no_decode_indices
@@ -113,7 +114,7 @@ def generate_timeline_traces(
     # if has repeated ids, it is a multi-turn conversation
     is_multiturn = len(unique_ids) < len(multiturn_group_id_list)
     if is_multiturn:
-        get_logger().info("Visualization in multi-turn conversations...")
+        logger.info("Visualization in multi-turn conversations...")
     # Pre-allocate memory
     red_x = np.full(TIMELINE_POINTS_PER_REQUEST * n_requests, np.nan, dtype=np.float32)
     red_y = np.full_like(red_x, np.nan)
@@ -215,7 +216,7 @@ def generate_concurrency_traces(
     # Filter zero-length requests
     valid_mask = adjusted_starts < adjusted_ends
     if not np.any(valid_mask):
-        get_logger().warning("No valid requests for concurrency plot!")
+        logger.warning("No valid requests for concurrency plot!")
         return []
 
     valid_starts = adjusted_starts[valid_mask]
@@ -355,10 +356,6 @@ def plot_sorted_request_timelines(
     unit: str = "s",
 ) -> None:
     """Plot the request timeline and concurrency chart"""
-
-    logger = get_logger()
-    start_timestamp = time.perf_counter()
-
     # ===== 1. Data validation and preprocessing =====
     logger.debug("Starting request timeline processing...")
 
@@ -442,5 +439,5 @@ def plot_sorted_request_timelines(
         full_html=True,
     )
 
-    logger.info(f"Draw request timeline and concurrency chart completed!")
+    logger.info(f"Request timeline and concurrency chart saved to {output_file}")
     return True
