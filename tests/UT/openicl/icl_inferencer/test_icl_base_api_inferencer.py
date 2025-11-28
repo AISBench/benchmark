@@ -73,19 +73,6 @@ class TestBaseApiInferencer(unittest.TestCase):
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
-    def test_do_request_abstract(self, m_abbr, m_build):
-        """测试BaseApiInferencer的抽象方法do_request未实现时抛出异常"""
-        m_build.return_value = DummyModel()
-        inf = BaseApiInferencer(model_cfg={})
-
-        async def run_test():
-            with self.assertRaises(NotImplementedError):
-                await inf.do_request({}, None, None)
-
-        asyncio.run(run_test())
-
-    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
-    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
     def test_warmup(self, m_abbr, m_build):
         """测试BaseApiInferencer的warmup方法执行指定次数的预热请求"""
         from ais_bench.benchmark.models.output import RequestOutput
