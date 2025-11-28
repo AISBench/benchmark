@@ -73,7 +73,7 @@ class TasksMonitor:
 
     def launch_state_board(self):
         if self.is_debug:
-            self.logger.info("Debug mode, won't launch task state board")
+            self.logger.debug("Debug mode, won't launch task state board")
             return
         if not self.run_in_background:
             self.logger.info("Start launch task state board ...")

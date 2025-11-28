@@ -341,7 +341,7 @@ class TestTaskStateManager(unittest.TestCase):
         # 验证start_time被设置
         self.assertIn("start_time", manager.task_state)
         # 验证debug模式下调用_display_task_state
-        mock_logger.info.assert_called_with("debug mode, print progress directly")
+        mock_logger.info.assert_called_with("Debug mode, print progress directly")
 
     @patch('ais_bench.benchmark.tasks.base.AISLogger')
     def test_launch_normal_mode(self, mock_logger_class):

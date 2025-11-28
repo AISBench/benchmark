@@ -33,8 +33,8 @@ ais_bench [OPTIONS]
 | `--max-workers-per-gpu` | 预留参数，暂不支持。 | `--max-workers-per-gpu 1` |
 | `--merge-ds`   | 开启同类数据集合并推理（同一任务多数据集一起跑）。| `--merge-ds`|
 | `--num-prompts` | 指定数据集测评条数，需传入正整数，超过数据集条数或默认情况下表示对全量数据集进行测评。 | `--num-prompts 500` |
-| `--max-num-workers`   | 并行任务数，范围 `[1, CPU 核数]`，默认 `1`。在 Continuous Batch 或性能模式下无效。  | `--max-num-workers 2` |
-|`--num-warmups`|发送请求前预热次数，默认 `1`；若设为0，则不预热。| `--num-warmups 10` |
+| `--max-num-workers`   | 并行任务数，范围 `[1, 0.8 * CPU 核数]`，默认 `1`。注意：性能测评场景下，并发数过高可能会导致不同进程出现资源抢占，导致测试结果失真。  | `--max-num-workers 2` |
+|`--num-warmups`|发送请求前预热次数，默认 `1`；若设为0，则不预热。如果warmup中存在失败请求，后续推理任务将不会执行。| `--num-warmups 10` |
 
 ### 精度测评参数
 仅在模式为 `all、infer、eval` 或 `viz` 时有效。
@@ -60,3 +60,5 @@ ais_bench [OPTIONS]
 | `MAX_CHUNK_SIZE` | 流式推理模型后端返回的单个 chunk 最大缓存大小。默认值为 65535 字节（64KB）。 | `(0, 16777216]`（单位：Byte） |
 | `REQUEST_TIME_OUT` | Client 端请求发送后等待返回的超时时间。默认为 None，即无限等待，始终等待模型返回结果。 | `None` 或 `>0`（单位：秒）|
 |`LOG_LEVEL`|日志级别，可选：`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`。默认 `INFO`。|`[DEBUG, INFO, WARNING, ERROR, CRITICAL]`|
+| `PRESSURE_TIME`| 压测持续时间，仅在指定 `--pressure` 模式时生效。单位为秒。(该参数将在未来版本中废弃，请使用 `--pressure-time` 参数代替)| `[1, 86400]`（即 1 秒 至 24 小时） |
+| `CONNECTION_ADD_RATE`| 并发线程创建速率。表示每秒新增的并发线程数，直至达到最大并发限制。仅在指定 `--pressure` 模式时生效。(该参数将在未来版本中废弃，请在模型配置文件中修改 `request_rate` 参数代替) | `> 0.1`（单位：线程数 / 秒） |

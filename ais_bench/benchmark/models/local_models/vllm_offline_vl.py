@@ -3,27 +3,20 @@
 import time
 from typing import Dict, List, Optional, Union
 
-import torch
-from mmengine.device import is_npu_available
-
 
 from ais_bench.benchmark.models.local_models.base import BaseModel
-from ais_bench.benchmark.models import LMTemplateParser
-from ais_bench.benchmark.models import APITemplateParser
 from ais_bench.benchmark.registry import MODELS
-from ais_bench.benchmark.utils.logging import get_logger
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
-from ais_bench.benchmark.models.local_models.huggingface_above_v4_33 import (_get_possible_max_seq_len,
-                                                                            _convert_chat_messages,
+from ais_bench.benchmark.models.local_models.huggingface_above_v4_33 import (_convert_chat_messages,
                                                                             _get_meta_template,
-                                                                            _set_model_kwargs_torch_dtype)
+                                                                            )
 
 PromptType = Union[PromptList, str]
 VLLM_MAX_IMAGE_INPUT_NUM = 24
 
-    
+
 @MODELS.register_module()
 class VLLMOfflineVLModel(BaseModel):
     """Model wrapper for Qwen2.5-VL VLLM Offline models.
@@ -51,7 +44,7 @@ class VLLMOfflineVLModel(BaseModel):
         self.max_out_len = other_kwargs.get('max_out_len', None)
         self.template_parser = _get_meta_template(meta_template)
         self.llm = LLM(model=self.path, **model_kwargs)
-        
+
         if any(item in self.path.lower() for item in ['omni']):
             from transformers import Qwen2_5OmniProcessor
             self.processor = Qwen2_5OmniProcessor.from_pretrained(self.path)
@@ -99,7 +92,7 @@ class VLLMOfflineVLModel(BaseModel):
                  min_out_len: Optional[int] = None,
                  stopping_criteria: List[str] = [],
                  **kwargs) -> List[str]:
-        
+
         self.format_image_input(inputs)
         messages = _convert_chat_messages(inputs)
         batch_size = len(messages)
