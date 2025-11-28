@@ -1,7 +1,7 @@
 [run]
 source = ais_bench
 data_file = test_reports/.coverage
-omit = 
+omit =
     */tests/*
     */test_*
     */__pycache__/*
