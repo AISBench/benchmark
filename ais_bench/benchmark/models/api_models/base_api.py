@@ -509,7 +509,7 @@ class APITemplateParser:
                     else:
                         raise AISBenchValueError(
                             MODEL_CODES.UNKNOWN_ERROR,
-                            f"Invalid prompt template item pos {item["pos"]}, legal item pos are 'begin' or 'end'."
+                            f"Invalid prompt template item pos {item['pos']}, legal item pos are 'begin' or 'end'."
                         )
                 elif section_stack[-1][0] in ["begin", "end"]:
                     role_dict = self._update_role_dict(item)
