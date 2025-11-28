@@ -65,7 +65,8 @@ class BaseTask:
         cfg = copy.deepcopy(cfg)
         self.cfg = cfg
         if len(cfg["models"]) > 1:
-            self.logger.error(TASK_CODES.MODEL_MULTIPLE, f"One task only supports one model, but got {len(cfg['models'])} models")
+            self.logger.warning(f"One task only supports one model, but got {len(cfg['models'])} models, " +
+                                "only use the first model.")
         self.model_cfg = cfg["models"][0]
         self.logger.debug(f"Model config: {self.model_cfg}")
         self.dataset_cfgs = cfg["datasets"][0]
@@ -150,7 +151,7 @@ class TaskStateManager:
     def launch(self):
         self.task_state["start_time"] = time.time()
         if self.is_debug:
-            self.logger.info("debug mode, print progress directly")
+            self.logger.info("Debug mode, print progress directly")
             self._display_task_state()
         else:
             self._post_task_state()

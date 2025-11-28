@@ -7,7 +7,7 @@ from ais_bench.benchmark.datasets.leval.gsm100 import (
     gsm100_postprocess,
     gsm100_dataset_postprocess,
 )
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 
 
 def test_gsm100_dataset_postprocess():
@@ -137,7 +137,7 @@ def test_leval_gsm100_dataset_load_empty(
 
 def test_leval_gsm100_dataset_load_missing_path():
     """Test that ConfigError is raised when 'path' argument is missing."""
-    with pytest.raises(ConfigError) as exc_info:
+    with pytest.raises(AISBenchConfigError) as exc_info:
         LEvalGSM100Dataset.load()
     
     # Verify the error message contains helpful information

@@ -8,10 +8,7 @@ from mmengine.device import is_npu_available
 
 
 from ais_bench.benchmark.models.local_models.base import BaseModel
-from ais_bench.benchmark.models import LMTemplateParser
-from ais_bench.benchmark.models import APITemplateParser
 from ais_bench.benchmark.registry import MODELS
-from ais_bench.benchmark.utils.logging import get_logger
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.models.local_models.huggingface_above_v4_33 import (_get_possible_max_seq_len,
@@ -158,7 +155,7 @@ class HuggingFaceQwen2VLwithChatTemplate(BaseModel):
         potential_stop_words = [s for s in potential_stop_words if s]
         return potential_stop_words
 
-    def format_image_input(self, inputs):
+    def format_vision_input(self, inputs):
         for i in range(len(inputs)):
             if not isinstance(inputs[i], list) or len(inputs[i]) != 1 or not isinstance(inputs[i][0], dict):
                 self.logger.warning("Invalid input format, please check it!")
@@ -173,6 +170,27 @@ class HuggingFaceQwen2VLwithChatTemplate(BaseModel):
                     if self.total_pixels is not None:
                         image_url['total_pixels'] = self.total_pixels
                     prompt.append(image_url)
+                elif item['type']=='video_url':
+                    video_url = {'type': 'video', 'video': item['video_url']}
+                    if self.min_pixels is not None:
+                        video_url['min_pixels'] = self.min_pixels
+                    if self.max_pixels is not None:
+                        video_url['max_pixels'] = self.max_pixels
+                    if self.total_pixels is not None:
+                        video_url['total_pixels'] = self.total_pixels
+                    if self.fps is not None:
+                        video_url['fps'] = self.fps
+                    if self.nframe is not None:
+                        import cv2
+                        video = cv2.VideoCapture(item['video_url'])
+                        frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+                        video.release()
+                        if frame_count < self.nframe:
+                            new_frame_count = frame_count // self.FRAME_FACTOR * self.FRAME_FACTOR
+                            video_url['nframes'] = new_frame_count
+                        else:
+                            video_url['nframes'] = self.nframe
+                    prompt.append(video_url)
                 else:
                     prompt.append(item)
             inputs[i][0]['prompt'] = prompt
@@ -183,7 +201,7 @@ class HuggingFaceQwen2VLwithChatTemplate(BaseModel):
                  min_out_len: Optional[int] = None,
                  stopping_criteria: List[str] = [],
                  **kwargs) -> List[str]:
-        self.format_image_input(inputs)
+        self.format_vision_input(inputs)
         messages = _convert_chat_messages(inputs)
         batch_size = len(messages)
 

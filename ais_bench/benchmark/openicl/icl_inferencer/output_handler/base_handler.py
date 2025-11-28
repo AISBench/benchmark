@@ -49,6 +49,7 @@ class BaseInferencerOutputHandler:
         """
         self.logger = AISLogger()
         self.results_dict = defaultdict(dict)
+        self.failed_results_dict = defaultdict(dict)
         self.cache_queue = janus.Queue()
         self.perf_mode = perf_mode
         self.all_success = True
@@ -141,7 +142,7 @@ class BaseInferencerOutputHandler:
             ValueError: If save_dir is invalid
         """
         if not isinstance(save_dir, str) or not save_dir.strip():
-            raise ParameterValueError(ICLI_CODES.INVALID_OUTPUT_FILEPATH,
+            raise ParameterValueError(ICLI_CODES.UNKNOWN_ERROR,
                                       f"'save_dir' must be a non-empty string representing a directory path, but got {save_dir}")
 
         file_path = Path(save_dir)
@@ -161,6 +162,15 @@ class BaseInferencerOutputHandler:
                 file_path = Path(save_dir) / raw_data_name
                 safe_write(results_dict, file_path)
                 self.logger.debug(f"Process {os.getpid()} write results to {file_path}")
+
+            for data_abbr, results_dict in self.failed_results_dict.items():
+                if not results_dict:
+                    continue
+                failed_data_name = data_abbr + "_failed.jsonl"
+                file_path = Path(save_dir) / failed_data_name
+                safe_write(results_dict, file_path)
+                self.logger.debug(f"Process {os.getpid()} write failed results to {file_path}")
+
         except Exception as e:
             raise FileOperationError(
                 ICLI_CODES.INFER_RESULT_WRITE_ERROR,
@@ -370,6 +380,14 @@ class BaseInferencerOutputHandler:
                             # accuracy mode: only save successful results in data_abbr.jsonl. otherwise, save to tmp file.
                             if result_data["success"]:
                                 self.results_dict[data_abbr][uid] = json_data
+                        if not result_data["success"]:
+                            fail_data = {
+                                "data_abbr": data_abbr,
+                                "id": id,
+                                "input": item[2],
+                                "error_info": result_data["error_info"],
+                            }
+                            self.failed_results_dict[data_abbr][uid] = fail_data
 
                         # Pre-compute JSON string to avoid repeated serialization
                         json_str = json.dumps(json_data, ensure_ascii=False) + '\n'

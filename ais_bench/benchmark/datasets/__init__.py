@@ -49,3 +49,6 @@ from ais_bench.benchmark.datasets.huggingface import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.cluewsc import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.eprstmt import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.tnews import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.videomme import *
+from ais_bench.benchmark.datasets.mmstar import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.dapo_math import * # noqa: F401, F403

@@ -8,7 +8,9 @@ import threading
 import time
 import uuid
 import copy
+import contextlib
 from abc import abstractmethod
+from collections import defaultdict
 from multiprocessing import BoundedSemaphore, Queue, shared_memory, Value
 from typing import Any, Dict, Optional, Tuple
 
@@ -114,39 +116,76 @@ class BaseApiInferencer(BaseInferencer):
         Raises:
             NotImplementedError: If not implemented in subclass
         """
-        raise AISBenchImplementationError(ICLI_CODES.IMPLEMENTATION_ERROR_DO_REQUEST_METHOD_NOT_IMPLEMENTED, 
-                                   f"Method {self.__class__.__name__} hasn't been implemented yet")
+        pass
 
-    async def warmup(self, data_list: list, warmup_times: int = 1):
+    async def warmup(self, data_list: list, warmup_times: int = 1, concurrency: int = 1):
         """Warmup the inferencer.
 
         Args:
             data_list: Data list to warmup
             warmup_times: Warmup times
+            concurrency: Concurrency
         """
-        for i in tqdm(range(warmup_times), desc="Warmup"):
-            data = data_list[i % len(data_list)]
-            await self.do_request(copy.deepcopy(data), None, None)
-            res = None
-            # do request main producer multi results, warm up fail if any result is not success
-            while not self.output_handler.cache_queue.async_q.empty(): 
-                try:
-                    res = await asyncio.wait_for(self.output_handler.cache_queue.async_q.get(), timeout=1)
-                except Exception as e:
-                    raise AISBenchRuntimeError(ICLI_CODES.WARMUP_GET_RESULT_FAILED, 
-                                        f"Get result from cache queue failed: {str(e)}")
-                data_id, data_abbr, input, output, gold = res
-                if not isinstance(output, Output) or not output.success:
-                    raise AISBenchRuntimeError(ICLI_CODES.WARMUP_FAILED, f"Warmup failed: {output.error_info}")
-                self.logger.debug(
-                    f"Warmup success: data_id: {data_id}, "
-                    f"data_abbr: {data_abbr}, "
-                    f"input: {input}, "
-                    f"output: {output.get_prediction()}, "
-                    f"gold: {gold}"
+        warmup_semaphore = (
+            asyncio.Semaphore(concurrency)
+            if concurrency
+            else contextlib.nullcontext()
+        )
+        session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(limit=concurrency + 1),
+            timeout=aiohttp.ClientTimeout(total=get_request_time_out()),
+            max_line_size=get_max_chunk_size(),
+        )
+        warmup_tasks = []
+        async def warmup_limited_request_func(data: dict):
+            async with warmup_semaphore:
+                await self.do_request(
+                    data=copy.deepcopy(data),
+                    token_bucket=None,
+                    session=session,
                 )
-            if not res:
-                raise AISBenchRuntimeError(ICLI_CODES.WARMUP_GET_RESULT_FAILED, f"Empty result from cache queue")
+        try:
+            for i in range(warmup_times):
+                data = data_list[i % len(data_list)]
+                request_task = asyncio.create_task(warmup_limited_request_func(data))
+                warmup_tasks.append(request_task)
+
+            with tqdm(total=warmup_times, desc="Warmup", unit="case") as pbar:
+                for coro in asyncio.as_completed(warmup_tasks):
+                    await coro
+                    pbar.update(1)
+        finally:
+            await session.close()
+
+        warmup_results = dict(
+            success=0,
+            failed=0,
+            failed_reasons=defaultdict(int),
+        )
+
+        while not self.output_handler.cache_queue.async_q.empty():
+            try:
+                res = await asyncio.wait_for(self.output_handler.cache_queue.async_q.get(), timeout=1)
+            except Exception as e:
+                raise AISBenchRuntimeError(ICLI_CODES.WARMUP_GET_RESULT_FAILED,
+                                    f"Get result from cache queue failed: {str(e)}")
+            data_id, data_abbr, input, output, gold = res
+            if not isinstance(output, Output):
+                raise AISBenchRuntimeError(ICLI_CODES.UNKNOWN_ERROR, f"Warmup expected Output object, but got {type(output)}")
+            if not output.success:
+                warmup_results["failed"] += 1
+                warmup_results["failed_reasons"][output.error_info] += 1
+                continue
+            warmup_results["success"] += 1
+
+            self.logger.debug(
+                f"Warmup success: data_id: {data_id}, "
+                f"data_abbr: {data_abbr}, "
+                f"input: {input}, "
+                f"output: {output.get_prediction()}, "
+                f"gold: {gold}"
+            )
+        return warmup_results
 
     def _read_and_unpickle(
         self, buf: memoryview, index_data: Tuple[int, int, int]
@@ -281,7 +320,7 @@ class BaseApiInferencer(BaseInferencer):
         while struct.unpack_from("I", message_buf, 0)[0] != 0:
             time.sleep(SYNC_MAIN_PROCESS_INTERVAL)
         self.logger.debug(f"Main process sync flag to 0")
-    
+
     async def wait_get_data(self, async_queue: janus.Queue.async_q, stop_event: asyncio.Event):
         """Wait for data from async queue.
         """
@@ -321,7 +360,7 @@ class BaseApiInferencer(BaseInferencer):
                      f"max_line_size: {get_max_chunk_size()}, "
                      f"max_concurrency: {num_workers}")
         start_time = time.perf_counter()
-        
+
         stop_event = asyncio.Event()
 
         async def limited_request_func(data):
@@ -329,23 +368,39 @@ class BaseApiInferencer(BaseInferencer):
                 await self.do_request(data, token_bucket, session)
                 if self.pressure_mode:
                     raise ParameterValueError(
-                        ICLI_CODES.CONCURRENCY_NOT_SET_IN_PRESSEURE_MODE, 
+                        ICLI_CODES.CONCURRENCY_NOT_SET_IN_PRESSEURE_MODE,
                         f"Concurrency not set in pressure mode, please set `batch_size` in model config",
                     )
-            async with semaphore:
-                await self.do_request(data, token_bucket, session)
+            async with semaphore:      
                 # Pressure mode: continuously send requests until pressure_time
                 if self.pressure_mode:
-                    while time.perf_counter() - start_time < self.pressure_time:
-                        if stop_event.is_set():
-                            break
-                        data = await self.wait_get_data(async_queue, stop_event)
-
-                        # Main process interrupt -> put sentinel -> exit pressure test
-                        if data is None:
-                            await asyncio.wait_for(async_queue.put(None), timeout=1)
-                            break
-                        await self.do_request(data, token_bucket, session)
+                    # Prefetch next data immediately after first request
+                    next_data_task = asyncio.create_task(self.wait_get_data(async_queue, stop_event))
+                    await self.do_request(data, token_bucket, session)
+                    try:
+                        while time.perf_counter() - start_time < self.pressure_time:
+                            if stop_event.is_set():
+                                break
+                            # Wait for next data
+                            data = await next_data_task
+                            # If sentinel (None) is received, exit the inner loop
+                            if data is None:
+                                stop_event.set()
+                                break
+                            # Start prefetching the next data immediately (before sending current request)
+                            next_data_task = asyncio.create_task(self.wait_get_data(async_queue, stop_event))
+                            # Send request (next data is being prefetched in parallel)
+                            await self.do_request(data, token_bucket, session)
+                    finally:
+                        # Cancel the prefetch task if it's still running
+                        if not next_data_task.done():
+                            next_data_task.cancel()
+                            try:
+                                await next_data_task
+                            except asyncio.CancelledError:
+                                pass
+                else:
+                    await self.do_request(data, token_bucket, session)
         tasks = []
         try:
             while not stop_event.is_set():
@@ -360,11 +415,7 @@ class BaseApiInferencer(BaseInferencer):
                 data = await self.wait_get_data(async_queue, stop_event)
 
                 # data == None -> sentinel
-                if data is None or (
-                    self.pressure_mode
-                    and time.perf_counter() - start_time
-                    > self.pressure_time  # pressure mode, exit when time is up even task not reach stable state
-                ):
+                if data is None:
                     await asyncio.wait_for(async_queue.put(None), timeout=1)
                     break
                 # Call user-provided async request

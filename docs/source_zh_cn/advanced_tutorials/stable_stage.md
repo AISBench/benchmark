@@ -203,25 +203,16 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 ![pressure_text_plot](../img/stable_stage/pressure_text_plot.png)
 ### 压力测试快速入门
 压力测试的流程与[稳态测试快速入门](#稳态测试快速入门)基本一致，差异主要有如下两点：
-#### 压力测试配置文件修改
-打开AISBench的全局常量配置文件`ais_bench/benchmark/global_consts.py`（相对于工具的根目录）。修改如下配置：
-```py
+#### 压力测试参数说明
+通过命令参数`--pressure-time`和指定压力测试的持续时间，压测持续时间不能超过86400秒（24小时）。
+通过配置[模型配置文件](../base_tutorials/all_params/models.md#配置模型)中的`request_rate`参数来指定每个进程新增线程（客户端）的频率。此参数取值越大，实际新增线程（客户端）的频率偏差越大（偏差和cpu单核处理能力有关）。
+通过修改[配置常量文件参数](../base_tutorials/all_params/cli_args.md#配置常量文件参数)中的`WORKERS_NUM`参数来指定压力测试中使用的进程数,提高压力测试的并发能力。
 
-WORKERS_NUM = 0 # 进程数，可配置范围[0, cpu核数]。 默认为0， 根据用户配置的请求最大并发数自动分配
-
-# 压测相关
-PRESSURE_TIME = 1 * 60 # 压测时长，单位sec
-CONNECTION_ADD_RATE = 1 # 每个进程新增连接个数的频率 单位 个/s
-```
-其中：
-- **WORKERS_NUM** 为性能测试中发送请求的进程数。当此参数取值为0时，每个进程的线程数（模拟的客户端数）不会超过500，依据此限制将最大并发数（模型配置文件中的batch_size）平分到多个进程中（例如最大并发数为1200，就会启用3个进程，每个进程承载400个线程）。请依据cpu单核能力自行合理设置。
-- **PRESSURE_TIME** 压测发请求阶段持续的时间，单位秒，取值范围[1, 24 * 60 * 60]，取值超过此范围，将被取为所超越的边界值。
-- **CONNECTION_ADD_RATE** 压力测试的每个发送请求的进程中新增线程（客户端）的频率，取值范围[1, +∞]，取值超过此范围，将被取为所超越的边界值。此参数取值越大，实际新增线程（客户端）的频率偏差越大（偏差和cpu单核处理能力有关）。
 
 #### 新增压测命令
 命令行需要额外加上`--pressure`：
 ```bash
 # 命令行加上--debug
-ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer stable_stage --mode perf --debug --pressure
+ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer stable_stage --mode perf --pressure --pressure-time 30
 ```
 

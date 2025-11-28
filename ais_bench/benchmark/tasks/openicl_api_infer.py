@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import time
+import json
 from typing import Any, List
 import asyncio
 import multiprocessing as mp
@@ -10,6 +11,7 @@ from multiprocessing import Event, Process, Queue, shared_memory, BoundedSemapho
 from typing import Dict
 import pickle
 from mmengine.config import Config, ConfigDict
+from collections import defaultdict
 
 from ais_bench.benchmark.global_consts import WORKERS_NUM
 from ais_bench.benchmark.registry import ICL_INFERENCERS, TASKS, ICL_RETRIEVERS
@@ -20,12 +22,13 @@ from ais_bench.benchmark.tasks.utils import (
     create_message_share_memory,
     ProgressBar,
     TokenProducer,
+    format_dict_as_table,
 )
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_api_inferencer import BaseApiInferencer
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg, merge_dataset_abbr_from_cfg
 from ais_bench.benchmark.utils.config import build_dataset_from_cfg
 from ais_bench.benchmark.utils.logging.error_codes import TINFER_CODES
-from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError, AISBenchRuntimeError
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer import MAX_BATCH_SIZE
 from ais_bench.benchmark.utils.logging import AISLogger
 
@@ -81,6 +84,7 @@ class OpenICLApiInferTask(BaseTask):
         super().__init__(cfg)
         self.concurrency = self.model_cfg.get("batch_size", 1)
         self.pressure = self.cli_args.get("pressure", False)
+        self.debug = self.cli_args.get("debug", False)
         self.pressure_time = self.cli_args.get("pressure_time")
         if self.pressure:
             try:
@@ -106,7 +110,7 @@ class OpenICLApiInferTask(BaseTask):
         self.stop_evt.set()
         self.repeat = self.model_cfg["generation_kwargs"].get("num_return_sequences", 1)
         if self.repeat > 1:
-            self.logger.info(f'num_return_sequences is greater than 1, echo data will be infer independently {self.repeat} times')
+            self.logger.info(f'num_return_sequences is greater than 1, each data will be infer independently {self.repeat} times')
 
     def get_command(self, cfg_path, template):
         """Build the CLI command to execute this task.
@@ -167,7 +171,10 @@ class OpenICLApiInferTask(BaseTask):
             cur_data_indexes = [x for x in range(len(infer_data_list)) for _ in range(self.repeat)]
             cur_finish_indexes = [x["id"] for x in cur_data_cache.values()]
             for i in cur_finish_indexes:
-                cur_data_indexes.remove(i)
+                try:
+                    cur_data_indexes.remove(i)
+                except ValueError: # num-prompts change cause predictions num more than references, ignore it
+                    pass
             finish_index_nums += len(cur_finish_indexes)
             data_list += infer_data_list
             global_indexes += [x + total_data_nums for x in cur_data_indexes]
@@ -176,8 +183,8 @@ class OpenICLApiInferTask(BaseTask):
         if finish_index_nums > 0:
             self.logger.info(f"Found {finish_index_nums} completed data in cache, "
                              "run infer task from the last interrupted position")
-        
-        # remove finished data in data_list and change indexes accordingly  
+
+        # remove finished data in data_list and change indexes accordingly
         picked_data_list = [data_list[i] for i in global_indexes]
         data_list = [data_list[i] for i in set(global_indexes)]
         pos_map = {v['data_abbr'] + '-' + str(v['index']): k for k, v in enumerate(data_list)}
@@ -230,7 +237,7 @@ class OpenICLApiInferTask(BaseTask):
         workers_num = max(1, workers_num)
         # Ensure total concurrency is integer and non-negative
         total_concurrency = int(self.concurrency) if self.concurrency is not None else 0
-        if total_concurrency <= 0:
+        if total_concurrency <= 0 or total_concurrency > MAX_BATCH_SIZE:
             raise ParameterValueError(
                 TINFER_CODES.CONCURRENCY_ERROR,
                 f"Concurrency must be greater than 0 and <= {MAX_BATCH_SIZE}, but got {self.concurrency}",
@@ -328,7 +335,8 @@ class OpenICLApiInferTask(BaseTask):
 
             except Exception as exc:
                 # Any error creating shm or starting process -> clean up message_shm if created
-                self.logger.error(TINFER_CODES.FAILED_TO_START_WORKER, f"Failed to start worker {i}: {exc}")
+                self.logger.error(TINFER_CODES.FAILED_TO_START_WORKER, f"Failed to start worker {i}: {exc}, " +
+                    f"total workers to launch: {len(per_worker_concurrency)}.")
                 # Cleanup any shm created for this iteration
                 if pid is not None and pid in message_shms and message_shms[pid] is not None:
                     message_shm = message_shms[pid]
@@ -338,21 +346,64 @@ class OpenICLApiInferTask(BaseTask):
                     self._cleanup_shms(message_shm)
         return processes
 
+    def warm_up(self, data_list: List, task_state_manager: TaskStateManager):
+        """Warm up the inferencer.
+
+        Args:
+            data_list: Data list to warm up
+        """
+        warm_up_inferencer: BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
+        # warmup
+        if self.warmup_size > 0:
+            task_state_manager.update_task_state({"status": "warmup"})
+            self.logger.info(f"Start warmup, run with concurrency: {self.concurrency}")
+            warmup_results = asyncio.run(
+                warm_up_inferencer.warmup(data_list, self.warmup_size, self.concurrency)
+            )
+
+            task_state_manager.update_task_state(
+                {
+                    "status": "warmup finished",
+                    "other_kwargs": {
+                        "Total Count": self.warmup_size,
+                        "Success Count": warmup_results["success"],
+                        "Failed Count": warmup_results["failed"],
+                        "Failed Reasons": dict(warmup_results["failed_reasons"]),
+                    },
+                })
+            if self.debug:
+                warm_up_log = f"Warmup finished "
+                warm_up_log += f"Total Count: {self.warmup_size} "
+                warm_up_log += f"Success Count: {warmup_results['success']} "
+                warm_up_log += f"Failed Count: {warmup_results['failed']} "
+                if warmup_results['failed'] > 0:
+                    failed_reasons = warmup_results['failed_reasons']
+                    if failed_reasons:
+                        table_str = format_dict_as_table(
+                            failed_reasons,
+                            title="Failed Reasons:",
+                            key_column_name="Failed Reason",
+                            value_column_name="Count",
+                        )
+                        warm_up_log += "\n" + table_str
+                self.logger.info(warm_up_log)
+            if warmup_results["success"] == 0:
+                task_state_manager.update_task_state({"status": "Warmup failed"})
+                raise AISBenchRuntimeError(TINFER_CODES.WARMUP_FAILED, f"Exit task because all warmup requests failed, failed reasons: {dict(warmup_results['failed_reasons'])}")
+
+        else:
+            self.logger.info(f"Warmup size is 0, skip...")
+
     def run(self, task_state_manager: TaskStateManager):
         self.logger.info(f"Task [{task_abbr_from_cfg(self.cfg)}]")
-        debug = self.cli_args.get("debug", False)
         self.inferencer:BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
+        self.clean_failed_results()
 
         data_list, finish_data_count, global_indexes = self._get_data_list()
         if len(data_list) == 0:
             self.logger.warning(f"Get no data to infer, task finished")
             return
-
-        # warmup
-        self.logger.info(f"Start warmup...")
-        warm_up_inferencer:BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
-        asyncio.run(warm_up_inferencer.warmup(data_list, self.warmup_size))
-        
+        self.warm_up(data_list, task_state_manager)
         dataset_size, dataset_shm, indexes = self._dump_dataset_to_share_memory(data_list)
         # In pressure mode, treat the first `concurrency` requests as the dataset size
         if self.pressure:
@@ -370,10 +421,10 @@ class OpenICLApiInferTask(BaseTask):
         )
         message_shms = {}
         # Message queue collecting per-process request state; polled periodically
-        
+
         try:
             processes = []
-            if debug:
+            if self.debug:
                 message_shm = create_message_share_memory()
                 message_shms[os.getpid()] = message_shm
                 # Create progress bar
@@ -382,7 +433,7 @@ class OpenICLApiInferTask(BaseTask):
                     self.stop_evt,
                     len(global_indexes),
                     finish_data_count,
-                    debug,
+                    self.debug,
                     self.pressure,
                     self.pressure_time,
                 )
@@ -446,7 +497,7 @@ class OpenICLApiInferTask(BaseTask):
                     self.stop_evt,
                     len(global_indexes),
                     finish_data_count,
-                    debug,
+                    self.debug,
                     self.pressure,
                     self.pressure_time,
                 )
@@ -495,6 +546,7 @@ class OpenICLApiInferTask(BaseTask):
             for pid, shm in message_shms.items():
                 self._cleanup_shms(shm)
             self._cleanup_shms(dataset_shm)
+            self._summary_failed_results()
 
     def _cleanup_shms(self, shm: shared_memory.SharedMemory):
         """Clean up shared memory object.
@@ -520,6 +572,43 @@ class OpenICLApiInferTask(BaseTask):
         """
         if key not in cfg:
             cfg[key] = value
+
+    def clean_failed_results(self):
+        """Clean failed results.
+        """
+        output_dir = self.inferencer.get_output_dir()
+        for dataset_cfg in self.dataset_cfgs:
+            data_abbr = dataset_cfg["abbr"]
+            failed_data_path = os.path.join(output_dir, f"{data_abbr}_failed.jsonl")
+            if os.path.exists(failed_data_path):
+                os.remove(failed_data_path)
+                self.logger.debug(f"Cleaned failed results for dataset {data_abbr}")
+
+
+    def _summary_failed_results(self):
+        """Summary failed results.
+        """
+        output_dir = self.inferencer.get_output_dir()
+        failed_results = defaultdict(int)
+        for dataset_cfg in self.dataset_cfgs:
+            data_abbr = dataset_cfg["abbr"]
+            failed_data_path = os.path.join(output_dir, f"{data_abbr}_failed.jsonl")
+            if os.path.exists(failed_data_path):
+                with open(failed_data_path, "r") as f:
+                    for line in f:
+                        json_line = json.loads(line)
+                        failed_results[json_line.get("error_info", "Unknown Error")] += 1
+        if not failed_results:
+            self.logger.debug(f"No failed results")
+            return
+        table_str = format_dict_as_table(
+            failed_results,
+            title="Task finished, failed reasons summary:",
+            key_column_name="Failed Reason",
+            value_column_name="Count",
+        )
+        self.logger.info(f"Task finished, failed reasons summary: \n{table_str} \n")
+        self.logger.info(f"Read {output_dir}*_failed.jsonl for more details")
 
 
 def parse_args():

@@ -2,7 +2,7 @@ import os
 import time
 import struct
 from collections import OrderedDict
-from typing import Dict, List
+from typing import Dict, List, Any
 from multiprocessing import Event, shared_memory, BoundedSemaphore
 
 import numpy as np
@@ -110,7 +110,7 @@ def check_virtual_memory_usage(dataset_bytes: int, threshold_percent: int = MAX_
         threshold_percent (int): Memory usage threshold percentage, default 80%
 
     Raises:
-        AISRuntimeError: When virtual memory usage exceeds threshold
+        AISBenchRuntimeError: When virtual memory usage exceeds threshold
     """
 
     # Get memory information using psutil
@@ -460,6 +460,8 @@ class TokenProducer:
         # When request_rate < 0.1, treat as infinite (no pacing applied here)
         if self.request_rate < FINAL_RPS_MINIMUM_THRESHOLD:
             self.token_bucket = None
+            if self.pressure_mode:
+                self.logger.warning("Pressure mode with no request rate applied, concurrency will increase rapidly")
         else:
             self.token_bucket = BoundedSemaphore(request_num + 1)
             # First release all tokens in token_bucket to make it empty
@@ -710,3 +712,70 @@ class TokenProducer:
                     # Indicates token bucket is full, wait for tokens to be used
                     interval = np.random.gamma(shape=self.burstiness, scale=theta)
                     time.sleep(interval)
+
+
+def format_dict_as_table(
+    data_dict: Dict[str, Any],
+    title: str = "",
+    key_column_name: str = "Key",
+    value_column_name: str = "Value",
+    key_align: str = "<",
+    value_align: str = ">",
+) -> str:
+    """Format a dictionary as a structured table with borders.
+    
+    Args:
+        data_dict: Dictionary to format (key -> value mapping)
+        title: Optional title to display above the table
+        key_column_name: Name for the key column header
+        value_column_name: Name for the value column header
+        key_align: Alignment for key column ('<' for left, '>' for right, '^' for center)
+        value_align: Alignment for value column ('<' for left, '>' for right, '^' for center)
+    
+    Returns:
+        str: Formatted table as a multi-line string
+    
+    Example:
+        >>> data = {"Connection timeout": 5, "Invalid response": 3}
+        >>> print(format_dict_as_table(data, title="Failed Reasons:"))
+        Failed Reasons:
+        +----------------------+-------+
+        | Failed Reason        | Count |
+        +----------------------+-------+
+        | Connection timeout   |   5   |
+        | Invalid response     |   3   |
+        +----------------------+-------+
+    """
+    if not data_dict:
+        return title if title else ""
+    
+    # Calculate column widths
+    max_key_len = max(len(str(key)) for key in data_dict.keys())
+    max_key_len = max(max_key_len, len(key_column_name))
+    max_value_len = max(len(str(value)) for value in data_dict.values())
+    max_value_len = max(max_value_len, len(value_column_name))
+    
+    # Build table
+    table_lines = []
+    if title:
+        table_lines.append(title)
+    
+    # Table header separator
+    header_separator = "+" + "-" * (max_key_len + 2) + "+" + "-" * (max_value_len + 2) + "+"
+    table_lines.append(header_separator)
+    
+    # Table header
+    key_header = f"{key_column_name:{key_align}{max_key_len}}"
+    value_header = f"{value_column_name:{value_align}{max_value_len}}"
+    table_lines.append(f"| {key_header} | {value_header} |")
+    table_lines.append(header_separator)
+    
+    # Table rows
+    for key, value in data_dict.items():
+        key_str = f"{str(key):{key_align}{max_key_len}}"
+        value_str = f"{str(value):{value_align}{max_value_len}}"
+        table_lines.append(f"| {key_str} | {value_str} |")
+    
+    table_lines.append(header_separator)
+    
+    return "\n".join(table_lines)

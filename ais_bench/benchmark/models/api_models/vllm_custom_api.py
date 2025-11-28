@@ -1,11 +1,5 @@
-import os
+import urllib
 from typing import Dict, Optional, Union
-import aiohttp
-import json
-import asyncio
-import traceback
-import sys
-
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.prompt import PromptList
 
@@ -14,8 +8,6 @@ from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import PPLRequestOutput
 
 PromptType = Union[PromptList, str]
-
-AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=20 * 60 * 60)
 
 @MODELS.register_module()
 class VLLMCustomAPI(BaseAPIModel):
@@ -81,7 +73,7 @@ class VLLMCustomAPI(BaseAPIModel):
 
     def _get_url(self) -> str:
         endpoint = "v1/completions"
-        url = f"{self.base_url}{endpoint}"
+        url = urllib.parse.urljoin(self.base_url, endpoint)
         self.logger.debug(f"Request url: {url}")
         return url
 
@@ -121,11 +113,8 @@ class VLLMCustomAPI(BaseAPIModel):
         return prompt_logprobs
 
 class VLLMCustomAPIStream(VLLMCustomAPI):
-    _warning_printed = False
-    
+
     def __init__(self, *args, **kwargs):
         kwargs['stream'] = True
         super().__init__(*args, **kwargs)
-        if not VLLMCustomAPIStream._warning_printed:
-            self.logger.warning("VLLMCustomAPIStream is deprecated, please use VLLMCustomAPI with stream=True instead.")
-            VLLMCustomAPIStream._warning_printed = True
+        self.logger.warning("VLLMCustomAPIStream is deprecated, please use VLLMCustomAPI with stream=True instead.")

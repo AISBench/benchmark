@@ -1,10 +1,5 @@
-import json
-import aiohttp
+import urllib
 from typing import Dict, Optional, Union
-import asyncio
-import traceback
-import sys
-from openai import OpenAI
 
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.prompt import PromptList
@@ -13,8 +8,6 @@ from ais_bench.benchmark.models.output import RequestOutput, Output
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import PPLRequestOutput
 
 PromptType = Union[PromptList, str]
-
-AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=20 * 60 * 60)
 
 # Role mapping for converting internal role names to API role names
 ROLE_MAP = {
@@ -101,7 +94,7 @@ class VLLMCustomAPIChat(BaseAPIModel):
 
     def _get_url(self) -> str:
         endpoint = "v1/chat/completions"
-        url = f"{self.base_url}{endpoint}"
+        url = urllib.parse.urljoin(self.base_url, endpoint)
         self.logger.debug(f"Request url: {url}")
         return url
 
@@ -170,34 +163,25 @@ class VLLMCustomAPIChat(BaseAPIModel):
 
 @MODELS.register_module()
 class VLLMFunctionCallAPIChat(VLLMCustomAPIChat):
-    _warning_printed = False
-    
+
     def __init__(self, *args, **kwargs):
         kwargs['stream'] = False
         super().__init__(*args, **kwargs)
-        if not VLLMFunctionCallAPIChat._warning_printed:
-            self.logger.warning("VLLMFunctionCallAPIChat is deprecated, please use VLLMCustomAPIChat instead.")
-            VLLMFunctionCallAPIChat._warning_printed = True
+        self.logger.warning("VLLMFunctionCallAPIChat is deprecated, please use VLLMCustomAPIChat instead.")
 
 @MODELS.register_module()
 class VLLMCustomAPIChatStream(VLLMCustomAPIChat):
-    _warning_printed = False
-    
+
     def __init__(self, *args, **kwargs):
         kwargs['stream'] = True
         super().__init__(*args, **kwargs)
-        if not VLLMCustomAPIChatStream._warning_printed:
-            self.logger.warning("VLLMCustomAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
-            VLLMCustomAPIChatStream._warning_printed = True
+        self.logger.warning("VLLMCustomAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
 
 @MODELS.register_module()
 class VllmMultiturnAPIChatStream(VLLMCustomAPIChat):
-    _warning_printed = False
-    
+
     def __init__(self, *args, **kwargs):
         kwargs.pop("custom_client", None)
         kwargs['stream'] = True
         super().__init__(*args, **kwargs)
-        if not VllmMultiturnAPIChatStream._warning_printed:
-            self.logger.warning("VllmMultiturnAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")
-            VllmMultiturnAPIChatStream._warning_printed = True
+        self.logger.warning("VllmMultiturnAPIChatStream is deprecated, please use VLLMCustomAPIChat with stream=True instead.")

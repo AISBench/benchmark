@@ -9,7 +9,7 @@ from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.datasets.custom import make_custom_dataset_config
 from ais_bench.benchmark.utils.file import match_cfg_file
 from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
-from ais_bench.benchmark.utils.logging.exceptions import CommandError, ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
 from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts
 
 class CustomConfigChecker:
@@ -29,43 +29,43 @@ class CustomConfigChecker:
     def _check_models_config(self):
         models = self.config.get('models', [])
         if not models:
-            raise ConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {self.file_path} does not contain 'models' param!")
+            raise AISBenchConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {self.file_path} does not contain 'models' param!")
         if not isinstance(models, list):
-            raise ConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, 'models' param must be a list!")
+            raise AISBenchConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, 'models' param must be a list!")
         for model in models:
             if not isinstance(model, dict):
-                raise ConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, " +
+                raise AISBenchConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, " +
                                  "member of 'models' param must be a dict!")
             for param in self.MODEL_REQUIRED_FIELDS:
                 if param not in model:
-                    raise ConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"In config file {self.file_path}, " +
+                    raise AISBenchConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"In config file {self.file_path}, " +
                                      f"member of 'models' param must contain '{param}' param!")
 
     def _check_datasets_config(self):
         datasets = self.config.get('datasets', [])
         if not datasets:
-            raise ConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {self.file_path} does not contain 'datasets' param!")
+            raise AISBenchConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {self.file_path} does not contain 'datasets' param!")
         if not isinstance(datasets, list):
-            raise ConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, 'datasets' param must be a list!")
+            raise AISBenchConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, 'datasets' param must be a list!")
         for dataset in datasets:
             if not isinstance(dataset, dict):
-                raise ConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, " +
+                raise AISBenchConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, " +
                                  "member of 'datasets' param must be a dict!")
             for param in self.DATASET_REQUIRED_FIELDS:
                 if param not in dataset:
-                    raise ConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"In config file {self.file_path}, " +
+                    raise AISBenchConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"In config file {self.file_path}, " +
                                      f"member of 'datasets' param must contain '{param}' param!")
 
     def _check_summarizer_config(self):
         summarizer = self.config.get('summarizer', None)
         if not summarizer:
-            raise ConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {self.file_path} does not contain 'summarizer' param!")
+            raise AISBenchConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {self.file_path} does not contain 'summarizer' param!")
         if not isinstance(summarizer, dict):
-            raise ConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, " +
+            raise AISBenchConfigError(TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM, f"In config file {self.file_path}, " +
                              "'summarizer' param must be a dict!")
         for param in self.SUMMARIZER_REQUIRED_FIELDS:
             if param not in summarizer:
-                raise ConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"In config file {self.file_path}, " +
+                raise AISBenchConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"In config file {self.file_path}, " +
                                  f"member of 'summarizer' param must contain '{param}' param!")
 
 class ConfigManager:
@@ -174,7 +174,7 @@ class ConfigManager:
             try:
                 config = Config.fromfile(self.args.config, format_python_code=False)
             except BaseException as e:
-                raise ConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {self.args.config} contain invaild syntax: {e}')
+                raise AISBenchConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {self.args.config} contain invaild syntax: {e}')
             config = try_fill_in_custom_cfgs(config)
             CustomConfigChecker(config, self.args.config).check()
             config.merge_from_dict(dict(cli_args = vars(self.args)))
@@ -211,14 +211,14 @@ class ConfigManager:
                     try:
                         cfg = Config.fromfile(dataset[1])
                     except BaseException as e:
-                        raise ConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {dataset[1]} contain invaild syntax: {e}')
+                        raise AISBenchConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {dataset[1]} contain invaild syntax: {e}')
                     dataset_cfg_exist = False
                     for k in cfg.keys():
                         if k.endswith(dataset_key_suffix):
                             datasets += cfg[k]
                             dataset_cfg_exist = True
                     if not dataset_cfg_exist:
-                        raise ConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {dataset[1]} does not contain a param end with {dataset_key_suffix}!")
+                        raise AISBenchConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {dataset[1]} does not contain a param end with {dataset_key_suffix}!")
         else:
             if self.args.custom_dataset_path is None:
                 raise CommandError(TMAN_CODES.CMD_MISS_REQUIRED_ARG, 'You must specify a custom dataset path, or specify --datasets.')
@@ -252,9 +252,9 @@ class ConfigManager:
                     try:
                         cfg = Config.fromfile(model[1])
                     except BaseException as e:
-                        raise ConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {model[1]} contain invaild syntax: {e}')
+                        raise AISBenchConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {model[1]} contain invaild syntax: {e}')
                     if 'models' not in cfg:
-                        raise ConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {model[1]} does not contain 'models' param")
+                        raise AISBenchConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {model[1]} does not contain 'models' param")
                     models += cfg['models']
         return models
 
@@ -285,7 +285,7 @@ class ConfigManager:
         try:
             cfg = Config.fromfile(s[1])
         except BaseException as e:
-            raise ConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {s[1]} contain invaild syntax: {e}')
+            raise AISBenchConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {s[1]} contain invaild syntax: {e}')
         # Use summarizer_key to retrieve the summarizer definition
         # from the configuration file
         summarizer = cfg[summarizer_key]
@@ -338,4 +338,4 @@ class ConfigManager:
         try:
             self.cfg = Config.fromfile(output_config_path, format_python_code=False)
         except BaseException as e:
-            raise ConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {output_config_path} contain invaild syntax: {e}')
+            raise AISBenchConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {output_config_path} contain invaild syntax: {e}')

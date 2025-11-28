@@ -3,12 +3,10 @@ import json
 import warnings
 import asyncio
 import os.path as osp
-import traceback
 from abc import abstractmethod
 from copy import deepcopy
 from typing import Dict, List, Optional, Tuple, Union
 
-from transformers import AutoTokenizer
 import requests
 import aiohttp
 
@@ -22,12 +20,25 @@ from ais_bench.benchmark.models import BaseModel
 from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import PPLRequestOutput
 from ais_bench.benchmark.utils.logging.error_codes import ICLI_CODES
+from ais_bench.benchmark.global_consts import REQUEST_TIME_OUT
 
 
-AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=20 * 60 * 60)
+AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=REQUEST_TIME_OUT)
 
 PromptType = Union[PromptList, str]
 
+class MockAISLogger(AISLogger):
+    """Mock logger for API model. Because model will init in task for warmup and init in infer process,
+    so we mock the logger to avoid the print each log in init process twice
+    """
+    def info(self, msg, *args, **kwargs):
+        pass
+
+    def debug(self, msg, *args, **kwargs):
+        pass
+
+    def warning(self, msg, *args, **kwargs):
+        pass
 
 class BaseAPIModel(BaseModel):
     """Base class for API model wrapper.
@@ -48,6 +59,7 @@ class BaseAPIModel(BaseModel):
     """
 
     is_api: bool = True
+    init_flag: bool = False
 
     def __init__(
         self,
@@ -64,7 +76,11 @@ class BaseAPIModel(BaseModel):
         verbose: bool = False,
         api_key: str = "",
     ):
-        self.logger = AISLogger()
+        if not BaseAPIModel.init_flag:
+            self.logger = MockAISLogger()
+            BaseAPIModel.init_flag = True
+        else:
+            self.logger = AISLogger()
         self.path = path
         self.stream = stream
         self.max_out_len = max_out_len
@@ -90,9 +106,13 @@ class BaseAPIModel(BaseModel):
         )
 
     def _get_base_url(self) -> str:
-        if self.url:
-            return self.url
         protocol = "https" if self.enable_ssl else "http"
+        if self.url:
+            self.logger.info(f"Using custom URL: [{self.url}], [host_ip: {self.host_ip}] and [host_port: {self.host_port}] will be ignored")
+            # Check if URL already contains protocol
+            if self.url.startswith("http://") or self.url.startswith("https://"):
+                return self.url
+            return f"{protocol}://{self.url}"
         base_url = f"{protocol}://{self.host_ip}:{self.host_port}/"
         return base_url
 
@@ -209,14 +229,16 @@ class BaseAPIModel(BaseModel):
                 break
             except json.JSONDecodeError:
                 break
-            except Exception:
+            except Exception as e:
                 # increase retry count and set output to failed
                 retry_count += 1
                 output.success = False
-                exc_info = sys.exc_info()
+                # Only print the last exception (the actual error), not the full traceback
+                exc_type = type(e).__name__
+                exc_msg = str(e)
                 output.error_info = (
-                    f"After {retry_count} retries, request failed with exception:\n"
-                    + "\n".join(traceback.format_exception(*exc_info))
+                    f"After {retry_count} retries, request failed with exception: "
+                    f"{exc_type}: {exc_msg}"
                 )
                 await output.clear_time_points()
                 continue
@@ -249,7 +271,7 @@ class BaseAPIModel(BaseModel):
                         output.error_info = f"Unexpected response format: {raw_chunk}. Please check if server is working correctly."
                         raise AISBenchValueError(
                             MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                            f"Unexpected response format. Please check ***_detail.jsonl for more information."
+                            f"Unexpected response format. Please check ***_details.jsonl for more information."
                         )
                     await self.parse_stream_response(data, output)
                 output.success = True
@@ -272,7 +294,7 @@ class BaseAPIModel(BaseModel):
                     output.error_info = f"Unexpected response format: {raw_data}. Please check if server is working correctly."
                     raise AISBenchValueError(
                         MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                        f"Unexpected response format. Please check ***_detail.jsonl for more information."
+                        f"Unexpected response format. Please check ***_details.jsonl for more information."
                     )
                 await self.parse_text_response(data, output)
                 output.success = True
@@ -338,10 +360,12 @@ class BaseAPIModel(BaseModel):
             except Exception as e:
                 retry_count += 1
                 output.success = False
-                exc_info = sys.exc_info()
+                # Only print the last exception (the actual error), not the full traceback
+                exc_type = type(e).__name__
+                exc_msg = str(e)
                 output.error_info = (
-                    f"After {retry_count} retries, request failed with exception:\n"
-                    + "\n".join(traceback.format_exception(*exc_info))
+                    f"After {retry_count} retries, request failed with exception: "
+                    f"{exc_type}: {exc_msg}"
                 )
                 continue
         if close_session:
@@ -508,8 +532,8 @@ class APITemplateParser:
                         section_stack.append((item["section"], i + 1))
                     else:
                         raise AISBenchValueError(
-                            MODEL_CODES.INVALID_POS_IN_PROMPT_TEMPLATE,
-                            f'Invalid prompt template item pos {item["pos"]}'
+                            MODEL_CODES.UNKNOWN_ERROR,
+                            f"Invalid prompt template item pos {item['pos']}, legal item pos are 'begin' or 'end'."
                         )
                 elif section_stack[-1][0] in ["begin", "end"]:
                     role_dict = self._update_role_dict(item)
@@ -602,7 +626,7 @@ class APITemplateParser:
                     raise AISBenchKeyError(
                         MODEL_CODES.INVALID_ROLE_IN_PROMPT_TEMPLATE,
                         f"prompt template item {template} neither has an appropriate "
-                        "role nor a fallback role."
+                        "role nor a fallback_role."
                     )
             if role_idx <= last_role_idx:
                 cutoff_idxs.append(idx)

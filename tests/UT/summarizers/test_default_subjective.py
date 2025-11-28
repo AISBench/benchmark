@@ -11,7 +11,7 @@ from ais_bench.benchmark.summarizers.default_subjective import (
     METRIC_WHITELIST,
     METRIC_BLACKLIST
 )
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from mmengine import ConfigDict
 
 
@@ -550,7 +550,7 @@ class TestDefaultSubjectiveSummarizer(unittest.TestCase):
         summarizer = DefaultSubjectiveSummarizer(self.config, summary_groups=[mixed_group])
 
         # 验证抛出ConfigError
-        with self.assertRaises(ConfigError):
+        with self.assertRaises(AISBenchConfigError):
             summarizer._calculate_group_metrics(raw_results, parsed_results, dataset_metrics, dataset_eval_mode)
 
     @patch('ais_bench.benchmark.summarizers.default_subjective.dataset_abbr_from_cfg')

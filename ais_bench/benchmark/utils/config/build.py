@@ -11,7 +11,7 @@ from ais_bench.benchmark.registry import (
 )
 
 from ais_bench.benchmark.utils.logging.logger import AISLogger
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
 logger = AISLogger()
@@ -127,7 +127,7 @@ def build_model_from_cfg(model_cfg: ConfigDict):
     errors = _validate_model_cfg(model_cfg)
     if errors:
         logger.warning(f"Model config validation failed for {model_name}: {errors}")
-        raise ConfigError(
+        raise AISBenchConfigError(
             UTILS_CODES.MODEL_CONFIG_VALIDATE_FAILED,
             f"{model_name} build failed with the following errors: {errors}"
         )

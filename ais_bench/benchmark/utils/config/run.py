@@ -4,7 +4,7 @@ from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask
 from ais_bench.benchmark.utils.logging import AISLogger
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
 logger = AISLogger()
@@ -23,12 +23,12 @@ def get_models_attr(cfg):
     for model_cfg in cfg['models']:
         attr = model_cfg.get('attr', 'service') # default service
         if attr not in ['local', 'service']:
-            raise ConfigError(UTILS_CODES.ILLEGAL_MODEL_ATTR, f"Model config contain illegal attr, model abbr is {model_cfg.get('abbr')}")
+            raise AISBenchConfigError(UTILS_CODES.ILLEGAL_MODEL_ATTR, f"Model config contain illegal attr, model abbr is {model_cfg.get('abbr')}")
         if attr not in attr_list:
             attr_list.append(attr)
 
     if len(attr_list) != 1:
-        raise ConfigError(UTILS_CODES.MIXED_MODEL_ATTRS, "Cannot run local and service model together! Please check parameters of --models!")
+        raise AISBenchConfigError(UTILS_CODES.MIXED_MODEL_ATTRS, "Cannot run local and service model together! Please check parameters of --models!")
 
     logger.debug(f"All models have consistent attr: {attr_list[0]}")
     return attr_list[0]
@@ -112,20 +112,20 @@ def function_call_task_check(cfg, merge_ds):
     if has_bfcl_dataset and not all_models_function_call:
         non_function_call_models = [model_cfg.get('type').split('.')[-1] for model_cfg in cfg['models']
                                   if model_cfg.get('type') != vllm_function_call_type]
-        raise ConfigError(UTILS_CODES.NON_FUNCTION_CALL_MODEL, f"BFCLDataset can only be used with VLLMFunctionCallAPIChat, but found incompatible models: {non_function_call_models}")
+        raise AISBenchConfigError(UTILS_CODES.NON_FUNCTION_CALL_MODEL, f"BFCLDataset can only be used with VLLMFunctionCallAPIChat, but found incompatible models: {non_function_call_models}")
 
     if has_function_call_model and not all_datasets_bfcl:
         non_bfcl_datasets = [data_cfg.get('type').split('.')[-1] for data_cfg in cfg['datasets']
                             if data_cfg.get('type') != bfcl_dataset_type]
-        raise ConfigError(UTILS_CODES.NON_BFCL_DATASET, f"VLLMFunctionCallAPIChat can only be used with BFCLDataset, but found incompatible datasets: {non_bfcl_datasets}")
+        raise AISBenchConfigError(UTILS_CODES.NON_BFCL_DATASET, f"VLLMFunctionCallAPIChat can only be used with BFCLDataset, but found incompatible datasets: {non_bfcl_datasets}")
 
     is_function_call_task = all_models_function_call and all_datasets_bfcl
     if is_function_call_task and merge_ds:
-        raise ConfigError(UTILS_CODES.INCOMPATIBLE_MERGE_DS, "Option '--merge-ds' is not supported with function call tasks")
+        raise AISBenchConfigError(UTILS_CODES.INCOMPATIBLE_MERGE_DS, "Option '--merge-ds' is not supported with function call tasks")
 
     if is_function_call_task:
         logger.debug("Configuration validated as function call task")
     else:
         logger.debug("Configuration is not a function call task")
-    
+
     cfg.merge_from_dict({"is_function_call_task": is_function_call_task})

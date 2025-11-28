@@ -132,7 +132,7 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
         data_abbr = retriever.dataset.abbr
         ice_idx_list = retriever.retrieve()
         prompt_list = []
-        for idx, ice_idx in tqdm(enumerate(ice_idx_list), disable=not self.is_main_process, desc="Applying Ice Template"):
+        for idx, ice_idx in enumerate(ice_idx_list):
             ice = retriever.generate_ice(ice_idx)
             prompt = retriever.generate_prompt_for_generate_task(
                 idx,
@@ -141,6 +141,7 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
             )
             parsed_prompt = self.model.parse_template(prompt, mode="gen")
             prompt_list.append(parsed_prompt)
+        self.logger.info(f"Apply ice template finished")
         gold_ans = retriever.get_gold_ans()
         data_list = []
         for index, prompt in enumerate(prompt_list):
