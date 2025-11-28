@@ -225,6 +225,7 @@ class UTILS_CODES:
     TYPE_MISMATCH = BaseErrorCode("UTILS-TYPE-007", ErrorModule.UTILS, ErrorType.TYPE, 7, "type mismatch in validation")
     ARGUMENT_TOO_LARGE = BaseErrorCode("UTILS-TYPE-008", ErrorModule.UTILS, ErrorType.TYPE, 8, "argument value too large")
     INVALID_INTEGER_TYPE = BaseErrorCode("UTILS-TYPE-009", ErrorModule.UTILS, ErrorType.TYPE, 9, "invalid integer type")
+    ARGUMENT_TOO_SMALL = BaseErrorCode("UTILS-TYPE-010", ErrorModule.UTILS, ErrorType.TYPE, 10, "argument value too small")
 
     # Parameter validation errors
     ROOT_PATH_NOT_SET = BaseErrorCode("UTILS-PARAM-001", ErrorModule.UTILS, ErrorType.PARAM, 1, "root_path not set")

@@ -257,34 +257,34 @@ class TestValidateMaxWorkers(unittest.TestCase):
         self.assertEqual(result, 10)
         mock_logger.warning.assert_not_called()
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_max_workers_exceeds_max(self, mock_logger):
+    def test_validate_max_workers_exceeds_max(self):
         """测试超过最大值的 max_workers"""
         large_value = MAX_NUM_WORKERS + 10
-        result = validate_max_workers(str(large_value))
-        self.assertEqual(result, MAX_NUM_WORKERS)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_max_workers(str(large_value))
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_LARGE.full_code, str(context.exception))
+        self.assertIn("must be <=", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_max_workers_less_than_one(self, mock_logger):
+    def test_validate_max_workers_less_than_one(self):
         """测试小于1的 max_workers"""
-        result = validate_max_workers("0")
-        self.assertEqual(result, 1)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_max_workers("0")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        self.assertIn("must be >=", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_max_workers_invalid_type(self, mock_logger):
+    def test_validate_max_workers_invalid_type(self):
         """测试无效类型的 max_workers"""
-        result = validate_max_workers("invalid")
-        self.assertEqual(result, 1)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_max_workers("invalid")
+        self.assertIn(UTILS_CODES.INVALID_INTEGER_TYPE.full_code, str(context.exception))
+        self.assertIn("must be an integer", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_max_workers_negative(self, mock_logger):
+    def test_validate_max_workers_negative(self):
         """测试负数的 max_workers"""
-        result = validate_max_workers("-5")
-        self.assertEqual(result, 1)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_max_workers("-5")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        self.assertIn("must be >=", str(context.exception))
 
 
 class TestValidateMaxWorkersPerGpu(unittest.TestCase):
@@ -297,26 +297,26 @@ class TestValidateMaxWorkersPerGpu(unittest.TestCase):
         self.assertEqual(result, 5)
         mock_logger.warning.assert_not_called()
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_max_workers_per_gpu_less_than_one(self, mock_logger):
+    def test_validate_max_workers_per_gpu_less_than_one(self):
         """测试小于1的 max_workers_per_gpu"""
-        result = validate_max_workers_per_gpu("0")
-        self.assertEqual(result, 1)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_max_workers_per_gpu("0")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        self.assertIn("must be >=", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_max_workers_per_gpu_invalid_type(self, mock_logger):
+    def test_validate_max_workers_per_gpu_invalid_type(self):
         """测试无效类型的 max_workers_per_gpu"""
-        result = validate_max_workers_per_gpu("invalid")
-        self.assertEqual(result, 1)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_max_workers_per_gpu("invalid")
+        self.assertIn(UTILS_CODES.INVALID_INTEGER_TYPE.full_code, str(context.exception))
+        self.assertIn("must be an integer", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_max_workers_per_gpu_negative(self, mock_logger):
+    def test_validate_max_workers_per_gpu_negative(self):
         """测试负数的 max_workers_per_gpu"""
-        result = validate_max_workers_per_gpu("-3")
-        self.assertEqual(result, 1)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_max_workers_per_gpu("-3")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        self.assertIn("must be >=", str(context.exception))
 
 
 class TestValidateNumPrompts(unittest.TestCase):
@@ -329,26 +329,26 @@ class TestValidateNumPrompts(unittest.TestCase):
         self.assertEqual(result, 100)
         mock_logger.warning.assert_not_called()
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_num_prompts_less_than_one(self, mock_logger):
+    def test_validate_num_prompts_less_than_one(self):
         """测试小于1的 num_prompts"""
-        result = validate_num_prompts("0")
-        self.assertEqual(result, None)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_num_prompts("0")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        self.assertIn("must be >=", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_num_prompts_invalid_type(self, mock_logger):
+    def test_validate_num_prompts_invalid_type(self):
         """测试无效类型的 num_prompts"""
-        result = validate_num_prompts("invalid")
-        self.assertEqual(result, None)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_num_prompts("invalid")
+        self.assertIn(UTILS_CODES.INVALID_INTEGER_TYPE.full_code, str(context.exception))
+        self.assertIn("must be an integer", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_num_prompts_negative(self, mock_logger):
+    def test_validate_num_prompts_negative(self):
         """测试负数的 num_prompts"""
-        result = validate_num_prompts("-5")
-        self.assertEqual(result, None)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_num_prompts("-5")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        self.assertIn("must be >=", str(context.exception))
 
 
 class TestValidateNumWarmups(unittest.TestCase):
@@ -368,19 +368,19 @@ class TestValidateNumWarmups(unittest.TestCase):
         self.assertEqual(result, 0)
         mock_logger.warning.assert_not_called()
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_num_warmups_less_than_zero(self, mock_logger):
+    def test_validate_num_warmups_less_than_zero(self):
         """测试小于0的 num_warmups"""
-        result = validate_num_warmups("-1")
-        self.assertEqual(result, 1)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_num_warmups("-1")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        self.assertIn("must be >=", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_num_warmups_invalid_type(self, mock_logger):
+    def test_validate_num_warmups_invalid_type(self):
         """测试无效类型的 num_warmups"""
-        result = validate_num_warmups("invalid")
-        self.assertEqual(result, 1)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_num_warmups("invalid")
+        self.assertIn(UTILS_CODES.INVALID_INTEGER_TYPE.full_code, str(context.exception))
+        self.assertIn("must be an integer", str(context.exception))
 
 
 class TestValidatePressureTime(unittest.TestCase):
@@ -393,26 +393,26 @@ class TestValidatePressureTime(unittest.TestCase):
         self.assertEqual(result, 30)
         mock_logger.warning.assert_not_called()
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_pressure_time_less_than_one(self, mock_logger):
+    def test_validate_pressure_time_less_than_one(self):
         """测试小于1的 pressure_time"""
-        result = validate_pressure_time("0")
-        self.assertEqual(result, DEFAULT_PRESSURE_TIME)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_pressure_time("0")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        self.assertIn("must be >=", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_pressure_time_invalid_type(self, mock_logger):
+    def test_validate_pressure_time_invalid_type(self):
         """测试无效类型的 pressure_time"""
-        result = validate_pressure_time("invalid")
-        self.assertEqual(result, DEFAULT_PRESSURE_TIME)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_pressure_time("invalid")
+        self.assertIn(UTILS_CODES.INVALID_INTEGER_TYPE.full_code, str(context.exception))
+        self.assertIn("must be an integer", str(context.exception))
 
-    @patch('ais_bench.benchmark.cli.utils.logger')
-    def test_validate_pressure_time_negative(self, mock_logger):
+    def test_validate_pressure_time_negative(self):
         """测试负数的 pressure_time"""
-        result = validate_pressure_time("-5")
-        self.assertEqual(result, DEFAULT_PRESSURE_TIME)
-        mock_logger.warning.assert_called_once()
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_pressure_time("-5")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        self.assertIn("must be >=", str(context.exception))
 
 
 if __name__ == '__main__':

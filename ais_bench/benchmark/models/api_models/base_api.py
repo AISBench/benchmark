@@ -242,7 +242,6 @@ class BaseAPIModel(BaseModel):
                 )
                 await output.clear_time_points()
                 continue
-        # print(f"{output.to_dict()}")
         if close_session:
             self.logger.debug(f"Waiting for session close ...")
             await self.session.close()

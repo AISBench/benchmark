@@ -98,7 +98,7 @@ def create_int_validator(
             error_msg = f"`{param_name}` must be >= {min_value}, but got {int_value}"
             if error_message_suffix:
                 error_msg += f" {error_message_suffix}"
-            raise AISBenchConfigError(UTILS_CODES.UNKNOWN_ERROR, error_msg)
+            raise AISBenchConfigError(UTILS_CODES.ARGUMENT_TOO_SMALL, error_msg)
 
         # Check maximum value
         if max_value is not None and int_value > max_value:
