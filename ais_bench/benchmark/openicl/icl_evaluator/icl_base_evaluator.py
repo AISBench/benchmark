@@ -16,7 +16,7 @@ from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidExcept
 
 def compute_pass_at_k(n: int, c: int, k: int) -> float:
     """Compute pass@k.
-    
+
     Args:
         n (int): Total number of samples.
         c (int): Number of correct samples.
@@ -32,7 +32,7 @@ def compute_pass_at_k(n: int, c: int, k: int) -> float:
 
 def _compute_g_pass_at_k(n: int, c: int, k: int, m: int) -> float:
     """Compute g pass@k.
-    
+
     Args:
         n (int): Total number of samples.
         c (int): Number of correct samples.
@@ -46,7 +46,7 @@ def _compute_g_pass_at_k(n: int, c: int, k: int, m: int) -> float:
 
 def compute_g_pass_at_k(n: int, c: int, k: int, t: float) -> float:
     """Compute g pass@k.
-    
+
     Args:
         n (int): Total number of samples.
         c (int): Number of correct samples.
@@ -71,7 +71,7 @@ class BaseEvaluator:
     def group(self, n: int, details: List[Dict[str, Any]],
               test_set: Dataset) -> Dict[str, Any]:
         """Group the details by the example abbreviation.
-        
+
         Args:
             n (int): Number of replicas.
             details (List[Dict[str, Any]]): Details of the evaluation.
@@ -81,6 +81,11 @@ class BaseEvaluator:
             Dict[str, Any]: Dictionary of example abbreviations and their replications.
         """
         example2replications = {}
+        resample_details = []
+        step = len(details) // n
+        for i in range(step):
+            for detail in details[i::step]:
+                resample_details.append(detail)
         for detail, example in zip(details, test_set):
             example_abbr = f"{example['subdivision']}_{example['idx']}"
             if example_abbr not in example2replications:
@@ -91,14 +96,14 @@ class BaseEvaluator:
                 if len(replications) != n:
                     raise PredictionInvalidException(
                         ICLE_CODES.REPLICATION_LENGTH_MISMATCH,
-                        message=f"Replication length mismatch: {len(replications)} != {n}",
+                        message=f"Replication length mismatch, len of replications: {len(replications)} != n: {n}",
                     )
 
         return example2replications
 
     def reduce(self, details: List[Dict[str, Any]], k_list: List[int], n_val: int) -> Dict[str, Any]:
         """Aggregate results.
-        
+
         Args:
             details (List[Dict[str, Any]]): Details of the evaluation.
             k_list (List[int]): List of top k samples.
@@ -113,13 +118,13 @@ class BaseEvaluator:
         # Calculate global sample accuracy - using avg@n format
         sample_accuracy = np.mean([detail[f'avg@{n_val}'] for detail in details])
         eval_results[f'avg@{n_val}'] = 100 * sample_accuracy
-        
+
         # For each k value, compute global pass@k and cons@k
         for k_val in k_list:
             # Global pass@k
             pass_at_k = np.mean([detail[f'pass@{k_val}'] for detail in details])
             eval_results[f'pass@{k_val}'] = 100 * pass_at_k
-            
+
             # Global cons@k (majority voting accuracy)
             cons_at_k = np.mean([detail[f'cons@{k_val}'] for detail in details])
             eval_results[f'cons@{k_val}'] = 100 * cons_at_k
@@ -134,28 +139,28 @@ class BaseEvaluator:
             except KeyError:
                 # Ignore records without example_abbr
                 continue
-        
+
         # Process by category
         if len(subdivision_map) > 1:
             for subdiv, sub_details in sorted(subdivision_map.items()):
                 # Category-level avg@n
                 sub_avg = np.mean([d.get(f'avg@{n_val}', 0.0) for d in sub_details])
                 eval_results[f'{subdiv}/avg@{n_val}'] = 100 * sub_avg
-                
+
                 # Category-level pass@k & cons@k
                 for k_val in k_list:
                     sub_pass = np.mean([d.get(f'pass@{k_val}', 0.0) for d in sub_details])
                     eval_results[f'{subdiv}/pass@{k_val}'] = 100 * sub_pass
-                    
+
                     sub_cons = np.mean([d.get(f'cons@{k_val}', 0.0) for d in sub_details])
                     eval_results[f'{subdiv}/cons@{k_val}'] = 100 * sub_cons
-        
+
         # Step 3: Preserve Raw Data
         # Define core metric names to exclude (avoid duplication)
         CORE_METRICS = {
             'example_abbr', 'predictions',  # Metadata fields
             # Dynamic metrics
-            f'avg@{n_val}', 
+            f'avg@{n_val}',
             *{f'pass@{k}' for k in k_list},
             *{f'cons@{k}' for k in k_list},
             # Metrics with category prefixes
@@ -163,24 +168,24 @@ class BaseEvaluator:
             *{f'{subdiv}/pass@{k}' for subdiv in subdivision_map for k in k_list},
             *{f'{subdiv}/cons@{k}' for subdiv in subdivision_map for k in k_list}
         }
-        
+
         # Dynamically extract all non-core fields
         all_fields = set()
         for detail in details:
             all_fields |= detail.keys()
         extra_fields = all_fields - CORE_METRICS
-        
+
         # Non-core field processing
         for field in sorted(extra_fields):
             field_values = [d[field] for d in details if field in d]
             if not field_values:  # Skip empty fields
                 continue
-                
+
             try:
                 # Numeric fields - calculate global average
                 global_mean = np.mean(field_values)
                 eval_results[field] = 100 * global_mean
-                
+
                 # Category-level aggregation
                 for subdiv in subdivision_map:
                     sub_vals = [d[field] for d in subdivision_map[subdiv] if field in d]
@@ -192,7 +197,7 @@ class BaseEvaluator:
             except (TypeError, ValueError):
                 # Non-numeric types - preserve original values
                 eval_results[field] = field_values
-                
+
                 # Category-level preservation (no aggregation)
                 for subdiv in subdivision_map:
                     sub_vals = [d[field] for d in subdivision_map[subdiv] if field in d]
@@ -218,7 +223,7 @@ class BaseEvaluator:
         **score_kwargs,
     ):
         """Evaluate the predictions and references.
-        
+
         Args:
             k (Union[int, List[int]]): Top k samples.
             n (int): Number of replicas.
@@ -235,7 +240,7 @@ class BaseEvaluator:
             len_predictions, len_references = len(score_kwargs['predictions']), len(score_kwargs['references'])
             if len_predictions != len_references:
                 raise PredictionInvalidException(
-                        ICLE_CODES.PREDICTION_LENGTH_MISMATCH,
+                        ICLE_CODES.UNKNOWN_ERROR,
                         message=f'Predictions and references must have the same length, '
                         f'but got prediction({len_predictions}) and references({len_references})',
                     )
@@ -247,7 +252,7 @@ class BaseEvaluator:
 
         def select_fn(i: int, real_size: int, n: int, x: Any) -> Any:
             """Select the element from the i-th duplication within each group (choose one per group).
-            
+
             Args:
                 i (int): Index of the element.
                 real_size (int): Number of elements in each group.
@@ -314,13 +319,13 @@ class BaseEvaluator:
 
                 for example in examples:
                     detail['predictions'].append(example['detail'])
-                    
+
                     correct_key = None
                     for key in ['correct', 'is_correct', 'cascade_correct']:
                         if key in example['detail']:
                             correct_key = key
                             break
-                    
+
                     if correct_key:
                         can_calculate = True
                         c += int(example['detail'][correct_key])
@@ -363,15 +368,15 @@ class BaseEvaluator:
 
                 # Remove the original predictions field
                 detail.pop('predictions')
-            
+
             return eval_results
 
         # If there are no details, return results
         return results
-    
+
 
     def score(self):
-        raise AISBenchImplementationError(ICLE_CODES.UNKNOWN_ERROR, 
+        raise AISBenchImplementationError(ICLE_CODES.UNKNOWN_ERROR,
                                            f"Method {self.__class__.__name__} hasn't been implemented yet")
 
     @staticmethod

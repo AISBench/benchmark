@@ -131,7 +131,7 @@ class OpenICLEvalTask(BaseTask):
         filename = get_infer_output_path(
             self.model_cfg, self.dataset_cfg,
             osp.join(self.work_dir, 'predictions'),'jsonl')
-        
+
         self.logger.debug(f"Prediction filename: {filename}")
         # in case the prediction is partial
         root, ext = osp.splitext(filename)
@@ -145,7 +145,7 @@ class OpenICLEvalTask(BaseTask):
         else:
             if osp.exists(osp.realpath(filename)):
                 preds = []
-                with open(filename, "rb") as f: 
+                with open(filename, "rb") as f:
                         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
                         for line in iter(mm.readline, b""):
                             preds.append(orjson.loads(line))
@@ -401,7 +401,7 @@ class OpenICLEvalTask(BaseTask):
                 result['correct'] = str(predictions[i]) == str(references[i])
             elif details is not None and model_details is not None:
                 if model_pred_strs == []:
-                    raise ParameterValueError(TEVAL_CODES.MODEL_PRED_STRS_EMPTY, f"Model details is not None, but model_pred_strs is empty")
+                    raise ParameterValueError(TEVAL_CODES.UNKNOWN_ERROR, f"Model details is not None, but model_pred_strs is empty")
                 self.logger.debug(f"GEN type prediction")
                 results['type'] = 'GEN'
                 result['prompt'] = origin_prediction['origin_prompt']

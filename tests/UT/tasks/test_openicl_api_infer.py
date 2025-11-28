@@ -121,7 +121,7 @@ class TestOpenICLApiInferTask(unittest.TestCase):
         
         task.repeat = task.model_cfg.get("generation_kwargs", {}).get("num_return_sequences", 1)
         if task.repeat > 1:
-            task.logger.info(f'num_return_sequences is greater than 1, echo data will be infer independently {task.repeat} times')
+            task.logger.info(f'num_return_sequences is greater than 1, each data will be infer independently {task.repeat} times')
         
         return task
 
@@ -623,7 +623,7 @@ class TestOpenICLApiInferTask(unittest.TestCase):
         
         task.repeat = task.model_cfg.get("generation_kwargs", {}).get("num_return_sequences", 1)
         if task.repeat > 1:
-            task.logger.info(f'num_return_sequences is greater than 1, echo data will be infer independently {task.repeat} times')
+            task.logger.info(f'num_return_sequences is greater than 1, each data will be infer independently {task.repeat} times')
         
         # 验证记录了info日志
         mock_logger.info.assert_called()

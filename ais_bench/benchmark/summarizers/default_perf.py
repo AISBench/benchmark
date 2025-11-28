@@ -249,7 +249,7 @@ class DefaultPerfSummarizer:
         if not db_perf_data_map:
             raise FileMatchError(
                 SUMM_CODES.NO_PERF_DATA_FILE,
-                f"Can't find find any details perf data file in work_dir, please check {self.work_dir}."
+                f"Can't find any details perf data file in work_dir, please check {self.work_dir}."
             )
 
         details_perf_datas = defaultdict(list)

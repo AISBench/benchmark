@@ -141,7 +141,7 @@ class BaseInferencerOutputHandler:
             ValueError: If save_dir is invalid
         """
         if not isinstance(save_dir, str) or not save_dir.strip():
-            raise ParameterValueError(ICLI_CODES.INVALID_OUTPUT_FILEPATH,
+            raise ParameterValueError(ICLI_CODES.UNKNOWN_ERROR,
                                       f"'save_dir' must be a non-empty string representing a directory path, but got {save_dir}")
 
         file_path = Path(save_dir)

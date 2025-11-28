@@ -57,10 +57,10 @@ class FixKRetriever(BaseRetriever):
         """Retrieve the in-context example index for each test example."""
         num_idx = len(self.index_ds)
         for idx in self.fix_id_list:
-            if idx >= num_idx:
+            if idx >= num_idx or idx < 0:
                 raise AISBenchValueError(
                     ICLR_CODES.FIX_K_RETRIEVER_INDEX_OUT_OF_RANGE,
-                    f"Fix-K retriever index {idx} is out of range of {num_idx}",
+                    f"Fix-K retriever index {idx} is out of range of [0, {num_idx})",
                 )
         rtr_idx_list = []
         for _ in trange(len(self.test_ds), disable=not self.is_main_process):

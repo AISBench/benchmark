@@ -127,5 +127,5 @@ def function_call_task_check(cfg, merge_ds):
         logger.debug("Configuration validated as function call task")
     else:
         logger.debug("Configuration is not a function call task")
-    
+
     cfg.merge_from_dict({"is_function_call_task": is_function_call_task})

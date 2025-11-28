@@ -122,7 +122,7 @@ class VLLMCustomAPI(BaseAPIModel):
 
 class VLLMCustomAPIStream(VLLMCustomAPI):
     _warning_printed = False
-    
+
     def __init__(self, *args, **kwargs):
         kwargs['stream'] = True
         super().__init__(*args, **kwargs)

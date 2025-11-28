@@ -114,8 +114,7 @@ class BaseApiInferencer(BaseInferencer):
         Raises:
             NotImplementedError: If not implemented in subclass
         """
-        raise AISBenchImplementationError(ICLI_CODES.IMPLEMENTATION_ERROR_DO_REQUEST_METHOD_NOT_IMPLEMENTED, 
-                                   f"Method {self.__class__.__name__} hasn't been implemented yet")
+        pass
 
     async def warmup(self, data_list: list, warmup_times: int = 1):
         """Warmup the inferencer.
@@ -129,11 +128,11 @@ class BaseApiInferencer(BaseInferencer):
             await self.do_request(copy.deepcopy(data), None, None)
             res = None
             # do request main producer multi results, warm up fail if any result is not success
-            while not self.output_handler.cache_queue.async_q.empty(): 
+            while not self.output_handler.cache_queue.async_q.empty():
                 try:
                     res = await asyncio.wait_for(self.output_handler.cache_queue.async_q.get(), timeout=1)
                 except Exception as e:
-                    raise AISBenchRuntimeError(ICLI_CODES.WARMUP_GET_RESULT_FAILED, 
+                    raise AISBenchRuntimeError(ICLI_CODES.WARMUP_GET_RESULT_FAILED,
                                         f"Get result from cache queue failed: {str(e)}")
                 data_id, data_abbr, input, output, gold = res
                 if not isinstance(output, Output) or not output.success:
@@ -146,7 +145,7 @@ class BaseApiInferencer(BaseInferencer):
                     f"gold: {gold}"
                 )
             if not res:
-                raise AISBenchRuntimeError(ICLI_CODES.WARMUP_GET_RESULT_FAILED, f"Empty result from cache queue")
+                raise AISBenchRuntimeError(ICLI_CODES.UNKNOWN_ERROR, f"Empty result from cache queue")
 
     def _read_and_unpickle(
         self, buf: memoryview, index_data: Tuple[int, int, int]
@@ -281,7 +280,7 @@ class BaseApiInferencer(BaseInferencer):
         while struct.unpack_from("I", message_buf, 0)[0] != 0:
             time.sleep(SYNC_MAIN_PROCESS_INTERVAL)
         self.logger.debug(f"Main process sync flag to 0")
-    
+
     async def wait_get_data(self, async_queue: janus.Queue.async_q, stop_event: asyncio.Event):
         """Wait for data from async queue.
         """
@@ -321,7 +320,7 @@ class BaseApiInferencer(BaseInferencer):
                      f"max_line_size: {get_max_chunk_size()}, "
                      f"max_concurrency: {num_workers}")
         start_time = time.perf_counter()
-        
+
         stop_event = asyncio.Event()
 
         async def limited_request_func(data):
@@ -329,7 +328,7 @@ class BaseApiInferencer(BaseInferencer):
                 await self.do_request(data, token_bucket, session)
                 if self.pressure_mode:
                     raise ParameterValueError(
-                        ICLI_CODES.CONCURRENCY_NOT_SET_IN_PRESSEURE_MODE, 
+                        ICLI_CODES.CONCURRENCY_NOT_SET_IN_PRESSEURE_MODE,
                         f"Concurrency not set in pressure mode, please set `batch_size` in model config",
                     )
             async with semaphore:

@@ -94,7 +94,7 @@ class OpenICLInferTask(BaseTask):
                 f"num_return sequences must be a positive integer, but got {num_return_sequences}",
             )
         if num_return_sequences > 1:
-            self.logger.info(f'num_return_sequences is greater than 1, echo data will be infer independently {num_return_sequences} times')
+            self.logger.info(f'num_return_sequences is greater than 1, each data will be infer independently {num_return_sequences} times')
 
         self.infer_cfg = self.dataset_cfgs[0]['infer_cfg']
         self.sub_cfg = {

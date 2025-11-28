@@ -171,7 +171,7 @@ class VLLMCustomAPIChat(BaseAPIModel):
 @MODELS.register_module()
 class VLLMFunctionCallAPIChat(VLLMCustomAPIChat):
     _warning_printed = False
-    
+
     def __init__(self, *args, **kwargs):
         kwargs['stream'] = False
         super().__init__(*args, **kwargs)
@@ -182,7 +182,7 @@ class VLLMFunctionCallAPIChat(VLLMCustomAPIChat):
 @MODELS.register_module()
 class VLLMCustomAPIChatStream(VLLMCustomAPIChat):
     _warning_printed = False
-    
+
     def __init__(self, *args, **kwargs):
         kwargs['stream'] = True
         super().__init__(*args, **kwargs)
@@ -193,7 +193,7 @@ class VLLMCustomAPIChatStream(VLLMCustomAPIChat):
 @MODELS.register_module()
 class VllmMultiturnAPIChatStream(VLLMCustomAPIChat):
     _warning_printed = False
-    
+
     def __init__(self, *args, **kwargs):
         kwargs.pop("custom_client", None)
         kwargs['stream'] = True
