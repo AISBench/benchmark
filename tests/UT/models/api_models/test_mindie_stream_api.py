@@ -6,6 +6,7 @@ from unittest import mock
 from copy import deepcopy
 
 from ais_bench.benchmark.models import MindieStreamApi
+from ais_bench.benchmark.models.api_models import mindie_stream_api
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models.output import Output
 
@@ -74,7 +75,7 @@ class TestMindieStreamApi(unittest.TestCase):
         url = model._get_url()
         self.assertEqual(url, "https://custom-api.com/v1/infer")
 
-    @mock.patch('ais_bench.benchmark.models.api_models.mindie_stream_api.LMTemplateParser')
+    @mock.patch.object(mindie_stream_api, 'LMTemplateParser')
     def test_init_with_meta_template(self, mock_template_parser):
         """测试带有meta_template的初始化"""
         kwargs = self.default_kwargs.copy()

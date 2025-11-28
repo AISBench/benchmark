@@ -6,6 +6,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from typing import Dict, List
 
 from ais_bench.benchmark.models import VLLMCustomAPIChat
+from ais_bench.benchmark.models.api_models import base_api
 from ais_bench.benchmark.models.output import RequestOutput
 from ais_bench.benchmark.utils.prompt import PromptList
 
@@ -26,8 +27,8 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
             "generation_kwargs": {}
         }
         # 模拟_get_service_model_path方法，避免实际的网络请求
-        self._get_service_model_path_patcher = patch(
-            "ais_bench.benchmark.models.api_models.vllm_custom_api_chat.VLLMCustomAPIChat._get_service_model_path"
+        self._get_service_model_path_patcher = patch.object(
+            base_api.BaseAPIModel, "_get_service_model_path"
         )
         self.mock_get_model_path = self._get_service_model_path_patcher.start()
         self.mock_get_model_path.return_value = "mocked-model-path"

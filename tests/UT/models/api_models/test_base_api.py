@@ -6,13 +6,13 @@ from unittest import mock
 from copy import deepcopy
 import requests
 
-from ais_bench.benchmark.models.api_models.base_api import (
-    BaseAPIModel, APITemplateParser, PromptType
+from ais_bench.benchmark.models import (
+    BaseAPIModel, APITemplateParser
 )
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.utils.logging.exceptions import (
-    AISBenchNotImplementedError, AISBenchTypeError, AISBenchValueError,
+    AISBenchTypeError, AISBenchValueError,
     AISBenchRuntimeError, AISBenchKeyError
 )
 
@@ -86,7 +86,7 @@ class TestBaseAPIModel(unittest.TestCase):
         model = self.model_class(**self.default_kwargs)
         self.assertEqual(model._get_base_url(), "http://127.0.0.1:8000/")
 
-    @mock.patch('ais_bench.benchmark.models.api_models.base_api.requests.get')
+    @mock.patch('requests.get')
     def test_get_service_model_path_success(self, mock_get):
         mock_response = MockResponse(200, json_data={"data": [{"id": "test-model-123"}]})
         mock_get.return_value = mock_response
@@ -101,7 +101,7 @@ class TestBaseAPIModel(unittest.TestCase):
             timeout=5
         )
 
-    @mock.patch('ais_bench.benchmark.models.api_models.base_api.requests.get')
+    @mock.patch('requests.get')
     def test_get_service_model_path_failure(self, mock_get):
         # 模拟requests.exceptions.RequestException异常
         mock_get.side_effect = requests.exceptions.RequestException("Connection error")

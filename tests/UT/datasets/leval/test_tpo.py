@@ -5,7 +5,7 @@ from unittest.mock import patch
 from datasets import Dataset, DatasetDict
 
 from ais_bench.benchmark.datasets.leval.tpo import LEvalTPODataset
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 
 
 class TestLEvalTPODataset:
@@ -63,7 +63,7 @@ class TestLEvalTPODataset:
 
     def test_tpo_load_missing_path(self):
         """Test that ConfigError is raised when 'path' argument is missing."""
-        with pytest.raises(ConfigError) as exc_info:
+        with pytest.raises(AISBenchConfigError) as exc_info:
             LEvalTPODataset.load()
         
         # Verify the error message contains helpful information

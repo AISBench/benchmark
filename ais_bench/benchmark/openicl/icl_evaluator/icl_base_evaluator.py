@@ -81,6 +81,11 @@ class BaseEvaluator:
             Dict[str, Any]: Dictionary of example abbreviations and their replications.
         """
         example2replications = {}
+        resample_details = []
+        step = len(details) // n
+        for i in range(step):
+            for detail in details[i::step]:
+                resample_details.append(detail)
         for detail, example in zip(details, test_set):
             example_abbr = f"{example['subdivision']}_{example['idx']}"
             if example_abbr not in example2replications:

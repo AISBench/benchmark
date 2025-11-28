@@ -4,7 +4,7 @@ from unittest.mock import patch
 from datasets import Dataset, DatasetDict
 
 from ais_bench.benchmark.datasets.leval.gov_report_summ import LEvalGovReportSummDataset
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 
 class TestLEvalGovReportSummDataset:
     @patch('ais_bench.benchmark.datasets.leval.gov_report_summ.get_data_path')
@@ -63,7 +63,7 @@ class TestLEvalGovReportSummDataset:
 
     def test_gov_report_summ_load_missing_path(self):
         """Test that ConfigError is raised when 'path' argument is missing."""
-        with pytest.raises(ConfigError) as exc_info:
+        with pytest.raises(AISBenchConfigError) as exc_info:
             LEvalGovReportSummDataset.load()
         
         # Verify the error message contains helpful information

@@ -106,7 +106,7 @@ class OpenICLApiInferTask(BaseTask):
         self.stop_evt.set()
         self.repeat = self.model_cfg["generation_kwargs"].get("num_return_sequences", 1)
         if self.repeat > 1:
-            self.logger.info(f'num_return_sequences is greater than 1, echo data will be infer independently {self.repeat} times')
+            self.logger.info(f'num_return_sequences is greater than 1, each data will be infer independently {self.repeat} times')
 
     def get_command(self, cfg_path, template):
         """Build the CLI command to execute this task.

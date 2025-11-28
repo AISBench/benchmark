@@ -8,7 +8,7 @@ from mmengine.config import ConfigDict
 
 from ais_bench.benchmark.utils.core.abbr import dataset_abbr_from_cfg, model_abbr_from_cfg, task_abbr_from_cfg
 from ais_bench.benchmark.utils.logging import AISLogger
-from ais_bench.benchmark.utils.logging.exceptions import ConfigError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import PARTI_CODES
 from ais_bench.benchmark.datasets.utils.datasets import ONLY_PERF_DATASETS, MM_DATASETS, MM_APIS
 
@@ -147,13 +147,13 @@ class BasePartitioner:
                 for comb in combs:
                     for model in comb['models']:
                         if model_abbr_from_cfg(model) not in model_abbrs:
-                            raise ConfigError(
+                            raise AISBenchConfigError(
                                 PARTI_CODES.UNKNOWN_ERROR,
                                 f'Model {model_abbr_from_cfg(model)} not found in config.'
                             )
                     for dataset in comb['datasets']:
                         if dataset_abbr_from_cfg(dataset) not in dataset_abbrs:
-                            raise ConfigError(
+                            raise AISBenchConfigError(
                                 PARTI_CODES.UNKNOWN_ERROR,
                                 f'Dataset {dataset_abbr_from_cfg(dataset)} not found in config.'
                             )

@@ -580,7 +580,6 @@ def test_bfcl_dataset_load_normal():
     """测试BFCLDataset.load方法的正常加载情况"""
     from ais_bench.benchmark.datasets.utils import datasets as utils_datasets
     from ais_bench.benchmark.datasets.bfcl import bfcl
-    from ais_bench.benchmark.utils import logging as utils_logging
     
     # 配置mock
     def mock_get_data_path_side_effect(path):
@@ -621,7 +620,6 @@ def test_bfcl_dataset_load_normal():
     mock_dataset.from_list.return_value = mock_dataset_instance
     
     with patch.object(utils_datasets, 'get_data_path', mock_get_data_path), \
-         patch.object(utils_logging, 'get_logger', MagicMock()), \
          patch('builtins.open', mock_open_file), \
          patch.object(bfcl, 'Dataset', mock_dataset), \
          patch.object(bfcl, 'encode_fields', mock_encode), \
@@ -654,7 +652,6 @@ def test_bfcl_dataset_load_relevance_category():
     """测试BFCLDataset.load方法处理relevance类别"""
     from ais_bench.benchmark.datasets.utils import datasets as utils_datasets
     from ais_bench.benchmark.datasets.bfcl import bfcl
-    from ais_bench.benchmark.utils import logging as utils_logging
     
     # 配置mock
     mock_get_data_path = MagicMock(return_value="mocked_data_path")
@@ -670,7 +667,6 @@ def test_bfcl_dataset_load_relevance_category():
     mock_dataset.from_list.return_value = MagicMock()
     
     with patch.object(utils_datasets, 'get_data_path', mock_get_data_path), \
-         patch.object(utils_logging, 'get_logger', MagicMock()), \
          patch('builtins.open', mock_open_file), \
          patch.object(bfcl, 'process_multi_turn_test_case', mock_process), \
          patch.object(bfcl, 'encode_fields', mock_encode), \
@@ -798,7 +794,6 @@ def test_bfcl_dataset_load_with_test_ids():
     """测试BFCLDataset.load方法使用test_ids过滤"""
     from ais_bench.benchmark.datasets.utils import datasets as utils_datasets
     from ais_bench.benchmark.datasets.bfcl import bfcl
-    from ais_bench.benchmark.utils import logging as utils_logging
     
     # 配置mock
     mock_get_data_path = MagicMock(return_value="mocked_data_path")
@@ -826,7 +821,6 @@ def test_bfcl_dataset_load_with_test_ids():
     mock_dataset.from_list.return_value = MagicMock()
     
     with patch.object(utils_datasets, 'get_data_path', mock_get_data_path), \
-         patch.object(utils_logging, 'get_logger', MagicMock()), \
          patch('builtins.open', mock_open_file), \
          patch.object(bfcl, 'process_multi_turn_test_case', mock_process), \
          patch.object(bfcl, 'encode_fields', mock_encode), \
@@ -844,7 +838,6 @@ def test_bfcl_dataset_load_mismatched_ids():
     """测试BFCLDataset.load方法处理ID不匹配的情况"""
     from ais_bench.benchmark.datasets.utils import datasets as utils_datasets
     from ais_bench.benchmark.datasets.bfcl import bfcl
-    from ais_bench.benchmark.utils import logging as utils_logging
     
     # 配置mock
     mock_get_data_path = MagicMock(return_value="mocked_data_path")
@@ -863,7 +856,6 @@ def test_bfcl_dataset_load_mismatched_ids():
     mock_process = MagicMock(return_value=[{"id": "test_001"}, {"id": "different_id"}])
     
     with patch.object(utils_datasets, 'get_data_path', mock_get_data_path), \
-         patch.object(utils_logging, 'get_logger', MagicMock()), \
          patch('builtins.open', mock_open_file), \
          patch.object(bfcl, 'process_multi_turn_test_case', mock_process), \
          patch.object(bfcl, 'encode_fields', MagicMock()), \
