@@ -171,7 +171,10 @@ class OpenICLApiInferTask(BaseTask):
             cur_data_indexes = [x for x in range(len(infer_data_list)) for _ in range(self.repeat)]
             cur_finish_indexes = [x["id"] for x in cur_data_cache.values()]
             for i in cur_finish_indexes:
-                cur_data_indexes.remove(i)
+                try:
+                    cur_data_indexes.remove(i)
+                except ValueError: # num-prompts change cause predictions num more than references, ignore it
+                    pass
             finish_index_nums += len(cur_finish_indexes)
             data_list += infer_data_list
             global_indexes += [x + total_data_nums for x in cur_data_indexes]

@@ -155,7 +155,7 @@ class ArgumentParser():
         )
         parser.add_argument(
             '--pressure-time',
-            help='Pressure test time, only valid when --pressure is True.Must be integer >= 1, default is 15 seconds',
+            help=f'Pressure test time, only valid when --pressure is True.Must be integer >= 1, default is {DEFAULT_PRESSURE_TIME} seconds',
             type=validate_pressure_time,
             default=DEFAULT_PRESSURE_TIME
         )
