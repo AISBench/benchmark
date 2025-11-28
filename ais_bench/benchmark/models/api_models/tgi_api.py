@@ -1,4 +1,4 @@
-import os
+import urllib
 from typing import Dict, Optional, Union
 
 from ais_bench.benchmark.registry import MODELS
@@ -68,7 +68,7 @@ class TGICustomAPI(BaseAPIModel):
 
     def _get_url(self) -> str:
         endpoint = "generate_stream" if self.stream else "generate"
-        url = os.path.join(self.base_url, endpoint)
+        url = urllib.parse.urljoin(self.base_url, endpoint)
         self.logger.debug(f"Request url: {url}")
         return url
 
@@ -93,7 +93,7 @@ class TGICustomAPI(BaseAPIModel):
 
 
 class TGICustomAPIStream(TGICustomAPI):
-    
+
     def __init__(self, *args, **kwargs):
         kwargs['stream'] = True
         super().__init__(*args, **kwargs)

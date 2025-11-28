@@ -223,6 +223,8 @@ class UTILS_CODES:
     INVALID_DICT_TYPE = BaseErrorCode("UTILS-TYPE-005", ErrorModule.UTILS, ErrorType.TYPE, 5, "invalid dict type")
     INVALID_TYPE_SPECIFIER = BaseErrorCode("UTILS-TYPE-006", ErrorModule.UTILS, ErrorType.TYPE, 6, "invalid type specifier")
     TYPE_MISMATCH = BaseErrorCode("UTILS-TYPE-007", ErrorModule.UTILS, ErrorType.TYPE, 7, "type mismatch in validation")
+    ARGUMENT_TOO_LARGE = BaseErrorCode("UTILS-TYPE-008", ErrorModule.UTILS, ErrorType.TYPE, 8, "argument value too large")
+    INVALID_INTEGER_TYPE = BaseErrorCode("UTILS-TYPE-009", ErrorModule.UTILS, ErrorType.TYPE, 9, "invalid integer type")
 
     # Parameter validation errors
     ROOT_PATH_NOT_SET = BaseErrorCode("UTILS-PARAM-001", ErrorModule.UTILS, ErrorType.PARAM, 1, "root_path not set")
@@ -268,10 +270,12 @@ class DATASETS_CODES:
 class DSET_CODES:
     UNKNOWN_ERROR = BaseErrorCode("DSET-UNK-001", ErrorModule.DATASET, ErrorType.UNKNOWN, 1, "unknown error of dataset")
 
+
     # File related errors
     FILE_NOT_FOUND = BaseErrorCode("DSET-FILE-001", ErrorModule.DATASET, ErrorType.FILE, 1, "dataset file not found")
     FILE_READ_ERROR = BaseErrorCode("DSET-FILE-002", ErrorModule.DATASET, ErrorType.FILE, 2, "failed to read dataset file")
     FILE_FORMAT_ERROR = BaseErrorCode("DSET-FILE-003", ErrorModule.DATASET, ErrorType.FILE, 3, "invalid dataset file format")
+
 
     # Data related errors
     DATA_EMPTY = BaseErrorCode("DSET-DATA-001", ErrorModule.DATASET, ErrorType.DATA, 1, "dataset is empty")
@@ -281,15 +285,18 @@ class DSET_CODES:
     DATA_PREPROCESSING_ERROR = BaseErrorCode("DSET-DATA-005", ErrorModule.DATASET, ErrorType.DATA, 5, "data preprocessing or cleaning failed")
     INVALID_DATA_TYPE = BaseErrorCode("DSET-DATA-006", ErrorModule.DATASET, ErrorType.DATA, 6, "data type does not match expected type")
 
+
     # Parameter related errors
     INVALID_SPLIT_NAME = BaseErrorCode("DSET-PARAM-001", ErrorModule.DATASET, ErrorType.PARAM, 1, "invalid split name")
     INVALID_REPEAT_FACTOR = BaseErrorCode("DSET-PARAM-002", ErrorModule.DATASET, ErrorType.PARAM, 2, "invalid repeat factor")
     INVALID_DATASET_NAME = BaseErrorCode("DSET-PARAM-003", ErrorModule.DATASET, ErrorType.PARAM, 3, "invalid dataset name")
     INVALID_PARAM_VALUE = BaseErrorCode("DSET-PARAM-004", ErrorModule.DATASET, ErrorType.PARAM, 4, "invalid parameter value")
 
+
     # Dependency related errors
     MODELSCOPE_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-001", ErrorModule.DATASET, ErrorType.DEPENDENCY, 1, "ModelScope library not installed")
     EVALUATION_LIBRARY_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-002", ErrorModule.DATASET, ErrorType.DEPENDENCY, 2, "evaluation library not installed")
+
 
     # Evaluation related errors
     PREDICTION_LENGTH_MISMATCH = BaseErrorCode("DSET-MTRC-001", ErrorModule.DATASET, ErrorType.METRIC, 1, "prediction and reference have different length")

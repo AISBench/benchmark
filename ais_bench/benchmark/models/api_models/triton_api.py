@@ -1,4 +1,4 @@
-import os
+import urllib
 from typing import Dict, Optional, Union
 import uuid
 
@@ -76,7 +76,7 @@ class TritonCustomAPI(BaseAPIModel):
             if not self.stream
             else f"v2/models/{self.model_name}/generate_stream"
         )
-        url = os.path.join(self.base_url, endpoint)
+        url = urllib.parse.urljoin(self.base_url, endpoint)
         self.logger.debug(f"Request url: {url}")
         return url
 
@@ -99,7 +99,7 @@ class TritonCustomAPI(BaseAPIModel):
 
 
 class TritonCustomAPIStream(TritonCustomAPI):
-    
+
     def __init__(self, *args, **kwargs):
         kwargs['stream'] = True
         super().__init__(*args, **kwargs)

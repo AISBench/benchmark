@@ -1,6 +1,5 @@
-import os
+import urllib
 from typing import Dict, Optional, Union
-import aiohttp
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.prompt import PromptList
 
@@ -74,7 +73,7 @@ class VLLMCustomAPI(BaseAPIModel):
 
     def _get_url(self) -> str:
         endpoint = "v1/completions"
-        url = os.path.join(self.base_url, endpoint)
+        url = urllib.parse.urljoin(self.base_url, endpoint)
         self.logger.debug(f"Request url: {url}")
         return url
 

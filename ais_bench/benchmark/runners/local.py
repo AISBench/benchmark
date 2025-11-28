@@ -23,8 +23,6 @@ from ais_bench.benchmark.runners.base import BaseRunner
 from ais_bench.benchmark.utils.logging.error_codes import RUNNER_CODES
 from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
 
-MAX_WORKERS_NUM = int(os.cpu_count() * 0.8)
-
 
 def get_command_template(gpu_ids: List[int]) -> str:
     """Format command template given available gpu ids."""
@@ -104,7 +102,7 @@ class LocalRunner(BaseRunner):
             ]
         else:
             all_gpu_ids = list(range(device_nums))
-        
+
         self.logger.debug(f"Available devices: {all_gpu_ids} (total: {device_nums}, type: {visible_devices})")
         monitor_p.start()
 

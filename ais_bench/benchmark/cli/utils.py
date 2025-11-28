@@ -1,6 +1,5 @@
 import sys
 import os
-import argparse
 from datetime import datetime
 
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
@@ -56,88 +55,90 @@ def fill_test_range_use_num_prompts(num_prompts: int, dataset_cfg: dict):
     reader_cfg["test_range"] = f"[:{str(num_prompts)}]"
     logger.info(f"Keeping the first {num_prompts} prompts for dataset [{dataset_cfg.get('abbr')}]")
 
-def validate_max_workers(value):
-    """Validate and normalize the max_num_workers parameter (used for argparse type parameter)"""
-    try:
-        max_num_workers = int(value)
-    except (ValueError, TypeError):
-        logger.warning(f"`max_num_workers` must be an integer, but got {value}, setting to default value 1")
-        return 1
+def create_int_validator(
+    param_name: str,
+    min_value: int = None,
+    max_value: int = None,
+    allow_none: bool = False,
+    error_message_suffix: str = None,
+):
+    """Create a validator function for integer command-line arguments.
 
-    # Check if it is less than 1
-    if max_num_workers < 1:
-        logger.warning(f"`max_num_workers` must be greater than or equal to 1, but got {max_num_workers}, setting to default value 1")
-        return 1
+    Args:
+        param_name: Name of the parameter (used in error messages)
+        min_value: Minimum allowed value (inclusive). If None, no minimum check.
+        max_value: Maximum allowed value (inclusive). If None, no maximum check.
+        allow_none: If True, allows None values. If False, raises error on None.
+        error_message_suffix: Optional suffix to append to error messages for additional context.
 
-    # Check if it is greater than the maximum value
-    if max_num_workers > MAX_NUM_WORKERS:
-        logger.warning(f"`max_num_workers` is more than 0.8 * total_cpu_count ({MAX_NUM_WORKERS}), setting to {MAX_NUM_WORKERS}")
-        return MAX_NUM_WORKERS
+    Returns:
+        A validator function that can be used as argparse type parameter.
 
-    return max_num_workers
+    Example:
+        >>> validator = create_int_validator("max_workers", min_value=1, max_value=10)
+        >>> validator("5")  # Returns 5
+        >>> validator("0")  # Raises ArgumentTypeError
+        >>> validator("abc")  # Raises ArgumentTypeError
+    """
+    def validator(value):
+        # Handle None values
+        if allow_none and (value is None or str(value).lower() == 'none'):
+            return None
 
+        # Convert to integer
+        try:
+            int_value = int(value)
+        except (ValueError, TypeError) as e:
+            error_msg = f"`{param_name}` must be an integer, but got {value!r}"
+            if error_message_suffix:
+                error_msg += f" {error_message_suffix}"
+            raise AISBenchConfigError(UTILS_CODES.INVALID_INTEGER_TYPE, error_msg)
+        # Check minimum value
+        if min_value is not None and int_value < min_value:
+            error_msg = f"`{param_name}` must be >= {min_value}, but got {int_value}"
+            if error_message_suffix:
+                error_msg += f" {error_message_suffix}"
+            raise AISBenchConfigError(UTILS_CODES.UNKNOWN_ERROR, error_msg)
 
-def validate_max_workers_per_gpu(value):
-    """Validate and normalize the max_workers_per_gpu parameter (used for argparse type parameter)"""
-    try:
-        max_workers_per_gpu = int(value)
-    except (ValueError, TypeError):
-        logger.warning(f"`max_workers_per_gpu` must be an integer, but got {value}, setting to default value 1")
-        return 1
+        # Check maximum value
+        if max_value is not None and int_value > max_value:
+            error_msg = f"`{param_name}` must be <= {max_value}, but got {int_value}"
+            if error_message_suffix:
+                error_msg += f" {error_message_suffix}"
+            raise AISBenchConfigError(UTILS_CODES.ARGUMENT_TOO_LARGE, error_msg)
 
-    # Check if it is less than 1
-    if max_workers_per_gpu < 1:
-        logger.warning(f"`max_workers_per_gpu` must be greater than or equal to 1, but got {max_workers_per_gpu}, setting to default value 1")
-        return 1
+        return int_value
 
-    return max_workers_per_gpu
-
-
-def validate_num_prompts(value):
-    """Validate and normalize the num_prompts parameter (used for argparse type parameter)"""
-    # argparse type function only receives string values when user provides the argument
-    # None is handled by default parameter, so we don't need to handle None here
-    try:
-        num_prompts = int(value)
-    except (ValueError, TypeError):
-        logger.warning(f"`num_prompts` must be an integer, but got {value}, setting to default value None")
-        return None
-    # Check if it is less than 1
-    if num_prompts < 1:
-        logger.warning(f"`num_prompts` must be greater than or equal to 1, but got {num_prompts}, setting to default value None")
-        return None
-    return num_prompts
-
-
-def validate_num_warmups(value):
-    """Validate and normalize the num_warmups parameter (used for argparse type parameter)"""
-    try:
-        num_warmups = int(value)
-    except (ValueError, TypeError):
-        logger.warning(f"`num_warmups` must be an integer, but got {value}, setting to default value 1")
-        return 1
-
-    # Check if it is less than 0
-    if num_warmups < 0:
-        logger.warning(f"`num_warmups` must be greater than or equal to 0, but got {num_warmups}, setting to default value 1")
-        return 1
-
-    return num_warmups
+    return validator
 
 
-def validate_pressure_time(value):
-    """Validate and normalize the pressure_time parameter (used for argparse type parameter)"""
-    try:
-        pressure_time = int(value)
-    except (ValueError, TypeError):
-        logger.warning(f"`pressure_time` must be an integer, but got {value}, setting to default value 15s")
-        return DEFAULT_PRESSURE_TIME
+# Create specific validators using the factory function
+validate_max_workers = create_int_validator(
+    param_name="--max-num-workers",
+    min_value=1,
+    max_value=MAX_NUM_WORKERS,
+    error_message_suffix=f"(maximum recommended: {MAX_NUM_WORKERS}, which is 0.8 * total_cpu_count)"
+)
 
-    # Check if it is less than 1
-    if pressure_time < 1:
-        logger.warning(f"`pressure_time` must be greater than or equal to 1, but got {pressure_time}, setting to default value 15s")
-        return DEFAULT_PRESSURE_TIME
-    if pressure_time > MAX_PRESSURE_TIME:
-        logger.warning(f"`pressure_time` is more than 24 hours, setting to {MAX_PRESSURE_TIME}")
-        return MAX_PRESSURE_TIME
-    return pressure_time
+validate_max_workers_per_gpu = create_int_validator(
+    param_name="--max-workers-per-gpu",
+    min_value=1,
+)
+
+validate_num_prompts = create_int_validator(
+    param_name="--num-prompts",
+    min_value=1,
+    allow_none=True,
+)
+
+validate_num_warmups = create_int_validator(
+    param_name="--num-warmups",
+    min_value=0,
+)
+
+validate_pressure_time = create_int_validator(
+    param_name="--pressure-time",
+    min_value=1,
+    max_value=MAX_PRESSURE_TIME,
+    error_message_suffix=f"(maximum: {MAX_PRESSURE_TIME} seconds, which is 24 hours)"
+)

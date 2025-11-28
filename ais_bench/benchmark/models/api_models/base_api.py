@@ -3,12 +3,10 @@ import json
 import warnings
 import asyncio
 import os.path as osp
-import traceback
 from abc import abstractmethod
 from copy import deepcopy
 from typing import Dict, List, Optional, Tuple, Union
 
-from transformers import AutoTokenizer
 import requests
 import aiohttp
 
@@ -30,7 +28,7 @@ AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=REQUEST_TIME_OUT)
 PromptType = Union[PromptList, str]
 
 class MockAISLogger(AISLogger):
-    """Mock logger for API model. Because model will init in task for warmup and init in infer process, 
+    """Mock logger for API model. Because model will init in task for warmup and init in infer process,
     so we mock the logger to avoid the print each log in init process twice
     """
     def info(self, msg, *args, **kwargs):
