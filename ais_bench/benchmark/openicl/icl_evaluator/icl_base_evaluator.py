@@ -235,7 +235,7 @@ class BaseEvaluator:
             len_predictions, len_references = len(score_kwargs['predictions']), len(score_kwargs['references'])
             if len_predictions != len_references:
                 raise PredictionInvalidException(
-                        ICLE_CODES.PREDICTION_LENGTH_MISMATCH,
+                        ICLE_CODES.UNKNOWN_ERROR,
                         message=f'Predictions and references must have the same length, '
                         f'but got prediction({len_predictions}) and references({len_references})',
                     )

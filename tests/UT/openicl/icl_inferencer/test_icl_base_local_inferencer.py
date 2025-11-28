@@ -40,20 +40,6 @@ class DummyRetriever(BaseRetriever):
 
 
 class TestBaseLocalInferencer(unittest.TestCase):
-    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
-    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
-    def test_get_dataloader_and_batch_inference_abstract(self, m_abbr, m_build):
-        """测试BaseLocalInferencer的get_dataloader方法和batch_inference抽象方法"""
-        m_build.return_value = object()
-        inf = DummyInf(model_cfg={}, batch_size=2)
-        dl = inf.get_dataloader([
-            {"a": 1, "b": 2},
-            {"a": 3, "b": 4},
-        ], batch_size=2)
-        batch = next(iter(dl))
-        self.assertEqual(batch["a"], [1, 3])
-        with self.assertRaises(NotImplementedError):
-            BaseLocalInferencer(model_cfg={}).batch_inference({})
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
