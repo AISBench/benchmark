@@ -10,7 +10,7 @@ class DummyInf(BaseLocalInferencer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.save_every = 1  # BaseLocalInferencer.inference uses self.save_every
-    
+
     def get_data_list(self, retriever):
         return [
             {"index": 0, "prompt": "p0", "data_abbr": "d", "max_out_len": 8},
@@ -52,7 +52,7 @@ class TestBaseLocalInferencer(unittest.TestCase):
         ], batch_size=2)
         batch = next(iter(dl))
         self.assertEqual(batch["a"], [1, 3])
-        with self.assertRaises(AISBenchImplementationError):
+        with self.assertRaises(NotImplementedError):
             BaseLocalInferencer(model_cfg={}).batch_inference({})
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
@@ -63,7 +63,7 @@ class TestBaseLocalInferencer(unittest.TestCase):
         inf = DummyInf(model_cfg={}, batch_size=1)
         inf.output_handler.run_cache_consumer = mock.Mock()
         inf.output_handler.stop_cache_consumer = mock.Mock()
-        
+
         with self.assertRaises(ParameterValueError):
             inf.inference(retriever=object(), output_json_filepath="/tmp")
 
@@ -72,22 +72,22 @@ class TestBaseLocalInferencer(unittest.TestCase):
     def test_inference_with_list_retrievers(self, m_abbr, m_build):
         """测试BaseLocalInferencer使用retriever列表进行推理"""
         from ais_bench.benchmark.openicl.icl_retriever.icl_base_retriever import BaseRetriever
-        
+
         m_build.return_value = object()
         inf = DummyInf(model_cfg={}, batch_size=1)
         inf.output_handler.run_cache_consumer = mock.Mock()
         inf.output_handler.stop_cache_consumer = mock.Mock()
-        
+
         ret1 = mock.Mock(spec=BaseRetriever)
         ret2 = mock.Mock(spec=BaseRetriever)
         ret1.dataset = DummyDataset()
         ret2.dataset = DummyDataset()
-        
+
         inf.get_data_list = mock.Mock(side_effect=[
             [{"index": 0, "prompt": "p0", "data_abbr": "d", "max_out_len": 8}],
             [{"index": 1, "prompt": "p1", "data_abbr": "d", "max_out_len": 8}],
         ])
-        
+
         inf.batch_inference = mock.Mock()
         inf.inference(retriever=[ret1, ret2], output_json_filepath="/tmp")
         self.assertEqual(inf.get_data_list.call_count, 2)
@@ -97,19 +97,19 @@ class TestBaseLocalInferencer(unittest.TestCase):
     def test_inference_with_single_retriever(self, m_abbr, m_build):
         """测试BaseLocalInferencer使用单个retriever进行推理"""
         from ais_bench.benchmark.openicl.icl_retriever.icl_base_retriever import BaseRetriever
-        
+
         m_build.return_value = object()
         inf = DummyInf(model_cfg={}, batch_size=1)
         inf.output_handler.run_cache_consumer = mock.Mock()
         inf.output_handler.stop_cache_consumer = mock.Mock()
-        
+
         ret = mock.Mock(spec=BaseRetriever)
         ret.dataset = DummyDataset()
-        
+
         inf.get_data_list = mock.Mock(return_value=[
             {"index": 0, "prompt": "p0", "data_abbr": "d", "max_out_len": 8}
         ])
-        
+
         inf.batch_inference = mock.Mock()
         inf.inference(retriever=ret, output_json_filepath="/tmp")
         inf.get_data_list.assert_called_once_with(ret)
@@ -123,13 +123,13 @@ class TestBaseLocalInferencer(unittest.TestCase):
         inf.output_handler.run_cache_consumer = mock.Mock()
         inf.output_handler.stop_cache_consumer = mock.Mock()
         inf.is_main_process = True
-        
+
         task_mgr = mock.Mock()
         inf.set_task_state_manager(task_mgr)
-        
+
         inf.batch_inference = mock.Mock()
         inf.inference(retriever=DummyRetriever(DummyDataset()), output_json_filepath="/tmp")
-        
+
         self.assertTrue(task_mgr.update_task_state.called)
 
 

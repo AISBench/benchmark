@@ -233,6 +233,12 @@ class BaseEvaluator:
         if ('predictions' in score_kwargs and 'references' in score_kwargs
                 and score_kwargs['references'] is not None):
             len_predictions, len_references = len(score_kwargs['predictions']), len(score_kwargs['references'])
+            if len_predictions != len_references:
+                raise PredictionInvalidException(
+                        ICLE_CODES.PREDICTION_LENGTH_MISMATCH,
+                        message=f'Predictions and references must have the same length, '
+                        f'but got prediction({len_predictions}) and references({len_references})',
+                    )
 
         real_size = len(original_dataset) // n  # dataset size of each replica
         all_details = []
