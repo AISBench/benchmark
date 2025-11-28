@@ -63,17 +63,17 @@ def validate_max_workers(value):
     except (ValueError, TypeError):
         logger.warning(f"`max_num_workers` must be an integer, but got {value}, setting to default value 1")
         return 1
-    
+
     # Check if it is less than 1
     if max_num_workers < 1:
         logger.warning(f"`max_num_workers` must be greater than or equal to 1, but got {max_num_workers}, setting to default value 1")
         return 1
-    
+
     # Check if it is greater than the maximum value
     if max_num_workers > MAX_NUM_WORKERS:
         logger.warning(f"`max_num_workers` is more than 0.8 * total_cpu_count ({MAX_NUM_WORKERS}), setting to {MAX_NUM_WORKERS}")
         return MAX_NUM_WORKERS
-    
+
     return max_num_workers
 
 
@@ -84,12 +84,12 @@ def validate_max_workers_per_gpu(value):
     except (ValueError, TypeError):
         logger.warning(f"`max_workers_per_gpu` must be an integer, but got {value}, setting to default value 1")
         return 1
-    
+
     # Check if it is less than 1
     if max_workers_per_gpu < 1:
         logger.warning(f"`max_workers_per_gpu` must be greater than or equal to 1, but got {max_workers_per_gpu}, setting to default value 1")
         return 1
-    
+
     return max_workers_per_gpu
 
 
@@ -116,12 +116,12 @@ def validate_num_warmups(value):
     except (ValueError, TypeError):
         logger.warning(f"`num_warmups` must be an integer, but got {value}, setting to default value 1")
         return 1
-    
+
     # Check if it is less than 0
     if num_warmups < 0:
         logger.warning(f"`num_warmups` must be greater than or equal to 0, but got {num_warmups}, setting to default value 1")
         return 1
-    
+
     return num_warmups
 
 
@@ -132,7 +132,7 @@ def validate_pressure_time(value):
     except (ValueError, TypeError):
         logger.warning(f"`pressure_time` must be an integer, but got {value}, setting to default value 15s")
         return DEFAULT_PRESSURE_TIME
-    
+
     # Check if it is less than 1
     if pressure_time < 1:
         logger.warning(f"`pressure_time` must be greater than or equal to 1, but got {pressure_time}, setting to default value 15s")

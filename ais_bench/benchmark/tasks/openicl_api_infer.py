@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import time
+import json
 from typing import Any, List
 import asyncio
 import multiprocessing as mp
@@ -10,6 +11,7 @@ from multiprocessing import Event, Process, Queue, shared_memory, BoundedSemapho
 from typing import Dict
 import pickle
 from mmengine.config import Config, ConfigDict
+from collections import defaultdict
 
 from ais_bench.benchmark.global_consts import WORKERS_NUM
 from ais_bench.benchmark.registry import ICL_INFERENCERS, TASKS, ICL_RETRIEVERS
@@ -20,6 +22,7 @@ from ais_bench.benchmark.tasks.utils import (
     create_message_share_memory,
     ProgressBar,
     TokenProducer,
+    format_dict_as_table,
 )
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_api_inferencer import BaseApiInferencer
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg, merge_dataset_abbr_from_cfg
@@ -346,13 +349,11 @@ class OpenICLApiInferTask(BaseTask):
         Args:
             data_list: Data list to warm up
         """
-        warm_up_inferencer: BaseApiInferencer = ICL_INFERENCERS.build(
-            self.inferencer_cfg
-        )
+        warm_up_inferencer: BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
         # warmup
         if self.warmup_size > 0:
             task_state_manager.update_task_state({"status": "warmup"})
-            self.logger.info(f"Start warmup, run with concurrency: 1")
+            self.logger.info(f"Start warmup, run with concurrency: {self.concurrency}")
             warmup_results = asyncio.run(
                 warm_up_inferencer.warmup(data_list, self.warmup_size, self.concurrency)
             )
@@ -373,7 +374,15 @@ class OpenICLApiInferTask(BaseTask):
                 warm_up_log += f"Success Count: {warmup_results['success']} "
                 warm_up_log += f"Failed Count: {warmup_results['failed']} "
                 if warmup_results['failed'] > 0:
-                    warm_up_log += f"Failed Reasons:\n{dict(warmup_results['failed_reasons'])}"
+                    failed_reasons = warmup_results['failed_reasons']
+                    if failed_reasons:
+                        table_str = format_dict_as_table(
+                            failed_reasons,
+                            title="Failed Reasons:",
+                            key_column_name="Failed Reason",
+                            value_column_name="Count",
+                        )
+                        warm_up_log += "\n" + table_str
                 self.logger.info(warm_up_log)
             if warmup_results["success"] == 0:
                 task_state_manager.update_task_state({"status": "Warmup failed"})
@@ -385,6 +394,7 @@ class OpenICLApiInferTask(BaseTask):
     def run(self, task_state_manager: TaskStateManager):
         self.logger.info(f"Task [{task_abbr_from_cfg(self.cfg)}]")
         self.inferencer:BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
+        self.clean_failed_results()
 
         data_list, finish_data_count, global_indexes = self._get_data_list()
         if len(data_list) == 0:
@@ -533,6 +543,7 @@ class OpenICLApiInferTask(BaseTask):
             for pid, shm in message_shms.items():
                 self._cleanup_shms(shm)
             self._cleanup_shms(dataset_shm)
+            self._summary_failed_results()
 
     def _cleanup_shms(self, shm: shared_memory.SharedMemory):
         """Clean up shared memory object.
@@ -558,6 +569,43 @@ class OpenICLApiInferTask(BaseTask):
         """
         if key not in cfg:
             cfg[key] = value
+
+    def clean_failed_results(self):
+        """Clean failed results.
+        """
+        output_dir = self.inferencer.get_output_dir()
+        for dataset_cfg in self.dataset_cfgs:
+            data_abbr = dataset_cfg["abbr"]
+            failed_data_path = os.path.join(output_dir, f"{data_abbr}_failed.jsonl")
+            if os.path.exists(failed_data_path):
+                os.remove(failed_data_path)
+                self.logger.debug(f"Cleaned failed results for dataset {data_abbr}")
+
+
+    def _summary_failed_results(self):
+        """Summary failed results.
+        """
+        output_dir = self.inferencer.get_output_dir()
+        failed_results = defaultdict(int)
+        for dataset_cfg in self.dataset_cfgs:
+            data_abbr = dataset_cfg["abbr"]
+            failed_data_path = os.path.join(output_dir, f"{data_abbr}_failed.jsonl")
+            if os.path.exists(failed_data_path):
+                with open(failed_data_path, "r") as f:
+                    for line in f:
+                        json_line = json.loads(line)
+                        failed_results[json_line.get("error_info", "Unknown Error")] += 1
+        if not failed_results:
+            self.logger.debug(f"No failed results")
+            return
+        table_str = format_dict_as_table(
+            failed_results,
+            title="Task finished, failed reasons summary:",
+            key_column_name="Failed Reason",
+            value_column_name="Count",
+        )
+        self.logger.info(f"Task finished, failed reasons summary: \n{table_str} \n")
+        self.logger.info(f"Read {output_dir}*_failed.jsonl for more details")
 
 
 def parse_args():
