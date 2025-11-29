@@ -103,6 +103,7 @@ class TestOpenICLApiInferTask(unittest.TestCase):
         # 继续OpenICLApiInferTask的初始化
         task.concurrency = task.model_cfg.get("batch_size", 1)
         task.pressure = task.cli_args.get("pressure", False)
+        task.debug = task.cli_args.get("debug", False)
         task.pressure_time = task.cli_args.get("pressure_time")
         task.warmup_size = task.cli_args.get("num_warmups", 1)
         task.task_mode = task.cli_args.get("mode", "infer") if not task.pressure else "pressure"
@@ -121,7 +122,7 @@ class TestOpenICLApiInferTask(unittest.TestCase):
         
         task.repeat = task.model_cfg.get("generation_kwargs", {}).get("num_return_sequences", 1)
         if task.repeat > 1:
-            task.logger.info(f'num_return_sequences is greater than 1, echo data will be infer independently {task.repeat} times')
+            task.logger.info(f'num_return_sequences is greater than 1, each data will be infer independently {task.repeat} times')
         
         return task
 
@@ -623,7 +624,7 @@ class TestOpenICLApiInferTask(unittest.TestCase):
         
         task.repeat = task.model_cfg.get("generation_kwargs", {}).get("num_return_sequences", 1)
         if task.repeat > 1:
-            task.logger.info(f'num_return_sequences is greater than 1, echo data will be infer independently {task.repeat} times')
+            task.logger.info(f'num_return_sequences is greater than 1, each data will be infer independently {task.repeat} times')
         
         # 验证记录了info日志
         mock_logger.info.assert_called()

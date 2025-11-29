@@ -6,7 +6,6 @@ models = [
         type=MindieStreamApi,
         abbr="mindie-stream-api",
         path="",
-        stream=True,
         request_rate=0,
         retry=2,
         host_ip="localhost",

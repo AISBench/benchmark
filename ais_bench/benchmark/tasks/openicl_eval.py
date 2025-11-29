@@ -164,6 +164,8 @@ class OpenICLEvalTask(BaseTask):
             prediction_ids = {key:0 for key in total_ids}
             for pred in preds:
                 current_id = pred.get('id')
+                if current_id not in prediction_ids: # num-prompts change cause predictions num more than references, ignore it
+                    continue
                 prediction_ids[current_id] += 1
 
             failed_data_ids = {key:num_return_sequences - value for key, value in prediction_ids.items() if value < num_return_sequences}
@@ -180,6 +182,17 @@ class OpenICLEvalTask(BaseTask):
                         mock_fail_data[key] = TYPE_DEFAULT_MAP.get(value_type)
                     mock_fail_data["id"] = failed_data_id
                     preds.extend([mock_fail_data] * failed_data_ids[failed_data_id])
+            if len(preds) > len(test_set):
+                expect_ids = {index:num_return_sequences for index in total_ids}
+                fill_preds = []
+                for pred in preds:
+                    current_id = pred.get('id')
+                    if current_id not in expect_ids or expect_ids[current_id] == 0:
+                        continue
+                    expect_ids[current_id] -= 1
+                    fill_preds.append(pred)
+                self.logger.warning(f"Found {len(preds)} predictions, but {len(test_set)} references. Drop extra predictions.")
+                preds = fill_preds
             preds.sort(key=lambda x: x.get('id',0))
             pred_dicts = copy.deepcopy(preds)
             preds = {k: [pred.get(k) for pred in preds] for k in preds[0]}

@@ -64,8 +64,7 @@ The currently supported parameter configurations are as follows:
 | Parameter Name | Description | Value Range / Requirements |
 | ----------- | ----------- | ----------- |
 | `WORKERS_NUM` | Number of processes used for sending requests. The default value is 0, which means automatic allocation based on the maximum number of concurrent requests configured by the user. | [0, number of CPU cores] |
-| `CUSTOM_PACKAGE_DIR` | Specifies the directory path of custom Python packages. The Benchmark tool will load user-defined packages from this directory. | Must be a local path accessible to the user, pointing to the folder containing custom packages |
-| `PRESSURE_TIME` | Duration of pressure testing, effective only when `--pressure` mode is specified. Unit: seconds. | `[1, 86400]` (i.e., 1 second to 24 hours) |
-| `CONNECTION_ADD_RATE` | Concurrent thread creation rate. Represents the number of new concurrent threads added per second until the maximum concurrency limit is reached. Effective only when `--pressure` mode is specified. | `> 0.1` (Unit: threads per second) |
 | `MAX_CHUNK_SIZE` | Maximum cache size for a single chunk returned by the streaming inference model backend. The default value is 65535 bytes (64KB). | `(0, 16777216]` (Unit: Byte) |
 | `REQUEST_TIME_OUT` | Timeout period for the client to wait for a response after sending a request. The default value is None, meaning infinite waiting (always waiting for the model to return results). | `None` or `>0` (Unit: seconds) |
+| `PRESSURE_TIME` | Duration of pressure testing, effective only when `--pressure` mode is specified. Unit: seconds. (This parameter will be deprecated in the future, please use `--pressure-time` parameter instead) | `[1, 86400]` (i.e., 1 second to 24 hours) |
+| `CONNECTION_ADD_RATE` | Concurrent thread creation rate. Represents the number of new concurrent threads added per second until the maximum concurrency limit is reached. Effective only when `--pressure` mode is specified. (This parameter will be deprecated in the future, please modify `request_rate` parameter in the model configuration file instead) | `> 0.1` (Unit: threads per second) |

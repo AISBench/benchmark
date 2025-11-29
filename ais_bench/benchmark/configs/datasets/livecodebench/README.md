@@ -11,7 +11,7 @@ LiveCodeBench 是一个持续更新的"实时"基准测试平台，用于全面�
 
 ## 数据集部署
 - 可以从huggingface的数据集链接🔗 [https://huggingface.co/datasets/livecodebench/code_generation_lite/tree/main](https://huggingface.co/datasets/livecodebench/code_generation_lite/tree/main)中获取
-- 建议部署在`{工具根路径}/ais_bench/datasets`目录下（数据集任务中设置的默认路径），以linux上部署为例，具体执行步骤如下：
+- 请将该数据集部署在`{工具根路径}/ais_bench/datasets`目录下（数据集任务中设置的默认路径），若部署在自定义路径可能遇到数据集相关的报错（2025.11.25），以linux上部署为例，具体执行步骤如下：
 ```bash
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
@@ -20,12 +20,13 @@ git clone https://huggingface.co/datasets/livecodebench/code_generation_lite
 ```
 - 在`{工具根路径}/ais_bench/datasets`目录下执行`tree code_generation_lite/`查看目录结构，若目录结构如下所示，则说明数据集部署成功。
     ```
-    code_generatation_lite
+    code_generation_lite
+    ├── code_generation_lite.py
+    ├── test6.jsonl
     ├── test5.jsonl
     ├── test4.jsonl
     ├── test3.jsonl
     ├── test2.jsonl
-    ├── test1.jsonl
     └── test.jsonl
     ```
 

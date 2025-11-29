@@ -163,6 +163,7 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 
 ## UTILS-DEPENDENCY-001
 ### 错误描述
+<<<<<<< HEAD
 部分数据集组件的独立运行依赖库未安装。
 ### 解决办法
 若详细报错日志为`Failed to import required modules. Please install the necessary packages: pip install math_verify`，那么就参照详细日志的指引，执行`pip install math_verify`安装依赖库。
@@ -170,138 +171,235 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 ## UTILS-TYPE-001
 ### 错误描述
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-001
+### 错误描述
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-TYPE-002
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-TYPE-003
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-TYPE-004
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-TYPE-005
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-TYPE-006
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-TYPE-007
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-001
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-002
 ### 错误描述
+<<<<<<< HEAD
 自定数据集场景下，配置文件`*.meta.json`中`request_count`参数不在合法范围。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-003
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-004
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-005
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-006
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-007
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-008
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-FILE-001
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-FILE-002
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-FILE-003
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-FILE-004
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-CFG-005
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
 
 ## UTILS-CFG-006
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
 
 ## UTILS-CFG-007
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
 
 ## UTILS-CFG-008
 ### 错误描述
+<<<<<<< HEAD
 暂未有直接解决方法。
+=======
+暂未发现此问题。
+>>>>>>> master_center
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
 
@@ -636,7 +734,11 @@ PPL推理场景下某次推理结果中没有任何tokenid导致无法计算loss
 ### 解决办法
 若日志为`Get result from cache queue failed: XXXXXX`其中`XXXXXX`为获取推理结果失败的具体原因，请依据具体原因做相应的处理（例如如果是超时相关的异常，请确认推理服务的超时时间是否设置合理或者检查当前配置能否正常访问推理服务）。
 
+<<<<<<< HEAD
 ## ICLI-RUNTIME-002
+=======
+## TINFER-RUNTIME-001
+>>>>>>> master_center
 ### 错误描述
 预热访问推理服务时，推理服务返回的结果显示推理失败
 ### 解决办法

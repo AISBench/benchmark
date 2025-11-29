@@ -21,6 +21,7 @@ from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg
 from ais_bench.benchmark.runners.base import TasksMonitor
 from ais_bench.benchmark.runners.base import BaseRunner
 from ais_bench.benchmark.utils.logging.error_codes import RUNNER_CODES
+from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
 
 
 def get_command_template(gpu_ids: List[int]) -> str:
@@ -101,7 +102,7 @@ class LocalRunner(BaseRunner):
             ]
         else:
             all_gpu_ids = list(range(device_nums))
-        
+
         self.logger.debug(f"Available devices: {all_gpu_ids} (total: {device_nums}, type: {visible_devices})")
         monitor_p.start()
 
@@ -189,7 +190,8 @@ class LocalRunner(BaseRunner):
         def submit(task, index):
             task = TASKS.build(dict(cfg=task, type=self.task_cfg['type']))
             num_gpus = task.num_gpus if hasattr(task, 'num_gpus') else 0
-            assert len(gpus) >= num_gpus
+            if len(gpus) < num_gpus:
+                raise ParameterValueError(RUNNER_CODES.NOT_ENOUGH_GPUS, f"Not enough GPUs available, only {len(gpus)} GPUs found, but {num_gpus} GPUs are required for task {task.name}")
 
             while True:
                 lock.acquire()

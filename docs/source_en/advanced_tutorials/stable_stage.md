@@ -230,24 +230,16 @@ Stress testing aims to simulate multiple clients sending requests continuously. 
 ### Quick Start for Stress Testing
 The process of stress testing is basically the same as that of [Quick Start for Steady-State Testing](#quick-start-for-steady-state-testing), with the main differences in the following two aspects:
 
-#### Modifying Configuration Files for Stress Testing
-Open the global constant configuration file `ais_bench/benchmark/global_consts.py` of AISBench (relative to the root directory of the tool) and modify the following configurations:
-```py
+#### Stress Testing Parameter Description
+Specify the duration of stress testing through the command-line parameter `--pressure-time`. The stress testing duration cannot exceed 86400 seconds (24 hours).
 
-WORKERS_NUM = 0 # Number of processes; configurable range [0, number of CPU cores]. Default is 0, which automatically allocates processes based on the maximum concurrency of requests configured by the user.
+Specify the frequency of adding new threads (clients) per process by configuring the `request_rate` parameter in the [model configuration file](../base_tutorials/all_params/models.md#parameter-description-for-service-oriented-inference-backend-configuration). The larger the value of this parameter, the greater the deviation in the actual frequency of adding new threads (clients) (the deviation is related to the single-core processing capability of the CPU).
 
-# Stress testing related configurations
-PRESSURE_TIME = 1 * 60 # Stress testing duration, unit: seconds
-CONNECTION_ADD_RATE = 1 # Frequency of new connections added per process, unit: connections/second
-```
-Where:
-- **WORKERS_NUM**: Number of processes used to send requests in performance testing. When this parameter is set to 0, the number of threads (simulated clients) per process will not exceed 500. Based on this limit, the maximum concurrency (batch_size in the model configuration file) is evenly distributed across multiple processes (for example, if the maximum concurrency is 1200, 3 processes will be enabled, each carrying 400 threads). Please set this parameter reasonably according to the single-core performance of the CPU.
-- **PRESSURE_TIME**: Duration of the request-sending phase in stress testing, in seconds. The configurable range is [1, 24 * 60 * 60]. If the set value exceeds this range, it will be adjusted to the corresponding boundary value.
-- **CONNECTION_ADD_RATE**: Frequency of adding new threads (clients) in each request-sending process during stress testing. The configurable range is [1, +∞]. If the set value exceeds this range, it will be adjusted to the corresponding boundary value. The larger the value of this parameter, the greater the deviation in the actual frequency of adding new threads (clients) (the deviation is related to the single-core processing capability of the CPU).
+Specify the number of processes used in stress testing by modifying the `WORKERS_NUM` parameter in the [global constants configuration file](../base_tutorials/all_params/cli_args.md#configuration-constant-file-parameters) to improve the concurrency capability of stress testing.
 
 #### Adding Stress Testing Command
 Add `--pressure` to the command line:
 ```bash
 # Add --debug to the command line
-ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer stable_stage --mode perf --debug --pressure
+ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer stable_stage --mode perf --pressure --pressure-time 30
 ```
