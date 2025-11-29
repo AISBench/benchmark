@@ -93,6 +93,10 @@ pip3 install -e ./ --use-pep517
 pip3 install -r requirements/api.txt
 pip3 install -r requirements/extra.txt
 ```
+⚙️ Huggingface多模态模型支持（可选）
+```shell
+pip3 install -r requirements/hf_vl_dependency.txt
+```
 🔗 Berkeley Function Calling Leaderboard (BFCL) 测评支持
 
 ```shell

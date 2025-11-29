@@ -11,6 +11,8 @@ from ais_bench.benchmark.models.local_models.base import BaseModel
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.utils.logging import AISLogger
+from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchImportError
 from ais_bench.benchmark.models.local_models.huggingface_above_v4_33 import (_get_possible_max_seq_len,
                                                                             _convert_chat_messages,
                                                                             _get_meta_template,
@@ -78,6 +80,7 @@ class HuggingFaceQwen2VLwithChatTemplate(BaseModel):
         self.fps = vision_kwargs.pop('fps', 2)
         self.nframe = vision_kwargs.pop('nframe', 128)
         self.FRAME_FACTOR = 2
+        
 
     def handle_perf_result(self, output_filepath, output_filename):
         e2e_latency = max(self.timestamps) - min(self.timestamps)
@@ -124,9 +127,12 @@ class HuggingFaceQwen2VLwithChatTemplate(BaseModel):
         if is_npu_available():
             model_kwargs['device_map'] = 'npu'
         try:
-            self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(path, **model_kwargs, attn_implementation='flash_attention_2')
-        except ValueError:
-            self.logger.error("cannot load model, please check it!")
+            self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(path, **model_kwargs)
+        except ImportError:
+            raise AISBenchImportError(
+                UTILS_CODES.DEPENDENCY_MODULE_IMPORT_ERROR, 
+                f"Failed to init model. Please install the necessary packages",
+            )
 
         if peft_path is not None:
             from peft import PeftModel
