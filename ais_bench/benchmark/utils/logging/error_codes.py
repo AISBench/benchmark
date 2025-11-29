@@ -18,7 +18,6 @@ class ErrorModule(Enum):
     DATASET = "DSET"                             # dataset
     MODEL = "MODEL"                              # model
     CALCULATOR = "CALC"                          # calculator
-    DATASETS = "DATASETS"                        # datasets
     UTILS = "UTILS"                              # other utils func
     UNKNOWN = "UNK"                              # unknown module
 
@@ -211,20 +210,20 @@ class UNK_CODES:
 class UTILS_CODES:
     UNKNOWN_ERROR = BaseErrorCode("UTILS-UNK-001", ErrorModule.UTILS, ErrorType.UNKNOWN, 1, "unknown error of utils")
     MATCH_CONFIG_FILE_FAILED = BaseErrorCode("UTILS-MATCH-001", ErrorModule.UTILS, ErrorType.MATCH, 1, "match config file failed") # docs coverd
-    DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "third party dependency module import error")
+    DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "third party dependency module import error") # docs coverd
 
     # Type validation errors
-    INVALID_TYPE = BaseErrorCode("UTILS-TYPE-001", ErrorModule.UTILS, ErrorType.TYPE, 1, "invalid object type")
-    INVALID_DATASET_TYPE = BaseErrorCode("UTILS-TYPE-002", ErrorModule.UTILS, ErrorType.TYPE, 2, "invalid dataset type")
-    INVALID_LIST_TYPE = BaseErrorCode("UTILS-TYPE-003", ErrorModule.UTILS, ErrorType.TYPE, 3, "invalid list type")
-    INVALID_STRING_TYPE = BaseErrorCode("UTILS-TYPE-004", ErrorModule.UTILS, ErrorType.TYPE, 4, "invalid string type")
-    INVALID_DICT_TYPE = BaseErrorCode("UTILS-TYPE-005", ErrorModule.UTILS, ErrorType.TYPE, 5, "invalid dict type")
-    INVALID_TYPE_SPECIFIER = BaseErrorCode("UTILS-TYPE-006", ErrorModule.UTILS, ErrorType.TYPE, 6, "invalid type specifier")
-    TYPE_MISMATCH = BaseErrorCode("UTILS-TYPE-007", ErrorModule.UTILS, ErrorType.TYPE, 7, "type mismatch in validation")
+    INVALID_TYPE = BaseErrorCode("UTILS-TYPE-001", ErrorModule.UTILS, ErrorType.TYPE, 1, "invalid object type") # user not awared
+    INVALID_DATASET_TYPE = BaseErrorCode("UTILS-TYPE-002", ErrorModule.UTILS, ErrorType.TYPE, 2, "invalid dataset type") # user not awared
+    INVALID_LIST_TYPE = BaseErrorCode("UTILS-TYPE-003", ErrorModule.UTILS, ErrorType.TYPE, 3, "invalid list type") # user not awared
+    INVALID_STRING_TYPE = BaseErrorCode("UTILS-TYPE-004", ErrorModule.UTILS, ErrorType.TYPE, 4, "invalid string type") # user not awared
+    INVALID_DICT_TYPE = BaseErrorCode("UTILS-TYPE-005", ErrorModule.UTILS, ErrorType.TYPE, 5, "invalid dict type") # user not awared
+    INVALID_TYPE_SPECIFIER = BaseErrorCode("UTILS-TYPE-006", ErrorModule.UTILS, ErrorType.TYPE, 6, "invalid type specifier") # user not awared
+    TYPE_MISMATCH = BaseErrorCode("UTILS-TYPE-007", ErrorModule.UTILS, ErrorType.TYPE, 7, "type mismatch in validation") # user not awared
 
     # Parameter validation errors
-    ROOT_PATH_NOT_SET = BaseErrorCode("UTILS-PARAM-001", ErrorModule.UTILS, ErrorType.PARAM, 1, "root_path not set")
-    INVALID_REQUEST_COUNT = BaseErrorCode("UTILS-PARAM-002", ErrorModule.UTILS, ErrorType.PARAM, 2, "invalid request_count value")
+    ROOT_PATH_NOT_SET = BaseErrorCode("UTILS-PARAM-001", ErrorModule.UTILS, ErrorType.PARAM, 1, "root_path not set") # user not awared
+    INVALID_REQUEST_COUNT = BaseErrorCode("UTILS-PARAM-002", ErrorModule.UTILS, ErrorType.PARAM, 2, "invalid request_count value") # user not awared
     INVALID_MIN_MAX_VALUE = BaseErrorCode("UTILS-PARAM-003", ErrorModule.UTILS, ErrorType.PARAM, 3, "invalid min_value or max_value")
     MIN_GREATER_THAN_MAX = BaseErrorCode("UTILS-PARAM-004", ErrorModule.UTILS, ErrorType.PARAM, 4, "min_value greater than max_value")
     MISSING_PARAMS = BaseErrorCode("UTILS-PARAM-005", ErrorModule.UTILS, ErrorType.PARAM, 5, "missing required params")
@@ -258,40 +257,27 @@ class CALC_CODES:
     ALL_REQUEST_DATAS_INVALID = BaseErrorCode("CALC-DATA-001", ErrorModule.CALCULATOR, ErrorType.DATA, 1, "all request datas are invalid") # docs coverd
     CAN_NOT_FIND_STABLE_STAGE = BaseErrorCode("CALC-DATA-002", ErrorModule.CALCULATOR, ErrorType.DATA, 2, "invalid response datas") # docs coverd
 
-class DATASETS_CODES:
-    UNKNOWN_ERROR = BaseErrorCode("DATASETS-UNK-001", ErrorModule.DATASETS, ErrorType.UNKNOWN, 1, "unknown error of datasets")
-    INVALID_DATASET_CONFIG = BaseErrorCode("DATASETS-CFG-001", ErrorModule.DATASETS, ErrorType.CONFIG, 1, "invalid dataset config")
-
-
 class DSET_CODES:
     UNKNOWN_ERROR = BaseErrorCode("DSET-UNK-001", ErrorModule.DATASET, ErrorType.UNKNOWN, 1, "unknown error of dataset")
 
+    INVALID_DATASET_CONFIG = BaseErrorCode("DSET-CFG-001", ErrorModule.DATASET, ErrorType.CONFIG, 1, "invalid dataset config")
     # File related errors
     FILE_NOT_FOUND = BaseErrorCode("DSET-FILE-001", ErrorModule.DATASET, ErrorType.FILE, 1, "dataset file not found")
-    FILE_READ_ERROR = BaseErrorCode("DSET-FILE-002", ErrorModule.DATASET, ErrorType.FILE, 2, "failed to read dataset file")
-    FILE_FORMAT_ERROR = BaseErrorCode("DSET-FILE-003", ErrorModule.DATASET, ErrorType.FILE, 3, "invalid dataset file format")
 
     # Data related errors
-    DATA_EMPTY = BaseErrorCode("DSET-DATA-001", ErrorModule.DATASET, ErrorType.DATA, 1, "dataset is empty")
     DATA_INVALID_STRUCTURE = BaseErrorCode("DSET-DATA-002", ErrorModule.DATASET, ErrorType.DATA, 2, "dataset has invalid structure")
-    DATA_MISSING_REQUIRED_FIELD = BaseErrorCode("DSET-DATA-003", ErrorModule.DATASET, ErrorType.DATA, 3, "dataset missing required field")
-    DATA_LABEL_PARSE_ERROR = BaseErrorCode("DSET-DATA-004", ErrorModule.DATASET, ErrorType.DATA, 4, "failed to parse label")
     DATA_PREPROCESSING_ERROR = BaseErrorCode("DSET-DATA-005", ErrorModule.DATASET, ErrorType.DATA, 5, "data preprocessing or cleaning failed")
     INVALID_DATA_TYPE = BaseErrorCode("DSET-DATA-006", ErrorModule.DATASET, ErrorType.DATA, 6, "data type does not match expected type")
 
     # Parameter related errors
-    INVALID_SPLIT_NAME = BaseErrorCode("DSET-PARAM-001", ErrorModule.DATASET, ErrorType.PARAM, 1, "invalid split name")
     INVALID_REPEAT_FACTOR = BaseErrorCode("DSET-PARAM-002", ErrorModule.DATASET, ErrorType.PARAM, 2, "invalid repeat factor")
-    INVALID_DATASET_NAME = BaseErrorCode("DSET-PARAM-003", ErrorModule.DATASET, ErrorType.PARAM, 3, "invalid dataset name")
     INVALID_PARAM_VALUE = BaseErrorCode("DSET-PARAM-004", ErrorModule.DATASET, ErrorType.PARAM, 4, "invalid parameter value")
 
     # Dependency related errors
-    MODELSCOPE_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-001", ErrorModule.DATASET, ErrorType.DEPENDENCY, 1, "ModelScope library not installed")
     EVALUATION_LIBRARY_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-002", ErrorModule.DATASET, ErrorType.DEPENDENCY, 2, "evaluation library not installed")
 
     # Evaluation related errors
     PREDICTION_LENGTH_MISMATCH = BaseErrorCode("DSET-MTRC-001", ErrorModule.DATASET, ErrorType.METRIC, 1, "prediction and reference have different length")
-    EVALUATION_FAILED = BaseErrorCode("DSET-MTRC-002", ErrorModule.DATASET, ErrorType.METRIC, 2, "evaluation failed")
     INVALID_MBPP_METRIC = BaseErrorCode("DSET-MTRC-003", ErrorModule.DATASET, ErrorType.METRIC, 3, "invalid MBPP metric type")
 
 
@@ -311,7 +297,6 @@ ERROR_CODES_CLASSES = [
     UNK_CODES,
     UTILS_CODES,
     CALC_CODES,
-    DATASETS_CODES,
     DSET_CODES,
 ]
 

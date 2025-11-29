@@ -3,7 +3,7 @@ from datasets import Dataset, load_dataset
 from ais_bench.benchmark.registry import LOAD_DATASET
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path
 from ais_bench.benchmark.utils.logging import AISLogger
-from ais_bench.benchmark.utils.logging.error_codes import DATASETS_CODES
+from ais_bench.benchmark.utils.logging.error_codes import DSET_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 
 from ..base import BaseDataset
@@ -27,7 +27,7 @@ class LEvalReviewSummDataset(BaseDataset):
     @staticmethod
     def load(**kwargs):
         if 'path' not in kwargs:
-            raise AISBenchConfigError(DATASETS_CODES.INVALID_DATASET_CONFIG, "The 'path' argument is required to load the dataset.")
+            raise AISBenchConfigError(DSET_CODES.INVALID_DATASET_CONFIG, "The 'path' argument is required to load the dataset.")
 
         path = kwargs['path']
         logger.info(f"Loading LEval Review Summarization dataset from path: {path}")
