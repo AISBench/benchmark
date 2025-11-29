@@ -99,10 +99,12 @@ The description of configurable parameters for the service-oriented inference ba
 | --- | --- | --- | --- | --- |
 | `hf_base_model` | HuggingFace Base Model Backend | The basic dependencies of the evaluation tool have been installed; the HuggingFace model weight path must be specified in the configuration file (automatic download is not supported currently) | String Format | [hf_base_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_base_model.py) |
 | `hf_chat_model` | HuggingFace Chat Model Backend | The basic dependencies of the evaluation tool have been installed; the HuggingFace model weight path must be specified in the configuration file (automatic download is not supported currently) | Dialogue Format | [hf_chat_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_chat_model.py) |
+|`hf_qwenvl_model`|	HuggingFace Chat QwenVL Model Backend|The basic dependencies of the evaluation tool have been installed; the HuggingFace model weight path must be specified in the configuration file (automatic download is not supported currently)|Dialogue Format|[hf_qwenvl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_qwenvl_model.py)|
+|`vllm_offline_vl_model`|	vLLM Chat QwenVL Offline Inference Model Backend|The basic dependencies of the evaluation tool have been installed; the model weight path must be specified in the configuration file (automatic download is not supported currently)|Dialogue Format|[vllm_offline_vl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_offline_models/vllm_offline_vl_model.py)|
 
 
-### Parameter Description for Local Model Backend Configuration
-The configuration file for the local model backend is configured using Python syntax, as shown in the example below:
+### Parameter Description for Huggingface Local Model Backend Configuration
+The configuration file for the huggingface local model backend is configured using Python syntax, as shown in the example below:
 ```python
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 
@@ -130,7 +132,7 @@ models = [
 ]
 ```
 
-The description of configurable parameters for the local model inference backend is as follows:
+The description of configurable parameters for the huggingface local model inference backend is as follows:
 
 | Parameter Name | Parameter Type | Description & Configuration |
 |----------|-----------|-------------|
@@ -147,3 +149,47 @@ The description of configurable parameters for the local model inference backend
 | `batch_size` | Int | Batch size for inference requests. Valid range: (0, 64000] |
 | `max_seq_len` | Int | Maximum input sequence length. Valid range: (0, 131072] |
 | `batch_padding` | Bool | Whether to enable batch padding. Set to `True` or `False` |
+
+### Parameter Description for vLLM Offline Inference Model Backend Configuration
+The configuration file for the vllm offline inference local model backend is configured using Python syntax, as shown in the example below:
+```python
+from ais_bench.benchmark.models import VLLMOfflineVLModel
+
+models = [
+    dict(
+        attr="local",                    # Backend type identifier
+        type=VLLMOfflineVLModel,         # Model type
+        abbr='vllm-offline-vl-model',    # Unique identifier
+        path = "",                       # Model weight path
+        model_kwargs=dict(               # LLM init params, refer https://docs.vllm.com.cn/en/latest/serving/engine_args.html#
+            max_num_seqs=5,
+            max_model_len=32768,
+            limit_mm_per_prompt={"image": 24},
+            tensor_parallel_size=1,
+            gpu_memory_utilization=0.9,
+        ),
+        sample_kwargs=dict(              # sample params, refer https://docs.vllm.ai/en/v0.6.5/dev/sampling_params.html
+            temperature=0.0,
+            stop_token_ids=None
+        ),
+        vision_kwargs=dict(              # multi-modal params, refer https://docs.vllm.ai/en/v0.7.3/getting_started/examples/vision_language.html
+            min_pixels=1280 * 28 * 28,
+            max_pixels=16384 * 28 * 28,
+        ),
+        max_out_len=512,                 # Maximum output length
+        batch_size=1,                    # Request concurrency count
+    )
+]
+```
+The description of configurable parameters for the vllm offline inference local model inference backend is as follows:
+| Parameter Name | Parameter Type | Description & Configuration |
+|----------|-----------|-------------|
+| `attr` | String | Identifier for the backend type, fixed as `local` (local model) or `service` (service-oriented inference) |
+| `type` | Python Class | Model class name, automatically associated by the system; no manual configuration is required by the user |
+| `abbr` | String | Unique identifier for the local task, used to distinguish multiple tasks. It is recommended to use a combination of English characters and hyphens, e.g., `vllm-offline-vl-model` |
+| `path` | String | Model weight path, which must be an accessible local path. The model is loaded using `vllm.LLM(model=path)`  |
+| `model_kwargs` | Dict | LLM init params, refer 🔗 [LLM init params](https://docs.vllm.com.cn/en/latest/serving/engine_args.html#) |
+| `sample_kwargs` | Dict | LLM sample params, refer 🔗 [sample params](https://docs.vllm.ai/en/v0.6.5/dev/sampling_params.html) |
+| `vision_kwargs` | Dict | multi-modal input params，refer 🔗 [multi-modal vllm offline inference](https://docs.vllm.ai/en/v0.7.3/getting_started/examples/vision_language.html) |
+| `max_out_len` | Int | Maximum number of output tokens generated by inference. Valid range: (0, 131072] |
+| `batch_size` | Int | Batch size for inference requests. Valid range: (0, 64000] |

@@ -150,6 +150,7 @@ class MMMUDataset(BaseDataset):
     def load(path):
         path = get_data_path(path)
         image_root_path = os.path.join(os.path.dirname(path), "MMMU_images")
+        logger.info(f"Convert base64 to image and save it in {image_root_path}")
         skip_noimg = True
         
         data = pd.read_csv(path, sep='\t')

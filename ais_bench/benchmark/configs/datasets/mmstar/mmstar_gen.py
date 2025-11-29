@@ -5,7 +5,7 @@ from ais_bench.benchmark.datasets import MMStarDataset, MMStarEvaluator
 
 
 mmstar_reader_cfg = dict(
-    input_columns=['content'],
+    input_columns=['question', 'image'],
     output_column='answer'
 )
 

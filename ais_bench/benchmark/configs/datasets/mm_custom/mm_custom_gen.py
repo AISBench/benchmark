@@ -5,7 +5,7 @@ from ais_bench.benchmark.datasets import MMCustomDataset, MMCustomEvaluator
 
 
 mm_custom_reader_cfg = dict(
-    input_columns=['question', 'mm_url'],
+    input_columns=['question', 'image', 'video', 'audio'],
     output_column='answer'
 )
 

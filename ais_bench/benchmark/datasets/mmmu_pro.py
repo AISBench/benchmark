@@ -27,6 +27,7 @@ class MMMUProOptions10Dataset(BaseDataset):
     def load(path, is_cot=False):
         path = get_data_path(path)
         image_root_path = os.path.join(os.path.dirname(path), "MMMU_Pro_options10_images")
+        logger.info(f"Convert base64 to image and save it in {image_root_path}")
         skip_noimg = True
         try:
             data = pd.read_csv(path, sep='\t')
@@ -108,6 +109,7 @@ class MMMUProVisionDataset(BaseDataset):
     def load(path, is_cot=False):
         path = get_data_path(path)
         image_root_path = os.path.join(os.path.dirname(path), "MMMU_Pro_vision_images")
+        logger.info(f"Convert base64 to image and save it in {image_root_path}")
         skip_noimg = True
         
         data = pd.read_csv(path, sep='\t')

@@ -5,7 +5,7 @@ from ais_bench.benchmark.datasets.ocrbench_v2 import OCRBenchV2Dataset, OCRBench
 
 
 ocrbench_v2_reader_cfg = dict(
-    input_columns=['content'],
+    input_columns=['question', 'image'],
     output_column='answer'
 )
 

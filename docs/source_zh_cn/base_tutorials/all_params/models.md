@@ -91,9 +91,11 @@ models = [
 | --- | --- | --- | --- | --- |
 |`hf_base_model`|HuggingFace Base 模型后端|已安装评测工具基础依赖，需在配置文件中指定 HuggingFace 模型权重路径（当前不支持自动下载）|字符串格式|[hf_base_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_base_model.py)|
 |`hf_chat_model`|	HuggingFace Chat 模型后端|已安装评测工具基础依赖，需在配置文件中指定 HuggingFace 模型权重路径（当前不支持自动下载）|对话格式|[hf_chat_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_chat_model.py)|
+|`hf_qwenvl_model`|	HuggingFace Chat QwenVL模型后端|已安装评测工具基础依赖，需在配置文件中指定 HuggingFace 模型权重路径（当前不支持自动下载）|对话格式|[hf_qwenvl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_qwenvl_model.py)|
+|`vllm_offline_vl_model`|	vllm Chat QwenVL离线推理模型后端|已安装评测工具基础依赖，需在配置文件中指定模型模型权重路径（当前不支持自动下载）|对话格式|[vllm_offline_vl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_offline_models/vllm_offline_vl_model.py)|
 
-### 本地模型后端配置参数说明
-本地模型后端配置文件采用Python语法格式配置，示例如下：
+### 本地huggingface模型后端配置参数说明
+本地huggingface模型后端配置文件采用Python语法格式配置，示例如下：
 ```python
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 
@@ -121,7 +123,7 @@ models = [
 ]
 ```
 
-本地模型推理后端可配置参数说明如下：
+本地huggingface模型推理后端可配置参数说明如下：
 | 参数名称 | 参数类型 | 说明与配置 |
 |----------|-----------|-------------|
 | `attr` | String | 后端类型标识，固定为 `local`（本地模型）或 `service`（服务化推理） |
@@ -137,3 +139,48 @@ models = [
 | `batch_size` | Int | 推理请求的批处理大小，合法范围：(0, 64000] |
 | `max_seq_len` | Int | 最大输入序列长度，合法范围：(0, 131072] |
 | `batch_padding` | Bool | 是否启用批量 padding。设置为 `True` 或 `False` |
+
+### 本地vllm离线推理模型后端配置参数说明
+本地vllm离线推理模型后端配置文件采用Python语法格式配置，示例如下：
+```python
+from ais_bench.benchmark.models import VLLMOfflineVLModel
+
+models = [
+    dict(
+        attr="local",                    # 后端类型标识
+        type=VLLMOfflineVLModel,         # 模型类型
+        abbr='vllm-offline-vl-model',    # 唯一标识
+        path = "",                       # 模型权重路径
+        model_kwargs=dict(               # 模型初始化参数, 可参考 https://docs.vllm.com.cn/en/latest/serving/engine_args.html#
+            max_num_seqs=5,
+            max_model_len=32768,
+            limit_mm_per_prompt={"image": 24},
+            tensor_parallel_size=1,
+            gpu_memory_utilization=0.9,
+        ),
+        sample_kwargs=dict(              # 模型推理采样参数, 可参考 https://docs.vllm.ai/en/v0.6.5/dev/sampling_params.html
+            temperature=0.0,
+            stop_token_ids=None
+        ),
+        vision_kwargs=dict(              # 多模态输入参数，可参考 https://docs.vllm.ai/en/v0.7.3/getting_started/examples/vision_language.html
+            min_pixels=1280 * 28 * 28,
+            max_pixels=16384 * 28 * 28,
+        ),
+        max_out_len=512,                 # 最大输出长度
+        batch_size=1,                    # 请求并发数
+    )
+]
+```
+
+本地vllm离线推理模型后端可配置参数说明如下：
+| 参数名称 | 参数类型 | 说明与配置 |
+|----------|-----------|-------------|
+| `attr` | String | 后端类型标识，固定为 `local`（本地模型）或 `service`（服务化推理） |
+| `type` | Python Class | 模型类名称，由系统自动关联，用户无需手动配置 |
+| `abbr` | String | 本地任务的唯一标识，用于区分多任务。建议使用英文与短横线组合，如：`vllm-offline-vl-model` |
+| `path` | String | 模型权重路径，需为本地可访问路径。使用 `vllm.LLM(model=path)` 加载 |
+| `model_kwargs` | Dict | 模型加载参数，参考 🔗 [LLM 模型配置](https://docs.vllm.com.cn/en/latest/serving/engine_args.html#) |
+| `sample_kwargs` | Dict | 模型推理采样参数，参考 🔗 [sample parameter配置](https://docs.vllm.ai/en/v0.6.5/dev/sampling_params.html) |
+| `vision_kwargs` | Dict | 多模态输入参数，参考 🔗 [多模态推理举例](https://docs.vllm.ai/en/v0.7.3/getting_started/examples/vision_language.html) |
+| `max_out_len` | Int | 推理生成的最大输出 Token 数量，合法范围：(0, 131072] |
+| `batch_size` | Int | 推理请求的批处理大小，合法范围：(0, 64000] |

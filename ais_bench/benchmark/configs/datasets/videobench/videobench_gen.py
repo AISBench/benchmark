@@ -6,7 +6,7 @@ from ais_bench.benchmark.datasets import VideoBenchDataset, VideoBenchEvaluator
 DEFAULT_NUM_FRAMES = 5 # Default number of frames to sample from each video when loading datasets
 
 videobench_reader_cfg = dict(
-    input_columns=['question', 'video_url', 'choices_prompt'],
+    input_columns=['question', 'video'],
     output_column='answer'
 )
 
@@ -19,9 +19,7 @@ videobench_infer_cfg = dict(
                 dict(role="HUMAN", prompt_mm={
                     "text": {"type": "text", "text": "{question} Please respond with only the corresponding options and do not provide any explanations"
                                                         + " or additional information. ASSISTANT:"},
-                    "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
                     "video": {"type": "video_url", "video_url": {"url": "file://{video}"}},
-                    "audio": {"type": "audio_url", "audio_url": {"url": "file://{audio}"}},
                 })
             ]
             )

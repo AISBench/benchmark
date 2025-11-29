@@ -55,6 +55,9 @@ AISBench Benchmark当前支持的数据集类型如下：
 | MMMU_Pro       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README.md) |
 | InfoVQA       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README.md) |
 | DocVQA       | 多模态理解（图+文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README.md) |
+| MMStar       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmstar/README.md) |
+| OcrBench       | 多模态理解（图+文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ocrbench_v2/README.md) |
+| Video-MME       | 多模态理解（视频+文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README.md) |
 ### 多轮对话类数据集
 | 数据集名称| 分类 | 详细介绍&获取方式 |
 |---------------|----------------------|-------------------|
