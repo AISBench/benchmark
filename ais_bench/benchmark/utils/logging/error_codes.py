@@ -211,13 +211,13 @@ class UTILS_CODES:
     DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "third party dependency module import error")
 
     # Type validation errors
-    INVALID_TYPE = BaseErrorCode("UTILS-TYPE-001", ErrorModule.UTILS, ErrorType.TYPE, 1, "invalid object type")
-    INVALID_DATASET_TYPE = BaseErrorCode("UTILS-TYPE-002", ErrorModule.UTILS, ErrorType.TYPE, 2, "invalid dataset type")
-    INVALID_LIST_TYPE = BaseErrorCode("UTILS-TYPE-003", ErrorModule.UTILS, ErrorType.TYPE, 3, "invalid list type")
-    INVALID_STRING_TYPE = BaseErrorCode("UTILS-TYPE-004", ErrorModule.UTILS, ErrorType.TYPE, 4, "invalid string type")
-    INVALID_DICT_TYPE = BaseErrorCode("UTILS-TYPE-005", ErrorModule.UTILS, ErrorType.TYPE, 5, "invalid dict type")
-    INVALID_TYPE_SPECIFIER = BaseErrorCode("UTILS-TYPE-006", ErrorModule.UTILS, ErrorType.TYPE, 6, "invalid type specifier")
-    TYPE_MISMATCH = BaseErrorCode("UTILS-TYPE-007", ErrorModule.UTILS, ErrorType.TYPE, 7, "type mismatch in validation")
+    INVALID_TYPE = BaseErrorCode("UTILS-TYPE-001", ErrorModule.UTILS, ErrorType.TYPE, 1, "invalid object type") # user not awared
+    INVALID_DATASET_TYPE = BaseErrorCode("UTILS-TYPE-002", ErrorModule.UTILS, ErrorType.TYPE, 2, "invalid dataset type") # user not awared
+    INVALID_LIST_TYPE = BaseErrorCode("UTILS-TYPE-003", ErrorModule.UTILS, ErrorType.TYPE, 3, "invalid list type") # user not awared
+    INVALID_STRING_TYPE = BaseErrorCode("UTILS-TYPE-004", ErrorModule.UTILS, ErrorType.TYPE, 4, "invalid string type") # user not awared
+    INVALID_DICT_TYPE = BaseErrorCode("UTILS-TYPE-005", ErrorModule.UTILS, ErrorType.TYPE, 5, "invalid dict type") # user not awared
+    INVALID_TYPE_SPECIFIER = BaseErrorCode("UTILS-TYPE-006", ErrorModule.UTILS, ErrorType.TYPE, 6, "invalid type specifier") # user not awared
+    TYPE_MISMATCH = BaseErrorCode("UTILS-TYPE-007", ErrorModule.UTILS, ErrorType.TYPE, 7, "type mismatch in validation") # user not awared
     ARGUMENT_TOO_LARGE = BaseErrorCode("UTILS-TYPE-008", ErrorModule.UTILS, ErrorType.TYPE, 8, "argument value too large")
     INVALID_INTEGER_TYPE = BaseErrorCode("UTILS-TYPE-009", ErrorModule.UTILS, ErrorType.TYPE, 9, "invalid integer type")
     ARGUMENT_TOO_SMALL = BaseErrorCode("UTILS-TYPE-010", ErrorModule.UTILS, ErrorType.TYPE, 10, "argument value too small")
