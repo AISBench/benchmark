@@ -209,6 +209,24 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
+## UTILS-TYPE-008
+### 错误描述
+暂未有直接解决方法。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-009
+### 错误描述
+暂未有直接解决方法。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## UTILS-TYPE-010
+### 错误描述
+暂未有直接解决方法。
+### 解决办法
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
 ## UTILS-PARAM-001
 ### 错误描述
 暂未有直接解决方法。
