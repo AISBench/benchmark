@@ -5,7 +5,7 @@ from ais_bench.benchmark.datasets import VocalSoundDataset, VocalSoundEvaluator
 
 
 vocalsound_reader_cfg = dict(
-    input_columns=['question', 'audio_url'],
+    input_columns=['question', 'audio'],
     output_column='answer'
 )
 
@@ -17,8 +17,6 @@ vocalsound_infer_cfg = dict(
             round=[
                 dict(role="HUMAN", prompt_mm={
                     "text": {"type": "text", "text": "{question}"},
-                    "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
-                    "video": {"type": "video_url", "video_url": {"url": "file://{video}"}},
                     "audio": {"type": "audio_url", "audio_url": {"url": "file://{audio}"}},
                 })
             ]

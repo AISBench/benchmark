@@ -10,7 +10,7 @@ metrics_list = {'text_block': {'metric': ['Edit_dist']},
                 'reading_order': {'metric': ['Edit_dist']}}
 
 omnidocbench_reader_cfg = dict(
-    input_columns=['image_url'],
+    input_columns=['question', 'image'],
     output_column='answer'
 )
 
