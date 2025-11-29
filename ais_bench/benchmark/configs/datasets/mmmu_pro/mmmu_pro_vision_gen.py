@@ -5,7 +5,7 @@ from ais_bench.benchmark.datasets import MMMUProVisionDataset, MMMUProEvaluator
 
 
 mmmu_pro_reader_cfg = dict(
-    input_columns=['content'],
+    input_columns=['question', 'image'],
     output_column='answer'
 )
 
@@ -17,8 +17,6 @@ mmmu_pro_infer_cfg = dict(
                 dict(role="HUMAN", prompt_mm={
                     "text": {"type": "text", "text": "{question}"},
                     "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
-                    "video": {"type": "video_url", "video_url": {"url": "file://{video}"}},
-                    "audio": {"type": "audio_url", "audio_url": {"url": "file://{audio}"}},
                 })
             ]
         )
