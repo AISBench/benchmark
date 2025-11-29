@@ -5,7 +5,7 @@ from ais_bench.benchmark.datasets import VideoMMEDataset, VideoMMEEvaluator
 
 
 videomme_reader_cfg = dict(
-    input_columns=['content'],
+    input_columns=['question', 'video'],
     output_column='answer'
 )
 
