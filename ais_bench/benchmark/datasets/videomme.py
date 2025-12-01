@@ -1,4 +1,5 @@
 import re
+import os
 import string
 import pandas as pd
 
@@ -31,7 +32,7 @@ class VideoMMEDataset(BaseDataset):
         dataset = []
         for i in range(len(data)):
             line = data.iloc[i]
-            video_url = video_path + '/' + line['videoID'] + '.mp4'
+            video_url = os.path.abspath(os.path.join(video_path, line['videoID'] + '.mp4'))
             line['question'] += '\n' + '\n'.join(line['options'].tolist())
             prompt = 'Question: {}\nAnswer: '.format(line['question'])
             content = AIS_VIDEO_START + video_url + AIS_CONTENT_TAG \

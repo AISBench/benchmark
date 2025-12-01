@@ -29,7 +29,7 @@ class OmniDocBenchDataset(BaseDataset):
         for item in data:
             item_bak = item.copy()
             item['answer'] = item_bak
-            image_url = image_path + '/' + item['page_info']['image_path']
+            image_url = os.path.abspath(os.path.join(image_path, item['page_info']['image_path']))
             item["content"] = AIS_IMAGE_START + image_url + AIS_CONTENT_TAG \
                                 + AIS_TEXT_START + DEFAULT_QUESTION + AIS_CONTENT_TAG
             dataset.append(item)

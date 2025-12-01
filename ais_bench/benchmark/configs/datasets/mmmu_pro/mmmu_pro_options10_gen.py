@@ -33,7 +33,7 @@ mmmu_pro_datasets = [
     dict(
         abbr='mmmu_pro',
         type=MMMUProOptions10Dataset,
-        path='ais_bench/datasets/mmmu/MMMU_Pro_10c.tsv', # 数据集路径，使用相对路径时相对于源码根路径，支持绝对路径
+        path='ais_bench/datasets/mmmu_pro/MMMU_Pro_10c.tsv', # 数据集路径，使用相对路径时相对于源码根路径，支持绝对路径
         is_cot=False,
         reader_cfg=mmmu_pro_reader_cfg,
         infer_cfg=mmmu_pro_infer_cfg,

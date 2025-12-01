@@ -33,7 +33,7 @@ videomme_datasets = [
     dict(
         abbr='videomme',
         type=VideoMMEDataset,
-        path='ais_bench/datasets/Video-MME/videomme/test-00000-of-00000.parquet', # 数据集路径，使用相对路径时相对于源码根路径，支持绝对路径
+        path='ais_bench/datasets/Video-MME/videomme/test-00000-of-00001.parquet', # 数据集路径，使用相对路径时相对于源码根路径，支持绝对路径
         video_path='ais_bench/datasets/Video-MME/video',
         reader_cfg=videomme_reader_cfg,
         infer_cfg=videomme_infer_cfg,
