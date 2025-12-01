@@ -211,21 +211,21 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 
 ## UTILS-TYPE-008
 ### 错误描述
-暂未有直接解决方法。
+命令行参数值过大。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+若报错日志为`'--max-num-workers' must be <= 8, but got 9 ......`，这说明命令行参数`--max-num-workers`的值为9，而工具限定范围内只支持8个最大并发数，因此需要将`--max-num-workers`参数值修正为 <= 8。
 
 ## UTILS-TYPE-009
 ### 错误描述
-暂未有直接解决方法。
+命令行参数值类型不是整数。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+若报错日志为`'--max-num-workers' must be an integer, but got '9' ......`，这说明命令行参数`--max-num-workers`的值为字符串'9'，而工具限定范围内只支持整数类型，因此需要将`--max-num-workers`参数值修正为整数类型。
 
 ## UTILS-TYPE-010
 ### 错误描述
-暂未有直接解决方法。
+命令行参数值过小。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+若报错日志为`'--max-num-workers' must be >= 1, but got 0 ......`，这说明命令行参数`--max-num-workers`的值为0，而工具限定范围内只支持1个以上并发数，因此需要将`--max-num-workers`参数值修正为 >= 1。
 
 ## UTILS-PARAM-001
 ### 错误描述

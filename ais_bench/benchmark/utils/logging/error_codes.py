@@ -218,9 +218,9 @@ class UTILS_CODES:
     INVALID_DICT_TYPE = BaseErrorCode("UTILS-TYPE-005", ErrorModule.UTILS, ErrorType.TYPE, 5, "invalid dict type") # user not awared
     INVALID_TYPE_SPECIFIER = BaseErrorCode("UTILS-TYPE-006", ErrorModule.UTILS, ErrorType.TYPE, 6, "invalid type specifier") # user not awared
     TYPE_MISMATCH = BaseErrorCode("UTILS-TYPE-007", ErrorModule.UTILS, ErrorType.TYPE, 7, "type mismatch in validation") # user not awared
-    ARGUMENT_TOO_LARGE = BaseErrorCode("UTILS-TYPE-008", ErrorModule.UTILS, ErrorType.TYPE, 8, "argument value too large")
-    INVALID_INTEGER_TYPE = BaseErrorCode("UTILS-TYPE-009", ErrorModule.UTILS, ErrorType.TYPE, 9, "invalid integer type")
-    ARGUMENT_TOO_SMALL = BaseErrorCode("UTILS-TYPE-010", ErrorModule.UTILS, ErrorType.TYPE, 10, "argument value too small")
+    ARGUMENT_TOO_LARGE = BaseErrorCode("UTILS-TYPE-008", ErrorModule.UTILS, ErrorType.TYPE, 8, "argument value too large") # docs coverd
+    INVALID_INTEGER_TYPE = BaseErrorCode("UTILS-TYPE-009", ErrorModule.UTILS, ErrorType.TYPE, 9, "invalid integer type") # docs coverd
+    ARGUMENT_TOO_SMALL = BaseErrorCode("UTILS-TYPE-010", ErrorModule.UTILS, ErrorType.TYPE, 10, "argument value too small") # docs coverd
 
     # Parameter validation errors
     ROOT_PATH_NOT_SET = BaseErrorCode("UTILS-PARAM-001", ErrorModule.UTILS, ErrorType.PARAM, 1, "root_path not set") # user not awared
