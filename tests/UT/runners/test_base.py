@@ -90,8 +90,7 @@ class TestTasksMonitor(unittest.TestCase):
             task_names=self.task_names,
             output_path=self.output_path,
             is_debug=False,
-            refresh_interval=0.5,
-            run_in_background=False
+            refresh_interval=0.5
         )
 
         self.assertEqual(len(monitor.tasks_state_map), 2)
@@ -208,8 +207,7 @@ class TestTasksMonitor(unittest.TestCase):
         monitor = TasksMonitor(
             task_names=self.task_names,
             output_path=self.output_path,
-            is_debug=True,
-            run_in_background=True
+            is_debug=True
         )
 
         # Mark tasks as finished

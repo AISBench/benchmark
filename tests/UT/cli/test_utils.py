@@ -4,7 +4,6 @@ from ais_bench.benchmark.cli.utils import (
     fill_model_path_if_datasets_need,
     fill_test_range_use_num_prompts,
     get_config_type,
-    is_running_in_background,
     get_current_time_str,
     validate_max_workers,
     validate_max_workers_per_gpu,
@@ -111,39 +110,6 @@ class TestUtils(unittest.TestCase):
 
         expected_type = f"{TestClass.__module__}.{TestClass.__name__}"
         self.assertEqual(get_config_type(TestClass), expected_type)
-
-    @patch('sys.stdin.isatty')
-    @patch('sys.stdout.isatty')
-    def test_is_running_in_background_true(self, mock_stdout_isatty, mock_stdin_isatty):
-        """测试is_running_in_background函数返回True的情况"""
-        # 模拟stdin和stdout都不是TTY
-        mock_stdin_isatty.return_value = False
-        mock_stdout_isatty.return_value = False
-
-        result = is_running_in_background()
-        self.assertTrue(result)
-
-    @patch('sys.stdin.isatty')
-    @patch('sys.stdout.isatty')
-    def test_is_running_in_background_false(self, mock_stdout_isatty, mock_stdin_isatty):
-        """测试is_running_in_background函数返回False的情况"""
-        # 模拟stdin和stdout都是TTY
-        mock_stdin_isatty.return_value = True
-        mock_stdout_isatty.return_value = True
-
-        result = is_running_in_background()
-        self.assertFalse(result)
-
-    @patch('sys.stdin.isatty')
-    @patch('sys.stdout.isatty')
-    def test_is_running_in_background_mixed(self, mock_stdout_isatty, mock_stdin_isatty):
-        """测试is_running_in_background函数在混合情况下的行为"""
-        # 模拟stdin是TTY但stdout不是TTY
-        mock_stdin_isatty.return_value = True
-        mock_stdout_isatty.return_value = False
-
-        result = is_running_in_background()
-        self.assertTrue(result)
 
     @patch('ais_bench.benchmark.cli.utils.datetime')
     def test_get_current_time_str(self, mock_datetime):
