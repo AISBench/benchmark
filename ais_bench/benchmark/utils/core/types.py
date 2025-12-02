@@ -14,14 +14,14 @@ logger = AISLogger()
 
 def check_type_list(obj, typelist: List):
     """Check if object matches any type in the type list.
-    
+
     Args:
         obj: Object to check
         typelist: List of acceptable types
-        
+
     Returns:
         The object if type check passes
-        
+
     Raises:
         AISBenchInvalidTypeException: If object doesn't match any type in list
     """
@@ -31,7 +31,7 @@ def check_type_list(obj, typelist: List):
                 return obj
         elif isinstance(obj, _type):
             return obj
-    
+
     expected_types = [ty.__name__ if ty is not None else None for ty in typelist]
     actual_type = type(obj).__name__
     raise AISBenchInvalidTypeException(
@@ -42,13 +42,13 @@ def check_type_list(obj, typelist: List):
 
 def check_dataset(obj) -> Union[Dataset, DatasetDict]:
     """Check if object is a valid HuggingFace Dataset.
-    
+
     Args:
         obj: Object to check
-        
+
     Returns:
         The dataset object if valid
-        
+
     Raises:
         AISBenchInvalidTypeException: If object is not a Dataset or DatasetDict
     """
@@ -63,13 +63,13 @@ def check_dataset(obj) -> Union[Dataset, DatasetDict]:
 
 def check_list(obj) -> list:
     """Check if object is a list.
-    
+
     Args:
         obj: Object to check
-        
+
     Returns:
         The list object if valid
-        
+
     Raises:
         AISBenchInvalidTypeException: If object is not a list
     """
@@ -83,13 +83,13 @@ def check_list(obj) -> list:
 
 def check_str(obj) -> str:
     """Check if object is a string.
-    
+
     Args:
         obj: Object to check
-        
+
     Returns:
         The string object if valid
-        
+
     Raises:
         AISBenchInvalidTypeException: If object is not a string
     """
@@ -104,13 +104,13 @@ def check_str(obj) -> str:
 
 def check_dict(obj) -> Dict:
     """Check if object is a dictionary.
-    
+
     Args:
         obj: Object to check
-        
+
     Returns:
         The dict object if valid
-        
+
     Raises:
         AISBenchInvalidTypeException: If object is not a dictionary
     """
@@ -127,14 +127,14 @@ _T = TypeVar("_T")
 
 def check_type(obj: Any, expected_type: Type[_T]) -> _T:
     """Generic type checker with detailed error messages.
-    
+
     Args:
         obj: Object to check
         expected_type: Expected type class
-        
+
     Returns:
         The object cast to expected type if valid
-        
+
     Raises:
         AISBenchInvalidTypeException: If object is not of expected type
     """
@@ -165,10 +165,10 @@ def check_type(obj: Any, expected_type: Type[_T]) -> _T:
 
 def _check_positive_int_value(obj) -> bool:
     """Check if object can be converted to a positive integer.
-    
+
     Args:
         obj: Object to check
-        
+
     Returns:
         True if object is a positive integer, False otherwise
     """
@@ -181,10 +181,10 @@ def _check_positive_int_value(obj) -> bool:
 
 def _check_percentage_float(obj) -> bool:
     """Check if object is a valid percentage (0 < value <= 1).
-    
+
     Args:
         obj: Object to check
-        
+
     Returns:
         True if object is valid percentage, False otherwise
     """
@@ -193,23 +193,23 @@ def _check_percentage_float(obj) -> bool:
     except (ValueError, TypeError):
         logger.warning(f"Value {obj} is not a valid percentage float.")
         return False
- 
+
 
 
 def check_meta_json_dict(obj) -> Dict:
     """Validate meta JSON dictionary structure and types.
-    
+
     Args:
         obj: Dictionary to validate
-        
+
     Returns:
         The validated dictionary
-        
+
     Raises:
         AISBenchInvalidTypeException: If validation fails
     """
     logger.debug("Validating meta JSON dict structure")
-    
+
     VALID_KEY_VALUE_TYPES = {
         "output_config": {
             "method": str,
@@ -231,7 +231,7 @@ def check_meta_json_dict(obj) -> Dict:
                 UTILS_CODES.ILLEGAL_KEYS_IN_CONFIG,
                 f"There are illegal keys: {', '.join(extra_keys)}"
             )
-        
+
         for key, value in data.items():
             expected_type = valid_key_value_types[key]
 
@@ -256,32 +256,32 @@ def check_meta_json_dict(obj) -> Dict:
                 continue
 
     validate_recursive(obj, VALID_KEY_VALUE_TYPES)
-    
+
     if "request_count" in obj:
         if not _check_positive_int_value(obj["request_count"]):
             raise AISBenchConfigError(
                 UTILS_CODES.INVALID_REQUEST_COUNT,
                 "Please make sure that the value of parameter 'request_count' can be converted to int(greater than 0)."
             )
-    
+
     logger.debug("Meta JSON dict validation passed")
     return obj
 
 
 def _check_percentage_distribute(obj) -> bool:
     """Check if percentage distribution list is valid.
-    
+
     Args:
         obj: List to check
-        
+
     Returns:
         True if valid distribution, False otherwise
     """
     if not isinstance(obj, list):
         return False
-    
+
     percentage_sum = Decimal("0.0")
-    
+
     for i in obj:
         if not isinstance(i, list) or len(i) != 2:
             return False
@@ -292,31 +292,31 @@ def _check_percentage_distribute(obj) -> bool:
 
 def check_output_config_from_meta_json(obj) -> bool:
     """Validate output_config section from meta JSON.
-    
+
     Args:
         obj: Dictionary containing output_config
-        
+
     Returns:
         True if validation passes
-        
+
     Raises:
         ConfigError: If validation fails
     """
     if obj == {} or "output_config" not in obj:
         logger.debug("No output_config found in meta JSON")
         return False
-    
+
     logger.debug("Validating output_config from meta JSON")
     output_config = obj["output_config"]
     method = output_config.get("method", None)
     param = output_config.get("params", None)
-    
+
     if not param:
         raise AISBenchConfigError(
             UTILS_CODES.MISSING_PARAMS,
             "Make sure to set the 'params' parameter in the 'output_config'."
         )
-    
+
     if method == "uniform":
         if "min_value" in param and "max_value" in param:
             if (not _check_positive_int_value(param["min_value"])) or (
@@ -358,5 +358,5 @@ def check_output_config_from_meta_json(obj) -> bool:
         return True
     raise AISBenchConfigError(
         UTILS_CODES.UNSUPPORTED_DISTRIBUTION_METHOD,
-        f"Type of data distribution: {method} Not supported."
+        f"Type of data distribution(method): {method} is not supported, legal methods chosen from ['uniform', 'percentage']."
     )

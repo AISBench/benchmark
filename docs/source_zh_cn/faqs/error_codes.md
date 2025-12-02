@@ -161,9 +161,16 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 ```
 因为`models`配置中包含了`'service'`和`'local'`两种参数取值，而工具只支持统一配置一种，因此需要将`models`配置中`attr`参数设置为`'service'`或`'local'`中的一种。
 
+## UTILS-CFG-008
+### 错误描述
+加载的多模态数据集内容非法。
+### 解决办法
+1. 若报错日志为`Invalid dataset: /path/to/non-mm-dataset , please check whether the dataset is a MM-style dataset!`，说明指定的数据集`/path/to/non-mm-dataset`不是一个合法的多模态风格的数据集，合法的数据集中每条数据至少包含`type`或`path`字段，如果包含`type`字段，那么`type`字段取值必须为`["image", "video", "audio"]`之一。
+2. 若报错日志为`Param 'mm_type' does not match the data type of dataset: /path/to/mm-dataset , please check it!`，说明指定的数据集`/path/to/mm-dataset`是一个合法的多模态风格的数据集，但是数据集配置文件中的提示词工程配置的`mm_type`字段取值非法，而合法的`mm_type`字段取值必须为`["image", "video", "audio"]`之一。
+
 ## UTILS-DEPENDENCY-001
 ### 错误描述
-部分数据集组件的独立运行依赖库未安装。
+加载的数据集不是一个合法的多模态风格的数据集。
 ### 解决办法
 若详细报错日志为`Failed to import required modules. Please install the necessary packages: pip install math_verify`，那么就参照详细日志的指引，执行`pip install math_verify`安装依赖库。
 
@@ -237,91 +244,81 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 ### 错误描述
 自定数据集场景下，配置文件`*.meta.json`中`request_count`参数不在合法范围。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+若报错为`Please make sure that the value of parameter 'request_count' can be converted to int(greater than 0).`，说明`*.meta.json`中`request_count`参数需要设置为 > 0。
 
 ## UTILS-PARAM-003
 ### 错误描述
-暂未有直接解决方法。
+自定数据集场景下，配置文件`*.meta.json`中`min_value`参数大于`max_value`参数。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+若报错为`When the uniform distribution is set, parameter 'min_value' must be less than or equal to parameter 'max_value'.`，说明`*.meta.json`中`min_value`参数需要设置为 <= `max_value`参数，需要修正为`min_value` <= `max_value`。
 
 ## UTILS-PARAM-004
 ### 错误描述
-暂未有直接解决方法。
+自定数据集场景下，配置文件`*.meta.json`中`min_value`和`max_value`参数不在合法范围
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-005
 ### 错误描述
-暂未有直接解决方法。
+自定数据集场景下，配置文件`*.meta.json`中缺少必要参数。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+例如报错为`When the uniform distribution is set, parameter 'min_value' and 'max_value' must be provided.`，说明在uniform场景下，`*.meta.json`中需要同时设置`min_value`和`max_value`参数。
 
 ## UTILS-PARAM-006
 ### 错误描述
-暂未有直接解决方法。
+自定数据集场景下，配置文件`*.meta.json`中`percentage_distribute`参数不合法
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+`percentage_distribute`的参数合法取值范围在详细日志中有介绍：
+```
+ Ensure the configuration data follows the format [max_tokens, percentage], where:
+    - 'max_tokens' must be a positive number (greater than 0).
+    - 'percentage' must be a float between 0 and 1 (greater than 0 and inclusive 1).
+    - The sum of all 'percentage' values must equal exactly 1.
+    Example valid format: [[1000, 0.5],[500,0.5]] or [[2000, 1.0]]
+    Example invalid formats: [[0, 0.5]] (max_tokens <= 0), [[1000, 1.5]] (percentage > 1), [[1000, 0.3], [500,0.2]] (sum not 1)
+```
 
 ## UTILS-PARAM-007
 ### 错误描述
-暂未有直接解决方法。
+自定数据集场景下，配置文件`*.meta.json`中，定义数据分发方式的`method`参数值不在合法范围内。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+若报错为`Type of data distribution(method): uniform1 not supported, legal methods chosen from ['uniform', 'percentage'].`，说明`*.meta.json`中`method`参数值`uniform1`不在合法范围内，需要修正为`method`参数值为`uniform`或`percentage`。
+
 
 ## UTILS-PARAM-008
 ### 错误描述
-暂未有直接解决方法。
+自定数据集场景下，配置文件`*.meta.json`中包含非法字段。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
-
-## UTILS-FILE-001
-### 错误描述
-暂未有直接解决方法。
-### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+若具体报错为`There are illegal keys: xxxxxx,yyyyyy`，说明`*.meta.json`中包含了`xxxxxx`和`yyyyyy`这两个非法字段，需要将这两个字段从`*.meta.json`中删除。
 
 ## UTILS-FILE-002
 ### 错误描述
-暂未有直接解决方法。
+模型配置文件中`path`参数表示的tokenizer路径不存在。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+若模型配置文件中内容为：
+```python
+# vllm_stream_api_chat.py中
+models = [
+    dict(
+        # ......
+        path="/path/to/invalid",
+        # ......
+    ),
+]
+```
+具体报错日志为`Tokenizer path '/path/to/invalid' does not exist`，说明模型配置文件中`path`参数指定的tokenizer路径`/path/to/invalid`不存在（取空也是属于不存在），需要修正为存在的tokenizer路径。
 
 ## UTILS-FILE-003
 ### 错误描述
-暂未有直接解决方法。
+加载tokenizer文件失败。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+若报错为`Failed to load tokenizer from /path/to/tokenizer: ExceptionName: XXXXXX`，请确认`/path/to/tokenizer`路径下的tokenizer文件与当前运行环境的`transformers`版本是否匹配，若匹配，请依据`XXXXXX`表示的具体1报错信息做进一步的问题定位。
 
 ## UTILS-FILE-004
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
-
-## UTILS-CFG-005
-### 错误描述
-暂未有直接解决方法。
-### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
-
-## UTILS-CFG-006
-### 错误描述
-暂未有直接解决方法。
-### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
-
-## UTILS-CFG-007
-### 错误描述
-暂未有直接解决方法。
-### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
-
-## UTILS-CFG-008
-### 错误描述
-暂未有直接解决方法。
-### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
 
 ## PARTI-FILE-001
 ### 错误描述
@@ -984,9 +981,27 @@ cmmlu_infer_cfg = dict(
 
 ## MODEL-PARAM-003
 ### 错误描述
-暂未有直接解决方法。
+数据集配置文件中提示词工程chat模板的`role`参数的取值bu在合法范围。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+若数据集配置文件中chat模板相关的配置如下：
+```python
+# 以aime2024_gen_0_shot_chat_prompt.py为例
+aime2024_infer_cfg = dict(
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict(
+            round=[
+                dict(
+                    role="HUMAN1",
+                    prompt="{question}\nPlease reason step by step, and put your final answer within \\boxed{}.",
+                ),
+            ],
+        ),
+    ),
+    # ......
+)
+```
+报错日志为`Unknown role HUMAN1 in chat template, legal role chosen from ['HUMAN', 'BOT', 'SYSTEM'].`说明chat模板中role参数的值为HUMAN1，而合法的role值为HUMAN、BOT、SYSTEM，因此需要将role参数值修正为HUMAN、BOT、SYSTEM中的一个。
 
 ## MODEL-PARAM-004
 ### 错误描述
@@ -1002,9 +1017,34 @@ cmmlu_infer_cfg = dict(
 
 ## MODEL-TYPE-001
 ### 错误描述
-暂未有直接解决方法。
+数据集配置文件中，提示词工程模板中不支持一组字符串。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+若数据集配置文件中提示词模板相关的配置如下：
+```python
+# 以aime2024_gen_0_shot_chat_prompt.py为例
+aime2024_infer_cfg = dict(
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict(
+            round=[ # list中包含多个字符串
+                "{question}\nPlease reason step by step, and put your final answer within \\boxed{}.",
+                "{question}\nPlease reason step by step, and put your final answer within \\boxed{}."
+            ],
+        ),
+    ),
+    # ......
+)
+```
+则会出现报错：`Mixing str without explicit role is not allowed in API models!`，请将`round`改为合法的chat模板，例如:
+```python
+round=[
+    dict(
+        role="HUMAN1",
+        prompt="{question}\nPlease reason step by step, and put your final answer within \\boxed{}.",
+    ),
+],
+```
+
 ## MODEL-TYPE-002
 ### 错误描述
 暂未有直接解决方法。
@@ -1025,33 +1065,73 @@ cmmlu_infer_cfg = dict(
 
 ## MODEL-DATA-001
 ### 错误描述
-暂未有直接解决方法。
+模型任务向被测推理服务获取模型名称信息失败。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
-
+若报错为`Failed to get service model path from http://url-to-infer-service. Error: XXXXXX`，说明访问`http://url-to-infer-service/v1/models`失败，需要检查被测推理服务是否正常运行，以及是否开启了`/v1/models`子服务，也可依据具体报错`XXXXXX`，定位访问`http://url-to-infer-service/v1/models`失败的原因。若url`http://url-to-infer-service/`不支持`v1/models`子服务，可以在模型配置文件中在`model`参数中配置模型名称，例如：
+```python
+# vllm_api_stream_chat.py中
+models = [
+    dict(
+        # ......
+        model="name_of_model",
+        # ......
+    )
+]
+```
 ## MODEL-DATA-002
 ### 错误描述
-暂未有直接解决方法。
+数据集配置文件中未包含必要参数。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+若报错为`Invalid prompt content: without 'prompt' or 'prompt_mm' param!`，说明数据集配置文件中未包含`prompt`或`prompt_mm`参数之一，需要在数据集配置文件中添加这两个参数之一，例如：
+```python
+# 以aime2024_gen_0_shot_chat_prompt.py为例
+aime2024_infer_cfg = dict(
+    prompt_template=dict(
+        type=PromptTemplate,
+        template=dict(
+            round=[
+                dict( # 必须包含prompt或prompt_mm字段之一
+                    role="HUMAN",
+                    prompt="{question}\nPlease reason step by step, and put your final answer within \\boxed{}.",
+                ),
+            ],
+        ),
+    ),
+    # ......
+)
+
+
+
+```
 
 ## MODEL-DATA-003
 ### 错误描述
-暂未有直接解决方法。
+以JSON格式解析请求的返回结果时失败。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+若报错为`"Unexpected response format. Please check 'error_info' in ***_details.jsonl for more information.`，那么需要在当前推理任务落盘路径（例如`outputs/default/20250628_151326/performances/vllm-api-stream-chat/`）下的***_details.jsonl文件中查看具体的错误信息(`error_info`字段的内容)，并进一步寻求解决方法。
 
 ## MODEL-CFG-001
 ### 错误描述
-暂未有直接解决方法。
+本地模型配置文件中未配置`max_seq_len`参数。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+若报错为`max_seq_len is not provided and cannot be inferred from the model config.`说明需要在本地模型配置文件中添加`max_seq_len`参数，例如：
+```python
+# hf_chat_model.py中
+models = [
+    dict(
+        attr="local",
+        # ......
+        max_seq_len=2048,
+        # ......
+    )
+]
+```
 
 ## MODEL-MOD-001
 ### 错误描述
-暂未有直接解决方法。
+模型执行需要的特殊依赖未安装。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+若报错为`fastchat module not found. Please install with\npip install "fschat[model_worker,webui]"`，说明缺少`fastchat`这个依赖，可以执行`pip install "fschat[model_worker,webui]"`安装。
 
 ## DSET-CFG-001
 ### 错误描述

@@ -115,7 +115,7 @@ def _format_with_fast_chat_template(inputs: List[str], name: str='vicuna'):
             else:
                 raise AISBenchValueError(
                     MODEL_CODES.INVALID_ROLE_IN_CHAT_TEMPLATE,
-                    f"Unknown role {item['role']} in chat template."
+                    f"Unknown role {item['role']} in chat template, legal role chosen from ['HUMAN', 'BOT', 'SYSTEM']."
                 )
         template.append_message(template.roles[1], None)
         outputs.append(template.get_prompt())
@@ -200,12 +200,12 @@ class HuggingFacewithChatTemplate(BaseModel):
         self.tokenizer = None
         # Initialize performance statistics
         self.latencies, self.counts, self.timestamps = [], [], []
-        
+
         # Load tokenizer and model
         self._load_tokenizer(tokenizer_path or path, tokenizer_kwargs, pad_token_id)
         if not tokenizer_only:
             self._load_model(path=path, kwargs=model_kwargs, peft_path=peft_path, peft_kwargs=peft_kwargs)
-        
+
         # Set stop_words (needs to be after tokenizer is loaded)
         self.stop_words = list(set(stop_words + self._get_potential_stop_words(path)))
         self.logger.info(f'using stop words: {self.stop_words}')

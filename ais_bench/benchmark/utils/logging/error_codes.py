@@ -183,21 +183,21 @@ class MODEL_CODES:
     PARSE_STREAM_RSP_NOT_IMPLEMENTED = BaseErrorCode("MODEL-IMPL-002", ErrorModule.MODEL, ErrorType.IMPLEMENTATION, 2, "parse stream response not implemented") # docs coverd
 
     INVALID_ROLE_IN_PROMPT_TEMPLATE = BaseErrorCode("MODEL-PARAM-002", ErrorModule.MODEL, ErrorType.PARAM, 2, "invalid role in prompt template") # docs coverd
-    INVALID_ROLE_IN_CHAT_TEMPLATE = BaseErrorCode("MODEL-PARAM-003", ErrorModule.MODEL, ErrorType.PARAM, 3, "invalid role in chat template")
-    MISS_REQUIRED_PARAM_IN_META_TEMPLATE = BaseErrorCode("MODEL-PARAM-004", ErrorModule.MODEL, ErrorType.PARAM, 4, "miss required param in meta template")
-    ROLE_IN_META_TEMPLATE_IS_NOT_UNIQUE = BaseErrorCode("MODEL-PARAM-005", ErrorModule.MODEL, ErrorType.PARAM, 5, "role in meta prompt must be unique!")
+    INVALID_ROLE_IN_CHAT_TEMPLATE = BaseErrorCode("MODEL-PARAM-003", ErrorModule.MODEL, ErrorType.PARAM, 3, "invalid role in chat template") # docs coverd
+    MISS_REQUIRED_PARAM_IN_META_TEMPLATE = BaseErrorCode("MODEL-PARAM-004", ErrorModule.MODEL, ErrorType.PARAM, 4, "miss required param in meta template") # user not awared
+    ROLE_IN_META_TEMPLATE_IS_NOT_UNIQUE = BaseErrorCode("MODEL-PARAM-005", ErrorModule.MODEL, ErrorType.PARAM, 5, "role in meta prompt must be unique!") # user not awared
 
-    MIX_STR_WITHOUT_EXPLICIT_ROLE = BaseErrorCode("MODEL-TYPE-001", ErrorModule.MODEL, ErrorType.TYPE, 1, "mixing str without explicit role is not allowed")
-    PARSE_TEMPLATE_INVALID_TYPE = BaseErrorCode("MODEL-TYPE-002", ErrorModule.MODEL, ErrorType.TYPE, 2, "invalid prompt template type")
-    PARSE_TEMPLATE_INVALID_MODE = BaseErrorCode("MODEL-TYPE-003", ErrorModule.MODEL, ErrorType.TYPE, 3, "invalid mode in prompt template")
-    INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE = BaseErrorCode("MODEL-TYPE-004", ErrorModule.MODEL, ErrorType.TYPE, 4, "invalid type of param in meta template")
+    MIX_STR_WITHOUT_EXPLICIT_ROLE = BaseErrorCode("MODEL-TYPE-001", ErrorModule.MODEL, ErrorType.TYPE, 1, "mixing str without explicit role is not allowed") # docs coverd
+    PARSE_TEMPLATE_INVALID_TYPE = BaseErrorCode("MODEL-TYPE-002", ErrorModule.MODEL, ErrorType.TYPE, 2, "invalid prompt template type") # user not awared
+    PARSE_TEMPLATE_INVALID_MODE = BaseErrorCode("MODEL-TYPE-003", ErrorModule.MODEL, ErrorType.TYPE, 3, "invalid mode in prompt template") # user not awared
+    INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE = BaseErrorCode("MODEL-TYPE-004", ErrorModule.MODEL, ErrorType.TYPE, 4, "invalid type of param in meta template") # user not awared
 
-    GET_SERVICE_MODEL_PATH_FAILED = BaseErrorCode("MODEL-DATA-001", ErrorModule.MODEL, ErrorType.DATA, 1, "fail to get service model path")
-    INVALID_PROMPT_CONTENT = BaseErrorCode("MODEL-DATA-002", ErrorModule.MODEL, ErrorType.DATA, 2, "invalid prompt content")
-    PARSE_TEXT_RSP_INVALID_FORMAT = BaseErrorCode("MODEL-DATA-003", ErrorModule.MODEL, ErrorType.DATA, 3, "parse text response invalid format")
+    GET_SERVICE_MODEL_PATH_FAILED = BaseErrorCode("MODEL-DATA-001", ErrorModule.MODEL, ErrorType.DATA, 1, "fail to get service model path") # docs coverd
+    INVALID_PROMPT_CONTENT = BaseErrorCode("MODEL-DATA-002", ErrorModule.MODEL, ErrorType.DATA, 2, "invalid prompt content") # docs coverd
+    PARSE_TEXT_RSP_INVALID_FORMAT = BaseErrorCode("MODEL-DATA-003", ErrorModule.MODEL, ErrorType.DATA, 3, "parse text response invalid format") # docs coverd
 
-    MAX_SEQ_LEN_NOT_FOUND = BaseErrorCode("MODEL-CFG-001", ErrorModule.MODEL, ErrorType.CONFIG, 1, "max_seq_len is not provided and cannot be inferred from the model config.")
-    MODULE_NOT_FOUND = BaseErrorCode("MODEL-MOD-001", ErrorModule.MODEL, ErrorType.MODULE, 1, "module not found")
+    MAX_SEQ_LEN_NOT_FOUND = BaseErrorCode("MODEL-CFG-001", ErrorModule.MODEL, ErrorType.CONFIG, 1, "max_seq_len is not provided and cannot be inferred from the model config.") # docs coverd
+    MODULE_NOT_FOUND = BaseErrorCode("MODEL-MOD-001", ErrorModule.MODEL, ErrorType.MODULE, 1, "module not found") # docs coverd
 
 
 
@@ -208,7 +208,7 @@ class UNK_CODES:
 class UTILS_CODES:
     UNKNOWN_ERROR = BaseErrorCode("UTILS-UNK-001", ErrorModule.UTILS, ErrorType.UNKNOWN, 1, "unknown error of utils")
     MATCH_CONFIG_FILE_FAILED = BaseErrorCode("UTILS-MATCH-001", ErrorModule.UTILS, ErrorType.MATCH, 1, "match config file failed") # docs coverd
-    DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "third party dependency module import error")
+    DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "third party dependency module import error") # docs coverd
 
     # Type validation errors
     INVALID_TYPE = BaseErrorCode("UTILS-TYPE-001", ErrorModule.UTILS, ErrorType.TYPE, 1, "invalid object type") # user not awared
@@ -224,32 +224,25 @@ class UTILS_CODES:
 
     # Parameter validation errors
     ROOT_PATH_NOT_SET = BaseErrorCode("UTILS-PARAM-001", ErrorModule.UTILS, ErrorType.PARAM, 1, "root_path not set") # user not awared
-    INVALID_REQUEST_COUNT = BaseErrorCode("UTILS-PARAM-002", ErrorModule.UTILS, ErrorType.PARAM, 2, "invalid request_count value") # user not awared
-    INVALID_MIN_MAX_VALUE = BaseErrorCode("UTILS-PARAM-003", ErrorModule.UTILS, ErrorType.PARAM, 3, "invalid min_value or max_value")
-    MIN_GREATER_THAN_MAX = BaseErrorCode("UTILS-PARAM-004", ErrorModule.UTILS, ErrorType.PARAM, 4, "min_value greater than max_value")
-    MISSING_PARAMS = BaseErrorCode("UTILS-PARAM-005", ErrorModule.UTILS, ErrorType.PARAM, 5, "missing required params")
-    INVALID_PERCENTAGE_DISTRIBUTE = BaseErrorCode("UTILS-PARAM-006", ErrorModule.UTILS, ErrorType.PARAM, 6, "invalid percentage_distribute format")
-    UNSUPPORTED_DISTRIBUTION_METHOD = BaseErrorCode("UTILS-PARAM-007", ErrorModule.UTILS, ErrorType.PARAM, 7, "unsupported distribution method")
-    ILLEGAL_KEYS_IN_CONFIG = BaseErrorCode("UTILS-PARAM-008", ErrorModule.UTILS, ErrorType.PARAM, 8, "illegal keys in configuration")
+    INVALID_REQUEST_COUNT = BaseErrorCode("UTILS-PARAM-002", ErrorModule.UTILS, ErrorType.PARAM, 2, "invalid request_count value") # docs coverd
+    INVALID_MIN_MAX_VALUE = BaseErrorCode("UTILS-PARAM-003", ErrorModule.UTILS, ErrorType.PARAM, 3, "invalid min_value or max_value") # docs coverd
+    MIN_GREATER_THAN_MAX = BaseErrorCode("UTILS-PARAM-004", ErrorModule.UTILS, ErrorType.PARAM, 4, "min_value greater than max_value") # docs coverd
+    MISSING_PARAMS = BaseErrorCode("UTILS-PARAM-005", ErrorModule.UTILS, ErrorType.PARAM, 5, "missing required params") # docs coverd
+    INVALID_PERCENTAGE_DISTRIBUTE = BaseErrorCode("UTILS-PARAM-006", ErrorModule.UTILS, ErrorType.PARAM, 6, "invalid percentage_distribute format") # docs coverd
+    UNSUPPORTED_DISTRIBUTION_METHOD = BaseErrorCode("UTILS-PARAM-007", ErrorModule.UTILS, ErrorType.PARAM, 7, "unsupported distribution method") # docs coverd
+    ILLEGAL_KEYS_IN_CONFIG = BaseErrorCode("UTILS-PARAM-008", ErrorModule.UTILS, ErrorType.PARAM, 8, "illegal keys in configuration") # docs coverd
 
     # File errors
-    MATCH_CONFIG_FILE_FAILED = BaseErrorCode("UTILS-FILE-001", ErrorModule.UTILS, ErrorType.FILE, 1, "match config file failed")
-    TOKENIZER_PATH_NOT_FOUND = BaseErrorCode("UTILS-FILE-002", ErrorModule.UTILS, ErrorType.FILE, 2, "tokenizer path not found")
-    TOKENIZER_LOAD_FAILED = BaseErrorCode("UTILS-FILE-003", ErrorModule.UTILS, ErrorType.FILE, 3, "tokenizer load failed")
-    CHART_FILE_NOT_FOUND = BaseErrorCode("UTILS-FILE-004", ErrorModule.UTILS, ErrorType.FILE, 4, "chart file not found")
+    TOKENIZER_PATH_NOT_FOUND = BaseErrorCode("UTILS-FILE-002", ErrorModule.UTILS, ErrorType.FILE, 2, "tokenizer path not found") # docs coverd
+    TOKENIZER_LOAD_FAILED = BaseErrorCode("UTILS-FILE-003", ErrorModule.UTILS, ErrorType.FILE, 3, "tokenizer load failed") # docs coverd
+    CHART_FILE_NOT_FOUND = BaseErrorCode("UTILS-FILE-004", ErrorModule.UTILS, ErrorType.FILE, 4, "chart file not found") # user not awared
 
     # Config validation errors
     SYNTHETIC_DS_MISS_REQUIRED_PARAM = BaseErrorCode("UTILS-CFG-001", ErrorModule.UTILS, ErrorType.CONFIG, 1, "synthetic dataset miss required param") # docs coverd
     MODEL_CONFIG_VALIDATE_FAILED = BaseErrorCode("UTILS-CFG-002", ErrorModule.UTILS, ErrorType.CONFIG, 2, "model config validate failed") # docs coverd
     ILLEGAL_MODEL_ATTR = BaseErrorCode("UTILS-CFG-003", ErrorModule.UTILS, ErrorType.CONFIG, 3, "illegal model attr in config") # docs coverd
     MIXED_MODEL_ATTRS = BaseErrorCode("UTILS-CFG-004", ErrorModule.UTILS, ErrorType.CONFIG, 4, "mixed model attrs in config") # docs coverd
-    NON_FUNCTION_CALL_MODEL = BaseErrorCode("UTILS-CFG-005", ErrorModule.UTILS, ErrorType.CONFIG, 5, "non function call model found for BFCLDataset")
-    NON_BFCL_DATASET = BaseErrorCode("UTILS-CFG-006", ErrorModule.UTILS, ErrorType.CONFIG, 6, "non BFCL dataset found for VLLMFunctionCallAPIChat")
-    INCOMPATIBLE_MERGE_DS = BaseErrorCode("UTILS-CFG-007", ErrorModule.UTILS, ErrorType.CONFIG, 7, "incompatible --merge-ds option for function call task")
-    MM_CUSTOM_DATASET_WRONG_FORMAT = BaseErrorCode("UTILS-CFG-008", ErrorModule.UTILS, ErrorType.CONFIG, 8, "invalid mm custom dataset")
-
-    # Dependency/runtime errors (additional)
-    DEPENDENCY_MODULE_IMPORT_ERROR = BaseErrorCode("UTILS-DEPENDENCY-001", ErrorModule.UTILS, ErrorType.DEPENDENCY, 1, "failed to import dependency module")
+    MM_CUSTOM_DATASET_WRONG_FORMAT = BaseErrorCode("UTILS-CFG-008", ErrorModule.UTILS, ErrorType.CONFIG, 8, "invalid mm custom dataset") # docs coverd
 
 class CALC_CODES:
     UNKNOWN_ERROR = BaseErrorCode("CALC-UNK-001", ErrorModule.CALCULATOR, ErrorType.UNKNOWN, 1, "unknown error of calculator")

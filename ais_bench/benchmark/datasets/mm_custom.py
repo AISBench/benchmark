@@ -25,7 +25,7 @@ DATA_TYPE_TAG_DICT = {
 
 @LOAD_DATASET.register_module()
 class MMCustomDataset(BaseDataset):
-    
+
     @staticmethod
     def load(path, mm_type, num_frames=5):
         """
@@ -49,7 +49,9 @@ class MMCustomDataset(BaseDataset):
         """
         path = get_data_path(path, local_mode=True)
         if not check_mm_custom(path):
-            raise AISBenchConfigError(UTILS_CODES.MM_CUSTOM_DATASET_WRONG_FORMAT,"Invalid dataset, please check it!")
+            raise AISBenchConfigError(UTILS_CODES.MM_CUSTOM_DATASET_WRONG_FORMAT,
+                f"Invalid dataset: {path} , please check whether the dataset is a MM-style dataset!"
+            )
 
         dataset = []
         with open(path, 'r', encoding='utf-8') as f:
@@ -83,13 +85,16 @@ class MMCustomDataset(BaseDataset):
                             content += data_base64
                             content += AIS_CONTENT_TAG
                 else:
-                    raise AISBenchConfigError(UTILS_CODES.MM_CUSTOM_DATASET_WRONG_FORMAT,"Invalid type in dataset, please check it!")
+                    raise AISBenchConfigError(
+                        UTILS_CODES.MM_CUSTOM_DATASET_WRONG_FORMAT,
+                        f"Param 'mm_type' does not match the data type of dataset: {path} , please check it!"
+                    )
                 content += AIS_TEXT_START
                 content += line['question']
                 line['content'] = content
                 dataset.append(line)
         return Dataset.from_list(dataset)
-        
+
 
 class MMCustomEvaluator(BaseEvaluator):
 
