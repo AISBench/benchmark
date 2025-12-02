@@ -487,6 +487,12 @@ Failed to start worker x: XXXXXX, total workers to launch: 4
 1. 若该报错日志的出现次数与总进程数一致，则说明所有进程都启动失败，需要检查具体失败的原因并做相应处理后重试。
 2. 若该报错日志的出现次数小于总进程数，则说明有进程启动失败，部分进程启动失败不影响评测任务的执行，但是会影响实际的的最大并发数`batch_size`，请根据实际情况自行决定是否需要手动中断先定位具体失败的原因。
 
+## TINFER-RUNTIME-001
+### 错误描述
+测评推理服务化时，在预热阶段所有请求失败。
+### 解决办法
+若报错日志为`Exit task because all warmup requests failed, failed reasons: XXXXXX`，请根据具体的失败原因`XXXXXX`定位问题并做相应处理后重试。
+
 ## TEVAL-PARAM-001
 ### 错误描述
 推理生成候选解个数`n`和从其中采集的样本数`k`的取值非法
@@ -651,11 +657,7 @@ PPL推理场景下某次推理结果中没有任何tokenid导致无法计算loss
 ### 解决办法
 若日志为`Get result from cache queue failed: XXXXXX`其中`XXXXXX`为获取推理结果失败的具体原因，请依据具体原因做相应的处理（例如如果是超时相关的异常，请确认推理服务的超时时间是否设置合理或者检查当前配置能否正常访问推理服务）。
 
-<<<<<<< HEAD
 ## ICLI-RUNTIME-002
-=======
-## TINFER-RUNTIME-001
->>>>>>> master_center
 ### 错误描述
 预热访问推理服务时，推理服务返回的结果显示推理失败
 ### 解决办法

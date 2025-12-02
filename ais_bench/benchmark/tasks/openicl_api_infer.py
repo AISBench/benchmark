@@ -389,8 +389,10 @@ class OpenICLApiInferTask(BaseTask):
                 self.logger.info(warm_up_log)
             if warmup_results["success"] == 0:
                 task_state_manager.update_task_state({"status": "Warmup failed"})
-                raise AISBenchRuntimeError(TINFER_CODES.WARMUP_FAILED, f"Exit task because all warmup requests failed, failed reasons: {dict(warmup_results['failed_reasons'])}")
-
+                raise AISBenchRuntimeError(
+                    TINFER_CODES.WARMUP_FAILED,
+                    f"Exit task because all warmup requests failed, failed reasons: {dict(warmup_results['failed_reasons'])}"
+                )
         else:
             self.logger.info(f"Warmup size is 0, skip...")
 
