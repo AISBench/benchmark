@@ -170,7 +170,7 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 
 ## UTILS-DEPENDENCY-001
 ### 错误描述
-加载的数据集不是一个合法的多模态风格的数据集。
+执行过程中缺少必要依赖模块。
 ### 解决办法
 若详细报错日志为`Failed to import required modules. Please install the necessary packages: pip install math_verify`，那么就参照详细日志的指引，执行`pip install math_verify`安装依赖库。
 
