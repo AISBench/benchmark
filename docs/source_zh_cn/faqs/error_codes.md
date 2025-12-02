@@ -977,7 +977,7 @@ cmmlu_infer_cfg = dict(
 
 ## MODEL-PARAM-003
 ### 错误描述
-数据集配置文件中提示词工程chat模板的`role`参数的取值bu在合法范围。
+数据集配置文件中提示词工程chat模板的`role`参数的取值不在合法范围。
 ### 解决办法
 若数据集配置文件中chat模板相关的配置如下：
 ```python
