@@ -423,7 +423,7 @@ class BaseApiInferencer(BaseInferencer):
                 # Pressure mode: exit when stable state is reached
                 if self.pressure_mode:
                     if  len(tasks) >= num_workers: # stable state is reached
-                        self.logger.info(f"Pressure mode, process {os.getpid()} stop add concurrency due to stable state is reached")
+                        self.logger.info(f"Pressure mode, process {os.getpid()} stop add concurrency due to max concurrency is reached")
                         break
                     if time.perf_counter() - start_time >= self.pressure_time: # pressure timeout is reached
                         self.logger.warning(
