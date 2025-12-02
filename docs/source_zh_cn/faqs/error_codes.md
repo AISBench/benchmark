@@ -1135,21 +1135,34 @@ models = [
 
 ## DSET-CFG-001
 ### 错误描述
-暂未有直接解决方法。
+数据集配置文件中缺少`path`字段指定数据集路径。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+若报错为`The 'path' argument is required to load the dataset.`，说明数据集配置文件中未包含`path`字段，需要在数据集配置文件中添加`path`字段，例如：
+```python
+# aime2024_gen_0_shot_chat_prompt.py中
+aime2024_datasets = [
+    dict(
+        abbr='aime2024',
+        type=Aime2024Dataset,
+        path='ais_bench/datasets/aime/aime.jsonl', # 必填字段，配置数据集路径
+        # ......
+    )
+]
+```
 
 ## DSET-FILE-001
 ### 错误描述
-暂未有直接解决方法。
+数据集文件不存在。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+1. 若报错为`Path is not a directory or Parquet file: /path/to/dataset.jsonl`，说明`/path/to/dataset.jsonl`不是所需的`.parquet`格式的数据集，请确认数据集格式符合预期。
+2. 若报错为`No Parquet file found in /path/to/dataset/.`，说明在`/path/to/dataset/`路径下找不到`.parquet`格式的数据集，请确认数据集格式符合预期。
+3. 若报错为`"Dataset file not found: /path/to/dataset/`，说明数据集路径`/path/to/dataset/`本身不存在，请确认数据集路径是否与预期传入的一致。
 
 ## DSET-DATA-002
 ### 错误描述
-暂未有直接解决方法。
+数据集内容结构不合法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+请依据详细报错的信息检查数据集内容中存在的格式问题。
 
 ## DSET-DATA-005
 ### 错误描述
@@ -1165,21 +1178,45 @@ models = [
 
 ## DSET-PARAM-002
 ### 错误描述
-暂未有直接解决方法。
+推理生成候选解个数`n`和从其中采集的样本数`k`的取值非法
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+若报错日志为
+```bash
+Maximum value of `k` 4 must be less than or equal to `n` 8
+```
+则表示`k`大于`n`，需要将`k`配置为一个小于等于`n`的整数。
+例如：
+1. 在数据集配置文件中配置了`n`和`k`两个参数，则在配置文件中将两个参数的取值设置为合法范围的值：
+```python
+# 在aime2024_gen_0_shot_str.py中 k参数对应`k`
+aime2024_datasets = [
+    dict(
+        abbr='aime2024',
+        type=Aime2024Dataset,
+        # ......
+        k=4,
+        n=8,
+    )
+]
+```
 
 ## DSET-PARAM-004
 ### 错误描述
-暂未有直接解决方法。
+数据集配置文件中参数非法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+请依据详细报错的信息检查数据集配置文件中内容中存在的参数取值非法问题。
 
 ## DSET-DEPENDENCY-002
 ### 错误描述
-暂未有直接解决方法。
+缺少数据集任务evaluate所需的依赖。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+若报错为:
+```bash
+Please install human_eval use following steps:
+git clone git@github.com:open-compass/human-eval.git
+cd human-eval && pip install -e .
+```
+参加该报错日志内容依次执行`git clone git@github.com:open-compass/human-eval.git`和`cd human-eval && pip install -e .`安装`human-eval`库
 
 ## DSET-MTRC-001
 ### 错误描述

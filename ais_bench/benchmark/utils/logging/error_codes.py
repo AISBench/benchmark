@@ -254,25 +254,25 @@ class CALC_CODES:
 class DSET_CODES:
     UNKNOWN_ERROR = BaseErrorCode("DSET-UNK-001", ErrorModule.DATASET, ErrorType.UNKNOWN, 1, "unknown error of dataset")
 
-    INVALID_DATASET_CONFIG = BaseErrorCode("DSET-CFG-001", ErrorModule.DATASET, ErrorType.CONFIG, 1, "invalid dataset config")
+    INVALID_DATASET_CONFIG = BaseErrorCode("DSET-CFG-001", ErrorModule.DATASET, ErrorType.CONFIG, 1, "invalid dataset config") # docs coverd
     # File related errors
-    FILE_NOT_FOUND = BaseErrorCode("DSET-FILE-001", ErrorModule.DATASET, ErrorType.FILE, 1, "dataset file not found")
+    FILE_NOT_FOUND = BaseErrorCode("DSET-FILE-001", ErrorModule.DATASET, ErrorType.FILE, 1, "dataset file not found") # docs coverd
 
     # Data related errors
-    DATA_INVALID_STRUCTURE = BaseErrorCode("DSET-DATA-002", ErrorModule.DATASET, ErrorType.DATA, 2, "dataset has invalid structure")
-    DATA_PREPROCESSING_ERROR = BaseErrorCode("DSET-DATA-005", ErrorModule.DATASET, ErrorType.DATA, 5, "data preprocessing or cleaning failed")
-    INVALID_DATA_TYPE = BaseErrorCode("DSET-DATA-006", ErrorModule.DATASET, ErrorType.DATA, 6, "data type does not match expected type")
+    DATA_INVALID_STRUCTURE = BaseErrorCode("DSET-DATA-002", ErrorModule.DATASET, ErrorType.DATA, 2, "dataset has invalid structure") # docs coverd
+    DATA_PREPROCESSING_ERROR = BaseErrorCode("DSET-DATA-005", ErrorModule.DATASET, ErrorType.DATA, 5, "data preprocessing or cleaning failed") # user not awared
+    INVALID_DATA_TYPE = BaseErrorCode("DSET-DATA-006", ErrorModule.DATASET, ErrorType.DATA, 6, "data type does not match expected type") # user not awared
 
     # Parameter related errors
-    INVALID_REPEAT_FACTOR = BaseErrorCode("DSET-PARAM-002", ErrorModule.DATASET, ErrorType.PARAM, 2, "invalid repeat factor")
-    INVALID_PARAM_VALUE = BaseErrorCode("DSET-PARAM-004", ErrorModule.DATASET, ErrorType.PARAM, 4, "invalid parameter value")
+    INVALID_REPEAT_FACTOR = BaseErrorCode("DSET-PARAM-002", ErrorModule.DATASET, ErrorType.PARAM, 2, "invalid repeat factor") # docs coverd
+    INVALID_PARAM_VALUE = BaseErrorCode("DSET-PARAM-004", ErrorModule.DATASET, ErrorType.PARAM, 4, "invalid parameter value") # docs coverd
 
     # Dependency related errors
-    EVALUATION_LIBRARY_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-002", ErrorModule.DATASET, ErrorType.DEPENDENCY, 2, "evaluation library not installed")
+    EVALUATION_LIBRARY_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-002", ErrorModule.DATASET, ErrorType.DEPENDENCY, 2, "evaluation library not installed") # docs coverd
 
     # Evaluation related errors
-    PREDICTION_LENGTH_MISMATCH = BaseErrorCode("DSET-MTRC-001", ErrorModule.DATASET, ErrorType.METRIC, 1, "prediction and reference have different length")
-    INVALID_MBPP_METRIC = BaseErrorCode("DSET-MTRC-003", ErrorModule.DATASET, ErrorType.METRIC, 3, "invalid MBPP metric type")
+    PREDICTION_LENGTH_MISMATCH = BaseErrorCode("DSET-MTRC-001", ErrorModule.DATASET, ErrorType.METRIC, 1, "prediction and reference have different length") # user not awared
+    INVALID_MBPP_METRIC = BaseErrorCode("DSET-MTRC-003", ErrorModule.DATASET, ErrorType.METRIC, 3, "invalid MBPP metric type") # user not awared
 
 
 ERROR_CODES_CLASSES = [
