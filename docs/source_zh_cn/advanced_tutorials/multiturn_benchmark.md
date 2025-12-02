@@ -63,7 +63,7 @@ from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_n
 models = [
     dict(
         attr="service",
-        type=VllmCustomAPIChat,
+        type=VLLMCustomAPIChat,
         abbr='vllm-api-chat-stream',
         path="",                       # 指定模型序列化词表文件绝对路径，一般来说就是模型权重文件夹路径
         model="",                      # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置

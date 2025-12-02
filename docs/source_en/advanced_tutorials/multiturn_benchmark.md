@@ -76,7 +76,7 @@ from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_n
 models = [
     dict(
         attr="service",
-        type=VllmCustomAPIChat,
+        type=VLLMCustomAPIChat,
         abbr='vllm-api-chat-stream',
         path="",                       # Specify the absolute path to the model's serialized vocabulary file (usually the model weight folder path)
         model="",                      # Specify the name of the model loaded on the server (configure based on the actual model pulled by the vLLM inference service)

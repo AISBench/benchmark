@@ -7,12 +7,12 @@
 ## 测评能力介绍
 当前支持多模态数据的性能与精度测评，不同模型后端和数据集支持度如下：
 
-模型后端支持列表：
+### 模型后端支持列表：
 + ✅vLLM/vLLM Ascend/MindIE Service等服务化在线推理
 + ✅vLLM/vLLM Ascend离线推理
 + ✅QwenVL等transformers纯模型推理
 
-数据集支持列表：
+### 数据集支持列表：
 + ✅TextVQA（图片+文本）
 + ✅MMMU（图片+文本）
 + ✅MMMU_Pro（图片+文本）
@@ -144,7 +144,7 @@ ais_bench --models vllm_api_stream_chat --datasets textvqa_gen --mode perf --sea
 
 - 快速入门中数据集任务配置文件`textvqa_gen.py`不需要做额外修改，数据集任务配置文件内容介绍可参考📚 [配置开源数据集](../base_tutorials/all_params/datasets.md#配置开源数据集)
 
-模型配置文件`vllm_api_stream_chat.py`中包含了模型运行相关的配置内容，是需要依据实际情况修改的。快速入门中需要修改的内容用注释标明。
+- 模型配置文件`vllm_api_stream_chat.py`中包含了模型运行相关的配置内容，是需要依据实际情况修改的。快速入门中需要修改的内容用注释标明。
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content
@@ -152,7 +152,7 @@ from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_n
 models = [
     dict(
         attr="service",
-        type=VllmCustomAPIChat,
+        type=VLLMCustomAPIChat,
         abbr='vllm-api-chat-stream',
         path="",                       # 指定模型序列化词表文件绝对路径，一般来说就是模型权重文件夹路径
         model="",                      # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置
