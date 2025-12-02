@@ -7,8 +7,7 @@ from ais_bench.benchmark.utils.config.run import (
     get_config_type,
     get_models_attr,
     fill_infer_cfg,
-    fill_eval_cfg,
-    function_call_task_check
+    fill_eval_cfg
 )
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
@@ -139,109 +138,6 @@ class TestRunConfig(unittest.TestCase):
         self.assertEqual(cfg['eval']['runner']['max_num_workers'], 4)
         self.assertEqual(cfg['eval']['runner']['max_workers_per_gpu'], 2)
         self.assertEqual(cfg['eval']['runner']['debug'], False)
-
-    @patch('ais_bench.benchmark.utils.config.run.logger')
-    def test_function_call_task_check_all_function_call(self, mock_logger):
-        """Test function_call_task_check with all function call models and BFCL datasets."""
-        from mmengine.config import Config
-
-        cfg = Config({
-            'models': [
-                {'type': 'ais_bench.benchmark.models.VLLMFunctionCallAPIChat'},
-                {'type': 'ais_bench.benchmark.models.VLLMFunctionCallAPIChat'}
-            ],
-            'datasets': [
-                {'type': 'ais_bench.benchmark.datasets.BFCLDataset'},
-                {'type': 'ais_bench.benchmark.datasets.BFCLDataset'}
-            ]
-        })
-
-        function_call_task_check(cfg, merge_ds=False)
-
-        self.assertTrue(cfg.get('is_function_call_task', False))
-
-    @patch('ais_bench.benchmark.utils.config.run.logger')
-    def test_function_call_task_check_mixed_models_error(self, mock_logger):
-        """Test function_call_task_check raises error with BFCL dataset and non-function-call model."""
-        cfg = ConfigDict({
-            'models': [
-                {'type': 'ais_bench.benchmark.models.VLLMCustomAPIChat'},  # Not function call
-            ],
-            'datasets': [
-                {'type': 'ais_bench.benchmark.datasets.BFCLDataset'}
-            ]
-        })
-
-        with self.assertRaises(AISBenchConfigError) as cm:
-            function_call_task_check(cfg, merge_ds=False)
-        self.assertEqual(cm.exception.error_code_str, UTILS_CODES.NON_FUNCTION_CALL_MODEL.full_code)
-
-    @patch('ais_bench.benchmark.utils.config.run.logger')
-    def test_function_call_task_check_mixed_datasets_error(self, mock_logger):
-        """Test function_call_task_check raises error with function call model and non-BFCL dataset."""
-        cfg = ConfigDict({
-            'models': [
-                {'type': 'ais_bench.benchmark.models.VLLMFunctionCallAPIChat'}
-            ],
-            'datasets': [
-                {'type': 'ais_bench.benchmark.datasets.GSM8KDataset'}  # Not BFCL
-            ]
-        })
-
-        with self.assertRaises(AISBenchConfigError) as cm:
-            function_call_task_check(cfg, merge_ds=False)
-        self.assertEqual(cm.exception.error_code_str, UTILS_CODES.NON_BFCL_DATASET.full_code)
-
-    @patch('ais_bench.benchmark.utils.config.run.logger')
-    def test_function_call_task_check_with_merge_ds_error(self, mock_logger):
-        """Test function_call_task_check raises error when merge_ds is True for function call task."""
-        cfg = ConfigDict({
-            'models': [
-                {'type': 'ais_bench.benchmark.models.VLLMFunctionCallAPIChat'}
-            ],
-            'datasets': [
-                {'type': 'ais_bench.benchmark.datasets.BFCLDataset'}
-            ]
-        })
-
-        with self.assertRaises(AISBenchConfigError) as cm:
-            function_call_task_check(cfg, merge_ds=True)
-        self.assertEqual(cm.exception.error_code_str, UTILS_CODES.INCOMPATIBLE_MERGE_DS.full_code)
-
-    @patch('ais_bench.benchmark.utils.config.run.logger')
-    def test_function_call_task_check_not_function_call_task(self, mock_logger):
-        """Test function_call_task_check with non-function-call configuration."""
-        from mmengine.config import Config
-
-        cfg = Config({
-            'models': [
-                {'type': 'ais_bench.benchmark.models.VLLMCustomAPIChat'}
-            ],
-            'datasets': [
-                {'type': 'ais_bench.benchmark.datasets.GSM8KDataset'}
-            ]
-        })
-
-        function_call_task_check(cfg, merge_ds=False)
-
-        self.assertFalse(cfg.get('is_function_call_task', True))
-
-    @patch('ais_bench.benchmark.utils.config.run.logger')
-    def test_function_call_task_check_partial_function_call_models(self, mock_logger):
-        """Test function_call_task_check with some function call models."""
-        cfg = ConfigDict({
-            'models': [
-                {'type': 'ais_bench.benchmark.models.VLLMFunctionCallAPIChat'},
-                {'type': 'ais_bench.benchmark.models.VLLMCustomAPIChat'}  # Mixed
-            ],
-            'datasets': [
-                {'type': 'ais_bench.benchmark.datasets.BFCLDataset'}
-            ]
-        })
-
-        with self.assertRaises(AISBenchConfigError):
-            function_call_task_check(cfg, merge_ds=False)
-
 
 if __name__ == "__main__":
     unittest.main()
