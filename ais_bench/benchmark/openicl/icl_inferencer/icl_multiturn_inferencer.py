@@ -66,7 +66,7 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         self, data: dict, token_bucket: BoundedSemaphore, session: aiohttp.ClientSession
     ):
         """Execute a single inference request.
-        
+
         Args:
             data: Dictionary containing request.
             token_bucket: Semaphore for rate limiting
@@ -79,13 +79,13 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         elif self.infer_mode == "every_with_gt":
             await self.infer_every_with_gt(data, session)
         else:
-            raise ParameterValueError(ICLI_CODES.MULTITRUN_MODE_OUT_OF_RANGE, 
+            raise ParameterValueError(ICLI_CODES.MULTITRUN_MODE_OUT_OF_RANGE,
                                       f"Multiturn dialogue infer model only supports every、last or every_with_gt, but got {self.infer_mode}")
         await self.status_counter.case_finish()
 
     async def infer_last(self, data: dict, session: aiohttp.ClientSession):
         """Conducts a single inference on the entire multi-turn dialogue at once.
-        
+
         Args:
             data: Dictionary containing request
             session: HTTP session for the request
@@ -96,7 +96,7 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         data_abbr = data.pop("data_abbr")
         max_out_len = data.pop("max_out_len")
         gold = data.pop("gold", None)
-        uid = uuid.uuid4().hex[:8]
+        uid = str(uuid.uuid4()).replace("-", "")
         start_prompt, chat, end_prompt = chat[:1], chat[1:-1], chat[-1:]
         bot_indices = [i for i, item in enumerate(chat) if item['role'] == 'BOT']
         history = PromptList(chat[:bot_indices[-1]])
@@ -110,7 +110,7 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         await self.model.generate(history, max_out_len, output, session=session, **data)
         if output.success:
             await self.status_counter.rev()
-        else: 
+        else:
             await self.status_counter.failed()
         await self.status_counter.finish()
         await self.output_handler.report_cache_info(index, history, output, data_abbr, gold)
@@ -118,7 +118,7 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
 
     async def infer_every(self, data: dict, session: aiohttp.ClientSession):
         """Performs turn-by-turn inference, concatenating the model's previous output into the context.
-        
+
         Args:
             data: Dictionary containing request
             session: HTTP session for the request
@@ -129,7 +129,7 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         data_abbr = data.pop("data_abbr")
         max_out_len = data.pop("max_out_len")
         gold = data.pop("gold", None)
-        uid = uuid.uuid4().hex[:8]
+        uid = str(uuid.uuid4()).replace("-", "")
         start_prompt, chat, end_prompt = chat[:1], chat[1:-1], chat[-1:]
         bot_indices = [i for i, item in enumerate(chat) if item['role'] == 'BOT']
         turn_id = 0
@@ -156,9 +156,9 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
 
 
     async def infer_every_with_gt(self, data: dict, session: aiohttp.ClientSession):
-        """Carries out turn-by-turn inference, 
+        """Carries out turn-by-turn inference,
             always appending the ground-truth response from the dataset as context.
-        
+
         Args:
             data: Dictionary containing request
             session: HTTP session for the request
@@ -169,7 +169,7 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         data_abbr = data.pop("data_abbr")
         max_out_len = data.pop("max_out_len")
         gold = data.pop("gold", None)
-        uid = uuid.uuid4().hex[:8]
+        uid = str(uuid.uuid4()).replace("-", "")
         start_prompt, chat, end_prompt = chat[:1], chat[1:-1], chat[-1:]
         bot_indices = [i for i, item in enumerate(chat) if item['role'] == 'BOT']
         turn_id = 0
@@ -197,10 +197,10 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         retriever: BaseRetriever,
     ):
         """Generate data list for inference.
-        
+
         Args:
             retriever: The retriever instance to get data from
-            
+
         Returns:
             List of data dictionaries for inference
         """

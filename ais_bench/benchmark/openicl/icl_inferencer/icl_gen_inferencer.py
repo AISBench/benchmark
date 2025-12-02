@@ -74,7 +74,7 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
         data_abbr = data.pop("data_abbr")
         max_out_len = data.pop("max_out_len")
         gold = data.pop("gold", None)
-        uid = uuid.uuid4().hex[:8]
+        uid = str(uuid.uuid4()).replace("-", "")
         output = RequestOutput(self.perf_mode)
         output.uuid = uid
         await self.status_counter.post()

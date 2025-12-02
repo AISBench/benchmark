@@ -480,7 +480,7 @@ class BFCLV3FunctionCallInferencer(BaseApiInferencer):
 
     async def do_request(self, data: dict, token_bucket: BoundedSemaphore, session: ClientSession) -> None:
         finial_output = FunctionCallOutput(self.perf_mode)
-        finial_output.uuid = uuid.uuid4().hex[:8]
+        finial_output.uuid = str(uuid.uuid4()).replace("-", "")
         if "multi_turn" in data.get("data_name"):
             await self._inference_multi_turn(data, finial_output, session)
         else:
@@ -541,7 +541,7 @@ class BFCLV3FunctionCallInferencer(BaseApiInferencer):
                 )
                 tools = inference_data.get("tools") if self.returns_tool_calls else None
                 output = FunctionCallOutput(self.perf_mode)
-                output.uuid = uuid.uuid4().hex[:8]
+                output.uuid = str(uuid.uuid4()).replace("-", "")
                 await self.status_counter.post()
                 await self.model.generate(
                     prompt_list,
@@ -567,7 +567,7 @@ class BFCLV3FunctionCallInferencer(BaseApiInferencer):
                     )
                     break
                 await self.status_counter.finish()
-                
+
                 ret = await asyncio.to_thread(
                     self.decode_multi_turn_response,
                     data,

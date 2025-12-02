@@ -43,7 +43,7 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
             "success": (
                 output.success if isinstance(output, Output) else True
             ),
-            "uuid": output.uuid if isinstance(output, Output) else uuid.uuid4().hex[:8],
+            "uuid": output.uuid if isinstance(output, Output) else str(uuid.uuid4()).replace("-", ""),
             "origin_prompt": input if input is not None else "",
             "prediction": (
                 output.get_prediction()
