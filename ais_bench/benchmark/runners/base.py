@@ -41,7 +41,6 @@ class TasksMonitor:
         output_path: str,
         is_debug: bool = False,
         refresh_interval:float = 0.3,
-        run_in_background: bool = False,
     ):
         self.logger = AISLogger()
         self.output_path = output_path
@@ -55,14 +54,24 @@ class TasksMonitor:
         self.task_end_status_list = {task_name: [] for task_name in task_names}
         self.is_debug = is_debug
         self.refresh_interval = refresh_interval
-        self.run_in_background = run_in_background
+        self.run_in_background = self.is_running_in_background() if not self.is_debug else True
         self.last_table = None
         self.logger.info(f"Launch TasksMonitor, "
                     f"PID: {os.getpid()}, "
                     f"Refresh interval: {self.refresh_interval}, "
                     f"Run in background: {self.run_in_background}"
                     )
-    
+
+    def is_running_in_background(self):
+        try:
+            curses.initscr()    # raise if not link to terminal
+            curses.curs_set(0)  # raise if terminal not support cursor
+            curses.endwin()     # raise when call curses incorrect
+        except Exception as e:
+            self.logger.warning(f"Can't set cursor because of {e}, running in background mode")
+            return True
+        return False
+
     @staticmethod
     def rm_tmp_files(work_dir: str):
         """
@@ -89,17 +98,17 @@ class TasksMonitor:
             status = state.get("status")
             if status not in ("finish", "error", "killed"):
                 unfinished_tasks.append((task_name, status))
-        
+
         if unfinished_tasks:
             return False
-        
+
         self.logger.debug("All tasks are finished")
         return True
 
     def _refresh_task_state(self):
         start_time = time.time()
         statuses = read_and_clear_statuses(self.tmp_file_path, self.tmp_file_name_list)
-        
+
         if len(statuses) == 0:
             # check whether process exist
             for task_name, state in self.tasks_state_map.items():
@@ -128,7 +137,7 @@ class TasksMonitor:
             self.tasks_state_map[task_name]['finish_count'] = status.get('finish_count')
             self.tasks_state_map[task_name]['total_count'] = status.get('total_count')
             self.tasks_state_map[task_name]['progress_description'] = status.get('progress_description')
-            
+
             if status.get('status'):
                 self.tasks_state_map[task_name]['status'] = status['status']
             self.tasks_state_map[task_name]['other_kwargs'] = status.get('other_kwargs')
@@ -166,7 +175,7 @@ class TasksMonitor:
             for _, state in self.tasks_state_map.items():
                 if state.get("status") == "finish" or state.get("status") == "error":
                     cur_count += 1
-            
+
             if cur_count > pbar.n:
                 pbar.update(cur_count - pbar.n)
             # break when all the task finished

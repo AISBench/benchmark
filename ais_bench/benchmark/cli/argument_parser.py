@@ -1,6 +1,5 @@
 import argparse
 from ais_bench.benchmark.cli.utils import (
-    is_running_in_background,
     get_current_time_str,
     validate_max_workers,
     validate_max_workers_per_gpu,
@@ -22,7 +21,6 @@ class ArgumentParser():
 
     def parse_args(self):
         args = self.parser.parse_args()
-        args.run_in_background = is_running_in_background()
         args.cfg_time_str = args.dir_time_str = get_current_time_str()
         if args.dry_run:
             args.debug = True

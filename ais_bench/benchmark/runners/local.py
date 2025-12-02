@@ -79,12 +79,12 @@ class LocalRunner(BaseRunner):
         self.logger.debug(f"LocalRunner.launch called with {len(tasks)} task(s)")
         task_names = [task_abbr_from_cfg(task) for task in tasks]
 
-        def monitor_process(task_names, output_path, is_debug, refresh_interval=0.5, run_in_background=False):
-            tasks_monitor = TasksMonitor(task_names, output_path, is_debug, refresh_interval, run_in_background)
+        def monitor_process(task_names, output_path, is_debug, refresh_interval=0.5):
+            tasks_monitor = TasksMonitor(task_names, output_path, is_debug, refresh_interval)
             tasks_monitor.launch_state_board()
         monitor_p = multiprocessing.Process(
             target=monitor_process,
-            args=(task_names, tasks[0]['work_dir'], self.debug, 0.5, tasks[0]['cli_args']['run_in_background'])
+            args=(task_names, tasks[0]['work_dir'], self.debug, 0.5)
 
         )
         self.logger.debug(f"Task monitor process started (PID: {monitor_p.pid})")

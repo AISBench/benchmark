@@ -13,12 +13,10 @@ class TestArgumentParser(unittest.TestCase):
         # 恢复原始的sys.argv
         sys.argv = self.original_argv.copy()
 
-    @patch('ais_bench.benchmark.cli.argument_parser.is_running_in_background')
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
-    def test_parse_args_default(self, mock_get_current_time_str, mock_is_running_in_background):
+    def test_parse_args_default(self, mock_get_current_time_str):
         """测试默认参数解析"""
         # 模拟返回值
-        mock_is_running_in_background.return_value = False
         mock_get_current_time_str.return_value = "20230516_144254"
 
         # 设置命令行参数
@@ -29,7 +27,6 @@ class TestArgumentParser(unittest.TestCase):
         args = parser.parse_args()
 
         # 验证结果
-        self.assertFalse(args.run_in_background)
         self.assertEqual(args.cfg_time_str, "20230516_144254")
         self.assertEqual(args.dir_time_str, "20230516_144254")
         self.assertFalse(args.debug)
@@ -41,12 +38,10 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.num_warmups, 1)
         self.assertIsNone(args.num_prompts)
 
-    @patch('ais_bench.benchmark.cli.argument_parser.is_running_in_background')
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
-    def test_parse_args_with_config(self, mock_get_current_time_str, mock_is_running_in_background):
+    def test_parse_args_with_config(self, mock_get_current_time_str):
         """测试带有配置文件路径的参数解析"""
         # 模拟返回值
-        mock_is_running_in_background.return_value = True
         mock_get_current_time_str.return_value = "20230516_144254"
 
         # 设置命令行参数
@@ -57,15 +52,12 @@ class TestArgumentParser(unittest.TestCase):
         args = parser.parse_args()
 
         # 验证结果
-        self.assertTrue(args.run_in_background)
         self.assertEqual(args.config, 'configs/test_config.py')
 
-    @patch('ais_bench.benchmark.cli.argument_parser.is_running_in_background')
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
-    def test_parse_args_dry_run_sets_debug(self, mock_get_current_time_str, mock_is_running_in_background):
+    def test_parse_args_dry_run_sets_debug(self, mock_get_current_time_str):
         """测试dry_run模式会设置debug为True"""
         # 模拟返回值
-        mock_is_running_in_background.return_value = False
         mock_get_current_time_str.return_value = "20230516_144254"
 
         # 设置命令行参数
@@ -79,12 +71,10 @@ class TestArgumentParser(unittest.TestCase):
         self.assertTrue(args.dry_run)
         self.assertTrue(args.debug)  # dry_run应该设置debug为True
 
-    @patch('ais_bench.benchmark.cli.argument_parser.is_running_in_background')
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
-    def test_parse_args_base_options(self, mock_get_current_time_str, mock_is_running_in_background):
+    def test_parse_args_base_options(self, mock_get_current_time_str):
         """测试基础选项参数解析"""
         # 模拟返回值
-        mock_is_running_in_background.return_value = False
         mock_get_current_time_str.return_value = "20230516_144254"
 
         # 设置命令行参数
@@ -112,12 +102,10 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.num_prompts, 10)
         self.assertEqual(args.num_warmups, 3)
 
-    @patch('ais_bench.benchmark.cli.argument_parser.is_running_in_background')
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
-    def test_parse_args_reuse_option(self, mock_get_current_time_str, mock_is_running_in_background):
+    def test_parse_args_reuse_option(self, mock_get_current_time_str):
         """测试reuse选项参数解析"""
         # 模拟返回值
-        mock_is_running_in_background.return_value = False
         mock_get_current_time_str.return_value = "20230516_144254"
 
         # 测试reuse不带参数
@@ -132,12 +120,10 @@ class TestArgumentParser(unittest.TestCase):
         args = parser.parse_args()
         self.assertEqual(args.reuse, '20230516_144254')
 
-    @patch('ais_bench.benchmark.cli.argument_parser.is_running_in_background')
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
-    def test_parse_args_accuracy_options(self, mock_get_current_time_str, mock_is_running_in_background):
+    def test_parse_args_accuracy_options(self, mock_get_current_time_str):
         """测试精度评估相关选项参数解析"""
         # 模拟返回值
-        mock_is_running_in_background.return_value = False
         mock_get_current_time_str.return_value = "20230516_144254"
 
         # 设置命令行参数
@@ -152,12 +138,10 @@ class TestArgumentParser(unittest.TestCase):
         self.assertTrue(args.dump_eval_details)
         self.assertTrue(args.dump_extract_rate)
 
-    @patch('ais_bench.benchmark.cli.argument_parser.is_running_in_background')
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
-    def test_parse_args_perf_options(self, mock_get_current_time_str, mock_is_running_in_background):
+    def test_parse_args_perf_options(self, mock_get_current_time_str):
         """测试性能评估相关选项参数解析"""
         # 模拟返回值
-        mock_is_running_in_background.return_value = False
         mock_get_current_time_str.return_value = "20230516_144254"
 
         # 测试pressure选项
@@ -174,12 +158,10 @@ class TestArgumentParser(unittest.TestCase):
         self.assertTrue(args.pressure)
         self.assertEqual(args.pressure_time, 30)
 
-    @patch('ais_bench.benchmark.cli.argument_parser.is_running_in_background')
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
-    def test_parse_args_custom_dataset_options(self, mock_get_current_time_str, mock_is_running_in_background):
+    def test_parse_args_custom_dataset_options(self, mock_get_current_time_str):
         """测试自定义数据集相关选项参数解析"""
         # 模拟返回值
-        mock_is_running_in_background.return_value = False
         mock_get_current_time_str.return_value = "20230516_144254"
 
         # 设置命令行参数
@@ -198,12 +180,10 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.custom_dataset_data_type, 'mcq')
         self.assertEqual(args.custom_dataset_infer_method, 'gen')
 
-    @patch('ais_bench.benchmark.cli.argument_parser.is_running_in_background')
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
-    def test_parse_args_mcq_and_gen_options(self, mock_get_current_time_str, mock_is_running_in_background):
+    def test_parse_args_mcq_and_gen_options(self, mock_get_current_time_str):
         """测试mcq数据类型和gen推理方法选项"""
         # 模拟返回值
-        mock_is_running_in_background.return_value = False
         mock_get_current_time_str.return_value = "20230516_144254"
 
         # 设置命令行参数

@@ -2331,6 +2331,7 @@ class OCRBenchV2Dataset(BaseDataset):
     def load(path):
         path = get_data_path(path)
         image_root_path = os.path.join(os.path.dirname(path), "OCRBench_v2_images")
+        logger.info(f"Convert base64 to image and save it in {image_root_path}")
         skip_noimg = True
         
         data = pd.read_csv(path, sep='\t')
@@ -2514,10 +2515,11 @@ class OCRBenchV2Evaluator(BaseEvaluator):
         res_data_list = process_predictions(predict_result)
         en_scores, cn_scores = ocrbench_v2_aggregate_accuracy(res_data_list)
         final_score_dict = {}
-        if len(en_scores) > 0:
-            score_en_overall = sum(en_scores.values()) / len(en_scores)
-            final_score_dict["English Overall Score"] = score_en_overall
-        if len(cn_scores) > 0:
-            score_cn_overall = sum(cn_scores.values()) / len(cn_scores)
-            final_score_dict["Chinese Overall Score"] = score_cn_overall
+        score_groups = {
+            "English Overall Score": en_scores,
+            "Chinese Overall Score": cn_scores,
+        }
+        for name, scores in score_groups.items():
+            if len(scores) > 0:
+                final_score_dict[name] = 100 * sum(scores.values()) / len(scores)
         return final_score_dict

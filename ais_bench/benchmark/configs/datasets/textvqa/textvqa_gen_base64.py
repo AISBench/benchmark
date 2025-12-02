@@ -5,7 +5,7 @@ from ais_bench.benchmark.datasets import TEXTVQADataset, TEXTEvaluator
 
 
 textvqa_reader_cfg = dict(
-    input_columns=['question', 'image_url'],
+    input_columns=['question', 'image'],
     output_column='answer'
 )
 
@@ -18,8 +18,6 @@ textvqa_infer_cfg = dict(
                 dict(role="HUMAN", prompt_mm={
                     "text": {"type": "text", "text": "{question} Answer the question using a single word or phrase."},
                     "image": {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,{image}"}},
-                    "video": {"type": "video_url", "video_url": {"url": "data:video/jpeg;base64,{video}"}},
-                    "audio": {"type": "audio_url", "audio_url": {"url": "data:audio/wav;base64,{audio}"}},
                 })
             ]
             )

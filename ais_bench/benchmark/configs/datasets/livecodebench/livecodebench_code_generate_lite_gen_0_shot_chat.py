@@ -11,13 +11,13 @@ from ais_bench.benchmark.datasets import (
 )
 from ais_bench.benchmark.datasets.livecodebench import TestOutputPromptConstants
 
+DATASET_RELEASE_VERSION = 'v4_v5' ## same with DeepSeek-R1 Evaluation: LiveCodeBench (Jain et al., 2024) (2024-08 – 2025-01)
 
 lcb_code_generation_reader_cfg = dict(
     input_columns=[
         'question_content',
         'format_prompt',
     ],
-    # output_column='evaluation_sample',
     output_column='question_id',
 )
 
@@ -49,7 +49,7 @@ lcb_code_generation_eval_cfg = dict(
         type=LCBCodeGenerationEvaluator,
         num_process_evaluate=4,
         timeout=500,
-        release_version='v4_v5',
+        release_version=DATASET_RELEASE_VERSION,
     ),
     pred_role='BOT',
 )
@@ -58,7 +58,7 @@ LCBCodeGeneration_dataset = dict(
     type=LCBCodeGenerationDataset,
     abbr='lcb_code_generation',
     path='ais_bench/datasets/code_generation_lite', # https://huggingface.co/datasets/livecodebench/code_generation_lite/tree/main
-    release_version='v4_v5', ## same with DeepSeek-R1 Evaluation: LiveCodeBench (Jain et al., 2024) (2024-08 – 2025-01)
+    release_version=DATASET_RELEASE_VERSION,
     reader_cfg=lcb_code_generation_reader_cfg,
     infer_cfg=lcb_code_generation_infer_cfg,
     eval_cfg=lcb_code_generation_eval_cfg

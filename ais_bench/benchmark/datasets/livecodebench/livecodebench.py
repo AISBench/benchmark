@@ -53,7 +53,7 @@ class LCBCodeGenerationDataset(BaseDataset):
 
     @staticmethod
     def load(path: str = 'ais_bench/datasets/code_generation_lite',
-             local_mode: bool = False,
+             local_mode: bool = True,
              release_version: str = 'release_v1'):
 
         def transform(item):
@@ -98,7 +98,7 @@ class LCBCodeGenerationDataset(BaseDataset):
 
             return item
 
-        path = get_data_path(path, local_mode=True)
+        path = get_data_path(path, local_mode=local_mode)
 
         dataset = load_dataset(
             path,  # 'livecodebench/code_generation_lite'

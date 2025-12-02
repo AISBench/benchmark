@@ -44,6 +44,13 @@ AISBench Benchmark当前支持的数据集类型如下：
 | winogrande       | 常识推理（代词消解）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/winogrande/README.md) |
 | Xsum             | 文本生成（摘要）       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/Xsum/README.md) |
 | BFCL             | 函数调用能力评估        | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README.md) |
+| FewCLUE_bustm    | 短文本语义匹配          | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_bustm/README.md) |
+| FewCLUE_chid     | 阅读理解填空            | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_chid/README.md) |
+| FewCLUE_cluewsc  | 代词消歧                | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_cluewsc/README.md) |
+| FewCLUE_csl      | 关键词识别              | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_csl/README.md) |
+| FewCLUE_eprstmt  | 情感分析                | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_eprstmt/README.md) |
+| FewCLUE_tnews    | 新闻分类                | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_tnews/README.md) |
+
 ### 多模态类数据集
 | 数据集名称| 分类 | 详细介绍&获取方式 |
 |---------------|----------------------|-------------------|
@@ -55,6 +62,9 @@ AISBench Benchmark当前支持的数据集类型如下：
 | MMMU_Pro       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README.md) |
 | InfoVQA       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README.md) |
 | DocVQA       | 多模态理解（图+文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README.md) |
+| MMStar       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmstar/README.md) |
+| OcrBench       | 多模态理解（图+文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ocrbench_v2/README.md) |
+| Video-MME       | 多模态理解（视频+文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README.md) |
 ### 多轮对话类数据集
 | 数据集名称| 分类 | 详细介绍&获取方式 |
 |---------------|----------------------|-------------------|

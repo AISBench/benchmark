@@ -46,6 +46,12 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | winogrande | Common Sense Reasoning (Pronoun Resolution) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/winogrande/README_en.md) |
 | Xsum | Text Generation (Summarization) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/Xsum/README_en.md) |
 | BFCL | Function Calling Capability Evaluation | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README_en.md) |
+| FewCLUE_bustm | Short Text Semantic Matching | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_bustm/README_en.md) |
+| FewCLUE_chid | Reading Comprehension Cloze | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_chid/README_en.md) |
+| FewCLUE_cluewsc | Pronoun Disambiguation | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_cluewsc/README_en.md) |
+| FewCLUE_csl | Keyword Recognition | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_csl/README_en.md) |
+| FewCLUE_eprstmt | Sentiment Analysis | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_eprstmt/README_en.md) |
+| FewCLUE_tnews | News Classification | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_tnews/README_en.md) |
 
 ### Multimodal Datasets
 | Dataset Name | Category | Detailed Introduction & Acquisition Method |
@@ -58,6 +64,10 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | MMMU_Pro       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README.md) |
 | InfoVQA       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README.md) |
 | DocVQA       | Multimodal Understanding (Image + Text)     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README.md) |
+| MMStar       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmstar/README.md) |
+| OcrBench-v2       | Multimodal Understanding (Image + Text)     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ocrbench_v2/README.md) |
+| Video-MME       | Multimodal Understanding (video + Text)     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README.md) |
+
 
 ### Multi-Turn Dialogue Datasets
 | Dataset Name | Category | Detailed Introduction & Acquisition Method |

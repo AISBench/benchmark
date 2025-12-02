@@ -3,9 +3,8 @@ from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.datasets.ocrbench_v2 import OCRBenchV2Dataset, OCRBenchV2Evaluator
 
-
 ocrbench_v2_reader_cfg = dict(
-    input_columns=['content'],
+    input_columns=['question', 'image'],
     output_column='answer'
 )
 
@@ -33,7 +32,7 @@ ocrbench_v2_datasets = [
     dict(
         abbr='ocrbench_v2',
         type=OCRBenchV2Dataset,
-        path='ais_bench/datasets/ocrbench_v2/ocrbench_v2.tsv', # 数据集路径，使用相对路径时相对于源码根路径，支持绝对路径
+        path='ais_bench/datasets/ocrbench_v2/OCRBench_v2.tsv', # Dataset path. Relative paths are relative to the source root; absolute paths are supported
         reader_cfg=ocrbench_v2_reader_cfg,
         infer_cfg=ocrbench_v2_infer_cfg,
         eval_cfg=ocrbench_v2_eval_cfg

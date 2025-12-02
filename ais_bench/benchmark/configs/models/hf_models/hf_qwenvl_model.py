@@ -30,6 +30,5 @@ models = [
         batch_size=1, # 每次推理的batch size
         max_seq_len=2048,
         batch_padding=True,
-        
     )
 ]

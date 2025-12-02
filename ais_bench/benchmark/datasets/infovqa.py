@@ -17,6 +17,7 @@ from .base import BaseDataset
 
 IMAGE_MAP_LEN = 64
 ANLS_THRESHOLD= 0.5
+logger = AISLogger()
 
 
 @LOAD_DATASET.register_module()
@@ -26,6 +27,7 @@ class InfoVQADataset(BaseDataset):
     def load(path):
         path = get_data_path(path)
         image_root_path = os.path.join(os.path.dirname(path), "InfoVQA_images")
+        logger.info(f"Convert base64 to image and save it in {image_root_path}")
         skip_noimg = True
         
         data = pd.read_csv(path, sep='\t')

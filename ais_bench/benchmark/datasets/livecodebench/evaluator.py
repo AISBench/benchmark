@@ -279,11 +279,9 @@ class LCBCodeGenerationEvaluator(BaseEvaluator):
         super().__init__()
         self.num_process_evaluate = num_process_evaluate
         self.timeout = timeout
-        self.dataset = LCBCodeGenerationDataset.load(
-            release_version=release_version)['test']
         self.extractor_version = extractor_version
 
-    def score(self, predictions, references):
+    def score(self, predictions, references, test_set):
         if self.extractor_version == 'v1':
             predictions = [[extract_code_generation(item)]
                            for item in predictions]
@@ -291,10 +289,10 @@ class LCBCodeGenerationEvaluator(BaseEvaluator):
             predictions = [[extract_code_generation_v2(item)]
                            for item in predictions]
 
-        evaluation_samples = dict()
-        for idx in range(len(self.dataset)):
-            evaluation_samples[self.dataset[idx][
-                'question_id']] = self.dataset[idx]['evaluation_sample']
+        evaluation_samples = {
+            item['question_id']: item['evaluation_sample']
+            for item in test_set
+        }
 
         references = [evaluation_samples[item] for item in references]
 
@@ -329,7 +327,7 @@ class LCBCodeGenerationEvaluator(BaseEvaluator):
             if is_equal(pass_at_one_detail_dict.get(idx, 0.0), 100.0):
                 detail['correct'] = True
             details.append(detail)
-            
+
         results = {
             'extracted_predictions': extracted_predictions,
             'eval_results': eval_results,

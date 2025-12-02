@@ -202,6 +202,6 @@ rm mmlu.zip
 #### 基本信息
 |任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
 | --- | --- | --- | --- | --- | --- |
-|mmlu_gen|MMLU数据集生成式任务|accuracy(naive_average)|5-shot|字符串格式|[mmlu_gen.py](mmlu_gen_5_shot_str.py)|
-|mmlu_gen|MMLU数据集生成式任务，prompt带逻辑链（对齐DeepSeek R1精度测试）|accuracy(naive_average)|0-shot|字符串格式|[mmlu_gen.py](mmlu_gen_0_shot_cot_chat_prompt.py)|
-|mmlu_ppl|MMLU数据集PPL任务|accuracy(naive_average)|0-shot|字符串格式|[mmlu_ppl_0_shot_str.py](mmlu_ppl_0_shot_str.py)|
+|mmlu_gen_5_shot_str|MMLU数据集生成式任务|accuracy(naive_average)|5-shot|字符串格式|[mmlu_gen_5_shot_str.py](mmlu_gen_5_shot_str.py)|
+|mmlu_gen_0_shot_cot_chat_prompt|MMLU数据集生成式任务，prompt带逻辑链（对齐DeepSeek R1精度测试）|accuracy(naive_average)|0-shot|字符串格式|[mmlu_gen_0_shot_cot_chat_prompt.py](mmlu_gen_0_shot_cot_chat_prompt.py)|
+|mmlu_ppl_0_shot_str|MMLU数据集PPL任务|accuracy(naive_average)|0-shot|字符串格式|[mmlu_ppl_0_shot_str.py](mmlu_ppl_0_shot_str.py)|

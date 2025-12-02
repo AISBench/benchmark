@@ -13,20 +13,20 @@ Taking the vLLM inference service deployed on GPU as an example, you can refer t
 
 The model configurations corresponding to different service-oriented backends are as follows:
 
-| Model Configuration Name | Description | Prerequisites for Use | Interface Type | Supported Dataset Prompt Formats | Configuration File Path |
-| ---------- | ---------- | ---------- | ---------- | ---------- | ---------- |
-| `vllm_api_general` | Access the inference service via vLLM's OpenAI-compatible API, with the interface `v1/completions` | The vLLM version used supports the `v1/completions` sub-service | Text Interface | String Format | [vllm_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general.py) |
-| `vllm_api_general_stream` | Access the vLLM inference service in streaming mode, with the interface `v1/completions` | The vLLM version used supports the `v1/completions` sub-service | Streaming Interface | String Format | [vllm_api_general_stream.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_stream.py) |
-| `vllm_api_general_chat` | Access the inference service via vLLM's OpenAI-compatible API, with the interface `v1/chat/completions` | The vLLM version used supports the `v1/chat/completions` sub-service | Text Interface | String Format, Dialogue Format, Multimodal Format | [vllm_api_general_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_chat.py) |
-| `vllm_api_stream_chat` | Access the vLLM inference service in streaming mode, with the interface `v1/chat/completions` | The vLLM version used supports the `v1/chat/completions` sub-service | Streaming Interface | String Format, Dialogue Format, Multimodal Format | [vllm_api_stream_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py) |
-| `vllm_api_stream_chat_multiturn` | Access the vLLM inference service in streaming mode for multi-turn dialogue scenarios, with the interface `v1/chat/completions` | The vLLM version used supports the `v1/chat/completions` sub-service | Streaming Interface | Dialogue Format | [vllm_api_stream_chat_multiturn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat_multiturn.py) |
-| `vllm_api_function_call_chat` | API for accessing the vLLM inference service in function call accuracy evaluation scenarios, with the interface `v1/chat/completions` (only applicable to the [BFCL](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README_en.md) evaluation scenario) | The vLLM version used supports the `v1/chat/completions` sub-service | Text Interface | Dialogue Format | [vllm_api_function_call_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_function_call_chat.py) |
-| `vllm_api_old` | Access the inference service via vLLM-compatible API, with the interface `generate` | The vLLM version used supports the `generate` sub-service | Text Interface | String Format, Multimodal Format | [vllm_api_old.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_old.py) |
-| `mindie_stream_api_general` | Access the inference service via MindIE streaming API, with the interface `infer` | The MindIE version used supports the `infer` sub-service | Streaming Interface | String Format, Multimodal Format | [mindie_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/mindie_api/mindie_stream_api_general.py) |
-| `triton_api_general` | Access the inference service via Triton API, with the interface `v2/models/{model name}/generate` | Start an inference service that supports Triton API | Text Interface | String Format, Multimodal Format | [triton_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/triton_api/triton_api_general.py) |
-| `triton_stream_api_general` | Access the inference service via Triton streaming API, with the interface `v2/models/{model name}/generate_stream` | Start an inference service that supports Triton API | Streaming Interface | String Format, Multimodal Format | [triton_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/triton_api/triton_stream_api_general.py) |
-| `tgi_api_general` | Access the inference service via TGI API, with the interface `generate` | Start an inference service that supports TGI API | Text Interface | String Format, Multimodal Format | [tgi_api_general](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/tgi_api/tgi_api_general.py) |
-| `tgi_stream_api_general` | Access the inference service via TGI streaming API, with the interface `generate_stream` | Start an inference service that supports TGI API | Streaming Interface | String Format, Multimodal Format | [tgi_stream_api_general](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/tgi_api/tgi_stream_api_general.py) |
+| Model Configuration Name | Description | Prerequisites for Use | Supported Evaluation Modes | Interface Type | Supported Dataset Prompt Formats | Configuration File Path |
+| ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- |
+| `vllm_api_general` | Access the inference service via vLLM's OpenAI-compatible API, with the interface `v1/completions` | The vLLM version used supports the `v1/completions` sub-service | Generative Evaluation, PPL Mode Evaluation | Text Interface | String Format | [vllm_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general.py) |
+| `vllm_api_general_stream` | Access the vLLM inference service in streaming mode, with the interface `v1/completions` | The vLLM version used supports the `v1/completions` sub-service | Generative Evaluation | Streaming Interface | String Format | [vllm_api_general_stream.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_stream.py) |
+| `vllm_api_general_chat` | Access the inference service via vLLM's OpenAI-compatible API, with the interface `v1/chat/completions` | The vLLM version used supports the `v1/chat/completions` sub-service | Generative Evaluation, PPL Mode Evaluation | Text Interface | String Format, Dialogue Format, Multimodal Format | [vllm_api_general_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_chat.py) |
+| `vllm_api_stream_chat` | Access the vLLM inference service in streaming mode, with the interface `v1/chat/completions` | The vLLM version used supports the `v1/chat/completions` sub-service | Generative Evaluation | Streaming Interface | String Format, Dialogue Format, Multimodal Format | [vllm_api_stream_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py) |
+| `vllm_api_stream_chat_multiturn` | Access the vLLM inference service in streaming mode for multi-turn dialogue scenarios, with the interface `v1/chat/completions` | The vLLM version used supports the `v1/chat/completions` sub-service | Generative Evaluation | Streaming Interface | Dialogue Format | [vllm_api_stream_chat_multiturn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat_multiturn.py) |
+| `vllm_api_function_call_chat` | API for accessing the vLLM inference service in function call accuracy evaluation scenarios, with the interface `v1/chat/completions` (only applicable to the [BFCL](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README_en.md) evaluation scenario) | The vLLM version used supports the `v1/chat/completions` sub-service | Generative Evaluation | Text Interface | Dialogue Format | [vllm_api_function_call_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_function_call_chat.py) |
+| `vllm_api_old` | Access the inference service via vLLM-compatible API, with the interface `generate` | The vLLM version used supports the `generate` sub-service | Generative Evaluation | Text Interface | String Format, Multimodal Format | [vllm_api_old.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_old.py) |
+| `mindie_stream_api_general` | Access the inference service via MindIE streaming API, with the interface `infer` | The MindIE version used supports the `infer` sub-service | Generative Evaluation | Streaming Interface | String Format, Multimodal Format | [mindie_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/mindie_api/mindie_stream_api_general.py) |
+| `triton_api_general` | Access the inference service via Triton API, with the interface `v2/models/{model name}/generate` | Start an inference service that supports Triton API | Generative Evaluation | Text Interface | String Format, Multimodal Format | [triton_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/triton_api/triton_api_general.py) |
+| `triton_stream_api_general` | Access the inference service via Triton streaming API, with the interface `v2/models/{model name}/generate_stream` | Start an inference service that supports Triton API | Generative Evaluation | Streaming Interface | String Format, Multimodal Format | [triton_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/triton_api/triton_stream_api_general.py) |
+| `tgi_api_general` | Access the inference service via TGI API, with the interface `generate` | Start an inference service that supports TGI API | Generative Evaluation | Text Interface | String Format, Multimodal Format | [tgi_api_general](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/tgi_api/tgi_api_general.py) |
+| `tgi_stream_api_general` | Access the inference service via TGI streaming API, with the interface `generate_stream` | Start an inference service that supports TGI API | Generative Evaluation | Streaming Interface | String Format, Multimodal Format | [tgi_stream_api_general](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/tgi_api/tgi_stream_api_general.py) |
 
 
 ### Parameter Description for Service-Oriented Inference Backend Configuration
@@ -99,10 +99,12 @@ The description of configurable parameters for the service-oriented inference ba
 | --- | --- | --- | --- | --- |
 | `hf_base_model` | HuggingFace Base Model Backend | The basic dependencies of the evaluation tool have been installed; the HuggingFace model weight path must be specified in the configuration file (automatic download is not supported currently) | String Format | [hf_base_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_base_model.py) |
 | `hf_chat_model` | HuggingFace Chat Model Backend | The basic dependencies of the evaluation tool have been installed; the HuggingFace model weight path must be specified in the configuration file (automatic download is not supported currently) | Dialogue Format | [hf_chat_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_chat_model.py) |
+|`hf_qwenvl_model`|	HuggingFace Chat QwenVL Model Backend|The basic dependencies of the evaluation tool have been installed; the HuggingFace model weight path must be specified in the configuration file (automatic download is not supported currently)|Dialogue Format|[hf_qwenvl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_qwenvl_model.py)|
+|`vllm_offline_vl_model`|	vLLM Chat QwenVL Offline Inference Model Backend|The basic dependencies of the evaluation tool have been installed; the model weight path must be specified in the configuration file (automatic download is not supported currently)|Dialogue Format|[vllm_offline_vl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_offline_models/vllm_offline_vl_model.py)|
 
 
-### Parameter Description for Local Model Backend Configuration
-The configuration file for the local model backend is configured using Python syntax, as shown in the example below:
+### Parameter Description for Huggingface Local Model Backend Configuration
+The configuration file for the huggingface local model backend is configured using Python syntax, as shown in the example below:
 ```python
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 
@@ -130,7 +132,7 @@ models = [
 ]
 ```
 
-The description of configurable parameters for the local model inference backend is as follows:
+The description of configurable parameters for the huggingface local model inference backend is as follows:
 
 | Parameter Name | Parameter Type | Description & Configuration |
 |----------|-----------|-------------|
@@ -147,3 +149,47 @@ The description of configurable parameters for the local model inference backend
 | `batch_size` | Int | Batch size for inference requests. Valid range: (0, 64000] |
 | `max_seq_len` | Int | Maximum input sequence length. Valid range: (0, 131072] |
 | `batch_padding` | Bool | Whether to enable batch padding. Set to `True` or `False` |
+
+### Parameter Description for vLLM Offline Inference Model Backend Configuration
+The configuration file for the vllm offline inference local model backend is configured using Python syntax, as shown in the example below:
+```python
+from ais_bench.benchmark.models import VLLMOfflineVLModel
+
+models = [
+    dict(
+        attr="local",                    # Backend type identifier
+        type=VLLMOfflineVLModel,         # Model type
+        abbr='vllm-offline-vl-model',    # Unique identifier
+        path = "",                       # Model weight path
+        model_kwargs=dict(               # LLM init params, refer https://docs.vllm.com.cn/en/latest/serving/engine_args.html#
+            max_num_seqs=5,
+            max_model_len=32768,
+            limit_mm_per_prompt={"image": 24},
+            tensor_parallel_size=1,
+            gpu_memory_utilization=0.9,
+        ),
+        sample_kwargs=dict(              # sample params, refer https://docs.vllm.ai/en/v0.6.5/dev/sampling_params.html
+            temperature=0.0,
+            stop_token_ids=None
+        ),
+        vision_kwargs=dict(              # multi-modal params, refer https://docs.vllm.ai/en/v0.7.3/getting_started/examples/vision_language.html
+            min_pixels=1280 * 28 * 28,
+            max_pixels=16384 * 28 * 28,
+        ),
+        max_out_len=512,                 # Maximum output length
+        batch_size=1,                    # Request concurrency count
+    )
+]
+```
+The description of configurable parameters for the vllm offline inference local model inference backend is as follows:
+| Parameter Name | Parameter Type | Description & Configuration |
+|----------|-----------|-------------|
+| `attr` | String | Identifier for the backend type, fixed as `local` (local model) or `service` (service-oriented inference) |
+| `type` | Python Class | Model class name, automatically associated by the system; no manual configuration is required by the user |
+| `abbr` | String | Unique identifier for the local task, used to distinguish multiple tasks. It is recommended to use a combination of English characters and hyphens, e.g., `vllm-offline-vl-model` |
+| `path` | String | Model weight path, which must be an accessible local path. The model is loaded using `vllm.LLM(model=path)`  |
+| `model_kwargs` | Dict | LLM init params, refer 🔗 [LLM init params](https://docs.vllm.com.cn/en/latest/serving/engine_args.html#) |
+| `sample_kwargs` | Dict | LLM sample params, refer 🔗 [sample params](https://docs.vllm.ai/en/v0.6.5/dev/sampling_params.html) |
+| `vision_kwargs` | Dict | multi-modal input params，refer 🔗 [multi-modal vllm offline inference](https://docs.vllm.ai/en/v0.7.3/getting_started/examples/vision_language.html) |
+| `max_out_len` | Int | Maximum number of output tokens generated by inference. Valid range: (0, 131072] |
+| `batch_size` | Int | Batch size for inference requests. Valid range: (0, 64000] |
