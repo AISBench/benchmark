@@ -1104,7 +1104,7 @@ aime2024_infer_cfg = dict(
 ### 错误描述
 以JSON格式解析请求的返回结果时失败。
 ### 解决办法
-若报错为`"Unexpected response format. Please check 'error_info' in ***_details.jsonl for more information.`，那么需要在当前推理任务落盘路径（例如`outputs/default/20250628_151326/performances/vllm-api-stream-chat/`）下的***_details.jsonl文件中查看具体的错误信息(`error_info`字段的内容)，并进一步寻求解决方法。
+若报错为`Unexpected response format. Please check 'error_info' in {dataset_abbr}_failed.jsonl for more information.`，那么需要在当前推理任务落盘路径（例如`outputs/default/20250628_151326/performances/vllm-api-stream-chat/`）下的`{dataset_abbr}_failed.jsonl`文件中查看具体的错误信息(`error_info`字段的内容)，并进一步寻求解决方法。
 
 ## MODEL-CFG-001
 ### 错误描述

@@ -271,7 +271,7 @@ class BaseAPIModel(BaseModel):
                         output.error_info = f"Unexpected response format: {raw_chunk}. Please check if server is working correctly."
                         raise AISBenchValueError(
                             MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                            "Unexpected response format. Please check 'error_info' in ***_details.jsonl for more information."
+                            f"Unexpected response format. Please check 'error_info' in ***_failed.jsonl for more information."
                         )
                     await self.parse_stream_response(data, output)
                 output.success = True
