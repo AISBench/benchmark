@@ -312,7 +312,7 @@ models = [
 ### 错误描述
 加载tokenizer文件失败。
 ### 解决办法
-若报错为`Failed to load tokenizer from /path/to/tokenizer: ExceptionName: XXXXXX`，请确认`/path/to/tokenizer`路径下的tokenizer文件与当前运行环境的`transformers`版本是否匹配，若匹配，请依据`XXXXXX`表示的具体1报错信息做进一步的问题定位。
+若报错为`Failed to load tokenizer from /path/to/tokenizer: ExceptionName: XXXXXX`，请确认`/path/to/tokenizer`路径下的tokenizer文件与当前运行环境的`transformers`版本是否匹配，若匹配，请依据`XXXXXX`表示的具体报错信息做进一步的问题定位。
 
 ## UTILS-FILE-004
 ### 错误描述
