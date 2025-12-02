@@ -242,31 +242,31 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 
 ## UTILS-PARAM-002
 ### 错误描述
-自定数据集场景下，配置文件`*.meta.json`中`request_count`参数不在合法范围。
+自定义数据集场景下，配置文件`*.meta.json`中`request_count`参数不在合法范围。
 ### 解决办法
 若报错为`Please make sure that the value of parameter 'request_count' can be converted to int(greater than 0).`，说明`*.meta.json`中`request_count`参数需要设置为 > 0。
 
 ## UTILS-PARAM-003
 ### 错误描述
-自定数据集场景下，配置文件`*.meta.json`中`min_value`参数大于`max_value`参数。
+自定义数据集场景下，配置文件`*.meta.json`中`min_value`参数大于`max_value`参数。
 ### 解决办法
 若报错为`When the uniform distribution is set, parameter 'min_value' must be less than or equal to parameter 'max_value'.`，说明`*.meta.json`中`min_value`参数需要设置为 <= `max_value`参数，需要修正为`min_value` <= `max_value`。
 
 ## UTILS-PARAM-004
 ### 错误描述
-自定数据集场景下，配置文件`*.meta.json`中`min_value`和`max_value`参数不在合法范围
+自定义数据集场景下，配置文件`*.meta.json`中`min_value`和`max_value`参数不在合法范围
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## UTILS-PARAM-005
 ### 错误描述
-自定数据集场景下，配置文件`*.meta.json`中缺少必要参数。
+自定义数据集场景下，配置文件`*.meta.json`中缺少必要参数。
 ### 解决办法
 例如报错为`When the uniform distribution is set, parameter 'min_value' and 'max_value' must be provided.`，说明在uniform场景下，`*.meta.json`中需要同时设置`min_value`和`max_value`参数。
 
 ## UTILS-PARAM-006
 ### 错误描述
-自定数据集场景下，配置文件`*.meta.json`中`percentage_distribute`参数不合法
+自定义数据集场景下，配置文件`*.meta.json`中`percentage_distribute`参数不合法
 ### 解决办法
 `percentage_distribute`的参数合法取值范围在详细日志中有介绍：
 ```
@@ -280,14 +280,14 @@ Cannot run local and service model together! Please check 'attr' parameter of mo
 
 ## UTILS-PARAM-007
 ### 错误描述
-自定数据集场景下，配置文件`*.meta.json`中，定义数据分发方式的`method`参数值不在合法范围内。
+自定义数据集场景下，配置文件`*.meta.json`中，定义数据分发方式的`method`参数值不在合法范围内。
 ### 解决办法
 若报错为`Type of data distribution(method): uniform1 not supported, legal methods chosen from ['uniform', 'percentage'].`，说明`*.meta.json`中`method`参数值`uniform1`不在合法范围内，需要修正为`method`参数值为`uniform`或`percentage`。
 
 
 ## UTILS-PARAM-008
 ### 错误描述
-自定数据集场景下，配置文件`*.meta.json`中包含非法字段。
+自定义数据集场景下，配置文件`*.meta.json`中包含非法字段。
 ### 解决办法
 若具体报错为`There are illegal keys: xxxxxx,yyyyyy`，说明`*.meta.json`中包含了`xxxxxx`和`yyyyyy`这两个非法字段，需要将这两个字段从`*.meta.json`中删除。
 
@@ -1003,13 +1003,13 @@ aime2024_infer_cfg = dict(
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## MODEL-PARAM-005
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## MODEL-TYPE-001
 ### 错误描述
@@ -1045,19 +1045,19 @@ round=[
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## MODEL-TYPE-003
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## MODEL-TYPE-004
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## MODEL-DATA-001
 ### 错误描述
@@ -1164,13 +1164,13 @@ aime2024_datasets = [
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## DSET-DATA-006
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## DSET-PARAM-002
 ### 错误描述
@@ -1218,10 +1218,10 @@ cd human-eval && pip install -e .
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
 
 ## DSET-MTRC-003
 ### 错误描述
 暂未有直接解决方法。
 ### 解决办法
-如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码
+如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
