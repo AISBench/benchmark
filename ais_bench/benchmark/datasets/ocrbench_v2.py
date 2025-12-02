@@ -2515,10 +2515,11 @@ class OCRBenchV2Evaluator(BaseEvaluator):
         res_data_list = process_predictions(predict_result)
         en_scores, cn_scores = ocrbench_v2_aggregate_accuracy(res_data_list)
         final_score_dict = {}
-        if len(en_scores) > 0:
-            score_en_overall = sum(en_scores.values()) / len(en_scores)
-            final_score_dict["English Overall Score"] = score_en_overall
-        if len(cn_scores) > 0:
-            score_cn_overall = sum(cn_scores.values()) / len(cn_scores)
-            final_score_dict["Chinese Overall Score"] = score_cn_overall
+        score_groups = {
+            "English Overall Score": en_scores,
+            "Chinese Overall Score": cn_scores,
+        }
+        for name, scores in score_groups.items():
+            if len(scores) > 0:
+                final_score_dict[name] = 100 * sum(scores.values()) / len(scores)
         return final_score_dict
