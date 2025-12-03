@@ -106,7 +106,7 @@ models = dict(
     attr="service",
     type=VLLMCustomAPIChat,
     abbr="vllm-api-stream-chat",
-    path="/path/to/tokenzier", # 传入tokenizer路径
+    path="/path/to/tokenizer", # 传入tokenizer路径
     # ......
 )
 ```
@@ -633,7 +633,7 @@ BFCL数据集不支持性能测试
 1. 若希望使用BFCL数据集任务进行精度测试，单命令行中误指定`--mode perf`，则会进行性能测试，命令行中改为`--mode all`指定为精度测试。
 2. 若希望使用BFCL数据集任务进行性能测试，则当前不支持。
 
-## ICLI-IMPL-004
+## ICLI-IMPL-006
 ### 错误描述
 接口类型为流式接口的模型任务不支持使用BFCL数据集进行精度测评
 ### 解决办法

@@ -121,7 +121,7 @@ models = dict(
     attr="service",
     type=VLLMCustomAPIChat,
     abbr="vllm-api-stream-chat",
-    path="/path/to/tokenzier", # Enter the tokenizer path
+    path="/path/to/tokenizer", # Enter the tokenizer path
     # ......
 )
 ```
@@ -237,13 +237,13 @@ If you need to resolve this issue, [please submit an issue](https://github.com/A
 ### Error Description
 No direct solution is available yet.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## UTILS-TYPE-007
 ### Error Description
 No direct solution is available yet.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## UTILS-TYPE-008
 ### Error Description
@@ -267,7 +267,7 @@ If the error log shows `'--max-num-workers' must be >= 1, but got 0 ......`, it 
 ### Error Description
 No direct solution is available yet.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## UTILS-PARAM-002
 ### Error Description
@@ -285,7 +285,7 @@ If the error message is `When the uniform distribution is set, parameter 'min_va
 ### Error Description
 In the custom dataset scenario, the `min_value` and `max_value` parameters in the configuration file `*.meta.json` are outside the valid range.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## UTILS-PARAM-005
 ### Error Description
@@ -346,7 +346,7 @@ If the error message is `Failed to load tokenizer from /path/to/tokenizer: Excep
 ### Error Description
 No direct solution is available yet.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## PARTI-FILE-001
 ### Error Description
@@ -394,7 +394,7 @@ This indicates that all requests during the inference process failed. You need t
 ### Error Description
 When calculating steady-state performance metrics, no requests belonging to the steady state were found among all request information, and steady-state metrics cannot be calculated.
 ### Solution
-You can check the concurrency graph of inference requests (reference document: https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/results_intro/performance_visualization.html) to confirm whether the `Request Concurrency Count` in the concurrency step graph reaches the concurrency number set in the model configuration file (the `batch_size` parameter) **and at least two requests reach the maximum concurrency number**.
+You can check the concurrency graph of inference requests (reference document: https://ais-bench-benchmark-rf.readthedocs.io/en/latest/base_tutorials/results_intro/performance_visualization.html) to confirm whether the `Request Concurrency Count` in the concurrency step graph reaches the concurrency number set in the model configuration file (the `batch_size` parameter) **and at least two requests reach the maximum concurrency number**.
 
 If the above conditions are not met, you can try the following methods to achieve a steady state:
 
@@ -671,7 +671,7 @@ BFCL datasets do not support performance testing.
 1. If you want to use the BFCL dataset task for accuracy testing but mistakenly specify `--mode perf` in the command line (which triggers performance testing), change the command line to `--mode all` to specify accuracy testing.
 2. If you want to use the BFCL dataset task for performance testing, it is not supported currently.
 
-## ICLI-IMPL-004
+## ICLI-IMPL-006
 ### Error Description
 Model tasks with streaming interfaces do not support accuracy evaluation using BFCL datasets.
 ### Solution
@@ -1080,19 +1080,19 @@ round=[
 ### Error Description
 No direct solution is available at this time.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## MODEL-TYPE-003
 ### Error Description
 No direct solution is available at this time.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## MODEL-TYPE-004
 ### Error Description
 No direct solution is available at this time.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## MODEL-DATA-001
 ### Error Description
@@ -1197,13 +1197,13 @@ Please check for format issues in the dataset content based on the detailed erro
 ### Error Description
 No direct solution is available at this time.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## DSET-DATA-006
 ### Error Description
 No direct solution is available at this time.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## DSET-PARAM-002
 ### Error Description
@@ -1251,12 +1251,10 @@ Execute `git clone git@github.com:open-compass/human-eval.git` and `cd human-eva
 ### Error Description
 No direct solution is available at this time.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
 
 ## DSET-MTRC-003
 ### Error Description
 No direct solution is available at this time.
 ### Solution
-If you need to resolve this issue, [please file an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
-
-Would you like me to convert this English-translated error code document into a **Markdown file** that you can directly save and use?
+If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
