@@ -588,7 +588,7 @@ The type parameter of the retriever parameter for constructing prompt engineerin
 
 ## ICLI-PARAM-002
 ### Error Description
-The value of the infer_mode parameter of the inferencer parameter in the multi-turn dialogue dataset configuration file is outside the valid range.
+The value of the infer_mode parameter in the inferencer configuration in the multi-turn dialogue dataset configuration file is outside the valid range.
 ### Solution
 Taking the mtbench configuration file as an example, if the configuration of mtbench_gen.py is as follows:
 ```python
