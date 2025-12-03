@@ -1066,7 +1066,7 @@ aime2024_infer_cfg = dict(
     # ......
 )
 ```
-An error will occur: `Mixing str without explicit role is not allowed in API models!`. Please modify `round` to a legal chat template, for example:
+An error will occur: `Mixing str without explicit role is not allowed in API models!`. Please modify `round` to a valid chat template, for example:
 ```python
 round=[
     dict(
