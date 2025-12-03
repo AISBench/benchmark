@@ -426,7 +426,7 @@ There are no performance data files (`*_details.jsonl`) in the output working pa
 
 ## SUMM-MTRC-001
 ### Error Description
-The number of valid fields varies among requests in the detailed performance data.
+The number of valid fields is inconsistent across requests in the detailed performance data.
 ### Solution
 Check whether the number of valid fields is consistent across all requests in the `*_details.jsonl` files under the base output path (e.g., `outputs/default/20250628_151326`; find `Current exp folder: ` in the console output). If inconsistent, check whether there are other errors in the historical console logs that caused the performance data files to not be generated, and perform further troubleshooting based on the guidance of other error logs.
 
