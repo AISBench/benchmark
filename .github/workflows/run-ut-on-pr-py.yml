@@ -19,11 +19,11 @@ on:
 jobs:
   test:
     # 运行的操作系统（可选ubuntu-latest/macos-latest/windows-latest）
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     # 可选：多Python版本测试
     strategy:
       matrix:
-        python-version: [3.10, 3.11]
+        python-version: [3.11]
 
     steps:
       # 步骤1：拉取仓库代码
