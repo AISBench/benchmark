@@ -581,7 +581,7 @@ aime2024_datasets = [
 
 ## ICLI-PARAM-001
 ### Error Description
-The type parameter of the retriever parameter for constructing prompt engineering in the dataset configuration file is not a subclass of BaseRetriever or a list of subclasses of BaseRetriever.
+The type of the retriever parameter for constructing prompt engineering in the dataset configuration file is not a subclass of BaseRetriever or a list of subclasses of BaseRetriever.
 ### Solution
 1. If you want to use a custom retriever class `CustomedRetriever`, ensure that `CustomedRetriever` is a subclass of `BaseRetriever`.
 2. If you want to use multiple custom retriever classes `CustomedRetriever1, CustomedRetriever2`, configure the `retriever` parameter in the dataset configuration file as `[CustomedRetriever1, CustomedRetriever2]`, and each class in the list must inherit from `BaseRetriever`.
