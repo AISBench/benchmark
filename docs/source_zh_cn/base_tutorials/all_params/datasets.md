@@ -8,65 +8,64 @@ AISBench Benchmark当前支持的数据集类型如下：
 ## 开源数据集
 开源数据集指的是社区广泛使用、公开可获取的数据集。它们通常用于模型训练、验证和比较不同算法的效果。AISBench Benchmark支持多个主流开源数据集，便于用户快速进行标准化测试，详细介绍和获取方式如下：
 ### LLM类数据集
-| 数据集名称      | 分类                     | 详细介绍&获取方式                                                                                                            |
-| --------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| DEMO            | 数学推理                 | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README.md)            |
-| ARC_c           | 推理（常识+科学）        | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ARC_c/README.md)           |
-| ARC_e           | 推理（常识+科学）        | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ARC_e/README.md)           |
-| SuperGLUE_BoolQ | 自然语言理解（问答）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/SuperGLUE_BoolQ/README.md) |
-| agieval         | 综合考试/推理            | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/agieval/README.md)         |
-| aime2024        | 数学推理                 | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2024/README.md)        |
-| aime2025        | 数学推理                 | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2025/README.md)        |
-| bbh             | 多任务（Big-Bench Hard） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/bbh/README.md)             |
-| cmmlu           | 中文理解/知识问答        | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/cmmlu/README.md)           |
-| ceval           | 中文职业考试             | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ceval/README.md)           |
-| drop            | 阅读理解+推理            | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/drop/README.md)            |
-| gsm8k           | 数学推理                 | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/gsm8k/README.md)           |
-| gpqa            | 知识问答                 | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/gpqa/README.md)            |
-| hellaswag       | 常识推理                 | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/hellaswag/README.md)       |
-| humaneval       | 编程（代码生成+测试）    | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/humaneval/README.md)       |
-| humanevalx      | 编程（多语言）           | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/humanevalx/README.md)      |
-| ifeval          | 编程（函数生成）         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ifeval/README.md)          |
-| lambada         | 长文本完形填空           | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/lambada/README.md)         |
-| lcsts           | 中文文本摘要             | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/lcsts/README.md)           |
-| leval           | 长上下文理解             | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/leval/README.md)           |
-| livecodebench   | 编程（实时代码）         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/livecodebench/README.md)   |
-| longbench       | 长序列                   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/longbench/README.md)       |
-| longbenchv2     | 长序列                   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/longbenchv2/README.md)     |
-| math            | 高级数学推理             | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/math/README.md)            |
-| mbpp            | 编程（Python）           | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mbpp/README.md)            |
-| mgsm            | 多语言数学推理           | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mgsm/README.md)            |
-| mmlu            | 多学科理解（英文）       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmlu/README.md)            |
-| mmlu_pro        | 多学科理解（专业版）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmlu_pro/README.md)        |
-| needlebench_v2  | 长序列                   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/needlebench_v2/README.md)  |
-| piqa            | 物理常识推理             | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/piqa/README.md)            |
-| siqa            | 社会常识推理             | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/siqa/README.md)            |
-| triviaqa        | 知识问答                 | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/triviaqa/README.md)        |
-| winogrande      | 常识推理（代词消解）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/winogrande/README.md)      |
-| Xsum            | 文本生成（摘要）         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/Xsum/README.md)            |
-| BFCL            | 函数调用能力评估         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README.md)            |
-| FewCLUE_bustm   | 短文本语义匹配           | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_bustm/README.md)   |
-| FewCLUE_chid    | 阅读理解填空             | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_chid/README.md)    |
-| FewCLUE_cluewsc | 代词消歧                 | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_cluewsc/README.md) |
-| FewCLUE_csl     | 关键词识别               | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_csl/README.md)     |
-| FewCLUE_eprstmt | 情感分析                 | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_eprstmt/README.md) |
-| FewCLUE_tnews   | 新闻分类                 | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_tnews/README.md)   |
-|                 |
+| 数据集名称| 分类 | 详细介绍&获取方式 |
+|---------------|----------------------|-------------------|
+| DEMO            | 数学推理   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README.md) |
+| ARC_c            | 推理（常识+科学）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ARC_c/README.md) |
+| ARC_e            | 推理（常识+科学）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ARC_e/README.md) |
+| SuperGLUE_BoolQ  | 自然语言理解（问答）  | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/SuperGLUE_BoolQ/README.md) |
+| agieval          | 综合考试/推理         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/agieval/README.md) |
+| aime2024         | 数学推理              | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2024/README.md) |
+| aime2025         | 数学推理              | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2025/README.md) |
+| bbh              | 多任务（Big-Bench Hard） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/bbh/README.md) |
+| cmmlu            | 中文理解/知识问答     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/cmmlu/README.md) |
+| ceval            | 中文职业考试          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ceval/README.md) |
+| drop             | 阅读理解+推理         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/drop/README.md) |
+| gsm8k            | 数学推理              | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/gsm8k/README.md) |
+| gpqa             | 知识问答              | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/gpqa/README.md) |
+| hellaswag        | 常识推理              | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/hellaswag/README.md) |
+| humaneval        | 编程（代码生成+测试） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/humaneval/README.md) |
+| humanevalx       | 编程（多语言）         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/humanevalx/README.md) |
+| ifeval           | 编程（函数生成）       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ifeval/README.md) |
+| lambada          | 长文本完形填空         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/lambada/README.md) |
+| lcsts            | 中文文本摘要          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/lcsts/README.md) |
+| livecodebench    | 编程（实时代码）       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/livecodebench/README.md) |
+| longbench        | 长序列                | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/longbench/README.md) |
+| longbenchv2        | 长序列                | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/longbenchv2/README.md) |
+| math             | 高级数学推理          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/math/README.md) |
+| mbpp             | 编程（Python）         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mbpp/README.md) |
+| mgsm             | 多语言数学推理        | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mgsm/README.md) |
+| mmlu             | 多学科理解（英文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmlu/README.md) |
+| mmlu_pro         | 多学科理解（专业版）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmlu_pro/README.md) |
+| needlebench_v2      | 长序列                | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/needlebench_v2/README.md) |
+| piqa             | 物理常识推理          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/piqa/README.md) |
+| siqa             | 社会常识推理          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/siqa/README.md) |
+| triviaqa         | 知识问答              | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/triviaqa/README.md) |
+| winogrande       | 常识推理（代词消解）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/winogrande/README.md) |
+| Xsum             | 文本生成（摘要）       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/Xsum/README.md) |
+| BFCL             | 函数调用能力评估        | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README.md) |
+| FewCLUE_bustm    | 短文本语义匹配          | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_bustm/README.md) |
+| FewCLUE_chid     | 阅读理解填空            | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_chid/README.md) |
+| FewCLUE_cluewsc  | 代词消歧                | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_cluewsc/README.md) |
+| FewCLUE_csl      | 关键词识别              | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_csl/README.md) |
+| FewCLUE_eprstmt  | 情感分析                | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_eprstmt/README.md) |
+| FewCLUE_tnews    | 新闻分类                | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_tnews/README.md) |
+| dapo-math-17k    | 数学推理（RL评估）    | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/dapo_math/README.md) |
 
 ### 多模态类数据集
-| 数据集名称   | 分类                  | 详细介绍&获取方式                                                                                                         |
-| ------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| textvqa      | 多模态理解（图+文）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/textvqa/README.md)      |
-| videobench   | 多模态理解（视频）    | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videobench/README.md)   |
-| vocalsound   | 多模态理解（音频）    | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/vocalsound/README.md)   |
-| Omnidocbench | 图片OCR（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/omnidocbench/README.md) |
-| MMMU         | 多模态理解（图+文）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu/README.md)         |
-| MMMU_Pro     | 多模态理解（图+文）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README.md)     |
-| InfoVQA      | 多模态理解（图+文）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README.md)      |
-| DocVQA       | 多模态理解（图+文）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README.md)       |
-| MMStar       | 多模态理解（图+文）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmstar/README.md)       |
-| OcrBench     | 多模态理解（图+文）   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ocrbench_v2/README.md)  |
-| Video-MME    | 多模态理解（视频+文） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README.md)     |
+| 数据集名称| 分类 | 详细介绍&获取方式 |
+|---------------|----------------------|-------------------|
+| textvqa          | 多模态理解（图+文）    | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/textvqa/README.md) |
+| videobench       | 多模态理解（视频）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videobench/README.md) |
+| vocalsound       | 多模态理解（音频）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/vocalsound/README.md) |
+| Omnidocbench          | 图片OCR（图+文）    | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/omnidocbench/README.md) |
+| MMMU       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu/README.md) |
+| MMMU_Pro       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README.md) |
+| InfoVQA       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README.md) |
+| DocVQA       | 多模态理解（图+文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README.md) |
+| MMStar       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmstar/README.md) |
+| Video-MME       | 多模态理解（视频+文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README.md) |
+| OCRBench_v2    | 多模态理解（图+文，OCR评估） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ocrbench_v2/README.md) |
 ### 多轮对话类数据集
 | 数据集名称 | 分类     | 详细介绍&获取方式                                                                                                     |
 | ---------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
