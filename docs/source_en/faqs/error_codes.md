@@ -253,7 +253,7 @@ If the error log shows `'--max-num-workers' must be <= 8, but got 9 ......`, it 
 
 ## UTILS-TYPE-009
 ### Error Description
-The command-line parameter value is not of integer type.
+The command-line parameter value is not an integer type.
 ### Solution
 If the error log shows `'--max-num-workers' must be an integer, but got '9' ......`, it indicates that the value of the command-line parameter `--max-num-workers` is the string '9'. However, the tool only supports integer-type values. Therefore, you need to correct the value of `--max-num-workers` to an integer type.
 
