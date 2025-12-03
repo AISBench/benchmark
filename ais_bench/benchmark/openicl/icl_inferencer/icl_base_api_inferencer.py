@@ -233,8 +233,6 @@ class BaseApiInferencer(BaseInferencer):
         Args:
             share_memory: Shared memory containing data
             indexes: Indexes for data
-            message_share_memory: Shared memory for message
-            stop_event: Event to signal termination
 
         Returns:
             Deserialized data or None if no data available
@@ -257,9 +255,15 @@ class BaseApiInferencer(BaseInferencer):
             # Calculate end index
             data_index_end = data_index_start + data_fetch_size
             # Get indices
-            data_indices = [i % len(indexes) for i in range(data_index_start, data_index_end)]
+            end_index = data_index_end % len(indexes)
+            for index_id in range(data_index_start, data_index_end):
+                cur_index = index_id % len(indexes)
+                data_indices.append(cur_index)
+                if indexes[cur_index] is None:
+                    end_index = cur_index
+                    break
             # Update global index
-            self.global_index.value = data_index_end % len(indexes)
+            self.global_index.value = end_index
 
         # Prefetch all data in the batch
         batch_data = []

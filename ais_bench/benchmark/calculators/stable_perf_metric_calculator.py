@@ -177,7 +177,7 @@ class StablePerfMetricCalculator(BasePerfMetricCalculator):
             f"Stable stage calculation completed. "
             f"Start time: {relative_start_time:.6f}, "
             f"End time: {relative_end_time:.6f}, "
-            f"Duration: {relative_end_time - relative_start_time:.6f}"
+            f"Stable Stage Duration: {relative_end_time - relative_start_time:.6f}"
         )
         return id_lists
 
