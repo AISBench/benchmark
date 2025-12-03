@@ -136,7 +136,7 @@ For example, if the `batch_size` parameter value in the model configuration file
 
 ## UTILS-CFG-003
 ### Error Description
-The value of a parameter in the model configuration file is within the range limited by the tool.
+The value of a parameter in the model configuration file is outside the range limited by the tool.
 
 ### Solution
 Configure the parameter value within the range limited by the tool according to the prompts in the detailed log. For example, if the configuration file content is:
