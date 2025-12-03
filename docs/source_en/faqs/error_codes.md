@@ -261,7 +261,7 @@ If the error log shows `'--max-num-workers' must be an integer, but got '9' ....
 ### Error Description
 The command-line parameter value is too small.
 ### Solution
-If the error log shows `'--max-num-workers' must be >= 1, but got 0 ......`, it indicates that the value of the command-line parameter `--max-num-workers` is 0. However, the tool only supports more than 1 concurrent worker. Therefore, you need to adjust the value of `--max-num-workers` to be ≥ 1.
+If the error log shows `'--max-num-workers' must be >= 1, but got 0 ......`, it indicates that the value of the command-line parameter `--max-num-workers` is 0. However, the tool only supports at least 1 concurrent worker. Therefore, you need to adjust the value of `--max-num-workers` to be ≥ 1.
 
 ## UTILS-PARAM-001
 ### Error Description
