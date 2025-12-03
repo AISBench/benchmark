@@ -1,7 +1,7 @@
 # LAMBADA
 中文 | [English](README_en.md)
 ## 数据集简介
-LAMBADA（LAnguage Modeling Broadened to Account for Discourse Aspects）数据集是一种开放式填空任务，旨在评估计算模型对文本理解的能力。该数据集包含约10000个从BooksCorpus中提取的段落，每个段落的最后一句话缺少一个目标词，要求模型预测这个缺失的词。
+LAMBADA（Language Modeling Broadened to Account for Discourse Aspects）数据集是一种开放式填空任务，旨在评估计算模型对文本理解的能力。该数据集包含约10000个从BooksCorpus中提取的段落，每个段落的最后一句话缺少一个目标词，要求模型预测这个缺失的词。
 > 🔗 数据集主页[https://huggingface.co/datasets/cimec/lambada](https://huggingface.co/datasets/cimec/lambada)
 
 ## 数据集部署

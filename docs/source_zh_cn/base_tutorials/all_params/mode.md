@@ -14,7 +14,7 @@ graph LR;
 ```shell
 ais_bench --models vllm_api_general --datasets gsm8k_gen --mode all
 ```
-生成结构目录结构：
+生成目录结构示例：
 ```bash
 outputs/default/
 ├── 20250220_120000/        # 每个实验对应一个时间戳文件夹
@@ -40,7 +40,7 @@ graph LR;
 ```shell
 ais_bench --models vllm_api_general --datasets gsm8k_gen --mode infer
 ```
-生成结构目录结构：
+生成目录结构示例：
 ```bash
 outputs/default/
 ├── 20250220_120000/
@@ -65,7 +65,7 @@ graph LR;
 ```shell
 ais_bench --models vllm_api_general --datasets gsm8k_gen --mode eval --reuse
 ```
-生成结构目录结构：
+生成目录结构示例：
 ```bash
 outputs/default/
 ├── 20250220_120000/
@@ -90,7 +90,7 @@ graph LR;
 ais_bench --models vllm_api_general --datasets gsm8k_gen --mode viz --reuse
 ```
 
-生成结构目录结构：
+生成目录结构示例：
 ```bash
 outputs/default/
 ├── 20250220_120000/

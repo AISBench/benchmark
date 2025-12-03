@@ -34,7 +34,7 @@
 
 - **\[2025.8.19\]**
   - 新增Function Call专用模型配置 [vllm_api_function_call_chat](ais_bench/benchmark/configs/models/vllm_api/vllm_api_function_call_chat.py)，支持 [BFCL 函数调用能力评估](ais_bench/benchmark/configs/datasets/BFCL/README.md) 🔥🔥🔥
-  - 提供工具支持的[性能测试规格说明](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/performance_benchmark.html#id25)，优化推理集群场景工具内存占用及性能计算。最大规格场景（250K条请求，输入/输出token 4K/4K）内存占用下降低60%，内存占用小于64GB；性能结果计算效率提升20倍。🚀🚀🚀
+  - 提供工具支持的[性能测试规格说明](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/performance_benchmark.html#id25)，优化推理集群场景工具内存占用及性能计算。最大规格场景（250K条请求，输入/输出token 4K/4K）内存占用降低60%，内存占用小于64GB；性能结果计算效率提升20倍。🚀🚀🚀
 - **\[2025.7.15\]**
   - 支持[sharegpt](ais_bench/benchmark/configs/datasets/sharegpt/README.md)和[mtbench](ais_bench/benchmark/configs/datasets/mtbench/README.md)多轮对话数据集服务化性能测评和可视化，测评方式见📚[多轮对话测评指南](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/advanced_tutorials/multiturn_benchmark.html)！🔥🔥🔥
   - 性能评测场景使用[自定义数据集](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/advanced_tutorials/custom_dataset.html)，支持按请求粒度指定最大输出长度！🔥🔥🔥
@@ -65,9 +65,9 @@ AISBench Benchmark 是基于 [OpenCompass](https://github.com/open-compass/openc
 ## 🛠️ 工具安装
 ✅ 环境要求
 
-**Python 版本**：仅支持 Python **3.10** 或 **3.11**
+**Python 版本**：仅支持 Python **3.10**、 **3.11** 或 **3.12**
 
-不支持 Python 3.9 及以下，也不兼容 3.12 及以上版本
+不支持 Python 3.9 及以下版本，也不兼容 Python 3.13 及以上版本
 
 **推荐使用 Conda 管理环境**，以避免依赖冲突
 ```shell

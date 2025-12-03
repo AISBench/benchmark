@@ -2,9 +2,9 @@
 ## 🔧 Tool Installation
 ✅ Environment Requirements
 
-**Python Version**: Only Python **3.10** or **3.11** is supported.
+**Python Version**: Only Python **3.10**, **3.11**, or **3.12** is supported.
 
-Python 3.9 and lower versions are not supported, nor are Python 3.12 and higher versions compatible.
+Python 3.9 and lower versions are not supported, nor are Python 3.13 and higher versions compatible.
 
 **It is recommended to use Conda for environment management** to avoid dependency conflicts.
 ```shell

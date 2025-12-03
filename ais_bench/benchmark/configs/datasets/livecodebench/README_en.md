@@ -33,4 +33,4 @@ git clone https://huggingface.co/datasets/livecodebench/code_generation_lite
 ## Available Dataset Tasks
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
 | --- | --- | --- | --- | --- | --- |
-| livecodebench_code_generate_lite_gen_0_shot_chat | Generative task for the code_generatation_lite dataset | pass@1 | 0-shot | Chat format | [livecodebench_code_generate_lite_gen_0_shot_chat.py](livecodebench_code_generate_lite_gen_0_shot_chat.py) |
+| livecodebench_code_generate_lite_gen_0_shot_chat | Generative task for the code_generation_lite dataset | pass@1 | 0-shot | Chat format | [livecodebench_code_generate_lite_gen_0_shot_chat.py](livecodebench_code_generate_lite_gen_0_shot_chat.py) |

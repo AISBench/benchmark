@@ -16,7 +16,7 @@ wget http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/aime2025.zip
 unzip aime2025.zip
 rm aime2025.zip
 ```
-- Execute `tree aime/` in the directory `{tool_root_path}/ais_bench/datasets` to check the directory structure. If the directory structure is as shown below, the dataset has been deployed successfully:
+- Execute `tree aime2025/` in the directory `{tool_root_path}/ais_bench/datasets` to check the directory structure. If the directory structure is as shown below, the dataset has been deployed successfully:
     ```
     aime2025/
     └── aime2025.jsonl

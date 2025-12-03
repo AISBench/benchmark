@@ -49,7 +49,7 @@ NeedleBench V2引入了更平衡的评分系统。总体评分现在是通过三
 ## 可用数据集任务
 |任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
 | --- | --- | --- | --- | --- | --- |
-|atc_0shot_nocot_2_power_en|atc_0shot_nocot_2_power_en|准确率(accuracy)|0-shot|对话格式|[atc/atc_0shot_nocot_2_power_en.py]()|
+|atc_0shot_nocot_2_power_en|atc_0shot_nocot_2_power_en|准确率(accuracy)|0-shot|对话格式|[atc_0shot_nocot_2_power_en.py](atc/atc_0shot_nocot_2_power_en.py)|
 |needlebench_v2_4k|needlebench_v2_4k|准确率(accuracy)|0-shot|对话格式|[needlebench_v2_4k.py](needlebench_v2_4k/needlebench_v2_4k.py)|
 |needlebench_v2_multi_reasoning_4k|needlebench_v2_multi_reasoning_4k|准确率(accuracy)|0-shot|对话格式|[needlebench_v2_multi_reasoning_4k.py](needlebench_v2_4k/needlebench_v2_multi_reasoning_4k.py)|
 |needlebench_v2_multi_retrieval_4k|needlebench_v2_multi_retrieval_4k|准确率(accuracy)|0-shot|对话格式|[needlebench_v2_multi_retrieval_4k.py](needlebench_v2_4k/needlebench_v2_multi_retrieval_4k.py)|

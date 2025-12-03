@@ -111,7 +111,7 @@ aime2024   604a78     accuracy  gen                        50.00                
     └── summary_20250628_172032.txt
 ```
 ### 多任务并行测评
-默认情况下，多个子任务采用串行执行，单个任务内默认开启Continous Batch，会根据用户配置的最大并发拉起多个进程发送和处理请求，允许配置较大的并发。在单个任务并发较小时，可以通过设置📚 [`--max-num-workers`](../all_params/cli_args.md#精度测评参数)参数实现多任务并行，示例如下：
+默认情况下，多个子任务采用串行执行，单个任务内默认开启Continuous Batch，会根据用户配置的最大并发拉起多个进程发送和处理请求，允许配置较大的并发。在单个任务并发较小时，可以通过设置📚 [`--max-num-workers`](../all_params/cli_args.md#精度测评参数)参数实现多任务并行，示例如下：
 
 ```bash
 ais_bench --models vllm_api_general_chat vllm_api_stream_chat --datasets gsm8k_gen_4_shot_cot_str aime2024_gen_0_shot_chat_prompt --max-num-workers 4

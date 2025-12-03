@@ -11,11 +11,11 @@ This feature is designed for scenarios where real datasets are unavailable, and 
 
 ### 2.1 Modifying the Configuration File
 
-Configure the required parameters in the `ais_bench/datasets/synthetic/synthetic_config.py` configuration file.
+Configure the `synthetic_config` parameter in the configuration template files under the `ais_bench/benchmark/configs/datasets/synthetic` directory.
 
-This configuration file is used to generate **two types of randomly constructed datasets**:
+Currently, **two different types** of random dataset configuration template files are provided. Users can select and modify the appropriate template file according to their needs:
 
-- **`string` mode**: Generates random-length strings (simulating real input)
+- **`synthetic_gen_string.py`**: Generates random-length strings (simulating real input)
 
   ```python
   synthetic_config = {
@@ -24,9 +24,7 @@ This configuration file is used to generate **two types of randomly constructed 
   }
   ```
 
-  > In this mode, except for public parameters, **parameters in `StringConfig` take effect** while **parameters in `TokenIDConfig` do not**.
-
-- **`tokenid` mode**: Generates random token ID sequences (directly inputting encoded tokens)
+- **`synthetic_gen_tokenid.py`**: Generates random token ID sequences (directly inputting encoded tokens)
 
   ```python
   synthetic_config = {
@@ -35,21 +33,20 @@ This configuration file is used to generate **two types of randomly constructed 
   }
   ```
 
-  > In this mode, except for public parameters, **parameters in `TokenIDConfig` take effect** while **parameters in `StringConfig` do not**.
-
+**Note:** The configuration used by the [`ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen.py`](../../../ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen.py) template needs to be modified in [`ais_bench/benchmark/configs/datasets/synthetic`](../../../ais_bench/datasets/synthetic/synthetic_config.py). To unify the dataset configuration mode, this method will be deprecated in future versions.
 
 ### 2.2 Command Execution
 
 Run the following command in the command line to start the evaluation:
 
 ```bash
-ais_bench --models {model_api_file} --datasets synthetic_gen {other_option_args}
+ais_bench --models {model_api_file} --datasets synthetic_gen_{string/tokenid} {other_option_args}
 ```
 
 
 ## III. Parameter Description
 
-> The following is a general description of parameters in the [synthetic_config.py](../../ais_bench/datasets/synthetic/synthetic_config.py) configuration file. For detailed value requirements, refer to the comments in the configuration file and specific usage scenarios.
+> The following is a general description of parameters in the configuration files. For detailed value requirements, refer to the comments in the configuration files and specific usage scenarios.
 
 ### 3.1 Public Parameters
 
@@ -140,7 +137,7 @@ synthetic_config = {
             "Method": "gaussian",
             "Params": {
                 "Mean": 256,       # Central value: 256
-                "Var": 100,        # Standard deviation: 10
+                "Var": 10,         # Variance: 10
                 "MinValue": 64,    # Actual range: 64-512
                 "MaxValue": 512
             }

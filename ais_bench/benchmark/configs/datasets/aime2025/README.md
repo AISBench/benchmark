@@ -16,7 +16,7 @@ wget http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/aime2025.zip
 unzip aime2025.zip
 rm aime2025.zip
 ```
-- 在`{工具根路径}/ais_bench/datasets`目录下执行`tree aime/`查看目录结构，若目录结构如下所示，则说明数据集部署成功。
+- 在`{工具根路径}/ais_bench/datasets`目录下执行`tree aime2025/`查看目录结构，若目录结构如下所示，则说明数据集部署成功。
     ```
     aime2025/
     └── aime2025.jsonl

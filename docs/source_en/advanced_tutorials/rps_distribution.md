@@ -20,10 +20,6 @@ For usage instructions, please refer to the description in the [File Configurati
   - Before sending requests: Display the expected distribution of the request sending rate.
   - After sending requests: Present the difference between the actual request sending rate distribution and the expected values, allowing users to intuitively understand traffic fluctuations and system performance.
 
-
-> ⚠️ The RPS distribution control feature is **invalid in stress testing scenarios**.
-
-
 > 🔍 Terminology Interpretation
 > - **RPS**: Request Per Second, unit: $requests/second$.
 > - **Burstiness**: Peak periods of request traffic.
@@ -325,7 +321,7 @@ $\lambda_i = \lambda_{\text{start}} \times \left(\frac{\lambda_{end}}{\lambda_{s
 1. Anomaly points are identified based on strict mathematical conditions ($t_{\text{interval}} < 0.001$ or $\frac{\Delta t}{t_{\text{expected}}} > 0.5$).
 2. The shape of the RPS distribution is jointly determined by `burstiness`, `ramp_up_strategy`, `ramp_up_start_rps`, and `ramp_up_end_rps`.
 3. The calculation of global time offsets in multi-process scheduling is **expected** (i.e., the content of `{datasetname}_rps_distribution_plot.html`), while the actual sending rate (i.e., the newly added part of `{datasetname}_rps_distribution_plot_with_actual_rps.html`) may **deviate from expectations** due to factors such as concurrency, physical machine performance, service request processing efficiency, and multi-turn dialogue scenarios.
-4. **Stress testing scenarios are not supported**.
+4. **In stress testing scenarios, the frequency of connection creation is controlled, but not the request sending rate (after each connection is created, requests are sent and responses are processed continuously without interruption)**.
 5. **In multi-turn dialogue scenarios, only the request distribution of the first turn is valid**.
 
 

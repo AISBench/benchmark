@@ -3,7 +3,7 @@
 ## 数据集简介
 MMLU-Pro 数据集是一个更为稳健且具有挑战性的大规模多任务理解数据集，专为更严格地评估大语言模型的能力而设计。该数据集包含了来自多个学科的 12,000 个复杂问题。
 
-> 🔗 数据集主页[https://huggingface.co/datasets/datasets/TIGER-Lab/MMLU-Pro](https://huggingface.co/datasets/datasets/TIGER-Lab/MMLU-Pro)
+> 🔗 数据集主页[https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro](https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro)
 
 ## 数据集部署
 - 可以从opencompass提供的链接🔗 [http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/mmlu_pro.zip](http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/mmlu_pro.zip)下载数据集压缩包。

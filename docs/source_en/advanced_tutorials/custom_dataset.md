@@ -2,10 +2,9 @@
 
 This tutorial is only for temporary and informal use of datasets.
 
-In this tutorial, we will explain how to test a new dataset without implementing a config or modifying the source code of `ais_bench`. The supported task types include **multiple-choice questions (mcq)** and **question-answering (qa)**. Currently, both `mcq` and `qa` only support `gen` (generation-based) inference.
+In this tutorial, we will explain how to test a new dataset without adding a dataset configuration file or modifying the source code of `ais_bench`. The supported task types include **multiple-choice questions (mcq)** and **question-answering (qa)**. Currently, both `mcq` and `qa` only support `gen` (generation-based) inference.
 
-## 1 Custom language dataset
-### Dataset Formats
+## Dataset Formats
 
 We support two dataset formats: `.jsonl` and `.csv`.
 

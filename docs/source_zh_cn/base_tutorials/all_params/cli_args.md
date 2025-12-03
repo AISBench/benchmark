@@ -21,20 +21,20 @@ ais_bench [OPTIONS]
 适用于所有模式，可同时与精度或性能参数联合使用。
 | 参数| 说明| 示例|
 | ---- | ---- | ----|
-| `--models`| 指定模型推理后端任务名称（对应 `ais_bench/benchmark/configs/models` 路径下一个已经实现的默认模型配置文件），支持传入多个任务名称，；与 `config` 参数二选一。详情参考📚 [支持的模型](./models.md)| `--models vllm_api_general`  |
-| `--datasets`   | 指定数据集任务名称（对应 `ais_bench/benchmark/configs/datasets` 路径下一个已经实现的默认数据集配置文件），可传入多个；与 `config` 参数二选一。详情参考📚 [支持的数据集类型](./datasets.md)| `--datasets gsm8k_gen`    |
+| `--models`| 指定模型推理后端任务名称（对应 `ais_bench/benchmark/configs/models` 路径下一个已经实现的默认模型配置文件），支持传入多个任务名称。详情参考📚 [支持的模型](./models.md)| `--models vllm_api_general`  |
+| `--datasets`   | 指定数据集任务名称（对应 `ais_bench/benchmark/configs/datasets` 路径下一个已经实现的默认数据集配置文件），可传入多个。详情参考📚 [支持的数据集类型](./datasets.md)| `--datasets gsm8k_gen`    |
 | `--summarizer` | 指定结果总结任务名称（对应 `ais_bench/benchmark/configs/summarizers` 路径下一个已经实现的默认模型配置文件）。详情参考📚 [支持的结果汇总任务](./summarizer.md) | `--summarizer medium`|
 | `--mode` 或 `-m`| 运行模式，可选：`all`、`infer`、`eval`、`viz`、`perf`、`perf_viz`；默认 `all`。<br>详细请见 📚 [运行模式说明](./mode.md)。 | `--mode infer`<br>`-m all`|
 | `--reuse` 或 `-r`| 指定已有工作目录下的时间戳，继续执行并覆盖原有结果。结合`--mode`参数值，可用于推理中断续推，或基于已有推理结果执行精度计算、可视化结果打印。若不加参，则自动选取 `--work-dir` 下最新时间戳。| `--reuse 20250126_144254`<br>`-r 20250126_144254` |
 | `--work-dir` 或 `-w`     | 指定评测工作目录，用于保存输出结果。默认 `outputs/default`。| `--work-dir /path/to/work`<br>`-w /path/to/work` |
 | `--config-dir` | `models`，`datasets`和`summarizers`配置文件所在的文件夹路径，默认 `ais_bench/benchmark/configs`。    | `--config-dir /xxx/xxx`   |
-| `--debug` | 开启 Debug 模式，配置该参数表示开启，未配置表示关闭，默认未配置。debug模式下所有日志将会直接打印在终端，日志会打印到终端。    | `--debug`   |
+| `--debug` | 开启 Debug 模式，配置该参数表示开启，未配置表示关闭，默认未配置。debug模式下所有日志将直接打印在终端。(debug模式下`--max-num-workers`参数将强制设置为1，串行执行每个任务，且只会调用单核执行任务，并发能力受限)    | `--debug`   |
 | `--dry-run`    | 开启 Dry Run 模式（只打屏不实际跑任务）开关，配置该参数表示开启，未配置表示关闭，默认未配置。  | `--dry-run` |
 | `--max-workers-per-gpu` | 预留参数，暂不支持。 | `--max-workers-per-gpu 1` |
 | `--merge-ds`   | 开启同类数据集合并推理（同一任务多数据集一起跑）。| `--merge-ds`|
-| `--num-prompts` | 指定数据集测评条数，需传入正整数，超过数据集条数或默认情况下表示对全量数据集进行测评。 | `--num-prompts 500` |
-| `--max-num-workers`   | 并行任务数，范围 `[1, 0.8 * CPU 核数]`，默认 `1`。注意：性能测评场景下，并发数过高可能会导致不同进程出现资源抢占，导致测试结果失真。  | `--max-num-workers 2` |
-|`--num-warmups`|发送请求前预热次数，默认 `1`；若设为0，则不预热。如果warmup中存在失败请求，后续推理任务将不会执行。| `--num-warmups 10` |
+| `--num-prompts` | 指定数据集测评条数（按照数据集顺序选取），需传入正整数，超过数据集条数或默认情况下表示对全量数据集进行测评。 | `--num-prompts 500` |
+| `--max-num-workers`   | 并行任务数，范围 `[1, CPU 核数]`，默认 `1`。在指定`--debug`时配置无效，所有任务串行执行。注意：性能测评场景下，并发数过高可能会导致不同进程出现资源抢占，导致测试结果失真。  | `--max-num-workers 2` |
+|`--num-warmups`|发送请求前预热次数，按照数据集顺序选取数据进行测试，大概num-warmups大于数据集条数时，会循环发送数据集中数据。默认 `1`；若设为0，则不预热。如果warmup阶段所有请求失败，后续推理任务将不会执行。| `--num-warmups 10` |
 
 ### 精度测评参数
 仅在模式为 `all、infer、eval` 或 `viz` 时有效。
@@ -56,7 +56,7 @@ ais_bench [OPTIONS]
 当前支持的参数配置如下：
 | 参数名| 说明| 取值范围 / 要求 |
 | ----------- | ----------- | ----------- |
-|`WORKERS_NUM`|请求发送所用的进程数。 默认为0， 根据用户配置的请求最大并发数自动分配。|[0, cpu核数]|
+|`WORKERS_NUM`|请求发送所用的进程数。 默认为0， 根据用户配置的请求最大并发数自动分配。（在指定命令行参数`--debug`时配置无效，调用单核发送请求，并发能力存在限制）|[0, cpu核数]|
 | `MAX_CHUNK_SIZE` | 流式推理模型后端返回的单个 chunk 最大缓存大小。默认值为 65535 字节（64KB）。 | `(0, 16777216]`（单位：Byte） |
 | `REQUEST_TIME_OUT` | Client 端请求发送后等待返回的超时时间。默认为 None，即无限等待，始终等待模型返回结果。 | `None` 或 `>0`（单位：秒）|
 |`LOG_LEVEL`|日志级别，可选：`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`。默认 `INFO`。|`[DEBUG, INFO, WARNING, ERROR, CRITICAL]`|

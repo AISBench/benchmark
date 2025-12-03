@@ -10,11 +10,11 @@
 
 ### 2.1 修改配置文件
 
-在 `ais_bench/datasets/synthetic/synthetic_config.py` 配置文件中配置所需参数。
+配置`ais_bench/benchmark/configs/datasets/synthetic` 目录下的配置模板文件中的`synthetic_config`参数。
 
-本配置文件用于生成**两种不同构造类型**的随机数据集：
+当前提供了**两种不同构造类型**的随机数据集配置模板文件，用户可根据自己的需求选择合适的模板文件进行修改：
 
-- **`string`模式**: 生成随机长度字符串（模拟真实输入）
+- **`synthetic_gen_string.py`**: 生成随机长度字符串（模拟真实输入）
 
     ```python
     synthetic_config = {
@@ -23,9 +23,7 @@
     }
     ```
 
-    > 在该模式下，除了公共参数部分外，**`StringConfig`中的配置参数生效** 而 **`TokenIDConfig`中的参数不生效**
-
-- **`tokenid`模式**: 生成随机token id序列（直接输入编码后的Token）
+- **`synthetic_gen_tokenid.py`**: 生成随机token id序列（直接输入编码后的Token）
 
     ```python
     synthetic_config = {
@@ -34,21 +32,21 @@
     }
     ```
 
-    > 在该模式下，除了公共参数部分外，**`TokenIDConfig`中的配置参数生效** 而 **`StringConfig`中的参数不生效**
+**注意：** [`ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen.py`](../../../ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen.py)模板所使用配置需在[`ais_bench/benchmark/configs/datasets/synthetic`](../../../ais_bench/datasets/synthetic/synthetic_config.py)中进行修改。为了统一数据集配置模式，此方法将在后续版本中弃用。
 
 ### 2.2 命令执行
 
 在命令行执行如下命令启动测评:
 
 ```bash
-ais_bench --models {model_api_file} --datasets synthetic_gen {other_option_args}
+ais_bench --models {model_api_file} --datasets synthetic_gen_{string/tokenid} {other_option_args}
 ```
 
 ------
 
 ## 三. 参数说明
 
-> 以下仅做[synthetic_config.py](../../ais_bench/datasets/synthetic/synthetic_config.py)配置文件中参数的大概说明，详细取值要求需参考配置文件中预留的注释和使用场景。
+> 以下仅做配置文件中参数的大概说明，详细取值要求需参考配置文件中预留的注释和使用场景。
 
 ### 3.1 公共参数
 
@@ -143,7 +141,7 @@ synthetic_config = {
             "Method": "gaussian",
             "Params": {
                 "Mean": 256,       # 中心值256
-                "Var": 100,        # 标准差10
+                "Var": 10,         # 方差10
                 "MinValue": 64,    # 实际范围64-512
                 "MaxValue": 512
             }

@@ -26,5 +26,5 @@ rm gsm8k.zip
 ## 可用数据集任务
 |任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
 | --- | --- | --- | --- | --- | --- |
-|demo_gsm8k_gen_4_shot_cot_chat_prompt|gsm8k数据集生成式任务(只取8条数据)，带逻辑链|accuracy|4-shot|字符串格式|[demo_gsm8k_gen_4_shot_cot_chat_prompt.py](demo_gsm8k_gen_0_shot_cot_str_perf.py)|
+|demo_gsm8k_gen_4_shot_cot_chat_prompt|gsm8k数据集生成式任务(只取8条数据)，带逻辑链|accuracy|4-shot|字符串格式|[demo_gsm8k_gen_4_shot_cot_chat_prompt.py](demo_gsm8k_gen_4_shot_cot_chat_prompt.py)|
 |demo_gsm8k_gen_0_shot_cot_str_perf|gsm8k数据集生成式任务(只取8条数据)，带逻辑链|性能评测|0-shot|字符串格式|[demo_gsm8k_gen_0_shot_cot_str_perf.py](demo_gsm8k_gen_0_shot_cot_str_perf.py)|

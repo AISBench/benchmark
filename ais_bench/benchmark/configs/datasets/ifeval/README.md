@@ -21,7 +21,7 @@ wget http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/ifeval.zip
 unzip ifeval.zip
 rm ifeval.zip
 ```
-- 在`{工具根路径}/ais_bench/datasets`目录下执行`tree feval/`查看目录结构，若目录结构如下所示，则说明数据集部署成功。
+- 在`{工具根路径}/ais_bench/datasets`目录下执行`tree ifeval/`查看目录结构，若目录结构如下所示，则说明数据集部署成功。
     ```
     ifeval
     └── input_data.jsonl
