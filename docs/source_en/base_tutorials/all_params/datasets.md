@@ -52,7 +52,7 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | FewCLUE_csl     | Keyword Recognition                                    | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_csl/README_en.md)     |
 | FewCLUE_eprstmt | Sentiment Analysis                                     | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_eprstmt/README_en.md) |
 | FewCLUE_tnews   | News Classification                                    | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_tnews/README_en.md)   |
-| Leval           | Long context Understanding                             | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/leval/README_en.md)           |
+| Leval           | Long Context Understanding                             | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/leval/README_en.md)           |
 
 ### Multimodal Datasets
 | Dataset Name | Category                                | Detailed Introduction & Acquisition Method                                                                                              |
