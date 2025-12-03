@@ -1,0 +1,64 @@
+# 工作流名称
+name: Run Unit Tests on PR(Python)
+
+# 触发条件：PR针对main/master分支的创建/更新（可调整分支）
+on:
+  pull_request:
+    branches: [master]  # 监听的目标分支
+    # 可选：仅当指定目录/文件变更时触发（减少无用运行）
+    paths:
+      - '**.py'          # 仅Python文件变更时触发
+      - 'requirements.txt'  # 依赖文件变更时触发
+      - 'requirements/*.txt'  # 依赖文件变更时触发
+      - 'requirements/datasets/*.txt'  # 依赖文件变更时触发
+      - '.github/workflows/run-ut-on-pr-py.yml'  # 工作流文件变更时触发
+
+  workflow_dispatch:  # 临时添加：允许手动触发
+
+# 工作流任务
+jobs:
+  test:
+    # 运行的操作系统（可选ubuntu-latest/macos-latest/windows-latest）
+    runs-on: ubuntu-latest
+    # 可选：多Python版本测试
+    strategy:
+      matrix:
+        python-version: [3.10, 3.11]
+
+    steps:
+      # 步骤1：拉取仓库代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 步骤2：设置Python环境
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # 核心优化：缓存pip依赖
+      - name: Cache pip dependencies
+        uses: actions/cache@v4  # 缓存官方Action，v4是最新版
+        with:
+          # 缓存路径（不同系统路径不同，ubuntu下是~/.cache/pip）
+          path: |
+            ~/.cache/pip
+            **/__pycache__
+          # 缓存key：Python版本 + requirements文件内容（文件不变则key不变）
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements/runtime.txt') }}
+          # 回退策略：若当前key无缓存，使用同系统+同Python版本的最新缓存
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      # 步骤3：安装依赖（根据项目调整，如pip/poetry/pipenv）
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e ./ --use-pep517 --no-deps
+          pip install pytest pytest-cov    # 若未在requirements中
+
+      # 步骤4：运行单元测试（核心步骤）
+      - name: Run unit tests
+        run: |
+          python tests/run_tests.py tests/UT/
