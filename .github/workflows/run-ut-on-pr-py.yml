@@ -16,88 +16,64 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  VIRTUALENVS_ENV: workon310
-
+  PY310_VERSION: 3.10.12
 jobs:
   pr_run_test:
-    runs-on: 66_19_x64_linux
+    runs-on: [self-hosted, Linux, X64, 66_19]
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
       - name: Prepare - Install benchmark
         run: |
-          source ~/.bashrc
-          ${{env.VIRTUALENVS_ENV}}
+          export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${HOME}/local_bin/python-${PY310_VERSION}/lib"
+          source ${HOME}/virtualenvs/workon310/bin/activate
           pip3 install -e ./ --use-pep517
           pip3 install -r requirements/api.txt
           pip3 install -r requirements/extra.txt
           pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
       - name: Run Test
         run: |
+          export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${HOME}/local_bin/python-${PY310_VERSION}/lib"
+          source ${HOME}/virtualenvs/workon310/bin/activate
+          pip3 install pytest pytest-cov
           python3 tests/run_tests.py tests/UT
 
       - name: Check Result
         run: |
-          if (-f tests/UT/results.json); then
-             echo "score is $score between 75 and 80"
+          cur_dir=$(pwd)
+          summary_path=${cur_dir}/test_reports/test_summary.txt
+          echo "summary_path: ${summary_path}"
+          if [ -f ${summary_path} ]; then
+            echo "[INFO] test_summary.txt exists. "
           else
-             echo "score is $score not between 75 and 80"
-             exit 1
+            echo "[ERROR] test_summary.txt not exists. "
+            exit 1
           fi
-
-      - name: Check Result
-        run: |
-          . ${{env.CONDA_PATH}}/bin/activate
-          conda activate ${{env.CONDA_ENV}}
-          conda info --envs
-          rjob submit --name=pr-test-${{ github.run_id }}-${{ github.run_attempt }} --charged-group=opencompass_gpu --private-machine=group --group=opencompass_gpu --gpu=2 --cpu=32 --memory=32568 --private-machine=group --image=registry.h.pjlab.org.cn/ailab-puyu/xpuyu:torch-2.6.0-45d96d5f-0607 --env=COMPASS_DATA_CACHE=/mnt/shared-storage-user/auto-eval-pipeline/opencompass/llmeval/compass_data_cache --env=TIKTOKEN_CACHE_DIR=/mnt/shared-storage-user/auto-eval-pipeline/opencompass/llmeval/share_tiktoken --env=HF_HUB_CACHE=/mnt/shared-storage-user/large-model-center-share-weights/hf_hub --env=HF_ENDPOINT=https://hf-mirror.com --env=HF_DATASETS_CACHE=/mnt/shared-storage-user/auto-eval-pipeline/opencompass/llmeval/hf_cache --env=HF_HUB_CACHE=/mnt/shared-storage-user/large-model-center-share-weights/hf_hub --env=CUDA_MODULE_LOADING=EAGER --env=HF_DATASETS_OFFLINE=1 --env=TRANSFORMERS_OFFLINE=1 --env=HF_EVALUATE_OFFLINE=1 --env=HF_HUB_OFFLINE=1 --mount=gpfs://gpfs1/opencompass-shared:/mnt/shared-storage-user/opencompass-shared --mount=gpfs://gpfs1/auto-eval-pipeline:/mnt/shared-storage-user/auto-eval-pipeline --mount=gpfs://gpfs1/large-model-center-share-weights:/mnt/shared-storage-user/large-model-center-share-weights --host-network=True -- bash -exc '/mnt/shared-storage-user/opencompass-shared/qa-llm-cicd/pr_test.sh ${{env.REPORT_ROOT}}/${{ github.run_id }}'
-
-          for i in {1..300}; do
-            current_status=$(rjob get pr-test-${{ github.run_id }}-${{ github.run_attempt }} | grep -oP 'rjob [^:]+: \K[^ ]+')
-            if [[ $current_status == "Succeeded" || $current_status == "Failed" || $current_status == "Stopped" ]]; then
-                echo "Current status: $current_status, stop checking"
-                break
-            fi
-            sleep 6
-          done
-      - name:  Get result
-        run: |
-          score=$(sed -n '$p' ${{env.REPORT_ROOT}}/${{ github.run_id }}/regression_result1/*/summary/*.csv | awk -F ',' '{print $NF}')
-          if (( ${score%.*} >= 75 && ${score%.*} <= 80 )); then
-             echo "score is $score between 75 and 80"
+          grep -q "Failed: 0" ${summary_path}
+          if [ $? -ne 0 ]; then
+            failed_count=$(cat ${summary_path} | grep "Failed:" | awk '{print $2}')
+            echo "[ERROR] Not all test case passed, failed count is ${failed_count}. "
+            exit 1
           else
-             echo "score is $score not between 75 and 80"
-             exit 1
+            echo "[INFO] All test case passed. "
           fi
-          score=$(sed -n '$p' ${{env.REPORT_ROOT}}/${{ github.run_id }}/regression_result2/*/summary/*.csv | awk -F ',' '{print $NF}')
-          if (( ${score%.*} >= 75 && ${score%.*} <= 80 )); then
-             echo "score is $score between 75 and 80"
+          total_coverage=$(cat ${summary_path} | grep "Total coverage" | cut -d' ' -f3 | tr -d '%')
+          if [ $total_coverage -lt 80 ]; then
+            echo "[ERROR] Code coverage is lower than 80.0%, current coverage is ${total_coverage}%. "
+            exit 1
           else
-             echo "score is $score not between 75 and 80"
-             exit 1
+            echo "[INFO] Code coverage is higher than 80.0%, current coverage is ${total_coverage}%. "
           fi
-          score=$(sed -n '$p' ${{env.REPORT_ROOT}}/${{ github.run_id }}/regression_result3/*/summary/*.csv | awk -F ',' '{print $NF}')
-          if (( ${score%.*} >= 75 && ${score%.*} <= 80 )); then
-             echo "score is $score between 75 and 80"
-          else
-             echo "score is $score not between 75 and 80"
-             exit 1
-          fi
-      - name:  Uninstall opencompass
+      - name:  Uninstall benchmark
         if: always()
         run: |
-          . ${{env.CONDA_PATH}}/bin/activate
-          conda activate ${{env.CONDA_ENV}}
-          python3 -m pip uninstall opencompass -y
-          conda info --envs
-
-  notify_to_feishu:
-    if: ${{ always() && !cancelled() && contains(needs.*.result, 'failure') && (github.ref_name == 'develop' || github.ref_name == 'main') }}
-    needs: [pr_run_test]
-    timeout-minutes: 5
-    runs-on: self-hosted
-    steps:
-      - name: notify
-        run: |
-          curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"post","content":{"post":{"zh_cn":{"title":"Opencompass- pr test failed","content":[[{"tag":"text","text":"branch: ${{github.ref_name}}, run action: ${{github.workflow}} failed. "},{"tag":"a","text":"Please click here for details ","href":"https://github.com/'${{ github.repository }}'/actions/runs/'${GITHUB_RUN_ID}'"},{"tag":"at","user_id":"'${{ secrets.USER_ID }}'"}]]}}}}'  ${{ secrets.WEBHOOK_URL }}
+          export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${HOME}/local_bin/python-${PY310_VERSION}/lib"
+          source ${HOME}/virtualenvs/workon310/bin/activate
+          pip3 uninstall ais_bench_benchmark -y
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Uninstall benchmark failed. "
+            exit 1
+          else
+            echo "[INFO] Uninstall benchmark success. "
+          fi
