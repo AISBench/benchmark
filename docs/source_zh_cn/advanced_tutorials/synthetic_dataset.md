@@ -97,7 +97,8 @@ ais_bench --models {model_api_file} --datasets synthetic_gen_{string/tokenid} {o
 
 ```python
 "TokenIdConfig" : {
-    "RequestSize": int   # 单请求token数量
+    "RequestSize": int,  # 单请求token数量
+    "PrefixLen": int     # 所有请求的公共前缀token数量
 }
 ```
 
@@ -231,7 +232,8 @@ synthetic_config = {
     "Type": "tokenid",
     "RequestCount": 1000,
     "TokenIdConfig": {
-        "RequestSize": 2048   # 单请求2048个token
+        "RequestSize": 2048,   # 单请求2048个token
+        "PrefixLen": 0
     }
 }
 ```
@@ -243,7 +245,21 @@ synthetic_config = {
     "Type": "tokenid",
     "RequestCount": 5000,
     "TokenIdConfig": {
-        "RequestSize": 128    # 短文本处理场景
+        "RequestSize": 128,    # 短文本处理场景
+        "PrefixLen": 0
+    }
+}
+```
+
+#### 公共前缀性能测试
+
+```python
+synthetic_config = {
+    "Type": "tokenid",
+    "RequestCount": 5000,
+    "TokenIdConfig": {
+        "RequestSize": 512,    # 单请求512个token
+        "PrefixLen": 256      # 所有请求前面256个token相等
     }
 }
 ```

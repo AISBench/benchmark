@@ -95,7 +95,8 @@ ais_bench --models {model_api_file} --datasets synthetic_gen_{string/tokenid} {o
 
 ```python
 "TokenIdConfig" : {
-    "RequestSize": int   # Number of tokens per request
+    "RequestSize": int,   # Number of tokens per request
+    "PrefixLen": int     # Number of common prefix tokens for all requests
 }
 ```
 
@@ -241,6 +242,18 @@ synthetic_config = {
 }
 ```
 
+#### prefix Cache Performance Testing
+
+```python
+synthetic_config = {
+    "Type": "tokenid",
+    "RequestCount": 5000,
+    "TokenIdConfig": {
+        "RequestSize": 512,    # 512 tokens per request
+        "PrefixLen": 256       # All requests have the first 256 tokens equal
+    }
+}
+```
 
 ## V. Frequently Asked Questions
 

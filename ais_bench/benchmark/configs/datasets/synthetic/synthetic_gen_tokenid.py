@@ -13,7 +13,8 @@ synthetic_config = {
     "RequestCount": 10,
     "TrustRemoteCode": False,
     "TokenIdConfig" : {
-        "RequestSize": 10
+        "RequestSize": 10,
+        "PrefixLen": 0,
     }
 }
 

@@ -287,6 +287,10 @@ class SyntheticDataset(BaseDataset):
         elif config_type == "tokenid":
             tokenid_config = config.get("TokenIdConfig")
             request_size = tokenid_config.get("RequestSize", None)
+            prefix_len = tokenid_config.get("PrefixLen", 0)
+            check_type("PrefixLen", prefix_len, types=(int, ))
+            check_range("PrefixLen", prefix_len, NumberRange(0, request_size))
+            request_size -= prefix_len
             model_path_value = config.get("ModelPath", None)
 
             check_type(model_path_key, model_path_value, types=(str, ))
@@ -319,10 +323,12 @@ class SyntheticDataset(BaseDataset):
 
             # Generate random indices for valid IDs
             valid_indices = torch.where(valid_ids)[0]
-
+            self.logger.info(f"prefix length: {prefix_len}")
+            prefix_ids = self.generate_valid_random_ids(valid_indices, prefix_len)
+            prefix_str = tokenizer_model.decode(prefix_ids)
             for _ in tqdm(range(request_count), desc="Constructing synthetic tokenid datasets ..."):
                 input_ids = self.generate_valid_random_ids(valid_indices, request_size)
-                decode_str = tokenizer_model.decode(input_ids)
+                decode_str = prefix_str + tokenizer_model.decode(input_ids)
                 dataset.append({"question":decode_str,"answer":"aaa"})
 
         else:
