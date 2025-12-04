@@ -17,8 +17,7 @@ from nltk.metrics.scores import f_measure, precision, recall
 from nltk.translate.bleu_score import sentence_bleu
 from nltk.translate.meteor_score import meteor_score
 from nltk.translate.nist_score import sentence_nist
-from lxml import etree
-import html
+from lxml import etree,html
 from apted.helpers import Tree
 from apted import APTED, Config
 from tqdm import tqdm
@@ -31,6 +30,8 @@ from itertools import product
 import zipfile
 import shutil
 from collections import namedtuple
+import distance
+
 
 from datasets import Dataset
 
