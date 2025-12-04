@@ -32,7 +32,6 @@ import shutil
 from collections import namedtuple
 import distance
 
-
 from datasets import Dataset
 
 from ais_bench.benchmark.openicl import BaseEvaluator
