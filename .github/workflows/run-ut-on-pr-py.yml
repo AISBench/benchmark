@@ -1,64 +1,103 @@
-# 工作流名称
-name: Run Unit Tests on PR(Python)
+name: run_ut_on_pr
 
-# 触发条件：PR针对main/master分支的创建/更新（可调整分支）
 on:
   pull_request:
-    branches: [master]  # 监听的目标分支
-    # 可选：仅当指定目录/文件变更时触发（减少无用运行）
-    paths:
-      - '**.py'          # 仅Python文件变更时触发
-      - 'requirements.txt'  # 依赖文件变更时触发
-      - 'requirements/*.txt'  # 依赖文件变更时触发
-      - 'requirements/datasets/*.txt'  # 依赖文件变更时触发
-      - '.github/workflows/run-ut-on-pr-py.yml'  # 工作流文件变更时触发
+    paths-ignore:
+      - 'README.md'
+      - 'README_en.md'
+      - 'docs/**'
+      - 'plugin_examples/**'
+  workflow_dispatch:
+  schedule:
+    - cron:  '56 22 * * *'
 
-  workflow_dispatch:  # 临时添加：允许手动触发
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-# 工作流任务
+env:
+  VIRTUALENVS_ENV: workon310
+
 jobs:
-  test:
-    # 运行的操作系统（可选ubuntu-latest/macos-latest/windows-latest）
-    runs-on: ubuntu-22.04
-    # 可选：多Python版本测试
-    strategy:
-      matrix:
-        python-version: [3.11]
-
+  pr_run_test:
+    runs-on: 66_19_x64_linux
+    timeout-minutes: 20
     steps:
-      # 步骤1：拉取仓库代码
       - name: Checkout code
         uses: actions/checkout@v4
-
-      # 步骤2：设置Python环境
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      # 核心优化：缓存pip依赖
-      - name: Cache pip dependencies
-        uses: actions/cache@v4  # 缓存官方Action，v4是最新版
-        with:
-          # 缓存路径（不同系统路径不同，ubuntu下是~/.cache/pip）
-          path: |
-            ~/.cache/pip
-            **/__pycache__
-          # 缓存key：Python版本 + requirements文件内容（文件不变则key不变）
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements/runtime.txt') }}
-          # 回退策略：若当前key无缓存，使用同系统+同Python版本的最新缓存
-          restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python-version }}-
-
-      # 步骤3：安装依赖（根据项目调整，如pip/poetry/pipenv）
-      - name: Install dependencies
+      - name: Prepare - Install benchmark
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e ./ --use-pep517 --no-deps
-          pip install pytest pytest-cov    # 若未在requirements中
-
-      # 步骤4：运行单元测试（核心步骤）
-      - name: Run unit tests
+          source ~/.bashrc
+          ${{env.VIRTUALENVS_ENV}}
+          pip3 install -e ./ --use-pep517
+          pip3 install -r requirements/api.txt
+          pip3 install -r requirements/extra.txt
+          pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
+      - name: Run Test
         run: |
-          python tests/run_tests.py tests/UT/
+          python3 tests/run_tests.py tests/UT
+
+      - name: Check Result
+        run: |
+          if (-f tests/UT/results.json); then
+             echo "score is $score between 75 and 80"
+          else
+             echo "score is $score not between 75 and 80"
+             exit 1
+          fi
+
+      - name: Check Result
+        run: |
+          . ${{env.CONDA_PATH}}/bin/activate
+          conda activate ${{env.CONDA_ENV}}
+          conda info --envs
+          rjob submit --name=pr-test-${{ github.run_id }}-${{ github.run_attempt }} --charged-group=opencompass_gpu --private-machine=group --group=opencompass_gpu --gpu=2 --cpu=32 --memory=32568 --private-machine=group --image=registry.h.pjlab.org.cn/ailab-puyu/xpuyu:torch-2.6.0-45d96d5f-0607 --env=COMPASS_DATA_CACHE=/mnt/shared-storage-user/auto-eval-pipeline/opencompass/llmeval/compass_data_cache --env=TIKTOKEN_CACHE_DIR=/mnt/shared-storage-user/auto-eval-pipeline/opencompass/llmeval/share_tiktoken --env=HF_HUB_CACHE=/mnt/shared-storage-user/large-model-center-share-weights/hf_hub --env=HF_ENDPOINT=https://hf-mirror.com --env=HF_DATASETS_CACHE=/mnt/shared-storage-user/auto-eval-pipeline/opencompass/llmeval/hf_cache --env=HF_HUB_CACHE=/mnt/shared-storage-user/large-model-center-share-weights/hf_hub --env=CUDA_MODULE_LOADING=EAGER --env=HF_DATASETS_OFFLINE=1 --env=TRANSFORMERS_OFFLINE=1 --env=HF_EVALUATE_OFFLINE=1 --env=HF_HUB_OFFLINE=1 --mount=gpfs://gpfs1/opencompass-shared:/mnt/shared-storage-user/opencompass-shared --mount=gpfs://gpfs1/auto-eval-pipeline:/mnt/shared-storage-user/auto-eval-pipeline --mount=gpfs://gpfs1/large-model-center-share-weights:/mnt/shared-storage-user/large-model-center-share-weights --host-network=True -- bash -exc '/mnt/shared-storage-user/opencompass-shared/qa-llm-cicd/pr_test.sh ${{env.REPORT_ROOT}}/${{ github.run_id }}'
+
+          for i in {1..300}; do
+            current_status=$(rjob get pr-test-${{ github.run_id }}-${{ github.run_attempt }} | grep -oP 'rjob [^:]+: \K[^ ]+')
+            if [[ $current_status == "Succeeded" || $current_status == "Failed" || $current_status == "Stopped" ]]; then
+                echo "Current status: $current_status, stop checking"
+                break
+            fi
+            sleep 6
+          done
+      - name:  Get result
+        run: |
+          score=$(sed -n '$p' ${{env.REPORT_ROOT}}/${{ github.run_id }}/regression_result1/*/summary/*.csv | awk -F ',' '{print $NF}')
+          if (( ${score%.*} >= 75 && ${score%.*} <= 80 )); then
+             echo "score is $score between 75 and 80"
+          else
+             echo "score is $score not between 75 and 80"
+             exit 1
+          fi
+          score=$(sed -n '$p' ${{env.REPORT_ROOT}}/${{ github.run_id }}/regression_result2/*/summary/*.csv | awk -F ',' '{print $NF}')
+          if (( ${score%.*} >= 75 && ${score%.*} <= 80 )); then
+             echo "score is $score between 75 and 80"
+          else
+             echo "score is $score not between 75 and 80"
+             exit 1
+          fi
+          score=$(sed -n '$p' ${{env.REPORT_ROOT}}/${{ github.run_id }}/regression_result3/*/summary/*.csv | awk -F ',' '{print $NF}')
+          if (( ${score%.*} >= 75 && ${score%.*} <= 80 )); then
+             echo "score is $score between 75 and 80"
+          else
+             echo "score is $score not between 75 and 80"
+             exit 1
+          fi
+      - name:  Uninstall opencompass
+        if: always()
+        run: |
+          . ${{env.CONDA_PATH}}/bin/activate
+          conda activate ${{env.CONDA_ENV}}
+          python3 -m pip uninstall opencompass -y
+          conda info --envs
+
+  notify_to_feishu:
+    if: ${{ always() && !cancelled() && contains(needs.*.result, 'failure') && (github.ref_name == 'develop' || github.ref_name == 'main') }}
+    needs: [pr_run_test]
+    timeout-minutes: 5
+    runs-on: self-hosted
+    steps:
+      - name: notify
+        run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"msg_type":"post","content":{"post":{"zh_cn":{"title":"Opencompass- pr test failed","content":[[{"tag":"text","text":"branch: ${{github.ref_name}}, run action: ${{github.workflow}} failed. "},{"tag":"a","text":"Please click here for details ","href":"https://github.com/'${{ github.repository }}'/actions/runs/'${GITHUB_RUN_ID}'"},{"tag":"at","user_id":"'${{ secrets.USER_ID }}'"}]]}}}}'  ${{ secrets.WEBHOOK_URL }}
