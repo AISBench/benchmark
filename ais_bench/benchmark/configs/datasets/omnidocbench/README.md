@@ -35,3 +35,4 @@ git clone https://huggingface.co/datasets/opendatalab/OmniDocBench
 
 ## 使用约束
 - 当前仅支持Edit_dist指标（用于测评DeepSeek-OCR模型），其他指标暂不支持，overall为各个维度的Edit_dist评分的均值
+- 对于该数据集的测评需安装额外的依赖：`pip3 install -r requirements/datasets/omnidocbench_dependencies.txt`

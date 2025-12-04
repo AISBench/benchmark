@@ -107,7 +107,29 @@ template=dict(
 ...
 image_type="image_base64",
 ```
-⚠️此外，在vLLM离线推理以及transformers纯模型推理场景中，需将多模态数据输入格式配置为方式2的简化路径格式。
+⚠️此外，在vLLM离线推理以及transformers纯模型推理场景中，需将多模态数据输入格式配置为方式2的简化路径格式，以textvqa_gen为例，默认输入格式为本地文件格式：
+
+```
+template=dict(
+    round=[
+        dict(role="HUMAN", prompt_mm={
+            "text": {"type": "text", "text": "{question} Answer the question using a single word or phrase."},
+            "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
+        })
+    ]
+    )
+```
+需将其更改为简化路径格式：
+```
+template=dict(
+    round=[
+        dict(role="HUMAN", prompt_mm={
+            "text": {"type": "text", "text": "{question} Answer the question using a single word or phrase."},
+            "image": {"type": "image_url", "image_url": "{image}"},
+        })
+    ]
+    )
+```
 
 ### 命令含义
 以`textvqa`多模态`vLLM`服务化性能测评场景为例：

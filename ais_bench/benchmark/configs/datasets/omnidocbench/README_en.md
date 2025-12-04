@@ -35,3 +35,4 @@ git clone https://huggingface.co/datasets/opendatalab/OmniDocBench
 
 ## Usage Constraints:
 - Currently, only the Edit_dist metric is supported (used to evaluate the DeepSeek-OCR model); other metrics are not supported yet. The "overall" score is the average of the Edit_dist scores across all dimensions.
+- Additional dependencies need to be installed for the evaluation of this dataset: `pip3 install -r requirements/datasets/omnidocbench_dependencies.txt`

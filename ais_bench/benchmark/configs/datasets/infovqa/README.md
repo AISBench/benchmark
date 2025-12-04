@@ -12,13 +12,13 @@ InfoVQA数据集于 2021 年作为 DocVQA 挑战赛第三项任务的专属数�
 ```bash
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
-mkdir infovqa
-cd infovqa
+mkdir InfoVQA
+cd InfoVQA
 wget https://opencompass.openxlab.space/utils/VLMEval/InfoVQA_VAL.tsv
 ```
-- 在`{工具根路径}/ais_bench/datasets`目录下执行`tree infovqa/`查看目录结构，若目录结构如下所示，则说明数据集部署成功。
+- 在`{工具根路径}/ais_bench/datasets`目录下执行`tree InfoVQA/`查看目录结构，若目录结构如下所示，则说明数据集部署成功。
     ```
-    infovqa
+    InfoVQA
     └── InfoVQA_VAL.tsv
     ```
 

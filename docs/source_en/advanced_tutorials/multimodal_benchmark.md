@@ -107,7 +107,29 @@ template=dict(
 ...
 image_type="image_base64",
 ```
-⚠️In addition, in the scenarios of vLLM offline inference and transformers pure model inference, the multimodal data input format needs to be configured as the simplified path format of Method 2.
+⚠️In addition, in the scenarios of vLLM offline inference and transformers pure model inference, the multimodal data input format needs to be configured as the simplified path format of Method 2.Take textvqa_gen as an example. The default input format is the local file format:
+
+```
+template=dict(
+    round=[
+        dict(role="HUMAN", prompt_mm={
+            "text": {"type": "text", "text": "{question} Answer the question using a single word or phrase."},
+            "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
+        })
+    ]
+    )
+```
+It needs to be changed to a simplified path format:
+```
+template=dict(
+    round=[
+        dict(role="HUMAN", prompt_mm={
+            "text": {"type": "text", "text": "{question} Answer the question using a single word or phrase."},
+            "image": {"type": "image_url", "image_url": "{image}"},
+        })
+    ]
+    )
+```
 
 ### Command Explanation
 Take the `textvqa` multimodal `vLLM` service-oriented performance evaluation scenario as an example:

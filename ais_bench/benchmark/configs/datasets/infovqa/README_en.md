@@ -12,13 +12,13 @@ The InfoVQA dataset was launched in 2021 as the dedicated dataset for the third 
 ```bash
 # Within the Linux server, under the tool root path
 cd ais_bench/datasets
-mkdir infovqa
-cd infovqa
+mkdir InfoVQA
+cd InfoVQA
 wget https://opencompass.openxlab.space/utils/VLMEval/InfoVQA_VAL.tsv
 ```
-- Execute `tree infovqa/` in the directory `{tool_root_path}/ais_bench/datasets` to check the directory structure. If the directory structure matches the one shown below, the dataset has been deployed successfully:
+- Execute `tree InfoVQA/` in the directory `{tool_root_path}/ais_bench/datasets` to check the directory structure. If the directory structure matches the one shown below, the dataset has been deployed successfully:
     ```
-    infovqa
+    InfoVQA
     └── InfoVQA_VAL.tsv
     ```
 

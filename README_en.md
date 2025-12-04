@@ -97,7 +97,7 @@ If you need to evaluate service-deployed models (such as vLLM, Triton, etc.), in
 pip3 install -r requirements/api.txt
 pip3 install -r requirements/extra.txt
 ```
-⚙️ Huggingface Multi-modal Model Support（Optional）
+⚙️ Huggingface Multi-modal Model/ vLLM Offline Inference Support（Optional）
 ```shell
 pip3 install -r requirements/hf_vl_dependency.txt
 ```

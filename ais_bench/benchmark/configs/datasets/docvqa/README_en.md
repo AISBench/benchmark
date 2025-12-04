@@ -12,13 +12,13 @@ DocVQA is a classic dataset for visual question answering of document images, la
 ```bash
 # Within the Linux server, under the tool root path
 cd ais_bench/datasets
-mkdir docvqa
-cd docvqa
+mkdir DocVQA
+cd DocVQA
 wget https://opencompass.openxlab.space/utils/VLMEval/DocVQA_VAL.tsv
 ```
-- Execute `tree docvqa/` in the directory `{tool_root_path}/ais_bench/datasets` to check the directory structure. If the directory structure matches the one shown below, the dataset has been deployed successfully:
+- Execute `tree DocVQA/` in the directory `{tool_root_path}/ais_bench/datasets` to check the directory structure. If the directory structure matches the one shown below, the dataset has been deployed successfully:
     ```
-    docvqa
+    DocVQA
     └── DocVQA_VAL.tsv
     ```
 
