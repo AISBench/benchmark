@@ -322,22 +322,6 @@ class TestRunner:
                     sys.stdout.flush()
                     output_lines.append(line)
 
-                    # Parse individual test results from pytest output
-                    # Pytest uses . for passed, F for failed, s for skipped, x for xfailed, X for xpassed
-                    for char in line:
-                        if char == '.':
-                            self.test_results['passed'] += 1
-                            self.test_results['total'] += 1
-                        elif char == 'F':
-                            self.test_results['failed'] += 1
-                            self.test_results['total'] += 1
-                        elif char == 's':
-                            self.test_results['skipped'] += 1
-                            self.test_results['total'] += 1
-                        elif char == 'x' or char == 'X':
-                            # xfailed and xpassed tests don't count towards passed/failed totals
-                            self.test_results['total'] += 1
-
                     # Look for summary line
                     if 'passed' in line and 'failed' in line and 'in ' in line:
                         summary_line = line
