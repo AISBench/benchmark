@@ -59,7 +59,7 @@ jobs:
             echo "[INFO] All test case passed. "
           fi
           total_coverage=$(cat ${summary_path} | grep "Total coverage" | cut -d' ' -f3 | tr -d '%')
-          if [ $total_coverage -lt 80 ]; then
+          if [ $(echo "$total_coverage < 80" | bc) -eq 1 ]; then
             echo "[ERROR] Code coverage is lower than 80.0%, current coverage is ${total_coverage}%. "
             exit 1
           else
