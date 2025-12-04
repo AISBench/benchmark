@@ -37,7 +37,7 @@ jobs:
           export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${HOME}/local_bin/python-${PY310_VERSION}/lib"
           source ${HOME}/virtualenvs/workon310/bin/activate
           pip3 install pytest pytest-cov
-          python3 tests/run_tests.py tests/UT
+          python3 tests/run_tests.py tests/UT -p 16
 
       - name: Check Result
         run: |
