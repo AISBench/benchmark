@@ -38,6 +38,7 @@ synthetic_config = {
         }
     },
     "TokenIdConfig" : { # tokenid类型的随机数据集的配置相关项
-        "RequestSize": 10 # 每条请求的长度，即每条请求中token id的个数，应与模型侧配置文件中的 input_seq_len 一致
+        "RequestSize": 10, # 每条请求的长度，即每条请求中token id的个数，应与模型侧配置文件中的 input_seq_len 一致
+        "PrefixLen": 0 # 每条请求的公共前缀长度（token粒度）
     }
 }
