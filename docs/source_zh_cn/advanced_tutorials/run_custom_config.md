@@ -94,51 +94,32 @@ demo_math_prm800k_500   c4b6f0   accuracy gen                     50.00         
 
 ```python
 from mmengine.config import read_base
-from ais_bench.benchmark.models.api_models.vllm_custom_api_chat import VLLMCustomAPIChat
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
     from ais_bench.benchmark.configs.datasets.synthetic.synthetic_gen_string import (
         synthetic_datasets,
     )
-    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general import (
-        models as vllm_api_general,
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_stream import (
+        models as vllm_api_general_stream,
+    )
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import (
+        models as vllm_api_stream_chat,
     )
 
 datasets = synthetic_datasets  # 指定数据集列表
 
-models = [  # 指定模型配置列表
-    dict(
-        attr="service",
-        type=VLLMCustomAPIChat,
-        abbr="demo-vllm-api-general-chat",
-        path="deepseek-ai/DeepSeek-R1", # 指定模型词表文件路径，性能测试模式下必须
-        model="",
-        request_rate=0,
-        retry=2,
-        host_ip="localhost",
-        host_port=8080,
-        max_out_len=512,
-        batch_size=100,
-        generation_kwargs=dict(
-            temperature=0.5,
-            top_k=10,
-            top_p=0.95,
-            seed=None,
-            repetition_penalty=1.03,
-        ),
-    )
-]
-vllm_api_general[0]["abbr"] = "demo-" + vllm_api_general[0]["abbr"]
+vllm_api_general_stream[0]["abbr"] = "demo-" + vllm_api_general_stream[0]["abbr"]
+vllm_api_stream_chat[0]["abbr"] = "demo-" + vllm_api_stream_chat[0]["abbr"]
 
-models += vllm_api_general  # 可组合不同的API模型
+models = vllm_api_general_stream + vllm_api_stream_chat # 指定模型列表
 
-work_dir = "outputs/demo_api-vllm-general-chat-perf/"
+work_dir = "outputs/demo_api-vllm-stream-perf/"
 ```
 
 ### 执行自定义任务组合
 
-修改好配置文件后，执行如下命令启动精度评测：
+修改好配置文件后，执行如下命令启动性能评测：
 
 ```bash
 ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api_perf.py -m perf
@@ -166,12 +147,9 @@ ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api_perf.py -m perf --m
 ╒══════════════════════════╤═════════╤═════════════════╤═════════════════╤═════════════════╤═════════════════╤════════════════╤═════════════════╤═════════════════╤═════╕
 │ Performance Parameters   │ Stage   │ Average         │ Min             │ Max             │ Median          │ P75            │ P90             │ P99             │  N  │
 ╞══════════════════════════╪═════════╪═════════════════╪═════════════════╪═════════════════╪═════════════════╪════════════════╪═════════════════╪═════════════════╪═════╡
-│ E2EL                     │ total   │ 3406.7 ms       │ 372.4 ms        │ 5772.4 ms       │ 3589.8 ms       │ 4476.6 ms      │ 4921.1 ms       │ 5647.1 ms       │ 20  │
+│ E2EL                     │ total   │ 3406.7 ms       │ 372.4 ms        │ 5772.4 ms       │ 3589.8 ms       │ 4476.6 ms      │ 4921.1 ms       │ 5647.1 ms       │ 10  │
 ├──────────────────────────┼─────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼────────────────┼─────────────────┼─────────────────┼─────┤
-│ TTFT                     │ total   │ 103.2 ms        │ 102.0 ms        │ 107.5 ms        │ 102.9 ms        │ 103.4 ms       │ 104.3 ms        │ 107.2 ms        │ 20  │
-├──────────────────────────┼─────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼────────────────┼─────────────────┼─────────────────┼─────┤
-│ TPOT                     │ total   │ 20.8 ms         │ 20.7 ms         │ 21.0 ms         │ 20.8 ms         │ 20.9 ms        │ 21.0 ms         │ 21.0 ms         │ 20  │
-...
+│ TTFT                     │ total   │ 103.2 ms        │ 102.0 ms        │ 107.5 ms        │ 102.9 ms        │ 103.4 ms       │ 104.3 ms        │ 107.2 ms        │ 10  │
 ```
 
 ## 自定义模型与数据集组合

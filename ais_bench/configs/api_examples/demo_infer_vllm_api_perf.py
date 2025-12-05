@@ -17,6 +17,6 @@ datasets = synthetic_datasets  # 指定数据集列表
 vllm_api_general_stream[0]["abbr"] = "demo-" + vllm_api_general_stream[0]["abbr"]
 vllm_api_stream_chat[0]["abbr"] = "demo-" + vllm_api_stream_chat[0]["abbr"]
 
-models = vllm_api_general_stream + vllm_api_stream_chat # 
+models = vllm_api_general_stream + vllm_api_stream_chat # 指定模型列表
 
 work_dir = "outputs/demo_api-vllm-general-chat-perf/"
