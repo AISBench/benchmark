@@ -15,7 +15,6 @@ import nltk
 from nltk.translate import meteor_score
 from nltk.metrics.scores import f_measure, precision, recall
 from nltk.translate.bleu_score import sentence_bleu
-from nltk.translate.meteor_score import meteor_score
 from nltk.translate.nist_score import sentence_nist
 from lxml import etree,html
 from apted.helpers import Tree
