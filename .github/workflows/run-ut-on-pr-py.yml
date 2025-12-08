@@ -26,13 +26,13 @@ jobs:
         uses: actions/checkout@v2
       - name: Prepare - Install benchmark
         run: |
-          pip3 install -e ./ --use-pep517
-          pip3 install -r requirements/api.txt
-          pip3 install -r requirements/extra.txt
-          pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
+          pip3 install -e ./ -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com --use-pep517
+          pip3 install -r requirements/api.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
+          pip3 install -r requirements/extra.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
+          pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
       - name: Run Test
         run: |
-          pip3 install pytest pytest-cov pytest-xdist
+          pip3 install pytest pytest-cov pytest-xdist -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
           python3 tests/run_tests.py tests/UT -p 16
 
       - name: Check Result
