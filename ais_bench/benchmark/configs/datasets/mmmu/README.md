@@ -28,3 +28,4 @@ wget https://opencompass.openxlab.space/utils/VLMEval/MMMU_DEV_VAL.tsv
 |任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
 | --- | --- | --- | --- | --- | --- |
 |mmmu_gen|mmmu数据集生成式任务|acc|0-shot|字符串格式|[mmmu_gen.py](mmmu_gen.py)|
+|mmmu_gen_cot|mmmu数据集思维链生成式任务|acc|0-shot|字符串格式|[mmmu_gen_cot.py](mmmu_gen_cot.py)|

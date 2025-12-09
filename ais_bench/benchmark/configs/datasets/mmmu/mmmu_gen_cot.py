@@ -4,9 +4,9 @@ from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.datasets import MMMUDataset, MMMUEvaluator
 
 
-START_TEXT_PROMPT = "Question: "
-END_TEXT_PROMPT = "Please select the correct answer from the options above. \n"
-OPTIONS_PROMPT = "\nOptions:\n"
+START_TEXT_PROMPT = "Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: [LETTER]' (without quotes) where [LETTER] is one of A,B,C,D. Think step by step before answering.\n\n"
+END_TEXT_PROMPT = ""
+OPTIONS_PROMPT = ""
 
 mmmu_reader_cfg = dict(
     input_columns=['question', 'image'],

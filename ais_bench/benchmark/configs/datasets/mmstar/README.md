@@ -6,15 +6,14 @@ MMStar 是一个“精英级”视觉-语言评测集，共 1500 道英文选择
 > 🔗 数据集主页[https://huggingface.co/datasets/Lin-Chen/MMStar](https://huggingface.co/datasets/Lin-Chen/MMStar)
 
 ## 数据集部署
-- 对该数据集的精度测评对齐OpenCompass的多模态测评工具VLMEvalkit，数据集格式为OpenCompass提供的tsv文件
-- 数据集下载：opencompass提供的链接🔗 [https://opencompass.openxlab.space/utils/VLMEval/MMStar.tsv](https://opencompass.openxlab.space/utils/VLMEval/MMStar.tsv)。
+- 数据集下载：modelscope提供的链接🔗 [https://www.modelscope.cn/datasets/evalscope/MMStar/resolve/master/MMStar.tsv](https://www.modelscope.cn/datasets/evalscope/MMStar/resolve/master/MMStar.tsv)。
 - 建议部署在`{工具根路径}/ais_bench/datasets`目录下（数据集任务中设置的默认路径），以linux上部署为例，具体执行步骤如下：
 ```bash
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
 mkdir mmstar
 cd mmstar
-wget https://opencompass.openxlab.space/utils/VLMEval/MMStar.tsv
+wget https://www.modelscope.cn/datasets/evalscope/MMStar/resolve/master/MMStar.tsv
 ```
 - 在`{工具根路径}/ais_bench/datasets`目录下执行`tree mmstar/`查看目录结构，若目录结构如下所示，则说明数据集部署成功。
     ```
@@ -28,3 +27,4 @@ wget https://opencompass.openxlab.space/utils/VLMEval/MMStar.tsv
 |任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
 | --- | --- | --- | --- | --- | --- |
 |mmstar_gen|mmstar数据集生成式任务|acc|0-shot|字符串格式|[mmstar_gen.py](mmstar_gen.py)|
+|mmstar_gen_cot|mmstar数据集思维链生成式任务|acc|0-shot|字符串格式|[mmstar_gen_cot.py](mmstar_gen_cot.py)|

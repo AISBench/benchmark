@@ -70,7 +70,7 @@ class MMStarDataset(BaseDataset):
             prompt = ''
             if hint is not None:
                 prompt += f'Hint: {hint}\n'
-            prompt += f'Question: {line["question"]}\n'
+            prompt += line["question"]
             if len(options):
                 prompt += options_prompt
                 prompt += 'Please select the correct answer from the options above. \n'

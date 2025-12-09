@@ -147,7 +147,7 @@ def build_choices(item):
 class MMMUDataset(BaseDataset):
 
     @staticmethod
-    def load(path):
+    def load(path, start_text_prompt='', end_text_prompt='', option_prompt=''):
         path = get_data_path(path)
         image_root_path = os.path.join(os.path.dirname(path), "MMMU_images")
         logger.info(f"Convert base64 to image and save it in {image_root_path}")
@@ -175,7 +175,6 @@ class MMMUDataset(BaseDataset):
             data['index'] = [int(x) for x in data['index']]
 
         sheet_indices = list(range(0, len(data), 1))
-        lt = len(sheet_indices)
         data = data.iloc[sheet_indices]
         dataset = []
         for i in sheet_indices:
@@ -187,7 +186,7 @@ class MMMUDataset(BaseDataset):
                 for cand in string.ascii_uppercase
                 if cand in line and not pd.isna(line[cand])
             }
-            options_prompt = 'Options:\n'
+            options_prompt = option_prompt
             for key, item in options.items():
                 options_prompt += f'{key}. {item}\n'
             
@@ -196,10 +195,11 @@ class MMMUDataset(BaseDataset):
             prompt = ''
             if hint is not None:
                 prompt += f'Hint: {hint}\n'
-            prompt += f'Question: {line["question"]}\n'
+            prompt += start_text_prompt
+            prompt += line["question"]
             if len(options):
                 prompt += options_prompt
-                prompt += 'Please select the correct answer from the options above. \n'
+                prompt += end_text_prompt
             # add image info
             msgs = []
             if isinstance(tgt_path, list):
