@@ -1,6 +1,7 @@
 [run]
 source = ais_bench
 data_file = test_reports/.coverage
+branch = True
 omit =
     */tests/*
     */test_*

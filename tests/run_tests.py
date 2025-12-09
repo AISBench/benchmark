@@ -236,6 +236,10 @@ class TestRunner:
             cmd.append('--cov=ais_bench')
             print("📊 Coverage will measure entire ais_bench package")
 
+        # Enable branch coverage
+        cmd.append('--cov-branch')
+        print("📊 Branch coverage enabled")
+
         # Add coverage data file configuration
         pytest_ini_path = Path(__file__).parent / 'pytest.ini'
         if pytest_ini_path.exists():
@@ -386,6 +390,16 @@ class TestRunner:
                 with open(self.coverage_json, 'r') as f:
                     self.coverage_data = json.load(f)
 
+                # Display coverage percentages
+                if 'totals' in self.coverage_data:
+                    totals = self.coverage_data['totals']
+                    line_coverage = totals.get('covered_lines', 0) / totals.get('num_statements', 1) * 100
+                    branch_coverage = totals.get('covered_branches', 0) / totals.get('num_branches', 1) * 100 if totals.get('num_branches', 0) > 0 else 0
+
+                    print(f"📊 Coverage results:")
+                    print(f"   Line coverage: {line_coverage:.1f}%")
+                    print(f"   Branch coverage: {branch_coverage:.1f}%")
+
             if process.returncode == 0:
                 print("✅ All tests passed!")
                 return True
@@ -445,8 +459,11 @@ class TestRunner:
                 # Add more detailed coverage stats if available
                 if 'totals' in self.coverage_data:
                     totals = self.coverage_data['totals']
-                    f.write(f"Lines covered: {totals.get('covered_lines', 0)} / {totals.get('num_statements', 0)}\n")
-                    f.write(f"Branches covered: {totals.get('covered_branches', 0)} / {totals.get('num_branches', 0)}\n")
+                    line_coverage = totals.get('covered_lines', 0) / totals.get('num_statements', 1) * 100 if totals.get('num_statements', 0) > 0 else 0
+                    branch_coverage = totals.get('covered_branches', 0) / totals.get('num_branches', 1) * 100 if totals.get('num_branches', 0) > 0 else 0
+
+                    f.write(f"Line coverage: {line_coverage:.1f}% ({totals.get('covered_lines', 0)} / {totals.get('num_statements', 0)})\n")
+                    f.write(f"Branch coverage: {branch_coverage:.1f}% ({totals.get('covered_branches', 0)} / {totals.get('num_branches', 0)})\n")
                     f.write(f"Functions covered: {totals.get('covered_functions', 0)} / {totals.get('num_functions', 0)}\n")
 
                 if 'files' in self.coverage_data:

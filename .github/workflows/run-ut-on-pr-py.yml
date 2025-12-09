@@ -55,11 +55,25 @@ jobs:
             echo "[INFO] All test case passed. "
           fi
           total_coverage=$(cat ${summary_path} | grep "Total coverage" | cut -d' ' -f3 | tr -d '%')
-          if [ $(echo "$total_coverage < 80" | bc) -eq 1 ]; then
-            echo "[ERROR] Code coverage is lower than 80.0%, current coverage is ${total_coverage}%. "
+          if ! python3 -c "exit(0 if float('$total_coverage') < 80 else 1)"; then
+            echo "[ERROR] Code total coverage is lower than 80.0%, current coverage is ${total_coverage}%. "
             exit 1
           else
-            echo "[INFO] Code coverage is higher than 80.0%, current coverage is ${total_coverage}%. "
+            echo "[INFO] Code total coverage is higher than 80.0%, current coverage is ${total_coverage}%. "
+          fi
+          line_coverage=$(cat ${summary_path} | grep "Line coverage" | cut -d' ' -f3 | tr -d '%')
+          if ! python3 -c "exit(0 if float('$line_coverage') < 80 else 1)"; then
+            echo "[ERROR] Code line coverage is lower than 80.0%, current coverage is ${line_coverage}%. "
+            exit 1
+          else
+            echo "[INFO] Code line coverage is higher than 80.0%, current coverage is ${line_coverage}%. "
+          fi
+          branch_coverage=$(cat ${summary_path} | grep "Branch coverage" | cut -d' ' -f3 | tr -d '%')
+          if ! python3 -c "exit(0 if float('$branch_coverage') < 60 else 1)"; then
+            echo "[ERROR] Code branch coverage is lower than 60.0%, current coverage is ${branch_coverage}%. "
+            exit 1
+          else
+            echo "[INFO] Code branch coverage is higher than 60.0%, current coverage is ${branch_coverage}%. "
           fi
       - name:  Uninstall benchmark
         if: always()
