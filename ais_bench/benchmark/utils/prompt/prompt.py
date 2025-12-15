@@ -101,6 +101,15 @@ def is_mm_prompt(prompt):
                 return True
     return False
 
+def get_round_index(template):
+    left_idx, right_idx = 1, -1
+    for i, item in enumerate(template):
+        if item.get("section", None) == "round" and item.get("pos", None) == "begin":
+            left_idx = i + 1
+        elif item.get("section", None) == "round" and item.get("pos", None) == "end":
+            right_idx = i
+    return left_idx, right_idx
+
 
 class PromptList(list):
     """An enhanced list, used for intermidate representation of a prompt."""

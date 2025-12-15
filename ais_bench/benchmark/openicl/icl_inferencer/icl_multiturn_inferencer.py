@@ -14,7 +14,7 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_api_inferencer import BaseApiInferencer
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_local_inferencer import BaseLocalInferencer
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.gen_inferencer_output_handler import GenInferencerOutputHandler
-from ais_bench.benchmark.utils.prompt import PromptList
+from ais_bench.benchmark.utils.prompt import PromptList, get_round_index
 from ais_bench.benchmark.utils.logging.error_codes import ICLI_CODES
 from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
 
@@ -97,10 +97,11 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         max_out_len = data.pop("max_out_len")
         gold = data.pop("gold", None)
         uid = str(uuid.uuid4()).replace("-", "")
-        start_prompt, chat, end_prompt = chat[:1], chat[1:-1], chat[-1:]
+        left_idx, right_idx = get_round_index(chat)
+        left_prompt, chat, right_prompt = chat[:left_idx], chat[left_idx:right_idx], chat[right_idx:]
         bot_indices = [i for i, item in enumerate(chat) if item['role'] == 'BOT']
         history = PromptList(chat[:bot_indices[-1]])
-        history = await asyncio.to_thread(self.model.parse_template, PromptList(start_prompt + history + end_prompt), mode="gen")
+        history = await asyncio.to_thread(self.model.parse_template, PromptList(left_prompt + history + right_prompt), mode="gen")
         turn_id = 0
         output = RequestOutput(self.perf_mode)
         output.turn_id, output.uuid = turn_id, uid
@@ -130,12 +131,13 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         max_out_len = data.pop("max_out_len")
         gold = data.pop("gold", None)
         uid = str(uuid.uuid4()).replace("-", "")
-        start_prompt, chat, end_prompt = chat[:1], chat[1:-1], chat[-1:]
+        left_idx, right_idx = get_round_index(chat)
+        left_prompt, chat, right_prompt = chat[:left_idx], chat[left_idx:right_idx], chat[right_idx:]
         bot_indices = [i for i, item in enumerate(chat) if item['role'] == 'BOT']
         turn_id = 0
         for i in bot_indices:
             # TODO: use thread to parse the template
-            history = await asyncio.to_thread(self.model.parse_template, PromptList(start_prompt + chat[:i] + end_prompt), mode="gen")
+            history = await asyncio.to_thread(self.model.parse_template, PromptList(left_prompt + chat[:i] + right_prompt), mode="gen")
             output = RequestOutput(self.perf_mode)
             output.turn_id, output.uuid = turn_id, uid
             max_out_len = max_out_len[turn_id] if isinstance(max_out_len, list) else max_out_len
@@ -170,11 +172,12 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         max_out_len = data.pop("max_out_len")
         gold = data.pop("gold", None)
         uid = str(uuid.uuid4()).replace("-", "")
-        start_prompt, chat, end_prompt = chat[:1], chat[1:-1], chat[-1:]
+        left_idx, right_idx = get_round_index(chat)
+        left_prompt, chat, right_prompt = chat[:left_idx], chat[left_idx:right_idx], chat[right_idx:]
         bot_indices = [i for i, item in enumerate(chat) if item['role'] == 'BOT']
         turn_id = 0
         for i in bot_indices:
-            history = await asyncio.to_thread(self.model.parse_template, PromptList(start_prompt + chat[:i] + end_prompt), mode="gen")
+            history = await asyncio.to_thread(self.model.parse_template, PromptList(left_prompt + chat[:i] + right_prompt), mode="gen")
             output = RequestOutput(self.perf_mode)
             output.turn_id, output.uuid = turn_id, uid
             max_out_len = max_out_len[turn_id] if isinstance(max_out_len, list) else max_out_len
