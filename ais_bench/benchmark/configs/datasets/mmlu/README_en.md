@@ -198,10 +198,10 @@ rm mmlu.zip
     ```
 
 ## Available Dataset Tasks
-### mmlu_gen_5_shot_str
-#### Basic Information
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
 | --- | --- | --- | --- | --- | --- |
 | mmlu_gen_5_shot_str | Generative task for the MMLU dataset | Accuracy (naive_average) | 5-shot | String format | [mmlu_gen_5_shot_str.py](mmlu_gen_5_shot_str.py) |
-| mmlu_gen_0_shot_cot_chat_prompt | Generative task for the MMLU dataset, with a logical chain in the prompt (aligned with DeepSeek R1 accuracy test) | Accuracy (naive_average) | 0-shot | String format | [mmlu_gen_0_shot_cot_chat_prompt.py](mmlu_gen_0_shot_cot_chat_prompt.py) |
+| mmlu_gen_5_shot_chat_prompt | Generative task for the MMLU dataset, with a logical chain in the prompt| Accuracy (naive_average) | 5-shot | Chat format | [mmlu_gen_5_shot_chat_prompt.py](mmlu_gen_5_shot_chat_prompt.py) |
 | mmlu_ppl_0_shot_str | MMLU dataset PPL task | Accuracy (naive_average) | 0-shot | String format | [mmlu_ppl_0_shot_str.py](mmlu_ppl_0_shot_str.py) |
+| mmlu_gen_0_shot_cot_chat_prompt | Generative task for the MMLU dataset, with a logical chain in the prompt (aligned with DeepSeek R1 accuracy test) | Accuracy (naive_average) | 0-shot | Chat format | [mmlu_gen_0_shot_cot_chat_prompt.py](mmlu_gen_0_shot_cot_chat_prompt.py) |
+
