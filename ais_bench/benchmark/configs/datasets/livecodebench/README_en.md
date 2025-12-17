@@ -33,4 +33,6 @@ git clone https://huggingface.co/datasets/livecodebench/code_generation_lite
 ## Available Dataset Tasks
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
 | --- | --- | --- | --- | --- | --- |
-| livecodebench_code_generate_lite_gen_0_shot_chat | Generative task for the code_generation_lite dataset | pass@1 | 0-shot | Chat format | [livecodebench_code_generate_lite_gen_0_shot_chat.py](livecodebench_code_generate_lite_gen_0_shot_chat.py) |
+|livecodebench_0_shot_chat_v4_v5|Generative task for the code_generation_lite dataset, same with DeepSeek-R1 Evaluation: LiveCodeBench(2024-08 – 2025-01)|pass@1|0-shot|Chat format|[livecodebench_0_shot_chat_v4_v5.py](livecodebench_0_shot_chat_v4_v5.py)|
+|livecodebench_0_shot_chat_v4_v5_v6|Generative task for the code_generation_lite dataset, same with DeepSeek-V3.1 and DeepSeek-V3.2 Evaluation: LiveCodeBench(2024-08 – 2025-05)|pass@1|0-shot|Chat format|[livecodebench_0_shot_chat_v4_v5_v6.py](livecodebench_0_shot_chat_v4_v5_v6.py)|
+|livecodebench_0_shot_chat_v6|Generative task for the code_generation_lite dataset, same with Qwen3 Evaluation: LiveCodeBench(2025-05)|pass@1|0-shot|Chat format|[livecodebench_0_shot_chat_v6.py](livecodebench_0_shot_chat_v6.py)|

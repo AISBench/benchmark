@@ -56,7 +56,7 @@ lcb_code_generation_eval_cfg = dict(
 
 LCBCodeGeneration_dataset = dict(
     type=LCBCodeGenerationDataset,
-    abbr='lcb_code_generation',
+    abbr='lcb_code_generation_v4_v5',
     path='ais_bench/datasets/code_generation_lite', # https://huggingface.co/datasets/livecodebench/code_generation_lite/tree/main
     release_version=DATASET_RELEASE_VERSION,
     reader_cfg=lcb_code_generation_reader_cfg,
