@@ -334,3 +334,47 @@ class TEXTEvaluator(BaseEvaluator):
             details.append(detail)
         result = {'accuracy': 100 * correct / count, 'details': details}
         return result
+
+
+class TEXTEvaluatorForGlm4v(BaseEvaluator):
+
+    def score(self, predictions, references):
+        vqa_eval= VQAEvalMethod()
+        if len(predictions) != len(references):
+            return {
+                'error': 'predictions and references have different '
+                'length'
+            }
+        correct = 0
+        count = 0
+        answer_ = "answer"
+        details = []
+        for res_data, gt_answers in zip(predictions, references):
+            detail = {'pred': res_data, 'answer': gt_answers, 'correct': False}
+            pattern = r'<\|begin_of_box\|>(.*?)<\|end_of_box\|>'
+            match = re.search(pattern, res_data)
+            if match is not None:
+                res_data = match.group(1).strip()
+            res_data = res_data.replace('\n', ' ')
+            res_data = res_data.replace('\t', ' ')
+            res_data = res_data.strip()
+            res_data = vqa_eval.remove_special_characters(res_data)
+            res_data = vqa_eval.process_punctuation(res_data)
+            res_data = vqa_eval.process_digit_article(res_data)
+            gt_answer_list = [ans[answer_] for ans in gt_answers]
+            if len(set(gt_answer_list)) > 1:
+                for ans_dic in gt_answers:
+                    ans_dic[answer_] = vqa_eval.process_punctuation(ans_dic[answer_])
+            gt_acc = []
+            for gt_ans in gt_answers:
+                other_gt_ans = [item for item in gt_answers if item != gt_ans]
+                matched_ans = [item for item in other_gt_ans if item[answer_] == res_data]
+                acc = min(1, len(matched_ans) / 3)
+                gt_acc.append(acc)
+            avg_acc = sum(gt_acc) / len(gt_acc)
+            count += 1
+            correct += avg_acc
+            detail['correct'] = True if avg_acc > 0.5 else False
+            details.append(detail)
+        result = {'accuracy': 100 * correct / count, 'details': details}
+        return result

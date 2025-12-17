@@ -6,6 +6,7 @@ from datasets import Dataset
 from ais_bench.benchmark.datasets.textvqa import (
     TEXTVQADataset,
     TEXTEvaluator,
+    TEXTEvaluatorForGlm4v,
     VQAEvalMethod,
     MAX_TARGET_LENGTH,
 )
@@ -49,6 +50,32 @@ class TestTEXTEvaluator(unittest.TestCase):
         refs = [[{"answer": "foo"}, {"answer": "foo"}, {"answer": "bar"}]]
         out = eva.score(preds, refs)
         self.assertIn("accuracy", out)
+        out2 = eva.score(["a"], [[{"answer": "a"}], [{"answer": "a"}]])
+        self.assertIn("error", out2)
+
+    def test_eval_method_exceptions(self):
+        method = VQAEvalMethod()
+        long_text = 'x' * (MAX_TARGET_LENGTH + 1)
+        with self.assertRaises(ValueError):
+            method.process_punctuation(long_text)
+        with self.assertRaises(ValueError):
+            method.process_digit_article(long_text)
+        self.assertEqual(method.remove_special_characters('foo<unk>bar'), 'foobar')
+
+
+class TestTEXTEvaluatorForGlm4v(unittest.TestCase):
+    def test_score(self):
+        eva = TEXTEvaluatorForGlm4v()
+        preds = ["The answer is Foo!"]
+        refs = [[{"answer": "foo"}, {"answer": "foo"}, {"answer": "bar"}]]
+        out = eva.score(preds, refs)
+        self.assertIn("accuracy", out)
+        preds1 = ["<think>The text \"DAKOTA DIGITAL\" is prominent, so that's the brand.</think>" +
+                 "<answer><|begin_of_box|>Dakota Digital<|end_of_box|></answer>"]
+        refs1 = [[{"answer": "dakota digital"}]]
+        out1 = eva.score(preds1, refs1)
+        self.assertIn("accuracy", out1)
+        self.assertEqual(out1["accuracy"], 100.0)
         out2 = eva.score(["a"], [[{"answer": "a"}], [{"answer": "a"}]])
         self.assertIn("error", out2)
 
