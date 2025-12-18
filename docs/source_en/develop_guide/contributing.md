@@ -274,11 +274,16 @@ By adding `Signed-off-by`, you confirm:
 
 ### Title Format
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+Use the following format:
 
 ```
-<type>(<scope>): <subject>
+[type][scope]<subject>
 ```
+
+Where:
+- `[type]`: Commit type, see type descriptions below
+- `[scope]`: Affected scope (optional), such as models, datasets, docs, etc.
+- `<subject>`: Brief descriptive title
 
 ### Types
 

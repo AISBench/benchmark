@@ -1,6 +1,6 @@
 # Retriever
 
-在数据集配置文件中，有一个 `retriever` 字段，该字段表示如何从数据集中召回样本作为上下文样例（in-context examples）。其中最常用的是 `FixKRetriever`，表示固定使用某 k 个样本，因此即为 k-shot。另外还有 `ZeroRetriever`，表示不使用任何样本，这在大多数情况下意味着 0-shot。
+在数据集配置文件中，有一个 `retriever` 字段，该字段表示如何从数据集中检索样本作为上下文样例（in-context examples）。其中最常用的是 `FixKRetriever`，表示固定使用某 k 个样本，因此即为 k-shot。另外还有 `ZeroRetriever`，表示不使用任何样本，这在大多数情况下意味着 0-shot。
 
 另一方面，in-context 的样本也可以直接在数据集的模板中指定，在该情况下也会搭配使用 `ZeroRetriever`，但此时的评测并不是 0-shot，而需要根据具体的模板来进行确定。具体请参考 [prompt_template](./prompt_template.md)。
 
@@ -12,7 +12,7 @@
 
 ## ZeroRetriever
 
-`ZeroRetriever` 是一个零样本检索器，它不会从训练集中召回任何样本作为上下文。对于每个测试样本，它都返回空的索引列表，因此通常用于实现 0-shot 评测。
+`ZeroRetriever` 是一个零样本检索器，它不会从训练集中检索任何样本作为上下文。对于每个测试样本，它都返回空的索引列表，因此通常用于实现 0-shot 评测。
 
 ### 配置方式
 
@@ -45,7 +45,7 @@ infer_cfg = dict(
 
 - 样本 0: `{"question": "什么是机器学习？", "answer": "机器学习是AI的一个子领域"}`
 
-使用 `ZeroRetriever` 时，对于测试样本 0，不会召回任何训练样本，生成的 prompt 中不包含任何上下文示例。
+使用 `ZeroRetriever` 时，对于测试样本 0，不会检索任何训练样本，生成的 prompt 中不包含任何上下文示例。
 
 ## FixKRetriever
 
@@ -102,12 +102,12 @@ retriever=dict(type=FixKRetriever, fix_id_list=[0, 1, 2, 3, 4])
 **工作流程**：
 
 1. 对于测试样本 0：
-   - 召回训练样本 [0, 1, 2, 3, 4]
+   - 检索训练样本 [0, 1, 2, 3, 4]
    - 使用 `ice_template` 将这些样本格式化为上下文示例
    - 将上下文示例插入到测试样本的 prompt 中
 
 2. 对于测试样本 1：
-   - 同样召回训练样本 [0, 1, 2, 3, 4]（与测试样本 0 相同）
+   - 同样检索训练样本 [0, 1, 2, 3, 4]（与测试样本 0 相同）
    - 使用相同的上下文示例
 
 **生成的 prompt 示例**（假设使用简单的模板）：
@@ -176,7 +176,7 @@ retriever=dict(type=FixKRetriever, fix_id_list=[i for i in range(25)])
 
 2. **索引顺序**：`fix_id_list` 中的顺序决定了上下文示例在 prompt 中的出现顺序。
 
-3. **与 ice_template 配合使用**：使用 `FixKRetriever` 时，通常需要配置 `ice_template` 来格式化召回的样本。
+3. **与 ice_template 配合使用**：使用 `FixKRetriever` 时，通常需要配置 `ice_template` 来格式化检索的样本。
 
 ## RandomRetriever
 
@@ -190,7 +190,7 @@ from ais_bench.benchmark.openicl.icl_retriever.icl_random_retriever import Rando
 infer_cfg = dict(
     retriever=dict(
         type=RandomRetriever,
-        ice_num=5,  # 指定每个测试样本召回的样本数量
+        ice_num=5,  # 指定每个测试样本检索的样本数量
         seed=43     # 随机种子，用于保证结果可重复性，默认为 43
     ),
     # ... 其他配置
@@ -199,7 +199,7 @@ infer_cfg = dict(
 
 ### 参数说明
 
-- **`ice_num`** (`int`): 必需参数，指定每个测试样本要召回的样本数量。默认为 1。
+- **`ice_num`** (`int`): 必需参数，指定每个测试样本要检索的样本数量。默认为 1。
 - **`seed`** (`Optional[int]`): 可选参数，随机种子，用于保证结果的可重复性。默认为 43。如果设置相同的种子，多次运行会得到相同的结果。
 
 ### 功能说明
@@ -291,7 +291,7 @@ result2 = retriever2.retrieve()
 
 3. **随机种子**：如果不指定 `seed` 或每次使用不同的 `seed`，每次运行的结果都会不同，这可能会影响评测结果的可重复性。
 
-4. **与 ice_template 配合使用**：使用 `RandomRetriever` 时，通常需要配置 `ice_template` 来格式化召回的样本。
+4. **与 ice_template 配合使用**：使用 `RandomRetriever` 时，通常需要配置 `ice_template` 来格式化检索的样本。
 
 5. **导入路径**：`RandomRetriever` 没有在 `__init__.py` 中导出，需要直接从模块路径导入：
 

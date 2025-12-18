@@ -274,11 +274,16 @@ Signed-off-by: Your Name <your.email@example.com>
 
 ### 标题格式
 
-使用 [Conventional Commits](https://www.conventionalcommits.org/) 格式：
+使用以下格式：
 
 ```
-<type>(<scope>): <subject>
+[type][scope]<subject>
 ```
+
+其中：
+- `[type]`：提交类型，见下方类型说明
+- `[scope]`：影响范围（可选），如 models、datasets、docs 等
+- `<subject>`：简短的描述性标题
 
 ### 类型（Type）
 
