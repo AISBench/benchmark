@@ -17,7 +17,7 @@
 <br><br>
 [🌐官方网站](https://www.aisbench.com) |
 [📖工具文档](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/) |
-[👨‍💻开发者文档](docs/source_zh_cn/develop_guide/contributing.md) |
+[👨‍💻开发者文档](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/develop_guide/contributing.html) |
 [🔥最新进展](#-最新进展)|
 [🤔报告问题](https://github.com/AISBench/benchmark/issues/new/choose)
 <br><br>简体中文 | [English](README_en.md)

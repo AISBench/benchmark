@@ -1,15 +1,15 @@
-# Supporting New Models
+# Supporting New Model Backends
 
 Currently, AISBench supports the following model types:
 
-- **Service Models** (executing inference tasks by accessing endpoints provided by service frameworks): vLLM, Triton, TGI, MindIE
-- **Local Models** (executing inference tasks by loading local model files): HuggingFace, vllmOfflineVL, HuggingFaceVL
+- **Service Model Backends** (executing inference tasks by accessing endpoints provided by service frameworks): vLLM, Triton, TGI, MindIE
+- **Local Models Backends** (executing inference tasks by loading local model files): HuggingFace, vllmOfflineVL, HuggingFaceVL
 
 For certain custom service frameworks or inference backends, it is usually necessary to implement custom models to access services or call models. Currently, two methods are supported: adding new API models and local models.
 
-## Adding New API Models
+## Adding New Service Model Backends
 
-To add a new API-based model, create a new file `my_custom_api.py` in `ais_bench/benchmark/models/api_models`, inherit from `BaseAPIModel`, and implement the corresponding functional interfaces according to usage scenarios. The currently supported extensible interfaces are as follows:
+To add a new service model backend, create a new file `my_custom_api.py` in `ais_bench/benchmark/models/api_models`, inherit from `BaseAPIModel`, and implement the corresponding functional interfaces according to usage scenarios. The currently supported extensible interfaces are as follows:
 
 - **(Required) `get_request_body`**: Get the request body, used to construct the request body
 - **(Required) `_get_url`**: Get the request URL
@@ -116,9 +116,9 @@ Then execute the command to start service performance evaluation:
 ais_bench --models my_custom_api --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt
 ```
 
-## Adding New Local Models
+## Adding New Local Model Backends
 
-To add a new model based on local model files, create a new file `my_custom_model.py` in `ais_bench/benchmark/models/local_models`, inherit from `BaseModel`, and implement the corresponding functional interfaces according to usage scenarios. The currently supported extensible interfaces are as follows:
+To add a new local model backend, create a new file `my_custom_model.py` in `ais_bench/benchmark/models/local_models`, inherit from `BaseModel`, and implement the corresponding functional interfaces according to usage scenarios. The currently supported extensible interfaces are as follows:
 
 - **`__init__`**: Initialize model and vocabulary
 - **`generate`**: Call the loaded local model to perform generative inference and return inference results

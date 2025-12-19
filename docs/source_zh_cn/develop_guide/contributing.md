@@ -330,7 +330,7 @@ Signed-off-by: Your Name <your.email@example.com>
 
 ### 添加新的模型后端
 
-参考[支持新模型](./new_model.md)
+参考[支持新模型后端](./new_model.md)
 
 ### 添加新的数据集和精度评估器
 

@@ -1,15 +1,15 @@
-# 支持新模型
+# 支持新模型后端
 
 目前 AISBench 已经支持的模型类型如下：
 
-- **服务化模型**（通过访问服务化框架提供的 endpoint 执行推理任务）：vLLM、Triton、TGI、MindIE
-- **本地模型**（通过加载本地模型文件执行推理任务）：HuggingFace、vllmOfflineVL、HuggingFaceVL
+- **服务化模型后端**（通过访问服务化框架提供的 endpoint 执行推理任务）：vLLM、Triton、TGI、MindIE
+- **本地模型后端**（通过加载本地模型文件执行推理任务）：HuggingFace、vllmOfflineVL、HuggingFaceVL
 
 针对某些自定义服务框架或推理后端，通常需要实现自定义模型来实现对服务的访问或模型的调用。目前支持新增 API 模型和本地模型两种方式。
 
-## 新增 API 模型
+## 新增服务化模型后端
 
-新增基于 API 的模型，需要在 `ais_bench/benchmark/models/api_models` 下新建 `my_custom_api.py` 文件，继承 `BaseAPIModel`，并根据使用场景实现对应的功能接口。当前支持拓展的接口如下：
+新增服务化模型后端，需要在 `ais_bench/benchmark/models/api_models` 下新建 `my_custom_api.py` 文件，继承 `BaseAPIModel`，并根据使用场景实现对应的功能接口。当前支持拓展的接口如下：
 
 - **（必需）`get_request_body`**：获取请求体，用于构建请求体
 - **（必需）`_get_url`**：获取请求 URL
@@ -116,9 +116,9 @@ models = [
 ais_bench --models my_custom_api --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt
 ```
 
-## 新增本地模型
+## 新增本地模型后端
 
-新增基于本地模型文件的模型，需要在 `ais_bench/benchmark/models/local_models` 下新建 `my_custom_model.py` 文件，继承 `BaseModel`，并根据使用场景实现对应的功能接口。当前支持拓展的接口如下：
+新增本地模型后端，需要在 `ais_bench/benchmark/models/local_models` 下新建 `my_custom_model.py` 文件，继承 `BaseModel`，并根据使用场景实现对应的功能接口。当前支持拓展的接口如下：
 
 - **`__init__`**：初始化模型和词表
 - **`generate`**：调用加载好的本地模型执行生成式推理并返回推理结果
