@@ -281,19 +281,22 @@ class OpenICLApiInferTask(BaseTask):
         for i in range(num_workers):
             per_worker_data_num.append(int(total_data_count / total_concurrency * per_worker_concurrency[i]))
         remainder = total_data_count - sum(per_worker_data_num)
+        print(f"cur per_worker_data_num {per_worker_data_num=}, remainder:{remainder=}")
         while remainder < 0:
             for i in range(num_workers):
-                per_worker_data_num[i] += 1
+                per_worker_data_num[i] -= 1
                 remainder += 1
                 if remainder == 0:
                     break
         while remainder > 0:
             for i in range(num_workers - 1, -1, -1):
-                per_worker_data_num[i] -= 1
+                per_worker_data_num[i] += 1
                 remainder -= 1
                 if remainder == 0:
                     break
-
+        self.logger.info(
+            f"Total data num: {total_data_count}, per worker data num: {per_worker_data_num}"
+        )
         return per_worker_data_num
 
     def _run_debug(
