@@ -71,6 +71,26 @@ To help you quickly get started with AISBench Benchmark Tool, we recommend learn
 
 .. toctree::
    :maxdepth: 2
+   :caption: 👨‍💻 Developer Guide
+   :hidden:
+
+   develop_guide/contributing
+   develop_guide/new_model
+   develop_guide/new_dataset
+   develop_guide/new_inferencer
+
+.. toctree::
+   :maxdepth: 2
+   :caption: 📝 Prompt Engineering
+   :hidden:
+
+   prompt/prompt_template
+   prompt/meta_template
+   prompt/overview
+   prompt/retriever
+
+.. toctree::
+   :maxdepth: 2
    :caption: 🏷️ Others
    :hidden:
 

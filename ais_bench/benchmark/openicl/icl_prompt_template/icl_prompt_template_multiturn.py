@@ -1,9 +1,9 @@
 """Multiturn Dialogue Prompt Template."""
 
-from typing import Dict, Hashable, Optional, Union
+from typing import Dict, Hashable, Optional
 
 from ais_bench.benchmark.registry import ICL_PROMPT_TEMPLATES
-from ais_bench.benchmark.utils.prompt import PromptList
+from ais_bench.benchmark.utils.prompt import PromptList, get_round_index
 from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template_base import (
     BasePromptTemplate,
     PromptType,
@@ -57,13 +57,14 @@ class MultiTurnPromptTemplate(BasePromptTemplate):
         """
         template = self._encode_template(self.template, ice=False)
         dialog_templates = PromptList()
-        begin_template, end_template = PromptList(template[:1]), PromptList(template[-1:])
-        template = PromptList(template[1:-1])
+        left_idx, right_idx = get_round_index(template)
+        left_template, right_template = PromptList(template[:left_idx]), PromptList(template[right_idx:])
+        template = PromptList(template[left_idx:right_idx])
         for question, answer in zip(entry["question"], entry["answer"]):
             cur_entry = {"question": question, "answer": answer}
             dialog_templates += template.format(**cur_entry)
 
-        return begin_template + dialog_templates + end_template
+        return left_template + dialog_templates + right_template
 
     def __repr__(self):
         return (

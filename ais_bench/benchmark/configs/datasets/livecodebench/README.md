@@ -33,4 +33,6 @@ git clone https://huggingface.co/datasets/livecodebench/code_generation_lite
 ## 可用数据集任务
 |任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
 | --- | --- | --- | --- | --- | --- |
-|livecodebench_code_generate_lite_gen_0_shot_chat|code_generation_lite数据集的生成式任务|pass@1|0-shot|对话格式|[livecodebench_code_generate_lite_gen_0_shot_chat.py](livecodebench_code_generate_lite_gen_0_shot_chat.py)|
+|livecodebench_0_shot_chat_v4_v5|code_generation_lite数据集的生成式任务，与DeepSeek-R1测评使用数据集一致：LiveCodeBench(2024-08 – 2025-01)|pass@1|0-shot|对话格式|[livecodebench_0_shot_chat_v4_v5.py](livecodebench_0_shot_chat_v4_v5.py)|
+|livecodebench_0_shot_chat_v4_v5_v6|code_generation_lite数据集的生成式任务, 与DeepSeek-V3.1和DeepSeek-V3.2测评使用数据集一致：LiveCodeBench(2024-08 – 2025-05)|pass@1|0-shot|对话格式|[livecodebench_0_shot_chat_v4_v5_v6.py](livecodebench_0_shot_chat_v4_v5_v6.py)|
+|livecodebench_0_shot_chat_v6|code_generation_lite数据集的生成式任务, 与Qwen3测评使用数据集一致：LiveCodeBench(2025-05)|pass@1|0-shot|对话格式|[livecodebench_0_shot_chat_v6.py](livecodebench_0_shot_chat_v6.py)|

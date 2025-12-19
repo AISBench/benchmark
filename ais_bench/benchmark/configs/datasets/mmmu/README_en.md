@@ -28,3 +28,4 @@ wget https://opencompass.openxlab.space/utils/VLMEval/MMMU_DEV_VAL.tsv
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
 | --- | --- | --- | --- | --- | --- |
 |mmmu_gen|Generative task for the mmmu dataset|acc|0-shot|String format|[mmmu_gen.py](mmmu_gen.py)|
+|mmmu_gen_cot|COT Generative task for the mmmu dataset|acc|0-shot|String format|[mmmu_gen_cot.py](mmmu_gen_cot.py)|

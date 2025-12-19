@@ -15,7 +15,10 @@ mmstar_infer_cfg = dict(
         template=dict(
             round=[
                 dict(role="HUMAN", prompt_mm={
-                    "text": {"type": "text", "text": "Question: {question}\n"},
+                    "text": {"type": "text", "text": "Answer the following multiple choice question.\n" + \
+                                                    "The last line of your response should be of the following format:\n" + \
+                                                    "'ANSWER: [LETTER]' (without quotes)\n" + \
+                                                    "where [LETTER] is one of A,B,C,D. Think step by step before answering.\n\n{question}"},
                     "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
                 })
             ]

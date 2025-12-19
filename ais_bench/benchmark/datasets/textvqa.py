@@ -334,3 +334,17 @@ class TEXTEvaluator(BaseEvaluator):
             details.append(detail)
         result = {'accuracy': 100 * correct / count, 'details': details}
         return result
+
+
+class TEXTEvaluatorForGlm4v(TEXTEvaluator):
+    _GLM4V_ANSWER_PATTERN = re.compile(r'<\|begin_of_box\|>(.*?)<\|end_of_box\|>')
+
+    def score(self, predictions, references):
+        processed_pred = list()
+        for pred in predictions:
+            match = self._GLM4V_ANSWER_PATTERN.search(pred)
+            if match is not None:
+                pred = match.group(1).strip()
+            processed_pred.append(pred)
+        result = super().score(processed_pred, references)
+        return result

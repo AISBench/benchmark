@@ -18,6 +18,7 @@
 <br><br>
 [🌐 Official Website](https://www.aisbench.com) |
 [📖 Tool Documentation](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/) |
+[👨‍💻 Developer Documentation](docs/source_en/develop_guide/contributing.md) |
 [🔥 Latest Updates](#-latest-updates)|
 [🤔 Report Issues](https://github.com/AISBench/benchmark/issues/new/choose)
 <br><br>[简体中文](README.md) | English
