@@ -77,7 +77,7 @@ class MyCustomAPI(BaseAPIModel):
 
 ```
 
-新增API模型类建议补充到[`__init__.py`](../../../ais_bench/benchmark/models/api_models/__init__.py)中，方便后续自动导入。
+新增API模型类建议补充到[`__init__.py`](../../../ais_bench/benchmark/models/__init__.py)中，方便后续自动导入。
 
 详细实现可参考：[VLLMCustomAPIChat](../../../ais_bench/benchmark/models/api_models/vllm_custom_api_chat.py)
 
@@ -149,7 +149,7 @@ class MyCustomModel(BaseModel):
         ...
 ```
 
-新增本地模型类建议补充到[`__init__.py`](../../../ais_bench/benchmark/models/local_models/__init__.py)中，方便后续自动导入。
+新增本地模型类建议补充到[`__init__.py`](../../../ais_bench/benchmark/models/__init__.py)中，方便后续自动导入。
 
 详细实现可参考：[HuggingFacewithChatTemplate](../../../ais_bench/benchmark/models/local_models/huggingface_above_v4_33.py)
 

@@ -77,7 +77,7 @@ class MyCustomAPI(BaseAPIModel):
 
 ```
 
-It is recommended to add the new API model class to [`__init__.py`](../../../ais_bench/benchmark/models/api_models/__init__.py) for convenient automatic import later.
+It is recommended to add the new API model class to [`__init__.py`](../../../ais_bench/benchmark/models/__init__.py) for convenient automatic import later.
 
 For detailed implementation, refer to: [VLLMCustomAPIChat](../../../ais_bench/benchmark/models/api_models/vllm_custom_api_chat.py)
 
@@ -149,7 +149,7 @@ class MyCustomModel(BaseModel):
         ...
 ```
 
-It is recommended to add the new local model class to [`__init__.py`](../../../ais_bench/benchmark/models/local_models/__init__.py) for convenient automatic import later.
+It is recommended to add the new local model class to [`__init__.py`](../../../ais_bench/benchmark/models/__init__.py) for convenient automatic import later.
 
 For detailed implementation, refer to: [HuggingFacewithChatTemplate](../../../ais_bench/benchmark/models/local_models/huggingface_above_v4_33.py)
 
