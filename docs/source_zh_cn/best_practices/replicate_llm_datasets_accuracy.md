@@ -190,25 +190,36 @@ gpqa_eval_cfg = dict(evaluator=dict(type=GPQAEvaluator),
 > ... , and report pass@1 using a non-zero temperature. Specifically, we use a sampling temperature of 0.6 and a top-𝑝 value of 0.95 to generate 𝑘 responses (typically between 4 and 64, depending on the test set size) for each question. Pass@1 is then calculated as
 >  ${\text{pass@1}} = \frac{1}{n} \sum_{i=1}^{n} p_i$
 
-那么在AISBench中，数据集配置文件应当做修改(n=4~64, k=1):
+那么在AISBench中，模型配置文件做如下配置：
 ```python
-# https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/gpqa/gpqa_gen_0_shot_cot_chat_prompt.py
+# https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py
 
-for split in list(gpqa_subsets.keys()):
-    gpqa_datasets.append(
-        dict(
-            abbr='GPQA_' + split,
-            type=GPQADataset,
-            path='ais_bench/datasets/gpqa/',
-            name=gpqa_subsets[split],
-            n=4, # 4~64
-            k=1, # pass@1
-            reader_cfg=gpqa_reader_cfg,
-            infer_cfg=gpqa_infer_cfg,
-            eval_cfg=gpqa_eval_cfg)
+models = [
+    dict(
+        ... # 其它参数
+        generation_kwargs = dict(
+            num_return_sequences = 4, # n=4~64
+            ... # 其它参数
+        ),
+        ...
     )
+]
 
 ```
+一般情况下 `n == k` 或者 `k=1`，`n == k`的场景推理出的指标为`path@k`，`k=1`的场景也就是deepseek公式中的`pass@1`本质上是`avg@n`，单独配置`n`够用，因此AISBench评测工具20251219版本下还不支持单独配置`k`。
+
+精度评估阶段结束后，结果会记录在日志和打屏在运行窗口，格式按照以下示例内容（数据仅供参考）：
+
+```bash
+| dataset   | version   | metric                    | mode | vllm-api-stream-chat |
+| --------- | --------- | ------------------------- | ---- | -------------------- |
+| GPQA_diamond | 604a78    | accuracy (4 runs average) | gen  | 18.00                |
+| GPQA_diamond | 604a78    | avg@4                     | gen  | 18.00                |
+| GPQA_diamond | 604a78    | pass@4                    | gen  | 53.33                |
+| GPQA_diamond | 604a78    | cons@4                    | gen  | 13.33                |
+```
+其中`avg@4`和deepseek中执行4次平均的`pass@1`含义相同。
+
 > ⚠️ `n`本身只是影响评测结果的波动幅度不影响数学期望，但是`n`越大意味这需要反复跑同一条用例的次数越多，资源消耗越大。如果要复现精度需要依据实际资源情况做调整。
 
 > 💡如果论文的数据集不强调是什么精度评估指标，一般默认`pass@1`，因此在AISBench的数据集配置文件中不配置`n`和`k`就是默认`pass@1`

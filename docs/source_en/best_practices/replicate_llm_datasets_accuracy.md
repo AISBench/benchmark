@@ -152,25 +152,37 @@ Taking GPQA as an example, the table shows that `pass@1` is used as the accuracy
 > ..., and report pass@1 using a non - zero temperature. Specifically, we use a sampling temperature of 0.6 and a top - 𝑝 value of 0.95 to generate 𝑘 responses (typically between 4 and 64, depending on the test set size) for each question. Pass@1 is then calculated as
 >  ${\text{pass@1}} = \frac{1}{n} \sum_{i = 1}^{n} p_i$
 
-In AISBench, the dataset configuration file should be modified accordingly (n = 4~64, k = 1):
+Then in AISBench, configure the model configuration file as follows:
 ```python
-# https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/gpqa/gpqa_gen_0_shot_cot_chat_prompt.py
+# https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py
 
-for split in list(gpqa_subsets.keys()):
-    gpqa_datasets.append(
-        dict(
-            abbr='GPQA_' + split,
-            type=GPQADataset,
-            path='ais_bench/datasets/gpqa/',
-            name=gpqa_subsets[split],
-            n=4, # 4~64
-            k=1, # pass@1
-            reader_cfg=gpqa_reader_cfg,
-            infer_cfg=gpqa_infer_cfg,
-            eval_cfg=gpqa_eval_cfg)
+models = [
+    dict(
+        ... # Other parameters
+        generation_kwargs = dict(
+            num_return_sequences = 4, # n=4~64
+            ... # Other parameters
+        ),
+        ...
     )
+]
 
 ```
+Under normal circumstances, `n == k` or `k=1`. In scenarios where `n == k`, the inferred metric is `path@k`; in scenarios where `k=1` (i.e., `pass@1` in the DeepSeek formula), it is essentially `avg@n`. Configuring `n` alone is sufficient, so the 20251219 version of the AISBench evaluation tool does not yet support configuring `k` independently.
+
+After the precision evaluation phase, the results will be recorded in the logs and printed to the running window, following the format in the example below (data is for reference only):
+
+```bash
+| dataset   | version   | metric                    | mode | vllm-api-stream-chat |
+| --------- | --------- | ------------------------- | ---- | -------------------- |
+| GPQA_diamond | 604a78    | accuracy (4 runs average) | gen  | 18.00                |
+| GPQA_diamond | 604a78    | avg@4                     | gen  | 18.00                |
+| GPQA_diamond | 604a78    | pass@4                    | gen  | 53.33                |
+| GPQA_diamond | 604a78    | cons@4                    | gen  | 13.33                |
+```
+Among them, `avg@4` has the same meaning as `pass@1` (average over 4 runs) in DeepSeek.
+
+
 > ⚠️ While `n` only affects the fluctuation range of the evaluation results and not the mathematical expectation, a larger `n` means more repeated runs for each test case, leading to higher resource consumption. When reproducing accuracy, adjustments should be made based on the actual resource availability.
 
 > 💡 If a paper does not specify the accuracy evaluation metric for a dataset, `pass@1` is generally used by default. Thus, omitting the configuration of `n` and `k` in the AISBench dataset configuration file defaults to `pass@1`.
