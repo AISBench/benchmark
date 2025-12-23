@@ -60,6 +60,7 @@ To help you quickly get started with AISBench Benchmark Tool, we recommend learn
 
    best_practices/practice_nvidia
    best_practices/practice_ascend
+   best_practices/replicate_llm_datasets_accuracy
 
 .. toctree::
    :maxdepth: 2

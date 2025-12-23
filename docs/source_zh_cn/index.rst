@@ -60,6 +60,7 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
 
    best_practices/practice_nvidia
    best_practices/practice_ascend
+   best_practices/replicate_llm_datasets_accuracy
 
 .. toctree::
    :maxdepth: 2
