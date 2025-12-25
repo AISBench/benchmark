@@ -94,14 +94,3 @@ jobs:
           name: smoke_test_results
           path: "*.tar.gz"
           retention-days: 7
-
-      - name:  Uninstall benchmark
-        if: always()
-        run: |
-          pip3 uninstall ais_bench_benchmark -y
-          if [ $? -ne 0 ]; then
-            echo "[ERROR] Uninstall benchmark failed. "
-            exit 1
-          else
-            echo "[INFO] Uninstall benchmark success. "
-          fi
