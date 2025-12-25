@@ -289,7 +289,7 @@ def gather_logs(test_case_workspace_path, workspace_path):
     last_3_path = os.sep.join(test_case_workspace_path.split(os.sep)[-3:])
 
     case_name = os.path.basename(test_case_workspace_path)
-    log_dir = os.path.join(workspace_path, "case_logs", case_name)
+    log_dir = os.path.join(workspace_path, "failed_case_logs", case_name)
     benchmark_log_dir = os.path.join(log_dir, "benchmark_log")
     benchmark_case_out_dir = os.path.join(test_case_workspace_path, "../../../../output", last_3_path)
 
@@ -340,10 +340,10 @@ def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
             if ret_code != 0:
                 result_log_info = "Last 2 rows in result.log: \n```\n" + str('\n'.join(get_last_lines(log_path))) + "\n```"
                 error_info = f"run script path failed. {run_script_path}\n{result_log_info}"
+                gather_logs(test_case_workspace_path, workspace_path)
                 raise RunCaseException(error_info)
             # 记录&分析结果
             record_and_analysis_metric(config, test_case_workspace_path, result_record)
-            gather_logs(test_case_workspace_path, workspace_path)
         except RunCaseException as ex:
             result_record["success"] = False
             result_record["message"] = str(ex)
