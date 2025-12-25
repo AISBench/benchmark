@@ -275,16 +275,9 @@ def copy_benchmark_log_files(source_base_path, target_dir):
     if not timestamp_dir:
         raise FileNotFoundError(f"在 {source_base_path} 下未找到符合格式的时间戳目录（如20251225_182944）")
 
+    logs_dir = os.path.join(timestamp_dir, "logs/")
     # 5. 遍历时间戳目录下的所有文件，批量复制到目标目录
-    copied_files = []
-    for file_name in os.listdir(timestamp_dir):
-        source_file = os.path.join(timestamp_dir, file_name)
-        # 仅复制文件（跳过子目录，如需复制目录可改用shutil.copytree）
-        if os.path.isfile(source_file):
-            target_file = os.path.join(target_dir, file_name)
-            # 复制文件（保留元数据，覆盖已存在的文件）
-            shutil.copy2(source_file, target_file)
-            copied_files.append(file_name)
+    shutil.copytree(logs_dir, target_dir)
 
 
 def gather_logs(test_case_workspace_path, workspace_path):
@@ -314,7 +307,6 @@ def gather_logs(test_case_workspace_path, workspace_path):
             os.path.join(log_dir, "tmplog.txt")
         )
     if os.path.exists(benchmark_case_out_dir):
-        print(f"benchmark_case_out_dir: {benchmark_case_out_dir}")
         copy_benchmark_log_files(benchmark_case_out_dir, benchmark_log_dir)
 
 
