@@ -278,7 +278,8 @@ def copy_benchmark_log_files(source_base_path, target_dir):
     logs_dir = os.path.join(timestamp_dir, "logs/")
     # 5. 遍历时间戳目录下的所有文件，批量复制到目标目录
     try:
-        shutil.copytree(logs_dir, os.path.join(target_dir, os.path.basename(logs_dir)), dirs_exist_ok=True)
+        if os.path.exists(logs_dir):
+            shutil.copytree(logs_dir, os.path.join(target_dir, os.path.basename(logs_dir)), dirs_exist_ok=True)
     except Exception as ex:
         raise RunCaseException(f"复制日志目录 {logs_dir} 到 {target_dir} 失败: {ex}") from ex
 
