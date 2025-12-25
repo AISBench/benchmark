@@ -355,7 +355,8 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                         run_test_case,
                         config,
                         test_case_workspace_path,
-                        res_path
+                        res_path,
+                        workspace_path
                     )
 
                     # 更新状态: 从待执行移到执行中

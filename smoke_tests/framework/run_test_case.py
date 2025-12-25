@@ -5,6 +5,7 @@ import sys
 import re
 import traceback
 import time
+import shutil
 from typing import List, Dict, Any, Tuple, Optional, Union
 
 import yaml
@@ -59,7 +60,7 @@ def get_test_case_config(test_case_yml):
             case_tags.update(value)
         else:
             case_tags.add(value)  # 处理字符串、数字等单值
-    
+
     safe_add(config.get("case_group", []))
     safe_add(config.get("case_type", "default_type"))
     safe_add(config.get("case_name", test_case_yml))
@@ -68,21 +69,21 @@ def get_test_case_config(test_case_yml):
 
 
 def exec_script_file(
-    script_path: str, 
+    script_path: str,
     log_file: Optional[str] = None,
     timeout_minutes: Optional[int] = None,
 ) -> int:
     """
     执行脚本文件（支持Python和Bash），并设置超时时间
-    
+
     参数:
         script_path: 脚本文件路径
         timeout_minutes: 超时时间（分钟）
         log_file: 日志文件路径，如果提供，则重定向输出到此文件
-    
+
     返回:
         返回码: 0表示成功，非0表示失败
-    
+
     异常:
         超时时抛出RunCaseException
     """
@@ -94,7 +95,7 @@ def exec_script_file(
         args = ["bash", script_path]
     else:
         raise RunCaseException(f"Unsupported script type: {script_path}")
-    
+
     process:subprocess.Popen = None
     try:
         # 处理日志重定向
@@ -103,7 +104,7 @@ def exec_script_file(
         if log_file:
             stdout_dest = open(log_file, 'w')
             stderr_dest = subprocess.STDOUT
-        
+
         # 创建子进程执行命令
         process = subprocess.Popen(
             args,
@@ -119,9 +120,9 @@ def exec_script_file(
             else:
                 # 无超时设置
                 process.wait()
-                
+
             return process.returncode
-        
+
         except (KeyboardInterrupt, subprocess.TimeoutExpired) as ex:
             # 超时处理 - 先尝试终止
             process.terminate()
@@ -216,7 +217,7 @@ def get_metric_key(path:str, start_from: str = "test-case"):
         start_index = parts.index(start_from)
     except ValueError:
         raise ValueError(f"路径中必须包含 {start_from} 目录")
-    
+
     # 不包含 start_from
     target_parts = parts[start_index + 1:]
     return target_parts
@@ -229,23 +230,43 @@ def get_last_lines(file_path: str, last_lines:int = 2) -> list[str]:
             # 智能决定读取窗口大小（最大10KB）
             size = min(10240, os.path.getsize(file_path))
             f.seek(-size, os.SEEK_END)
-            
+
             # 读取最后部分并过滤非空白行
             lines = [
                 line.decode(errors='ignore').rstrip()
                 for line in f
                 if line.strip()
             ]
-            
+
             # 返回最后两个非空白行
             return lines[-last_lines:] if len(lines) >= last_lines else lines
-    
+
     except Exception:
         # 回退到标准方法
         with open(file_path) as f:
             return [line.rstrip() for line in f if line.strip()][-last_lines:]
 
-def run_test_case(config, test_case_workspace_path, res_path):
+
+def gather_logs(test_case_workspace_path, workspace_path):
+    """收集测试用例工作目录下的所有日志文件内容"""
+    case_name = os.path.basename(test_case_workspace_path)
+    log_dir = os.path.join(workspace_path, "case_logs", case_name)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    if os.path.exists(os.path.join(test_case_workspace_path, "result.log")):
+        shutil.copy2(
+            os.path.join(test_case_workspace_path, "result.log"),
+            os.path.join(log_dir, "result.log")
+        )
+    if os.path.exists(os.path.join(test_case_workspace_path, "tmplog.txt")):
+        shutil.copy2(
+            os.path.join(test_case_workspace_path, "tmplog.txt"),
+            os.path.join(log_dir, "tmplog.txt")
+        )
+
+
+def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
     result_record = dict(
         case_name=config.get("case_name", config.get("yml_path", "default")), success=False, message="未执行",
         metric_key=get_metric_key(test_case_workspace_path),
@@ -275,14 +296,17 @@ def run_test_case(config, test_case_workspace_path, res_path):
                 raise RunCaseException(error_info)
             # 记录&分析结果
             record_and_analysis_metric(config, test_case_workspace_path, result_record)
+            gather_logs(test_case_workspace_path, workspace_path)
         except RunCaseException as ex:
             result_record["success"] = False
             result_record["message"] = str(ex)
             log(f"\033[1;31m", f"[{config.get('case_name')}] has ERROR:", str(ex), "\033[0m", print_enable=False)
+            gather_logs(test_case_workspace_path, workspace_path)
         except KeyboardInterrupt:
             result_record["success"] = False
             result_record["message"] = "Has been interrupted"
             log(f"\033[1;31m", f"[{config.get('case_name')}] has been interrupted.\033[0m", print_enable=False)
+            gather_logs(test_case_workspace_path, workspace_path)
         else:
             result_record["success"] = True
             result_record["message"] = ""
