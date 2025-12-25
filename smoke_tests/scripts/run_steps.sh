@@ -124,9 +124,9 @@ pip3 install -r $PROJECT_PATH/requirements.txt
 # install benchmark
 REPO_PATH=${PROJECT_PATH}/../
 cd ${REPO_PATH}
-pip3 install -e ./ --use-pep517
-pip3 install -r requirements/extra.txt
-pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
+pip3 install -e ./ -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com --use-pep517
+pip3 install -r requirements/extra.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+pip3 install -r requirements/datasets/bfcl_dependencies.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com --no-deps
 
 ## 数据集放置
 target_directory="$REPO_PATH/ais_bench/datasets"

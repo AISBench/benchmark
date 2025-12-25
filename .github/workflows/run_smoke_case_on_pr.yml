@@ -1,0 +1,94 @@
+name: run_smoke_case_on_pr
+
+on:
+  pull_request:
+    paths:
+      - 'smoke_tests/test-case/**'
+  workflow_dispatch:
+  schedule:
+    - cron:  '56 22 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PY310_VERSION: 3.10.19
+  PY311_VERSION: 3.11.14
+jobs:
+  pr_run_smoke_cases:
+    runs-on: [self-hosted, Linux]
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+      - name: Get Modified Cases
+        run: |
+          echo "Getting modified files in smoke_tests/test-case directory..."
+          # 检查是否是拉取请求事件
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # 获取当前提交与PR基础提交之间的差异文件
+            git diff HEAD~1 HEAD --name-only smoke_tests/test-case/ > modified_files.txt
+          else
+            # 如果是其他事件（如schedule或workflow_dispatch），获取所有测试用例文件夹
+            find smoke_tests/test-case/ -mindepth 3 -maxdepth 3 -type d | sed 's|smoke_tests/test-case/||' > modified_files.txt
+          fi
+
+          echo "Modified files or directories found:"
+          cat modified_files.txt
+
+          # 使用Python脚本解析出需要的文件夹名（第三级目录）
+          python3 - <<END
+          import os
+          import re
+
+          modified_dirs = set()
+
+          with open('modified_files.txt', 'r') as f:
+              for line in f:
+                  line = line.strip()
+                  if line:
+                      # 解析路径，如smoke_tests/test-case/run_server_accuracy/llm_datasets_main/accuracy_aime2024
+                      parts = line.split(os.path.sep)
+                      # 找到第三级目录（即accuracy_aime2024这一级）
+                      if len(parts) >= 4 and parts[0] == 'smoke_tests' and parts[1] == 'test-case':
+                          # 获取第三级目录名
+                          case_name = parts[3]
+                          modified_dirs.add(case_name)
+
+          # 输出结果到环境变量或文件（同一行用空格隔开）
+          with open('modified_cases.txt', 'w') as f:
+              f.write(' '.join(sorted(modified_dirs)))
+
+          print("Modified cases identified:")
+          if modified_dirs:
+              print(' '.join(sorted(modified_dirs)))
+          else:
+              print("No relevant test case directories modified.")
+          END
+
+          echo "Modified cases saved to modified_cases.txt"
+
+      - name: Run Modified Cases
+        run: |
+          bash smoke_tests/scripts/run_steps.sh -t $(cat modified_cases.txt)
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Not all modified test cases passed, please check the logs. "
+            exit 1
+          else
+            echo "[INFO] All test case passed. "
+          fi
+
+      - name: Get Result files
+        run: |
+
+      - name:  Uninstall benchmark
+        if: always()
+        run: |
+          pip3 uninstall ais_bench_benchmark -y
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Uninstall benchmark failed. "
+            exit 1
+          else
+            echo "[INFO] Uninstall benchmark success. "
+          fi
