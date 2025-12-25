@@ -14,73 +14,39 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PY310_VERSION: 3.10.12
+  PY310_VERSION: 3.10.19
+  PY311_VERSION: 3.11.14
 jobs:
-  pr_run_test:
+  pr_run_smoke_cases:
     runs-on: [self-hosted, Linux]
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v2
-      - name: Prepare - Install benchmark
+      - name: Run Modified Cases
         run: |
-          pip3 install -e ./ -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com --use-pep517
-          pip3 install -r requirements/api.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
-          pip3 install -r requirements/extra.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
-          pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
-      - name: Run Test
-        run: |
-          pip3 install pytest pytest-cov pytest-xdist -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
-          python3 tests/run_tests.py tests/UT -p 16
-
-      - name: Check Result
-        run: |
-          cur_dir=$(pwd)
-          summary_path=${cur_dir}/test_reports/test_summary.txt
-          echo "summary_path: ${summary_path}"
-          if [ -f ${summary_path} ]; then
-            echo "[INFO] test_summary.txt exists. "
-          else
-            echo "[ERROR] test_summary.txt not exists. "
-            exit 1
-          fi
-          grep -q "Failed: 0" ${summary_path}
+          source ~/miniconda3/bin/activate
+          conda activate py310
+          bash smoke_tests/scripts/run_steps.sh -t short
           if [ $? -ne 0 ]; then
-            failed_count=$(cat ${summary_path} | grep "Failed:" | awk '{print $2}')
-            echo "[ERROR] Not all test case passed, failed count is ${failed_count}. "
+            echo "[ERROR] Not all modified test cases passed, please check the logs. "
             exit 1
           else
             echo "[INFO] All test case passed. "
           fi
-          total_coverage=$(cat ${summary_path} | grep "Total coverage" | cut -d' ' -f3 | tr -d '%')
-          if python3 -c "exit(0 if float('$total_coverage') < 80 else 1)"; then
-            echo "[ERROR] Code total coverage is lower than 80.0%, current coverage is ${total_coverage}%. "
-            exit 1
-          else
-            echo "[INFO] Code total coverage is higher than 80.0%, current coverage is ${total_coverage}%. "
-          fi
-          line_coverage=$(cat ${summary_path} | grep "Line coverage" | cut -d' ' -f3 | tr -d '%')
-          if python3 -c "exit(0 if float('$line_coverage') < 80 else 1)"; then
-            echo "[ERROR] Code line coverage is lower than 80.0%, current coverage is ${line_coverage}%. "
-            exit 1
-          else
-            echo "[INFO] Code line coverage is higher than 80.0%, current coverage is ${line_coverage}%. "
-          fi
-          branch_coverage=$(cat ${summary_path} | grep "Branch coverage" | cut -d' ' -f3 | tr -d '%')
-          if python3 -c "exit(0 if float('$branch_coverage') < 60 else 1)"; then
-            echo "[ERROR] Code branch coverage is lower than 60.0%, current coverage is ${branch_coverage}%. "
-            exit 1
-          else
-            echo "[INFO] Code branch coverage is higher than 60.0%, current coverage is ${branch_coverage}%. "
-          fi
-      - name:  Uninstall benchmark
-        if: always()
-        run: |
-          pip3 uninstall ais_bench_benchmark -y
-          if [ $? -ne 0 ]; then
-            echo "[ERROR] Uninstall benchmark failed. "
-            exit 1
-          else
-            echo "[INFO] Uninstall benchmark success. "
-          fi
 
+      - name: Get Result files
+        run: |
+          # 找到最新的RunWorkspace文件夹
+          RUNWORKSPACE_DIR=$(ls -td smoke_tests/RunWorkspace/* | head -1)
+          echo "Found RunWorkspace directory: $RUNWORKSPACE_DIR"
+          # 打包文件夹
+          RUNWORKSPACE_NAME=$(basename "$RUNWORKSPACE_DIR")
+          tar -czf "${RUNWORKSPACE_NAME}.tar.gz" -C "smoke_tests/RunWorkspace" "${RUNWORKSPACE_NAME}"
+          echo "Packed RunWorkspace as ${RUNWORKSPACE_NAME}.tar.gz"
+      - name: Upload Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: smoke_test_results
+          path: "*.tar.gz"
+          retention-days: 7
