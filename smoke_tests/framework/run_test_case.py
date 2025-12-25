@@ -247,10 +247,56 @@ def get_last_lines(file_path: str, last_lines:int = 2) -> list[str]:
             return [line.rstrip() for line in f if line.strip()][-last_lines:]
 
 
+def copy_benchmark_log_files(source_base_path, target_dir):
+    """
+    复制指定路径下含固定时间戳格式目录内的所有文件到目标目录
+    :param source_base_path: 基础源路径（时间戳目录的上级路径）
+    :param target_dir: 目标目录（benchmark_logs）
+    """
+    # 1. 定义时间戳正则（匹配 8位日期_6位时间 格式，如20251225_182944）
+    timestamp_pattern = re.compile(r'^\d{8}_\d{6}$')
+
+    # 2. 检查基础源路径是否存在
+    if not os.path.isdir(source_base_path):
+        raise NotADirectoryError(f"基础源路径不存在或不是目录：{source_base_path}")
+
+    # 3. 创建目标目录（不存在则创建，存在则忽略）
+    os.makedirs(target_dir, exist_ok=True)
+
+    # 4. 遍历基础路径下的所有目录，匹配时间戳格式的目录
+    timestamp_dir = None
+    for item in os.listdir(source_base_path):
+        item_path = os.path.join(source_base_path, item)
+        # 筛选：是目录 + 符合时间戳格式
+        if os.path.isdir(item_path) and timestamp_pattern.match(item):
+            timestamp_dir = item_path
+            break  # 若有多个时间戳目录，取第一个；如需全部复制，移除break并循环处理
+
+    if not timestamp_dir:
+        raise FileNotFoundError(f"在 {source_base_path} 下未找到符合格式的时间戳目录（如20251225_182944）")
+
+    # 5. 遍历时间戳目录下的所有文件，批量复制到目标目录
+    copied_files = []
+    for file_name in os.listdir(timestamp_dir):
+        source_file = os.path.join(timestamp_dir, file_name)
+        # 仅复制文件（跳过子目录，如需复制目录可改用shutil.copytree）
+        if os.path.isfile(source_file):
+            target_file = os.path.join(target_dir, file_name)
+            # 复制文件（保留元数据，覆盖已存在的文件）
+            shutil.copy2(source_file, target_file)
+            copied_files.append(file_name)
+
+
 def gather_logs(test_case_workspace_path, workspace_path):
     """收集测试用例工作目录下的所有日志文件内容"""
+    test_case_workspace_path = os.path.abspath(test_case_workspace_path)
+    last_3_path = (test_case_workspace_path.split(os.sep)[-3:]).join(os.sep)
+
     case_name = os.path.basename(test_case_workspace_path)
     log_dir = os.path.join(workspace_path, "case_logs", case_name)
+    benchmark_log_dir = os.path.join(log_dir, "benchmark_log")
+    benchmark_case_out_dir = os.path.join(test_case_workspace_path, "../../../../output", last_3_path)
+
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -264,6 +310,8 @@ def gather_logs(test_case_workspace_path, workspace_path):
             os.path.join(test_case_workspace_path, "tmplog.txt"),
             os.path.join(log_dir, "tmplog.txt")
         )
+    if os.path.exists(benchmark_case_out_dir):
+        copy_benchmark_log_files(benchmark_case_out_dir, benchmark_log_dir)
 
 
 def run_test_case(config, test_case_workspace_path, res_path, workspace_path):

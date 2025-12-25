@@ -81,6 +81,19 @@ jobs:
 
       - name: Get Result files
         run: |
+          # 找到最新的RunWorkspace文件夹
+          RUNWORKSPACE_DIR=$(ls -td smoke_tests/RunWorkspace/* | head -1)
+          echo "Found RunWorkspace directory: $RUNWORKSPACE_DIR"
+          # 打包文件夹
+          RUNWORKSPACE_NAME=$(basename "$RUNWORKSPACE_DIR")
+          tar -czf "${RUNWORKSPACE_NAME}.tar.gz" -C "smoke_tests/RunWorkspace" "${RUNWORKSPACE_NAME}"
+          echo "Packed RunWorkspace as ${RUNWORKSPACE_NAME}.tar.gz"
+      - name: Upload Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: smoke_test_results
+          path: "*.tar.gz"
+          retention-days: 7
 
       - name:  Uninstall benchmark
         if: always()
