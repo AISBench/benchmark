@@ -114,7 +114,7 @@ def capture_system_info(args):
         "系统信息": "uname -a",
         "安装包": "pip list",
         "环境变量": "env",
-        "硬件状态": "npu-smi info"  # 根据实际情况调整命令
+        "cpu型号": "lscpu"  # 根据实际情况调整命令
     }
 
     for desc, cmd in commands.items():
