@@ -3,8 +3,9 @@ name: run_smoke_framework_on_pr
 on:
   pull_request:
     paths:
-      - 'smoke_tests/framework/**'
-      - 'smoke_tests/scripts/**'
+      - 'ais_bench/configs/**'
+      # - 'smoke_tests/framework/**'
+      # - 'smoke_tests/scripts/**'
   workflow_dispatch:
   schedule:
     - cron:  '56 22 * * *'
