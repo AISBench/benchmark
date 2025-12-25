@@ -1,0 +1,15 @@
+resource/code/**
+resource/model/**
+RunWorkspace/**
+**/__pycache__/
+output/
+**/result.log
+**/tmplog.txt
+**/credentials.enc
+**/secret.key
+**/email_list.py
+**/cleanup.log
+**/tmp/
+**/execute_time_record.json
+**/*.html
+.vscode

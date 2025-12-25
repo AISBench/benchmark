@@ -1,0 +1,14 @@
+case_type: benchmark
+case_group:
+  - run_server_pressure
+  - high_concurrency
+  - short
+  - yh_range
+  - refactor_success_1202
+case_name: pressure_800_concurrency_default # 在整个工程的case中必须唯一
+enable: y
+script:
+  start: run.sh
+  end: clean.sh
+timeout: 60
+rank_size: 3

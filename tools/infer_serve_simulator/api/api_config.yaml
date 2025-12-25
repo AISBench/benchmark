@@ -1,0 +1,14 @@
+general:
+  enable_mtp: False # 是否启用mtp场景
+
+stream_latency:
+  ttft: 0.1 # seconds
+  tpot: 0.01 # seconds
+
+text_latency:
+  e2el: 0.2 # seconds
+
+random_dataset:
+  random_content: False # 字符是否随机，不随机默认用'A'构造
+  min_tokens: 10 # 最小长度
+  tokens_per_chunk: 2 # mtp场景

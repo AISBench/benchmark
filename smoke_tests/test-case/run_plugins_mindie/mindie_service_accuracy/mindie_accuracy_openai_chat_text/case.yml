@@ -1,0 +1,12 @@
+case_type: benchmark
+case_group:
+  - run_plugins_mindie
+  - mindie_service_accuracy
+  - mindie
+case_name: mindie_accuracy_openai_chat_text # 在整个工程的case中必须唯一
+enable: y
+script:
+  start: run.sh
+  end: clean.sh
+timeout: 60
+rank_size: 3

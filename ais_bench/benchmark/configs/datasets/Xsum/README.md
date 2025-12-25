@@ -12,7 +12,7 @@ XSum（Extreme Summarization）数据集是用于评估抽象单文档摘要系�
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir Xsum/
 cp -r OpenCompassData-core-20240207/data/Xsum/* Xsum/
 rm -r OpenCompassData-core-20240207/

@@ -12,7 +12,7 @@ SIQA（Social Interaction QA） 是一个用于测试社会常识智能的问答
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir siqa/
 cp -r OpenCompassData-core-20240207/data/siqa/* siqa/
 rm -r OpenCompassData-core-20240207/

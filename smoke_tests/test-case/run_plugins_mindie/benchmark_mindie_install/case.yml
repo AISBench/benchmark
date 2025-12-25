@@ -1,0 +1,13 @@
+case_type: benchmark
+case_group:
+  - run_plugins_mindie
+  - benchmark_mindie_install
+  - mindie
+  - refactor_success_1202
+case_name: benchmark_mindie_install # 在整个工程的case中必须唯一
+enable: y
+script:
+  start: run.sh
+  end: clean.sh
+timeout: 60
+rank_size: 1 # high priority

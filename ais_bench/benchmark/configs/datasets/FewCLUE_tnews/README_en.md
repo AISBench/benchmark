@@ -12,7 +12,7 @@ This dataset task is a Chinese news classification task. Given a news text, it i
 # Within the Linux server, under the tool root path
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir -p FewCLUE/tnews/
 cp -r OpenCompassData-core-20240207/data/FewCLUE/tnews/* FewCLUE/tnews/
 rm -r OpenCompassData-core-20240207/

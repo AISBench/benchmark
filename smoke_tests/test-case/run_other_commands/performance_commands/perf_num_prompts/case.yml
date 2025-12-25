@@ -1,0 +1,13 @@
+case_type: benchmark
+case_group:
+  - run_other_commands
+  - performance_commands
+  - short
+  - yh_range
+case_name: perf_num_prompts # 在整个工程的case中必须唯一
+enable: y
+script:
+  start: run.sh
+  end: clean.sh
+timeout: 60
+rank_size: 3
