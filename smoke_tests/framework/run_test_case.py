@@ -290,7 +290,7 @@ def copy_benchmark_log_files(source_base_path, target_dir):
 def gather_logs(test_case_workspace_path, workspace_path):
     """收集测试用例工作目录下的所有日志文件内容"""
     test_case_workspace_path = os.path.abspath(test_case_workspace_path)
-    last_3_path = (test_case_workspace_path.split(os.sep)[-3:]).join(os.sep)
+    last_3_path = os.sep.join(test_case_workspace_path.split(os.sep)[-3:])
 
     case_name = os.path.basename(test_case_workspace_path)
     log_dir = os.path.join(workspace_path, "case_logs", case_name)
@@ -374,4 +374,5 @@ def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
         log(f"\033[5;31m", f"[{config.get('case_name')}] has ERROR:", str(ex), "\033[0m", print_enable=False)
 
     return config.get("case_type"), config.get("case_name"), result_record
+
 
