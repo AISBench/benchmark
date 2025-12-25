@@ -17,7 +17,7 @@ env:
   PY311_VERSION: 3.11.14
 jobs:
   pr_run_smoke_cases:
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Linux, smoke]
     timeout-minutes: 20
     steps:
       - name: Checkout Code
