@@ -370,7 +370,8 @@ def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
             post_processing(config, test_case_workspace_path)
         except CleanCaseException as ex:
             log(f"\033[5;33m", f"[{config.get('case_name')}] has WARRING:", str(ex), "\033[0m", print_enable=False)
-    except Exception:
+    except Exception as ex:
         log(f"\033[5;31m", f"[{config.get('case_name')}] has ERROR:", str(ex), "\033[0m", print_enable=False)
 
     return config.get("case_type"), config.get("case_name"), result_record
+
