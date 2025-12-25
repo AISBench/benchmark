@@ -300,6 +300,9 @@ def gather_logs(test_case_workspace_path, workspace_path):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
+    if not os.path.exists(benchmark_log_dir):
+        os.makedirs(benchmark_log_dir)
+
     if os.path.exists(os.path.join(test_case_workspace_path, "result.log")):
         shutil.copy2(
             os.path.join(test_case_workspace_path, "result.log"),
@@ -311,6 +314,7 @@ def gather_logs(test_case_workspace_path, workspace_path):
             os.path.join(log_dir, "tmplog.txt")
         )
     if os.path.exists(benchmark_case_out_dir):
+        print(f"benchmark_case_out_dir: {benchmark_case_out_dir}")
         copy_benchmark_log_files(benchmark_case_out_dir, benchmark_log_dir)
 
 
