@@ -3,8 +3,7 @@ name: run_smoke_case_on_pr
 on:
   pull_request:
     paths:
-      - 'ais_bench/configs/**'
-      # - 'smoke_tests/test-case/**'
+      - 'smoke_tests/test-case/**'
   workflow_dispatch:
   schedule:
     - cron:  '56 22 * * *'
