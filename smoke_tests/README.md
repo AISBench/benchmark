@@ -6,8 +6,6 @@
 AISBench Smoke 是一个用于 AISBench 基准测试的自动化测试框架，主要包含两个核心目录：framework/ 和 scripts/
 本 README 将详细介绍这两个目录的结构、功能以及使用方式，帮助开发者和测试人员快速上手。
 
-由于细节描述中的附件内容过多，且不需要合入此仓，故此文档不做赘述，更多请直接参考：[🔍AISBench Smoke冒烟仓使用说明](https://wiki.huawei.com/domains/52290/wiki/212185/WIKI202507187547322)
-
 ---
 
 ## 🛠️ TODOs
@@ -32,19 +30,19 @@ flowchart TB
         B --> |Python≥3.6| C[加载模块]
         B --> |Python<3.6| D[报错退出]
     end
-    
+
     subgraph 参数处理
         E[解析命令行参数] --> F{"验证参数"}
         F --> |有效| G[打印配置信息]
         F --> |无效| H[报错退出]
     end
-    
+
     subgraph 主逻辑
         G --> I{"是否为DRY-RUN模式?"}
         I --> |是| J[模拟运行]
         I --> |否| K[实际清理]
     end
-    
+
     subgraph 模拟运行
         J --> L[获取子目录列表]
         L --> M{"目录数量>阈值?"}
@@ -52,7 +50,7 @@ flowchart TB
         M --> |否| O[打印无需清理]
         N --> P[模拟删除并显示结果]
     end
-    
+
     subgraph 实际清理
         K --> Q[获取子目录列表]
         Q --> R{"目录数量>阈值?"}
@@ -64,7 +62,7 @@ flowchart TB
         W --> X[记录成功/失败]
         X --> Y[打印清理统计]
     end
-    
+
     subgraph 结束
         P --> Z[退出程序]
         O --> Z
@@ -137,9 +135,9 @@ flowchart TB
 
 ---
 
-#### Thanks♪(･ω･)ﾉ✨ 感谢使用 AISBench_Smoke 测试框架！🚀 
-##### 📝 *如有问题，欢迎随时反馈！* 📮   
-**如何评价本文？**  
-👍 有用 | 👍👍 很有用 | 👍👍👍 非常有用 
+#### Thanks♪(･ω･)ﾉ✨ 感谢使用 AISBench_Smoke 测试框架！🚀
+##### 📝 *如有问题，欢迎随时反馈！* 📮
+**如何评价本文？**
+👍 有用 | 👍👍 很有用 | 👍👍👍 非常有用
 
 ---
