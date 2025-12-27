@@ -29,10 +29,10 @@ jobs:
           conda activate py310
           bash smoke_tests/scripts/run_steps.sh -t short
           if [ $? -ne 0 ]; then
-            echo "[ERROR] Not all modified test cases passed, please check the logs. "
+            echo "[ERROR] Smoke test execution failed, please check the logs. "
             exit 1
           else
-            echo "[INFO] All test case passed. "
+            echo "[INFO] Smoke test finish execution, need to check whether all test cases passed. "
           fi
 
       - name: Get Result files
@@ -44,6 +44,13 @@ jobs:
           RUNWORKSPACE_NAME=$(basename "$RUNWORKSPACE_DIR")
           tar -czf "${RUNWORKSPACE_NAME}.tar.gz" -C "smoke_tests/RunWorkspace" "${RUNWORKSPACE_NAME}"
           echo "Packed RunWorkspace as ${RUNWORKSPACE_NAME}.tar.gz"
+          # 检查是否有失败的测试用例
+          if [ -d "$RUNWORKSPACE_DIR/failed_case_logs/" ]; then
+            echo "[ERROR] Some test cases failed, please check failed_case_logs/. "
+            exit 1
+          else
+            echo "[INFO] All test cases passed. "
+          fi
       - name: Upload Results
         uses: actions/upload-artifact@v3
         with:
