@@ -141,3 +141,6 @@ flowchart TB
 👍 有用 | 👍👍 很有用 | 👍👍👍 非常有用
 
 ---
+
+### 其他
+- 冒烟所需数据集压缩包：[smoke_datasets.tar.gz](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/smoke_datasets.tar.gz)
