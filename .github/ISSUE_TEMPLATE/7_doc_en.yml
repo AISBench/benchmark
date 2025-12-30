@@ -30,4 +30,5 @@ body:
     attributes:
       label: Additional Information
       description: Relevant code/screenshots/user feedback, etc. (Drag and drop to upload images)
+    validations:
       required: false

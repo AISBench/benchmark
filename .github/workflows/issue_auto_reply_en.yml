@@ -1,0 +1,90 @@
+name: Issue Auto Reply
+on:
+  issues:
+    types: [opened]  # Only listen for issue creation events
+
+permissions:
+  issues: write
+
+jobs:
+  auto-reply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reply to Issue based on labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get issue information and label list
+            const issue = context.payload.issue;
+            const issueTitle = issue.title;
+            const labels = issue.labels.map(label => label.name.toLowerCase());
+            const issueNumber = issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Check if title contains Chinese characters
+            const hasChinese = /[\u4e00-\u9fa5]/.test(issueTitle);
+
+            // If title contains Chinese characters, skip auto-reply
+            if (hasChinese) {
+              console.log(`Issue #${issueNumber} title contains Chinese characters, skipping auto-reply`);
+              return;
+            }
+
+            // Define reply content for different labels
+            const replyMap = {
+              bug: `🌟 Welcome to file an issue for the AISBench benchmark tool. You can try the following ways to find solutions to your issue:
+              1. Search for similar issues in the [tool's historical issues](https://github.com/AISBench/benchmark/issues/) using key log fragments or keywords
+              2. Search in the [official documentation](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/) search bar using key log fragments or keywords
+              3. Seek help from repository maintainers (mention @SJTUyh in the issue comment)`,
+              question: `🌟 Welcome to file an issue for the AISBench benchmark tool. You can try the following ways to find solutions to your issue:
+              1. Search for similar issues in the [tool's historical issues](https://github.com/AISBench/benchmark/issues/) using key log fragments or keywords
+              2. Search in the [official documentation](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/) search bar using key log fragments or keywords
+              3. Seek help from repository maintainers (mention @SJTUyh in the issue comment)`,
+              enhancement: `🌟 Welcome to file a new feature request for the AISBench benchmark tool. Please ensure your issue description is clear so that repository maintainers can accurately understand your request. Maintainers will typically respond to new feature requests within 3 days.`,
+              documentation: `🙏 Thank you for finding documentation issues in the AISBench benchmark tool. Please ensure your issue description clearly explains the documentation problem so we can fix it faster. Maintainers will typically respond to documentation issues within 1 day.`
+            };
+
+            // Iterate through labels, match and send corresponding reply (for multiple labels, prioritize in the order of bug→question→enhancement→documentation)
+            let replyContent = '';
+            if (labels.includes('bug')) {
+              replyContent = replyMap.bug;
+            } else if (labels.includes('question')) {
+              replyContent = replyMap.question;
+            } else if (labels.includes('enhancement')) {
+              replyContent = replyMap.enhancement;
+            } else if (labels.includes('documentation')) {
+              replyContent = replyMap.documentation;
+            } else {
+              replyContent = `🌟 Welcome to file an issue for the AISBench benchmark tool. We will process your request as soon as possible~`;
+            }
+
+            // Send reply if there's matching content
+            await github.rest.issues.createComment({
+              owner: owner,
+              repo: repo,
+              issue_number: issueNumber,
+              body: replyContent
+            });
+            console.log(`Auto-reply sent for Issue #${issueNumber} (labels: ${labels.join(', ')})`);
+
+            // Assign issue based on labels
+            if (labels.includes('enhancement')) {
+              // When label is enhancement, assign to Keithwwa and SJTUyh
+              await github.rest.issues.update({
+                owner: owner,
+                repo: repo,
+                issue_number: issueNumber,
+                assignees: ['Keithwwa', 'SJTUyh']
+              });
+              console.log(`Assigned Issue #${issueNumber} to Keithwwa and SJTUyh (enhancement label)`);
+            } else if (labels.includes('documentation')) {
+              // When label is documentation, assign to SJTUyh
+              await github.rest.issues.update({
+                owner: owner,
+                repo: repo,
+                issue_number: issueNumber,
+                assignees: ['SJTUyh']
+              });
+              console.log(`Assigned Issue #${issueNumber} to SJTUyh (documentation label)`);
+            }

@@ -1,0 +1,35 @@
+name: AI Issue Content Check
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created, edited]
+
+jobs:
+  check-issue-content:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    if: |
+      (github.event_name == 'issues' && github.event.action != 'closed') ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@issue_checker'))
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install google-generativeai PyGithub python-dotenv
+
+      - name: Run issue content check
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python .github/scripts/check_issue_content.py

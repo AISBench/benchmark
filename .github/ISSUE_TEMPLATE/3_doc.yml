@@ -30,4 +30,5 @@ body:
     attributes:
       label: 附加信息
       description: 相关代码/截图/用户反馈等（拖拽上传图片）
+    validations:
       required: false

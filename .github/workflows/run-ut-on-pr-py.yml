@@ -2,12 +2,16 @@ name: run_ut_on_pr
 
 on:
   pull_request:
+    paths:
+      - 'ais_bench/**'
+      - 'tests/**'
     paths-ignore:
       - 'README.md'
       - 'README_en.md'
       - 'docs/**'
       - 'plugin_examples/**'
       - 'smoke_tests/**'
+      - '.github/**'
   workflow_dispatch:
   schedule:
     - cron:  '56 22 * * *'
