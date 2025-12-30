@@ -6,6 +6,8 @@ from typing import List, Tuple
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import FileOperationError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
+from ais_bench.benchmark.utils.file.encoding_dsv32 import encode_messages
+
 
 __all__ = ['load_tokenizer', 'AISTokenizer']
 
@@ -49,9 +51,9 @@ class AISTokenizer:
     def encode(self, prompt: list) -> Tuple[float, List[int]]:
         """Encode a string into tokens, measuring processing time."""
         if isinstance(prompt, list):
-            messages = self.tokenizer.apply_chat_template(
-                prompt, add_generation_prompt=True, tokenize=False
-            )
+            # 按需配置encode_config
+            encode_config = dict(thinking_mode="thinking", drop_thinking=True, add_default_bos_token=True)
+            messages = encode_messages(prompt, **encode_config)
         elif isinstance(prompt, str):
             messages = prompt
         else:
