@@ -5,8 +5,6 @@ on:
     paths:
       - 'smoke_tests/test-case/**'
   workflow_dispatch:
-  schedule:
-    - cron:  '56 22 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,7 +12,6 @@ concurrency:
 
 env:
   PY310_VERSION: 3.10.19
-  PY311_VERSION: 3.11.14
 jobs:
   pr_run_smoke_cases:
     runs-on: [self-hosted, Linux, smoke]
@@ -71,8 +68,6 @@ jobs:
 
       - name: Run Modified Cases
         run: |
-          source ~/miniconda3/bin/activate
-          conda activate py310
           bash smoke_tests/scripts/run_steps.sh -t $(cat modified_cases.txt)
           if [ $? -ne 0 ]; then
             echo "[ERROR] Smoke test execution failed, please check the logs. "
