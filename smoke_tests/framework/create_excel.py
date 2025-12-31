@@ -12,7 +12,7 @@ def write_result_data(sheet, title_style, case_result, case_type, case_names, ge
         start_col = 2
         for i in range(max_deep):
             sheet.write(0, start_col + i, "用例场景第 {} 层".format(i+1), title_style)
-        
+
         # 表格数据填充
         curr_row = 1
         for case_name in case_names:
@@ -90,12 +90,12 @@ def create_excel(case_result, excel_name, workspace_path, case_type, case_names)
             calculated_xf_style.borders = borders
             # 设置单元格格式
             calculated_xf_style.num_format_str = '0.00%'
-            
+
             # 设置单元格颜色
             pattern = xlwt.Pattern()
             pattern.pattern = xlwt.Pattern.SOLID_PATTERN
             pattern.pattern_fore_colour = xlwt.Style.colour_map[color_name] if isinstance(color_name, str) else color_name
-            
+
             calculated_xf_style.pattern = pattern
             return calculated_xf_style
 
@@ -112,7 +112,7 @@ def create_excel(case_result, excel_name, workspace_path, case_type, case_names)
 
 
 def get_nearest_color(hex_color: str) -> int:
-    """获取最接近的预定义颜色索引"""
+    """获取最接近的预定义颜色索引 """
     # 如果没有可用的自定义索引，使用最接近的预定义颜色
     predefined = {
         "#FF0000": "red", "#00FF00": "green", "#0000FF": "blue",
@@ -121,18 +121,18 @@ def get_nearest_color(hex_color: str) -> int:
         "#808080": "dark_gray", "#008000": "dark_green", "#800000": "dark_red",
         "#92D050": "light_green"  # 特别处理这个颜色
     }
-    
+
     # 特别处理您提到的颜色
     if hex_color == "#92D050":
         return xlwt.Style.colour_map["light_green"]
-    
+
     # 查找最接近的预定义颜色
     color_name = predefined.get(
-        hex_color, 
+        hex_color,
         predefined.get(
-            hex_color.upper(), 
+            hex_color.upper(),
             "white"  # 默认值
         )
     )
-    
+
     return xlwt.Style.colour_map.get(color_name, xlwt.Style.colour_map["white"])
