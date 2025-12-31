@@ -45,7 +45,7 @@ jobs:
           fi
 
       - name: Upload Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: smoke_test_results_daily
           path: "*.tar.gz"

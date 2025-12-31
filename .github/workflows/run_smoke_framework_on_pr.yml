@@ -47,7 +47,7 @@ jobs:
             echo "[INFO] All test cases passed. "
           fi
       - name: Upload Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: smoke_test_results
           path: "*.tar.gz"
