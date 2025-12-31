@@ -24,7 +24,7 @@ jobs:
         run: |
           source ~/miniconda3/bin/activate
           conda activate py310
-          bash smoke_tests/scripts/run_steps.sh -t short
+          bash smoke_tests/scripts/run_steps.sh -t short -l-model ${HOME}/models
           if [ $? -ne 0 ]; then
             echo "[ERROR] Smoke test execution failed, please check the logs. "
             exit 1
