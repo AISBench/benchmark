@@ -1,13 +1,9 @@
-name: run_smoke_framework_on_pr
+name: run_smoke_framework_daily
 
 on:
-  pull_request:
-    paths:
-      - 'smoke_tests/framework/**'
-      - 'smoke_tests/scripts/**'
   workflow_dispatch:
   schedule:
-    - cron:  '56 22 * * *'
+    - cron:  '0 2 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,18 +11,17 @@ concurrency:
 
 env:
   PY310_VERSION: 3.10.19
-  PY311_VERSION: 3.11.14
+
 jobs:
-  pr_run_smoke_cases:
+  daily_run_smoke_cases:
     runs-on: [self-hosted, Linux, smoke]
     timeout-minutes: 30
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
-      - name: Run Modified Cases
+
+      - name: Run Smoke Cases
         run: |
-          source ~/miniconda3/bin/activate
-          conda activate py310
           bash smoke_tests/scripts/run_steps.sh -t short
           if [ $? -ne 0 ]; then
             echo "[ERROR] Smoke test execution failed, please check the logs. "
@@ -52,7 +47,7 @@ jobs:
             echo "[INFO] All test cases passed. "
           fi
       - name: Upload Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: smoke_test_results
           path: "*.tar.gz"

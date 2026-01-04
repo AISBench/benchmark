@@ -1,0 +1,54 @@
+name: run_smoke_framework_on_pr
+
+on:
+  pull_request:
+    paths:
+      - 'smoke_tests/framework/**'
+      - 'smoke_tests/scripts/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PY310_VERSION: 3.10.19
+jobs:
+  pr_run_smoke_cases:
+    runs-on: [self-hosted, Linux, smoke]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+      - name: Run Modified Cases
+        run: |
+          bash smoke_tests/scripts/run_steps.sh -t short
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Smoke test execution failed, please check the logs. "
+            exit 1
+          else
+            echo "[INFO] Smoke test finish execution, need to check whether all test cases passed. "
+          fi
+
+      - name: Get Result files
+        run: |
+          # 找到最新的RunWorkspace文件夹
+          RUNWORKSPACE_DIR=$(ls -td smoke_tests/RunWorkspace/* | head -1)
+          echo "Found RunWorkspace directory: $RUNWORKSPACE_DIR"
+          # 打包文件夹
+          RUNWORKSPACE_NAME=$(basename "$RUNWORKSPACE_DIR")
+          tar -czf "${RUNWORKSPACE_NAME}.tar.gz" -C "smoke_tests/RunWorkspace" "${RUNWORKSPACE_NAME}"
+          echo "Packed RunWorkspace as ${RUNWORKSPACE_NAME}.tar.gz"
+          # 检查是否有失败的测试用例
+          if [ -d "$RUNWORKSPACE_DIR/failed_case_logs/" ]; then
+            echo "[ERROR] Some test cases failed, please check failed_case_logs/. "
+            exit 1
+          else
+            echo "[INFO] All test cases passed. "
+          fi
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke_test_results
+          path: "*.tar.gz"
+          retention-days: 7
