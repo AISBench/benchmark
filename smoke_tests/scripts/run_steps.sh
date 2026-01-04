@@ -11,7 +11,7 @@ COMPARE_REMOTE_BRANCH="master"  # 可选，默认使用scripts/git_utils.sh:COMP
 # 常量路径设置
 PROJECT_PATH=$(realpath `dirname $0`/..)
 SCRIPTS_PATH=$(realpath `dirname $0`)
-export PROJECT_WORKSPACE_PATH=$PROJECT_PATH/RunWorkspace/`date "+%Y-%m-%d_%H:%M:%S"`
+export PROJECT_WORKSPACE_PATH=$PROJECT_PATH/RunWorkspace/`date "+%Y-%m-%d_%H-%M-%S"`
 
 MODEL_PATH=$PROJECT_PATH/resource/model
 CREDENTIALS_PATH=$PROJECT_PATH/resource/credentials
