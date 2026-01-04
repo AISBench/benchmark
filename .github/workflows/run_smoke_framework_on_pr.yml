@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Run Modified Cases
         run: |
-          bash smoke_tests/scripts/run_steps.sh -t short -l-model ${HOME}/models
+          bash smoke_tests/scripts/run_steps.sh -t short
           if [ $? -ne 0 ]; then
             echo "[ERROR] Smoke test execution failed, please check the logs. "
             exit 1
