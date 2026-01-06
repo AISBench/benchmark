@@ -23,21 +23,28 @@ jobs:
           fetch-depth: 0  # 拉取完整提交历史，便于DeepWiki解析
 
       # 2. 触发DeepWiki知识库更新
-      - name: Trigger DeepWiki Rebuild
-        uses: AsyncFuncAI/deepwiki-action@v1
-        with:
-          # 你的仓库地址（格式：owner/repo）
-          repo: AISBench/benchmark
-          # GitHub Token（自动生成，无需手动配置）
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # 生成的文档输出目录（用于GitHub Pages托管，若不需要可留空）
-          output: docs/deepwiki
-          # 排除的路径（和.deepwikiignore联动，双重保障）
-          exclude: |
-            build/
-            dist/
-            __pycache__/
-            data/
-            dataset/
-          # 启用增量更新（仅处理变更文件，提升速度）
-          incremental: true
+      - name: Trigger DeepWiki Sync via API
+        run: |
+          # 调用DeepWiki官方同步API，触发仓库知识库更新
+          response=$(curl -s -X POST "https://api.deepwiki.com/v1/repo/sync" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repo": "AISBench/benchmark",
+              "token": "${{ secrets.GITHUB_TOKEN }}",
+              "incremental": true,
+              "exclude": ["build/", "dist/", "__pycache__/", "data/", "dataset/"]
+            }')
+
+          # 打印响应结果，便于调试
+          echo "DeepWiki API Response: $response"
+
+          # 检查同步是否成功
+          if echo "$response" | grep -q '"success": true'; then
+            echo "✅ DeepWiki 知识库同步触发成功"
+          else
+            echo "❌ DeepWiki 同步失败，响应：$response"
+            exit 1  # 标记Action失败（可选）
+          fi
+        env:
+          # 传递GITHUB_TOKEN到环境变量，避免JSON转义问题
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
