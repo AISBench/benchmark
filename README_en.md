@@ -14,6 +14,7 @@
 [![][github-stars-shield]][github-stars-link]
 [![][github-issues-shield]][github-issues-link]
 [![License](https://img.shields.io/badge/license-Apache--2.0-red?logo=apache)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)
 
 <br><br>
 [🌐 Official Website](https://www.aisbench.com) |
