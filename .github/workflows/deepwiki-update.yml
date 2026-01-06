@@ -9,8 +9,6 @@ on:
     types: [ opened, edited, closed, labeled ]
   issue_comment:
     types: [ created, edited, deleted ]
-  schedule:
-    - cron:  '0 12 * * *'
   release:
     types: [ published ]
 
