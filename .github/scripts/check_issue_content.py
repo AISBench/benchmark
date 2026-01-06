@@ -215,10 +215,10 @@ try:
 
     if response is not None and hasattr(response, 'text'):
         if language == "zh":
-            comment_body = "🤖 基于AI机器人的issue内容完整性检查结果:\n\n" + response.text + "\n\n👉 如果想重新检查，在评论区@issue_checker即可。\n" \
+            comment_body = "🤖 基于AI机器人的issue内容完整性检查结果:\n\n" + response.text + "\n\n👉 如果想重新检查，在评论区@issue_checker即可。\n\n" \
                 + "【强烈推荐❤️‍🔥】确保issue描述完整后，可以试着将issue交给[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)回答，deepwiki包含了和工具相关的所有知识库"
         else:
-            comment_body = "🤖 issue content check result from AI robot:\n\n" + response.text + "\n\n👉 If you want to re-check, please comment @issue_checker. \n" \
+            comment_body = "🤖 issue content check result from AI robot:\n\n" + response.text + "\n\n👉 If you want to re-check, please comment @issue_checker. \n\n" \
                 + "[Strongly recommended❤️‍🔥]Ensure your issue description is complete, then try to ask [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark) for help, as deepwiki contains all the knowledge related to the tool."
     else:
         # Fallback message if API response is invalid

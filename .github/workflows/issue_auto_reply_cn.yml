@@ -34,15 +34,15 @@ jobs:
             // 定义不同标签对应的回复内容
             const replyMap = {
               bug: `🌟欢迎给AISBench benchmark测评工具提issue，您可以先尝试以下途径寻求issue的解决方法：
-              0. 【强烈推荐❤️‍🔥】确保issue描述完整后，可以试着将issue交给[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)回答，deepwiki包含了和工具相关的所有知识库
-              1. 在 [工具历史issue](https://github.com/AISBench/benchmark/issues/) 中通过问题的关键日志片段或关键词检索相似issue
-              2. 在 [官方文档](https://ais-bench-benchmark-rf.readthedocs.io/zh_cn/latest/) 的**搜索栏**中通过问题的关键日志片段或关键词检索
-              3. 寻求仓库维护者的帮助（issue评论区中 @SJTUyh）`,
+              1. 【强烈推荐❤️‍🔥】确保issue描述完整后，可以试着将issue交给[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)回答，deepwiki包含了和工具相关的所有知识库
+              2. 在 [工具历史issue](https://github.com/AISBench/benchmark/issues/) 中通过问题的关键日志片段或关键词检索相似issue
+              3. 在 [官方文档](https://ais-bench-benchmark-rf.readthedocs.io/zh_cn/latest/) 的**搜索栏**中通过问题的关键日志片段或关键词检索
+              4. 寻求仓库维护者的帮助（issue评论区中 @SJTUyh）`,
               question: `🌟欢迎给AISBench benchmark测评工具提issue，您可以先尝试以下途径寻求issue的解决方法：
-              0. 【强烈推荐❤️‍🔥】确保issue描述完整后，可以试着将issue交给[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)回答，deepwiki包含了和工具相关的所有知识库
-              1. 在 [工具历史issue](https://github.com/AISBench/benchmark/issues/) 中通过问题的关键日志片段或关键词检索相似issue
-              2. 在 [官方文档](https://ais-bench-benchmark-rf.readthedocs.io/zh_cn/latest/) 的**搜索栏**中通过问题的关键日志片段或关键词检索
-              3. 寻求仓库维护者的帮助（issue评论区中 @SJTUyh）`,
+              1. 【强烈推荐❤️‍🔥】确保issue描述完整后，可以试着将issue交给[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)回答，deepwiki包含了和工具相关的所有知识库
+              2. 在 [工具历史issue](https://github.com/AISBench/benchmark/issues/) 中通过问题的关键日志片段或关键词检索相似issue
+              3. 在 [官方文档](https://ais-bench-benchmark-rf.readthedocs.io/zh_cn/latest/) 的**搜索栏**中通过问题的关键日志片段或关键词检索
+              4. 寻求仓库维护者的帮助（issue评论区中 @SJTUyh）`,
               enhancement: `🌟欢迎给AISBench benchmark测评工具提新特性诉求，请确保在issue中描述清晰，以便仓库维护者能准确理解您的诉求。对于新特性诉求仓库维护者一般会在3天内给您答复。`,
               documentation: `🙏感谢您发现AISBench benchmark测评工具的文档漏洞，请确保在issue中描述清晰文档问题，以便我们能更快修复文档。对于文档漏洞仓库维护者一般会在1天内给您答复。`
             };
