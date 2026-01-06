@@ -1,0 +1,45 @@
+name: DeepWiki - Auto Update Knowledge Base
+on:
+  # 触发条件：推送代码、合并PR、发布版本
+  push:
+    branches: [ master ]  # 适配你的仓库主分支名称
+  pull_request:
+    branches: [ master ]
+  issues:
+    types: [ opened, edited, closed, labeled ]
+  issue_comment:
+    types: [ created, edited, deleted ]
+  schedule:
+    - cron:  '0 12 * * *'
+  release:
+    types: [ published ]
+
+jobs:
+  update-deepwiki:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 检出仓库代码
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 拉取完整提交历史，便于DeepWiki解析
+
+      # 2. 触发DeepWiki知识库更新
+      - name: Trigger DeepWiki Rebuild
+        uses: AsyncFuncAI/deepwiki-action@v1
+        with:
+          # 你的仓库地址（格式：owner/repo）
+          repo: AISBench/benchmark
+          # GitHub Token（自动生成，无需手动配置）
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # 生成的文档输出目录（用于GitHub Pages托管，若不需要可留空）
+          output: docs/deepwiki
+          # 排除的路径（和.deepwikiignore联动，双重保障）
+          exclude: |
+            build/
+            dist/
+            __pycache__/
+            data/
+            dataset/
+          # 启用增量更新（仅处理变更文件，提升速度）
+          incremental: true
