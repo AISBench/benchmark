@@ -194,11 +194,11 @@ By combining these three metrics, one can comprehensively evaluate the performan
   Average of replica-level soft accuracy (similarity)
 
   **Formula**:
-  $\frac{1}{n} \sum_{j=1}^{n} \left( \frac{1}{D} \sum_{i=1}^{D} \text{avg_acc}_{ij} \right)$
+  $\frac{1}{n} \sum_{j=1}^{n} \left( \frac{1}{D} \sum_{i=1}^{D} \text{avg\_acc}_{ij} \right)$
 
   - n: Number of replicas
   - D: Number of data points
-  - $\text{avg_acc}_{ij}$: Soft correctness value (continuous 0-1) for data point i in replica j
+  - $\text{avg\_acc}_{ij}$: Soft correctness value (continuous 0-1) for data point i in replica j
 
 - **`avg@n`**
 
@@ -209,7 +209,7 @@ By combining these three metrics, one can comprehensively evaluate the performan
   $\frac{1}{D} \sum_{i=1}^{D} (\frac{1}{n} \sum_{j=1}^{n} H_{ij})$
 
   - $H_{ij}$: Hard correctness flag (binary: 0 or 1)
-  - $H_{ij} = \begin{cases} 1 & \text{if } \text{avg_acc}_{ij} > 0.5 \\ 0 & \text{otherwise} \end{cases}$
+  - $H_{ij} = \begin{cases} 1 & \text{if } \text{avg\_acc}_{ij} > 0.5 \\ 0 & \text{otherwise} \end{cases}$
 
 #### 2. Fundamental Reason for Value Differences
 
@@ -219,15 +219,15 @@ The two metrics use different correctness measures:
 
   Continuous value (0-1) reflecting partial matching between predictions and reference answers
 
-  $\text{avg_acc}_{ij} = \frac{1}{K} \sum_{k=1}^{K} \text{match_score}$ (K is the number of reference answers)
+  $\text{avg\_acc}_{ij} = \frac{1}{K} \sum_{k=1}^{K} \text{match_score}$ (K is the number of reference answers)
 
 - **Hard Correctness** (`avg@n`):
 
-  Binary (0/1) determined by threshold: $H_{ij} = \mathbb{I}(\text{avg_acc}_{ij} > 0.5)$
+  Binary (0/1) determined by threshold: $H_{ij} = \mathbb{I}(\text{avg\_acc}_{ij} > 0.5)$
 
 #### 3. Mathematical Difference Mechanism
 
-For a data point with $\text{avg_acc}$ values across n replicas:
+For a data point with $\text{avg\_acc}$ values across n replicas:
 
 $[a_1,a_2,...,a_n]$
 
@@ -276,7 +276,7 @@ Calculations:
 
 #### 5. Special Cases of Equal Values
 
-When all $\text{avg_acc}_{ij} \in \{0, 1\}$ (i.e., perfect matches or complete mismatches):
+When all $\text{avg\_acc}_{ij} \in \{0, 1\}$ (i.e., perfect matches or complete mismatches):
 
 accuracy = avg@n
 
@@ -286,7 +286,7 @@ accuracy = avg@n
 |-----------------|-------------------------------------|-------------------------------------|
 | **Measure Type**| Soft correctness (continuous)       | Hard correctness (binary)           |
 | **Calculation Level** | Data point average first → then replica average | Replica average first → then data point average |
-| **Core Formula**| $\frac{1}{nD} \sum \text{avg_acc}$ | $\frac{1}{D} \sum\frac{correct}{n}$ |
+| **Core Formula**| $\frac{1}{nD} \sum \text{avg\_acc}$ | $\frac{1}{D} \sum\frac{correct}{n}$ |
 | **Application Scenario** | Fine-grained quality evaluation     | Consistency/robustness evaluation   |
 
 ### Difference Attribution

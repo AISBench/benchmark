@@ -203,11 +203,11 @@ cons@3 = (1 + 1 + 0 + 0)/4 = 0.5（问题1和2多数票正确，问题3和4不�
   副本级软准确率（相似度）平均值
 
   **计算公式**:
-  $\frac{1}{n} \sum_{j=1}^{n} \left( \frac{1}{D} \sum_{i=1}^{D} \text{avg_acc}_{ij} \right)$
+  $\frac{1}{n} \sum_{j=1}^{n} \left( \frac{1}{D} \sum_{i=1}^{D} \text{avg\_acc}_{ij} \right)$
 
   - n: 副本数量
   - D: 数据点数量
-  - $\text{avg_acc}_{ij}$: 数据点 i在副本 j中的软正确性值（连续值 0-1）
+  - $\text{avg\_acc}_{ij}$: 数据点 i在副本 j中的软正确性值（连续值 0-1）
 
 - **`avg@n`**
 
@@ -218,7 +218,7 @@ cons@3 = (1 + 1 + 0 + 0)/4 = 0.5（问题1和2多数票正确，问题3和4不�
   $\frac{1}{D} \sum_{i=1}^{D} (\frac{1}{n} \sum_{j=1}^{n} H_{ij})$
 
   - $H_{ij}$: 硬正确性标记（二值：0 或 1）
-  - $H_{ij} = \begin{cases} 1 & \text{if } \text{avg_acc}_{ij} > 0.5 \\ 0 & \text{otherwise} \end{cases}$
+  - $H_{ij} = \begin{cases} 1 & \text{if } \text{avg\_acc}_{ij} > 0.5 \\ 0 & \text{otherwise} \end{cases}$
 
 #### 2. 值不同的根本原因
 
@@ -228,15 +228,15 @@ cons@3 = (1 + 1 + 0 + 0)/4 = 0.5（问题1和2多数票正确，问题3和4不�
 
   连续值（0-1），反映预测与参考答案的部分匹配程度
 
-  $\text{avg_acc}_{ij} = \frac{1}{K} \sum_{k=1}^{K} \text{match_score}$（K为参考答案数量）
+  $\text{avg\_acc}_{ij} = \frac{1}{K} \sum_{k=1}^{K} \text{match_score}$（K为参考答案数量）
 
 - **硬正确性**（`avg@n`）：
 
-  二值（0/1），基于阈值判断: $H_{ij} = \mathbb{I}(\text{avg_acc}_{ij} > 0.5)$
+  二值（0/1），基于阈值判断: $H_{ij} = \mathbb{I}(\text{avg\_acc}_{ij} > 0.5)$
 
 #### 3. 数学差异机制
 
-设某数据点在 n个副本中的 $\text{avg_acc}$ 值：
+设某数据点在 n个副本中的 $\text{avg\_acc}$ 值：
 
 $[a_1,a_2,...,a_n]$
 
@@ -285,7 +285,7 @@ $[a_1,a_2,...,a_n]$
 
 #### 5. 值相同的特殊情况
 
-当所有 $\text{avg_acc}_{ij} \in \{0, 1\}$时（即完全匹配或完全不匹配）：
+当所有 $\text{avg\_acc}_{ij} \in \{0, 1\}$时（即完全匹配或完全不匹配）：
 
 accuracy=avg@n
 
@@ -295,7 +295,7 @@ accuracy=avg@n
 | ------------ | ----------------------------------- | ----------------------------------- |
 | **度量类型** | 软正确性（连续值）                  | 硬正确性（二值）                    |
 | **计算层级** | 先数据点平均 → 再副本平均           | 先副本平均 → 再数据点平均           |
-| **核心公式** | $\frac{1}{nD} \sum \text{avg_acc}$ | $\frac{1}{D} \sum\frac{correct}{n}$ |
+| **核心公式** | $\frac{1}{nD} \sum \text{avg\_acc}$ | $\frac{1}{D} \sum\frac{correct}{n}$ |
 | **适用场景** | 精细质量评估                        | 一致性/鲁棒性评估                   |
 
 ### 差异归因
