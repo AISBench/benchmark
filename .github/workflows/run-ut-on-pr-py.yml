@@ -5,13 +5,6 @@ on:
     paths:
       - 'ais_bench/**'
       - 'tests/**'
-    paths-ignore:
-      - 'README.md'
-      - 'README_en.md'
-      - 'docs/**'
-      - 'plugin_examples/**'
-      - 'smoke_tests/**'
-      - '.github/**'
   workflow_dispatch:
   schedule:
     - cron:  '0 1 * * *'
