@@ -228,7 +228,7 @@ cons@3 = (1 + 1 + 0 + 0)/4 = 0.5（问题1和2多数票正确，问题3和4不�
 
   连续值（0-1），反映预测与参考答案的部分匹配程度
 
-  $\text{avg\_acc}_{ij} = \frac{1}{K} \sum_{k=1}^{K} \text{match_score}$（K为参考答案数量）
+  $\text{avg\_acc}_{ij} = \frac{1}{K} \sum_{k=1}^{K} \text{match\_score}$（K为参考答案数量）
 
 - **硬正确性**（`avg@n`）：
 
