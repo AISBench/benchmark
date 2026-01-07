@@ -219,7 +219,7 @@ The two metrics use different correctness measures:
 
   Continuous value (0-1) reflecting partial matching between predictions and reference answers
 
-  $\text{avg\_acc}_{ij} = \frac{1}{K} \sum_{k=1}^{K} \text{match_score}$ (K is the number of reference answers)
+  $\text{avg\_acc}_{ij} = \frac{1}{K} \sum_{k=1}^{K} \text{match\_score}$ (K is the number of reference answers)
 
 - **Hard Correctness** (`avg@n`):
 
