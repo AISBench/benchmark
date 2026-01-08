@@ -7,9 +7,10 @@ from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import FileOperationError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
-__all__ = ['load_tokenizer', 'AISTokenizer']
+__all__ = ["load_tokenizer", "AISTokenizer"]
 
 logger = AISLogger()
+
 
 def load_tokenizer(tokenizer_path: str):
     """Load a tokenizer from the specified path.
@@ -28,7 +29,7 @@ def load_tokenizer(tokenizer_path: str):
     if not os.path.exists(tokenizer_path):
         raise FileOperationError(
             UTILS_CODES.TOKENIZER_PATH_NOT_FOUND,
-            f"Tokenizer path '{tokenizer_path}' does not exist"
+            f"Tokenizer path '{tokenizer_path}' does not exist",
         )
 
     try:
@@ -38,7 +39,7 @@ def load_tokenizer(tokenizer_path: str):
     except Exception as e:
         raise FileOperationError(
             UTILS_CODES.TOKENIZER_LOAD_FAILED,
-            f"Failed to load tokenizer from {tokenizer_path}: {type(e).__name__}: {e}"
+            f"Failed to load tokenizer from {tokenizer_path}: {type(e).__name__}: {e}",
         ) from e
 
 
@@ -49,9 +50,15 @@ class AISTokenizer:
     def encode(self, prompt: list) -> Tuple[float, List[int]]:
         """Encode a string into tokens, measuring processing time."""
         if isinstance(prompt, list):
-            messages = self.tokenizer.apply_chat_template(
-                prompt, add_generation_prompt=True, tokenize=False
-            )
+            try:
+                messages = self.tokenizer.apply_chat_template(
+                    prompt, add_generation_prompt=True, tokenize=False
+                )
+            except Exception as e:
+                logger.debug(f"Failed to encode prompt: {prompt} with error: {type(e).__name__}: {e}")
+                messages = ""
+                for msg in prompt:
+                    messages += msg.get("content", "")
         elif isinstance(prompt, str):
             messages = prompt
         else:

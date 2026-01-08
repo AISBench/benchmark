@@ -151,10 +151,11 @@ class DefaultPerfSummarizer:
             if time_points is None: # jsonl is saved but database not committed, mainly on process is killed unexpectedly
                 manager_list.append({"success": False})
                 continue
-            if not is_mm_prompt(perf_data["input"]):
-                perf_data["input_tokens"] = len(tokenizer.encode(perf_data["input"]))
-            else:
+            if  is_mm_prompt(perf_data["input"]):
                 perf_data["input_tokens"] = 0  # multi-modal input does not support input_tokens
+            elif not perf_data["input_tokens"]:
+                perf_data["input_tokens"] = len(tokenizer.encode(perf_data["input"])) # input_tokens is not provided, calculate it
+
             if not perf_data["output_tokens"]:
                 perf_data["output_tokens"] = len(tokenizer.encode(perf_data["prediction"]))
             perf_data.pop("input")

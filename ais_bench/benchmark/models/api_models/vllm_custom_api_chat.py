@@ -132,14 +132,18 @@ class VLLMCustomAPIChat(BaseAPIModel):
         request_body = request_body | generation_kwargs
         return request_body
 
+    async def _parse_usage(self, json_content: dict, output: Output):
+        if json_content.get("usage"):
+            output.input_tokens = json_content["usage"].get("prompt_tokens", 0)
+            output.output_tokens = json_content["usage"].get("completion_tokens", 0)
+
     async def parse_stream_response(self, json_content, output):
         for item in json_content.get("choices", []):
             if item["delta"].get("content"):
                 output.content += item["delta"]["content"]
             if item["delta"].get("reasoning_content"):
                 output.reasoning_content += item["delta"]["reasoning_content"]
-        if json_content.get("usage"):
-            output.output_tokens = json_content["usage"]["completion_tokens"]
+        await self._parse_usage(json_content, output)
 
     async def parse_text_response(self, json_content, output):
         for item in json_content.get("choices", []):
@@ -147,8 +151,7 @@ class VLLMCustomAPIChat(BaseAPIModel):
                 output.content += content
             if reasoning_content:=item["message"].get("reasoning_content"):
                 output.reasoning_content += reasoning_content
-        if json_content.get("usage"):
-            output.output_tokens = json_content["usage"]["completion_tokens"]
+        await self._parse_usage(json_content, output)
         output.update_extra_details_data_from_text_response(json_content)
         self.logger.debug(f"Output content: {output.content}")
         self.logger.debug(f"Output reasoning content: {output.reasoning_content}")
