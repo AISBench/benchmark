@@ -13,8 +13,7 @@ Thanks for your contribution; we appreciate it a lot. The following instructions
 - [ ] Other（其他）
 
 **Related Issue | 关联 Issue**
-Fixes #(issue ID) / Relates to #(issue ID)
-Fixes #(issue 编号) / Relates to #(issue 编号)
+Fixes #(issue ID / issue 编号) / Relates to #(issue ID / issue 编号)
 
 ## 🔍 Motivation / 变更动机
 
