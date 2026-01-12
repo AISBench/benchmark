@@ -5,7 +5,7 @@ Thanks for your contribution; we appreciate it a lot. The following instructions
 - [ ] Feature（功能新增）
 - [ ] Bugfix（Bug 修复）
 - [ ] Docs（文档更新）
-- [ ] CI/CD（流水线工程）
+- [ ] CI/CD（持续集成/持续部署）
 - [ ] Refactor（代码重构）
 - [ ] Perf（性能优化）
 - [ ] Dependency（依赖更新）
