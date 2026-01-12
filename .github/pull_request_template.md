@@ -5,16 +5,15 @@ Thanks for your contribution; we appreciate it a lot. The following instructions
 - [ ] Feature（功能新增）
 - [ ] Bugfix（Bug 修复）
 - [ ] Docs（文档更新）
-- [ ] CI/CD（流水线工程）
+- [ ] CI/CD（持续集成/持续部署）
 - [ ] Refactor（代码重构）
 - [ ] Perf（性能优化）
-- [ ] Dependency（依赖更新）
+- [ ] Dependency（依赖项更新）
 - [ ] Test-Cases（测试用例更新）
 - [ ] Other（其他）
 
 **Related Issue | 关联 Issue**
-Fixes #(issue ID) / Relates to #(issue ID)
-Fixes #(issue 编号) / Relates to #(issue 编号)
+Fixes #(issue ID / issue 编号) / Relates to #(issue ID / issue 编号)
 
 ## 🔍 Motivation / 变更动机
 
@@ -53,16 +52,16 @@ If this PR introduces a new feature, it is better to list some use cases here an
 - [ ] Pre-commit or other linting tools are used to fix the potential lint issues. / 使用预提交或其他 linting 工具来修复潜在的 lint 问题。
 - [ ] Bug fixes are fully covered by unit tests, the case that causes the bug should be added in the unit tests. / 修复的 Bug 已完全由单元测试覆盖，导致 Bug 的情况应在单元测试中添加。
 - [ ] The modification is covered by complete unit tests. If not, please add more unit tests to ensure the correctness. / 此拉取请求中的修改已完全由单元测试覆盖。如果不是，请添加更多单元测试以确保正确性。
-- [ ] The documentation has been modified accordingly. If not, please modify the documentation accordingly. / 文档已相应地进行了修改。如果不是，请相应地修改文档。
+- [ ] All relevant documentation (API docs, docstrings, example tutorials) has been updated to reflect these changes. / 所有相关文档（API 文档、文档字符串、示例教程）已更新以反映这些更改。
 
 **After PR**:
 
-- [ ] If the modification has potential influence on downstream or other related projects, this PR should be tested with those projects. / 如果此拉取请求对下游或其他相关项目有潜在影响，最好在那些项目中测试此 PR。
-- [ ] CLA has been signed and all committers have signed the CLA in this PR. / 已签署 CLA 并在本 PR 中签署了所有提交者的 CLA。
+- [ ] If the modification has potential influence on downstream or other related projects, this PR should be tested with those projects. / 如果此拉取请求对下游或其他相关项目有潜在影响，应在那些项目中测试此 PR。
+- [ ] CLA has been signed and all committers have signed the CLA in this PR. / CLA 已签署，且本 PR 中的所有提交者均已签署 CLA。
 
 ## 👥 Collaboration Info / 协作信息
 - Suggested Reviewers / 建议审核人: @xxx
-- Relevant Module Owners / 相关模块负责人：@xxx
+- Relevant Module Owners / 相关模块负责人: @xxx
 - Other Collaboration Notes / 其他协作说明：
 
 ## 🌟 Useful CI Command / 实用的CI命令
