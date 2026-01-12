@@ -8,7 +8,7 @@ Thanks for your contribution; we appreciate it a lot. The following instructions
 - [ ] CI/CD（持续集成/持续部署）
 - [ ] Refactor（代码重构）
 - [ ] Perf（性能优化）
-- [ ] Dependency（依赖更新）
+- [ ] Dependency（依赖项更新）
 - [ ] Test-Cases（测试用例更新）
 - [ ] Other（其他）
 
