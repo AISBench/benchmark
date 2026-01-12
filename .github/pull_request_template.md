@@ -61,7 +61,7 @@ If this PR introduces a new feature, it is better to list some use cases here an
 
 ## 👥 Collaboration Info / 协作信息
 - Suggested Reviewers / 建议审核人: @xxx
-- Relevant Module Owners / 相关模块负责人：@xxx
+- Relevant Module Owners / 相关模块负责人: @xxx
 - Other Collaboration Notes / 其他协作说明：
 
 ## 🌟 Useful CI Command / 实用的CI命令
