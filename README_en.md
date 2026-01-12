@@ -118,6 +118,11 @@ pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
 
 **Important Note**: Since `bfcl_eval` automatically installs the `pathlib` library (which is already built into Python 3.5+ environments), use the `--no-deps` parameter to skip automatic installation of additional dependencies to avoid version conflicts.
 
+🔗 OCRBench_v2 Dataset Evaluation Support (Optional)
+```shell
+pip3 install -r requirements/datasets/ocrbench_v2.txt
+```
+
 For further configuration or to initiate evaluation tasks using CLI or Python scripts, refer to the [Quick Start Guide](#quick-start).
 
 

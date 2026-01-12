@@ -27,7 +27,7 @@ rm -rf dapo-math-17k/data
 
 - Execute `tree dapo-math-17k/` in the directory `{tool_root_path}/ais_bench/datasets` to check the directory structure. If the directory structure is as shown below, the dataset has been deployed successfully:
     ```
-    dapo-math-17k/
+    dapo-math-17k
     ├── dapo-math-17k.parquet
     └── README.md
     ```
