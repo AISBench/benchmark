@@ -56,7 +56,7 @@ If this PR introduces a new feature, it is better to list some use cases here an
 
 **After PR**:
 
-- [ ] If the modification has potential influence on downstream or other related projects, this PR should be tested with those projects. / 如果此拉取请求对下游或其他相关项目有潜在影响，最好在那些项目中测试此 PR。
+- [ ] If the modification has potential influence on downstream or other related projects, this PR should be tested with those projects. / 如果此拉取请求对下游或其他相关项目有潜在影响，应在那些项目中测试此 PR。
 - [ ] CLA has been signed and all committers have signed the CLA in this PR. / 已签署 CLA 并在本 PR 中签署了所有提交者的 CLA。
 
 ## 👥 Collaboration Info / 协作信息
