@@ -31,7 +31,7 @@ from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError, AI
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer import MAX_BATCH_SIZE
 from ais_bench.benchmark.utils.logging import AISLogger
 
-CONCURRENCY_PER_PROCESS = 300
+CONCURRENCY_PER_PROCESS = 500
 MAX_WORKERS_NUM = mp.cpu_count() * 0.8
 TASK_WAIT_TIME = 30
 
@@ -57,7 +57,6 @@ def run_single_inferencer(
         max_concurrency: Maximum concurrent requests in this process
         index_queue: Queue yielding (index, offset, length) for items in shared memory
         token_bucket: Token bucket for rate limiting
-        total_data_count: Total number of data items to distribute.
         global_index: Global index for data
         global_lock: Global lock for data
     """
@@ -233,45 +232,6 @@ class OpenICLApiInferTask(BaseTask):
             padding_indexes[len(global_indexes)] = None
         return len(pickled_dataset), dataset_shm, padding_indexes
 
-    def _deliver_data_num_for_workers(self, per_worker_concurrency: List[int], total_data_count: int = None):
-        """Split total data number across worker processes as evenly as possible.
-
-        Args:
-            per_worker_concurrency: List of concurrency values for each worker process
-            total_data_count: Total number of data items to distribute. If None, will try to infer from indexes.
-
-        Returns:
-            List[int]: List of data number values for each worker process
-        """
-        num_workers = len(per_worker_concurrency)
-        if num_workers == 0:
-            return []
-
-        # If total_data_count is not provided, we need to get it from indexes
-        # This will be handled by modifying the call site
-        if total_data_count is None:
-            # Try to get from indexes if available in self (for backward compatibility)
-            # But ideally, total_data_count should be passed as parameter
-            return [0] * num_workers
-
-        # Start with average allocation (floor division)
-        base = total_data_count // num_workers
-        per_worker_data_num = [base] * num_workers
-        remainder = total_data_count - base * num_workers
-
-        # Distribute remainder based on concurrency (higher concurrency gets more)
-        # Sort workers by concurrency (descending) and allocate remainder
-        worker_indices = sorted(range(num_workers),
-                               key=lambda i: per_worker_concurrency[i],
-                               reverse=True)
-
-        # Distribute remainder to workers with higher concurrency first
-        for i in range(remainder):
-            per_worker_data_num[worker_indices[i]] += 1
-
-        return per_worker_data_num
-
-
     def _deliver_concurrency_for_workers(self):
         """Split total concurrency across worker processes as evenly as possible.
 
@@ -391,9 +351,6 @@ class OpenICLApiInferTask(BaseTask):
         # Get total data count from indexes
         total_data_count = len(indexes) if self.pressure else len(indexes) - 1
         per_worker_data_num = self._deliver_data_num_for_workers(per_worker_concurrency, total_data_count)
-        # Get total data count from indexes
-        total_data_count = len(indexes) if self.pressure else len(indexes) - 1
-        per_worker_data_num = self._deliver_data_num_for_workers(per_worker_concurrency, total_data_count)
         if not per_worker_concurrency:
             return []
 
@@ -418,7 +375,6 @@ class OpenICLApiInferTask(BaseTask):
                         concurrency,
                         indexes,
                         token_bucket,
-                        per_worker_data_num[i],
                         per_worker_data_num[i],
                         global_index,
                         global_lock,

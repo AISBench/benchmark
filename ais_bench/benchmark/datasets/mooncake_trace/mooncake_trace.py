@@ -1,8 +1,6 @@
 import json
 import os
 import random
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from functools import partial
 
 from tqdm import tqdm
 from datasets import Dataset
@@ -12,7 +10,6 @@ from ais_bench.benchmark.datasets.utils.datasets import get_data_path
 
 from ais_bench.benchmark.datasets.base import BaseDataset
 from ais_bench.benchmark.utils.file.load_tokenizer import load_tokenizer
-from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.openicl.icl_evaluator.icl_base_evaluator import BaseEvaluator
 
 
