@@ -1,6 +1,12 @@
 name: Auto Label PR
 
 on:
+  # Security: pull_request_target runs in the context of the base repository
+  # with write permissions. This workflow only reads PR metadata (e.g. the
+  # PR body) for simple pattern matching and does not execute or evaluate any
+  # untrusted PR content. If you extend this workflow, keep all interactions
+  # with PR content limited to non-executable operations to avoid introducing
+  # code execution risks from forks.
   pull_request_target:
     types: [opened, edited]
 
