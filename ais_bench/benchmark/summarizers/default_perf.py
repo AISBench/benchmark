@@ -153,10 +153,10 @@ class DefaultPerfSummarizer:
                 continue
             if  is_mm_prompt(perf_data["input"]):
                 perf_data["input_tokens"] = 0  # multi-modal input does not support input_tokens
-            elif not perf_data.get("input_tokens"):
+            elif "input_tokens" not in perf_data or perf_data.get("input_tokens") is None:
                 perf_data["input_tokens"] = len(tokenizer.encode(perf_data["input"])) # input_tokens is not provided, calculate it
 
-            if not perf_data.get("output_tokens"):
+            if "output_tokens" not in perf_data or perf_data.get("output_tokens") is None:
                 perf_data["output_tokens"] = len(tokenizer.encode(perf_data["prediction"]))
             perf_data.pop("input")
             perf_data.pop("prediction")
