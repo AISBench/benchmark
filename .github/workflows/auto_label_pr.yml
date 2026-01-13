@@ -43,7 +43,7 @@ jobs:
               'CI/CD（持续集成/持续部署）': 'ci/cd',
               'Refactor（代码重构）': 'refactor',
               'Perf（性能优化）': 'perf',
-              'Dependency（依赖更新）': 'dependency',
+              'Dependency（依赖项更新）': 'dependency',
               'Test-Cases（测试用例更新）': 'test-cases',
               'Other（其他）': 'other'
             };
