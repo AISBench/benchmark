@@ -40,7 +40,7 @@ jobs:
               'Feature（功能新增）': 'feature',
               'Bugfix（Bug 修复）': 'bugfix',
               'Docs（文档更新）': 'docs',
-              'CI/CD（流水线工程）': 'ci/cd',
+              'CI/CD（持续集成/持续部署）': 'ci/cd',
               'Refactor（代码重构）': 'refactor',
               'Perf（性能优化）': 'perf',
               'Dependency（依赖更新）': 'dependency',
