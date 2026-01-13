@@ -80,13 +80,22 @@ jobs:
 
             // 删除不再需要的标签
             for (const label of labelsToRemove) {
-              await github.rest.issues.removeLabel({
-                owner: owner,
-                repo: repo,
-                issue_number: prNumber,
-                name: label
-              });
-              console.log(`Removed label: ${label}`);
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: owner,
+                  repo: repo,
+                  issue_number: prNumber,
+                  name: label
+                });
+                console.log(`Removed label: ${label}`);
+              } catch (error) {
+                // 如果标签不存在或已被删除，忽略该错误以避免阻塞后续操作
+                if (error && error.status === 404) {
+                  console.log(`Label not found when attempting to remove: ${label}, skipping`);
+                } else {
+                  console.warn(`Failed to remove label "${label}": ${error && error.message ? error.message : error}`);
+                }
+              }
             }
 
             // 添加新标签到PR
