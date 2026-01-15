@@ -135,15 +135,18 @@ def build_model_from_cfg(model_cfg: ConfigDict):
     model_cfg.pop("use_timestamp", None)
     model_cfg.pop("run_cfg", None)
     model_cfg.pop("request_rate", None)
-    model_cfg.pop("batch_size", None)
-    model_cfg.pop("abbr", None)
-    model_cfg.pop("attr", None)
+    batch_size = model_cfg.pop("batch_size", None)
+    abbr = model_cfg.pop("abbr", None)
+    attr = model_cfg.pop("attr", None)
     model_cfg.pop("summarizer_abbr", None)
     model_cfg.pop("pred_postprocessor", None)
     model_cfg.pop("min_out_len", None)
     model_cfg.pop("returns_tool_calls", None)
     model_cfg.pop("traffic_cfg", None)
-    return MODELS.build(model_cfg)
+    if attr == "local" and abbr == "mindformer-model" :
+        return MODELS.build(model_cfg, batch_size = batch_size)
+    else :
+        return MODELS.build(model_cfg)
 
 def build_perf_metric_calculator_from_cfg(metric_cfg: ConfigDict):
     logger.debug(f"Building perf metric calculator config: type={metric_cfg.get('type')}")
