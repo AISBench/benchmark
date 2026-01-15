@@ -38,6 +38,7 @@ class OpenICLInferTask(BaseTask):
         super().__init__(cfg)
         run_cfg = self.model_cfg.get('run_cfg', {})
         self.num_gpus = run_cfg.get('num_gpus', 0)
+        self.local_worker_num = run_cfg.get('local_worker_num',0)
         self.num_procs = run_cfg.get('num_procs', 1)
         self.nnodes = run_cfg.get('nnodes', 1)
         self.node_rank = run_cfg.get('node_rank', 0)
@@ -61,12 +62,38 @@ class OpenICLInferTask(BaseTask):
             for key in backend_keys)
         if self.num_gpus > 1 and not use_backend and self.nnodes == 1:
             port = random.randint(12000, 32000)
-            command = (f'torchrun --master_port={port} '
-                       f'--nproc_per_node {self.num_procs} '
-                       f'{script_path} {cfg_path}')
+            if self.abbr == 'mindformer-model':
+                command = (
+                    f"msrun "
+                    f"--worker_num={self.num_gpus} "
+                    f"--local_worker_num={self.num_gpus} "
+                    f"--master_port={port} "
+                    f"--log_dir='output/msrun_log' "
+                    f"--join=True "
+                    f"--cluster_time_out=7200 "
+                    f'{script_path} {cfg_path}'
+                )
+            else :
+                command = (f'torchrun --master_port={port} '
+                           f'--nproc_per_node {self.num_procs} '
+                           f'{script_path} {cfg_path}')
         elif self.nnodes > 1:
             port = 12345
-            command = (f'torchrun --master_port={port} '
+            if self.abbr == "mindformer-model" :
+                command = (
+                    f"msrun "
+                    f"--worker_num={self.num_procs} "
+                    f"--local_worker_num={self.local_worker_num} "
+                    f"--master_port={port} "
+                    f"--master_addr={self.master_addr} "
+                    f"--node_rank={self.node_rank} "
+                    f"--log_dir='output/msrun_log' "
+                    f"--join=True "
+                    f"--cluster_time_out=7200 "
+                    f'{script_path} {cfg_path}'
+                )
+            else :
+                command = (f'torchrun --master_port={port} '
                        f'--nproc_per_node {self.num_procs} '
                        f'--nnodes {self.nnodes} '
                        f'--node_rank {self.node_rank} '
