@@ -7,7 +7,8 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
 DATASETS_NEED_MODELS = ["ais_bench.benchmark.datasets.synthetic.SyntheticDataset",
-                      "ais_bench.benchmark.datasets.sharegpt.ShareGPTDataset"]
+                      "ais_bench.benchmark.datasets.sharegpt.ShareGPTDataset",
+                      "ais_bench.benchmark.datasets.mooncake_trace.MooncakeTraceDataset"]
 MAX_NUM_WORKERS = int(os.cpu_count() * 0.8)
 DEFAULT_PRESSURE_TIME = 15
 MAX_PRESSURE_TIME = 60 * 60 * 24 # 24 hours

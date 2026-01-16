@@ -11,9 +11,6 @@ from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
 
 disable_progress_bar() # disable mapping progress bar, preventing terminal interface contamination
 
-logger = AISLogger()
-
-
 class BaseDataset:
 
     def __init__(self,
@@ -22,25 +19,26 @@ class BaseDataset:
                  n: int = 1,
                  **kwargs):
         # Validate k and n parameters
+        self.logger = AISLogger()
         max_k = max(k) if isinstance(k, List) else k
         if max_k > n:
             raise ParameterValueError(
                 DSET_CODES.INVALID_REPEAT_FACTOR,
                 f"Maximum value of `k` ({max_k}) must be less than or equal to `n` ({n})"
             )
-        
+
         self.abbr = kwargs.pop('abbr', 'dataset')
-        
-        logger.debug(f"Loading dataset: {self.abbr}")
+
+        self.logger.debug(f"Loading dataset: {self.abbr}")
         self.dataset = self.load(**kwargs)
-        logger.debug(f"Dataset loaded successfully, initializing reader")
+        self.logger.debug(f"Dataset loaded successfully, initializing reader")
         self._init_reader(**reader_cfg)
         self.repeated_dataset(self.abbr, n) # this process will update self.dataset and self.reader.dataset
 
 
     def _init_reader(self, **kwargs):
         self.reader = DatasetReader(self.dataset, **kwargs)
-    
+
 
     def repeated_dataset(self, abbr: str, n: int):
         # Create repeated indices in batches to avoid generating an oversized index list at once
@@ -52,7 +50,7 @@ class BaseDataset:
                 batch_indices = [i for i in range(start, end) for _ in range(n)]
                 indices.extend(batch_indices)
             return indices
-        
+
         if isinstance(self.reader.dataset, Dataset):
             # Add metadata fields (use batching for efficiency)
             base_size = len(self.reader.dataset)
@@ -65,14 +63,14 @@ class BaseDataset:
                 writer_batch_size=writer_batch_size,
                 load_from_cache_file=False
             )
-            
+
             # Safely generate indices
             orig_len = len(dataset)
             indices = create_repeated_indices(orig_len, n, batch_size=index_gen_batch_size)
-            
+
             # Achieve sample duplication through index selection
             self.reader.dataset = dataset.select(indices)
-            
+
         else:
             # Handle DatasetDict cases
             new_dict = DatasetDict()
@@ -88,14 +86,14 @@ class BaseDataset:
                     writer_batch_size=writer_batch_size,
                     load_from_cache_file=False
                 )
-                
+
                 orig_len = len(mapped_ds)
                 indices = create_repeated_indices(orig_len, n, batch_size=index_gen_batch_size)
-                
+
                 new_dict[key] = mapped_ds.select(indices)
-                
+
             self.reader.dataset = new_dict
-        
+
         self.dataset = self.reader.dataset
 
 

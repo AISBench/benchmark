@@ -32,6 +32,21 @@ DEFAULT_SAVE_EVERY_FACTOR = 0.1 # default save every factor is 0.1 of batch size
 DEFAULT_DATA_FETCH_SIZE_FACTOR = 0.1 # default data fetch size factor is 0.1 of batch size
 
 
+class ApiInferencerConfig:
+    def __init__(self, global_index: mp.RawValue, global_lock: mp.Lock, use_timestamp: bool = False, total_data_count: int = 0):
+        self.global_index = global_index
+        self.global_lock = global_lock
+        self.use_timestamp = use_timestamp
+        self.total_data_count = total_data_count
+
+    def to_dict(self):
+        return {
+            "global_index": self.global_index,
+            "global_lock": self.global_lock,
+            "use_timestamp": self.use_timestamp,
+            "total_data_count": self.total_data_count,
+        }
+
 class BaseApiInferencer(BaseInferencer):
     """Base Inferencer class for all evaluation Inferencer.
 
@@ -65,15 +80,14 @@ class BaseApiInferencer(BaseInferencer):
         # Cache for batch-prefetched data
         self._data_cache = []  # Thread-local cache for batch data
         self.total_data_count = 0
+        self.use_timestamp = False
 
-    def set_global_index(self, global_index: mp.RawValue):
-        self.global_index = global_index
-
-    def set_global_lock(self, global_lock: mp.Lock):
-        self.global_lock = global_lock
-
-    def set_data_count(self, data_num: int):
-        self.total_data_count = data_num
+    def set_config(self, config: ApiInferencerConfig):
+        for key, value in config.to_dict().items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                self.logger.debug(f"Unknown config key: {key}, skip")
 
     def _monitor_status_thread(
         self,
@@ -277,7 +291,6 @@ class BaseApiInferencer(BaseInferencer):
                 end_index = (cur_index + 1) % len(indexes)
             # Update global index
             self.global_index.value = end_index
-
         # Prefetch all data in the batch
         batch_data = []
         for data_index in data_indices:
@@ -393,7 +406,7 @@ class BaseApiInferencer(BaseInferencer):
         num_workers = self.batch_size if self.batch_size and self.batch_size > 0 else 1
 
         # Limit maximum concurrency
-        semaphore = asyncio.Semaphore(num_workers) if num_workers else None
+        semaphore = asyncio.Semaphore(num_workers) if num_workers and not self.use_timestamp else None
         # Reuse session to improve concurrency
         connector = aiohttp.TCPConnector(limit=num_workers + 1)
         timeout = aiohttp.ClientTimeout(total=get_request_time_out())
@@ -417,6 +430,7 @@ class BaseApiInferencer(BaseInferencer):
                         ICLI_CODES.CONCURRENCY_NOT_SET_IN_PRESSEURE_MODE,
                         f"Concurrency not set in pressure mode, please set `batch_size` in model config",
                     )
+                return
             async with semaphore:
                 # Pressure mode: continuously send requests until pressure_time
                 if self.pressure_mode:
@@ -454,18 +468,20 @@ class BaseApiInferencer(BaseInferencer):
                     acquired = await asyncio.to_thread(token_bucket.acquire, timeout=1)
                     if not acquired:
                         continue
+                    data = await self.wait_get_data(async_queue, stop_event)
                 else:
-                    # Slightly limit RR when no token to avoid high CPU usage causing TTFT accumulation
-                    await asyncio.sleep(BLOCK_INTERVAL)
+                    data = await self.wait_get_data(async_queue, stop_event)
+                    if data:
+                        await asyncio.sleep(BLOCK_INTERVAL)
 
-                data = await self.wait_get_data(async_queue, stop_event)
-
-                # data == None -> sentinel
                 if data is None:
                     await asyncio.wait_for(async_queue.put(None), timeout=1)
                     break
                 # Call user-provided async request
                 tasks.append(asyncio.create_task(limited_request_func(data)))
+                if len(tasks) > num_workers:
+                    self.logger.warning(f"Process[{os.getpid()}] concurrency ({len(tasks)}) exceeds limit ({num_workers}). "
+                                        "Consider increasing `WORKERS_NUM` or unset `--debug` for better performance.")
                 # Pressure mode: exit when max concurrency is reached
                 if self.pressure_mode:
                     if  len(tasks) >= num_workers: # max concurrency is reached
@@ -475,8 +491,7 @@ class BaseApiInferencer(BaseInferencer):
                         self.logger.warning(
                             f"Pressure mode: process {os.getpid()} exited before entering a stable state "
                             "because the pressure timeout was hit. Consider increase the `request_rate` "
-                            "in the model config, or increasing "
-                            "`WORKERS_NUM` in global_consts.py to enhance concurrency."
+                            "in the model config, or increasing `WORKERS_NUM` in global_consts.py and unset `--debug` to enhance concurrency."
                         )
                         stop_event.set()
                         break

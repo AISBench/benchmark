@@ -1,7 +1,6 @@
 import os
 import time
 import struct
-from collections import OrderedDict
 from typing import Dict, List, Any
 from multiprocessing import Event, shared_memory, BoundedSemaphore
 
@@ -376,6 +375,7 @@ class TokenProducer:
     def __init__(
         self,
         request_rate: float,
+        time_stamps: List[float],
         traffic_cfg: ConfigDict,
         request_num: int = None,
         mode: str = "infer",
@@ -384,6 +384,7 @@ class TokenProducer:
         """
         Args:
             request_rate: Desired request rate (RPS) used to pace requests.
+            time_stamps: List of timestamps in seconds.
             traffic_cfg: Traffic configuration controlling ramp-up and burstiness.
             request_num: Total number of requests to schedule when known.
             pressure_mode: If True, after generating the first `request_num` tokens
@@ -407,7 +408,7 @@ class TokenProducer:
         self.burstiness = 1.0
         self.work_dir = work_dir
         # When request_rate < 0.1, treat as infinite (no pacing applied here)
-        if self.request_rate < FINAL_RPS_MINIMUM_THRESHOLD:
+        if self.request_rate < FINAL_RPS_MINIMUM_THRESHOLD and not time_stamps:
             self.token_bucket = None
             if self.pressure_mode:
                 self.logger.warning("Pressure mode with no request rate applied, concurrency will increase rapidly")
@@ -417,10 +418,14 @@ class TokenProducer:
             for _ in range(request_num + 1):
                 self.token_bucket.acquire()
 
+        self.interval_lists = []
+        # If timestamps are provided, use them directly
+        if time_stamps:
+            self.interval_lists = time_stamps[:]
+            return
+
         # If `traffic_cfg` is provided, pre-generate `interval_lists` for ramp-up; after
         # exhausting it, fall back to gamma-distributed intervals based on request_rate.
-        self.interval_lists = []
-        # if traffic_cfg:
         self.burstiness = float(traffic_cfg.get("burstiness", self.burstiness))
         ramp_up_strategy = traffic_cfg.get("ramp_up_strategy")
         ramp_up_start_rps = traffic_cfg.get("ramp_up_start_rps")
@@ -632,11 +637,15 @@ class TokenProducer:
         interval_index = 0
         theta = 1.0 / (self.request_rate * self.burstiness)
 
-        start_time = time.perf_counter()
+        start_time = time.perf_counter() + self.interval_lists[0]
 
         while not stop_evt.is_set():
             if interval_index < len(self.interval_lists):
                 interval = self.interval_lists[interval_index]
+                current_time = time.perf_counter()
+                sleep_interval = interval - (current_time - start_time)
+                if sleep_interval > 0:
+                    time.sleep(sleep_interval)
                 try:
                     self.token_bucket.release()
                 except ValueError as e:
@@ -645,11 +654,11 @@ class TokenProducer:
                     wait_interval = np.random.gamma(shape=self.burstiness, scale=theta)
                     time.sleep(wait_interval)
                     continue
-                current_time = time.perf_counter()
-                sleep_interval = interval - (current_time - start_time)
-                if sleep_interval > 0:
-                    time.sleep(sleep_interval)
                 interval_index += 1
+            elif not self.pressure_mode:
+                self.token_bucket.release() # realse None token to avoid deadlock
+                interval = np.random.gamma(shape=self.burstiness, scale=theta)
+                time.sleep(interval)
             else:
                 try:
                     # After first batch requests are sent, subsequent requests

@@ -47,7 +47,7 @@ class AISTokenizer:
     def __init__(self, tokenizer_path: str):
         self.tokenizer = load_tokenizer(tokenizer_path)
 
-    def encode(self, prompt: list) -> Tuple[float, List[int]]:
+    def encode(self, prompt: list, add_special_tokens: bool = True) -> Tuple[float, List[int]]:
         """Encode a string into tokens, measuring processing time."""
         if isinstance(prompt, list):
             try:
@@ -64,7 +64,7 @@ class AISTokenizer:
         else:
             logger.debug(f"Prompt: {prompt} is not a list or string.")
             return []
-        tokens = self.tokenizer.encode(messages)
+        tokens = self.tokenizer.encode(messages, add_special_tokens=add_special_tokens)
         return tokens
 
     def decode(self, tokens: List[int]) -> Tuple[List[float], str]:
