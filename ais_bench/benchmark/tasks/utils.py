@@ -359,7 +359,6 @@ class ProgressBar:
         """
         while self.stop_event.is_set():
             time.sleep(SYNC_MAIN_PROCESS_INTERVAL)
-        return
         if not self.debug:
             self._refresh_task_monitor(task_state_manager)
         else:
