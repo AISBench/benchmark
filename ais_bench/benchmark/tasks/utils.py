@@ -637,7 +637,7 @@ class TokenProducer:
         interval_index = 0
         theta = 1.0 / (self.request_rate * self.burstiness)
 
-        start_time = time.perf_counter()
+        start_time = time.perf_counter() + self.interval_lists[0]
 
         while not stop_evt.is_set():
             if interval_index < len(self.interval_lists):
@@ -657,7 +657,8 @@ class TokenProducer:
                 interval_index += 1
             elif not self.pressure_mode:
                 self.token_bucket.release() # realse None token to avoid deadlock
-                break
+                interval = np.random.gamma(shape=self.burstiness, scale=theta)
+                time.sleep(interval)
             else:
                 try:
                     # After first batch requests are sent, subsequent requests
