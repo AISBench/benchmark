@@ -8,8 +8,9 @@ def write_result_data(sheet, title_style, case_result, case_type, case_names, ge
         # 表头数据填充
         sheet.write(0, 0, "用例名称", title_style)
         sheet.write(0, 1, "结果", title_style)
+        sheet.write(0, 2, "执行时间(秒)", title_style)
         max_deep = get_max_deep(case_result, case_names, match_key="case_name", target_key="metric_key")
-        start_col = 2
+        start_col = 3
         for i in range(max_deep):
             sheet.write(0, start_col + i, "用例场景第 {} 层".format(i+1), title_style)
 
@@ -25,7 +26,17 @@ def write_result_data(sheet, title_style, case_result, case_type, case_names, ge
             content = "Failed" if not result.get("success") else "Success"
             sheet.write(curr_row, 1, result.get("success"), get_color_style(color_index))
 
-            start_col = 2
+            # 写入执行时间
+            execution_time = result.get("execution_time")
+            if execution_time is not None:
+                # 格式化执行时间，保留2位小数
+                execution_time_str = "{:.2f}".format(execution_time)
+                sheet.write(curr_row, 2, execution_time_str, get_color_style())
+            else:
+                # 如果执行时间为None，显示为空字符串
+                sheet.write(curr_row, 2, "", get_color_style())
+
+            start_col = 3
             metric_path = result.get("metric_key")
             for i in range(max_deep):
                 sheet.write(curr_row, start_col + i,
