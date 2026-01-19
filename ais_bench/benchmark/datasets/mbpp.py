@@ -397,13 +397,13 @@ def execution(programs, task_id, timeout):
                     exec(programs, exec_globals)
             key.append('pass')
         except TimeOutException:
-            logger.debug(f"Program execution timeout for index {index}")
+            logger.debug(f"Program execution timeout for task_id {task_id}")
             key.append('timeout')
         except AssertionError as e:
-            logger.debug(f"Program assertion failed for index {index}: {e}")
+            logger.debug(f"Program assertion failed for task_id {task_id}: {e}")
             key.append('wrong_answer')
         except BaseException as e:
-            logger.debug(f"Program execution failed for index {index}: {e}")
+            logger.debug(f"Program execution failed for task_id {task_id}: {e}")
             key.append('failed')
 
     manager = multiprocessing.Manager()
