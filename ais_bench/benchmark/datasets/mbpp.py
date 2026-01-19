@@ -428,11 +428,11 @@ class MBPPPassKEvaluator(MBPPEvaluator):
         k(Tuple[int]): Choices of Pass@k. Defaults to (1, 10, 100)
     """
 
-    def __init__(self, k=(1, 10, 100)) -> None:
+    def __init__(self, k=(1, 10, 100), metric: str = 'MBPP') -> None:
         if not isinstance(k, Sequence):
             k = (k, )
         self.k = k
-        super.__init__()
+        super().__init__(metric=metric)
 
     @staticmethod
     def estimate_pass_at_k(
