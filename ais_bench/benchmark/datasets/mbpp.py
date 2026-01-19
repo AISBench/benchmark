@@ -225,7 +225,7 @@ class MBPPEvaluator(BaseEvaluator):
                 DSET_CODES.INVALID_MBPP_METRIC,
                 f"MBPP evaluator metric must be 'MBPP' or 'MBPPPlus', got '{self.metric}'"
             )
-        super.__init__()
+        super().__init__()
 
     def score(self, predictions, references):
         if len(predictions) != len(references):
