@@ -432,6 +432,7 @@ class MBPPPassKEvaluator(MBPPEvaluator):
         if not isinstance(k, Sequence):
             k = (k, )
         self.k = k
+        super.__init__()
 
     @staticmethod
     def estimate_pass_at_k(
