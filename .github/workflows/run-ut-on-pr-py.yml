@@ -17,7 +17,7 @@ env:
   PY310_VERSION: 3.10.12
 jobs:
   pr_run_test:
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Linux, run]
     timeout-minutes: 20
     steps:
       - name: Checkout code
