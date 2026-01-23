@@ -170,29 +170,9 @@
 
 图6：AISBench安全数据流图（2层）
 
-**List of abbreviations**  **缩略语清单** ：
-
-<table>
-    <tr>
-        <th>Abbreviations 缩略语</th>
-        <th>Full spelling 英文全名</th>
-        <th>Chinese explanation 中文解释</th>
-    </tr>
-    <tr>
-        <td>xxx</td>
-        <td>xxx</td>
-        <td>xxx</td>
-    </tr>
-    <tr>
-        <td>xxx</td>
-        <td>xxx</td>
-        <td>xxx</td>
-    </tr>
-</table>
-
 # 1.特性概述
 
-AISBench是MindStudio 26.0.0版本中的AI模型测评工具，旨在为AI模型提供全面的精度和性能评估能力。本版本在原有功能基础上，新增了长序列推理场景支持、多模态数据集覆盖、API Key鉴权认证、PPL评测能力、工具易用性优化、集群测评能力增强等多项特性，进一步提升了测评工具的完整性、易用性和专业性。
+AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipub.xiaoman.tech/>)推出的AI模型测评工具，旨在为AI模型提供全面的精度和性能评估能力。本版本在原有功能基础上，新增了长序列推理场景支持、多模态数据集覆盖、API Key鉴权认证、PPL评测能力、工具易用性优化、集群测评能力增强等多项特性，进一步提升了测评工具的完整性、易用性和专业性。
 
 本版本的主要价值包括：
 

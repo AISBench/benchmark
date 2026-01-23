@@ -170,29 +170,11 @@ Figure 5: API Key Authentication Sequence Diagram
 
 Figure 6: AISBench Security Data Flow Diagram (2-layer)
 
-**List of abbreviations**:
-
-<table>
-    <tr>
-        <th>Abbreviations</th>
-        <th>Full spelling</th>
-        <th>Chinese explanation</th>
-    </tr>
-    <tr>
-        <td>xxx</td>
-        <td>xxx</td>
-        <td>xxx</td>
-    </tr>
-    <tr>
-        <td>xxx</td>
-        <td>xxx</td>
-        <td>xxx</td>
-    </tr>
-</table>
-
 # 1. Feature Overview
 
-AISBench is an AI model benchmark tool in MindStudio version 26.0.0, designed to provide comprehensive accuracy and performance evaluation capabilities for AI models. This version adds support for long-sequence reasoning scenarios, multimodal dataset coverage, API Key authentication, PPL evaluation capabilities, tool usability optimization, and enhanced cluster evaluation capabilities, further improving the completeness, usability, and professionalism of the benchmark tool.
+AISBench is an AI model evaluation tool launched by the [AISBench Artificial Intelligence System Performance Benchmark Committee](<https://aipub.xiaoman.tech/>), designed to provide comprehensive accuracy and performance assessment capabilities for AI models. This version builds upon existing functionality with several new features, including support for long sequence inference scenarios, expanded multimodal dataset coverage, API key authentication, PPL evaluation capabilities, usability enhancements, and improved cluster evaluation capabilities. These additions further enhance the benchmarking tool's completeness, ease of use, and professionalism.
+
+Translated with DeepL.com (free version)
 
 The main value of this version includes:
 
