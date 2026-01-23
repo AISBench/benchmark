@@ -7,6 +7,8 @@ import uuid
 from aiohttp import ClientSession
 from multiprocessing import BoundedSemaphore
 
+from bfcl_eval.utils import make_json_serializable
+
 from ais_bench.benchmark.openicl.icl_retriever import BaseRetriever
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.prompt import PromptList
@@ -600,6 +602,7 @@ class BFCLV3FunctionCallInferencer(BaseApiInferencer):
         await self.status_counter.case_finish()
         if all_model_response:
             finial_output.tool_calls = all_model_response
+        finial_output.inference_log = make_json_serializable(finial_output.inference_log)
         await self.output_handler.report_cache_info(
             index, prompt_list, finial_output, data_abbr
         )
