@@ -23,10 +23,8 @@ from ais_bench.benchmark.utils.logging.exceptions import (
 )
 
 logger = AISLogger()
-
-# ============================================================================
-# 1. RNG Management System
-# ============================================================================
+DEFAULT_CORPUS_FILE = "assets/shakespeare.txt"
+MAX_CHARS_PER_CHUNK = 10_000
 
 
 class RNGManager:
@@ -70,14 +68,6 @@ def derive_rng(identifier: str) -> random.Random:
             "RNG manager not initialized. Call init_rng() first.",
         )
     return _rng_manager.derive(identifier)
-
-
-# ============================================================================
-# 2. Corpus Loading
-# ============================================================================
-
-DEFAULT_CORPUS_FILE = "assets/shakespeare.txt"
-MAX_CHARS_PER_CHUNK = 10_000
 
 
 def initialize_corpus(tokenizer, corpus_path: Path) -> list[int]:
@@ -130,11 +120,6 @@ def initialize_corpus(tokenizer, corpus_path: Path) -> list[int]:
     tokenized_corpus = [token for chunk in tokenized_chunks for token in chunk]
 
     return tokenized_corpus
-
-
-# ============================================================================
-# 3. PromptGenerator
-# ============================================================================
 
 
 class PromptGenerator:
@@ -305,11 +290,6 @@ class PromptGenerator:
         return self.tokenizer.decode(final_prompt, skip_special_tokens=False)
 
 
-# ============================================================================
-# 4. Mooncake Trace Data Model
-# ============================================================================
-
-
 class MooncakeTrace:
     """Mooncake trace data model"""
 
@@ -428,11 +408,6 @@ def _process_timestamps(
             result_traces.append(trace)
 
     return result_traces
-
-
-# ============================================================================
-# 5. MooncakeTraceDataset
-# ============================================================================
 
 
 @LOAD_DATASET.register_module()

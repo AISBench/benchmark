@@ -637,7 +637,9 @@ class TokenProducer:
         interval_index = 0
         theta = 1.0 / (self.request_rate * self.burstiness)
 
-        start_time = time.perf_counter() + self.interval_lists[0]
+        start_time = time.perf_counter()
+        if len(self.interval_lists) > 0:
+            start_time += self.interval_lists[0]
 
         while not stop_evt.is_set():
             if interval_index < len(self.interval_lists):

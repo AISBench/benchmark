@@ -396,7 +396,7 @@ class OpenICLApiInferTask(BaseTask):
                     self._cleanup_shms(message_shm)
         return processes
 
-    def _get_time_stamps(self, data_list: List):
+    def _get_timestamps(self, data_list: List):
         """Get timestamps from data_list.
         """
         timestamps = []
@@ -482,7 +482,7 @@ class OpenICLApiInferTask(BaseTask):
             return
 
         # get timestamps from data_list
-        timestamps = self._get_time_stamps(data_list)
+        timestamps = self._get_timestamps(data_list)
 
         self.warm_up(data_list, task_state_manager)
         dataset_size, dataset_shm, indexes = self._dump_dataset_to_share_memory(data_list, global_indexes)
