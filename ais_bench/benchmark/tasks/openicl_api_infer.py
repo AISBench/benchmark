@@ -13,7 +13,6 @@ import pickle
 from mmengine.config import Config, ConfigDict
 from collections import defaultdict
 
-from mmengine.utils.dl_utils import time_counter
 
 from ais_bench.benchmark.global_consts import WORKERS_NUM
 from ais_bench.benchmark.registry import ICL_INFERENCERS, TASKS, ICL_RETRIEVERS

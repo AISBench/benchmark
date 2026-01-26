@@ -5,7 +5,7 @@ from ais_bench.benchmark.datasets import MooncakeTraceDataset, MooncakeTraceEval
 
 
 mooncake_trace_reader_cfg = dict[str, list[str] | str](
-    input_columns=["prompt", "timestamp","max_out_len"],
+    input_columns=["prompt", "timestamp", "max_out_len"],
     output_column="answer"
 )
 
