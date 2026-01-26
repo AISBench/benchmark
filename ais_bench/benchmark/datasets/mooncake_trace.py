@@ -189,18 +189,29 @@ class PromptGenerator:
         tokens = self._sample_tokens(num_tokens)
         return self.tokenizer.decode(tokens, skip_special_tokens=False)
 
-    def _sample_tokens(self, num_tokens: int) -> list[int]:
+    def _sample_tokens(self, num_tokens: int, hash_id: int | None = None) -> list[int]:
         """
         Sample specified number of tokens from corpus
 
         Uses circular sampling: if beyond corpus end, continue from the beginning.
+
+        Args:
+            num_tokens: Number of tokens to sample
+            hash_id: Optional hash ID. If provided, uses an independent RNG derived from hash_id
+                     to ensure different hash_ids generate different token sequences.
         """
         if num_tokens > self._corpus_size:
             # If requested token count exceeds corpus size, return entire corpus
             return self._tokenized_corpus.copy()
 
-        # Randomly select starting position
-        start_idx = self._corpus_rng.randrange(self._corpus_size)
+        # Select RNG: use independent RNG for hash_id, otherwise use shared RNG
+        if hash_id is not None:
+            # Derive independent RNG based on hash_id to ensure uniqueness
+            block_rng = derive_rng(f"dataset.prompt.block.{hash_id}")
+            start_idx = block_rng.randrange(self._corpus_size)
+        else:
+            # Use shared RNG for backward compatibility
+            start_idx = self._corpus_rng.randrange(self._corpus_size)
 
         end_idx = start_idx + num_tokens
         prompt_tokens = self._tokenized_corpus[start_idx:end_idx]
@@ -280,9 +291,9 @@ class PromptGenerator:
 
                 if block_separation_token_id is not None:
                     prompt_tokens.append(block_separation_token_id)
-                    prompt_tokens += self._sample_tokens(current_block_size - 1)
+                    prompt_tokens += self._sample_tokens(current_block_size - 1, hash_id=hash_id)
                 else:
-                    prompt_tokens += self._sample_tokens(current_block_size)
+                    prompt_tokens += self._sample_tokens(current_block_size, hash_id=hash_id)
 
                 # Cache token list
                 self._cache[hash_id] = prompt_tokens
