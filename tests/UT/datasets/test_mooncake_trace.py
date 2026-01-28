@@ -1,4 +1,5 @@
 """Unit tests for mooncake_trace.py"""
+import hashlib
 import unittest
 import tempfile
 import os
@@ -824,9 +825,9 @@ class TestMooncakeTraceDataset(unittest.TestCase):
             fixed_schedule_start_offset=500,
             fixed_schedule_end_offset=3000
         )
-
-        # 验证缓存文件名包含schedule参数
-        expected_cache_name = "test_trace_generated_prompts_auto_start500_end3000.jsonl"
+        with open(self.trace_file, "rb") as f:
+            trace_md5 = hashlib.md5(f.read()).hexdigest()
+        expected_cache_name = f"test_trace_{trace_md5}_generated_prompts_auto_start500_end3000.jsonl"
         cache_path = os.path.join(self.temp_dir, expected_cache_name)
         self.assertTrue(os.path.exists(cache_path))
 

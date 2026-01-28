@@ -488,10 +488,11 @@ class BaseApiInferencer(BaseInferencer):
                 tasks.append(task)
                 task.add_done_callback(_on_task_done)
                 running_count += 1
-                if running_count > num_workers:
+                if semaphore is None and running_count > num_workers:
                     self.logger.warning(
                         f"Process[{os.getpid()}] concurrency ({running_count}) exceeds limit ({num_workers}). "
-                        "Consider increasing `WORKERS_NUM` or unset `--debug` for better performance."
+                        "Maybe the `batch_size` is not enough, consider increasing it in the model config. "
+                        "Besides, you can try increasing `WORKERS_NUM` or unset `--debug` for better performance."
                     )
                 # Pressure mode: exit when max concurrency is reached
                 if self.pressure_mode:
