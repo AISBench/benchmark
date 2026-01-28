@@ -41,7 +41,7 @@ set -o pipefail  # 启用管道整体失败检测
 (
   setsid ais_bench --models ${CASE_NAME} \
          --datasets ${CASE_NAME} \
-         --work-dir ${CASE_OUTPUT_PATH} -m infer --merge-ds >${CUR_DIR}/tmplog.txt  2>&1
+         --work-dir ${CASE_OUTPUT_PATH} --max-num-workers 3 --mode infer --merge-ds >${CUR_DIR}/tmplog.txt  2>&1
 ) &
 
 # 获取后台进程的 PID

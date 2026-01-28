@@ -31,49 +31,57 @@ cp -r ${CUR_DIR}/ais_bench_configs/*  ${AIS_BENCH_CODE_CONFIGS_DIR}/
 set -o pipefail  # 启用管道整体失败检测
 echo -e "\033[1;32m[1/1]\033[0m Test case - ${CASE_NAME}"
 
-dataset_conf_list=(${CASE_NAME}_0_shot_cot_chat ${CASE_NAME}_0_shot_str) # 所有数据集配置文件的list
+if [ -f ${CUR_DIR}/tmplog.txt ];then
+    rm ${CUR_DIR}/tmplog.txt
+fi
 
-for dataset_conf_name in ${dataset_conf_list[@]}
+# 同时运行两个数据集配置
+ais_bench --models ${CASE_NAME} --datasets ${CASE_NAME}_0_shot_cot_chat ${CASE_NAME}_0_shot_str --work-dir ${CASE_OUTPUT_PATH} --max-num-workers 2 2>&1 | tee ${CUR_DIR}/tmplog.txt
+
+if [ $? -eq 0 ]
+then
+    echo "Run ${CASE_NAME} test: Success"
+else
+    echo "Run ${CASE_NAME} test: Failed"
+    exit $ret_failed
+fi
+
+# 获取时间戳
+WORK_DIR_INFO=$(cat ${CUR_DIR}/tmplog.txt | grep 'Current exp folder: ')
+TIMESTAMP="${WORK_DIR_INFO##*/}"
+
+# 数据集abbr列表，用于文件检查
+dataset_abbr_list=(gpqa_diamond_0_shot_cot_chat gpqa_diamond_0_shot_str)
+
+# 检查每个数据集配置的输出文件
+for abbr in ${dataset_abbr_list[@]}
 do
-    echo "Running ${dataset_conf_name}"
-    if [ -f ${CUR_DIR}/tmplog.txt ];then
-        rm ${CUR_DIR}/tmplog.txt
-    fi
-    ais_bench --models ${CASE_NAME} --datasets ${dataset_conf_name} --work-dir ${CASE_OUTPUT_PATH} 2>&1 | tee ${CUR_DIR}/tmplog.txt
-    if [ $? -eq 0 ]
-    then
-        echo "Run ${dataset_conf_name} test: Success"
-    else
-        echo "Run ${dataset_conf_name} test: Failed"
+    if [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/logs/infer/vllm-api-general-chat/${abbr}.out ];then
+        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/logs/infer/vllm-api-general-chat/${abbr}.out"
         exit $ret_failed
-    fi
-    # 获取时间戳
-    WORK_DIR_INFO=$(cat ${CUR_DIR}/tmplog.txt | grep 'Current exp folder: ')
-    TIMESTAMP="${WORK_DIR_INFO##*/}"
-
-    if [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/logs/infer/vllm-api-general-chat/GPQA_diamond.out ];then
-        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/logs/infer/vllm-api-general-chat/GPQA_diamond.out"
+    elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/logs/eval/vllm-api-general-chat/${abbr}.out ];then
+        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/logs/eval/vllm-api-general-chat/${abbr}.out"
         exit $ret_failed
-    elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/logs/eval/vllm-api-general-chat/GPQA_diamond.out ];then
-        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/logs/eval/vllm-api-general-chat/GPQA_diamond.out"
+    elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/predictions/vllm-api-general-chat/${abbr}.jsonl ];then
+        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/predictions/vllm-api-general-chat/${abbr}.jsonl"
         exit $ret_failed
-    elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/predictions/vllm-api-general-chat/GPQA_diamond.jsonl ];then
-        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/predictions/vllm-api-general-chat/GPQA_diamond.jsonl"
-        exit $ret_failed
-    elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/results/vllm-api-general-chat/GPQA_diamond.json ];then
-        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/results/vllm-api-general-chat/GPQA_diamond.json"
-        exit $ret_failed
-    elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.csv ];then
-        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.csv"
-        exit $ret_failed
-    elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.csv ];then
-        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.txt"
-        exit $ret_failed
-    elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.csv ];then
-        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.md"
+    elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/results/vllm-api-general-chat/${abbr}.json ];then
+        echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/results/vllm-api-general-chat/${abbr}.json"
         exit $ret_failed
     fi
 done
+
+# 检查summary文件（两个数据集配置共享同一个summary文件）
+if [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.csv ];then
+    echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.csv"
+    exit $ret_failed
+elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.txt ];then
+    echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.txt"
+    exit $ret_failed
+elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.md ];then
+    echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.md"
+    exit $ret_failed
+fi
 
 exit $ret_ok
 

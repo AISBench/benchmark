@@ -5,6 +5,6 @@ with read_base():
 
 models[0]['model'] = "qwen"
 models[0]['request_rate'] = 50
-models[0]['max_out_len'] = 200
-models[0]['batch_size'] = 200
+models[0]['max_out_len'] = 20
+models[0]['batch_size'] = 10
 models[0]['generation_kwargs'] = dict(ignore_eos=True)
