@@ -462,6 +462,12 @@ class BaseApiInferencer(BaseInferencer):
                 else:
                     await self.do_request(data, token_bucket, session)
         tasks = []
+        running_count = 0
+
+        def _on_task_done(_):
+            nonlocal running_count
+            running_count -= 1
+
         try:
             while not stop_event.is_set():
                 if token_bucket:
@@ -478,10 +484,15 @@ class BaseApiInferencer(BaseInferencer):
                     await asyncio.wait_for(async_queue.put(None), timeout=1)
                     break
                 # Call user-provided async request
-                tasks.append(asyncio.create_task(limited_request_func(data)))
-                if len(tasks) > num_workers:
-                    self.logger.warning(f"Process[{os.getpid()}] concurrency ({len(tasks)}) exceeds limit ({num_workers}). "
-                                        "Consider increasing `WORKERS_NUM` or unset `--debug` for better performance.")
+                task = asyncio.create_task(limited_request_func(data))
+                tasks.append(task)
+                task.add_done_callback(_on_task_done)
+                running_count += 1
+                if running_count > num_workers:
+                    self.logger.warning(
+                        f"Process[{os.getpid()}] concurrency ({running_count}) exceeds limit ({num_workers}). "
+                        "Consider increasing `WORKERS_NUM` or unset `--debug` for better performance."
+                    )
                 # Pressure mode: exit when max concurrency is reached
                 if self.pressure_mode:
                     if  len(tasks) >= num_workers: # max concurrency is reached

@@ -658,7 +658,10 @@ class TokenProducer:
                     continue
                 interval_index += 1
             elif not self.pressure_mode:
-                self.token_bucket.release() # release None token to avoid deadlock
+                try:
+                    self.token_bucket.release() # release None token to avoid deadlock
+                except Exception:
+                    pass
                 interval = np.random.gamma(shape=self.burstiness, scale=theta)
                 time.sleep(interval)
             else:
