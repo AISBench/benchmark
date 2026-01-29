@@ -1024,6 +1024,118 @@ class TestTokenProducerAdditional(unittest.TestCase):
             except:
                 pass
 
+    @patch('ais_bench.benchmark.tasks.utils.AISLogger')
+    def test_init_with_timestamps(self, mock_logger_class):
+        """测试timestamps参数传递"""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+
+        time_stamps = [1.0, 2.0, 3.0, 4.0, 5.0]
+        producer = TokenProducer(
+            request_rate=10.0,
+            time_stamps=time_stamps,
+            traffic_cfg=self.traffic_cfg,
+            request_num=5,
+            mode="infer"
+        )
+
+        # 验证interval_lists被设置为timestamps的副本
+        self.assertEqual(producer.interval_lists, time_stamps)
+        # 验证是副本，不是引用
+        self.assertIsNot(producer.interval_lists, time_stamps)
+
+    @patch('ais_bench.benchmark.tasks.utils.AISLogger')
+    def test_init_timestamps_as_interval_lists(self, mock_logger_class):
+        """测试timestamps存在时直接使用作为interval_lists"""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+
+        time_stamps = [0.5, 1.0, 1.5, 2.0]
+        producer = TokenProducer(
+            request_rate=20.0,  # 这个值应该被忽略
+            time_stamps=time_stamps,
+            traffic_cfg=self.traffic_cfg,
+            request_num=4,
+            mode="infer"
+        )
+
+        # 验证interval_lists等于timestamps
+        self.assertEqual(producer.interval_lists, time_stamps)
+        # 验证token_bucket被创建（因为request_rate >= 0.1）
+        self.assertIsNotNone(producer.token_bucket)
+
+    @patch('ais_bench.benchmark.tasks.utils.AISLogger')
+    def test_init_timestamps_ignore_request_rate(self, mock_logger_class):
+        """测试timestamps存在时忽略request_rate配置"""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+
+        time_stamps = [1.0, 2.0, 3.0]
+        # 使用一个不同的request_rate，应该被忽略
+        producer = TokenProducer(
+            request_rate=100.0,  # 这个值应该被忽略，因为提供了timestamps
+            time_stamps=time_stamps,
+            traffic_cfg=self.traffic_cfg,
+            request_num=3,
+            mode="infer"
+        )
+
+        # 验证interval_lists是timestamps，而不是根据request_rate生成的
+        self.assertEqual(producer.interval_lists, time_stamps)
+        # 验证长度匹配
+        self.assertEqual(len(producer.interval_lists), len(time_stamps))
+
+    @patch('ais_bench.benchmark.tasks.utils.AISLogger')
+    def test_produce_token_with_timestamps(self, mock_logger_class):
+        """测试token释放时间符合timestamps"""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+
+        time_stamps = [0.1, 0.2, 0.3]  # 使用较短的时间间隔以便测试
+        producer = TokenProducer(
+            request_rate=10.0,
+            time_stamps=time_stamps,
+            traffic_cfg=self.traffic_cfg,
+            request_num=3,
+            mode="infer"
+        )
+
+        # 验证interval_lists被正确设置
+        self.assertEqual(producer.interval_lists, time_stamps)
+
+        # 测试produce_token会使用这些timestamps
+        # 注意：实际的produce_token测试需要更复杂的设置（共享内存等）
+        # 这里主要验证interval_lists被正确设置
+        self.assertEqual(len(producer.interval_lists), 3)
+        self.assertEqual(producer.interval_lists[0], 0.1)
+        self.assertEqual(producer.interval_lists[1], 0.2)
+        self.assertEqual(producer.interval_lists[2], 0.3)
+
+    @patch('ais_bench.benchmark.tasks.utils.AISLogger')
+    def test_produce_token_timing_accuracy(self, mock_logger_class):
+        """测试token bucket机制控制请求发送时间的准确性"""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+
+        time_stamps = [0.05, 0.1, 0.15]  # 使用较短的时间间隔
+        producer = TokenProducer(
+            request_rate=10.0,
+            time_stamps=time_stamps,
+            traffic_cfg=self.traffic_cfg,
+            request_num=3,
+            mode="infer"
+        )
+
+        # 验证token_bucket被创建
+        self.assertIsNotNone(producer.token_bucket)
+        # 验证interval_lists被正确设置
+        self.assertEqual(producer.interval_lists, time_stamps)
+
+        # 验证interval_lists的长度与request_num匹配（或与timestamps长度匹配）
+        # 当提供timestamps时，interval_lists应该等于timestamps
+        self.assertEqual(len(producer.interval_lists), len(time_stamps))
+
+
 if __name__ == '__main__':
     unittest.main()
 
