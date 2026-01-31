@@ -1,0 +1,15 @@
+{"timestamp": 0, "input_length": 1024, "output_length": 100, "hash_ids": [1, 2]}
+{"timestamp": 200, "input_length": 1536, "output_length": 200, "hash_ids": [3, 4, 5]}
+{"timestamp": 500, "input_text": "What is the capital of France?", "output_length": 50}
+{"timestamp": 1000, "input_length": 256, "output_length": 10, "hash_ids": [6]}
+{"timestamp": 1500, "input_length": 768, "output_length": 150, "hash_ids": [7, 8]}
+{"timestamp": 2000, "input_text": "Explain the concept of machine learning in simple terms.", "output_length": 200}
+{"timestamp": 2500, "input_length": 1024, "output_length": 100, "hash_ids": [9, 10]}
+{"timestamp": 3000, "input_text": "Write a short poem about nature.", "output_length": 80}
+{"timestamp": 3500, "input_length": 1536, "output_length": 250, "hash_ids": [11, 12, 13]}
+{"timestamp": 4000, "input_length": 384, "output_length": 50, "hash_ids": [14]}
+{"timestamp": 4500, "input_text": "What are the main components of a computer?", "output_length": 120}
+{"timestamp": 5000, "input_length": 640, "output_length": 180, "hash_ids": [15, 16]}
+{"timestamp": 5500, "input_length": 1536, "output_length": 220, "hash_ids": [17, 18, 19]}
+{"timestamp": 6000, "input_text": "Describe the water cycle.", "output_length": 150}
+{"timestamp": 6500, "input_length": 512, "output_length": 100, "hash_ids": [20]}
