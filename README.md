@@ -29,6 +29,7 @@
 > **⭐️收藏项目**，你将能第一时间获取 AISBench评测工具 的最新动态～
 
 ## 🔥 最新进展
+- **\[2026.1.31\]** 支持 [Mooncake Trace](ais_bench/benchmark/configs/datasets/mooncake_trace/README.md) trace 数据集性能测评，支持按时间戳调度请求、hash_id 缓存与可复现 prompt 生成，详见数据集 README。🔥🔥🔥
 - **\[2025.12.19\]** 🎉 **AISBench 架构全面重构完成！**
   - ✨ **架构升级**：对cli、models、inferencer、tasks组件进行了全面重构，支持快速接入新的测试基准，参考📚 [开发者文档](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/develop_guide/contributing.html)了解详情！
   - 🖥️ **任务管理界面**：全新的任务UI管理界面，支持同时监控每个任务的详细执行状态，包括任务名称、进度、时间成本、状态、日志路径、扩展参数等，让任务执行状态一目了然！

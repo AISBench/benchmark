@@ -30,6 +30,7 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2026.1.31\]** Support for [Mooncake Trace](ais_bench/benchmark/configs/datasets/mooncake_trace/README_en.md) trace dataset performance evaluation; supports timestamp-based request scheduling, hash_id caching, and reproducible prompt generation. See the dataset README for details. 🔥🔥🔥
 - **\[2025.12.19\]** 🎉 **AISBench Architecture Refactoring Completed!**
   - ✨ **Architecture Upgrade**: Comprehensive refactoring of cli, models, inferencer, and tasks components, supporting rapid integration of new test benchmarks. See 📚 [Developer Documentation](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/develop_guide/contributing.html) for details!
   - 🖥️ **Task Management Interface**: Brand new task UI management interface that supports simultaneous monitoring of detailed execution status for each task, including task name, progress, time cost, status, log path, extended parameters, etc., making task execution status clear at a glance!
