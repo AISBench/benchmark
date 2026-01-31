@@ -209,6 +209,7 @@ mooncake_trace_datasets = [
 - `timestamp` 字段用于精确控制请求的发送时间
 - 在性能测评场景中，系统会根据 `timestamp` 计算延迟时间并控制请求发送
 - 是否按 timestamp 调度由模型配置中的 **use_timestamp** 决定：当 **use_timestamp 为 True** 且数据集中包含 timestamp 时，按 timestamp 发送请求，**request_rate 被忽略**；当 **use_timestamp 为 False** 时，按 **request_rate** 调度，数据集中 timestamp 不参与调度
+- 在**模型配置文件**中设置 `use_timestamp=True` 可启用按时间戳调度；参数说明见文档「[模型配置说明](../../../../../docs/source_zh_cn/base_tutorials/all_params/models.md)」
 
 ### input_text 支持
 

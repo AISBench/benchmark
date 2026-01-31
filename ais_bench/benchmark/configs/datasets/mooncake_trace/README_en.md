@@ -207,6 +207,7 @@ Mixed mode is supported: some rows use `input_text`, others use `input_length` a
 - The `timestamp` field controls when requests are sent
 - In performance mode, the system uses timestamps to compute delays and schedule sends
 - Whether timestamp-based scheduling is used is determined by **use_timestamp** in the model config: when **use_timestamp** is True and the dataset has timestamps, requests follow timestamps and **request_rate** is ignored; when **use_timestamp** is False, **request_rate** is used and dataset timestamps are not used for scheduling
+- Set `use_timestamp=True` in the **model configuration file** to enable timestamp-based scheduling; see "Model Configuration" for the parameter description
 
 ### input_text Support
 
