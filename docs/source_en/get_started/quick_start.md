@@ -58,6 +58,7 @@ models = [
         model="DeepSeek-R1",        # Specify the name of the model loaded on the server, configured according to the actual model name pulled by the VLLM inference service (configure as an empty string to get it automatically)
         stream=False,
         request_rate=0,           # Request sending frequency: send 1 request to the server every 1/request_rate seconds; if less than 0.1, all requests are sent at once
+        use_timestamp=False,      # Whether to schedule requests by dataset timestamp; used with timestamped datasets (e.g. Mooncake Trace)
         retry=2,                  # Maximum number of retries per request
         api_key="",               # Custom API key, default is an empty string
         host_ip="localhost",      # Specify the IP of the inference service

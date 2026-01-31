@@ -58,6 +58,7 @@ models = [
         model="",        # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
         stream=False,
         request_rate=0,           # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
+        use_timestamp=False,      # 是否按数据集中 timestamp 调度请求，适用于含 timestamp 的数据集（如 Mooncake Trace）
         retry=2,                  # 每个请求最大重试次数
         api_key="",               # 自定义API key，默认是空字符串
         host_ip="localhost",      # 指定推理服务的IP
