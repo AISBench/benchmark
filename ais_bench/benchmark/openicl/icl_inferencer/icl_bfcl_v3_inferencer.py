@@ -481,12 +481,12 @@ class BFCLV3FunctionCallInferencer(BaseApiInferencer):
         return True
 
     async def do_request(self, data: dict, token_bucket: BoundedSemaphore, session: ClientSession) -> None:
-        finial_output = FunctionCallOutput(self.perf_mode)
-        finial_output.uuid = str(uuid.uuid4()).replace("-", "")
+        final_output = FunctionCallOutput(self.perf_mode)
+        final_output.uuid = str(uuid.uuid4()).replace("-", "")
         if "multi_turn" in data.get("data_name"):
-            await self._inference_multi_turn(data, finial_output, session)
+            await self._inference_multi_turn(data, final_output, session)
         else:
-            await self._inference_single_turn(data, finial_output, session)
+            await self._inference_single_turn(data, final_output, session)
 
     async def _add_next_turn_user_message(
         self, inference_data: dict, user_message: list[dict]
@@ -494,11 +494,11 @@ class BFCLV3FunctionCallInferencer(BaseApiInferencer):
         inference_data["message"].extend(user_message)
         return inference_data
 
-    async def _inference_multi_turn(self, data: dict, finial_output: FunctionCallOutput, session: ClientSession) -> None:
+    async def _inference_multi_turn(self, data: dict, final_output: FunctionCallOutput, session: ClientSession) -> None:
         """Inference data multi turn.
         Args:
             data (dict): Data from the dataset.
-            finial_output (FunctionCallOutput): Final output.
+            final_output (FunctionCallOutput): Final output.
             session (ClientSession): Aiohttp session.
         """
         index: str = data.get("index")
@@ -515,8 +515,8 @@ class BFCLV3FunctionCallInferencer(BaseApiInferencer):
             self.impl.pre_query_processing, data
         )
         all_multi_turn_messages = data.get("prompt", [])
-        finial_output.success = True
-        inference_log = finial_output.inference_log
+        final_output.success = True
+        inference_log = final_output.inference_log
 
         for turn_idx, current_turn_message in enumerate(all_multi_turn_messages):
             current_turn_message: list[dict]
@@ -558,7 +558,7 @@ class BFCLV3FunctionCallInferencer(BaseApiInferencer):
                     await self.status_counter.failed()
                     self.logger.warning(f"Model has failed to generate response for turn {turn_idx} step {count}."
                     f" Error: {output.error_info}")
-                    finial_output.success = False
+                    final_output.success = False
                     force_quit = True
                     current_step_inference_log.append(
                         {
@@ -601,10 +601,10 @@ class BFCLV3FunctionCallInferencer(BaseApiInferencer):
                 break
         await self.status_counter.case_finish()
         if all_model_response:
-            finial_output.tool_calls = all_model_response
-        finial_output.inference_log = make_json_serializable(finial_output.inference_log)
+            final_output.tool_calls = all_model_response
+        final_output.inference_log = make_json_serializable(final_output.inference_log)
         await self.output_handler.report_cache_info(
-            index, prompt_list, finial_output, data_abbr
+            index, prompt_list, final_output, data_abbr
         )
 
     async def _inference_single_turn(self, data: dict, output: FunctionCallOutput, session: ClientSession) -> None:
