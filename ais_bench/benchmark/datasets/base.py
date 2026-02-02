@@ -1,3 +1,5 @@
+import os
+
 from abc import abstractmethod
 from typing import List, Dict, Optional, Union
 
@@ -8,6 +10,7 @@ from ais_bench.benchmark.openicl.icl_dataset_reader import DatasetReader
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import DSET_CODES
 from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+from ais_bench.benchmark.utils.file.file import load_jsonl
 
 disable_progress_bar() # disable mapping progress bar, preventing terminal interface contamination
 
@@ -108,3 +111,19 @@ class BaseDataset:
     @abstractmethod
     def load(**kwargs) -> Union[Dataset, DatasetDict]:
         pass
+
+class BaseJDGDatasetMethod:
+    @staticmethod
+    def load_from_predictions(prediction_path: str) -> Dict:
+        """Load predictions from a directory and merge them with the dataset.
+
+        Args:
+            prediction_dir (str): The directory containing prediction files.
+
+        Returns:
+            Dataset: The merged dataset with predictions.
+        """
+        if os.path.exists(prediction_path):
+            preds = load_jsonl(prediction_path)
+        preds.sort(key=lambda x: x.get('id',0))
+        return preds
