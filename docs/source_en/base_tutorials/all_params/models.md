@@ -43,6 +43,7 @@ models = [
         model="",        # Specify the name of the model loaded on the server, configured according to the actual model name pulled by the VLLM inference service (configuring an empty string will automatically retrieve it)
         stream=False,    # Whether it is a streaming interface
         request_rate = 0,           # Request sending frequency: send 1 request to the server every 1/request_rate seconds; if less than 0.1, all requests are sent at once
+        use_timestamp=False,        # Whether to schedule requests by the dataset's timestamp; used with timestamped datasets (e.g. Mooncake Trace)
         retry = 2,                  # Maximum number of retries for each request
         api_key="",                 # Custom API key, default is an empty string
         host_ip = "localhost",      # Specify the IP address of the inference service
@@ -72,6 +73,7 @@ The description of configurable parameters for the service-oriented inference ba
 | `model_name` | String | Applicable only to Triton services. It is concatenated into the endpoint URI `/v2/models/{modelname}/{infer, generate, generate_stream}` and must be consistent with the name used during deployment |
 | `stream` | Boolean | Whether the inference service is a streaming interface. Required Parameter. |
 | `request_rate` | Float | Request sending rate (unit: requests per second). A request is sent every `1/request_rate` seconds; if the value is less than 0.1, requests are automatically merged and sent in batches. Valid range: [0, 64000]. When the `traffic_cfg` item is enabled, this function may be overwritten (for specific reasons, refer to 🔗 [Parameter Interpretation Section in the Description of Request Rate (RPS) Distribution Control and Visualization](../../advanced_tutorials/rps_distribution.md#parameter-interpretation)) |
+| `use_timestamp` | Boolean | Whether to schedule requests according to the dataset's timestamp field. When True and the dataset contains timestamps, requests are sent by timestamp and **request_rate** / **traffic_cfg** are ignored; when False, request_rate and traffic_cfg apply. Default False. Used with timestamped datasets (e.g. Mooncake Trace). |
 | `traffic_cfg` | Dict | Parameters for controlling fluctuations in the request sending rate (for detailed usage instructions, refer to 🔗 [Description of Request Rate (RPS) Distribution Control and Visualization](../../advanced_tutorials/rps_distribution.md)). If this item is not filled in, the function is disabled by default |
 | `retry` | Int | Maximum number of retries after failing to connect to the server. Valid range: [0, 1000] |
 | `api_key` | String | Custom API key, default is an empty string. Only supports the `VLLMCustomAPI` and `VLLMCustomAPIChat` model type. |
@@ -89,6 +91,7 @@ The description of configurable parameters for the service-oriented inference ba
 **Precautions**:
 - `request_rate` is affected by hardware performance. You can increase 📚 [WORKERS_NUM](./cli_args.md#configuration-constant-file-parameters) to improve concurrency capability.
 - The function of `request_rate` may be overwritten by the `traffic_cfg` item. For specific reasons, refer to 🔗 [Parameter Interpretation Section in the Description of Request Rate (RPS) Distribution Control and Visualization](../../advanced_tutorials/rps_distribution.md#parameter-interpretation).
+- When the dataset has timestamps and **use_timestamp** is True in the model config, requests are scheduled by timestamp and **request_rate** and **traffic_cfg** are ignored.
 - Setting `batch_size` too large may result in high CPU usage. Please configure it reasonably based on hardware conditions.
 - The default service address used by the service-oriented inference evaluation API is `localhost:8080`. In actual use, you need to modify it to the IP and port of the service-oriented backend according to the actual deployment.
 

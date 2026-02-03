@@ -30,6 +30,7 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2026.1.31\]** Support for [Mooncake Trace](ais_bench/benchmark/configs/datasets/mooncake_trace/README_en.md) trace dataset performance evaluation; supports timestamp-based request scheduling, hash_id caching, and reproducible prompt generation. See the dataset README for details. 🔥🔥🔥
 - **\[2025.12.19\]** 🎉 **AISBench Architecture Refactoring Completed!**
   - ✨ **Architecture Upgrade**: Comprehensive refactoring of cli, models, inferencer, and tasks components, supporting rapid integration of new test benchmarks. See 📚 [Developer Documentation](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/develop_guide/contributing.html) for details!
   - 🖥️ **Task Management Interface**: Brand new task UI management interface that supports simultaneous monitoring of detailed execution status for each task, including task name, progress, time cost, status, log path, extended parameters, etc., making task execution status clear at a glance!
@@ -182,18 +183,19 @@ models = [
         attr="service",
         type=VLLMCustomAPIChat,
         abbr='vllm-api-general-chat',
-        path="",                    # Specify the absolute path of the model serialized vocabulary file (generally not required for accuracy testing scenarios)
+        path="",                  # Specify the absolute path of the model serialized vocabulary file (generally not required for accuracy testing scenarios)
         model="",        # Specify the name of the model loaded on the server, configured according to the actual model name pulled by the VLLM inference service (configure as an empty string to get it automatically)
         stream=False,
         request_rate=0,           # Request sending frequency: send 1 request to the server every 1/request_rate seconds; if less than 0.1, all requests are sent at once
+        use_timestamp=False,      # Whether to schedule requests by dataset timestamp; used with timestamped datasets (e.g. Mooncake Trace)
         retry=2,                  # Maximum number of retries for each request
         api_key="",               # Custom API key, default is an empty string
         host_ip="localhost",      # Specify the IP of the inference service
         host_port=8080,           # Specify the port of the inference service
-        url="",                     # Custom URL path for accessing the inference service (needs to be configured when the base URL is not a combination of http://host_ip:host_port; after configuration, host_ip and host_port will be ignored)
+        url="",                   # Custom URL path for accessing the inference service (needs to be configured when the base URL is not a combination of http://host_ip:host_port; after configuration, host_ip and host_port will be ignored)
         max_out_len=512,          # Maximum number of tokens output by the inference service
-        batch_size=1,               # Maximum concurrency for sending requests
-        trust_remote_code=False,    # Whether the tokenizer trusts remote code, default is False;
+        batch_size=1,             # Maximum concurrency for sending requests
+        trust_remote_code=False,  # Whether the tokenizer trusts remote code, default is False;
         generation_kwargs=dict(   # Model inference parameters, configured with reference to the VLLM documentation; the AISBench evaluation tool does not process them and attaches them to the sent request
             temperature=0.01,
             ignore_eos=False,

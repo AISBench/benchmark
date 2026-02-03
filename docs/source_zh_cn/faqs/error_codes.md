@@ -474,6 +474,24 @@ Virtual memory usage too high: 90% > 80% (Total memory: 50 GB "Used: 45 GB, Avai
 1. 若系统总内存不够，需要增加系统内存。
 2. 若系统总内存足够，但是数据集需要的内存大于可用内存，需要清理当前服务器上被占用的内存或者缓存。
 
+## TINFER-PARAM-006
+### 错误描述
+数据集配置中没有找到时间戳`timestamp`字段，但是模型配置文件中`use_timestamp`参数为True
+### 解决办法
+若报错日志为`No timestamps found in datasets, but `use_timestamp` is True! Make sure your dataset contains `timestamp` field or set `use_timestamp` to False in model config.`，则表示数据集配置中没有找到时间戳`timestamp`字段，但是模型配置文件中`use_timestamp`参数为True，需要将模型配置文件中`use_timestamp`参数配置为False。
+例如：
+```python
+# vllm_stream_api_chat.py中
+models = [
+    dict(
+        attr="service",
+        # ......
+        use_timestamp=False,
+        # ......
+    ),
+]
+```
+
 ## TINFER-IMPL-001
 ### 错误描述
 执行服务化推理任务时，推理任务内拉起多个进程时某个进程启动失败。
@@ -1153,6 +1171,7 @@ aime2024_datasets = [
 1. 若报错为`Path is not a directory or Parquet file: /path/to/dataset.jsonl`，说明`/path/to/dataset.jsonl`不是所需的`.parquet`格式的数据集，请确认数据集格式符合预期。
 2. 若报错为`No Parquet file found in /path/to/dataset/.`，说明在`/path/to/dataset/`路径下找不到`.parquet`格式的数据集，请确认数据集格式符合预期。
 3. 若报错为`"Dataset file not found: /path/to/dataset/`，说明数据集路径`/path/to/dataset/`本身不存在，请确认数据集路径是否与预期传入的一致。
+4. 若报错为`Corpus file not found. Please ensure {DEFAULT_CORPUS_FILE} exists in one of: [...]`，说明在使用 mooncake_trace 数据集时，找不到必需的语料库文件。请将 `assets/shakespeare.txt` 放在 **`ais_bench/third_party/aiperf/assets/shakespeare.txt`**（以 ais_bench 包根为基准），或错误信息中列出的路径之一。
 
 ## DSET-DATA-002
 ### 错误描述
@@ -1200,7 +1219,24 @@ aime2024_datasets = [
 ### 错误描述
 数据集配置文件中参数非法。
 ### 解决办法
-请依据详细报错的信息检查数据集配置文件中内容中存在的参数取值非法问题。
+请依据详细报错的信息检查数据集配置文件中内容中存在的参数取值非法问题。以下为 mooncake_trace / 时间戳调度相关典型场景：
+1. **timestamp**：trace 数据中的 `timestamp` 字段类型必须为 float 或 int，且 >= 0；否则会报错并提示类型或取值范围。
+2. **hash_ids 与 input_length 不兼容**：报错信息包含 `Input length: ..., Hash IDs: ..., Block size: 512 ... Final block size: ... must be > 0 and <= 512` 时，需保证 `(len(hash_ids)-1)*512+1 <= input_length <= len(hash_ids)*512`。
+3. **fixed_schedule 参数**：当 `fixed_schedule_end_offset >= 0` 时，`fixed_schedule_start_offset` 必须 <= `fixed_schedule_end_offset`。
+
+## DSET-PARAM-005
+### 错误描述
+数据集加载或处理过程中缺少必需的参数。
+### 解决办法
+根据详细报错信息，检查并补齐缺失的必需参数。例如：
+1. 若报错为`mean must be provided`，说明在使用 mooncake_trace 数据集时，需要提供 `mean` 参数（通过 trace 的 `input_length` 传入）用于生成提示词。
+2. 若报错为`Either 'input_text' or 'input_length' must be provided`，说明在 mooncake trace 的 **JSONL 单条数据**中，未提供 `input_text` 时必须提供 `input_length` 字段。
+
+## DSET-UNK-001
+### 错误描述
+数据集或依赖组件在未正确初始化时发生未知错误。
+### 解决办法
+若报错为 **"RNG manager not initialized. Call init_rng() first."**，说明在使用 mooncake_trace 生成 prompt 时，在调用 `derive_rng` 之前未调用 `init_rng`。正常通过 `MooncakeTraceDataset.load()` 加载时会自动调用 `init_rng(random_seed)`，该错误多为直接调用底层接口或测试代码时未按顺序初始化导致。请确保先调用 `init_rng(seed)` 再执行依赖 RNG 的生成逻辑。
 
 ## DSET-DEPENDENCY-002
 ### 错误描述

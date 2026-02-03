@@ -509,6 +509,25 @@ It indicates that the current system memory is 50GB, with 45GB used and 5GB avai
 1. If the total system memory is insufficient, increase the system memory.
 2. If the total system memory is sufficient but the memory required by the dataset is greater than the available memory, clear the occupied memory or cache on the current server.
 
+## TINFER-PARAM-006
+### Error Description
+No timestamps found in datasets, but `use_timestamp` is True! Make sure your dataset contains `timestamp` field or set `use_timestamp` to False in model config.
+### Solution
+If the error log is `No timestamps found in datasets, but `use_timestamp` is True! Make sure your dataset contains `timestamp` field or set `use_timestamp` to False in model config.`, it means the dataset configuration file does not contain the `timestamp` field, but the `use_timestamp` parameter in the model configuration file is True. You need to set the `use_timestamp` parameter in the model configuration file to False.
+
+Example:
+```python
+# In vllm_stream_api_chat.py
+models = [
+    dict(
+        attr="service",
+        # ......
+        use_timestamp=False,
+        # ......
+    ),
+]
+```
+
 ## TINFER-IMPL-001
 ### Error Description
 When executing a service-oriented inference task, a process fails to start while multiple processes are launched within the inference task.
@@ -1186,6 +1205,7 @@ The dataset file does not exist.
 1. If the error message is `Path is not a directory or Parquet file: /path/to/dataset.jsonl`, it means `/path/to/dataset.jsonl` is not a dataset in the required `.parquet` format. Please confirm that the dataset format meets expectations.
 2. If the error message is `No Parquet file found in /path/to/dataset/.`, it means no `.parquet` format dataset is found in the path `/path/to/dataset/`. Please confirm that the dataset format meets expectations.
 3. If the error message is `"Dataset file not found: /path/to/dataset/`, it means the dataset path `/path/to/dataset/` itself does not exist. Please confirm that the dataset path matches the expected input path.
+4. If the error message is `Corpus file not found. Please ensure {DEFAULT_CORPUS_FILE} exists in one of: [...]` when using the mooncake_trace dataset, the required corpus file was not found. Place `assets/shakespeare.txt` under **`ais_bench/third_party/aiperf/assets/shakespeare.txt`** (relative to the ais_bench package root), or under one of the paths listed in the error message.
 
 ## DSET-DATA-002
 ### Error Description
@@ -1233,7 +1253,24 @@ aime2024_datasets = [
 ### Error Description
 Invalid parameters in the dataset configuration file.
 ### Solution
-Please check for invalid parameter value issues in the dataset configuration file based on the detailed error message.
+Please check for invalid parameter value issues in the dataset configuration file based on the detailed error message. Typical scenarios for mooncake_trace / timestamp-based scheduling:
+1. **timestamp**: The `timestamp` field in trace data must be of type float or int and >= 0; otherwise an error is raised with a type or range message.
+2. **hash_ids and input_length incompatible**: When the error message contains `Input length: ..., Hash IDs: ..., Block size: 512 ... Final block size: ... must be > 0 and <= 512`, ensure `(len(hash_ids)-1)*512+1 <= input_length <= len(hash_ids)*512`.
+3. **fixed_schedule parameters**: When `fixed_schedule_end_offset >= 0`, `fixed_schedule_start_offset` must be <= `fixed_schedule_end_offset`.
+
+## DSET-PARAM-005
+### Error Description
+Required parameters are missing during dataset loading or processing.
+### Solution
+Check and supply the missing required parameters according to the detailed error message. For example:
+1. If the error is `mean must be provided`, when using the mooncake_trace dataset you must provide the `mean` parameter (via the trace's `input_length` field) for prompt generation.
+2. If the error is `Either 'input_text' or 'input_length' must be provided`, in a **single JSONL record** of mooncake trace data, you must provide the `input_length` field when `input_text` is not provided.
+
+## DSET-UNK-001
+### Error Description
+Unknown error of the dataset or a dependent component due to incorrect initialization.
+### Solution
+If the error is **"RNG manager not initialized. Call init_rng() first."**, the mooncake_trace prompt generator called `derive_rng` before `init_rng` was called. Normal loading via `MooncakeTraceDataset.load()` calls `init_rng(random_seed)` automatically; this error usually occurs when calling lower-level APIs or in tests without proper initialization order. Ensure `init_rng(seed)` is called before any RNG-dependent generation logic.
 
 ## DSET-DEPENDENCY-002
 ### Error Description
