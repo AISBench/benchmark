@@ -250,5 +250,3 @@ mooncake_trace_datasets = [
      Input length: XXX, Hash IDs: [...], Block size: 512 are not compatible.
      Final block size: XXX must be > 0 and <= 512.
      ```
-
-     详见错误码 **DSET-PARAM-004** 的说明（文档[《错误码说明》](../../../../../docs/source_zh_cn/faqs/error_codes.md)）。

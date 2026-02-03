@@ -247,5 +247,3 @@ Mixed mode is supported: some rows use `input_text`, others use `input_length` a
      Input length: XXX, Hash IDs: [...], Block size: 512 are not compatible.
      Final block size: XXX must be > 0 and <= 512.
      ```
-
-     See error code **DSET-PARAM-004** in the [error codes documentation](../../../../../docs/source_en/faqs/error_codes.md).
