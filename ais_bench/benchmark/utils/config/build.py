@@ -16,6 +16,33 @@ from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
 logger = AISLogger()
 
+
+def get_model_type_name(model_cfg: ConfigDict) -> str:
+    """从 model_cfg 得到稳定的模型类型名（用于分支判断）。兼容 type 为类或字符串。"""
+    t = model_cfg.get("type", "")
+    if t is None or t == "":
+        return ""
+    if hasattr(t, "__name__"):
+        return t.__name__
+    if isinstance(t, str):
+        return t.split(".")[-1] if "." in t else t
+    return ""
+
+
+def get_model_cls_from_cfg(model_cfg: ConfigDict):
+    """从 model_cfg 解析出模型类，用于读取 launcher 等类属性。"""
+    t = model_cfg.get("type", None)
+    if t is None:
+        return None
+    if isinstance(t, type) and hasattr(t, "__name__"):
+        return t
+    if isinstance(t, str):
+        name = t.split(".")[-1] if "." in t else t
+        if name in MODELS.module_dict:
+            return MODELS.get(name)
+    return None
+
+
 def _validate_model_cfg(model_cfg: ConfigDict) -> dict:
     errors = {}
 
@@ -124,7 +151,7 @@ def build_dataset_from_cfg(dataset_cfg: ConfigDict):
 def build_model_from_cfg(model_cfg: ConfigDict):
     logger.debug(f"Building model from config: type={model_cfg.get('type')} abbr={model_cfg.get('abbr')}")
     model_cfg = copy.deepcopy(model_cfg)
-    model_name = model_cfg.get("type", "").split(".")[-1]
+    model_name = get_model_type_name(model_cfg)
     errors = _validate_model_cfg(model_cfg)
     if errors:
         logger.warning(f"Model config validation failed for {model_name}: {errors}")
@@ -136,17 +163,14 @@ def build_model_from_cfg(model_cfg: ConfigDict):
     model_cfg.pop("run_cfg", None)
     model_cfg.pop("request_rate", None)
     batch_size = model_cfg.pop("batch_size", None)
-    abbr = model_cfg.pop("abbr", None)
-    attr = model_cfg.pop("attr", None)
+    model_cfg.pop("abbr", None)
+    model_cfg.pop("attr", None)
     model_cfg.pop("summarizer_abbr", None)
     model_cfg.pop("pred_postprocessor", None)
     model_cfg.pop("min_out_len", None)
     model_cfg.pop("returns_tool_calls", None)
     model_cfg.pop("traffic_cfg", None)
-    if attr == "local" and abbr == "mindformer-model" :
-        return MODELS.build(model_cfg, batch_size = batch_size)
-    else :
-        return MODELS.build(model_cfg)
+    return MODELS.build(model_cfg)
 
 def build_perf_metric_calculator_from_cfg(metric_cfg: ConfigDict):
     logger.debug(f"Building perf metric calculator config: type={metric_cfg.get('type')}")

@@ -55,6 +55,8 @@ def drop_error_generation_kwargs(generation_kwargs: dict) -> dict:
 @MODELS.register_module()
 class MindFormerModel(BaseModel):
 
+    launcher: str = "msrun"
+
     def __init__(self,
                  path: str,
                  checkpoint: Optional[str] = None,
