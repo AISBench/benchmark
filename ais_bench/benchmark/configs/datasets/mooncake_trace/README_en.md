@@ -112,6 +112,7 @@ When using `hash_ids`, `input_length` must satisfy:
    - `start_offset`: keep only requests with timestamp >= this value
    - `end_offset`: keep only requests with timestamp <= this value (-1 = no limit)
    - Example: `start_offset=1000, end_offset=5000` processes only timestamps in [1000, 5000]
+   - **Note**: When `fixed_schedule_auto_offset` is True, these offsets are applied against the **offset (shifted) timestamps** when filtering cases—i.e., auto_offset is applied first, then the time window is applied to the shifted timestamps.
 
 3. **Caching**:
    - When fixed_schedule parameters are used, the cache filename includes them so different settings use different caches
