@@ -7,8 +7,6 @@ import uuid
 from aiohttp import ClientSession
 from multiprocessing import BoundedSemaphore
 
-from bfcl_eval.utils import make_json_serializable
-
 from ais_bench.benchmark.openicl.icl_retriever import BaseRetriever
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.prompt import PromptList
