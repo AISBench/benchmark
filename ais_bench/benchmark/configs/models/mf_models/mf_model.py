@@ -1,4 +1,4 @@
-from ais_bench.benchmark.models import MindFormerModel
+from ais_bench.benchmark.models.local_models.mindformers_model import MindFormerModel
 
 models = [
     dict(
@@ -25,7 +25,8 @@ models = [
         ),
         run_cfg = dict(num_gpus=1, num_procs=1),  # 多卡/多机多卡 参数，使用torchrun拉起任务
         max_out_len=100, # 最大输出token长度
-        batch_size=2, # 每次推理的batch size
+        batch_size=2, # 每次拆分数据集的batch size
+        build_batch_size = 2, # 构建静态图模型时使用的build_batch_size>=batch_size
         max_seq_len=2048,
         batch_padding=True,
     )

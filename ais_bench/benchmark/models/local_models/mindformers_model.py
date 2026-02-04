@@ -8,14 +8,26 @@ import transformers
 from ais_bench.benchmark.models.local_models.base import BaseModel
 from ais_bench.benchmark.models import APITemplateParser
 from ais_bench.benchmark.registry import MODELS
-
-from mindspore import Tensor, Model
-from mindformers import  MindFormerConfig, build_context
-from mindformers.models import build_network
-from mindformers.core.parallel_config import build_parallel_config
-from mindformers.utils.load_checkpoint_utils import get_load_path_after_hf_convert
-from mindformers.trainer.utils import transform_and_load_checkpoint
-
+try:
+    from mindspore import Tensor, Model
+    from mindformers import  MindFormerConfig, build_context
+    from mindformers.models import build_network
+    from mindformers.core.parallel_config import build_parallel_config
+    from mindformers.utils.load_checkpoint_utils import get_load_path_after_hf_convert
+    from mindformers.trainer.utils import transform_and_load_checkpoint
+except ModuleNotFoundError as _mf_err:
+    MIND_FORMERS_INSTALL_GUIDE = (
+        "MindSpore/MindFormers is not available in the current environment. "
+        "To use `MindFormerModel`, install MindSpore and MindFormers and ensure any required "
+        "environment variables for your device are configured.\n\n"
+        "Quick steps (examples):\n"
+        "  1) Follow the official MindSpore installation guide for your platform: "
+        "https://www.mindspore.cn/install/en.\n"
+        "  2) Install MindFormers: `pip install mindformers` (or follow its docs); "
+        "alternatively, add a local MindFormers checkout to your PYTHONPATH, e.g.:\n"
+        "     PYTHONPATH=/path/to/mindformers:$PYTHONPATH\n"
+    )
+    raise ModuleNotFoundError(MIND_FORMERS_INSTALL_GUIDE) from _mf_err
 
 
 class MultiTokenEOSCriteria(transformers.StoppingCriteria):
@@ -61,7 +73,7 @@ class MindFormerModel(BaseModel):
                  path: str,
                  checkpoint: Optional[str] = None,
                  yaml_cfg_file: Optional[str] = None,
-                 batch_size: int = 1,
+                 build_batch_size: int = 1,
                  max_seq_len: int = 2048,
                  tokenizer_path: Optional[str] = None,
                  tokenizer_kwargs: dict = dict(),
@@ -79,7 +91,7 @@ class MindFormerModel(BaseModel):
                          max_seq_len=max_seq_len,
                          tokenizer_only=tokenizer_only,
                          meta_template=meta_template)
-        self.batch_size = batch_size
+        self.batch_size = build_batch_size
         self.pad_token_id = pad_token_id
         self.pretrained_model_path = path
         if mode not in ['none', 'mid']:

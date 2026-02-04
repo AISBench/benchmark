@@ -162,7 +162,7 @@ def build_model_from_cfg(model_cfg: ConfigDict):
     model_cfg.pop("use_timestamp", None)
     model_cfg.pop("run_cfg", None)
     model_cfg.pop("request_rate", None)
-    batch_size = model_cfg.pop("batch_size", None)
+    model_cfg.pop("batch_size", None)
     model_cfg.pop("abbr", None)
     model_cfg.pop("attr", None)
     model_cfg.pop("summarizer_abbr", None)
