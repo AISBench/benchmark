@@ -311,7 +311,8 @@ class MooncakeTrace:
             self.input_length = data.get("input_length")
             self.hash_ids = data.get("hash_ids")
             if self.hash_ids:
-                logger.warning("Trace contains both 'input_text' and 'hash_ids'; 'hash_ids' will be ignored. ")
+                logger.warning("Trace contains both 'input_text' and 'hash_ids'; 'hash_ids' will be ignored. "
+                                "Consider using either 'input_text' alone, or 'input_length' with 'hash_ids'.")
 
         self.output_length = data.get("output_length")
         self.timestamp = data.get("timestamp")

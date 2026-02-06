@@ -113,6 +113,12 @@ When using `hash_ids`, `input_length` must satisfy:
    - Example: `start_offset=1000, end_offset=5000` processes only timestamps in [1000, 5000]
    - **Note**: When `fixed_schedule_auto_offset` is True, these offsets are applied against the **offset (shifted) timestamps** when filtering cases—i.e., auto_offset is applied first, then the time window is applied to the shifted timestamps.
 
+   - **Time window truncation when fixed_schedule_auto_offset is True**:
+     - **Processing order**: First, auto_offset is applied to all traces that have a `timestamp` (subtract the minimum timestamp so the minimum becomes 0). Then, `start_offset` and `end_offset` are applied to these **shifted** timestamps to filter the time window.
+     - **Which traces participate**: Only traces with a `timestamp` participate in offset and time-window filtering; traces without a `timestamp` do not participate but are **always kept** in the result.
+     - **Truncation rule**: Keep a trace if its shifted timestamp satisfies: shifted_time >= start_offset and (end_offset is -1 or shifted_time <= end_offset). So the window is the closed interval `[start_offset, end_offset]` in milliseconds; end_offset=-1 means no upper bound.
+     - **Example**: Raw timestamps [1000, 2000, 5000] ms become [0, 1000, 4000] after auto_offset=True. With start_offset=500 and end_offset=3000, only traces whose shifted timestamp is in [500, 3000] are kept—i.e., only the trace with shifted time 1000 (original 2000 ms) is kept.
+
 3. **Caching**:
    - When fixed_schedule parameters are used, the cache filename includes them so different settings use different caches
    - If the cache file exists, it is loaded and prompt generation is skipped
