@@ -89,7 +89,6 @@ When using `hash_ids`, `input_length` must satisfy:
 | Parameter | Type | Description | Default |
 | ---- | ---- | ---- | ---- |
 | `path` | str | Path to the JSONL file with hash_id and trace data. Relative paths are relative to the project root; absolute paths are supported | Required |
-| `model_path` | str | Model path for loading the tokenizer | Required |
 | `random_seed` | int | Random seed for reproducibility | None |
 | `generated_prompts_path` | str | Path for generated prompt cache. If empty, a default cache path is used. Relative paths are relative to the project root | "" |
 
@@ -174,7 +173,6 @@ mooncake_trace_datasets = [
         abbr='mooncake-trace',
         type=MooncakeTraceDataset,
         path='path/to/trace.jsonl',
-        model_path='path/to/model',
         random_seed=1234,
         fixed_schedule_auto_offset=False,
         fixed_schedule_start_offset=1000,  # from 1s

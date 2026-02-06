@@ -91,7 +91,6 @@ Mooncake Trace 数据集是一个用于性能评测的 trace 数据集，支持�
 | 参数 | 类型 | 说明 | 默认值 |
 | ---- | ---- | ---- | ---- |
 | `path` | str | 原始包含 hash_id 和 trace 数据的 JSONL 文件路径。使用相对路径时相对于源码根路径，支持绝对路径 | 必需 |
-| `model_path` | str | 模型路径，用于加载 tokenizer | 必需 |
 | `random_seed` | int | 随机数种子，用于可复现性 | None |
 | `generated_prompts_path` | str | 生成的 prompt 缓存路径。如果为空，将自动生成缓存文件名。使用相对路径时相对于源码根路径，支持绝对路径 | "" |
 
@@ -137,7 +136,6 @@ mooncake_trace_datasets = [
         abbr='mooncake-trace',
         type=MooncakeTraceDataset,
         path='path/to/trace.jsonl',
-        model_path='path/to/model',
         random_seed=1234,
         generated_prompts_path='',  # 自动生成缓存路径
         fixed_schedule_auto_offset=False,
