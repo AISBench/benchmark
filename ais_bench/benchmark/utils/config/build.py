@@ -16,6 +16,33 @@ from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
 logger = AISLogger()
 
+
+def get_model_type_name(model_cfg: ConfigDict) -> str:
+    """从 model_cfg 得到稳定的模型类型名（用于分支判断）。兼容 type 为类或字符串。"""
+    t = model_cfg.get("type", "")
+    if t is None or t == "":
+        return ""
+    if hasattr(t, "__name__"):
+        return t.__name__
+    if isinstance(t, str):
+        return t.split(".")[-1] if "." in t else t
+    return ""
+
+
+def get_model_cls_from_cfg(model_cfg: ConfigDict):
+    """从 model_cfg 解析出模型类，用于读取 launcher 等类属性。"""
+    t = model_cfg.get("type", None)
+    if t is None:
+        return None
+    if isinstance(t, type) and hasattr(t, "__name__"):
+        return t
+    if isinstance(t, str):
+        name = t.split(".")[-1] if "." in t else t
+        if name in MODELS.module_dict:
+            return MODELS.get(name)
+    return None
+
+
 def _validate_model_cfg(model_cfg: ConfigDict) -> dict:
     errors = {}
 
@@ -124,7 +151,7 @@ def build_dataset_from_cfg(dataset_cfg: ConfigDict):
 def build_model_from_cfg(model_cfg: ConfigDict):
     logger.debug(f"Building model from config: type={model_cfg.get('type')} abbr={model_cfg.get('abbr')}")
     model_cfg = copy.deepcopy(model_cfg)
-    model_name = model_cfg.get("type", "").split(".")[-1]
+    model_name = get_model_type_name(model_cfg)
     errors = _validate_model_cfg(model_cfg)
     if errors:
         logger.warning(f"Model config validation failed for {model_name}: {errors}")
