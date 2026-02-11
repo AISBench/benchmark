@@ -1,6 +1,7 @@
 import os
 import os.path as osp
 import copy
+import shutil
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
@@ -79,7 +80,7 @@ class Infer(BaseWorker):
             logger.info("Merging datasets with the same model and inferencer...")
             tasks = self._merge_datasets(tasks)
 
-        runner = RUNNERS.build(cfg.judge_infer.runner)
+        runner = RUNNERS.build(cfg.infer.runner)
         runner(tasks)
         logger.info("Inference tasks completed.")
 
@@ -201,7 +202,7 @@ class JudgeInfer(BaseWorker):
             task["datasets"][0][0]["predictions_path"] = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
             if not osp.exists(task["datasets"][0][0]["predictions_path"]):
                 raise PredictionInvalidException(TMAN_CODES.UNKNOWN_ERROR, f"Predictions path {task['datasets'][0][0]['predictions_path']} does not exist.")
-            task["datasets"][0][0]["abbr"] = f'{task["datasets"][0][0]["abbr"]}-{task["datasets"][0][0]["judge_infer_cfg"]["judge_model"].pop("additional_abbr")}'
+            task["datasets"][0][0]["abbr"] = f'{task["datasets"][0][0]["abbr"]}-{task["datasets"][0][0]["judge_infer_cfg"]["judge_model"]["abbr"]}'
             model_abbr = task["models"][0]["abbr"]
             task["models"][0] = task["datasets"][0][0]["judge_infer_cfg"].pop("judge_model")
             task["models"][0]["abbr"] = model_abbr
@@ -263,14 +264,34 @@ class Eval(BaseWorker):
                 runner(task_part)
         else:
             runner(tasks)
+        self._result_post_process(tasks, cfg)
         logger.info("Evaluation tasks completed.")
 
     def _update_tasks_cfg(self, tasks, cfg: ConfigDict):
         # Replace default model config to judge model config
+        self.judge_result_paths = {}
         for task in tasks:
             if task["datasets"][0][0].get("judge_infer_cfg"):
-                task["datasets"][0][0]["abbr"] = f'{task["datasets"][0][0]["abbr"]}-{task["datasets"][0][0]["judge_infer_cfg"]["judge_model"].pop("additional_abbr")}'
+                new_dataset_abbr = f'{task["datasets"][0][0]["abbr"]}-{task["datasets"][0][0]["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                org_dataset_abbr = task["datasets"][0][0]["abbr"]
+                self.judge_result_paths[new_dataset_abbr] = org_dataset_abbr
+                task["datasets"][0][0]["abbr"] = new_dataset_abbr
                 task["datasets"][0][0].pop("judge_infer_cfg")
+
+    def _result_post_process(self, tasks, cfg: ConfigDict):
+        # Copy judge infer result to normal name
+
+        for task in tasks:
+            if task["datasets"][0][0]["abbr"] in self.judge_result_paths.keys():
+                cur_results_path = osp.join(cfg.eval.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
+                final_org_results_path = osp.join(cfg.eval.partitioner.out_dir, task["models"][0]["abbr"], f'{self.judge_result_paths[task["datasets"][0][0]["abbr"]]}.jsonl')
+                if os.path.exists(final_org_results_path):
+                    os.remove(final_org_results_path)
+
+                if os.path.exists(cur_results_path):
+                    # 基于cur_results_path的文件复制一份final_org_results_path
+                    shutil.copy(cur_results_path, final_org_results_path)
+
 
 class AccViz(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
@@ -324,7 +345,7 @@ class AccViz(BaseWorker):
     def _cfg_pre_process(self, cfg: ConfigDict) -> None:
         for i, dataset in enumerate(cfg.datasets):
             if dataset.get("judge_infer_cfg"):
-                cfg.datasets[i]["abbr"] = f'{cfg.datasets[i]["abbr"]}-{cfg.datasets[i]["judge_infer_cfg"]["judge_model"].pop("additional_abbr")}'
+                cfg.datasets[i]["abbr"] = f'{cfg.datasets[i]["abbr"]}-{cfg.datasets[i]["judge_infer_cfg"]["judge_model"]["abbr"]}'
                 cfg.datasets[i].pop("judge_infer_cfg")
         return cfg
 

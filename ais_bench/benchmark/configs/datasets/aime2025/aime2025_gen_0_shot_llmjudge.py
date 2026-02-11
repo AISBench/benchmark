@@ -38,10 +38,11 @@ GRADER_TEMPLATE = """
     3. Some answers may contain multiple items, such as multiple-choice questions, multiple-select questions, fill-in-the-blank questions, etc. As long as the answer is the same as the standard answer, it is enough. For multiple-select questions and multiple-blank fill-in-the-blank questions, the candidate needs to answer all the corresponding options or blanks correctly to be considered correct.
     4. Some answers may be expressed in different ways, such as some answers may be a mathematical expression, some answers may be a textual description, as long as the meaning expressed is the same. And some formulas are expressed in different ways, but they are equivalent and correct.
     5. If the prediction is given with \\boxed{}, please ignore the \\boxed{} and only judge whether the candidate's answer is consistent with the standard answer.
+    6. If the candidate's answer is semantically incomplete at the end, please judge it as inconsistent.
 
     Please judge whether the following answers are consistent with the standard answer based on the above criteria. Grade the predicted answer of this new question as one of:
-    A: CORRECT
-    B: INCORRECT
+    A: Means the answer is consistent with the standard answer.
+    B: Means the answer is inconsistent with the standard answer.
     Just return the letters "A" or "B", with no text around it.
 
     Here is your task. Simply reply with either CORRECT, INCORRECT. Don't apologize or correct yourself if there was a mistake; we are just trying to grade the answer.
@@ -51,7 +52,7 @@ GRADER_TEMPLATE = """
     <Gold Target Begin>: \n{answer}\n<Gold Target End>\n\n
     <Predicted Answer Begin>: \n{model_answer}\n<Predicted End>\n\n
 
-    Judging the correctness of candidates' answers:
+    Judging the correctness of candidates' answers, please return the the letters "A" or "B" first before your thinking:
 """.strip()
 
 aime2025_judge_infer_cfg = dict(
@@ -59,7 +60,7 @@ aime2025_judge_infer_cfg = dict(
     judge_model=dict(
         attr="service",
         type=VLLMCustomAPIChat,
-        additional_abbr="judge", # Be added after dataset abbr
+        abbr="judge", # Be added after dataset abbr
         path="",
         model="",
         stream=True,
