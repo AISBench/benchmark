@@ -420,7 +420,8 @@ class TokenProducer:
                 self.token_bucket.acquire()
 
         if self.request_rate < WARNING_RPS_MINIMUM_THRESHOLD:
-            self.logger.warning("The request rate is below 0.1, resulting in an excessively long interval between two consecutive requests.")
+            self.logger.warning(f"The request rate is below {WARNING_RPS_MINIMUM_THRESHOLD}, resulting in an "
+                                "excessively long interval between two consecutive requests.")
 
         self.interval_lists = []
         # If timestamps are provided, use them directly
