@@ -29,7 +29,8 @@ from ais_bench.benchmark.utils.visualization.rps_distribution_plot import plot_r
 MAX_VIRTUAL_MEMORY_USAGE_PERCENT = 80
 INDEX_READ_FLAG = -1
 
-FINAL_RPS_MINIMUM_THRESHOLD = 0.1  # minimum acceptable RPS
+WARNING_RPS_MINIMUM_THRESHOLD = 0.1  # minimum warning RPS, below the threshold write a warning log
+FINAL_RPS_MINIMUM_THRESHOLD = 0.001  # minimum acceptable RPS
 MIN_RELIABLE_INTERVAL = 0.001  # minimum reliable time interval (1 millisecond)
 
 logger = AISLogger()
@@ -407,7 +408,7 @@ class TokenProducer:
         self.perf_mode = self.pressure_mode or mode == "perf"
         self.burstiness = 1.0
         self.work_dir = work_dir
-        # When request_rate < 0.1, treat as infinite (no pacing applied here)
+        # When request_rate < 0.001, treat as infinite (no pacing applied here)
         if self.request_rate < FINAL_RPS_MINIMUM_THRESHOLD and not time_stamps:
             self.token_bucket = None
             if self.pressure_mode:
@@ -417,6 +418,9 @@ class TokenProducer:
             # First release all tokens in token_bucket to make it empty
             for _ in range(request_num + 1):
                 self.token_bucket.acquire()
+
+        if self.request_rate < WARNING_RPS_MINIMUM_THRESHOLD:
+            self.logger.warning("The request rate is below 0.1, resulting in an excessively long interval between two consecutive requests.")
 
         self.interval_lists = []
         # If timestamps are provided, use them directly
