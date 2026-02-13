@@ -1,5 +1,9 @@
+import os
 import time
 from abc import abstractmethod
+from typing import Union
+
+from PIL import Image
 
 import numpy as np
 
@@ -175,3 +179,61 @@ class FunctionCallOutput(Output):
             message = item.get("message", {})
             self.extra_details_data["message"] = message
             return  # only one message is allowed
+
+
+LLM_META_DATA_TYPE = Union[Image, str]
+
+
+class LMMOutput(Output):
+    def __init__(self, perf_mode: bool = False) -> None:
+        super().__init__(perf_mode)
+        self.content: list[LLM_META_DATA_TYPE] = [""]
+        self.HANDLER_MAP = {
+            Image.Image: self._handle_image,
+            str: self._handle_text,
+        }
+
+    def get_prediction(self, save_dir: str) -> dict:
+        """Get the final prediction by combining content and reasoning.
+
+        Returns:
+            dict: Combined prediction content
+        """
+        output = []
+        for i, item in enumerate(self.content):
+            output.append(self.HANDLER_MAP[type(item)](save_dir, i))
+        if len(output) == 1:
+            return output[0]
+        else:
+            return output
+
+    def _handle_image(self, save_dir: str, index: int) -> str:
+        """Handle image content.
+
+        Args:
+            save_dir: Directory to save image
+            index: Index of image in content list
+
+        Returns:
+            str: Last two levels of image path
+        """
+        image = self.content[index]
+        image_path = os.path.join(save_dir, f"image_{self.uuid}_{index}.png")
+        if os.path.exists(image_path):
+            os.remove(image_path)
+        image.save(image_path)
+        return os.path.join(*image_path.split(os.sep)[-2:])
+
+    def _handle_text(self, save_dir: str, index: int) -> str:
+        """Handle text content.
+
+        Args:
+            save_dir: Directory to save text
+            index: Index of text in content list
+
+        Returns:
+            str: Text content
+        """
+        return self.content[index]
+
+
