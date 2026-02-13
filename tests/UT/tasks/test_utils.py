@@ -315,14 +315,14 @@ class TestTokenProducer(unittest.TestCase):
         mock_logger_class.return_value = mock_logger
 
         producer = TokenProducer(
-            request_rate=0.05,
+            request_rate=0.0001,  # 低于 FINAL_RPS_MINIMUM_THRESHOLD (0.001)
             time_stamps=[],
             traffic_cfg=self.traffic_cfg,
             request_num=self.request_num,
             mode="pressure" if self.pressure_mode else "infer"
         )
 
-        self.assertEqual(producer.request_rate, 0.05)
+        self.assertEqual(producer.request_rate, 0.0001)
         self.assertIsNone(producer.token_bucket)
 
     @patch('ais_bench.benchmark.tasks.utils.AISLogger')
@@ -430,7 +430,7 @@ class TestTokenProducer(unittest.TestCase):
         mock_logger_class.return_value = mock_logger
 
         producer = TokenProducer(
-            request_rate=0.05,  # 低速率，token_bucket为None
+            request_rate=0.0001,  # 低于 FINAL_RPS_MINIMUM_THRESHOLD (0.001)，确保token_bucket为None
             time_stamps=[],
             traffic_cfg=self.traffic_cfg,
             request_num=self.request_num,
