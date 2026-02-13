@@ -5,14 +5,14 @@ import random
 import threading
 import sys
 import time
-from typing import Any
+from typing import Any, Callable, Dict
 
 from mmengine.config import Config, ConfigDict
 from mmengine.utils import mkdir_or_exist
 
 from ais_bench.benchmark.registry import (ICL_INFERENCERS, ICL_RETRIEVERS, TASKS)
 from ais_bench.benchmark.tasks.base import BaseTask
-from ais_bench.benchmark.utils.config import build_dataset_from_cfg
+from ais_bench.benchmark.utils.config import build_dataset_from_cfg, get_model_cls_from_cfg
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg, model_abbr_from_cfg
 from ais_bench.benchmark.tasks.base import TaskStateManager
 from ais_bench.benchmark.utils.logging import AISLogger
@@ -21,6 +21,51 @@ from ais_bench.benchmark.utils.logging.error_codes import TINFER_CODES
 from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_local_inferencer import BaseLocalInferencer
 
+
+def _build_msrun_cmd(ctx: Dict[str, Any]) -> str:
+    """Build msrun command from context dict."""
+    parts = [
+        "msrun",
+        f"--worker_num={ctx['worker_num']}",
+        f"--local_worker_num={ctx['local_worker_num']}",
+        f"--master_port={ctx['port']}",
+    ]
+    if ctx.get("master_addr") is not None and ctx.get("node_rank") is not None:
+        parts.extend([
+            f"--master_addr={ctx['master_addr']}",
+            f"--node_rank={ctx['node_rank']}",
+        ])
+    parts.extend([
+        "--log_dir='output/msrun_log'",
+        "--join=True",
+        "--cluster_time_out=7200",
+        ctx["script_path"],
+        ctx["cfg_path"],
+    ])
+    return " ".join(parts)
+
+
+def _build_torchrun_cmd(ctx: Dict[str, Any]) -> str:
+    """Build torchrun command from context dict."""
+    parts = [
+        "torchrun",
+        f"--master_port={ctx['port']}",
+        f"--nproc_per_node {ctx['nproc_per_node']}",
+    ]
+    if ctx.get("nnodes", 1) > 1:
+        parts.extend([
+            f"--nnodes {ctx['nnodes']}",
+            f"--node_rank {ctx['node_rank']}",
+            f"--master_addr {ctx['master_addr']}",
+        ])
+    parts.extend([ctx["script_path"], ctx["cfg_path"]])
+    return " ".join(parts)
+
+
+LAUNCHER_CMD_BUILDERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
+    "msrun": _build_msrun_cmd,
+    "torchrun": _build_torchrun_cmd,
+}
 
 
 @TASKS.register_module()
@@ -59,19 +104,36 @@ class OpenICLInferTask(BaseTask):
             key in str(self.model_cfg.get('type', ''))
             or key in str(self.model_cfg.get('llm', {}).get('type', ''))
             for key in backend_keys)
+        model_cls = get_model_cls_from_cfg(self.model_cfg)
+        launcher = getattr(model_cls, 'launcher', 'torchrun') if model_cls else 'torchrun'
         if self.num_gpus > 1 and not use_backend and self.nnodes == 1:
-            port = random.randint(12000, 32000)
-            command = (f'torchrun --master_port={port} '
-                       f'--nproc_per_node {self.num_procs} '
-                       f'{script_path} {cfg_path}')
+            ctx = dict(
+                port=random.randint(12000, 32000),
+                script_path=script_path,
+                cfg_path=cfg_path,
+                worker_num=self.num_gpus,
+                local_worker_num=self.num_gpus,
+                nproc_per_node=self.num_procs,
+                nnodes=1,
+                master_addr=None,
+                node_rank=None,
+            )
+            builder = LAUNCHER_CMD_BUILDERS.get(launcher, LAUNCHER_CMD_BUILDERS["torchrun"])
+            command = builder(ctx)
         elif self.nnodes > 1:
-            port = 12345
-            command = (f'torchrun --master_port={port} '
-                       f'--nproc_per_node {self.num_procs} '
-                       f'--nnodes {self.nnodes} '
-                       f'--node_rank {self.node_rank} '
-                       f'--master_addr {self.master_addr} '
-                       f'{script_path} {cfg_path}')
+            ctx = dict(
+                port=12345,
+                script_path=script_path,
+                cfg_path=cfg_path,
+                worker_num=self.nnodes * self.num_procs,
+                local_worker_num=self.num_procs,
+                nproc_per_node=self.num_procs,
+                nnodes=self.nnodes,
+                master_addr=self.master_addr,
+                node_rank=self.node_rank,
+            )
+            builder = LAUNCHER_CMD_BUILDERS.get(launcher, LAUNCHER_CMD_BUILDERS["torchrun"])
+            command = builder(ctx)
         else:
             python = sys.executable
             command = f'{python} {script_path} {cfg_path}'
