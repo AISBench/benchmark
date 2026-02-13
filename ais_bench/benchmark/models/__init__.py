@@ -15,3 +15,4 @@ from ais_bench.benchmark.models.api_models.triton_api import TritonCustomAPIStre
 from ais_bench.benchmark.models.api_models.tgi_api import TGICustomAPIStream # noqa: F401
 from ais_bench.benchmark.models.api_models.vllm_custom_api_chat import VllmMultiturnAPIChatStream # noqa: F401
 from ais_bench.benchmark.models.local_models.vllm_offline_vl import VLLMOfflineVLModel
+from ais_bench.benchmark.models.local_models.qwen_image_edit_mindie_sd import QwenImageEditModel

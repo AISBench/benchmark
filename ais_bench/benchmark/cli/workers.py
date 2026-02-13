@@ -80,7 +80,7 @@ class Infer(BaseWorker):
             logger.info("Merging datasets with the same model and inferencer...")
             tasks = self._merge_datasets(tasks)
 
-        runner = RUNNERS.build(cfg.judge_infer.runner)
+        runner = RUNNERS.build(cfg.infer.runner)
         runner(tasks)
         logger.info("Inference tasks completed.")
 

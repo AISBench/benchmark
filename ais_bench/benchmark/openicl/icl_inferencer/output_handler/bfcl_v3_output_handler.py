@@ -11,7 +11,13 @@ class BFCLV3OutputHandler(BaseInferencerOutputHandler):
     """
     Output handler for BFCLV3 inference tasks.
     """
-    def get_prediction_result(self, output: FunctionCallOutput, gold: Optional[str] = None, input: Optional[Union[str, List[str]]] = None) -> dict:
+    def get_prediction_result(
+        self,
+        output: FunctionCallOutput,
+        gold: Optional[str] = None,
+        input: Optional[Union[str, List[str]]] = None,
+        data_abbr: Optional[str] = ""
+    ) -> dict:
         """
         Get the prediction result for BFCLV3 inference tasks.
 
@@ -19,6 +25,8 @@ class BFCLV3OutputHandler(BaseInferencerOutputHandler):
             output (FunctionCallOutput): Output result from inference
             gold (Optional[str]): Ground truth data for comparison
             input (Optional[Union[str, List[str]]]): Input data for the inference (not used in this implementation)
+            data_abbr (Optional[str]): Abbreviation of the dataset (not used in this implementation)
+
         Returns:
             dict: Prediction result containing success, uuid, prediction (tool_calls), and inference_log
         Raises:
