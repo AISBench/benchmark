@@ -131,7 +131,7 @@ class BaseJDGDataset(BaseDataset):
             dataset_list = []
             for item in predictions:
                 item_dict = dataset_content[int(item["id"])]
-                item_dict["model_answer"] = item["prediction"]
+                self._modify_dataset_item(item_dict, item)
                 item_dict["model_pred_uuid"] = item["uuid"] # Be filled in gold
                 dataset_list.append(item_dict)
         elif isinstance(dataset_content, DatasetDict):
@@ -139,7 +139,7 @@ class BaseJDGDataset(BaseDataset):
             for key in dataset_content:
                 for item in predictions:
                     item_dict = dataset_content[key][int(item["id"])]
-                    item_dict["model_answer"] = item["prediction"]
+                    self._modify_dataset_item(item_dict, item)
                     item_dict["model_pred_uuid"] = item["uuid"] # Be filled in gold
                     dataset_list.append(item_dict)
         else:
@@ -154,6 +154,9 @@ class BaseJDGDataset(BaseDataset):
     @abstractmethod
     def _get_dataset_class(self):
         return BaseDataset
+
+    def _modify_dataset_item(self, dataset_item, pred_item):
+        dataset_item["model_answer"] = pred_item["prediction"]
 
     def _init_org_datasets_instance(
         self,
