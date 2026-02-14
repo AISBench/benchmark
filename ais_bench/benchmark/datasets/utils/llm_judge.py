@@ -1,5 +1,8 @@
 import re
 import os
+import base64
+from io import BytesIO
+from PIL import Image
 
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.registry import (ICL_EVALUATORS, LOAD_DATASET,
@@ -30,6 +33,42 @@ class LLMJudgeDataset(BaseJDGDataset):
         if os.path.exists(prediction_path):
             preds = load_jsonl(prediction_path)
         preds.sort(key=lambda x: x.get('id',0))
+        return preds
+
+class LMMImgJDGDataset(BaseJDGDataset):
+    def _load_from_predictions(self, prediction_path: str):
+        """从prediction中拿到对应图片相对路径，将这个路径的图片加载并转换为Base64字符串.
+
+        Args:
+            prediction_path (str): The path to the prediction file.
+
+        Returns:
+            Dataset: The merged dataset with predictions.
+        """
+        if os.path.exists(prediction_path):
+            preds = load_jsonl(prediction_path)
+
+        # 遍历预测结果，加载图片并转换为Base64字符串
+        for pred in preds:
+            # 假设pred中包含图片相对路径
+            image_path = pred.get('prediction', '')
+            if image_path and os.path.exists(image_path):
+                try:
+                    # 加载图片
+                    with Image.open(image_path) as img:
+                        # 转换为RGB格式
+                        img = img.convert('RGB')
+                        # 保存到BytesIO
+                        buffered = BytesIO()
+                        img.save(buffered, format="PNG")
+                        # 转换为Base64字符串
+                        img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                        # 更新pred中的image字段为Base64字符串
+                        pred['prediction'] = img_base64
+                except Exception as e:
+                    logger.error(f"Failed to load image {image_path}: {e}")
+
+        preds.sort(key=lambda x: x.get('id', 0))
         return preds
 
 
