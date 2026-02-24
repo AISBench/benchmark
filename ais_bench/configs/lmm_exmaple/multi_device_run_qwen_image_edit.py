@@ -3,7 +3,7 @@ from mmengine.config import read_base
 with read_base():
     from ais_bench.benchmark.configs.models.lmm_models.qwen_image_edit import models as qwen_image_edit_models
     from ais_bench.benchmark.configs.summarizers.example import summarizer
-    from ais_bench.benchmark.configs.datasets.gedit.gedit_gen import gedit_datasets
+    from ais_bench.benchmark.configs.datasets.gedit.gedit_gen_0_shot_llmjudge import gedit_datasets
 
 device_list = [0, 1, 2, 3]
 

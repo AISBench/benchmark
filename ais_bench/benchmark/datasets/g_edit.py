@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from ais_bench.benchmark.registry import LOAD_DATASET
 from ais_bench.benchmark.openicl import BaseEvaluator
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path
-from ais_bench.benchmark.datasets.utils.llm_judge import LMMImgJDGDataset
+from ais_bench.benchmark.datasets.utils.lmm_judge import LMMImgJDGDataset
 from ais_bench.benchmark.utils.image_process import pil_to_base64
 from PIL import Image
 from tqdm import tqdm
@@ -13,7 +13,7 @@ from tqdm import tqdm
 from ais_bench.benchmark.datasets.base import BaseDataset
 from ais_bench.benchmark.utils.prompt import AIS_CONTENT_TAG, AIS_TEXT_START, AIS_IMAGE_START
 
-GEDIT_COUNT = 10
+GEDIT_COUNT = 1
 
 class GEditEvaluator(BaseEvaluator):
     def score(self, predictions, references):

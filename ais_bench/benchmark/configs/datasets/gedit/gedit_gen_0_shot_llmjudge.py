@@ -63,11 +63,11 @@ gedit_judge_infer_cfg = dict(
         use_timestamp=False,
         retry=2,
         api_key="",
-        host_ip="localhost",
-        host_port=8080,
+        host_ip="192.168.9.123",
+        host_port=5103,
         url="",
         max_out_len=512,
-        batch_size=1,
+        batch_size=16,
         trust_remote_code=False,
         generation_kwargs=dict(
             temperature=0.01,
@@ -89,7 +89,7 @@ gedit_judge_infer_cfg = dict(
         ),
     ),
     retriever=dict(type=ZeroRetriever),
-    inferencer=dict(type=LMMGenInferencer),
+    inferencer=dict(type=GenInferencer),
 )
 
 gedit_eval_cfg = dict(
@@ -101,7 +101,7 @@ gedit_datasets = [
     dict(
         abbr="gedit",
         type=GEditDataset,
-        path="ais_bench/datasets/gedit/gedit.jsonl",
+        path="ais_bench/datasets/GEdit-Bench",
         reader_cfg=gedit_reader_cfg,
         infer_cfg=gedit_infer_cfg,
         judge_infer_cfg=gedit_judge_infer_cfg,
