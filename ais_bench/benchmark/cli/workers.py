@@ -116,7 +116,7 @@ class Infer(BaseWorker):
 class JudgeInfer(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
         def get_task_type() -> str:
-            if task["datasets"][0][0]["judge_infer_cfg"]["judge_model"]["attr"] == "service":
+            if cfg["datasets"][0]["judge_infer_cfg"]["judge_model"]["attr"] == "service":
                 return get_config_type(OpenICLApiInferTask)
             else:
                 return get_config_type(OpenICLInferTask)
