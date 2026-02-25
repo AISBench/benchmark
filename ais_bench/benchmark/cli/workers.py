@@ -193,12 +193,18 @@ class JudgeInfer(BaseWorker):
 
     def _cfg_pre_process(self, cfg: ConfigDict) -> None:
         self.org_dataset_abbrs = {}
-        for i, dataset in enumerate(cfg.datasets):
-            if dataset.get("judge_infer_cfg"):
-                org_dataset_abbr = cfg.datasets[i]["abbr"]
-                new_dataset_abbr = f'{cfg.datasets[i]["abbr"]}-{cfg.datasets[i]["judge_infer_cfg"]["judge_model"]["abbr"]}'
-                cfg.datasets[i]["abbr"] = new_dataset_abbr
+        def change_judge_dataset_abbr(item):
+            if item.get("judge_infer_cfg"):
+                org_dataset_abbr = item["abbr"]
+                new_dataset_abbr = f'{item["abbr"]}-{item["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                item["abbr"] = new_dataset_abbr
                 self.org_dataset_abbrs[new_dataset_abbr] = org_dataset_abbr
+        if cfg.get('model_dataset_combinations', None) is not None:
+            for item in cfg.model_dataset_combinations:
+                for dataset in item["datasets"]:
+                    change_judge_dataset_abbr(dataset)
+        for dataset in cfg.datasets:
+            change_judge_dataset_abbr(dataset)
         return cfg
 
     def _update_tasks_cfg(self, tasks, cfg: ConfigDict):
@@ -281,12 +287,18 @@ class Eval(BaseWorker):
 
     def _cfg_pre_process(self, cfg: ConfigDict) -> None:
         self.org_dataset_abbrs = {}
-        for i, dataset in enumerate(cfg.datasets):
-            if dataset.get("judge_infer_cfg"):
-                org_dataset_abbr = cfg.datasets[i]["abbr"]
-                new_dataset_abbr = f'{cfg.datasets[i]["abbr"]}-{cfg.datasets[i]["judge_infer_cfg"]["judge_model"]["abbr"]}'
-                cfg.datasets[i]["abbr"] = new_dataset_abbr
+        def change_eval_dataset_abbr(item):
+            if item.get("judge_infer_cfg"):
+                org_dataset_abbr = item["abbr"]
+                new_dataset_abbr = f'{item["abbr"]}-{item["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                item["abbr"] = new_dataset_abbr
                 self.org_dataset_abbrs[new_dataset_abbr] = org_dataset_abbr
+        if cfg.get('model_dataset_combinations', None) is not None:
+            for item in cfg.model_dataset_combinations:
+                for dataset in item["datasets"]:
+                    change_eval_dataset_abbr(dataset)
+        for dataset in cfg.datasets:
+            change_eval_dataset_abbr(dataset)
         return cfg
 
     def _update_tasks_cfg(self, tasks, cfg: ConfigDict):
