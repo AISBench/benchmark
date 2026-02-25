@@ -1,5 +1,7 @@
 from abc import abstractmethod
 from typing import List, Dict, Optional, Union, Type
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from datasets import Dataset, DatasetDict
 from datasets.utils.logging import disable_progress_bar
@@ -129,19 +131,33 @@ class BaseJDGDataset(BaseDataset):
         # 为数据集添加 model_answer 列
         if isinstance(dataset_content, Dataset):
             dataset_list = []
-            for item in predictions:
-                item_dict = dataset_content[int(item["id"])]
-                self._modify_dataset_item(item_dict, item)
-                item_dict["model_pred_uuid"] = item["uuid"] # Be filled in gold
-                dataset_list.append(item_dict)
+            with ThreadPoolExecutor() as executor:
+                futures = []
+                for item in predictions:
+                    future = executor.submit(self._process_single_item, dataset_content, item)
+                    futures.append(future)
+
+                with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
+                    for future in as_completed(futures):
+                        result = future.result()
+                        dataset_list.append(result)
+                        pbar.update(1)
+                        pbar.refresh()
         elif isinstance(dataset_content, DatasetDict):
             dataset_list = []
-            for key in dataset_content:
-                for item in predictions:
-                    item_dict = dataset_content[key][int(item["id"])]
-                    self._modify_dataset_item(item_dict, item)
-                    item_dict["model_pred_uuid"] = item["uuid"] # Be filled in gold
-                    dataset_list.append(item_dict)
+            with ThreadPoolExecutor() as executor:
+                futures = []
+                for key in dataset_content:
+                    for item in predictions:
+                        future = executor.submit(self._process_single_item, dataset_content[key], item)
+                        futures.append(future)
+
+                with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
+                    for future in as_completed(futures):
+                        result = future.result()
+                        dataset_list.append(result)
+                        pbar.update(1)
+                        pbar.refresh()
         else:
             raise ValueError(f"Unsupported dataset type: {type(dataset_content)}")
 
@@ -157,6 +173,12 @@ class BaseJDGDataset(BaseDataset):
 
     def _modify_dataset_item(self, dataset_item, pred_item):
         dataset_item["model_answer"] = pred_item["prediction"]
+
+    def _process_single_item(self, dataset_content, pred_item):
+        item_dict = dataset_content[int(pred_item["id"])]
+        self._modify_dataset_item(item_dict, pred_item)
+        item_dict["model_pred_uuid"] = pred_item["uuid"]
+        return item_dict
 
     def _init_org_datasets_instance(
         self,
