@@ -184,7 +184,8 @@ class BaseJDGDataset(BaseDataset):
             if len(dataset_batches) == 1:
                 return dataset_batches[0]
             else:
-                return Dataset.concatenate_datasets(dataset_batches)
+                from datasets import concatenate_datasets
+                return concatenate_datasets(dataset_batches)
         else:
             return Dataset.from_list([])
 
