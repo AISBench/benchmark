@@ -129,8 +129,11 @@ class BaseJDGDataset(BaseDataset):
         predictions: list = self._load_from_predictions(predictions_path)
 
         # 为数据集添加 model_answer 列
+        batch_size = 10  # 批处理大小，可以根据实际情况调整
+        dataset_batches = []
+        current_batch = []
+
         if isinstance(dataset_content, Dataset):
-            dataset_list = []
             with ThreadPoolExecutor() as executor:
                 futures = []
                 for item in predictions:
@@ -140,11 +143,16 @@ class BaseJDGDataset(BaseDataset):
                 with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
                     for future in as_completed(futures):
                         result = future.result()
-                        dataset_list.append(result)
+                        current_batch.append(result)
+
+                        # 当批次达到指定大小时，转换为Dataset并添加到批次列表
+                        if len(current_batch) >= batch_size:
+                            dataset_batches.append(Dataset.from_list(current_batch))
+                            current_batch = []
+
                         pbar.update(1)
                         pbar.refresh()
         elif isinstance(dataset_content, DatasetDict):
-            dataset_list = []
             with ThreadPoolExecutor() as executor:
                 futures = []
                 for key in dataset_content:
@@ -155,13 +163,30 @@ class BaseJDGDataset(BaseDataset):
                 with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
                     for future in as_completed(futures):
                         result = future.result()
-                        dataset_list.append(result)
+                        current_batch.append(result)
+
+                        # 当批次达到指定大小时，转换为Dataset并添加到批次列表
+                        if len(current_batch) >= batch_size:
+                            dataset_batches.append(Dataset.from_list(current_batch))
+                            current_batch = []
+
                         pbar.update(1)
                         pbar.refresh()
         else:
             raise ValueError(f"Unsupported dataset type: {type(dataset_content)}")
 
-        return Dataset.from_list(dataset_list)
+        # 处理最后一个不完整的批次
+        if current_batch:
+            dataset_batches.append(Dataset.from_list(current_batch))
+
+        # 合并所有批次的Dataset
+        if dataset_batches:
+            if len(dataset_batches) == 1:
+                return dataset_batches[0]
+            else:
+                return Dataset.concatenate_datasets(dataset_batches)
+        else:
+            return Dataset.from_list([])
 
     @abstractmethod
     def _load_from_predictions(self, prediction_path: str) -> Dict:
