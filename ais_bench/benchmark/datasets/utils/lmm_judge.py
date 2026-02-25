@@ -77,17 +77,6 @@ class LMMImgJDGDataset(BaseJDGDataset):
         processed_preds.sort(key=lambda x: x.get('id', 0))
         return processed_preds
 
-    def _modify_dataset_item(self, dataset_item, pred_item):
-        for item in dataset_item["content"].split(AIS_CONTENT_TAG):
-            if item.startswith(AIS_TEXT_START):
-                question = item.replace(AIS_TEXT_START, "")
-            elif item.startswith(AIS_IMAGE_START):
-                org_image_url = item.replace(AIS_IMAGE_START, "")
-        self.logger.debug(f"org_image_url: {org_image_url[:64]} \n pred_image_url: {pred_item['prediction'][:64]}")
-        dataset_item["content"] = AIS_TEXT_START + question + AIS_CONTENT_TAG \
-            + AIS_IMAGE_START + org_image_url + AIS_CONTENT_TAG \
-            + AIS_IMAGE_START + pred_item['prediction'] + AIS_CONTENT_TAG
-
 
 class ImgSCJDGDataset(LMMImgJDGDataset):
     def _modify_dataset_item(self, dataset_item, pred_item):
