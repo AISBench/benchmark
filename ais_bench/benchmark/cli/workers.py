@@ -426,4 +426,5 @@ class WorkFlowExecutor:
 
     def execute(self) -> None:
         for worker in self.workflow:
-            worker.do_work(self.cfg)
+            cfg = copy.deepcopy(self.cfg)
+            worker.do_work(cfg)
