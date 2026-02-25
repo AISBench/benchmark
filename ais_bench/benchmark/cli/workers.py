@@ -10,7 +10,12 @@ from ais_bench.benchmark.utils.config.run import get_config_type
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask, OpenICLInferTask
+from ais_bench.benchmark.tasks import (
+    OpenICLEvalTask,
+    OpenICLApiInferTask,
+    OpenICLInferTask,
+    VBenchEvalTask,
+)
 from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need
@@ -108,15 +113,33 @@ class Infer(BaseWorker):
                 task.attack = cfg.attack
 
 
+def _has_vbench_dataset(cfg: ConfigDict) -> bool:
+    """True if any dataset in config is a VBench dataset (use_vbench_task or VBenchDataset type)."""
+    for item in cfg.get("datasets", []):
+        for ds in (item if isinstance(item, (list, tuple)) else [item]):
+            eval_cfg = ds.get("eval_cfg") or {}
+            if eval_cfg.get("use_vbench_task") is True:
+                return True
+            type_str = str(ds.get("type", ""))
+            if "VBenchDataset" in type_str or "vbench" in type_str.lower():
+                return True
+    return False
+
+
 class Eval(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
+        eval_task_type = (
+            get_config_type(VBenchEvalTask)
+            if _has_vbench_dataset(cfg)
+            else get_config_type(OpenICLEvalTask)
+        )
         new_cfg = dict(
             eval=dict(
                 partitioner=dict(type=get_config_type(NaivePartitioner)),
                 runner=dict(
                     max_num_workers=self.args.max_num_workers,
                     debug=self.args.debug,
-                    task=dict(type=get_config_type(OpenICLEvalTask)),
+                    task=dict(type=eval_task_type),
                 ),
             ),
         )
