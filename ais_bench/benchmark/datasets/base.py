@@ -1,5 +1,7 @@
 from abc import abstractmethod
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Type
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from datasets import Dataset, DatasetDict
 from datasets.utils.logging import disable_progress_bar
@@ -106,5 +108,84 @@ class BaseDataset:
         return self.reader.dataset['test']
 
     @abstractmethod
-    def load(**kwargs) -> Union[Dataset, DatasetDict]:
+    def load(self, **kwargs) -> Union[Dataset, DatasetDict]:
         pass
+
+
+class BaseJDGDataset(BaseDataset):
+    def __init__(self,
+                reader_cfg: Optional[Dict] = {},
+                k: Union[int, List[int]] = 1,
+                n: int = 1,
+                **kwargs):
+        self.dataset_instance = self._init_org_datasets_instance(reader_cfg, k, n, **kwargs)
+        super().__init__(reader_cfg, k, n, **kwargs)
+
+    def load(self, predictions_path: str, **kwargs):
+
+        dataset_content = self.dataset_instance.dataset["test"]
+
+        # 加载被测模型的推理结果(排序后)
+        predictions: list = self._load_from_predictions(predictions_path)
+
+        # 为数据集添加 model_answer 列
+        if isinstance(dataset_content, Dataset):
+            dataset_list = []
+            with ThreadPoolExecutor() as executor:
+                futures = []
+                for item in predictions:
+                    future = executor.submit(self._process_single_item, dataset_content, item)
+                    futures.append(future)
+
+                with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
+                    for future in as_completed(futures):
+                        result = future.result()
+                        dataset_list.append(result)
+                        pbar.update(1)
+                        pbar.refresh()
+        elif isinstance(dataset_content, DatasetDict):
+            dataset_list = []
+            with ThreadPoolExecutor() as executor:
+                futures = []
+                for key in dataset_content:
+                    for item in predictions:
+                        future = executor.submit(self._process_single_item, dataset_content[key], item)
+                        futures.append(future)
+
+                with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
+                    for future in as_completed(futures):
+                        result = future.result()
+                        dataset_list.append(result)
+                        pbar.update(1)
+                        pbar.refresh()
+        else:
+            raise ValueError(f"Unsupported dataset type: {type(dataset_content)}")
+
+        return Dataset.from_list(dataset_list)
+
+    @abstractmethod
+    def _load_from_predictions(self, prediction_path: str) -> Dict:
+        pass
+
+    @abstractmethod
+    def _get_dataset_class(self):
+        return BaseDataset
+
+    def _modify_dataset_item(self, dataset_item, pred_item):
+        dataset_item["model_answer"] = pred_item["prediction"]
+
+    def _process_single_item(self, dataset_content, pred_item):
+        item_dict = dataset_content[int(pred_item["id"])]
+        self._modify_dataset_item(item_dict, pred_item)
+        item_dict["model_pred_uuid"] = pred_item["uuid"]
+        return item_dict
+
+    def _init_org_datasets_instance(
+        self,
+        reader_cfg: Optional[Dict] = {},
+        k: Union[int, List[int]] = 1,
+        n: int = 1,
+        **kwargs):
+        dataset_class = self._get_dataset_class()
+        return dataset_class(reader_cfg, k, n, **kwargs)
+
