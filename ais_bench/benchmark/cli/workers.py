@@ -231,7 +231,7 @@ class JudgeInfer(BaseWorker):
         for task in tasks:
             model_org_prediction_path = task["datasets"][0][0]["predictions_path"]
             model_preds: dict = {item["uuid"]: item for item in load_jsonl(model_org_prediction_path)}
-            judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}.jsonl')
+            judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
             judge_preds: list = load_jsonl(judge_org_prediction_path)
             for i, pred in enumerate(judge_preds):
                 uuid = pred["gold"]
