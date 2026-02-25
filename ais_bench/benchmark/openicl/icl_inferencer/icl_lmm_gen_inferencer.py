@@ -1,11 +1,3 @@
-'''
-Author: SJTUyh yh_silence@alumni.sjtu.edu.cn
-Date: 2026-02-11 16:38:01
-LastEditors: SJTUyh yh_silence@alumni.sjtu.edu.cn
-LastEditTime: 2026-02-12 18:39:02
-FilePath: \benchmark\ais_bench\benchmark\openicl\icl_inferencer\icl_lmm_gen_inferencer.py
-Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
-'''
 import uuid
 from typing import List, Optional
 

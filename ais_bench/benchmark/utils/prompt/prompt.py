@@ -157,13 +157,13 @@ class PromptList(list):
                         if item.startswith(AIS_TEXT_START):
                             question = item.replace(AIS_TEXT_START, "")
                             question = {"question": question}
-                            text_content = mm['text'].copy()
+                            text_content = mm['text'].deepcopy()
                             text_content['text'] = safe_format(text_content['text'], **question)
                             contents.append(text_content)
                         elif item.startswith(AIS_IMAGE_START):
                             image = item.replace(AIS_IMAGE_START, "")
                             image = {"image": image}
-                            image_content = mm['image'].copy()
+                            image_content = mm['image'].deepcopy()
                             if isinstance(image_content['image_url'], dict):
                                 image_content['image_url']['url'] = safe_format(image_content['image_url']['url'], **image)
                             else:
@@ -172,7 +172,7 @@ class PromptList(list):
                         elif item.startswith(AIS_VIDEO_START):
                             video = item.replace(AIS_VIDEO_START, "")
                             video = {"video": video}
-                            video_content = mm['video'].copy()
+                            video_content = mm['video'].deepcopy()
                             if isinstance(video_content['video_url'], dict):
                                 video_content['video_url']['url'] = safe_format(video_content['video_url']['url'], **video)
                             else:
@@ -181,7 +181,7 @@ class PromptList(list):
                         elif item.startswith(AIS_AUDIO_START):
                             audio = item.replace(AIS_AUDIO_START, "")
                             audio = {"audio": audio}
-                            audio_content = mm['audio'].copy()
+                            audio_content = mm['audio'].deepcopy()
                             if isinstance(audio_content['audio_url'], dict):
                                 audio_content['audio_url']['url'] = safe_format(audio_content['audio_url']['url'], **audio)
                             else:

@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from ais_bench.benchmark.registry import LOAD_DATASET
 from ais_bench.benchmark.openicl import BaseEvaluator
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path
-from ais_bench.benchmark.datasets.utils.lmm_judge import LMMImgJDGDataset
+from ais_bench.benchmark.datasets.utils.lmm_judge import ImgSCJDGDataset, ImgPQJDGDataset
 from ais_bench.benchmark.utils.image_process import pil_to_base64
 from PIL import Image
 from tqdm import tqdm
@@ -88,7 +88,14 @@ class GEditDataset(BaseDataset):
         # 合并所有 Dataset
         return concatenate_datasets(processed_datasets)
 
+
 @LOAD_DATASET.register_module()
-class GEditJDGDataset(LMMImgJDGDataset):
+class GEditSCJDGDataset(ImgSCJDGDataset):
+    def _get_dataset_class(self):
+        return GEditDataset
+
+
+@LOAD_DATASET.register_module()
+class GEditPQJDGDataset(ImgPQJDGDataset):
     def _get_dataset_class(self):
         return GEditDataset
