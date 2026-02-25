@@ -143,6 +143,7 @@ class JudgeInfer(BaseWorker):
     def do_work(self, cfg: ConfigDict):
         partitioner = PARTITIONERS.build(cfg.judge_infer.partitioner)
         logger.info("Starting inference tasks...")
+        self._cfg_pre_process(cfg)
         tasks = partitioner(cfg)
 
         # delete the tasks without judge_infer_cfg
@@ -190,6 +191,16 @@ class JudgeInfer(BaseWorker):
             new_tasks.append(new_task)
         return new_tasks
 
+    def _cfg_pre_process(self, cfg: ConfigDict) -> None:
+        self.org_dataset_abbrs = {}
+        for i, dataset in enumerate(cfg.datasets):
+            if dataset.get("judge_infer_cfg"):
+                org_dataset_abbr = cfg.datasets[i]["abbr"]
+                new_dataset_abbr = f'{cfg.datasets[i]["abbr"]}-{cfg.datasets[i]["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                cfg.datasets[i]["abbr"] = new_dataset_abbr
+                self.org_dataset_abbrs[new_dataset_abbr] = org_dataset_abbr
+        return cfg
+
     def _update_tasks_cfg(self, tasks, cfg: ConfigDict):
         # update parameters to correct sub cfg
         if hasattr(cfg, "attack"):
@@ -199,10 +210,9 @@ class JudgeInfer(BaseWorker):
 
         # update judge cfgs to model cfgs and data
         for task in tasks:
-            task["datasets"][0][0]["predictions_path"] = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
+            task["datasets"][0][0]["predictions_path"] = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}.jsonl')
             if not osp.exists(task["datasets"][0][0]["predictions_path"]):
                 raise PredictionInvalidException(TMAN_CODES.UNKNOWN_ERROR, f"Predictions path {task['datasets'][0][0]['predictions_path']} does not exist.")
-            task["datasets"][0][0]["abbr"] = f'{task["datasets"][0][0]["abbr"]}-{task["datasets"][0][0]["judge_infer_cfg"]["judge_model"]["abbr"]}'
             model_abbr = task["models"][0]["abbr"]
             task["models"][0] = task["datasets"][0][0]["judge_infer_cfg"].pop("judge_model")
             task["models"][0]["abbr"] = model_abbr
@@ -215,7 +225,7 @@ class JudgeInfer(BaseWorker):
         for task in tasks:
             model_org_prediction_path = task["datasets"][0][0]["predictions_path"]
             model_preds: dict = {item["uuid"]: item for item in load_jsonl(model_org_prediction_path)}
-            judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
+            judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}.jsonl')
             judge_preds: list = load_jsonl(judge_org_prediction_path)
             for i, pred in enumerate(judge_preds):
                 uuid = pred["gold"]
@@ -252,6 +262,8 @@ class Eval(BaseWorker):
     def do_work(self, cfg: ConfigDict):
         partitioner = PARTITIONERS.build(cfg.eval.partitioner)
         logger.info("Starting evaluation tasks...")
+        self._cfg_pre_process(cfg)
+
         tasks = partitioner(cfg)
 
         # Update tasks cfg before run
@@ -267,24 +279,29 @@ class Eval(BaseWorker):
         self._result_post_process(tasks, cfg)
         logger.info("Evaluation tasks completed.")
 
+    def _cfg_pre_process(self, cfg: ConfigDict) -> None:
+        self.org_dataset_abbrs = {}
+        for i, dataset in enumerate(cfg.datasets):
+            if dataset.get("judge_infer_cfg"):
+                org_dataset_abbr = cfg.datasets[i]["abbr"]
+                new_dataset_abbr = f'{cfg.datasets[i]["abbr"]}-{cfg.datasets[i]["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                cfg.datasets[i]["abbr"] = new_dataset_abbr
+                self.org_dataset_abbrs[new_dataset_abbr] = org_dataset_abbr
+        return cfg
+
     def _update_tasks_cfg(self, tasks, cfg: ConfigDict):
         # Replace default model config to judge model config
-        self.judge_result_paths = {}
         for task in tasks:
             if task["datasets"][0][0].get("judge_infer_cfg"):
-                new_dataset_abbr = f'{task["datasets"][0][0]["abbr"]}-{task["datasets"][0][0]["judge_infer_cfg"]["judge_model"]["abbr"]}'
-                org_dataset_abbr = task["datasets"][0][0]["abbr"]
-                self.judge_result_paths[new_dataset_abbr] = org_dataset_abbr
-                task["datasets"][0][0]["abbr"] = new_dataset_abbr
                 task["datasets"][0][0].pop("judge_infer_cfg")
 
     def _result_post_process(self, tasks, cfg: ConfigDict):
         # Copy judge infer result to normal name
 
         for task in tasks:
-            if task["datasets"][0][0]["abbr"] in self.judge_result_paths.keys():
+            if task["datasets"][0][0]["abbr"] in self.org_dataset_abbrs.keys():
                 cur_results_path = osp.join(cfg.eval.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
-                final_org_results_path = osp.join(cfg.eval.partitioner.out_dir, task["models"][0]["abbr"], f'{self.judge_result_paths[task["datasets"][0][0]["abbr"]]}.jsonl')
+                final_org_results_path = osp.join(cfg.eval.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}.jsonl')
                 if os.path.exists(final_org_results_path):
                     os.remove(final_org_results_path)
 
