@@ -2,6 +2,7 @@ import os
 import socket
 import torch
 import pickle
+import atexit
 
 import torch.distributed
 
@@ -67,12 +68,15 @@ def dist_init(device=None):
         backend = 'gloo'
     else:
         backend = 'hccl' if device == 'npu' else 'nccl'
-    torch.distributed.init_process_group(backend=backend, init_method='env://')
     local_rank = int(os.environ.get('LOCAL_RANK', '0'))
+    # Set device before init so NCCL/HCCL know which device this process uses (avoids barrier warning).
     if device == 'npu' and getattr(torch, 'npu', None):
         torch.npu.set_device(local_rank)
     else:
         torch.cuda.set_device(local_rank)
+    torch.distributed.init_process_group(backend=backend, init_method='env://')
+    # Register cleanup so destroy_process_group() is always called on exit (avoids resource leak warning).
+    atexit.register(_dist_destroy_once)
 
 
 def all_gather(data):
@@ -140,9 +144,36 @@ def all_gather(data):
         return data_list
 
 
+_dist_destroy_done = False
+
+
+def _dist_destroy_once():
+    """Called at most once at process exit to destroy process group (e.g. via atexit)."""
+    global _dist_destroy_done
+    if _dist_destroy_done:
+        return
+    _dist_destroy_done = True
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
+
+
+def dist_destroy():
+    """Explicitly destroy the process group to avoid resource leak. Safe to call multiple times."""
+    _dist_destroy_once()
+
+
 def barrier():
     if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        backend = torch.distributed.get_backend()
+        # Specify device_ids for NCCL/HCCL to avoid "devices used by this process are currently unknown" warning.
+        is_nccl = backend == torch.distributed.Backend.NCCL or backend == 'nccl'
+        is_hccl = backend == 'hccl'
+        if is_nccl and torch.cuda.is_available():
+            torch.distributed.barrier(device_ids=[torch.cuda.current_device()])
+        elif is_hccl and getattr(torch, 'npu', None) and torch.npu.is_available():
+            torch.distributed.barrier(device_ids=[torch.npu.current_device()])
+        else:
+            torch.distributed.barrier()
 
 # ------------------------------------------------------- #
 

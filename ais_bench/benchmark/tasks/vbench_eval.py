@@ -91,7 +91,7 @@ class VBenchEvalTask(BaseTask):
     def run(self, task_state_manager: TaskStateManager | None = None):
         self._ensure_vbench_in_path()
         from vbench import VBench, set_progress_callback
-        from vbench.distributed import dist_init, get_rank
+        from vbench.distributed import dist_init, get_rank, dist_destroy
 
         for dataset_cfg in self.dataset_cfgs:
             eval_cfg = dataset_cfg.get('eval_cfg') or {}
@@ -178,29 +178,32 @@ class VBenchEvalTask(BaseTask):
             if eval_cfg.get('imaging_quality_preprocessing_mode'):
                 kwargs['imaging_quality_preprocessing_mode'] = eval_cfg['imaging_quality_preprocessing_mode']
 
-            raw_results = vbench.evaluate(
-                videos_path=videos_path,
-                name=dataset_abbr,
-                prompt_list=prompt_list,
-                dimension_list=dimension_list,
-                local=eval_cfg.get('load_ckpt_from_local', False),
-                read_frame=eval_cfg.get('read_frame', False),
-                mode=mode,
-                **kwargs,
-            )
-
-            if get_rank() == 0:
-                # Wrap raw VBench results to {accuracy, details} schema and save.
-                wrapped = self._wrap_results(raw_results)
-                final_out = get_infer_output_path(
-                    self.model_cfg,
-                    dataset_cfg,
-                    osp.join(self.work_dir, self.output_subdir),
+            try:
+                raw_results = vbench.evaluate(
+                    videos_path=videos_path,
+                    name=dataset_abbr,
+                    prompt_list=prompt_list,
+                    dimension_list=dimension_list,
+                    local=eval_cfg.get('load_ckpt_from_local', False),
+                    read_frame=eval_cfg.get('read_frame', False),
+                    mode=mode,
+                    **kwargs,
                 )
-                os.makedirs(osp.dirname(final_out), exist_ok=True)
-                with open(final_out, 'w', encoding='utf-8') as f:
-                    json.dump(wrapped, f, ensure_ascii=False, indent=4)
-                self.logger.info(f"VBench wrapped results saved to {final_out}")
+
+                if get_rank() == 0:
+                    # Wrap raw VBench results to {accuracy, details} schema and save.
+                    wrapped = self._wrap_results(raw_results)
+                    final_out = get_infer_output_path(
+                        self.model_cfg,
+                        dataset_cfg,
+                        osp.join(self.work_dir, self.output_subdir),
+                    )
+                    os.makedirs(osp.dirname(final_out), exist_ok=True)
+                    with open(final_out, 'w', encoding='utf-8') as f:
+                        json.dump(wrapped, f, ensure_ascii=False, indent=4)
+                    self.logger.info(f"VBench wrapped results saved to {final_out}")
+            finally:
+                dist_destroy()
 
     def get_output_paths(self, file_extension: str = "json") -> List[str]:
         """Paths to wrapped VBench result files: results/<model_abbr>/<dataset_abbr>.json."""
