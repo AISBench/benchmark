@@ -24,7 +24,6 @@ vbench_infer_cfg = dict(
 
 vbench_eval_cfg = dict(
     use_vbench_task=True,
-    device='npu',
     load_ckpt_from_local=True,
 )
 

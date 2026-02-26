@@ -9,10 +9,7 @@ AISBench 已适配 VBench 1.0，支持在 **GPU（cuda）** 与 **NPU** 上进�
 在已有一批生成视频目录的前提下，仅运行 VBench 测评：
 
 ```bash
-# GPU
-ais_bench --mode eval --models vbench_eval --datasets vbench_standard
-
-# NPU：在数据集配置中将 eval_cfg.device 设为 'npu'，或使用自定义配置
+# 设备会自动检测：NPU 可用则用 NPU，否则用 CUDA
 ais_bench --mode eval --models vbench_eval --datasets vbench_standard
 ```
 
@@ -23,17 +20,16 @@ ais_bench --mode eval --models vbench_eval --datasets vbench_standard
 
 ### 设备配置
 
-- **GPU**：在对应数据集配置的 `eval_cfg` 中设置 `device='cuda'`（默认）。
-- **NPU**：在对应数据集配置的 `eval_cfg` 中设置 `device='npu'`。
+- **默认**：设备自动检测——若当前环境 NPU 可用（`torch.npu.is_available()`）则使用 NPU，否则使用 CUDA；也可通过环境变量 `VBENCH_DEVICE` 指定。
+- **强制指定**：若需固定设备，可在对应数据集配置的 `eval_cfg` 中设置 `device='cuda'` 或 `device='npu'`。
 
-例如在 `vbench_standard.py` 中：
+例如在 `vbench_standard.py` 中（不写 `device` 即自动检测）：
 
 ```python
 vbench_eval_cfg = dict(
     use_vbench_task=True,
-    device='npu',  # 或 'cuda'
-    mode='vbench_standard',
-    dimension_list=VBENCH_DEFAULT_DIMENSIONS,
+    load_ckpt_from_local=True,
+    # device 不写则自动检测；可选 device='cuda' 或 device='npu' 强制指定
 )
 ```
 

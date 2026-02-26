@@ -91,7 +91,7 @@ class VBenchEvalTask(BaseTask):
     def run(self, task_state_manager: TaskStateManager | None = None):
         self._ensure_vbench_in_path()
         from vbench import VBench, set_progress_callback
-        from vbench.distributed import dist_init, get_rank, dist_destroy
+        from vbench.distributed import dist_init, get_rank, get_device, dist_destroy
 
         for dataset_cfg in self.dataset_cfgs:
             eval_cfg = dataset_cfg.get('eval_cfg') or {}
@@ -101,10 +101,12 @@ class VBenchEvalTask(BaseTask):
                 raise ValueError(
                     f"VBench dataset must have 'path' or 'videos_path' pointing to a video directory, got: {videos_path}"
                 )
-            # device: cuda | npu
-            device_str = eval_cfg.get('device') or 'cuda'
-            if device_str not in ('cuda', 'npu'):
-                device_str = 'cuda'
+            # device: cuda | npu | None (auto-detect)
+            device_str = eval_cfg.get('device')
+            if device_str is not None and device_str not in ('cuda', 'npu'):
+                device_str = None
+            dist_init(device=device_str)
+            device_str = get_device()
             # full_json_dir: VBench full info json
             full_json_dir = dataset_cfg.get('full_json_dir') or eval_cfg.get('full_json_dir')
             if not full_json_dir or not osp.isfile(full_json_dir):
@@ -133,7 +135,6 @@ class VBenchEvalTask(BaseTask):
             output_dir = osp.join(self.work_dir, self.output_subdir, model_abbr)
             os.makedirs(output_dir, exist_ok=True)
 
-            dist_init(device=device_str)
             if get_rank() == 0:
                 self.logger.info(
                     f"VBench eval: videos_path={videos_path}, device={device_str}, "

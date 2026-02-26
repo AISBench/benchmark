@@ -14,7 +14,6 @@ vbench_infer_cfg = dict(
 
 vbench_eval_cfg = dict(
     use_vbench_task=True,
-    device='cuda',
     # prompt_file: path to JSON {"video_path": "prompt", ...}; if set, custom_input
     # mode is inferred automatically. If omitted, prompts are derived from filenames.
 )

@@ -28,7 +28,6 @@ vbench_infer_cfg = dict(
 
 vbench_eval_cfg = dict(
     use_vbench_task=True,
-    device='npu',  # or 'npu'
     load_ckpt_from_local=True,
     # full_json_dir: optional, default is third_party/vbench/VBench_full_info.json
     # prompt_file: optional; if set, custom_input mode is inferred automatically
