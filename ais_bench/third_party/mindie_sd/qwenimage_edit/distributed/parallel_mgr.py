@@ -4,8 +4,8 @@ from dataclasses import dataclass
 import torch.distributed as dist
 import torch_npu
 import logging
-from ais_bench.benchmark.models.local_models.qwenimage_edit.distributed.utils import RankGenerator, generate_masked_orthogonal_rank_groups
-from ais_bench.benchmark.models.local_models.qwenimage_edit.distributed.group_coordinator import GroupCoordinator, SequenceParallelGroupCoordinator
+from ais_bench.third_party.mindie_sd.qwenimage_edit.distributed.utils import RankGenerator, generate_masked_orthogonal_rank_groups
+from ais_bench.third_party.mindie_sd.qwenimage_edit.distributed.group_coordinator import GroupCoordinator, SequenceParallelGroupCoordinator
 
 #--------- ljf -------------------
 import torch
@@ -308,14 +308,14 @@ def initialize_model_parallel(
             f"tensor_parallel_degree "
             f"({tensor_parallel_degree})"
         )
-    
+
     rank_generator: RankGenerator = RankGenerator(
         tensor_parallel_degree,
         sequence_parallel_degree,
         classifier_free_guidance_degree,
         "tp-sp-cfg",
     )
-    
+
     global _CFG
     if _CFG is not None:
         logging.error("classifier_free_guidance group is already initialized")
