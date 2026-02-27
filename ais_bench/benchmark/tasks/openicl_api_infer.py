@@ -474,6 +474,7 @@ class OpenICLApiInferTask(BaseTask):
 
     def run(self, task_state_manager: TaskStateManager):
         self.logger.info(f"Task [{task_abbr_from_cfg(self.cfg)}]")
+        self.task_state_manager = task_state_manager
         self.inferencer:BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
         self.clean_failed_results()
 
