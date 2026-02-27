@@ -85,7 +85,7 @@ class GEditDataset(BaseDataset):
                         {
                             "total_count": len(dataset),
                             "progress_description": f"Convert GEdit dataset to base64",
-                            "finish_count": i,
+                            "finish_count": i + 1,
                         }
                     )
                     submit_pbar.update(1)
@@ -98,7 +98,7 @@ class GEditDataset(BaseDataset):
                         {
                             "total_count": len(dataset),
                             "progress_description": f"Processing GEdit dataset",
-                            "finish_count": idx,
+                            "finish_count": idx + 1,
                         }
                     )
                     processed_datasets[idx] = future.result()

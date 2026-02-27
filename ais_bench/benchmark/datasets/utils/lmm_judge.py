@@ -46,13 +46,6 @@ class LMMImgJDGDataset(BaseJDGDataset):
         # 定义图片处理函数
         def process_image(index, pred_item):
             # 现在可以使用index来知道pred_item是preds中的第几个
-            self.update_task_state(
-                {
-                    "total_count": len(preds),
-                    "progress_description": f"Convert prediction images to base64",
-                    "finish_count": index,
-                }
-            )
             image_path = os.path.join(base_path, pred_item.get('prediction', ''))
             if image_path and os.path.exists(image_path):
                 try:
@@ -67,6 +60,13 @@ class LMMImgJDGDataset(BaseJDGDataset):
                         img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
                         # 更新pred中的image字段为Base64字符串
                         pred_item['prediction'] = img_base64
+                    self.update_task_state(
+                        {
+                            "total_count": len(preds),
+                            "progress_description": f"Convert prediction images to base64",
+                            "finish_count": index,
+                        }
+                    )
                 except Exception as e:
                     raise AISBenchRuntimeError(DSET_CODES.UNKNOWN_ERROR, f"Failed to process image {image_path} at index {index}: {e}")
             return pred_item
