@@ -31,6 +31,11 @@ class GEditDataset(BaseDataset):
     @staticmethod
     def load(path, use_raw=False, split_count=1, split_index=0, **kwargs):
         path = get_data_path(path)
+        self.update_task_state(
+            {
+                "state": "loading dataset",
+            }
+        )
         dataset = load_from_disk(path)
 
         # 数据集切分：分成 split_count 份，取第 split_index 份
@@ -71,17 +76,31 @@ class GEditDataset(BaseDataset):
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 提交所有任务
-            with tqdm(total=len(dataset), desc=f"Submitting tasks split_count: {split_count}, split_index={split_index}", unit="example") as submit_pbar:
+            with tqdm(total=len(dataset), desc=f"Convert GEdit dataset to base64, split_count: {split_count}, split_index={split_index}", unit="example") as submit_pbar:
                 futures = {}
                 for i, example in enumerate(dataset):
                     future = executor.submit(process_example_to_dataset, example)
                     futures[future] = i
+                    self.update_task_state(
+                        {
+                            "total_count": len(dataset),
+                            "progress_description": f"Convert GEdit dataset to base64",
+                            "finish_count": i,
+                        }
+                    )
                     submit_pbar.update(1)
 
             # 收集处理完成的 Dataset
             with tqdm(total=len(dataset), desc="Processing GEdit dataset", unit="example") as pbar:
                 for future in as_completed(futures):
                     idx = futures[future]
+                    self.update_task_state(
+                        {
+                            "total_count": len(dataset),
+                            "progress_description": f"Processing GEdit dataset",
+                            "finish_count": idx,
+                        }
+                    )
                     processed_datasets[idx] = future.result()
                     pbar.update(1)
 
