@@ -160,7 +160,7 @@ class GEditEvalResultParser:
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="显示gedit数据集的推理结果")
-    parser.add_argument("--config_path", help="配置文件路径")
+    parser.add_argument("--config_path", default="./multi_device_run_qwen_image_edit.py", help="配置文件路径")
     parser.add_argument("--timestamp_path", help="结果时间戳路径")
 
     args = parser.parse_args()
