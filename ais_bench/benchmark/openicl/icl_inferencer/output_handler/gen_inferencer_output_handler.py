@@ -27,6 +27,7 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
         output: Union[str, Output],
         gold: Optional[str] = None,
         input: Optional[Union[str, List[str]]] = None,
+        data_abbr: Optional[str] = "",
     ) -> dict:
         """
         Get the prediction result for accuracy mode.
@@ -35,6 +36,7 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
             output (Union[str, Output]): Output result from inference
             gold (Optional[str]): Ground truth data for comparison
             input (Optional[Union[str, List[str]]]): Input data for the inference
+            data_abbr (Optional[str]): Abbreviation of the dataset
 
         Returns:
             dict: Prediction result
