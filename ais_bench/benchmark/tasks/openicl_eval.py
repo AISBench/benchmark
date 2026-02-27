@@ -71,7 +71,8 @@ class OpenICLEvalTask(BaseTask):
         command = f'{python} {script_path} {cfg_path}'
         return template.format(task_cmd=command)
 
-    def run(self):
+    def run(self, task_state_manager: TaskStateManager):
+        self.task_state_manager = task_state_manager
         for dataset_cfg in self.dataset_cfgs:
             self.dataset_cfg = dataset_cfg
             # Load Dataset
@@ -111,7 +112,7 @@ class OpenICLEvalTask(BaseTask):
             "k":k,
             "n":n
         })
-
+        self.dataset_cfg["task_state_manager"] = self.task_state_manager
         test_set = build_dataset_from_cfg(self.dataset_cfg).test
         # Postprocess dataset if necessary
         if 'dataset_postprocessor' in self.eval_cfg:
@@ -515,7 +516,7 @@ if __name__ == '__main__':
     start_time = time.perf_counter()
     try:
         evaluator: OpenICLEvalTask = OpenICLEvalTask(cfg)
-        evaluator.run()
+        evaluator.run(task_state_manager)
     except Exception as e:
         task_state_manager.update_task_state({"status": "error"})
         raise e

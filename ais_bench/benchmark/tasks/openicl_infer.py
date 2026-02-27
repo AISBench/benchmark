@@ -123,6 +123,7 @@ class OpenICLInferTask(BaseTask):
         retrievers = []
         for dataset_cfg in self.dataset_cfgs:
             infer_cfg = dataset_cfg["infer_cfg"]
+            dataset_cfg["task_state_manager"] = self.task_state_manager
             dataset = build_dataset_from_cfg(dataset_cfg)
             retriever_cfg = infer_cfg["retriever"].copy()
             retriever_cfg["dataset"] = dataset

@@ -10,6 +10,7 @@ from ais_bench.benchmark.openicl.icl_dataset_reader import DatasetReader
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import DSET_CODES
 from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+from ais_bench.benchmark.tasks.base import TaskStateManager
 
 disable_progress_bar() # disable mapping progress bar, preventing terminal interface contamination
 
@@ -19,9 +20,13 @@ class BaseDataset:
                  reader_cfg: Optional[Dict] = {},
                  k: Union[int, List[int]] = 1,
                  n: int = 1,
+                 task_state_manager: Optional[TaskStateManager] = None,
                  **kwargs):
         # Validate k and n parameters
         self.logger = AISLogger()
+        if task_state_manager is not None:
+            self._init_task_state_manager(task_state_manager)
+
         max_k = max(k) if isinstance(k, List) else k
         if max_k > n:
             raise ParameterValueError(
@@ -37,6 +42,8 @@ class BaseDataset:
         self._init_reader(**reader_cfg)
         self.repeated_dataset(self.abbr, n) # this process will update self.dataset and self.reader.dataset
 
+    def _init_task_state_manager(self, task_state_manager):
+        self.task_state_manager = task_state_manager
 
     def _init_reader(self, **kwargs):
         self.reader = DatasetReader(self.dataset, **kwargs)
