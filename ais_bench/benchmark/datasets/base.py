@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from pickle import DICT
 from typing import List, Dict, Optional, Union, Type
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
@@ -48,6 +49,11 @@ class BaseDataset:
     def _init_reader(self, **kwargs):
         self.reader = DatasetReader(self.dataset, **kwargs)
 
+    def update_task_state(self, state: Dict):
+        if self.task_state_manager is not None:
+            self.task_state_manager.update(state)
+        else:
+            self.logger.warning("Task state manager is not initialized, cannot update task state")
 
     def repeated_dataset(self, abbr: str, n: int):
         # Create repeated indices in batches to avoid generating an oversized index list at once
