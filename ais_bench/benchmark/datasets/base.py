@@ -130,9 +130,10 @@ class BaseJDGDataset(BaseDataset):
                 reader_cfg: Optional[Dict] = {},
                 k: Union[int, List[int]] = 1,
                 n: int = 1,
+                task_state_manager: Optional[TaskStateManager] = None,
                 **kwargs):
-        self.dataset_instance = self._init_org_datasets_instance(reader_cfg, k, n, **kwargs)
-        super().__init__(reader_cfg, k, n, **kwargs)
+        self.dataset_instance = self._init_org_datasets_instance(reader_cfg, k, n, task_state_manager, **kwargs)
+        super().__init__(reader_cfg, k, n, task_state_manager, **kwargs)
 
     def load(self, predictions_path: str, **kwargs):
 
@@ -238,7 +239,8 @@ class BaseJDGDataset(BaseDataset):
         reader_cfg: Optional[Dict] = {},
         k: Union[int, List[int]] = 1,
         n: int = 1,
+        task_state_manager: Optional[TaskStateManager] = None,
         **kwargs):
         dataset_class = self._get_dataset_class()
-        return dataset_class(reader_cfg, k, n, **kwargs)
+        return dataset_class(reader_cfg, k, n, task_state_manager, **kwargs)
 

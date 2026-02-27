@@ -112,8 +112,7 @@ class OpenICLEvalTask(BaseTask):
             "k":k,
             "n":n
         })
-        self.dataset_cfg["task_state_manager"] = self.task_state_manager
-        test_set = build_dataset_from_cfg(self.dataset_cfg).test
+        test_set = build_dataset_from_cfg(self.dataset_cfg, task_state_manager=self.task_state_manager).test
         # Postprocess dataset if necessary
         if 'dataset_postprocessor' in self.eval_cfg:
             self.logger.debug(f"Dataset postprocessor: {self.eval_cfg['dataset_postprocessor']}")
