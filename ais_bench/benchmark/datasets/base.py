@@ -154,7 +154,7 @@ class BaseJDGDataset(BaseDataset):
                     futures.append(future)
 
                 with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
-                    for future in as_completed(futures):
+                    for i, future in enumerate(as_completed(futures)):
                         result = future.result()
                         current_batch.append(result)
 
@@ -164,6 +164,13 @@ class BaseJDGDataset(BaseDataset):
                             current_batch = []
 
                         pbar.update(1)
+                        self.update_task_state(
+                            {
+                                "total_count": len(futures),
+                                "progress_description": "Infer progress",
+                                "finish_count": i + 1,
+                            }
+                        )
                         pbar.refresh()
         elif isinstance(dataset_content, DatasetDict):
             with ThreadPoolExecutor() as executor:
@@ -174,7 +181,7 @@ class BaseJDGDataset(BaseDataset):
                         futures.append(future)
 
                 with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
-                    for future in as_completed(futures):
+                    for i, future in enumerate(as_completed(futures)):
                         result = future.result()
                         current_batch.append(result)
 
@@ -184,6 +191,13 @@ class BaseJDGDataset(BaseDataset):
                             current_batch = []
 
                         pbar.update(1)
+                        self.update_task_state(
+                            {
+                                "total_count": len(futures),
+                                "progress_description": "Infer progress",
+                                "finish_count": i + 1,
+                            }
+                        )
                         pbar.refresh()
         else:
             raise ValueError(f"Unsupported dataset type: {type(dataset_content)}")
