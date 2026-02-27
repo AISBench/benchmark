@@ -25,15 +25,15 @@ from diffusers.loaders import QwenImageLoraLoaderMixin
 from diffusers.models import AutoencoderKLQwenImage
 
 # from diffusers.schedulers import FlowMatchEulerDiscreteScheduler
-from ais_bench.benchmark.models.local_models.qwenimage_edit.scheduling_flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
+from ais_bench.third_party.mindie_sd.qwenimage_edit.scheduling_flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 
 from diffusers.utils import is_torch_xla_available, logging, replace_example_docstring
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.qwenimage.pipeline_output import QwenImagePipelineOutput
 
-from ais_bench.benchmark.models.local_models.qwenimage_edit.transformer_qwenimage import QwenImageTransformer2DModel
-from ais_bench.benchmark.models.local_models.qwenimage_edit.distributed.parallel_mgr import (
+from ais_bench.third_party.mindie_sd.qwenimage_edit.transformer_qwenimage import QwenImageTransformer2DModel
+from ais_bench.third_party.mindie_sd.qwenimage_edit.distributed.parallel_mgr import (
     get_sequence_parallel_world_size,
     get_classifier_free_guidance_world_size,
     get_classifier_free_guidance_rank,
@@ -845,7 +845,7 @@ class QwenImageEditPlusPipeline(DiffusionPipeline, QwenImageLoraLoaderMixin):
                                     if_cond=False,   #----------------ljf-------------
                                 )[0]
                             noise_pred = noise_pred[:, : latents.size(1)]
-            
+
                     else:
                         with self.transformer.cache_context("cond"):
                             noise_pred = self.transformer(
@@ -914,7 +914,7 @@ class QwenImageEditPlusPipeline(DiffusionPipeline, QwenImageLoraLoaderMixin):
 
                 # compute the previous noisy sample x_t -> x_t-1
                 latents_dtype = latents.dtype
-                latents = self.scheduler.step(noise_pred, t, latents, return_dict=False)[0]                  #  
+                latents = self.scheduler.step(noise_pred, t, latents, return_dict=False)[0]                  #
 
                 if latents.dtype != latents_dtype:
                     if torch.backends.mps.is_available():
