@@ -32,7 +32,7 @@ class GEditDataset(BaseDataset):
         path = get_data_path(path)
         self.update_task_state(
             {
-                "state": "loading dataset",
+                "status": "loading dataset",
             }
         )
         dataset = load_from_disk(path)
