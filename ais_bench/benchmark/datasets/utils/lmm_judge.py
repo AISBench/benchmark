@@ -20,10 +20,10 @@ from ais_bench.benchmark.utils.logging.error_codes import DSET_CODES
 logger = AISLogger()
 
 
-@TEXT_POSTPROCESSORS.register_module("get_a_or_b")
+@TEXT_POSTPROCESSORS.register_module("get_lmm_point_list")
 def get_lmm_point_list(pred: str) -> str:
     """从模型回复中提取列表的字符串"""
-    match = re.search(r'\[.*?\]', pred)
+    match = re.search(r'\[\s*\d+(?:\s*,\s*\d+)*\s*\]', pred)
     return match.group(0) if match else ''
 
 

@@ -1,4 +1,3 @@
-
 import os
 import os.path as osp
 import tabulate
@@ -104,7 +103,7 @@ class ConfigManager:
         self._update_cfg_of_workflow(workflow)
         self._dump_and_reload_config()
         return self.cfg
-    
+
     def _fill_dataset_configs(self):
         for dataset_cfg in self.cfg["datasets"]:
             fill_test_range_use_num_prompts(self.cfg["cli_args"].get("num_prompts"), dataset_cfg)
