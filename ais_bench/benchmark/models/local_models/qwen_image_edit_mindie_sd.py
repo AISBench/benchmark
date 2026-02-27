@@ -61,8 +61,8 @@ if hasattr(torch, 'library'):
 
 # 导入 qwen_image_edit 相关模块
 try:
-    from ais_bench.benchmark.models.local_models.qwenimage_edit.transformer_qwenimage import QwenImageTransformer2DModel
-    from ais_bench.benchmark.models.local_models.qwenimage_edit.pipeline_qwenimage_edit_plus import QwenImageEditPlusPipeline
+    from ais_bench.third_party.mindie_sd.qwenimage_edit.transformer_qwenimage import QwenImageTransformer2DModel
+    from ais_bench.third_party.mindie_sd.qwenimage_edit.pipeline_qwenimage_edit_plus import QwenImageEditPlusPipeline
     from mindiesd import CacheConfig, CacheAgent
 except ImportError as e:
     raise ImportError(f"请确保 qwenimage_edit 模块在 Python 路径中: {e}")
