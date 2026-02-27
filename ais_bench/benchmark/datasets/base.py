@@ -51,7 +51,7 @@ class BaseDataset:
 
     def update_task_state(self, state: Dict):
         if self.task_state_manager is not None:
-            self.task_state_manager.update(state)
+            self.task_state_manager.update_task_state(state)
         else:
             self.logger.warning("Task state manager is not initialized, cannot update task state")
 
