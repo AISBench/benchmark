@@ -28,8 +28,7 @@ class GEditEvaluator(BaseEvaluator):
 
 @LOAD_DATASET.register_module()
 class GEditDataset(BaseDataset):
-    @staticmethod
-    def load(path, use_raw=False, split_count=1, split_index=0, **kwargs):
+    def load(self, path, use_raw=False, split_count=1, split_index=0, **kwargs):
         path = get_data_path(path)
         self.update_task_state(
             {
