@@ -44,7 +44,8 @@ class GEditPredsParser:
         self.dataset = {}
         for i in range(len(dataset)):
             item = dataset[i]
-            self.dataset[item["id"]] = item
+            # 使用索引作为id，因为Dataset中可能没有'id'键
+            self.dataset[i] = item
         self.paths_map = dict(
             org_pred_path = [],
         )
