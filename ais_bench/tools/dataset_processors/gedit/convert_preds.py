@@ -5,6 +5,7 @@ import argparse
 import json
 import csv
 import tabulate
+import shutil
 from tqdm import tqdm
 
 from datasets import Dataset, load_from_disk
@@ -14,8 +15,6 @@ from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
 from ais_bench.benchmark.cli.config_manager import CustomConfigChecker
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path
 from ais_bench.benchmark.utils.logging.logger import AISLogger
-from ais_bench.benchmark.datasets.utils.lmm_judge import get_lmm_point_list
-from ais_bench.benchmark.datasets.g_edit import GEditDataset
 from mmengine.config import Config
 
 logger = AISLogger(__name__)
@@ -40,7 +39,12 @@ class GEditPredsParser:
     def __init__(self, args):
         self.config = load_config(args.config_path)
         self.output_dir = args.timestamp_path
-        self.dataset = load_gedit_dataset(args.dataset_path)
+        dataset = load_gedit_dataset(args.dataset_path)
+        # 将Dataset转换为字典以提高访问速度
+        self.dataset = {}
+        for i in range(len(dataset)):
+            item = dataset[i]
+            self.dataset[item["id"]] = item
         self.paths_map = dict(
             org_pred_path = [],
         )
@@ -73,10 +77,9 @@ class GEditPredsParser:
         logger.info(f"Start dumping gedit format result ......")
         for id, item in tqdm(self.all_data_results.items(), desc="Dumping gedit format results"):
             dump_dir = os.path.join(save_path, item["task_type"], item["instruction_language"])
-            if not os.path.exists(dump_dir):
-                os.makedirs(dump_dir)
+            os.makedirs(dump_dir, exist_ok=True)
             # 将output_img_path copy到dump_dir
-            os.system(f"cp {item['output_img_path']} {os.path.join(dump_dir, item['key'] + '.png')}")
+            shutil.copy(item['output_img_path'], os.path.join(dump_dir, item['key'] + '.png'))
         logger.info(f"Finish dumping gedit format result ......")
 
     def _load_and_merge_jsonl(self, path_kind: "org_pred_path"):
