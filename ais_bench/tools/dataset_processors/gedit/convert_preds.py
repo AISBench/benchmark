@@ -42,7 +42,7 @@ class GEditPredsParser:
         dataset = load_gedit_dataset(args.dataset_path)
         # 将Dataset转换为字典以提高访问速度
         self.dataset = {}
-        for i in range(len(dataset)):
+        for i in tqdm(range(len(dataset)), desc="Converting dataset to dictionary"):
             item = dataset[i]
             # 使用索引作为id，因为Dataset中可能没有'id'键
             self.dataset[i] = item
