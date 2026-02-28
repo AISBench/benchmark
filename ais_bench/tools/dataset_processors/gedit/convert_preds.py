@@ -5,6 +5,7 @@ import argparse
 import json
 import csv
 import tabulate
+from tqdm import tqdm
 
 from datasets import Dataset, load_from_disk
 
@@ -55,7 +56,7 @@ class GEditPredsParser:
 
         self.all_data_results = {}
 
-        for uuid in org_pred_data_dict.keys():
+        for uuid in tqdm(org_pred_data_dict.keys(), desc="Parsing results"):
             id = org_pred_data_dict[uuid]["id"]
             output_img_path = org_pred_data_dict[uuid]["prediction"]
             self.all_data_results[id] = {
@@ -70,7 +71,7 @@ class GEditPredsParser:
     def dump_gedit_format_result(self):
         save_path = os.path.join(self.output_dir, "results", "fullset")
         logger.info(f"Start dumping gedit format result ......")
-        for id, item in self.all_data_results.items():
+        for id, item in tqdm(self.all_data_results.items(), desc="Dumping gedit format results"):
             dump_dir = os.path.join(save_path, item["task_type"], item["instruction_language"])
             if not os.path.exists(dump_dir):
                 os.makedirs(dump_dir)
