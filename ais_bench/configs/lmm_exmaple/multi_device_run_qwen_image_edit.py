@@ -5,7 +5,11 @@ with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
     from ais_bench.benchmark.configs.datasets.gedit.gedit_gen_0_shot_llmjudge import gedit_datasets
 
+# ====== 用户需要配置参数 =========
+qwen_image_edit_models[0]["path"] = "/path/to/Qwen-Image-Edit-2509/" # 请根据实际情况修改权重路径
+qwen_image_edit_models[0]["infer_kwargs"]["num_inference_steps"] = 50 # 请根据实际情况修改推理步数
 device_list = [0] # [0, 1, 2, 3]
+# ====== 用户需要配置参数 =========
 
 datasets = []
 models = []
