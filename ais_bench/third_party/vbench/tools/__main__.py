@@ -47,10 +47,10 @@ def main():
         dimension="temporal_flickering",
     )
 
-然后运行: ais_bench --mode eval --models vbench_eval --datasets vbench_standard
-配置 path=./videos
+然后运行: ais_bench ais_bench/configs/vbench_examples/eval_vbench_standard.py
+配置 DATA_PATH=./videos
 
-详见: ais_bench/benchmark/configs/datasets/vbench/README.md
+详见: ais_bench/configs/vbench_examples/README.md
 """)
     sys.exit(0)
 

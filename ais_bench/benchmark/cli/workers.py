@@ -14,7 +14,6 @@ from ais_bench.benchmark.tasks import (
     OpenICLEvalTask,
     OpenICLApiInferTask,
     OpenICLInferTask,
-    VBenchEvalTask,
 )
 from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
@@ -113,26 +112,14 @@ class Infer(BaseWorker):
                 task.attack = cfg.attack
 
 
-def _has_vbench_dataset(cfg: ConfigDict) -> bool:
-    """True if any dataset in config is a VBench dataset (use_vbench_task or VBenchDataset type)."""
-    for item in cfg.get("datasets", []):
-        for ds in (item if isinstance(item, (list, tuple)) else [item]):
-            eval_cfg = ds.get("eval_cfg") or {}
-            if eval_cfg.get("use_vbench_task") is True:
-                return True
-            type_str = str(ds.get("type", ""))
-            if "VBenchDataset" in type_str or "vbench" in type_str.lower():
-                return True
-    return False
-
-
 class Eval(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
-        eval_task_type = (
-            get_config_type(VBenchEvalTask)
-            if _has_vbench_dataset(cfg)
-            else get_config_type(OpenICLEvalTask)
-        )
+        existing_task = cfg.get("eval", {}).get("runner", {}).get("task")
+        if existing_task and existing_task.get("type") is not None:
+            t = existing_task["type"]
+            eval_task_type = t if isinstance(t, str) else get_config_type(t)
+        else:
+            eval_task_type = get_config_type(OpenICLEvalTask)
         new_cfg = dict(
             eval=dict(
                 partitioner=dict(type=get_config_type(NaivePartitioner)),
