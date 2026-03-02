@@ -1,22 +1,30 @@
-# VBench 1.0 custom input evaluation (prompt from file or filename).
-# Usage: ais_bench --mode eval --models vbench_eval --datasets vbench/vbench_custom
-# Set path to your video folder; set eval_cfg.prompt_file for prompt dict JSON.
+# VBench 1.0 custom evaluation dataset config.
+# Usage: ais_bench --mode eval --models vbench_eval --datasets vbench_custom
+# Set path (or videos_path) to your folder of generated videos; optionally set full_json_dir.
 from ais_bench.benchmark.datasets import VBenchDataset
+from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
+from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
+from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 
+# Minimal reader_cfg/infer_cfg for framework compatibility (eval uses VBenchEvalTask only).
 vbench_reader_cfg = dict(
     input_columns=['dummy'],
     output_column='dummy',
 )
 
 vbench_infer_cfg = dict(
-    inferencer='vbench_eval',
-)
-
-vbench_eval_cfg = dict(
-    use_vbench_task=True,
-    # prompt_file: path to JSON {"video_path": "prompt", ...}; if set, custom_input
-    # mode is inferred automatically. If omitted, prompts are derived from filenames.
-)
+            prompt_template=dict(
+                type=PromptTemplate,
+                template=dict(
+                    round=[
+                        dict(role='HUMAN', prompt='{question}'),
+                        dict(role='BOT', prompt=''),
+                    ]
+                )
+            ),
+            retriever=dict(type=ZeroRetriever),
+            inferencer=dict(type=GenInferencer)
+        )
 
 VBENCH_CUSTOM_DIMENSIONS = [
     'subject_consistency', 'background_consistency', 'aesthetic_quality',
@@ -24,16 +32,24 @@ VBENCH_CUSTOM_DIMENSIONS = [
     'human_action', 'temporal_flickering', 'motion_smoothness', 'dynamic_degree',
 ]
 
-# Base path to generated videos; override via CLI/config as needed.
-_BASE_PATH = ''
+vbench_eval_cfg = dict(
+    use_vbench_task=True,
+    load_ckpt_from_local=True,
+    mode='custom_input',
+    # full_json_dir: optional, default is third_party/vbench/VBench_full_info.json
+    # prompt_file: optional; if set, custom_input mode is inferred automatically
+    # category: optional; if set, vbench_category mode is inferred automatically
+)
 
-# Config key must end with 'vbench_custom' when using --datasets vbench/vbench_custom
-# Per-dimension custom-input datasets (abbr=vbench_custom_<dim>).
-_vbench_custom_single_dim = [
+_BASE_PATH = '/data/zhanggaohua/datasets/vbench/lavie/animal/'
+
+# Per-dimension VBench datasets: each dim is an independent eval task (abbr=vbench_<dim>).
+vbench_custom_datasets = [
     dict(
         abbr=f'vbench_custom_{dim}',
         type=VBenchDataset,
-        path=_BASE_PATH,  # required: your video directory
+        # path (or videos_path): required — set to your video directory; use --config with overrides or edit here
+        path=_BASE_PATH,
         reader_cfg=vbench_reader_cfg,
         infer_cfg=vbench_infer_cfg,
         eval_cfg=dict(
@@ -43,21 +59,3 @@ _vbench_custom_single_dim = [
     )
     for dim in VBENCH_CUSTOM_DIMENSIONS
 ]
-
-# Aggregated config that evaluates all custom-input dimensions in one run.
-_vbench_custom_all_dims = [
-    dict(
-        abbr='vbench_custom_all',
-        type=VBenchDataset,
-        path=_BASE_PATH,
-        reader_cfg=vbench_reader_cfg,
-        infer_cfg=vbench_infer_cfg,
-        eval_cfg=dict(
-            **vbench_eval_cfg,
-            dimension_list=VBENCH_CUSTOM_DIMENSIONS,
-        ),
-    )
-]
-
-# Exported entry used by `--datasets vbench/vbench_custom`.
-vbench_custom = _vbench_custom_single_dim + _vbench_custom_all_dims

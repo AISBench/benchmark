@@ -83,6 +83,8 @@ def laion_aesthetic(aesthetic_model, clip_model, video_list, device):
                 video_path=video_path,
             )
 
+    if num == 0:
+        return 0.0, video_results
     aesthetic_avg /= num
     return aesthetic_avg, video_results
 
@@ -102,5 +104,8 @@ def compute_aesthetic_quality(json_dir, device, submodules_list, **kwargs):
     all_results, video_results = laion_aesthetic(aesthetic_model, clip_model, video_list, device)
     if get_world_size() > 1:
         video_results = gather_list_of_dict(video_results)
-        all_results = sum([d['video_results'] for d in video_results]) / len(video_results)
+        all_results = (
+            sum([d['video_results'] for d in video_results]) / len(video_results)
+            if video_results else 0.0
+        )
     return all_results, video_results

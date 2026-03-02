@@ -43,7 +43,7 @@ vbench_eval_cfg = dict(
     # category: optional; if set, vbench_category mode is inferred automatically
 )
 
-_BASE_PATH = '/data/zhanggaohua/datasets/vbench/CogVideoX-5B'
+_BASE_PATH = '/data/zhanggaohua/datasets/vbench/lavie/animal/'
 
 # Per-dimension VBench datasets: each dim is an independent eval task (abbr=vbench_<dim>).
 _vbench_standard_single_dim = [
