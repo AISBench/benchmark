@@ -46,7 +46,25 @@ class PPLInferencerOutputHandler(BaseInferencerOutputHandler):
         super().__init__(save_every)
         self.perf_mode = perf_mode
 
-    def get_prediction_result(self, output: Union[str, PPLResponseOutput], gold: Optional[str] = None, input: Union[str, List[str]] = None) -> dict:
+    def get_prediction_result(
+        self,
+        output: Union[str, PPLResponseOutput],
+        gold: Optional[str] = None,
+        input: Optional[Union[str, List[str]]] = None,
+        data_abbr: Optional[str] = ""
+    ) -> dict:
+        """
+        Get the prediction result for performance mode.
+
+        Args:
+            output (Union[str, PPLResponseOutput]): Model output
+            gold (Optional[str]): Ground truth data for comparison
+            input (Optional[Union[str, List[str]]]): Input data for the inference
+            data_abbr (Optional[str]): Abbreviation of the dataset
+
+        Returns:
+            dict: Prediction result
+        """
         if not isinstance(output, PPLResponseOutput):
             raise AISBenchImplementationError(ICLI_CODES.UNKNOWN_ERROR, f"Output is not a PPLResponseOutput")
         result_data = {

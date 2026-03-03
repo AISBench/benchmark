@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Type
 
 from datasets import Dataset, DatasetDict
 from datasets.utils.logging import disable_progress_bar
@@ -106,5 +106,61 @@ class BaseDataset:
         return self.reader.dataset['test']
 
     @abstractmethod
-    def load(**kwargs) -> Union[Dataset, DatasetDict]:
+    def load(self, **kwargs) -> Union[Dataset, DatasetDict]:
         pass
+
+
+class BaseJDGDataset(BaseDataset):
+    def __init__(self,
+                reader_cfg: Optional[Dict] = {},
+                k: Union[int, List[int]] = 1,
+                n: int = 1,
+                **kwargs):
+        self.dataset_instance = self._init_org_datasets_instance(reader_cfg, k, n, **kwargs)
+        super().__init__(reader_cfg, k, n, **kwargs)
+
+    def load(self, predictions_path: str, **kwargs):
+
+        dataset_content = self.dataset_instance.dataset["test"]
+
+        # 加载被测模型的推理结果(排序后)
+        predictions: list = self._load_from_predictions(predictions_path)
+
+        # 为数据集添加 model_answer 列
+        if isinstance(dataset_content, Dataset):
+            dataset_list = []
+            for item in predictions:
+                item_dict = dataset_content[int(item["id"])]
+                item_dict["model_answer"] = item["prediction"]
+                item_dict["model_pred_uuid"] = item["uuid"] # Be filled in gold
+                dataset_list.append(item_dict)
+        elif isinstance(dataset_content, DatasetDict):
+            dataset_list = []
+            for key in dataset_content:
+                for item in predictions:
+                    item_dict = dataset_content[key][int(item["id"])]
+                    item_dict["model_answer"] = item["prediction"]
+                    item_dict["model_pred_uuid"] = item["uuid"] # Be filled in gold
+                    dataset_list.append(item_dict)
+        else:
+            raise ValueError(f"Unsupported dataset type: {type(dataset_content)}")
+
+        return Dataset.from_list(dataset_list)
+
+    @abstractmethod
+    def _load_from_predictions(self, prediction_path: str) -> Dict:
+        pass
+
+    @abstractmethod
+    def _get_dataset_class(self):
+        return BaseDataset
+
+    def _init_org_datasets_instance(
+        self,
+        reader_cfg: Optional[Dict] = {},
+        k: Union[int, List[int]] = 1,
+        n: int = 1,
+        **kwargs):
+        dataset_class = self._get_dataset_class()
+        return dataset_class(reader_cfg, k, n, **kwargs)
+
