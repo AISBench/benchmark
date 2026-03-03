@@ -264,7 +264,6 @@ class Eval(BaseWorker):
                 runner(task_part)
         else:
             runner(tasks)
-        self._result_post_process(tasks, cfg)
         logger.info("Evaluation tasks completed.")
 
     def _update_tasks_cfg(self, tasks, cfg: ConfigDict):
@@ -278,6 +277,7 @@ class Eval(BaseWorker):
                 task["datasets"][0][0]["abbr"] = new_dataset_abbr
                 task["datasets"][0][0].pop("judge_infer_cfg")
 
+<<<<<<< HEAD
     def _result_post_process(self, tasks, cfg: ConfigDict):
         # Copy judge infer result to normal name
 
@@ -292,6 +292,8 @@ class Eval(BaseWorker):
                     # 基于cur_results_path的文件复制一份final_org_results_path
                     shutil.copy(cur_results_path, final_org_results_path)
 
+=======
+>>>>>>> f27676d (remove copy from org result)
 
 class AccViz(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
