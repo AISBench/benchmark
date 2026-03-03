@@ -21,10 +21,10 @@ from mindiesd import attention_forward
 # from yunchang.comm.all_to_all import SeqAllToAll4D
 # from yunchang.globals import HAS_SPARSE_SAGE_ATTENTION
 
-from ais_bench.benchmark.models.local_models.qwenimage_edit.distributed.all_to_all import SeqAllToAll4D
+from ais_bench.third_party.mindie_sd.qwenimage_edit.distributed.all_to_all import SeqAllToAll4D
 import logging
 
-from ais_bench.benchmark.models.local_models.qwenimage_edit.distributed.parallel_mgr import (
+from ais_bench.third_party.mindie_sd.qwenimage_edit.distributed.parallel_mgr import (
     get_sequence_parallel_world_size,
     get_sequence_parallel_rank,
     get_sp_group
