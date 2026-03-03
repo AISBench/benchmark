@@ -126,6 +126,9 @@ class TestOpenICLApiInferTask(unittest.TestCase):
         if task.repeat > 1:
             task.logger.info(f'num_return_sequences is greater than 1, each data will be infer independently {task.repeat} times')
 
+        # 设置默认的task_state_manager，因为_get_data_list方法需要它
+        task.task_state_manager = MagicMock()
+
         return task
 
     @patch('ais_bench.benchmark.tasks.openicl_api_infer.AISLogger')
