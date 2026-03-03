@@ -1,6 +1,8 @@
 from typing import List, Tuple, Union
 import os
 import json
+import mmap
+import orjson
 import fnmatch
 import tabulate
 
@@ -227,3 +229,30 @@ def check_mm_custom(path):
             if line["type"] not in ["image", "video", "audio"]:
                 return False
     return True
+
+def load_jsonl(path: str) -> List[dict]:
+    """Load JSONL file into a list of dictionaries.
+
+    Args:
+        path: Path to the JSONL file
+
+    Returns:
+        List of dictionaries, each representing a line in the JSONL file
+    """
+    preds = []
+    with open(path, "rb") as f:
+        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        for line in iter(mm.readline, b""):
+            preds.append(orjson.loads(line))
+    return preds
+
+def dump_jsonl(data: List[dict], path: str):
+    """Dump a list of dictionaries to a JSONL file.
+
+    Args:
+        data: List of dictionaries to be dumped
+        path: Path to the output JSONL file
+    """
+    with open(path, 'wb') as f:
+        for item in data:
+            f.write(orjson.dumps(item) + b'\n')
