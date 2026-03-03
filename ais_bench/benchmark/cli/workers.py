@@ -303,6 +303,7 @@ class Eval(BaseWorker):
 
     def _update_tasks_cfg(self, tasks, cfg: ConfigDict):
         # Replace default model config to judge model config
+        self.judge_result_paths = {}
         for task in tasks:
             if task["datasets"][0][0].get("judge_infer_cfg"):
                 task["datasets"][0][0].pop("judge_infer_cfg")
