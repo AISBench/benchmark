@@ -181,7 +181,7 @@ class FunctionCallOutput(Output):
             return  # only one message is allowed
 
 
-LLM_META_DATA_TYPE = Union[Image, str]
+LLM_META_DATA_TYPE = Union[Image.Image, str]
 
 
 class LMMOutput(Output):
