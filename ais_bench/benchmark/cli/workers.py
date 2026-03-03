@@ -282,7 +282,6 @@ class Eval(BaseWorker):
                 runner(task_part)
         else:
             runner(tasks)
-        self._result_post_process(tasks, cfg)
         logger.info("Evaluation tasks completed.")
 
     def _cfg_pre_process(self, cfg: ConfigDict) -> None:
@@ -307,20 +306,6 @@ class Eval(BaseWorker):
         for task in tasks:
             if task["datasets"][0][0].get("judge_infer_cfg"):
                 task["datasets"][0][0].pop("judge_infer_cfg")
-
-    def _result_post_process(self, tasks, cfg: ConfigDict):
-        # Copy judge infer result to normal name
-
-        for task in tasks:
-            if task["datasets"][0][0]["abbr"] in self.org_dataset_abbrs.keys():
-                cur_results_path = osp.join(cfg.eval.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
-                final_org_results_path = osp.join(cfg.eval.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}.jsonl')
-                if os.path.exists(final_org_results_path):
-                    os.remove(final_org_results_path)
-
-                if os.path.exists(cur_results_path):
-                    # 基于cur_results_path的文件复制一份final_org_results_path
-                    shutil.copy(cur_results_path, final_org_results_path)
 
 
 class AccViz(BaseWorker):
