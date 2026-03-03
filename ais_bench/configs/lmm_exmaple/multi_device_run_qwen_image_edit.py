@@ -15,11 +15,11 @@ datasets = []
 models = []
 model_dataset_combinations = []
 
-for i in device_list:
+for i, device_id in enumerate(device_list):
     model_config = {k: v for k, v in qwen_image_edit_models[0].items()}
     model_config['abbr'] = f"{model_config['abbr']}-{i}"
     model_config['device_kwargs'] = dict(model_config['device_kwargs'])
-    model_config['device_kwargs']['device_id'] = i
+    model_config['device_kwargs']['device_id'] = device_id
     models.append(model_config)
 
     dataset_configs = []
