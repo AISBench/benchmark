@@ -1,11 +1,3 @@
-'''
-Author: SJTUyh yh_silence@alumni.sjtu.edu.cn
-Date: 2026-03-03 10:30:00
-LastEditors: SJTUyh yh_silence@alumni.sjtu.edu.cn
-LastEditTime: 2026-03-03 10:32:07
-FilePath: \benchmark\ais_bench\benchmark\datasets\utils\llm_judge.py
-Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
-'''
 import re
 import os
 from PIL import Image
