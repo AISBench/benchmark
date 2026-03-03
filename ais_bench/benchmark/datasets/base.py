@@ -168,7 +168,7 @@ class BaseJDGDataset(BaseDataset):
                         self.update_task_state(
                             {
                                 "total_count": len(futures),
-                                "progress_description": "Infer progress",
+                                "progress_description": "Processing predictions",
                                 "finish_count": i + 1,
                             }
                         )
@@ -195,7 +195,7 @@ class BaseJDGDataset(BaseDataset):
                         self.update_task_state(
                             {
                                 "total_count": len(futures),
-                                "progress_description": "Infer progress",
+                                "progress_description": "Processing predictions",
                                 "finish_count": i + 1,
                             }
                         )
