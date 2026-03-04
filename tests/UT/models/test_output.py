@@ -43,10 +43,7 @@ def test_concate_reasoning_content():
 
     # 测试reasoning_content和content都不为空的情况
     result1 = output._concate_reasoning_content("content", "reasoning")
-    assert result1 == "reasoning
-
-
-content"
+    assert result1 == "reasoning\n\ncontent"
 
     # 测试reasoning_content不为空但content为空的情况
     result2 = output._concate_reasoning_content("", "reasoning")
@@ -73,21 +70,12 @@ def test_get_prediction():
     # 测试content和reasoning_content都是列表的情况
     output.content = ["content1", "content2"]
     output.reasoning_content = ["reasoning1", "reasoning2"]
-    assert output.get_prediction() == ["reasoning1
-
-
-content1", "reasoning2
-
-
-content2"]
+    assert output.get_prediction() == ["reasoning1\n\ncontent1", "reasoning2\n\ncontent2"]
 
     # 测试reasoning_content是字符串的情况
     output.content = "content string"
     output.reasoning_content = "reasoning string"
-    assert output.get_prediction() == "reasoning string
-
-
-content string"
+    assert output.get_prediction() == "reasoning string\n\ncontent string"
 
     # 测试其他类型的情况（应该返回原始content）
     output.content = "test content"
