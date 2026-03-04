@@ -29,18 +29,18 @@ class MockConfigDict(dict):
                 self[key] = MockConfigDict(value)
             elif isinstance(value, list):
                 self[key] = [MockConfigDict(item) if isinstance(item, dict) else item for item in value]
-    
+
     def __getattr__(self, name):
         if name in self:
             return self[name]
         raise AttributeError(f"'MockConfigDict' object has no attribute '{name}'")
-    
+
     def __setattr__(self, name, value):
         if isinstance(value, dict):
             self[name] = MockConfigDict(value)
         else:
             self[name] = value
-    
+
     def merge_from_dict(self, data):
         for key, value in data.items():
             if isinstance(value, dict) and key in self and isinstance(self[key], dict):
@@ -54,7 +54,7 @@ class MockConfigDict(dict):
                     self[key] = MockConfigDict(value)
                 else:
                     self[key] = value
-    
+
     def get(self, key, default=None):
         return super().get(key, default)
 
@@ -69,7 +69,7 @@ class TestBaseWorker:
                 pass
             def do_work(self, cfg):
                 pass
-        
+
         worker = ConcreteWorker(mock_args)
         assert worker.args == mock_args
 
@@ -89,7 +89,7 @@ class TestInfer:
         """测试update_cfg方法，使用service模型"""
         # 设置mock返回值
         mock_get_config_type.side_effect = ['MockNaivePartitioner', 'MockOpenICLApiInferTask', 'MockLocalRunner']
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'models': [{'attr': 'service', 'abbr': 'test_model'}],
@@ -104,11 +104,11 @@ class TestInfer:
             'work_dir': '/test/workdir',
             'cli_args': MagicMock(debug=False)
         })
-        
+
         # 执行测试
         with patch('os.path.join', return_value='/test/workdir/predictions/'):
             result = self.infer_worker.update_cfg(cfg)
-        
+
         # 验证结果
         assert result == cfg
         assert cfg['infer']['partitioner']['type'] == 'MockNaivePartitioner'
@@ -121,7 +121,7 @@ class TestInfer:
         # 注意：在Infer.update_cfg中，prompt_template和ice_template不会被设置到retriever中
         # 它们是在_fill_dataset_configs中设置的，而_fill_dataset_configs是在ConfigManager.load_config中调用的
         # 所以这里不应该验证这些字段
-        
+
         # 注意：fill_model_path_if_datasets_need是在_fill_dataset_configs中调用的，不是在update_cfg中
         # 所以这里不应该验证它被调用
 
@@ -131,7 +131,7 @@ class TestInfer:
         """测试update_cfg方法，使用local模型"""
         # 设置mock返回值
         mock_get_config_type.side_effect = ['MockNaivePartitioner', 'MockOpenICLInferTask', 'MockLocalRunner']
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'models': [{'attr': 'local', 'abbr': 'test_model'}],
@@ -144,11 +144,11 @@ class TestInfer:
             'work_dir': '/test/workdir',
             'cli_args': MagicMock(debug=True)
         })
-        
+
         # 执行测试
         with patch('os.path.join', return_value='/test/workdir/predictions/'):
             self.infer_worker.update_cfg(cfg)
-        
+
         # 验证结果
         assert cfg['infer']['runner']['task']['type'] == 'MockOpenICLInferTask'
         assert cfg['infer']['runner']['debug'] == True  # 应该从cli_args获取debug值
@@ -163,10 +163,10 @@ class TestInfer:
         mock_partitioners.build.return_value = mock_partitioner
         mock_tasks = [MagicMock()]
         mock_partitioner.return_value = mock_tasks
-        
+
         mock_runner = MagicMock()
         mock_runners.build.return_value = mock_runner
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'infer': {
@@ -175,19 +175,19 @@ class TestInfer:
             },
             'cli_args': MagicMock(merge_ds=False, mode='infer')
         })
-        
+
         # 模拟_update_tasks_cfg方法
         with patch.object(self.infer_worker, '_update_tasks_cfg') as mock_update_tasks_cfg:
             # 执行测试
             self.infer_worker.do_work(cfg)
-            
+
             # 验证结果
             mock_partitioners.build.assert_called_once_with(cfg['infer']['partitioner'])
             mock_partitioner.assert_called_once_with(cfg)
             mock_runners.build.assert_called_once_with(cfg['infer']['runner'])
             mock_runner.assert_called_once_with(mock_tasks)
             mock_update_tasks_cfg.assert_called_once_with(mock_tasks, cfg)
-            
+
             # 验证正确的日志调用
             logs_called = [call for call in mock_logger.info.call_args_list]
             assert call("Starting inference tasks...") in logs_called
@@ -201,7 +201,7 @@ class TestInfer:
         # 设置mock对象
         mock_partitioner = MagicMock()
         mock_partitioners.build.return_value = mock_partitioner
-        
+
         # 创建模拟任务
         task1 = {
             'models': [{'abbr': 'model1'}],
@@ -213,10 +213,10 @@ class TestInfer:
         }
         mock_tasks = [task1, task2]
         mock_partitioner.return_value = mock_tasks
-        
+
         mock_runner = MagicMock()
         mock_runners.build.return_value = mock_runner
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'infer': {
@@ -225,12 +225,12 @@ class TestInfer:
             },
             'cli_args': MagicMock(merge_ds=True, mode='infer')
         })
-        
+
         # 模拟_update_tasks_cfg方法
         with patch.object(self.infer_worker, '_update_tasks_cfg'):
             # 执行测试
             self.infer_worker.do_work(cfg)
-            
+
             # 验证结果
             logs_called = [call for call in mock_logger.info.call_args_list]
             assert call("Merging datasets with the same model and inferencer...") in logs_called
@@ -247,10 +247,10 @@ class TestInfer:
         mock_partitioners.build.return_value = mock_partitioner
         mock_tasks = [MagicMock()]
         mock_partitioner.return_value = mock_tasks
-        
+
         mock_runner = MagicMock()
         mock_runners.build.return_value = mock_runner
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'infer': {
@@ -259,14 +259,14 @@ class TestInfer:
             },
             'cli_args': MagicMock(merge_ds=False, mode='perf')
         })
-        
+
         # 模拟_update_tasks_cfg方法
         with patch.object(self.infer_worker, '_update_tasks_cfg'):
             # 执行测试
             with patch.object(self.infer_worker, '_merge_datasets') as mock_merge:
                 mock_merge.return_value = mock_tasks
                 self.infer_worker.do_work(cfg)
-                
+
                 # 验证_merge_datasets被调用
                 mock_merge.assert_called_once_with(mock_tasks)
 
@@ -285,10 +285,10 @@ class TestInfer:
             'models': [{'abbr': 'model2'}],
             'datasets': [[{'type': 'dataset_type', 'infer_cfg': {'inferencer': 'inferencer_type'}}]]
         }
-        
+
         # 执行测试
         result = self.infer_worker._merge_datasets([task1, task2, task3])
-        
+
         # 验证结果
         assert len(result) == 2  # 应该合并为2个任务
         # 第一个任务应该包含合并后的数据集
@@ -302,13 +302,13 @@ class TestInfer:
         task = MagicMock()
         task.datasets = [[MagicMock(abbr='test_dataset')]]
         tasks = [task]
-        
+
         cfg = MagicMock()
         cfg.attack = MagicMock()
-        
+
         # 执行测试
         self.infer_worker._update_tasks_cfg(tasks, cfg)
-        
+
         # 验证结果
         assert cfg.attack.dataset == 'test_dataset'
         assert task.attack == cfg.attack
@@ -318,12 +318,12 @@ class TestInfer:
         # 创建测试数据
         task = MagicMock()
         tasks = [task]
-        
+
         cfg = MagicMock()
         # 删除attack属性
         if hasattr(cfg, 'attack'):
             delattr(cfg, 'attack')
-        
+
         # 执行测试 - 不应抛出异常
         self.infer_worker._update_tasks_cfg(tasks, cfg)
 
@@ -342,24 +342,24 @@ class TestEval:
         """测试update_cfg方法"""
         # 设置mock返回值
         mock_get_config_type.side_effect = ['MockNaivePartitioner', 'MockOpenICLEvalTask', 'MockLocalRunner']
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cli_args = MagicMock()
         cli_args.dump_eval_details = True
         cli_args.dump_extract_rate = True
         cli_args.debug = True
-        
+
         cfg = MockConfigDict({
             'models': [{'abbr': 'test_model'}],
             'datasets': [{'abbr': 'test_dataset'}],
             'work_dir': '/test/workdir',
             'cli_args': cli_args
         })
-        
+
         # 执行测试
         with patch('os.path.join', return_value='/test/workdir/results/'):
             result = self.eval_worker.update_cfg(cfg)
-        
+
         # 验证结果
         assert result == cfg
         assert cfg['eval']['partitioner']['type'] == 'MockNaivePartitioner'
@@ -371,7 +371,7 @@ class TestEval:
         assert cfg['eval']['runner']['task']['dump_details'] == True
         assert cfg['eval']['runner']['task']['cal_extract_rate'] == True
         assert cfg['eval']['partitioner']['out_dir'] == '/test/workdir/results/'
-        
+
         # 注意：fill_model_path_if_datasets_need是在_fill_dataset_configs中调用的，不是在Eval.update_cfg中
         # 所以这里不应该验证它被调用
 
@@ -385,23 +385,25 @@ class TestEval:
         mock_partitioners.build.return_value = mock_partitioner
         mock_tasks = [MagicMock()]
         mock_partitioner.return_value = mock_tasks
-        
+
         mock_runner = MagicMock()
         mock_runners.build.return_value = mock_runner
-        
+
         # 创建测试配置 - 使用MockConfigDict
+        # 添加datasets字段以支持cfg.datasets访问
         cfg = MockConfigDict({
             'eval': {
                 'partitioner': {},
                 'runner': {}
-            }
+            },
+            'datasets': []
         })
-        
+
         # 模拟_update_tasks_cfg方法
         with patch.object(self.eval_worker, '_update_tasks_cfg'):
             # 执行测试
             self.eval_worker.do_work(cfg)
-            
+
             # 验证结果
             mock_partitioners.build.assert_called_once_with(cfg['eval']['partitioner'])
             mock_partitioner.assert_called_once_with(cfg)
@@ -421,23 +423,25 @@ class TestEval:
         mock_task_part2 = [MagicMock()]
         mock_tasks = [mock_task_part1, mock_task_part2]
         mock_partitioner.return_value = mock_tasks
-        
+
         mock_runner = MagicMock()
         mock_runners.build.return_value = mock_runner
-        
+
         # 创建测试配置 - 使用MockConfigDict
+        # 添加datasets字段以支持cfg.datasets访问
         cfg = MockConfigDict({
             'eval': {
                 'partitioner': {},
                 'runner': {}
-            }
+            },
+            'datasets': []
         })
-        
+
         # 模拟_update_tasks_cfg方法
         with patch.object(self.eval_worker, '_update_tasks_cfg'):
             # 执行测试
             self.eval_worker.do_work(cfg)
-            
+
             # 验证结果 - runner应该被调用两次，分别处理每个任务部分
             assert mock_runner.call_count == 2
             mock_runner.assert_any_call(mock_task_part1)
@@ -461,13 +465,13 @@ class TestAccViz:
         """测试update_cfg方法，没有summarizer配置的情况"""
         # 设置mock返回值
         mock_get_config_type.return_value = 'MockDefaultSummarizer'
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({})
-        
+
         # 执行测试
         result = self.acc_viz_worker.update_cfg(cfg)
-        
+
         # 验证结果
         assert result == cfg
         assert cfg['summarizer']['type'] == 'MockDefaultSummarizer'
@@ -478,17 +482,17 @@ class TestAccViz:
         """测试update_cfg方法，summarizer有attr属性的情况"""
         # 设置mock返回值
         mock_get_config_type.return_value = 'MockDefaultSummarizer'
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'summarizer': {
                 'attr': 'accuracy'
             }
         })
-        
+
         # 执行测试
         self.acc_viz_worker.update_cfg(cfg)
-        
+
         # 验证结果
         assert 'attr' not in cfg['summarizer']
 
@@ -499,15 +503,17 @@ class TestAccViz:
         # 设置mock对象
         mock_summarizer = MagicMock()
         mock_build_from_cfg.return_value = mock_summarizer
-        
+
         # 创建测试配置 - 使用MockConfigDict
+        # 添加datasets字段以支持cfg.datasets访问
         cfg = MockConfigDict({
-            'summarizer': {}
+            'summarizer': {},
+            'datasets': []
         })
-        
+
         # 执行测试
         self.acc_viz_worker.do_work(cfg)
-        
+
         # 验证结果
         mock_build_from_cfg.assert_called_once_with({'config': cfg})
         mock_summarizer.summarize.assert_called_once_with(time_str='20240101_120000')
@@ -523,7 +529,7 @@ class TestAccViz:
         mock_summarizer3 = MagicMock()
         # 使用列表而不是生成器，避免StopIteration错误
         mock_build_from_cfg.side_effect = [mock_summarizer1, mock_summarizer1, mock_summarizer3]
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'summarizer': {
@@ -535,10 +541,10 @@ class TestAccViz:
                 {'abbr': 'dataset2_1', 'summarizer': {'type': 'summarizer_type2'}}
             ]
         })
-        
+
         # 执行测试
         self.acc_viz_worker.do_work(cfg)
-        
+
         # 验证结果 - 应该构建多个摘要器
         assert mock_build_from_cfg.call_count == 3
         # 验证主摘要器被调用时传入了主观分数
@@ -558,7 +564,7 @@ class TestPerfViz:
         """测试update_cfg方法，完整配置的情况"""
         # 设置mock返回值
         mock_get_config_type.side_effect = ['MockDefaultPerfSummarizer', 'MockDefaultPerfMetricCalculator']
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'summarizer': {
@@ -568,10 +574,10 @@ class TestPerfViz:
                 'prompt_db': 'db_path'
             }
         })
-        
+
         # 执行测试
         result = self.perf_viz_worker.update_cfg(cfg)
-        
+
         # 验证结果
         assert result == cfg
         assert cfg['summarizer']['type'] == 'MockDefaultPerfSummarizer'
@@ -586,13 +592,13 @@ class TestPerfViz:
         """测试update_cfg方法，最小配置的情况"""
         # 设置mock返回值
         mock_get_config_type.side_effect = ['MockDefaultPerfSummarizer', 'MockDefaultPerfMetricCalculator']
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({})
-        
+
         # 执行测试
         self.perf_viz_worker.update_cfg(cfg)
-        
+
         # 验证结果
         assert cfg['summarizer']['type'] == 'MockDefaultPerfSummarizer'
         assert cfg['summarizer']['calculator']['type'] == 'MockDefaultPerfMetricCalculator'
@@ -604,15 +610,15 @@ class TestPerfViz:
         # 设置mock对象
         mock_summarizer = MagicMock()
         mock_build_from_cfg.return_value = mock_summarizer
-        
+
         # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'summarizer': {}
         })
-        
+
         # 执行测试
         self.perf_viz_worker.do_work(cfg)
-        
+
         # 验证结果
         mock_build_from_cfg.assert_called_once_with({'config': cfg})
         mock_summarizer.summarize.assert_called_once()
@@ -625,25 +631,25 @@ class TestWorkFlowExecutor:
         mock_cfg = MagicMock()
         mock_workflow = [MagicMock(), MagicMock()]
         executor = WorkFlowExecutor(mock_cfg, mock_workflow)
-        
+
         assert executor.cfg == mock_cfg
         assert executor.workflow == mock_workflow
 
     def test_execute(self):
         """测试execute方法"""
         mock_cfg = MagicMock()
-        
+
         # 创建两个mock worker
         mock_worker1 = MagicMock()
         mock_worker2 = MagicMock()
         mock_workflow = [mock_worker1, mock_worker2]
-        
+
         # 创建执行器
         executor = WorkFlowExecutor(mock_cfg, mock_workflow)
-        
+
         # 执行测试
         executor.execute()
-        
+
         # 验证结果 - 每个worker的do_work方法都应该被调用
         mock_worker1.do_work.assert_called_once_with(mock_cfg)
         mock_worker2.do_work.assert_called_once_with(mock_cfg)
@@ -658,20 +664,20 @@ def test_work_flow_dict():
     assert 'viz' in WORK_FLOW
     assert 'perf' in WORK_FLOW
     assert 'perf_viz' in WORK_FLOW
-    
+
     # 验证工作流内容正确
     assert Infer in WORK_FLOW['all']
     assert Eval in WORK_FLOW['all']
     assert AccViz in WORK_FLOW['all']
-    
+
     assert Infer in WORK_FLOW['infer']
-    
+
     assert Eval in WORK_FLOW['eval']
     assert AccViz in WORK_FLOW['eval']
-    
+
     assert AccViz in WORK_FLOW['viz']
-    
+
     assert Infer in WORK_FLOW['perf']
     assert PerfViz in WORK_FLOW['perf']
-    
+
     assert PerfViz in WORK_FLOW['perf_viz']
