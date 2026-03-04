@@ -1,5 +1,7 @@
 from abc import abstractmethod
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Type
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from datasets import Dataset, DatasetDict
 from datasets.utils.logging import disable_progress_bar
@@ -8,8 +10,12 @@ from ais_bench.benchmark.openicl.icl_dataset_reader import DatasetReader
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import DSET_CODES
 from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+from ais_bench.benchmark.tasks.base import TaskStateManager
 
 disable_progress_bar() # disable mapping progress bar, preventing terminal interface contamination
+
+JDG_DATASET_LOAD_BATCH_SIZE = 10
+
 
 class BaseDataset:
 
@@ -17,9 +23,13 @@ class BaseDataset:
                  reader_cfg: Optional[Dict] = {},
                  k: Union[int, List[int]] = 1,
                  n: int = 1,
+                 task_state_manager: Optional[TaskStateManager] = None,
                  **kwargs):
         # Validate k and n parameters
         self.logger = AISLogger()
+        if task_state_manager is not None:
+            self._init_task_state_manager(task_state_manager)
+
         max_k = max(k) if isinstance(k, List) else k
         if max_k > n:
             raise ParameterValueError(
@@ -35,10 +45,17 @@ class BaseDataset:
         self._init_reader(**reader_cfg)
         self.repeated_dataset(self.abbr, n) # this process will update self.dataset and self.reader.dataset
 
+    def _init_task_state_manager(self, task_state_manager):
+        self.task_state_manager = task_state_manager
 
     def _init_reader(self, **kwargs):
         self.reader = DatasetReader(self.dataset, **kwargs)
 
+    def update_task_state(self, state: Dict):
+        if self.task_state_manager is not None:
+            self.task_state_manager.update_task_state(state)
+        else:
+            self.logger.warning("Task state manager is not initialized, cannot update task state")
 
     def repeated_dataset(self, abbr: str, n: int):
         # Create repeated indices in batches to avoid generating an oversized index list at once
@@ -106,5 +123,101 @@ class BaseDataset:
         return self.reader.dataset['test']
 
     @abstractmethod
-    def load(**kwargs) -> Union[Dataset, DatasetDict]:
+    def load(self, **kwargs) -> Union[Dataset, DatasetDict]:
         pass
+
+
+class BaseJDGDataset(BaseDataset):
+    def __init__(self,
+                reader_cfg: Optional[Dict] = {},
+                k: Union[int, List[int]] = 1,
+                n: int = 1,
+                task_state_manager: Optional[TaskStateManager] = None,
+                **kwargs):
+        self.dataset_instance = self._init_org_datasets_instance(reader_cfg, k, n, task_state_manager, **kwargs)
+        super().__init__(reader_cfg, k, n, task_state_manager, **kwargs)
+
+    def load(self, predictions_path: str, **kwargs):
+
+        dataset_content = self.dataset_instance.dataset["test"]
+
+        predictions: list = self._load_from_predictions(predictions_path)
+
+        if isinstance(dataset_content, Dataset):
+            datasets_to_process = [dataset_content]
+        elif isinstance(dataset_content, DatasetDict):
+            datasets_to_process = [dataset_content[key] for key in dataset_content]
+        else:
+            raise ValueError(f"Unsupported dataset type: {type(dataset_content)}")
+
+        return self._process_predictions(datasets_to_process, predictions)
+
+    def _process_predictions(self, datasets_to_process: List[Dataset], predictions: list) -> Dataset:
+        dataset_batches = []
+        current_batch = []
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = []
+            for dataset in datasets_to_process:
+                for item in predictions:
+                    future = executor.submit(self._process_single_item, dataset, item)
+                    futures.append(future)
+
+            with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
+                for i, future in enumerate(as_completed(futures)):
+                    result = future.result()
+                    current_batch.append(result)
+
+                    if len(current_batch) >= JDG_DATASET_LOAD_BATCH_SIZE:
+                        dataset_batches.append(Dataset.from_list(current_batch))
+                        current_batch = []
+
+                    pbar.update(1)
+                    self.update_task_state(
+                        {
+                            "total_count": len(futures),
+                            "progress_description": "Processing predictions",
+                            "finish_count": i + 1,
+                        }
+                    )
+                    pbar.refresh()
+
+        if current_batch:
+            dataset_batches.append(Dataset.from_list(current_batch))
+
+        if dataset_batches:
+            if len(dataset_batches) == 1:
+                return dataset_batches[0]
+            else:
+                from datasets import concatenate_datasets
+                return concatenate_datasets(dataset_batches)
+        else:
+            return Dataset.from_list([])
+
+    @abstractmethod
+    def _load_from_predictions(self, prediction_path: str) -> Dict:
+        pass
+
+    @abstractmethod
+    def _get_dataset_class(self):
+        return BaseDataset
+
+    def _modify_dataset_item(self, dataset_item, pred_item):
+        dataset_item["model_answer"] = pred_item["prediction"]
+
+    def _process_single_item(self, dataset_content, pred_item):
+        item_dict = dataset_content[int(pred_item["id"])]
+        self._modify_dataset_item(item_dict, pred_item)
+        item_dict["model_pred_uuid"] = pred_item["uuid"]
+        return item_dict
+
+    def _init_org_datasets_instance(
+        self,
+        reader_cfg: Optional[Dict] = {},
+        k: Union[int, List[int]] = 1,
+        n: int = 1,
+        task_state_manager: Optional[TaskStateManager] = None,
+        **kwargs):
+        dataset_class = self._get_dataset_class()
+        return dataset_class(reader_cfg, k, n, task_state_manager, **kwargs)
+
