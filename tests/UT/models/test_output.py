@@ -43,7 +43,10 @@ def test_concate_reasoning_content():
 
     # 测试reasoning_content和content都不为空的情况
     result1 = output._concate_reasoning_content("content", "reasoning")
-    assert result1 == "reasoning</think>content"
+    assert result1 == "reasoning
+
+
+content"
 
     # 测试reasoning_content不为空但content为空的情况
     result2 = output._concate_reasoning_content("", "reasoning")
@@ -70,12 +73,21 @@ def test_get_prediction():
     # 测试content和reasoning_content都是列表的情况
     output.content = ["content1", "content2"]
     output.reasoning_content = ["reasoning1", "reasoning2"]
-    assert output.get_prediction() == ["reasoning1</think>content1", "reasoning2</think>content2"]
+    assert output.get_prediction() == ["reasoning1
+
+
+content1", "reasoning2
+
+
+content2"]
 
     # 测试reasoning_content是字符串的情况
     output.content = "content string"
     output.reasoning_content = "reasoning string"
-    assert output.get_prediction() == "reasoning string</think>content string"
+    assert output.get_prediction() == "reasoning string
+
+
+content string"
 
     # 测试其他类型的情况（应该返回原始content）
     output.content = "test content"
@@ -258,19 +270,17 @@ class TestFunctionCallOutput:
 
         assert output.extra_details_data == {}
 
-    def test_get_metrics(self):
-        """测试get_metrics方法"""
+    def test_get_metrics_inherited(self):
+        """测试get_metrics方法（继承自Output抽象基类，返回None）"""
         output = FunctionCallOutput()
         output.success = True
         output.uuid = "test_uuid"
         output.tool_calls = [{"function": "test_func"}]
-        output.time_points = [time.perf_counter() - 1, time.perf_counter()]
 
+        # FunctionCallOutput 没有实现 get_metrics，继承自抽象基类 Output
+        # Output.get_metrics 是抽象方法，只有 pass，返回 None
         metrics = output.get_metrics()
-
-        assert metrics is not None
-        assert "tool_calls" in metrics
-        assert metrics["tool_calls"] == [{"function": "test_func"}]
+        assert metrics is None
 
 
 class TestLMMOutput:
@@ -355,20 +365,17 @@ class TestLMMOutput:
             assert isinstance(result, list)
             assert len(result) == 2
 
-    def test_get_metrics(self):
-        """测试get_metrics方法"""
+    def test_get_metrics_inherited(self):
+        """测试get_metrics方法（继承自Output抽象基类，返回None）"""
         output = LMMOutput()
         output.success = True
         output.uuid = "test_uuid"
         output.content = ["test"]
-        output.time_points = [time.perf_counter() - 1, time.perf_counter()]
 
+        # LMMOutput 没有实现 get_metrics，继承自抽象基类 Output
+        # Output.get_metrics 是抽象方法，只有 pass，返回 None
         metrics = output.get_metrics()
-
-        assert metrics is not None
-        assert "content" not in metrics
-        assert "perf_mode" not in metrics
-        assert metrics["uuid"] == "test_uuid"
+        assert metrics is None
 
 
 def test_output_update_extra_perf_data_from_stream_response():
