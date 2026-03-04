@@ -264,9 +264,11 @@ class TestFunctionCallOutput:
         output.success = True
         output.uuid = "test_uuid"
         output.tool_calls = [{"function": "test_func"}]
+        output.time_points = [time.perf_counter() - 1, time.perf_counter()]
 
         metrics = output.get_metrics()
 
+        assert metrics is not None
         assert "tool_calls" in metrics
         assert metrics["tool_calls"] == [{"function": "test_func"}]
 
@@ -359,9 +361,11 @@ class TestLMMOutput:
         output.success = True
         output.uuid = "test_uuid"
         output.content = ["test"]
+        output.time_points = [time.perf_counter() - 1, time.perf_counter()]
 
         metrics = output.get_metrics()
 
+        assert metrics is not None
         assert "content" not in metrics
         assert "perf_mode" not in metrics
         assert metrics["uuid"] == "test_uuid"

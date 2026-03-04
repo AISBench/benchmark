@@ -36,7 +36,7 @@ class DummyDatasetSingle(BaseDataset):
             {"text": "a"},
             {"text": "b"},
         ])
-    
+
     def _init_reader(self, **kwargs):
         # 先正常初始化reader
         from ais_bench.benchmark.openicl.icl_dataset_reader import DatasetReader
@@ -67,7 +67,7 @@ class TestBaseDataset(unittest.TestCase):
         first = ds.dataset['test'][0]
         self.assertIn("subdivision", first)
         self.assertIn("idx", first)
-    
+
     def test_repeated_dataset_with_dataset_type(self):
         """测试当reader.dataset是Dataset类型时的处理（覆盖46-62行）"""
         # 创建一个返回Dataset的类，并手动设置reader.dataset为Dataset
@@ -84,7 +84,7 @@ class TestBaseDataset(unittest.TestCase):
         first = ds.dataset[0]
         self.assertIn("subdivision", first)
         self.assertIn("idx", first)
-    
+
     def test_train_property(self):
         """测试train属性（覆盖92行）"""
         ds = DummyDataset(
@@ -95,7 +95,7 @@ class TestBaseDataset(unittest.TestCase):
         train = ds.train
         self.assertIsInstance(train, Dataset)
         self.assertGreater(len(train), 0)
-    
+
     def test_test_property(self):
         """测试test属性（覆盖96行）"""
         ds = DummyDataset(
@@ -106,17 +106,17 @@ class TestBaseDataset(unittest.TestCase):
         test = ds.test
         self.assertIsInstance(test, Dataset)
         self.assertGreater(len(test), 0)
-    
+
     def test_repeated_dataset_with_large_batch_size(self):
         """测试大批量数据的批处理逻辑（覆盖批处理相关代码）"""
         # 创建一个较大的数据集来触发批处理逻辑
         large_data = [{"text": f"item_{i}"} for i in range(15000)]
-        
+
         class LargeDataset(BaseDataset):
             @staticmethod
             def load(**kwargs):
                 return Dataset.from_list(large_data)
-        
+
         ds = LargeDataset(
             reader_cfg={'input_columns': ['text'], 'output_column': None},
             k=1,
@@ -162,6 +162,8 @@ class TestBaseDataset(unittest.TestCase):
             k=1,
             n=1
         )
+        ds.task_state_manager = None
+        ds.logger = MagicMock()
         # 不应抛出异常
         ds.update_task_state({'status': 'processing'})
 
@@ -285,14 +287,14 @@ class TestBaseJDGDataset(unittest.TestCase):
 
         with patch.object(DummyJDGDataset, '_process_predictions') as mock_process:
             mock_process.return_value = Dataset.from_list([{"text": "result"}])
-            
+
             with patch.object(DummyJDGDataset, '__init__', lambda self, *args, **kwargs: None):
                 ds = DummyJDGDataset.__new__(DummyJDGDataset)
                 ds.dataset_instance = MagicMock()
                 ds.dataset_instance.dataset = {"test": Dataset.from_list([{"text": "test"}])}
                 ds.task_state_manager = None
                 ds.logger = MagicMock()
-                
+
                 result = ds.load(predictions_path="/test/predictions.jsonl")
                 self.assertIsInstance(result, Dataset)
 

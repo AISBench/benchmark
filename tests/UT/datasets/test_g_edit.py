@@ -25,22 +25,34 @@ class TestGEditEvaluator:
         evaluator = GEditEvaluator()
         predictions = ["pred1", "pred2", "pred3"]
         references = ["ref1", "ref2", "ref3"]
-        
+
         result = evaluator.score(predictions, references)
-        
+
         assert "accuracy" in result
         assert "details" in result
         assert result["accuracy"] == 100.0
         assert len(result["details"]) == 3
 
-    def test_score_empty(self):
-        """测试score方法，空输入"""
+    def test_score_empty_predictions(self):
+        """测试score方法，空predictions"""
         evaluator = GEditEvaluator()
         predictions = []
-        references = []
-        
+        references = ["ref1"]
+
         result = evaluator.score(predictions, references)
-        
+
+        assert "accuracy" in result
+        assert "details" in result
+        assert result["accuracy"] == 0.0
+
+    def test_score_empty_references(self):
+        """测试score方法，空references"""
+        evaluator = GEditEvaluator()
+        predictions = ["pred1"]
+        references = []
+
+        result = evaluator.score(predictions, references)
+
         assert "accuracy" in result
         assert "details" in result
 
@@ -54,7 +66,7 @@ class TestGEditDataset:
                 "input_image_raw": Image.new('RGB', (100, 100), color='blue'),
                 "instruction": "test instruction"
             }
-        ])
+        ] * 2000)
 
         with patch('ais_bench.benchmark.datasets.g_edit.load_from_disk') as mock_load:
             with patch('ais_bench.benchmark.datasets.g_edit.get_data_path') as mock_get_path:
@@ -65,9 +77,9 @@ class TestGEditDataset:
                 ds.task_state_manager = None
                 ds.logger = MagicMock()
                 ds.update_task_state = MagicMock()
-                
+
                 result = ds.load(path='/test/path')
-                
+
                 assert isinstance(result, Dataset)
 
     def test_load_with_split(self):
@@ -89,9 +101,9 @@ class TestGEditDataset:
                 ds.task_state_manager = None
                 ds.logger = MagicMock()
                 ds.update_task_state = MagicMock()
-                
+
                 result = ds.load(path='/test/path', split_count=2, split_index=0)
-                
+
                 assert isinstance(result, Dataset)
 
     def test_load_use_raw(self):
@@ -102,7 +114,7 @@ class TestGEditDataset:
                 "input_image_raw": Image.new('RGB', (100, 100), color='blue'),
                 "instruction": "test instruction"
             }
-        ])
+        ] * 2000)
 
         with patch('ais_bench.benchmark.datasets.g_edit.load_from_disk') as mock_load:
             with patch('ais_bench.benchmark.datasets.g_edit.get_data_path') as mock_get_path:
@@ -113,9 +125,9 @@ class TestGEditDataset:
                 ds.task_state_manager = None
                 ds.logger = MagicMock()
                 ds.update_task_state = MagicMock()
-                
+
                 result = ds.load(path='/test/path', use_raw=True)
-                
+
                 assert isinstance(result, Dataset)
 
 

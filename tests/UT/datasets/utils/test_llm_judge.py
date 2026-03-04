@@ -47,7 +47,7 @@ class TestLLMJudgeDataset:
         """测试文件不存在的情况"""
         ds = LLMJudgeDataset.__new__(LLMJudgeDataset)
         ds.logger = MagicMock()
-        
+
         with patch('os.path.exists', return_value=False):
             result = ds._load_from_predictions('/test/nonexistent.jsonl')
             assert result == []
@@ -58,14 +58,14 @@ class TestLLMJudgeDataset:
             {"id": 1, "prediction": "pred1"},
             {"id": 0, "prediction": "pred2"}
         ]
-        
+
         ds = LLMJudgeDataset.__new__(LLMJudgeDataset)
         ds.logger = MagicMock()
-        
+
         with patch('os.path.exists', return_value=True):
-            with patch('ais_bench.benchmark.datasets.utils.llm_judge.load_jsonl', return_value=mock_preds):
+            with patch('ais_bench.benchmark.utils.file.file.load_jsonl', return_value=mock_preds):
                 result = ds._load_from_predictions('/test/predictions.jsonl')
-                
+
                 assert len(result) == 2
                 assert result[0]["id"] == 0
                 assert result[1]["id"] == 1
@@ -77,9 +77,9 @@ class TestLLMJudgeCorrectEvaluator:
         evaluator = LLMJudgeCorrectEvaluator()
         predictions = ["A", "A", "A"]
         references = ["correct", "correct", "correct"]
-        
+
         result = evaluator.score(predictions, references)
-        
+
         assert result["accuracy"] == 100.0
         assert len(result["details"]) == 3
         for detail in result["details"]:
@@ -90,9 +90,9 @@ class TestLLMJudgeCorrectEvaluator:
         evaluator = LLMJudgeCorrectEvaluator()
         predictions = ["B", "B", "B"]
         references = ["correct", "correct", "correct"]
-        
+
         result = evaluator.score(predictions, references)
-        
+
         assert result["accuracy"] == 0.0
         for detail in result["details"]:
             assert detail["correct"] is False
@@ -102,9 +102,9 @@ class TestLLMJudgeCorrectEvaluator:
         evaluator = LLMJudgeCorrectEvaluator()
         predictions = ["A", "B", "A"]
         references = ["correct1", "correct2", "correct3"]
-        
+
         result = evaluator.score(predictions, references)
-        
+
         assert result["accuracy"] == pytest.approx(100 * 2 / 3, rel=1e-2)
         assert result["details"][0]["correct"] is True
         assert result["details"][1]["correct"] is False
@@ -115,18 +115,27 @@ class TestLLMJudgeCorrectEvaluator:
         evaluator = LLMJudgeCorrectEvaluator()
         predictions = ["A", "A"]
         references = ["correct", "correct", "correct"]
-        
+
         result = evaluator.score(predictions, references)
-        
+
         assert "error" in result
 
-    def test_score_empty(self):
-        """测试空输入"""
+    def test_score_empty_predictions(self):
+        """测试空predictions"""
         evaluator = LLMJudgeCorrectEvaluator()
         predictions = []
-        references = []
-        
+        references = ["correct"]
+
         result = evaluator.score(predictions, references)
-        
-        assert "accuracy" in result
-        assert result["accuracy"] == 0.0
+
+        assert "error" in result
+
+    def test_score_empty_references(self):
+        """测试空references"""
+        evaluator = LLMJudgeCorrectEvaluator()
+        predictions = ["A"]
+        references = []
+
+        result = evaluator.score(predictions, references)
+
+        assert "error" in result
