@@ -20,7 +20,7 @@ from ais_bench.benchmark.models.local_models.huggingface_above_v4_33 import (_co
                                                                             _get_meta_template,
                                                                             )
 
-# 解决 diffuser 0.35.1 torch2.1 报错
+# Fix diffuser 0.35.1 torch2.1 error
 def custom_op(
     name,
     fn=None,
@@ -60,29 +60,28 @@ if hasattr(torch, 'library'):
     torch.library.custom_op = custom_op
     torch.library.register_fake = register_fake
 
-# 导入 qwen_image_edit 相关模块
+# Import qwen_image_edit related modules
 try:
     from ais_bench.third_party.mindie_sd.qwenimage_edit.transformer_qwenimage import QwenImageTransformer2DModel
     from ais_bench.third_party.mindie_sd.qwenimage_edit.pipeline_qwenimage_edit_plus import QwenImageEditPlusPipeline
     from mindiesd import CacheConfig, CacheAgent
 except ImportError as e:
-    raise ImportError(f"请确保 qwenimage_edit 模块在 Python 路径中: {e}")
+    raise ImportError(f"Please ensure qwenimage_edit module is in Python path: {e}")
 
 PromptType = Union[PromptList, str]
 
-# 模型推理相关配置常量
-DEFAULT_MODEL_PATH = "/home/yanhe/models/Qwen-Image-Edit-2509/"
+# Model inference related config constants
 DEFAULT_TORCH_DTYPE = "bfloat16"
 DEFAULT_DEVICE = "npu"
 DEFAULT_DEVICE_ID = 0
-DEFAULT_NUM_INFERENCE_STEPS = 1 # 40
+DEFAULT_NUM_INFERENCE_STEPS = 40 # 40
 DEFAULT_TRUE_CFG_SCALE = 4.0
 DEFAULT_GUIDANCE_SCALE = 1.0
 DEFAULT_SEED = 0
 DEFAULT_NUM_IMAGES_PER_PROMPT = 1
 DEFAULT_QUANT_DESC_PATH = None
 
-# 缓存配置开关
+# Cache config switches
 COND_CACHE = bool(int(os.environ.get('COND_CACHE', 0)))
 UNCOND_CACHE = bool(int(os.environ.get('UNCOND_CACHE', 0)))
 
@@ -100,7 +99,7 @@ class QwenImageEditModel(BaseLMModel):
     """
 
     def __init__(self,
-                 path: str = DEFAULT_MODEL_PATH,
+                 path: str,
                  device_kwargs: dict = dict(),
                  infer_kwargs: dict = dict(),
                  meta_template: Optional[Dict] = None,
@@ -110,10 +109,9 @@ class QwenImageEditModel(BaseLMModel):
         self.max_out_len = other_kwargs.get('max_out_len', None)
         self.template_parser = _get_meta_template(meta_template)
 
-        # 设备配置
+        # Device config
         self.device = device_kwargs.get('device', DEFAULT_DEVICE)
-        #self.device_id = device_kwargs.get('device_id', DEFAULT_DEVICE_ID)
-        # 在这里声明环境变量
+        # Declare environment variable here
         self.logger.debug(f"device id from kwargs: {device_kwargs.get('device_id', DEFAULT_DEVICE_ID)}")
         os.environ["ASCEND_RT_VISIBLE_DEVICES"] = f"{device_kwargs.get('device_id', DEFAULT_DEVICE_ID)}"
         self.device_id = DEFAULT_DEVICE_ID
@@ -121,11 +119,11 @@ class QwenImageEditModel(BaseLMModel):
         self.logger.debug(f"device_str: {self.device_str};  device_id: {self.device_id}")
         self.logger.debug(f"ASCEND_RT_VISIBLE_DEVICES: {os.getenv('ASCEND_RT_VISIBLE_DEVICES')}")
 
-        # 模型配置
+        # Model config
         self.torch_dtype = other_kwargs.get('torch_dtype', DEFAULT_TORCH_DTYPE)
         self.torch_dtype = torch.bfloat16 if self.torch_dtype == "bfloat16" else torch.float32
 
-        # 推理配置
+        # Inference config
         self.num_inference_steps = infer_kwargs.get('num_inference_steps', DEFAULT_NUM_INFERENCE_STEPS)
         self.true_cfg_scale = infer_kwargs.get('true_cfg_scale', DEFAULT_TRUE_CFG_SCALE)
         self.guidance_scale = infer_kwargs.get('guidance_scale', DEFAULT_GUIDANCE_SCALE)
@@ -140,12 +138,12 @@ class QwenImageEditModel(BaseLMModel):
             f"quant_desc_path: {self.quant_desc_path}"
         )
 
-        # 加载模型
+        # Load model
         self._load_model()
 
-        # 缓存配置
+        # Cache config
         if COND_CACHE or UNCOND_CACHE:
-            # 保守cache
+            # Conservative cache
             cache_config = CacheConfig(
                 method="dit_block_cache",
                 blocks_count=60,
@@ -158,37 +156,37 @@ class QwenImageEditModel(BaseLMModel):
             )
             self.pipeline.transformer.cache_cond = CacheAgent(cache_config) if COND_CACHE else None
             self.pipeline.transformer.cache_uncond = CacheAgent(cache_config) if UNCOND_CACHE else None
-            self.logger.info("启用缓存配置")
+            self.logger.info("Cache configuration enabled")
 
     def _load_model(self):
-        """加载模型"""
-        self.logger.info(f"从 {self.path} 加载模型...")
+        """Load model"""
+        self.logger.info(f"Loading model from {self.path}...")
 
-        # 设置设备
+        # Set device
         if self.device == "npu":
             torch.npu.set_device(self.device_id)
 
-        # 加载 transformer
+        # Load transformer
         transformer = QwenImageTransformer2DModel.from_pretrained(
             os.path.join(self.path, 'transformer'),
             torch_dtype=self.torch_dtype,
-            device_map=None,               # 禁用自动设备映射
-            low_cpu_mem_usage=True         # 启用CPU低内存模式
+            device_map=None,               # Disable auto device mapping
+            low_cpu_mem_usage=True         # Enable CPU low memory mode
         )
 
-        # 量化配置
+        # Quantization config
         if self.quant_desc_path:
             from mindiesd import quantize
-            self.logger.info("Quantizing Transformer (单独量化核心组件)...")
+            self.logger.info("Quantizing Transformer (quantizing core component separately)...")
             quantize(
                 model=transformer,
                 quant_des_path=self.quant_desc_path,
                 use_nz=True,
             )
             if self.device == "npu":
-                torch.npu.empty_cache()  # 清理NPU显存缓存
+                torch.npu.empty_cache()  # Clear NPU memory cache
 
-        # 加载 pipeline
+        # Load pipeline
         self.pipeline = QwenImageEditPlusPipeline.from_pretrained(
             self.path,
             transformer=transformer,
@@ -197,16 +195,16 @@ class QwenImageEditModel(BaseLMModel):
             low_cpu_mem_usage=True
         )
 
-        # VAE优化配置（避免显存溢出）
+        # VAE optimization config (avoid memory overflow)
         self.pipeline.vae.use_slicing = True
         self.pipeline.vae.use_tiling = True
 
-        # 移动模型到目标设备
+        # Move model to target device
         self.pipeline.to(self.device_str)
-        self.pipeline.set_progress_bar_config(disable=None)  # 显示进度条
+        self.pipeline.set_progress_bar_config(disable=None)  # Show progress bar
 
     def _get_meta_template(self, meta_template):
-        """获取元模板"""
+        """Get meta template"""
         class DummyTemplateParser:
             def parse_template(self, prompt_template, mode):
                 return prompt_template
@@ -224,17 +222,15 @@ class QwenImageEditModel(BaseLMModel):
         Returns:
             str: The generated string.
         """
-        # 处理输入格式
+        # Process input format
         images = []
         prompts = []
         neg_prompts = []
-        print(f"in _generate")
-        #self.logger.info(f"输入: {input}")
         if isinstance(input, str):
             prompts.append(input)
             neg_prompts.append("")
         elif isinstance(input, list):
-            # 处理包含图像的输入
+            # Process input containing images
             for item in input[0]["prompt"]:
                 if item["type"] == "image_url":
                     base64_url = item["image_url"]["url"].split(",")[1]
@@ -247,15 +243,14 @@ class QwenImageEditModel(BaseLMModel):
                     prompts.append("")
                     neg_prompts.append("")
 
-        # 如果没有图像输入，使用默认图像
+        # If no image input, use default image
         if not images:
             raise AISBenchRuntimeError(MODEL_CODES.UNKNOWN_ERROR, "QwenImageEditModel requires image input, but can't get image info from input.")
 
-        # 执行推理
+        # Execute inference
         results = []
         for prompt, neg_prompt in zip(prompts, neg_prompts):
-            # 准备输入参数
-            print("in _generate loop")
+            # Prepare input parameters
             inputs = {
                 "image": images,
                 "prompt": prompt,
@@ -267,19 +262,15 @@ class QwenImageEditModel(BaseLMModel):
                 "num_images_per_prompt": self.num_images_per_prompt,
             }
 
-            # 执行推理并计时
+            # Execute inference and time it
             if self.device == "npu":
-                torch.npu.synchronize()  # 昇腾设备同步
-            start_time = time.time()
+                torch.npu.synchronize()  # Ascend device sync
 
             with torch.inference_mode():
                 output = self.pipeline(**inputs)
 
             if self.device == "npu":
                 torch.npu.synchronize()
-            end_time = time.time()
-            infer_time = end_time - start_time
-            self.logger.info(f"Current image finish generated, cost: {infer_time:.2f} second.")
 
         return output
 
@@ -314,7 +305,7 @@ class QwenImageEditModel(BaseLMModel):
         Returns:
             int: Length of the input tokens
         """
-        # 对于图像编辑模型，token长度计算可能不同，这里返回一个默认值
+        # For image editing models, token length calculation may differ, return a default value here
         return len(prompt.split())
 
     def generate(self, inputs, outputs, **kwargs):
@@ -337,7 +328,7 @@ class QwenImageEditModel(BaseLMModel):
             # result is QwenImagePipelineOutput with 'images' attribute
             if hasattr(result, 'images') and result.images:
                 outputs[i].success = True
-                outputs[i].content = result.images  # 将图像列表赋值给 content
+                outputs[i].content = result.images  # Assign image list to content
             else:
                 outputs[i].success = False
                 outputs[i].content = [""]

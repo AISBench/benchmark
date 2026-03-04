@@ -32,9 +32,14 @@ class LMMGenInferencer(GenInferencer):
             **kwargs,
         )
 
-        self.output_handler = LMMGenInferencerOutputHandler(perf_mode=self.perf_mode,
-                                                        save_every=self.save_every)
-    def inference(self, retriever: BaseRetriever, output_json_filepath: Optional[str] = None) -> List:
+        self.output_handler = LMMGenInferencerOutputHandler(perf_mode=self.perf_mode, save_every=self.save_every)
+
+    def inference(
+        self,
+        retriever: BaseRetriever,
+        output_json_filepath:
+        Optional[str] = None
+    ) -> List:
         self.output_handler.set_output_path(output_json_filepath)
         return super().inference(retriever, output_json_filepath)
 

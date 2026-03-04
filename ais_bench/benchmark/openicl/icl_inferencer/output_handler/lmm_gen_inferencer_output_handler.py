@@ -6,7 +6,7 @@ from pathlib import Path
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.base_handler import BaseInferencerOutputHandler, BASE64_MAX_DISPLAY_LEN
 from ais_bench.benchmark.models.output import LMMOutput
 from ais_bench.benchmark.utils.logging.error_codes import ICLI_CODES
-from ais_bench.benchmark.utils.logging.exceptions import AISBenchImplementationError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError
 
 class LMMGenInferencerOutputHandler(BaseInferencerOutputHandler):
     """
@@ -78,7 +78,5 @@ class LMMGenInferencerOutputHandler(BaseInferencerOutputHandler):
                 result_data["gold"] = gold
         except Exception as e:
             import traceback
-            print(f"[ERROR] LMMGenInferencerOutputHandler.get_prediction_result failed: {type(e).__name__}: {e}")
-            print(f"[ERROR] Traceback: {traceback.format_exc()}")
-            raise RuntimeError(f"Failed to get prediction result: {e}")
+            raise AISBenchRuntimeError(ICLI_CODES.UNKNOWN_ERROR, f"Failed to get prediction result: {e} \n Traceback: {traceback.format_exc()}")
         return result_data
