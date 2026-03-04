@@ -24,7 +24,7 @@ logger = AISLogger()
 def get_lmm_point_list(pred: str) -> str:
     """从模型回复中提取列表的字符串"""
     match = re.search(r'\[\s*\d+(?:\s*,\s*\d+)*\s*\]', pred)
-    return match.group(0) if match else ''
+    return match.group(0) if match else '[]'
 
 
 class LMMImgJDGDataset(BaseJDGDataset):
