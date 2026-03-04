@@ -13,7 +13,7 @@ from tqdm import tqdm
 from ais_bench.benchmark.datasets.base import BaseDataset
 from ais_bench.benchmark.utils.prompt import AIS_CONTENT_TAG, AIS_TEXT_START, AIS_IMAGE_START
 
-GEDIT_COUNT = 1
+GEDIT_COUNT = 1212 # total 1212 cases, could change for quick test
 
 class GEditEvaluator(BaseEvaluator):
     def score(self, predictions, references):

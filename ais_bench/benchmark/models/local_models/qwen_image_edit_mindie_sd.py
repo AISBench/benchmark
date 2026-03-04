@@ -14,7 +14,8 @@ from ais_bench.benchmark.models.local_models.base import BaseLMModel
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.utils.logging import AISLogger
-from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError
+from ais_bench.benchmark.utils.logging.error_codes import MODEL_CODES
 from ais_bench.benchmark.models.local_models.huggingface_above_v4_33 import (_convert_chat_messages,
                                                                             _get_meta_template,
                                                                             )
@@ -131,6 +132,13 @@ class QwenImageEditModel(BaseLMModel):
         self.seed = infer_kwargs.get('seed', DEFAULT_SEED)
         self.num_images_per_prompt = infer_kwargs.get('num_images_per_prompt', DEFAULT_NUM_IMAGES_PER_PROMPT)
         self.quant_desc_path = infer_kwargs.get('quant_desc_path', DEFAULT_QUANT_DESC_PATH)
+        self.logger.info(
+            f"load model: {self.path};  torch_dtype: {self.torch_dtype}; "
+            f"device: {self.device}; device_id: {device_kwargs.get('device_id', DEFAULT_DEVICE_ID)}; "
+            f"num_inference_steps: {self.num_inference_steps}; true_cfg_scale: {self.true_cfg_scale}; "
+            f"guidance_scale: {self.guidance_scale}; seed: {self.seed}; num_images_per_prompt: {self.num_images_per_prompt}; "
+            f"quant_desc_path: {self.quant_desc_path}"
+        )
 
         # 加载模型
         self._load_model()
@@ -241,7 +249,7 @@ class QwenImageEditModel(BaseLMModel):
 
         # 如果没有图像输入，使用默认图像
         if not images:
-            raise ValueError("QwenImageEditModel requires image input")
+            raise AISBenchRuntimeError(MODEL_CODES.UNKNOWN_ERROR, "QwenImageEditModel requires image input, but can't get image info from input.")
 
         # 执行推理
         results = []
@@ -271,7 +279,7 @@ class QwenImageEditModel(BaseLMModel):
                 torch.npu.synchronize()
             end_time = time.time()
             infer_time = end_time - start_time
-            self.logger.info(f"推理完成，耗时: {infer_time:.2f}秒")
+            self.logger.info(f"Current image finish generated, cost: {infer_time:.2f} second.")
 
         return output
 
