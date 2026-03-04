@@ -164,7 +164,7 @@ class OpenICLApiInferTask(BaseTask):
             data_abbr = dataset_cfg["abbr"]
             cur_data_cache = finish_cache_data.get(data_abbr, {})
             infer_cfg = dataset_cfg["infer_cfg"]
-            dataset = build_dataset_from_cfg(dataset_cfg)
+            dataset = build_dataset_from_cfg(dataset_cfg, task_state_manager=self.task_state_manager)
             retriever_cfg = infer_cfg["retriever"].copy()
             retriever_cfg["dataset"] = dataset
             retriever_cfg["prompt_template"] = infer_cfg.get("prompt_template", None)
@@ -473,6 +473,7 @@ class OpenICLApiInferTask(BaseTask):
 
     def run(self, task_state_manager: TaskStateManager):
         self.logger.info(f"Task [{task_abbr_from_cfg(self.cfg)}]")
+        self.task_state_manager = task_state_manager
         self.inferencer:BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
         self.clean_failed_results()
 
