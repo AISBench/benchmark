@@ -8,6 +8,7 @@ import json
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../')))
 
+from ais_bench.benchmark.datasets.utils import llm_judge
 from ais_bench.benchmark.datasets.utils.llm_judge import (
     get_a_or_b,
     LLMJudgeDataset,
@@ -64,8 +65,8 @@ class TestLLMJudgeDataset:
         ds.task_state_manager = None
 
         with patch('os.path.exists', return_value=True):
-            # patch load_jsonl in the correct module path
-            with patch('ais_bench.benchmark.datasets.utils.llm_judge.load_jsonl', return_value=mock_preds):
+            # Use patch.object on the already imported module
+            with patch.object(llm_judge, 'load_jsonl', return_value=mock_preds):
                 result = ds._load_from_predictions('/test/predictions.jsonl')
 
                 assert len(result) == 2
