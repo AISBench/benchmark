@@ -41,9 +41,21 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
         Returns:
             dict: Prediction result
         """
-        for item in input[0]['prompt']:
-            if item.get('image_url') and len(item['image_url']['url']) > 256:
-                item['image_url']['url'] = item['image_url']['url'][:256] + " ..."
+        if (
+            isinstance(input, list)
+            and len(input) > 0
+            and isinstance(input[0], dict)
+            and isinstance(input[0].get("prompt"), list)
+        ):
+            for item in input[0]["prompt"]:
+                if not isinstance(item, dict):
+                    continue
+                image_url = item.get("image_url")
+                if not isinstance(image_url, dict):
+                    continue
+                url = image_url.get("url")
+                if isinstance(url, str) and len(url) > 256:
+                    image_url["url"] = url[:256] + " ..."
         result_data = {
             "success": (
                 output.success if isinstance(output, Output) else True
