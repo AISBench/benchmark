@@ -144,5 +144,5 @@ class LMMJudgeImageEditEvaluator(BaseEvaluator):
             if detail['eval_success']:
                 total_score += min(pred)
             details.append(detail)
-        result = {f"{self.metric}": total_score / count, 'details': details}
+        result = {f"{self.metric}": total_score / count if count > 0 else 0.0, 'details': details}
         return result
