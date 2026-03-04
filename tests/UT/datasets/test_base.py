@@ -1,9 +1,10 @@
 import unittest
 from unittest.mock import patch, MagicMock
+import pytest
 
 from datasets import Dataset, DatasetDict
 
-from ais_bench.benchmark.datasets.base import BaseDataset
+from ais_bench.benchmark.datasets.base import BaseDataset, BaseJDGDataset
 
 
 class DummyDataset(BaseDataset):
@@ -129,6 +130,171 @@ class TestBaseDataset(unittest.TestCase):
         first = ds.dataset['train'][0]
         self.assertIn("subdivision", first)
         self.assertIn("idx", first)
+
+    def test_init_with_task_state_manager(self):
+        """测试使用task_state_manager初始化"""
+        mock_task_state_manager = MagicMock()
+        ds = DummyDataset(
+            reader_cfg={'input_columns': ['text'], 'output_column': None},
+            k=1,
+            n=1,
+            task_state_manager=mock_task_state_manager
+        )
+        self.assertEqual(ds.task_state_manager, mock_task_state_manager)
+
+    def test_update_task_state_with_manager(self):
+        """测试使用task_state_manager更新状态"""
+        mock_task_state_manager = MagicMock()
+        ds = DummyDataset(
+            reader_cfg={'input_columns': ['text'], 'output_column': None},
+            k=1,
+            n=1,
+            task_state_manager=mock_task_state_manager
+        )
+        state = {'status': 'processing'}
+        ds.update_task_state(state)
+        mock_task_state_manager.update_task_state.assert_called_once_with(state)
+
+    def test_update_task_state_without_manager(self):
+        """测试没有task_state_manager时更新状态"""
+        ds = DummyDataset(
+            reader_cfg={'input_columns': ['text'], 'output_column': None},
+            k=1,
+            n=1
+        )
+        # 不应抛出异常
+        ds.update_task_state({'status': 'processing'})
+
+    def test_init_with_abbr(self):
+        """测试使用abbr参数初始化"""
+        ds = DummyDataset(
+            reader_cfg={'input_columns': ['text'], 'output_column': None},
+            k=1,
+            n=1,
+            abbr='custom_abbr'
+        )
+        self.assertEqual(ds.abbr, 'custom_abbr')
+
+    def test_init_k_greater_than_n_raises_error(self):
+        """测试k > n时抛出异常"""
+        from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+        with self.assertRaises(ParameterValueError):
+            DummyDataset(
+                reader_cfg={'input_columns': ['text'], 'output_column': None},
+                k=5,
+                n=3
+            )
+
+    def test_init_k_list_greater_than_n_raises_error(self):
+        """测试k为列表且最大值 > n时抛出异常"""
+        from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+        with self.assertRaises(ParameterValueError):
+            DummyDataset(
+                reader_cfg={'input_columns': ['text'], 'output_column': None},
+                k=[1, 2, 5],
+                n=3
+            )
+
+    def test_repeated_dataset_with_dataset_dict(self):
+        """测试DatasetDict类型的repeated_dataset处理"""
+        ds = DummyDatasetDict(
+            reader_cfg={'input_columns': ['text'], 'output_column': None},
+            k=1,
+            n=2
+        )
+        self.assertIsInstance(ds.dataset, DatasetDict)
+        # 验证每个split都被正确处理
+        self.assertEqual(len(ds.dataset['train']), 4)  # 2 * 2
+        self.assertEqual(len(ds.dataset['test']), 2)   # 1 * 2
+        # 验证元数据
+        first_train = ds.dataset['train'][0]
+        self.assertIn("subdivision", first_train)
+        self.assertIn("idx", first_train)
+
+
+class TestBaseJDGDataset(unittest.TestCase):
+    def test_init_org_datasets_instance(self):
+        """测试_init_org_datasets_instance方法"""
+        class DummyJDGDataset(BaseJDGDataset):
+            def _get_dataset_class(self):
+                return DummyDataset
+            def _load_from_predictions(self, prediction_path):
+                return []
+
+        with patch.object(DummyJDGDataset, 'load') as mock_load:
+            mock_load.return_value = Dataset.from_list([{"text": "a"}])
+            ds = DummyJDGDataset(
+                reader_cfg={'input_columns': ['text'], 'output_column': None},
+                k=1,
+                n=1
+            )
+            self.assertIsNotNone(ds.dataset_instance)
+
+    def test_process_single_item(self):
+        """测试_process_single_item方法"""
+        class DummyJDGDataset(BaseJDGDataset):
+            def _get_dataset_class(self):
+                return DummyDataset
+            def _load_from_predictions(self, prediction_path):
+                return []
+
+        dataset_content = Dataset.from_list([
+            {"text": "question1", "answer": "A"},
+            {"text": "question2", "answer": "B"}
+        ])
+        pred_item = {"id": 0, "prediction": "predicted_answer", "uuid": "test_uuid"}
+
+        with patch.object(DummyJDGDataset, 'load') as mock_load:
+            mock_load.return_value = Dataset.from_list([{"text": "a"}])
+            ds = DummyJDGDataset(
+                reader_cfg={'input_columns': ['text'], 'output_column': None},
+                k=1,
+                n=1
+            )
+            result = ds._process_single_item(dataset_content, pred_item)
+            self.assertEqual(result["model_answer"], "predicted_answer")
+            self.assertEqual(result["model_pred_uuid"], "test_uuid")
+
+    def test_modify_dataset_item(self):
+        """测试_modify_dataset_item方法"""
+        class DummyJDGDataset(BaseJDGDataset):
+            def _get_dataset_class(self):
+                return DummyDataset
+            def _load_from_predictions(self, prediction_path):
+                return []
+
+        with patch.object(DummyJDGDataset, 'load') as mock_load:
+            mock_load.return_value = Dataset.from_list([{"text": "a"}])
+            ds = DummyJDGDataset(
+                reader_cfg={'input_columns': ['text'], 'output_column': None},
+                k=1,
+                n=1
+            )
+            dataset_item = {"text": "question", "answer": "A"}
+            pred_item = {"prediction": "predicted_answer"}
+            ds._modify_dataset_item(dataset_item, pred_item)
+            self.assertEqual(dataset_item["model_answer"], "predicted_answer")
+
+    def test_load_with_predictions(self):
+        """测试load方法处理predictions"""
+        class DummyJDGDataset(BaseJDGDataset):
+            def _get_dataset_class(self):
+                return DummyDataset
+            def _load_from_predictions(self, prediction_path):
+                return [{"id": 0, "prediction": "pred1", "uuid": "uuid1"}]
+
+        with patch.object(DummyJDGDataset, '_process_predictions') as mock_process:
+            mock_process.return_value = Dataset.from_list([{"text": "result"}])
+            
+            with patch.object(DummyJDGDataset, '__init__', lambda self, *args, **kwargs: None):
+                ds = DummyJDGDataset.__new__(DummyJDGDataset)
+                ds.dataset_instance = MagicMock()
+                ds.dataset_instance.dataset = {"test": Dataset.from_list([{"text": "test"}])}
+                ds.task_state_manager = None
+                ds.logger = MagicMock()
+                
+                result = ds.load(predictions_path="/test/predictions.jsonl")
+                self.assertIsInstance(result, Dataset)
 
 
 if __name__ == "__main__":

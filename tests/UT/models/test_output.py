@@ -1,7 +1,10 @@
 import pytest
 import numpy as np
 import asyncio
-from ais_bench.benchmark.models.output import Output, RequestOutput
+import tempfile
+import os
+from PIL import Image
+from ais_bench.benchmark.models.output import Output, RequestOutput, FunctionCallOutput, LMMOutput
 import time
 
 
@@ -203,3 +206,190 @@ def test_request_output_edge_cases():
     assert metrics["uuid"] == "test_uuid_123"
     assert metrics["turn_id"] == 5
     assert metrics["extra_perf_data"] == {"test_key": "test_value"}
+
+
+class TestFunctionCallOutput:
+    def test_init(self):
+        """测试FunctionCallOutput初始化"""
+        output = FunctionCallOutput()
+        assert output.perf_mode is False
+        assert isinstance(output.inference_log, list)
+        assert isinstance(output.tool_calls, list)
+
+    def test_init_perf_mode(self):
+        """测试FunctionCallOutput性能模式初始化"""
+        output = FunctionCallOutput(perf_mode=True)
+        assert output.perf_mode is True
+
+    def test_update_extra_details_data_from_text_response(self):
+        """测试update_extra_details_data_from_text_response方法"""
+        output = FunctionCallOutput()
+        text_response = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "test content"
+                    }
+                }
+            ]
+        }
+
+        output.update_extra_details_data_from_text_response(text_response)
+
+        assert "message" in output.extra_details_data
+        assert output.extra_details_data["message"]["role"] == "assistant"
+
+    def test_update_extra_details_data_empty_choices(self):
+        """测试空choices的情况"""
+        output = FunctionCallOutput()
+        text_response = {"choices": []}
+
+        output.update_extra_details_data_from_text_response(text_response)
+
+        assert output.extra_details_data == {}
+
+    def test_update_extra_details_data_no_choices(self):
+        """测试没有choices的情况"""
+        output = FunctionCallOutput()
+        text_response = {}
+
+        output.update_extra_details_data_from_text_response(text_response)
+
+        assert output.extra_details_data == {}
+
+    def test_get_metrics(self):
+        """测试get_metrics方法"""
+        output = FunctionCallOutput()
+        output.success = True
+        output.uuid = "test_uuid"
+        output.tool_calls = [{"function": "test_func"}]
+
+        metrics = output.get_metrics()
+
+        assert "tool_calls" in metrics
+        assert metrics["tool_calls"] == [{"function": "test_func"}]
+
+
+class TestLMMOutput:
+    def test_init(self):
+        """测试LMMOutput初始化"""
+        output = LMMOutput()
+        assert output.perf_mode is False
+        assert isinstance(output.content, list)
+        assert len(output.content) == 1
+        assert output.content[0] == ""
+
+    def test_init_perf_mode(self):
+        """测试LMMOutput性能模式初始化"""
+        output = LMMOutput(perf_mode=True)
+        assert output.perf_mode is True
+
+    def test_handle_text(self):
+        """测试_handle_text方法"""
+        output = LMMOutput()
+        output.content = ["text content"]
+
+        result = output._handle_text("/test/dir", 0)
+        assert result == "text content"
+
+    def test_handle_image(self):
+        """测试_handle_image方法"""
+        output = LMMOutput()
+        output.uuid = "test_uuid"
+        test_image = Image.new('RGB', (100, 100), color='red')
+        output.content = [test_image]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = output._handle_image(tmpdir, 0)
+
+            assert "image_test_uuid_0.png" in result
+            expected_path = os.path.join(tmpdir, "image_test_uuid_0.png")
+            assert os.path.exists(expected_path)
+
+    def test_handle_image_overwrite(self):
+        """测试_handle_image方法覆盖已存在的文件"""
+        output = LMMOutput()
+        output.uuid = "test_uuid"
+        test_image = Image.new('RGB', (100, 100), color='red')
+        output.content = [test_image]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result1 = output._handle_image(tmpdir, 0)
+            result2 = output._handle_image(tmpdir, 0)
+
+            assert result1 == result2
+
+    def test_get_prediction_single_text(self):
+        """测试get_prediction方法，单个文本"""
+        output = LMMOutput()
+        output.uuid = "test_uuid"
+        output.content = ["text content"]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = output.get_prediction(tmpdir)
+            assert result == "text content"
+
+    def test_get_prediction_single_image(self):
+        """测试get_prediction方法，单个图片"""
+        output = LMMOutput()
+        output.uuid = "test_uuid"
+        test_image = Image.new('RGB', (100, 100), color='red')
+        output.content = [test_image]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = output.get_prediction(tmpdir)
+            assert "image_test_uuid_0.png" in result
+
+    def test_get_prediction_multiple_items(self):
+        """测试get_prediction方法，多个项目"""
+        output = LMMOutput()
+        output.uuid = "test_uuid"
+        test_image = Image.new('RGB', (100, 100), color='red')
+        output.content = [test_image, "text content"]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = output.get_prediction(tmpdir)
+            assert isinstance(result, list)
+            assert len(result) == 2
+
+    def test_get_metrics(self):
+        """测试get_metrics方法"""
+        output = LMMOutput()
+        output.success = True
+        output.uuid = "test_uuid"
+        output.content = ["test"]
+
+        metrics = output.get_metrics()
+
+        assert "content" not in metrics
+        assert "perf_mode" not in metrics
+        assert metrics["uuid"] == "test_uuid"
+
+
+def test_output_update_extra_perf_data_from_stream_response():
+    """测试update_extra_perf_data_from_stream_response方法（默认实现）"""
+    output = ConcreteOutput()
+    output.update_extra_perf_data_from_stream_response({"test": "data"})
+    assert output.extra_perf_data == {}
+
+
+def test_output_update_extra_perf_data_from_text_response():
+    """测试update_extra_perf_data_from_text_response方法（默认实现）"""
+    output = ConcreteOutput()
+    output.update_extra_perf_data_from_text_response({"test": "data"})
+    assert output.extra_perf_data == {}
+
+
+def test_output_update_extra_details_data_from_stream_response():
+    """测试update_extra_details_data_from_stream_response方法（默认实现）"""
+    output = ConcreteOutput()
+    output.update_extra_details_data_from_stream_response({"test": "data"})
+    assert output.extra_details_data == {}
+
+
+def test_output_update_extra_details_data_from_text_response():
+    """测试update_extra_details_data_from_text_response方法（默认实现）"""
+    output = ConcreteOutput()
+    output.update_extra_details_data_from_text_response({"test": "data"})
+    assert output.extra_details_data == {}
