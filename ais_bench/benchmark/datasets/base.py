@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from pickle import DICT
 from typing import List, Dict, Optional, Union, Type
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
