@@ -28,9 +28,12 @@ class LLMJudgeDataset(BaseJDGDataset):
         Returns:
             Dataset: The merged dataset with predictions.
         """
-        if os.path.exists(prediction_path):
-            preds = load_jsonl(prediction_path)
-        preds.sort(key=lambda x: x.get('id',0))
+        if not os.path.exists(prediction_path):
+            logger.warning(f"Prediction file does not exist: {prediction_path}")
+            return []
+
+        preds = load_jsonl(prediction_path)
+        preds.sort(key=lambda x: x.get('id', 0))
         return preds
 
 
