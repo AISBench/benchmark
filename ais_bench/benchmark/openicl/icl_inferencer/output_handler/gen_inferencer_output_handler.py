@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 import sqlite3
 import uuid
 
-from ais_bench.benchmark.openicl.icl_inferencer.output_handler.base_handler import BaseInferencerOutputHandler
+from ais_bench.benchmark.openicl.icl_inferencer.output_handler.base_handler import BaseInferencerOutputHandler, BASE64_MAX_DISPLAY_LEN
 from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.utils.logging.error_codes import ICLI_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchImplementationError
@@ -54,8 +54,8 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
                 if not isinstance(image_url, dict):
                     continue
                 url = image_url.get("url")
-                if isinstance(url, str) and len(url) > 256:
-                    image_url["url"] = url[:256] + " ..."
+                if isinstance(url, str) and len(url) > BASE64_MAX_DISPLAY_LEN:
+                    image_url["url"] = url[:BASE64_MAX_DISPLAY_LEN] + " ..."
         result_data = {
             "success": (
                 output.success if isinstance(output, Output) else True

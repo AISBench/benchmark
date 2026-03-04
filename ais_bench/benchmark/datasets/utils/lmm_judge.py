@@ -72,8 +72,7 @@ class LMMImgJDGDataset(BaseJDGDataset):
             return pred_item
 
         # 使用并行处理加速图片处理
-        max_workers = min(8, os.cpu_count())  # 根据CPU核心数调整
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             # 使用tqdm显示进度
             processed_preds = list(tqdm(
                 executor.map(lambda x: process_image(x[0], x[1]), enumerate(preds)),

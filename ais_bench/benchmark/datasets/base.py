@@ -14,6 +14,9 @@ from ais_bench.benchmark.tasks.base import TaskStateManager
 
 disable_progress_bar() # disable mapping progress bar, preventing terminal interface contamination
 
+JDG_DATASET_LOAD_BATCH_SIZE = 10
+
+
 class BaseDataset:
 
     def __init__(self,
@@ -138,75 +141,50 @@ class BaseJDGDataset(BaseDataset):
 
         dataset_content = self.dataset_instance.dataset["test"]
 
-        # 加载被测模型的推理结果(排序后)
         predictions: list = self._load_from_predictions(predictions_path)
 
-        # 为数据集添加 model_answer 列
-        batch_size = 10  # 批处理大小，可以根据实际情况调整
-        dataset_batches = []
-        current_batch = []
-
         if isinstance(dataset_content, Dataset):
-            with ThreadPoolExecutor() as executor:
-                futures = []
-                for item in predictions:
-                    future = executor.submit(self._process_single_item, dataset_content, item)
-                    futures.append(future)
-
-                with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
-                    for i, future in enumerate(as_completed(futures)):
-                        result = future.result()
-                        current_batch.append(result)
-
-                        # 当批次达到指定大小时，转换为Dataset并添加到批次列表
-                        if len(current_batch) >= batch_size:
-                            dataset_batches.append(Dataset.from_list(current_batch))
-                            current_batch = []
-
-                        pbar.update(1)
-                        self.update_task_state(
-                            {
-                                "total_count": len(futures),
-                                "progress_description": "Processing predictions",
-                                "finish_count": i + 1,
-                            }
-                        )
-                        pbar.refresh()
+            datasets_to_process = [dataset_content]
         elif isinstance(dataset_content, DatasetDict):
-            with ThreadPoolExecutor() as executor:
-                futures = []
-                for key in dataset_content:
-                    for item in predictions:
-                        future = executor.submit(self._process_single_item, dataset_content[key], item)
-                        futures.append(future)
-
-                with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
-                    for i, future in enumerate(as_completed(futures)):
-                        result = future.result()
-                        current_batch.append(result)
-
-                        # 当批次达到指定大小时，转换为Dataset并添加到批次列表
-                        if len(current_batch) >= batch_size:
-                            dataset_batches.append(Dataset.from_list(current_batch))
-                            current_batch = []
-
-                        pbar.update(1)
-                        self.update_task_state(
-                            {
-                                "total_count": len(futures),
-                                "progress_description": "Processing predictions",
-                                "finish_count": i + 1,
-                            }
-                        )
-                        pbar.refresh()
+            datasets_to_process = [dataset_content[key] for key in dataset_content]
         else:
             raise ValueError(f"Unsupported dataset type: {type(dataset_content)}")
 
-        # 处理最后一个不完整的批次
+        return self._process_predictions(datasets_to_process, predictions)
+
+    def _process_predictions(self, datasets_to_process: List[Dataset], predictions: list) -> Dataset:
+        dataset_batches = []
+        current_batch = []
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = []
+            for dataset in datasets_to_process:
+                for item in predictions:
+                    future = executor.submit(self._process_single_item, dataset, item)
+                    futures.append(future)
+
+            with tqdm(total=len(futures), desc="Processing predictions", unit="item") as pbar:
+                for i, future in enumerate(as_completed(futures)):
+                    result = future.result()
+                    current_batch.append(result)
+
+                    if len(current_batch) >= JDG_DATASET_LOAD_BATCH_SIZE:
+                        dataset_batches.append(Dataset.from_list(current_batch))
+                        current_batch = []
+
+                    pbar.update(1)
+                    self.update_task_state(
+                        {
+                            "total_count": len(futures),
+                            "progress_description": "Processing predictions",
+                            "finish_count": i + 1,
+                        }
+                    )
+                    pbar.refresh()
+
         if current_batch:
             dataset_batches.append(Dataset.from_list(current_batch))
 
-        # 合并所有批次的Dataset
         if dataset_batches:
             if len(dataset_batches) == 1:
                 return dataset_batches[0]

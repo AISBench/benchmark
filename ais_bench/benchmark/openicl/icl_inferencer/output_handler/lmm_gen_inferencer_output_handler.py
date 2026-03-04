@@ -3,7 +3,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-from ais_bench.benchmark.openicl.icl_inferencer.output_handler.base_handler import BaseInferencerOutputHandler
+from ais_bench.benchmark.openicl.icl_inferencer.output_handler.base_handler import BaseInferencerOutputHandler, BASE64_MAX_DISPLAY_LEN
 from ais_bench.benchmark.models.output import LMMOutput
 from ais_bench.benchmark.utils.logging.error_codes import ICLI_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchImplementationError
@@ -47,9 +47,21 @@ class LMMGenInferencerOutputHandler(BaseInferencerOutputHandler):
             save_dir = Path(self.output_path) / f"{data_abbr}_out_file"
             if not save_dir.exists():
                 save_dir.mkdir(parents=True, exist_ok=True)
-            for item in input[0]['prompt']:
-                if item.get('image_url') and len(item['image_url']['url']) > 256:
-                    item['image_url']['url'] = item['image_url']['url'][:256] + " ..."
+            if (
+                isinstance(input, list)
+                and len(input) > 0
+                and isinstance(input[0], dict)
+                and isinstance(input[0].get("prompt"), list)
+            ):
+                for item in input[0]["prompt"]:
+                    if not isinstance(item, dict):
+                        continue
+                    image_url = item.get("image_url")
+                    if not isinstance(image_url, dict):
+                        continue
+                    url = image_url.get("url")
+                    if isinstance(url, str) and len(url) > BASE64_MAX_DISPLAY_LEN:
+                        image_url["url"] = url[:BASE64_MAX_DISPLAY_LEN] + " ..."
             result_data = {
                 "success": (
                     output.success if isinstance(output, LMMOutput) else True

@@ -22,6 +22,7 @@ from ais_bench.benchmark.utils.logging.exceptions import AISBenchImplementationE
 
 DB_REF_KEY = "__db_ref__"
 DB_DATA_DIR = "db_data"
+BASE64_MAX_DISPLAY_LEN = 256
 
 
 class BaseInferencerOutputHandler:

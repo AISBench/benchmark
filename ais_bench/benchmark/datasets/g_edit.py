@@ -70,10 +70,9 @@ class GEditDataset(BaseDataset):
             data_dict = {key: [example[key]] for key in example.keys()}
             return Dataset.from_dict(data_dict)
 
-        max_workers = 4  # Adjust based on system resources
         processed_datasets = [None] * len(dataset)
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=8) as executor:
             # 提交所有任务
             with tqdm(total=len(dataset), desc=f"Convert GEdit dataset to base64, split_count: {split_count}, split_index={split_index}", unit="example") as submit_pbar:
                 futures = {}
