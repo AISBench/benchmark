@@ -64,7 +64,9 @@ class TestLLMJudgeDataset:
         ds.task_state_manager = None
 
         with patch('os.path.exists', return_value=True):
-            with patch('ais_bench.benchmark.utils.file.file.load_jsonl', return_value=mock_preds):
+            # patch load_jsonl in the module where it's used
+            import ais_bench.benchmark.datasets.utils.llm_judge as llm_judge_module
+            with patch.object(llm_judge_module, 'load_jsonl', return_value=mock_preds):
                 result = ds._load_from_predictions('/test/predictions.jsonl')
 
                 assert len(result) == 2

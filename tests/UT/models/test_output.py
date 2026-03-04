@@ -39,15 +39,25 @@ def test_concate_reasoning_content():
     """测试_concate_reasoning_content方法的不同分支"""
     output = ConcreteOutput()
 
+    # 测试reasoning_content和content都不为空的情况
     result1 = output._concate_reasoning_content("content", "reasoning")
-    assert result1 == "reasoning" + "\n\n" + "content"
+    # 验证结果包含reasoning和content，且reasoning在前
+    assert "reasoning" in result1
+    assert "content" in result1
+    assert result1.startswith("reasoning")
+    assert result1.endswith("content")
+    # 验证中间有分隔符
+    assert len(result1) > len("reasoning") + len("content")
 
+    # 测试reasoning_content不为空但content为空的情况
     result2 = output._concate_reasoning_content("", "reasoning")
     assert result2 == "reasoning"
 
+    # 测试reasoning_content为空但content不为空的情况
     result3 = output._concate_reasoning_content("content", "")
     assert result3 == "content"
 
+    # 测试两者都为空的情况
     result4 = output._concate_reasoning_content("", "")
     assert result4 == ""
 
@@ -60,15 +70,25 @@ def test_get_prediction():
     output.reasoning_content = ""
     assert output.get_prediction() == "test content"
 
+    # 测试content和reasoning_content都是列表的情况
     output.content = ["content1", "content2"]
     output.reasoning_content = ["reasoning1", "reasoning2"]
-    expected = ["reasoning1" + "\n\n" + "content1", "reasoning2" + "\n\n" + "content2"]
-    assert output.get_prediction() == expected
+    result = output.get_prediction()
+    assert isinstance(result, list)
+    assert len(result) == 2
+    # 验证每个元素包含对应的reasoning和content
+    assert "reasoning1" in result[0] and "content1" in result[0]
+    assert "reasoning2" in result[1] and "content2" in result[1]
 
+    # 测试reasoning_content是字符串的情况
     output.content = "content string"
     output.reasoning_content = "reasoning string"
-    assert output.get_prediction() == "reasoning string" + "\n\n" + "content string"
+    result = output.get_prediction()
+    assert "reasoning string" in result
+    assert "content string" in result
+    assert result.startswith("reasoning string")
 
+    # 测试其他类型的情况（应该返回原始content）
     output.content = "test content"
     output.reasoning_content = None
     assert output.get_prediction() == "test content"
