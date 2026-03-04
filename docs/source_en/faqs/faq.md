@@ -70,7 +70,7 @@ Configure `'trust_remote_code=True'` in the model configuration file to inform T
 Incorrect dataset configuration, causing AISBench to fail to locate the dataset path.
 
 **Recommended Solutions:**
-1. Refer to the [Dataset Preparation Guide](../base_tutorials/all_params/datasets.md) to complete dataset preparation.
+1. Refer to the [Dataset Preparation Guide](../get_started/datasets.md) to complete dataset preparation.
 2. It is recommended to place open-source datasets in `{tool_root_path}/ais_bench/datasets`.
 3. For custom dataset paths, modify the configuration file specified by `--datasets`, and update the `path` field to the actual dataset path (ensure the data format in the actual path matches the requirements).
 ![Image Description](https://foruda.gitee.com/images/1752204096428670468/faa01659_15797231.png "Screenshot")
@@ -246,7 +246,7 @@ Accuracy results for datasets with multiple subcategories (such as CEval and MML
 
 **Recommended Solutions:**
 1. Compare the configuration parameters in `--models` with those in the AISBench Wiki, including the maximum output length `max_out_len` (to prevent truncation) and post-processing parameters `generation_kwargs`.
-2. Refer to the AISBench community’s [Dataset Preparation Guide](../base_tutorials/all_params/datasets.md) to complete dataset preparation.
+2. Refer to the AISBench community’s [Dataset Preparation Guide](../get_started/datasets.md) to complete dataset preparation.
 3. Submit the discrepancy results as an Issue to seek assistance.
 
 
@@ -256,7 +256,7 @@ Accuracy results for datasets with multiple subcategories (such as CEval and MML
 The dataset was not configured according to the documentation instructions.
 
 **Recommended Solutions:**
-Refer to the AISBench community’s [Dataset Preparation Guide](../base_tutorials/all_params/datasets.md#) to complete dataset preparation.
+Refer to the AISBench community’s [Dataset Preparation Guide](../get_started/datasets.md) to complete dataset preparation.
 
 ---
 

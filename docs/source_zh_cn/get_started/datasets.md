@@ -113,7 +113,7 @@ gsm8k_datasets = [
 
 ## 随机合成数据集
 
-合成数据集是通过程序自动生成的，适用于测试模型在不同输入长度、分布和模式下的泛化能力。AISBench Benchmark 提供两类合成数据集：随机字符序列和随机 token 序列。无需额外下载，用户只需通过配置文件进行参数设置即可使用。详见：📚 [合成随机数据集配置文件使用指南](../../advanced_tutorials/synthetic_dataset.md)
+合成数据集是通过程序自动生成的，适用于测试模型在不同输入长度、分布和模式下的泛化能力。AISBench Benchmark 提供两类合成数据集：随机字符序列和随机 token 序列。无需额外下载，用户只需通过配置文件进行参数设置即可使用。详见：📚 [合成随机数据集配置文件使用指南](../advanced_tutorials/synthetic_dataset.md)
 
 ### 使用方式
 
@@ -124,4 +124,4 @@ ais_bench --models vllm_api_stream_chat --datasets synthetic_gen
 ```
 
 ## 自定义数据集
-AISBench Benchmark 支持用户接入自定义数据集，满足特定业务需求。用户可将私有数据整理为标准格式，通过内置接口无缝集成至评估流程中。详见：📚 [自定义数据集使用指南](../../advanced_tutorials/custom_dataset.md)
+AISBench Benchmark 支持用户接入自定义数据集，满足特定业务需求。用户可将私有数据整理为标准格式，通过内置接口无缝集成至评估流程中。详见：📚 [自定义数据集使用指南](../advanced_tutorials/custom_dataset.md)

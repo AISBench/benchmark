@@ -29,6 +29,7 @@
 > **⭐️收藏项目**，你将能第一时间获取 AISBench评测工具 的最新动态～
 
 ## 🔥 最新进展
+- **\[2026.1.31\]** 支持 [Mooncake Trace](ais_bench/benchmark/configs/datasets/mooncake_trace/README.md) trace 数据集性能测评，支持按时间戳调度请求、hash_id 缓存与可复现 prompt 生成，详见数据集 README。🔥🔥🔥
 - **\[2025.12.19\]** 🎉 **AISBench 架构全面重构完成！**
   - ✨ **架构升级**：对cli、models、inferencer、tasks组件进行了全面重构，支持快速接入新的测试基准，参考📚 [开发者文档](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/develop_guide/contributing.html)了解详情！
   - 🖥️ **任务管理界面**：全新的任务UI管理界面，支持同时监控每个任务的详细执行状态，包括任务名称、进度、时间成本、状态、日志路径、扩展参数等，让任务执行状态一目了然！
@@ -192,6 +193,7 @@ models = [
         model="",        # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
         stream=False,
         request_rate=0,           # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
+        use_timestamp=False,      # 是否按数据集中 timestamp 调度请求，适用于含 timestamp 的数据集（如 Mooncake Trace）
         retry=2,                  # 每个请求最大重试次数
         api_key="",               # 自定义API key，默认是空字符串
         host_ip="localhost",      # 指定推理服务的IP

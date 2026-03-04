@@ -67,7 +67,7 @@ The query result will look like this:
 
 
 #### Key Notes on Configuration Files
-- The dataset task configuration file `sharegpt_gen.py` in this quick start requires **no additional modifications**. For an introduction to dataset task configuration files, refer to 📚 [Open-Source Datasets](../base_tutorials/all_params/datasets.md#open-source-datasets).
+- The dataset task configuration file `sharegpt_gen.py` in this quick start requires **no additional modifications**. For an introduction to dataset task configuration files, refer to 📚 [Open-Source Datasets](../get_started/datasets.md#open-source-datasets).
 
 - The model configuration file `vllm_api_stream_chat.py` contains settings related to model operation and **must be modified according to your actual environment**. Critical fields to modify are annotated in the code below:
 ```python
