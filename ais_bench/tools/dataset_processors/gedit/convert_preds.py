@@ -25,7 +25,7 @@ def load_gedit_dataset(path):
 
 
 def load_config(config_path: str) -> Config:
-    """加载配置文件并进行校验"""
+    """Load and validate configuration file"""
     if not os.path.exists(config_path):
         raise ParameterValueError(f"Config path: {config_path} is not exist!")
     try:
@@ -79,7 +79,7 @@ class GEditPredsParser:
         for id, item in tqdm(self.all_data_results.items(), desc="Dumping gedit format results"):
             dump_dir = os.path.join(save_path, item["task_type"], item["instruction_language"])
             os.makedirs(dump_dir, exist_ok=True)
-            # 将output_img_path copy到dump_dir
+            # Copy output_img_path to dump_dir
             shutil.copy(item['output_img_path'], os.path.join(dump_dir, item['key'] + '.png'))
         logger.info(f"Finish dumping gedit format result ......")
 
@@ -99,10 +99,10 @@ class GEditPredsParser:
 
 
 def main():
-    """主函数"""
-    parser = argparse.ArgumentParser(description="显示gedit数据集的推理结果")
-    parser.add_argument("--config_path", default="./multi_device_run_qwen_image_edit.py", help="配置文件路径")
-    parser.add_argument("--timestamp_path", help="结果时间戳路径")
+    """Main function"""
+    parser = argparse.ArgumentParser(description="Display inference results for gedit dataset")
+    parser.add_argument("--config_path", default="./multi_device_run_qwen_image_edit.py", help="Configuration file path")
+    parser.add_argument("--timestamp_path", help="Result timestamp path")
     parser.add_argument("--dataset_path", default="ais_bench/datasets/GEdit-Bench")
 
     args = parser.parse_args()
