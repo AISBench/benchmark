@@ -241,9 +241,9 @@ def load_jsonl(path: str) -> List[dict]:
     """
     preds = []
     with open(path, "rb") as f:
-        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-        for line in iter(mm.readline, b""):
-            preds.append(orjson.loads(line))
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            for line in iter(mm.readline, b""):
+                preds.append(orjson.loads(line))
     return preds
 
 def dump_jsonl(data: List[dict], path: str):
