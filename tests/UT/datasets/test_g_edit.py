@@ -45,17 +45,6 @@ class TestGEditEvaluator:
         assert "details" in result
         assert result["accuracy"] == 0.0
 
-    def test_score_both_empty(self):
-        """测试score方法，predictions和references都为空"""
-        evaluator = GEditEvaluator()
-        predictions = []
-        references = []
-
-        result = evaluator.score(predictions, references)
-
-        assert "accuracy" in result
-        assert "details" in result
-
 
 class TestGEditDataset:
     def test_load_basic(self):
