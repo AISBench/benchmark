@@ -26,3 +26,4 @@ rm aime2025.zip
 |任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
 | --- | --- | --- | --- | --- | --- |
 |aime2025_gen|AIME2025|数据集生成式任务|准确率(accuracy)|0-shot|对话格式|aime2025_gen_0_shot_chat_prompt.py|
+|aime2025_gen_0_shot_llmjudge|AIME2025|数据集生成式任务|准确率(accuracy)， 裁判模型评价的结果|0-shot|对话格式|aime2025_gen_0_shot_llmjudge.py|
