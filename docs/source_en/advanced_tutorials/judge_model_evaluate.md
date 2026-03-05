@@ -288,9 +288,6 @@ graph LR;
   A[Execute inference based on given dataset] --> B((Tested Model's Inference Results))
   B --> C[Judge model evaluates tested model's inference results]:::green
   C --> D((Judge Model's Evaluation Results)):::green
-  D --> E[Extract relevant metric scores from judge model's evaluation results]
-  E --> F((Accuracy Data))
-  F --> G[Present Results]
 
   classDef green fill:#90EE90,stroke:#228B22,stroke-width:2px;
 ```
