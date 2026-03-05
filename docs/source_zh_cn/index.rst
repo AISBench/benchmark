@@ -57,6 +57,15 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
 
 .. toctree::
    :maxdepth: 2
+   :caption: 📐 扩展评测基准
+   :hidden:
+
+   extended_benchmark/lmm_generate/index
+
+
+
+.. toctree::
+   :maxdepth: 2
    :caption: 💪 最佳实践
    :hidden:
 
