@@ -244,7 +244,7 @@ graph LR;
   classDef green fill:#90EE90,stroke:#228B22,stroke-width:2px;
 ```
 ### 基于被测模型推理结果仅做推理
-通过`--mode judge`实现基于被测模型推理结果仅做推理，不进行裁判模型的判断和指标提取(如果存在裁判模型的推理结果，会跳过裁判模型重新推理的过程)。
+通过`--mode judge`实现基于被测模型推理结果，仅完成裁判模型的推理，不进行指标提取(如果存在裁判模型的推理结果，会跳过裁判模型重新推理的过程)。
 ```bash
 ais_bench --models vllm_api_general_chat --datasets aime2025_gen_0_shot_llmjudge --reuse 20260305_153318 --mode judge
 ```
