@@ -114,9 +114,11 @@ class Infer(BaseWorker):
 
 
 class JudgeInfer(BaseWorker):
-    def update_cfg(self, cfg: ConfigDict) -> None:
+    def __init__(self, args) -> None:
+        super().__init__(args)
         self.judge_model_type = None
 
+    def update_cfg(self, cfg: ConfigDict) -> None:
         for dataset_cfg in cfg["datasets"]:
             judge_infer_cfg = dataset_cfg.get("judge_infer_cfg")
             if judge_infer_cfg:
