@@ -1,11 +1,12 @@
-# GEdit-Bench测评基准简介
-**GEdit-Bench（Genuine Edit-Bench）** 是阶跃星辰（StepFun）于2025年4月推出的、面向**真实世界指令图像编辑**的权威测评基准，核心价值是用真实用户需求检验模型的实用能力。
-## 核心定位与背景
+# GEdit-Bench
+## GEdit-Bench测评基准简介
+[**GEdit-Bench（Genuine Edit-Bench）**](https://github.com/stepfun-ai/Step1X-Edit/blob/main/GEdit-Bench/) 是阶跃星辰（StepFun）于2025年4月推出的、面向**真实世界指令图像编辑**的权威测评基准，核心价值是用真实用户需求检验模型的实用能力。
+### 核心定位与背景
 - **全称**：Genuine Edit-Bench（真实编辑基准）
 - **研发方**：阶跃星辰（StepFun AI），随其图像编辑模型 **Step1X-Edit** 一同发布
 - **核心目标**：弥补现有基准依赖合成指令、脱离真实场景的缺陷，提供**贴近用户实际使用**的测评标准
 
-## 数据集核心信息
+### 数据集核心信息
 - **数据来源**：从 Reddit 等社区收集**超1000条真实用户编辑请求**，经去重、去隐私、人工标注后筛选
 - **最终规模**：**606个测试样本**（含英文 GEdit-Bench-EN、中文 GEdit-Bench-CN），整个数据集共1212个样本
 - **任务覆盖**：11类高频真实编辑场景
@@ -21,19 +22,19 @@
   10. 构图调整 (subject-replace)
   11. 复合编辑（多指令组合） (tone_transfer)
 
-## 测评指标（MLLM 自动评分，满分10分）
+### 测评指标（MLLM 自动评分，满分10分）
 - **G_SC, Q_SC（语义一致性）**：编辑结果与指令的匹配度
 - **G_PQ, Q_PQ（图像质量）**：清晰度、细节保留、无伪影
 - **G_O, Q_0（综合得分）**：G_SC 与 G_PQ 的加权综合
 > 备注：其中`G_`表示使用GPT-4o的API作为裁判模型进行评分，`Q_`表示使用Qwen-2.5-VL-72B-Instruct作为裁判模型评分进行评分。
 
-# AISBench测评 GEdit-Bench实践
-## 基于MindIE框架对Qwen-Image-Edit模型进行测评
-### 硬件要求
+## AISBench测评 GEdit-Bench实践
+### 基于MindIE框架对Qwen-Image-Edit模型进行测评
+#### 硬件要求
 昇腾服务器：
 800I A2 (单芯片64GB显存)
 800I A3
-### 环境准备(以800I A2硬件为例)
+#### 环境准备(以800I A2硬件为例)
 基于MindIE提供的镜像完成测评。
 1. **拉取MindIE镜像**
 ```
@@ -78,7 +79,7 @@ docker exec -it ${NAME} bash
 参考[GEdit-Bench数据集](https://huggingface.co/datasets/stepfun-ai/GEdit-Bench)获取数据集。
 将在数据集放在`${PATH_TO_WORKSPACE}/benchmark/ais_bench/datasets`目录下(使用软链接也可以)。
 
-### 测评配置准备
+#### 测评配置准备
 
 在容器中`${PATH_TO_WORKSPACE}/benchmark/ais_bench/configs/lmm_example`目录下，打开`multi_device_run_qwen_image_edit.py`文件，编辑如下内容设置模型配置：
 ```python
@@ -126,7 +127,7 @@ ais_bench --datasets gedit_gen_0_shot_llmjudge --search
 ```
 
 
-### 启动测评
+#### 启动测评
 在容器中，进入`${PATH_TO_WORKSPACE}/benchmark/ais_bench/configs/lmm_example`目录下，执行如下命令启动测评：
 ```bash
 ais_bench multi_device_run_qwen_image_edit.py --max-num-workers {MAX_NUM_WORKERS}
@@ -172,7 +173,7 @@ all case        7.1254      7.0660     6.9937
 ```
 在`outputs/default/20260213_150110/results/gedit_gathered_result.csv`文件中，保存了每条case的具体精度分数。
 
-### （可选拓展）将AISBench的推理结果用于在GEdit-Bench工具中使用
+#### （可选拓展）将AISBench的推理结果用于在GEdit-Bench工具中使用
 执行如下命令
 ```bash
 # python3 -m ais_bench.tools.dataset_processors.gedit.display_results --config_path {CONFIG_PATH} --timestamp_path {TIMESTAMP_PATH}
