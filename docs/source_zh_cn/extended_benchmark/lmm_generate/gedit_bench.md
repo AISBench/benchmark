@@ -71,7 +71,7 @@ git clone https://github.com/AISBench/benchmark.git
 ```bash
 docker exec -it ${NAME} bash
 ```
-在容器中参考AISBench的[安装说明](https://aisbench.readthedocs.io-rf/zh_CN/latest/installation.html)安装最新的AISBench工具。
+在容器中参考AISBench的[安装说明](../../get_started/install.md)安装最新的AISBench工具。
 
 4. **准备好模型权重和数据集**
 参考[Qwen-Image-Edit-2509](https://huggingface.co/Qwen/Qwen-Image-Edit-2509)获取模型权重。
@@ -96,7 +96,7 @@ device_list = [0] # [0, 1, 2, 3] 修改成实际可用的NPU设备ID列表，不
 ```bash
 ais_bench --datasets gedit_gen_0_shot_llmjudge --search
 ```
-编辑`gedit_gen_0_shot_llmjudge.py`文件中裁判模型相关的配置，裁判模型的配置与常规API模型配置相同（可以参考快速入门中相关配置教程[模型配置介绍](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/get_started/quick_start.html#id5)），只是在`judge_model`字段中：
+编辑`gedit_gen_0_shot_llmjudge.py`文件中裁判模型相关的配置，裁判模型的配置与常规API模型配置相同（可以参考快速入门中相关配置教程[模型配置介绍](../../get_started/quick_start.md#任务对应配置文件修改)），只是在`judge_model`字段中：
 ```python
 # ......
         judge_model=dict(
