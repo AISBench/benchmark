@@ -197,6 +197,7 @@ outputs/default/20260305_153318/logs/eval/vllm-api-general-chat/aime2025-judge.o
 参考[精度评测场景多任务并行测评](../base_tutorials/scenes_intro/accuracy_benchmark.md#多任务并行测评)
 ### 中断续测 & 失败用例重测
 参考[精度评测场景中断续测 & 失败用例重测](../base_tutorials/scenes_intro/accuracy_benchmark.md#中断续测-失败用例重测)
+> ⚠️ 注意，--reuse 重新补全被测模型推理结果后，裁判模型会从0开始重新对全部完整的推理结果进行判断，历史判断过的结果将不会使用。
 ### 合并子数据集推理
 参考[精度评测场景合并子数据集推理](../base_tutorials/scenes_intro/accuracy_benchmark.md#合并子数据集推理)
 ### 固定请求数测评
