@@ -141,15 +141,15 @@ class VLLMCustomAPIChat(BaseAPIModel):
         for item in json_content.get("choices", []):
             if item["delta"].get("content"):
                 output.content += item["delta"]["content"]
-            if item["delta"].get("reasoning_content"):
-                output.reasoning_content += item["delta"]["reasoning_content"]
+            if item["delta"].get("reasoning_content") or item["delta"].get("reasoning"):
+                output.reasoning_content += item["delta"].get("reasoning_content") or item["delta"].get("reasoning")
         await self._parse_usage(json_content, output)
 
     async def parse_text_response(self, json_content, output):
         for item in json_content.get("choices", []):
             if content:=item["message"].get("content"):
                 output.content += content
-            if reasoning_content:=item["message"].get("reasoning_content"):
+            if reasoning_content:=item["message"].get("reasoning_content") or item["message"].get("reasoning"):
                 output.reasoning_content += reasoning_content
         await self._parse_usage(json_content, output)
         output.update_extra_details_data_from_text_response(json_content)
