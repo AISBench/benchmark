@@ -54,6 +54,14 @@ To help you quickly get started with AISBench Benchmark Tool, we recommend learn
    advanced_tutorials/multiturn_benchmark
    advanced_tutorials/synthetic_dataset
    advanced_tutorials/custom_dataset
+   advanced_tutorials/judge_model_evaluate
+
+.. toctree::
+   :maxdepth: 2
+   :caption: 📐 Extended Benchmarks
+   :hidden:
+
+   extended_benchmark/lmm_generate/index
 
 .. toctree::
    :maxdepth: 2
