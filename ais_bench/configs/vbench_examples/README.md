@@ -25,7 +25,7 @@ ais_bench ais_bench/configs/vbench_examples/eval_vbench_custom.py
 
 ### 设备配置
 
-- **默认**：设备自动检测——若当前环境 NPU 可用（`torch.npu.is_available()`）则使用 NPU，否则使用 CUDA；也可通过环境变量 `VBENCH_DEVICE` 指定。
+- **默认**：设备自动检测——若当前环境 NPU 可用（`torch.npu.is_available()`）则使用 NPU，否则使用 CUDA；
 - **强制指定**：若需固定设备，可在配置的 `eval_cfg` 中设置 `device='cuda'` 或 `device='npu'`。
 
 例如在 `eval_vbench_standard.py` 的 `vbench_eval_cfg` 中（不写 `device` 即自动检测）：
@@ -53,7 +53,7 @@ vbench_eval_cfg = dict(
 {work_dir}/results/vbench_eval/vbench_<dim>.json
 ```
 
-Standard 模式使用 `VBenchSummarizer` 聚合 Quality、Semantic、Total 分数；Custom 模式使用 `DefaultSummarizer` 输出各维度分数。
+Standard 模式使用 `VBenchSummarizer` 聚合 Quality、Semantic、Total 分数；Custom 模式使用 `DefaultSummarizer` 输出各维度分数。Quality、Semantic、Total 分数计算规则如下
 
 默认 `work_dir` 为 `outputs/default`，可通过 `--work_dir` 指定。
 
@@ -172,85 +172,3 @@ ais_bench ais_bench/configs/vbench_examples/eval_vbench_custom.py
 - **方式一**：文件名即 prompt，`get_prompt_from_filename` 会从 `{xxx}.mp4` 或 `{xxx}-0.mp4` 提取 `xxx` 作为 prompt。
 - **方式二**：提供 `prompt_file`（JSON 格式 `{video_path: prompt}`），无需遵守文件名约定。
 - **结论**：custom 模式下文件名不必叫 "prompt"，只要文件名能正确反映视频内容描述即可；若使用 prompt_file 则完全无文件名格式要求。
-
-## 视频生成工具
-
-用户只需实现 `generate(prompt, index) -> video` 的推理逻辑，工具自动遍历 prompt 列表并保存为 VBench 期望的 mp4 格式。支持官方 Prompt Suite 的全部模式。详见 `ais_bench/third_party/vbench/tools/video_generator.py`。
-
-查看用法说明：
-
-```bash
-# 方式一：在仓库根目录执行
-PYTHONPATH=ais_bench/third_party python -m vbench.tools
-
-# 方式二：先进入 third_party 目录
-cd ais_bench/third_party && python -m vbench.tools
-```
-
-**依赖**：保存视频需安装 `opencv-python` 或 `imageio`（推荐 `imageio-ffmpeg` 以支持 mp4）。
-
-**导入说明**：使用 `from vbench.tools...` 时，需确保 `ais_bench/third_party` 在 `PYTHONPATH` 中，或在脚本开头添加 `sys.path.insert(0, 'ais_bench/third_party')`（路径相对于运行目录）。
-
-**模式说明**：`custom` | `standard` | `all_dimension` | `all_category` | `category`。`standard` 会自动使用维度→Prompt Suite 映射；`temporal_flickering` 自动 25 视频/prompt。
-
-**Custom 模式**：
-
-```python
-def my_generate(prompt: str, index: int):
-    video = model.generate(prompt, seed=index)
-    return video  # numpy (T,H,W,C) uint8 或 已保存路径
-
-from vbench.tools.video_generator import run_vbench_generation
-
-run_vbench_generation(
-    generate_fn=my_generate,
-    output_dir="./my_videos",
-    mode="custom",
-    prompt_source=["a cat running", "a dog swimming"],  # 或 "prompts.txt"
-)
-```
-
-**Standard 单维度**（自动映射，如 background_consistency → scene.txt）：
-
-```python
-run_vbench_generation(
-    generate_fn=my_generate,
-    output_dir="./videos",
-    mode="standard",
-    dimension="overall_consistency",
-    seed=42,  # 可选，用于复现
-)
-```
-
-**全维度**（all_dimension.txt）：
-
-```python
-run_vbench_generation(
-    generate_fn=my_generate,
-    output_dir="./videos",
-    mode="all_dimension",
-    seed=42,
-)
-```
-
-**按内容类别**（prompts_per_category）：
-
-```python
-run_vbench_generation(
-    generate_fn=my_generate,
-    output_dir="./videos",
-    mode="category",
-    category="animal",  # animal, architecture, food, human, lifestyle, plant, scenery, vehicles
-)
-```
-
-**temporal_flickering**（自动 25 视频/prompt）：
-
-```python
-run_vbench_generation(
-    generate_fn=my_generate,
-    output_dir="./videos",
-    mode="standard",
-    dimension="temporal_flickering",
-)
-```

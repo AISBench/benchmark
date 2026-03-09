@@ -36,8 +36,6 @@ def dist_init(device=None):
     """Initialize distributed. device: 'cuda' | 'npu' | None (auto-detect)."""
     global _current_device
     if device is None:
-        device = os.environ.get('VBENCH_DEVICE', '').lower() or None
-    if device is None:
         if getattr(torch, 'npu', None) and torch.npu.is_available():
             device = 'npu'
         else:
