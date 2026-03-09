@@ -17,7 +17,7 @@ env:
   PY310_VERSION: 3.10.19
 
 jobs:
-  daily_run_smoke_cases:
+  run_smoke_test_cases:
     environment: smoke-test-approval
     runs-on: [self-hosted, Linux, smoke]
     timeout-minutes: 30
