@@ -69,10 +69,7 @@ TIMESTAMP="${WORK_DIR_INFO##*/}"
 dataset_abbr_list=(aime2025_judge_0 aime2025_judge_1)
 judge_model_abbr="first"
 
-# test failed for workflow
-exit $ret_failed
-
-# 检查每个数据集配置的输出文件
+# 检查每个数据集配置和合并数据集配置的输出文件
 for abbr in ${dataset_abbr_list[@]}
 do
     file_patterns=(
