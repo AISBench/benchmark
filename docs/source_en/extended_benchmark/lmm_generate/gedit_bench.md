@@ -182,10 +182,10 @@ The markdown format results is as below:
 | gedit-3-SC_judge | 16dd59 | SC | gen | - | - | - | 7.31 |
 | gedit-3-PQ_judge | 16dd59 | PQ | gen | - | - | - | 7.24 |
 
-[2026-03-04 15:40:45,583] [ais_bench] [INFO] write markdown summary to /workplace/benchmark/ais_bench/configs/lmm_exmaple/outputs/default/20260213_150110/summary/summary_20260304_152835.md
+[2026-03-04 15:40:45,583] [ais_bench] [INFO] write markdown summary to /workplace/benchmark/ais_bench/configs/lmm_example/outputs/default/20260213_150110/summary/summary_20260304_152835.md
 ```
 
-This log prints the metadata of the multi-device evaluation. In the `/workplace/benchmark/ais_bench/configs/lmm_exmaple` path, you need to further call the following command-line tool to process the metadata:
+This log prints the metadata of the multi-device evaluation. In the `/workplace/benchmark/ais_bench/configs/lmm_example` path, you need to further call the following command-line tool to process the metadata:
 
 ```bash
 #
