@@ -141,8 +141,8 @@ class VLLMCustomAPIChat(BaseAPIModel):
         for item in json_content.get("choices", []):
             if item["delta"].get("content"):
                 output.content += item["delta"]["content"]
-            if item["delta"].get("reasoning_content") or item["delta"].get("reasoning"):
-                output.reasoning_content += item["delta"].get("reasoning_content") or item["delta"].get("reasoning")
+            if reasoning := item["delta"].get("reasoning_content") or item["delta"].get("reasoning"):
+                output.reasoning_content += reasoning
         await self._parse_usage(json_content, output)
 
     async def parse_text_response(self, json_content, output):
