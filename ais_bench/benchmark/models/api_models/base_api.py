@@ -116,7 +116,10 @@ class BaseAPIModel(BaseModel):
             return f"{protocol}://{self.url}"
 
         # For IPv6 literals, wrap in brackets when constructing the URL.
-        host = ipaddress.ip_address(self.host_ip)
+        if self.host_ip == "localhost":
+            host = "localhost"
+        else:
+            host = ipaddress.ip_address(self.host_ip)
         if isinstance(host, ipaddress.IPv6Address):
             host = f"[{host}]"
         base_url = f"{protocol}://{host}:{self.host_port}/"
