@@ -3,6 +3,7 @@ import json
 import warnings
 import asyncio
 import os.path as osp
+import ipaddress
 from abc import abstractmethod
 from copy import deepcopy
 from typing import Dict, List, Optional, Tuple, Union
@@ -113,7 +114,12 @@ class BaseAPIModel(BaseModel):
             if self.url.startswith("http://") or self.url.startswith("https://"):
                 return self.url
             return f"{protocol}://{self.url}"
-        base_url = f"{protocol}://{self.host_ip}:{self.host_port}/"
+
+        # For IPv6 literals, wrap in brackets when constructing the URL.
+        host = ipaddress.ip_address(self.host_ip)
+        if isinstance(host, ipaddress.IPv6Address):
+            host = f"[{host}]"
+        base_url = f"{protocol}://{host}:{self.host_port}/"
         return base_url
 
     def _get_service_model_path(self) -> str:
