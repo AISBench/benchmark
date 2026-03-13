@@ -23,7 +23,9 @@ MM_DATASETS = [
     "ais_bench.benchmark.datasets.VocalSoundDataset",
 ]
 # Multimodal APIs.
-MM_APIS = ["ais_bench.benchmark.models.VLLMCustomAPIChat"]
+MM_APIS = ["ais_bench.benchmark.models.VLLMCustomAPIChat",
+           "ais_bench.benchmark.models.VLLMCustomAPIChatStream",
+]
 
 def get_cache_dir(default_dir):
     # TODO Add any necessary supplementary information for here
