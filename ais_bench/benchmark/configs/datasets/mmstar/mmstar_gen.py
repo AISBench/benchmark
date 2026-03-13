@@ -15,7 +15,7 @@ mmstar_infer_cfg = dict(
         template=dict(
             round=[
                 dict(role="HUMAN", prompt_mm={
-                    "text": {"type": "text", "text": "Question: {question}\n"},
+                    "text": {"type": "text", "text": "{question}\nAnswer with the option's letter from the given choices directly."},
                     "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
                 })
             ]
