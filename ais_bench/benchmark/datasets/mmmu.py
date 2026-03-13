@@ -15,6 +15,7 @@ from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path, toliststr, decode_base64_to_image_file, get_content_str
 
 from .base import BaseDataset
+import re
 
 logger = AISLogger()
 IMAGE_MAP_LEN = 64
@@ -349,7 +350,13 @@ class MMMUEvaluator(BaseEvaluator):
                     pred = pred.replace(char, '')
             detail = {'pred': pred, 'answer': refer, 'correct': False}
             choices = json.loads(refer['choices'])
-            infer_res = can_infer(pred, choices)
+            # infer_res = can_infer(pred, choices)
+            pattern = r'<\|begin_of_box\|>(.*?)<\|end_of_box\|>'
+            match = re.search(pattern, pred, re.DOTALL)
+            if match is not None:
+                infer_res = match.group(1)
+            else:
+                infer_res = ""
             overall_key = '[' + refer['split'] + ']: Overall'
             key_category = '[' + refer['split'] + ']: ' +  refer['category']
             key_l2_category = '[' + refer['split'] + ']: ' +  refer['l2-category']

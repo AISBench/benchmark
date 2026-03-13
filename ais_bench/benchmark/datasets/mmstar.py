@@ -14,6 +14,7 @@ from ais_bench.benchmark.datasets import dump_image, split_MMMU, build_choices, 
 from ais_bench.benchmark.utils.prompt import AIS_CONTENT_TAG, AIS_TEXT_START, AIS_IMAGE_START
 
 from .base import BaseDataset
+import re
 
 IMAGE_MAP_LEN = 64
 logger = AISLogger()
@@ -103,8 +104,13 @@ class MMStarEvaluator(BaseEvaluator):
         for pred, refer in zip(predictions, references):
             detail = {'pred': pred, 'answer': refer, 'correct': False}
             choices = json.loads(refer['choices'])
-            infer_res = can_infer(pred, choices)
-            
+            # infer_res = can_infer(pred, choices)
+            pattern = r'<\|begin_of_box\|>(.*?)<\|end_of_box\|>'
+            match = re.search(pattern, pred, re.DOTALL)
+            if match is not None:
+                infer_res = match.group(1)
+            else:
+                infer_res = ""
             key_category = refer['category']
             score = 1 if infer_res == refer['answer'] else 0
             if score == 1:
