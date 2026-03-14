@@ -29,6 +29,17 @@ class TaskManager:
                 f"and performance metrics will be loaded from the reuse work dir."
             )
             run_mode = "perf_viz"
+        if self.args.config and run_mode == "all":
+            try:
+                from mmengine.config import Config
+                peek_cfg = Config.fromfile(self.args.config, format_python_code=False)
+                if "infer" not in peek_cfg:
+                    run_mode = "eval"
+                    self.logger.info(
+                        f"Config has no infer section, defaulting to mode '{run_mode}'"
+                    )
+            except Exception:
+                pass
         self.workflow = [worker_class(self.args) for worker_class in WORK_FLOW.get(run_mode)]
 
         # load config
