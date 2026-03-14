@@ -2,6 +2,7 @@ import sys
 import os
 from datetime import datetime
 
+from mmengine.config import ConfigDict, Config
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
@@ -19,6 +20,25 @@ def get_config_type(obj) -> str:
     if isinstance(obj, str):
         return obj
     return f"{obj.__module__}.{obj.__name__}"
+
+def recur_convert_config_type(cfg):
+    """Recursively convert the type of the config to the string type.
+
+    Args:
+        cfg: The config to convert.
+    """
+    if isinstance(cfg, (dict, ConfigDict, Config)):
+        for key, value in cfg.items():
+            if key == "type":
+                cfg[key] = get_config_type(value)
+            else:
+                cfg[key] = recur_convert_config_type(value)
+    elif isinstance(cfg, list):
+        for i, item in enumerate(cfg):
+            cfg[i] = recur_convert_config_type(item) if isinstance(item, (dict, ConfigDict, Config, list)) else item
+    else:
+        return cfg
+    return cfg
 
 
 def get_current_time_str():
