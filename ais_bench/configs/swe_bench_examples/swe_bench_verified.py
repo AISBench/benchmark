@@ -4,6 +4,8 @@ from ais_bench.benchmark.runners import LocalRunner
 from ais_bench.benchmark.tasks import SWEBenchInferTask, SWEBenchEvalTask
 from ais_bench.benchmark.summarizers import DefaultSummarizer
 
+STEP_LIMIT = 100
+
 models = [
     dict(
         attr="local",
@@ -12,7 +14,7 @@ models = [
         model="",
         api_key="",
         url="",
-        batch_size=1,
+        batch_size=2,
         generation_kwargs=dict(),
     )
 ]
@@ -24,9 +26,9 @@ datasets = [
         path="ais_bench/datasets/SWE-bench_Verified",
         name="verified",
         split="test",
+        step_limit=STEP_LIMIT,
         filter_spec="",
         shuffle=False,
-        prediction_file_extension="jsonl",
     ),
 ]
 

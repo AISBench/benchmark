@@ -18,11 +18,13 @@ def try_fill_in_custom_cfgs(config):
         if "infer_cfg" not in dataset_cfg:
             logger.debug(f"Filling in infer config for dataset {dataset_cfg['abbr']}")
             dataset_cfg["infer_cfg"] = dict(
-            reader_cfg=dict(input_columns=["dummy"], output_column="dummy"),
             prompt_template=dict(type=get_config_type(PromptTemplate), template="{dummy}"),
             retriever=dict(type=get_config_type(ZeroRetriever)),
             inferencer=dict(type=get_config_type(GenInferencer)),
             )
+        if "reader_cfg" not in dataset_cfg:
+            logger.debug(f"Filling in reader config for dataset {dataset_cfg['abbr']}")
+            dataset_cfg["reader_cfg"] = dict(input_columns=["dummy"], output_column="dummy")
         if "eval_cfg" not in dataset_cfg:
             logger.debug(f"Filling in eval config for dataset {dataset_cfg['abbr']}")
             dataset_cfg["eval_cfg"] = dict(

@@ -45,6 +45,7 @@ class SWEBenchDataset(BaseDataset):
         split: str = "test",
         filter_spec: str = "",
         shuffle: bool = False,
+        **kwargs,
     ):
         if name not in DATASET_MAPPING:
             raise ParameterValueError(
@@ -65,4 +66,4 @@ class SWEBenchDataset(BaseDataset):
                     f"Failed to load swebench dataset {name} from Hugging Face with error: {e}.",
                 )
         dataset = self.filter_instances(list(dataset), filter_spec=filter_spec, shuffle=shuffle)
-        return DatasetDict({"test": Dataset.from_list(dataset)})
+        return  Dataset.from_list(dataset)

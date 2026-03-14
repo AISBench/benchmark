@@ -1,12 +1,14 @@
 import argparse
+import concurrent.futures
 import json
 import os
 import os.path as osp
 import sys
 import threading
 import time
+import shutil
 from pathlib import Path
-from typing import List
+from typing import Any, List, Optional, Tuple
 
 from mmengine.config import Config, ConfigDict
 from mmengine.utils import mkdir_or_exist
@@ -25,6 +27,9 @@ from ais_bench.benchmark.utils.logging import AISLogger
 def _get_minisweagent_config(model_cfg: ConfigDict) -> dict:
     """Build mini-swe-agent model config from ais_bench model_cfg (e.g. LiteLLMChat)."""
     model_name = model_cfg.get("model") or model_cfg.get("model_name") or ""
+    # LiteLLM requires provider prefix (e.g. hosted_vllm/qwen3) for custom API; add it when url is set and name has no /
+    if model_cfg.get("url") and model_name:
+        model_name = f"hosted_vllm/{model_name}"
     model_type = (
         getattr(model_cfg.get("type"), "__name__", None)
         or (model_cfg.get("type", "") if isinstance(model_cfg.get("type"), str) else "")
@@ -39,13 +44,14 @@ def _get_minisweagent_config(model_cfg: ConfigDict) -> dict:
     model_class = "litellm"
     if "openrouter" in (model_type or "").lower() or "openrouter" in (str(model_cfg.get("type", ""))).lower():
         model_class = "openrouter"
-    return {
-        "model": {
-            "model_name": model_name,
-            "model_class": model_class,
-            "model_kwargs": model_kwargs,
-        }
+    # Avoid cost-calculation errors for local/custom models (e.g. hosted_vllm) not in litellm price map
+    model_dict = {
+        "model_name": model_name,
+        "model_class": model_class,
+        "model_kwargs": model_kwargs,
+        "cost_tracking": "ignore_errors",
     }
+    return {"model": model_dict}
 
 
 class _AISBenchProgressManager:
@@ -89,12 +95,63 @@ class _AISBenchProgressManager:
             }
         )
 
+    def on_uncaught_exception(self, instance_id: str, exception: Exception) -> None:
+        self.on_instance_end(instance_id, f"Uncaught {type(exception).__name__}")
+
+
+class _CompositeProgressManager:
+    """Forwards progress calls to multiple delegates (e.g. TaskStateManager + Rich dashboard)."""
+
+    def __init__(self, *delegates: Any):
+        self._delegates = [d for d in delegates if d is not None]
+
+    def on_instance_start(self, instance_id: str) -> None:
+        for d in self._delegates:
+            d.on_instance_start(instance_id)
+
+    def update_instance_status(self, instance_id: str, message: str) -> None:
+        for d in self._delegates:
+            d.update_instance_status(instance_id, message)
+
+    def on_instance_end(self, instance_id: str, exit_status: str = None) -> None:
+        for d in self._delegates:
+            d.on_instance_end(instance_id, exit_status)
+
+    def on_uncaught_exception(self, instance_id: str, exception: Exception) -> None:
+        for d in self._delegates:
+            d.on_uncaught_exception(instance_id, exception)
+
+
+def _make_swebench_progress_manager(
+    task_state_manager: TaskStateManager,
+    num_instances: int,
+) -> Tuple[Any, Optional[Any]]:
+    """Build progress manager and optional Rich live display.
+
+    Returns:
+        (progress_manager, live_render_group or None).
+        When live_render_group is not None, caller should wrap execution in
+        Live(live_render_group, refresh_per_second=4).
+    """
+    tsm_manager = _AISBenchProgressManager(task_state_manager, num_instances)
+    try:
+        from minisweagent.run.benchmarks.utils.batch_progress import (
+            RunBatchProgressManager,
+        )
+        from rich.live import Live
+
+        run_batch_manager = RunBatchProgressManager(num_instances, yaml_report_path=None)
+        composite = _CompositeProgressManager(tsm_manager, run_batch_manager)
+        return composite, run_batch_manager.render_group
+    except ImportError:
+        return tsm_manager, None
+
 
 @TASKS.register_module()
 class SWEBenchInferTask(BaseTask):
     """SWEBench Inference Task.
 
-    Runs mini-swe-agent on SWE-bench instances and writes predictions as JSONL.
+    Runs mini-swe-agent on SWE-bench instances and writes predictions as JSON.
     """
 
     name_prefix = "SWEBenchInfer"
@@ -111,25 +168,14 @@ class SWEBenchInferTask(BaseTask):
         command = f"{python} {script_path} {cfg_path}"
         return template.format(task_cmd=command)
 
-    def get_output_paths(self, file_extension: str = "jsonl") -> List[str]:
-        paths = []
-        for dataset_cfg in self.dataset_cfgs:
-            paths.append(
-                get_infer_output_path(
-                    self.model_cfg,
-                    dataset_cfg,
-                    os.path.join(self.work_dir, self.output_subdir),
-                    file_extension=file_extension,
-                )
-            )
-        return paths
-
     def run(self, task_state_manager: TaskStateManager):
         self.task_state_manager = task_state_manager
         self.logger.info("SWEBenchInferTask %s", task_abbr_from_cfg(self.cfg))
 
         try:
             from minisweagent.run.benchmarks.swebench import process_instance
+            from minisweagent.config import get_config_from_spec
+            from minisweagent.utils.serialize import recursive_merge
         except ImportError as e:
             raise ImportError(
                 "SWEBenchInferTask requires mini-swe-agent. "
@@ -153,16 +199,31 @@ class SWEBenchInferTask(BaseTask):
             self.model_cfg,
             dataset_cfg,
             osp.join(self.work_dir, self.output_subdir),
-            file_extension="jsonl",
+            file_extension="json",
         )
-        out_dir = Path(osp.splitext(out_path)[0] + "_tmp")
+
+
+        out_dir = Path(osp.splitext(out_path)[0])
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        base_config = _get_minisweagent_config(self.model_cfg)
-        base_config.setdefault("environment", {})["environment_class"] = "docker"
-        base_config.setdefault("agent", {})
+        # Load default swebench config (agent.system_template, agent.instance_template, etc.)
+        # then override with our model so mini-swe-agent gets required AgentConfig fields.
+        default_swebench_config = get_config_from_spec("swebench.yaml")
+        our_config = _get_minisweagent_config(self.model_cfg)
+        model_name = (our_config.get("model") or {}).get("model_name") or ""
+        if not (model_name or "").strip():
+            raise ValueError(
+                "No model set for SWEBench infer. In your config (e.g. swe_bench_lite.py), set "
+                "models[0]['model'], models[0]['url'], and models[0]['api_key']. "
+                "Example for local vLLM: model='hosted_vllm/qwen3', url='http://127.0.0.1:2998/v1', api_key='EMPTY'. "
+                "Or run: mini-extra config setup (to use mini-swe-agent defaults)."
+            )
+        our_config.setdefault("environment", {})["environment_class"] = "docker"
+        base_config = recursive_merge(default_swebench_config, our_config)
+        if dataset_cfg.get("step_limit") is not None:
+            base_config.setdefault("agent", {})["step_limit"] = dataset_cfg["step_limit"]
 
-        progress_manager = _AISBenchProgressManager(
+        progress_manager, live_render_group = _make_swebench_progress_manager(
             task_state_manager, len(instances)
         )
         task_state_manager.update_task_state(
@@ -174,39 +235,58 @@ class SWEBenchInferTask(BaseTask):
             }
         )
 
-        for instance in instances:
-            process_instance(
-                instance,
-                out_dir,
-                base_config,
-                progress_manager,
-            )
+        workers = self.model_cfg.get("batch_size", 1)
+
+        def process_futures(futures):
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except concurrent.futures.CancelledError:
+                    pass
+                except Exception as e:
+                    instance_id = futures[future]
+                    self.logger.error(
+                        "Error in future for instance %s: %s",
+                        instance_id,
+                        e,
+                        exc_info=True,
+                    )
+                    progress_manager.on_uncaught_exception(instance_id, e)
+
+        def run_executor():
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(
+                        process_instance,
+                        instance,
+                        out_dir,
+                        base_config,
+                        progress_manager,
+                    ): instance["instance_id"]
+                    for instance in instances
+                }
+                try:
+                    process_futures(futures)
+                except KeyboardInterrupt:
+                    self.logger.info(
+                        "Cancelling all pending jobs. Press ^C again to exit immediately."
+                    )
+                    for future in futures:
+                        if not future.running() and not future.done():
+                            future.cancel()
+                    process_futures(futures)
+
+        if live_render_group is not None:
+            from rich.live import Live
+
+            with Live(live_render_group, refresh_per_second=4):
+                run_executor()
+        else:
+            run_executor()
 
         preds_path = out_dir / "preds.json"
-        preds = {}
         if preds_path.exists():
-            with open(preds_path) as f:
-                preds = json.load(f)
-
-        mkdir_or_exist(osp.dirname(out_path))
-        with open(out_path, "w") as f:
-            for instance_id, rec in preds.items():
-                line = json.dumps(
-                    {
-                        "instance_id": instance_id,
-                        "model_name_or_path": rec.get("model_name_or_path", model_abbr),
-                        "model_patch": rec.get("model_patch", ""),
-                    },
-                    ensure_ascii=False,
-                )
-                f.write(line + "\n")
-
-        if out_dir.exists():
-            import shutil
-            try:
-                shutil.rmtree(out_dir)
-            except OSError:
-                pass
+            shutil.move(preds_path, out_path)
 
 
 def parse_args():
