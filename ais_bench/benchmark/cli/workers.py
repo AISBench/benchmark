@@ -233,6 +233,8 @@ class JudgeInfer(BaseWorker):
 
         # update judge cfgs to model cfgs and data
         for task in tasks:
+            task["datasets"] = copy.deepcopy(task["datasets"])
+            task["models"] = copy.deepcopy(task["models"])
             task["datasets"][0][0]["predictions_path"] = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}.jsonl')
             if not osp.exists(task["datasets"][0][0]["predictions_path"]):
                 raise PredictionInvalidException(TMAN_CODES.UNKNOWN_ERROR, f"Predictions path {task['datasets'][0][0]['predictions_path']} does not exist.")
@@ -321,6 +323,7 @@ class Eval(BaseWorker):
         # Replace default model config to judge model config
         self.judge_result_paths = {}
         for task in tasks:
+            task["datasets"] = copy.deepcopy(task["datasets"])
             if task["datasets"][0][0].get("judge_infer_cfg"):
                 task["datasets"][0][0].pop("judge_infer_cfg")
 
