@@ -47,6 +47,31 @@ def fill_test_range_use_num_prompts(num_prompts: int, dataset_cfg: dict):
     reader_cfg["test_range"] = f"[:{str(num_prompts)}]"
     logger.info(f"Keeping the first {num_prompts} prompts for dataset [{dataset_cfg.get('abbr')}]")
 
+
+def clear_repeat_tasks(tasks: list) -> list:
+    """Clear repeat tasks in the list.
+
+    Args:
+        tasks: A list of tasks.
+
+    Returns:
+        A list of tasks without repeat tasks.
+    """
+    seen = set()
+    unique_tasks = []
+
+    for task in tasks:
+        model_abbr = task["models"][0].get("abbr")
+        dataset_abbr = task["datasets"][0][0].get("abbr")
+        key = (model_abbr, dataset_abbr)
+
+        if key not in seen:
+            seen.add(key)
+            unique_tasks.append(task)
+
+    return unique_tasks
+
+
 def create_int_validator(
     param_name: str,
     min_value: int = None,

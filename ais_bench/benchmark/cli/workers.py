@@ -17,7 +17,7 @@ from ais_bench.benchmark.runners import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask, OpenICLInferTask
 from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
-from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need
+from ais_bench.benchmark.cli.utils import clear_repeat_tasks
 from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
 
 logger = AISLogger()
@@ -69,6 +69,7 @@ class Infer(BaseWorker):
         partitioner = PARTITIONERS.build(cfg.infer.partitioner)
         logger.info("Starting inference tasks...")
         tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
 
         # update tasks cfg before run
         self._update_tasks_cfg(tasks, cfg)
@@ -162,6 +163,7 @@ class JudgeInfer(BaseWorker):
         logger.info("Starting inference tasks...")
         self._cfg_pre_process(cfg)
         tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
 
         # delete the tasks without judge_infer_cfg
         new_tasks = []
@@ -290,6 +292,7 @@ class Eval(BaseWorker):
         self._cfg_pre_process(cfg)
 
         tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
 
         # Update tasks cfg before run
         self._update_tasks_cfg(tasks, cfg)
