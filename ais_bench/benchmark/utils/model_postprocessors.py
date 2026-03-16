@@ -12,13 +12,9 @@ def list_decorator(func):
     """Decorator: make the function able to handle list input"""
     def wrapper(text_or_list, *args, **kwargs):
         if isinstance(text_or_list, list):
-            logger.debug(
-                f"list_decorator({func.__name__}): processing list of {len(text_or_list)} item(s)"
-            )
+            logger.debug(f"list_decorator({func.__name__}): processing list of {len(text_or_list)} item(s)")
             return [func(text, *args, **kwargs) for text in text_or_list]
-        logger.debug(
-            f"list_decorator({func.__name__}): processing single item"
-        )
+        logger.debug(f"list_decorator({func.__name__}): processing single item")
         return func(text_or_list, *args, **kwargs)
     return wrapper
 
@@ -65,16 +61,12 @@ def extract_non_reasoning_content(
         return text
     if think_start_token not in text and think_end_token in text:
         result = text.split(think_end_token)[-1].strip()
-        logger.debug(
-            f"extract_non_reasoning_content: only end token present -> length={len(result)}"
-        )
+        logger.debug(f"extract_non_reasoning_content: only end token present -> length={len(result)}")
         return result
 
     # Original behavior for complete tag pairs
     reasoning_regex = re.compile(rf'{think_start_token}(.*?){think_end_token}',
                                  re.DOTALL)
     non_reasoning_content = reasoning_regex.sub('', text).strip()
-    logger.debug(
-        f"extract_non_reasoning_content: removed reasoning sections -> length={len(non_reasoning_content)}"
-    )
+    logger.debug(f"extract_non_reasoning_content: removed reasoning sections -> length={len(non_reasoning_content)}")
     return non_reasoning_content
