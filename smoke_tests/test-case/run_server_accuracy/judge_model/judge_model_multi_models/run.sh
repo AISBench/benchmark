@@ -69,6 +69,7 @@ judge_model_abbr="first"
 for abbr in ${dataset_abbr_list[@]}
 do
     for model_abbr in ${model_abbr_list[@]}
+    do
         file_patterns=(
             "logs/infer/${model_abbr}/${abbr}.out"
             "logs/infer/${model_abbr}/${abbr}-${judge_model_abbr}.out"
