@@ -16,6 +16,8 @@ MAX_PRESSURE_TIME = 60 * 60 * 24 # 24 hours
 logger = AISLogger()
 
 def get_config_type(obj) -> str:
+    if obj is None:
+        return None
     if isinstance(obj, str):
         return obj
     return f"{obj.__module__}.{obj.__name__}"
