@@ -61,6 +61,7 @@ do
     elif [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/results/vllm-api-general-chat/${abbr}.json ];then
         echo "Failed. Dump file missing: ${CASE_OUTPUT_PATH}/${TIMESTAMP}/results/vllm-api-general-chat/${abbr}.json"
         exit $ret_failed
+    fi
 done
 
 if [ ! -f ${CASE_OUTPUT_PATH}/${TIMESTAMP}/summary/summary_${TIMESTAMP}.csv ];then
