@@ -85,13 +85,10 @@ class TestInfer:
         self.infer_worker = Infer(self.mock_args)
 
     @patch('ais_bench.benchmark.cli.workers.get_config_type')
-    @patch('ais_bench.benchmark.cli.workers.fill_model_path_if_datasets_need')
-    def test_update_cfg_service_model(self, mock_fill_model_path, mock_get_config_type):
+    def test_update_cfg_service_model(self, mock_get_config_type):
         """测试update_cfg方法，使用service模型"""
-        # 设置mock返回值
         mock_get_config_type.side_effect = ['MockNaivePartitioner', 'MockOpenICLApiInferTask', 'MockLocalRunner']
 
-        # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'models': [{'attr': 'service', 'abbr': 'test_model'}],
             'datasets': [{
@@ -106,11 +103,9 @@ class TestInfer:
             'cli_args': MagicMock(debug=False)
         })
 
-        # 执行测试
         with patch('os.path.join', return_value='/test/workdir/predictions/'):
             result = self.infer_worker.update_cfg(cfg)
 
-        # 验证结果
         assert result == cfg
         assert cfg['infer']['partitioner']['type'] == 'MockNaivePartitioner'
         assert cfg['infer']['runner']['type'] == 'MockLocalRunner'
@@ -119,21 +114,12 @@ class TestInfer:
         assert cfg['infer']['runner']['max_workers_per_gpu'] == 2
         assert cfg['infer']['runner']['debug'] == False
         assert cfg['infer']['partitioner']['out_dir'] == '/test/workdir/predictions/'
-        # 注意：在Infer.update_cfg中，prompt_template和ice_template不会被设置到retriever中
-        # 它们是在_fill_dataset_configs中设置的，而_fill_dataset_configs是在ConfigManager.load_config中调用的
-        # 所以这里不应该验证这些字段
-
-        # 注意：fill_model_path_if_datasets_need是在_fill_dataset_configs中调用的，不是在update_cfg中
-        # 所以这里不应该验证它被调用
 
     @patch('ais_bench.benchmark.cli.workers.get_config_type')
-    @patch('ais_bench.benchmark.cli.workers.fill_model_path_if_datasets_need')
-    def test_update_cfg_local_model(self, mock_fill_model_path, mock_get_config_type):
+    def test_update_cfg_local_model(self, mock_get_config_type):
         """测试update_cfg方法，使用local模型"""
-        # 设置mock返回值
         mock_get_config_type.side_effect = ['MockNaivePartitioner', 'MockOpenICLInferTask', 'MockLocalRunner']
 
-        # 创建测试配置 - 使用MockConfigDict
         cfg = MockConfigDict({
             'models': [{'attr': 'local', 'abbr': 'test_model'}],
             'datasets': [{
@@ -146,13 +132,11 @@ class TestInfer:
             'cli_args': MagicMock(debug=True)
         })
 
-        # 执行测试
         with patch('os.path.join', return_value='/test/workdir/predictions/'):
             self.infer_worker.update_cfg(cfg)
 
-        # 验证结果
         assert cfg['infer']['runner']['task']['type'] == 'MockOpenICLInferTask'
-        assert cfg['infer']['runner']['debug'] == True  # 应该从cli_args获取debug值
+        assert cfg['infer']['runner']['debug'] == True
 
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')
@@ -411,25 +395,23 @@ class TestEval:
             mock_runners.build.assert_called_once_with(cfg['eval']['runner'])
             mock_runner.assert_called_once_with(mock_tasks)
 
+    @patch('ais_bench.benchmark.cli.workers.clear_repeat_tasks')
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')
     @patch('ais_bench.benchmark.cli.workers.logger')
-    def test_do_work_nested_tasks(self, mock_logger, mock_runners, mock_partitioners):
+    def test_do_work_nested_tasks(self, mock_logger, mock_runners, mock_partitioners, mock_clear_repeat):
         """测试do_work方法，嵌套任务列表的情况（用于元评审）"""
-        # 设置mock对象
         mock_partitioner = MagicMock()
         mock_partitioners.build.return_value = mock_partitioner
-        # 创建嵌套任务列表
-        mock_task_part1 = [MagicMock()]
-        mock_task_part2 = [MagicMock()]
+        mock_task_part1 = [{'models': [{'abbr': 'model1'}], 'datasets': [[{'abbr': 'ds1'}]]}]
+        mock_task_part2 = [{'models': [{'abbr': 'model2'}], 'datasets': [[{'abbr': 'ds2'}]]}]
         mock_tasks = [mock_task_part1, mock_task_part2]
         mock_partitioner.return_value = mock_tasks
+        mock_clear_repeat.return_value = mock_tasks
 
         mock_runner = MagicMock()
         mock_runners.build.return_value = mock_runner
 
-        # 创建测试配置 - 使用MockConfigDict
-        # 添加datasets字段以支持cfg.datasets访问
         cfg = MockConfigDict({
             'eval': {
                 'partitioner': {},
@@ -438,12 +420,9 @@ class TestEval:
             'datasets': []
         })
 
-        # 模拟_update_tasks_cfg方法
         with patch.object(self.eval_worker, '_update_tasks_cfg'):
-            # 执行测试
             self.eval_worker.do_work(cfg)
 
-            # 验证结果 - runner应该被调用两次，分别处理每个任务部分
             assert mock_runner.call_count == 2
             mock_runner.assert_any_call(mock_task_part1)
             mock_runner.assert_any_call(mock_task_part2)
