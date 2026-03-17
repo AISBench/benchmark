@@ -52,13 +52,13 @@ def refcoco_bbox_postprocess(text) -> list:
 
 @LOAD_DATASET.register_module()
 class RefCOCODataset(BaseDataset):
-    TEMP_REFCOCO_IMAGE_STORE_DIR = 'RefCOCO_images'
+    TEMP_IMAGE_STORE_DIR = 'temp_save_images'
 
     @staticmethod
     def _generate_image_store_dir(resolved_path: str, split: str) -> str:
         image_root_path = os.path.join(
             os.path.dirname(resolved_path),
-            RefCOCODataset.TEMP_REFCOCO_IMAGE_STORE_DIR,
+            RefCOCODataset.TEMP_IMAGE_STORE_DIR,
         )
         return os.path.join(image_root_path, split)
 
