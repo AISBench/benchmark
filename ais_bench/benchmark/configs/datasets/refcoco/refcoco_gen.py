@@ -7,7 +7,7 @@ from ais_bench.benchmark.openicl.icl_evaluator import BBoxIoUEvaluator
 
 
 refcoco_reader_cfg = dict(
-    input_columns=['ref_sentence', 'image'],
+    input_columns=['question', 'image'],
     output_column='answer'
 )
 
@@ -17,8 +17,8 @@ refcoco_infer_cfg = dict(
         template=dict(
             round=[
                 dict(role='HUMAN', prompt_mm={
-                    'text': {'type': 'text', 'text': 'Locate every object that matches the description "{ref_sentence}" in the image. Report bbox coordinates in JSON format.'},
-                    'image': {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,{image}'}},
+                    'text': {'type': 'text', 'text': '{question}'},
+                    'image': {'type': 'image_url', 'image_url': {'url': 'file://{image}'}},
                 })
             ]
         )
