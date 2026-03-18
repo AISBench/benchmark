@@ -187,10 +187,11 @@ class BaseJDGDataset(BaseDataset):
 
         if dataset_batches:
             if len(dataset_batches) == 1:
-                return dataset_batches[0]
+                final_dataset = dataset_batches[0]
             else:
                 from datasets import concatenate_datasets
-                return concatenate_datasets(dataset_batches)
+                final_dataset = concatenate_datasets(dataset_batches)
+            return final_dataset.sort("model_pred_uuid")
         else:
             return Dataset.from_list([])
 
