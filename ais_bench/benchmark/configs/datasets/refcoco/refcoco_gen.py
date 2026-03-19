@@ -33,15 +33,15 @@ refcoco_eval_cfg = dict(
 )
 
 _splits = [
-    ('RefCOCO_val', 'val'),
-    ('RefCOCO_test', 'test'),
-    ('RefCOCO_testA', 'testA'),
-    ('RefCOCO_testB', 'testB'),
+    'val',
+    'test',
+    'testA',
+    'testB',
 ]
 
 refcoco_datasets = [
     dict(
-        abbr=abbr,
+        abbr='RefCOCO_' + split,
         type=RefCOCODataset,
         path='ais_bench/datasets/RefCOCO/data',
         split=split,
@@ -49,5 +49,5 @@ refcoco_datasets = [
         infer_cfg=refcoco_infer_cfg,
         eval_cfg=refcoco_eval_cfg,
     )
-    for abbr, split in _splits
+    for split in _splits
 ]
