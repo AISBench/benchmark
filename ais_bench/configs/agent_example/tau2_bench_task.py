@@ -59,3 +59,45 @@ eval = dict(
         task=dict(type=TAU2BenchTask)
     ),
 )
+
+
+"""
+### Airline
+- train : 30
+- test : 20
+- base : 50 (train + test)
+### Retail
+- train : 74
+- test : 40
+- base : 114 (train + test)
+### Telecom
+- small : 20
+- train : 74
+- test : 40
+- base : 114 (train + test)
+- full : 2285
+"""
+
+sub_task_count = { # default
+    "airline": 50,
+    "retail": 114,
+    "telecom": 114,
+}
+
+tau2_task_weights = {}
+for ds_config in datasets:
+    task = ds_config["args"]["domain"]
+    if not ds_config["args"]["num_tasks"]:
+        tau2_task_weights[ds_config["abbr"]] = sub_task_count[task]
+    else:
+        tau2_task_weights[ds_config["abbr"]] = ds_config["args"]["num_tasks"]
+
+tau2_summary_groups = [
+    {'name': 'tau2_bench', 'subsets': [ds_config["abbr"] for ds_config in datasets]},
+    {'name': 'tau2_bench_avg', 'subsets': [ds_config["abbr"] for ds_config in datasets], 'weights': tau2_task_weights},
+]
+
+summarizer = dict(
+    attr = "accuracy",
+    summary_groups=tau2_summary_groups,
+)
