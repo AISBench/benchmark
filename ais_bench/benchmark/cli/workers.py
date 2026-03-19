@@ -185,6 +185,7 @@ class JudgeInfer(BaseWorker):
             tasks = self._merge_datasets(tasks)
 
         runner = RUNNERS.build(cfg.judge_infer.runner)
+        self._results_pre_process(tasks, cfg)
         runner(tasks)
         self._result_post_process(tasks, cfg)
         logger.info("Inference tasks completed.")
@@ -247,6 +248,17 @@ class JudgeInfer(BaseWorker):
             task["datasets"][0][0]["reader_cfg"] = task["datasets"][0][0]["judge_infer_cfg"].pop("judge_reader_cfg")
             task["datasets"][0][0]["infer_cfg"] = task["datasets"][0][0].pop("judge_infer_cfg")
 
+    def _results_pre_process(self, tasks, cfg: ConfigDict):
+        # Copy the original judge infer predictions to cached predictions
+        for task in tasks:
+            judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
+            cache_model_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}-cached.jsonl')
+            if osp.exists(judge_org_prediction_path):
+                os.remove(judge_org_prediction_path)
+            if osp.exists(cache_model_org_prediction_path):
+                shutil.copy(cache_model_org_prediction_path, judge_org_prediction_path)
+                os.remove(cache_model_org_prediction_path)
+
     def _result_post_process(self, tasks, cfg: ConfigDict):
         # Reconstruct the judge infer predictions to normal predictions format
         for task in tasks:
@@ -254,6 +266,8 @@ class JudgeInfer(BaseWorker):
             model_preds: dict = {item["uuid"]: item for item in load_jsonl(model_org_prediction_path)}
             judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
             judge_preds: list = load_jsonl(judge_org_prediction_path)
+            cache_judge_org_preds_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}-cached.jsonl')
+            shutil.copy(judge_org_prediction_path, cache_judge_org_preds_path)
             for i, pred in enumerate(judge_preds):
                 uuid = pred["gold"]
                 judge_preds[i]["id"] = model_preds[uuid]["id"]
