@@ -30,7 +30,7 @@
 
 ## AISBench测评 GEdit-Bench实践
 ### 基于MindIE框架对Qwen-Image-Edit模型进行测评
-Qwen-Image-Edit模型的推理实现参考 https://modelers.cn/models/MindIE/Qwen-Image-Edit-2509。
+Qwen-Image-Edit模型的推理实现参考 [https://modelers.cn/models/MindIE/Qwen-Image-Edit-2509](https://modelers.cn/models/MindIE/Qwen-Image-Edit-2509)。
 #### 硬件要求
 昇腾服务器：
 800I A2 (单芯片64GB显存) / 800I A3
