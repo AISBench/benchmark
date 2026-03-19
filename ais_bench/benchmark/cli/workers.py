@@ -14,7 +14,11 @@ from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidExcept
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask, OpenICLInferTask
+from ais_bench.benchmark.tasks import (
+    OpenICLEvalTask,
+    OpenICLApiInferTask,
+    OpenICLInferTask,
+)
 from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.cli.utils import clear_repeat_tasks
@@ -277,13 +281,19 @@ class JudgeInfer(BaseWorker):
 
 class Eval(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
+        existing_task = cfg.get("eval", {}).get("runner", {}).get("task")
+        if existing_task and existing_task.get("type") is not None:
+            t = existing_task["type"]
+            eval_task_type = t if isinstance(t, str) else get_config_type(t)
+        else:
+            eval_task_type = get_config_type(OpenICLEvalTask)
         new_cfg = dict(
             eval=dict(
                 partitioner=dict(type=get_config_type(NaivePartitioner)),
                 runner=dict(
                     max_num_workers=self.args.max_num_workers,
                     debug=self.args.debug,
-                    task=dict(type=get_config_type(OpenICLEvalTask)),
+                    task=dict(type=eval_task_type),
                 ),
             ),
         )
