@@ -816,11 +816,12 @@ class TestJudgeInfer:
     @patch('ais_bench.benchmark.cli.workers.dump_jsonl')
     @patch('os.path.exists')
     @patch('os.remove')
-    def test_result_post_process(self, mock_remove, mock_exists, mock_dump_jsonl, mock_load_jsonl):
+    @patch('shutil.copy')
+    def test_result_post_process(self, mock_copy, mock_remove, mock_exists, mock_dump_jsonl, mock_load_jsonl):
         """测试_result_post_process方法"""
         mock_load_jsonl.side_effect = [
-            [{'uuid': 'uuid1', 'id': 'id1'}],  # model_preds
-            [{'gold': 'uuid1', 'prediction': 'pred1'}]  # judge_preds
+            [{'uuid': 'uuid1', 'id': 'id1'}],
+            [{'gold': 'uuid1', 'prediction': 'pred1'}]
         ]
         mock_exists.return_value = True
 
@@ -845,6 +846,7 @@ class TestJudgeInfer:
 
         self.judge_infer_worker._result_post_process(tasks, cfg)
 
+        mock_copy.assert_called_once()
         mock_remove.assert_called_once()
         mock_dump_jsonl.assert_called_once()
 
