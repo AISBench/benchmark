@@ -2,7 +2,7 @@ from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.openicl.icl_prompt_template import MMPromptTemplate
 from ais_bench.benchmark.datasets import RefCOCOPlusDataset
-from ais_bench.benchmark.datasets.refcoco import refcoco_bbox_postprocess
+from ais_bench.benchmark.datasets.refcoco import IMAGE_BASE64_TYPE, refcoco_bbox_postprocess
 from ais_bench.benchmark.openicl.icl_evaluator import BBoxIoUEvaluator
 
 
@@ -18,7 +18,7 @@ refcoco_plus_infer_cfg = dict(
             round=[
                 dict(role='HUMAN', prompt_mm={
                     'text': {'type': 'text', 'text': '{question}'},
-                    'image': {'type': 'image_url', 'image_url': {'url': 'file://{image}'}},
+                    'image': {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,{image}'}},
                 })
             ]
         )
@@ -40,10 +40,11 @@ _splits = [
 
 refcoco_plus_datasets = [
     dict(
-        abbr='RefCOCOPlus_' + split,
+        abbr='RefCOCOPlus_base64_' + split,
         type=RefCOCOPlusDataset,
         path='ais_bench/datasets/RefCOCOplus/data',
         split=split,
+        image_type=IMAGE_BASE64_TYPE,
         reader_cfg=refcoco_plus_reader_cfg,
         infer_cfg=refcoco_plus_infer_cfg,
         eval_cfg=refcoco_plus_eval_cfg,
