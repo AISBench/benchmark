@@ -18,7 +18,7 @@ from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask, Open
 from ais_bench.benchmark.tasks.base import EmptyTask
 from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
-from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need
+from ais_bench.benchmark.cli.utils import clear_repeat_tasks
 from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
 
 logger = AISLogger()
@@ -82,6 +82,7 @@ class Infer(BaseWorker):
         partitioner = PARTITIONERS.build(cfg.infer.partitioner)
         logger.info("Starting inference tasks...")
         tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
 
         # update tasks cfg before run
         self._update_tasks_cfg(tasks, cfg)
@@ -175,6 +176,7 @@ class JudgeInfer(BaseWorker):
         logger.info("Starting inference tasks...")
         self._cfg_pre_process(cfg)
         tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
 
         # delete the tasks without judge_infer_cfg
         new_tasks = []
@@ -196,6 +198,7 @@ class JudgeInfer(BaseWorker):
             tasks = self._merge_datasets(tasks)
 
         runner = RUNNERS.build(cfg.judge_infer.runner)
+        self._results_pre_process(tasks, cfg)
         runner(tasks)
         self._result_post_process(tasks, cfg)
         logger.info("Inference tasks completed.")
@@ -246,6 +249,8 @@ class JudgeInfer(BaseWorker):
 
         # update judge cfgs to model cfgs and data
         for task in tasks:
+            task["datasets"] = copy.deepcopy(task["datasets"])
+            task["models"] = copy.deepcopy(task["models"])
             task["datasets"][0][0]["predictions_path"] = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}.jsonl')
             if not osp.exists(task["datasets"][0][0]["predictions_path"]):
                 raise PredictionInvalidException(TMAN_CODES.UNKNOWN_ERROR, f"Predictions path {task['datasets'][0][0]['predictions_path']} does not exist.")
@@ -256,6 +261,17 @@ class JudgeInfer(BaseWorker):
             task["datasets"][0][0]["reader_cfg"] = task["datasets"][0][0]["judge_infer_cfg"].pop("judge_reader_cfg")
             task["datasets"][0][0]["infer_cfg"] = task["datasets"][0][0].pop("judge_infer_cfg")
 
+    def _results_pre_process(self, tasks, cfg: ConfigDict):
+        # Copy the original judge infer predictions to cached predictions
+        for task in tasks:
+            judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
+            cache_model_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}-cached.jsonl')
+            if osp.exists(judge_org_prediction_path):
+                os.remove(judge_org_prediction_path)
+            if osp.exists(cache_model_org_prediction_path):
+                shutil.copy(cache_model_org_prediction_path, judge_org_prediction_path)
+                os.remove(cache_model_org_prediction_path)
+
     def _result_post_process(self, tasks, cfg: ConfigDict):
         # Reconstruct the judge infer predictions to normal predictions format
         for task in tasks:
@@ -263,6 +279,8 @@ class JudgeInfer(BaseWorker):
             model_preds: dict = {item["uuid"]: item for item in load_jsonl(model_org_prediction_path)}
             judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
             judge_preds: list = load_jsonl(judge_org_prediction_path)
+            cache_judge_org_preds_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}-cached.jsonl')
+            shutil.copy(judge_org_prediction_path, cache_judge_org_preds_path)
             for i, pred in enumerate(judge_preds):
                 uuid = pred["gold"]
                 judge_preds[i]["id"] = model_preds[uuid]["id"]
@@ -312,6 +330,7 @@ class Eval(BaseWorker):
         self._cfg_pre_process(cfg)
 
         tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
 
         # Update tasks cfg before run
         self._update_tasks_cfg(tasks, cfg)
@@ -345,6 +364,7 @@ class Eval(BaseWorker):
         # Replace default model config to judge model config
         self.judge_result_paths = {}
         for task in tasks:
+            task["datasets"] = copy.deepcopy(task["datasets"])
             if task["datasets"][0][0].get("judge_infer_cfg"):
                 task["datasets"][0][0].pop("judge_infer_cfg")
 

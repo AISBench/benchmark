@@ -150,9 +150,9 @@ The markdown format results is as below:
 | gedit-3-SC_judge | 16dd59 | SC | gen | - | - | - | 7.31 |
 | gedit-3-PQ_judge | 16dd59 | PQ | gen | - | - | - | 7.24 |
 
-[2026-03-04 15:40:45,583] [ais_bench] [INFO] write markdown summary to /workplace/benchmark/ais_bench/configs/lmm_exmaple/outputs/default/20260213_150110/summary/summary_20260304_152835.md
+[2026-03-04 15:40:45,583] [ais_bench] [INFO] write markdown summary to /workplace/benchmark/ais_bench/configs/lmm_example/outputs/default/20260213_150110/summary/summary_20260304_152835.md
 ```
-该日志打印的是多device执行的元评测数据，在`/workplace/benchmark/ais_bench/configs/lmm_exmaple`路径下需要进一步调用如下命令行工具对元评测数据进行处理：
+该日志打印的是多device执行的元评测数据，在`/workplace/benchmark/ais_bench/configs/lmm_example`路径下需要进一步调用如下命令行工具对元评测数据进行处理：
 ```bash
 #
 # python3 -m ais_bench.tools.dataset_processors.gedit.display_results --config_path {CONFIG_PATH} --timestamp_path {TIMESTAMP_PATH}

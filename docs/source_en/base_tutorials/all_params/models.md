@@ -77,7 +77,7 @@ The description of configurable parameters for the service-oriented inference ba
 | `traffic_cfg` | Dict | Parameters for controlling fluctuations in the request sending rate (for detailed usage instructions, refer to 🔗 [Description of Request Rate (RPS) Distribution Control and Visualization](../../advanced_tutorials/rps_distribution.md)). If this item is not filled in, the function is disabled by default |
 | `retry` | Int | Maximum number of retries after failing to connect to the server. Valid range: [0, 1000] |
 | `api_key` | String | Custom API key, default is an empty string. Only supports the `VLLMCustomAPI` and `VLLMCustomAPIChat` model type. |
-| `host_ip` | String | Server IP address, supporting valid IPv4 or IPv6, e.g., `127.0.0.1` |
+| `host_ip` | String | Server IP address, supporting valid IPv4 or IPv6, e.g., `127.0.0.1`, `::1`. When using an IPv6 literal, the tool automatically wraps it in brackets when building URLs, for example: `http://[::1]:8080/` |
 | `host_port` | Int | Server port number, which must be consistent with the port specified during service-oriented deployment |
 | `url` | String | Custom URL path for accessing the inference service (needs to be configured when the base URL is not a combination of http://host_ip:host_port).For example, when `models`'s `type` is `VLLMCustomAPI`, configure `url` as `https://xxxxxxx/yyyy/`, the actual request URL accessed is `https://xxxxxxx/yyyy/v1/completions` |
 | `max_out_len` | Int | Maximum output length of the inference response; the actual length may be limited by the server. Valid range: (0, 131072] |
@@ -94,6 +94,7 @@ The description of configurable parameters for the service-oriented inference ba
 - When the dataset has timestamps and **use_timestamp** is True in the model config, requests are scheduled by timestamp and **request_rate** and **traffic_cfg** are ignored.
 - Setting `batch_size` too large may result in high CPU usage. Please configure it reasonably based on hardware conditions.
 - The default service address used by the service-oriented inference evaluation API is `localhost:8080`. In actual use, you need to modify it to the IP and port of the service-oriented backend according to the actual deployment.
+- When using an IPv6 literal (such as `::1` or `2001:db8::1`) as `host_ip`, the tool will automatically wrap it in brackets in the generated URL (for example, `http://[2001:db8::1]:8080/`), so you do not need to manually add brackets in the configuration.
 
 
 ## Local Model Backend

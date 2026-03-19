@@ -72,7 +72,7 @@ models = [
 | `traffic_cfg` | Dict | 请求发送速率波动控制参数（具体使用说明请参考 🔗 [请求速率(RPS)分布控制及可视化说明](../../advanced_tutorials/rps_distribution.md)），不填写此项默认不启用该功能。 |
 | `retry` | Int | 连接服务端失败后的最大重试次数。合法范围：[0, 1000] |
 | `api_key` | String | 自定义API key，默认是空字符串。仅支持 `VLLMCustomAPI` 和 `VLLMCustomAPIChat` 模型类型。 |
-| `host_ip` | String | 服务端 IP 地址，支持合法 IPv4 或 IPv6，例如：`127.0.0.1` |
+| `host_ip` | String | 服务端 IP 地址，支持合法 IPv4 或 IPv6，例如：`127.0.0.1`、`::1`。当使用 IPv6 字面量时，访问 URL 中会自动转换为带方括号的形式，例如：`http://[::1]:8080/` |
 | `host_port` | Int | 服务端端口号，应与服务化部署指定的端口一致 |
 | `url` | String | 自定义访问推理服务的URL路径(当base url不是http/https://host_ip:host_port的组合时需要配置，配置后host_ip和host_port将被忽略) ，例如当`models`的`type`为`VLLMCustomAPI`时，配置`url`为`https://xxxxxxx/yyyy/`，实际请求访问的URL为`https://xxxxxxx/yyyy/v1/completions`|
 | `max_out_len` | Int | 推理响应的最大输出长度，实际长度可能受服务端限制。合法范围：(0, 131072] |
@@ -88,6 +88,7 @@ models = [
 - 当数据集含 timestamp 且模型配置中 **use_timestamp** 为 True 时，请求按 timestamp 发送，**request_rate** 与 **traffic_cfg** 将被忽略。
 - `batch_size` 设置过大可能导致 CPU 占用过高，请根据硬件条件合理配置。
 - 服务化推理评测 API 默认使用的服务地址为 `localhost:8080`。实际使用时需根据实际部署修改为服务化后端的 IP 和端口。
+- 当使用 IPv6 字面量（如 `::1`、`2001:db8::1`）作为 `host_ip` 时，工具会在生成的访问 URL 中自动为其添加方括号（例如 `http://[2001:db8::1]:8080/`），无需在配置中手动编写方括号。
 
 ## 本地模型后端
 |模型配置名称|简介|使用前提|支持的prompt格式(字符串格式或对话格式)|对应源码配置文件路径|
