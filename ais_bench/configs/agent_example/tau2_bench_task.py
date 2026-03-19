@@ -93,7 +93,7 @@ for ds_config in datasets:
         tau2_task_weights[ds_config["abbr"]] = ds_config["args"]["num_tasks"]
 
 tau2_summary_groups = [
-    {'name': 'tau2_bench', 'subsets': [ds_config["abbr"] for ds_config in datasets]},
+    #{'name': 'tau2_bench', 'subsets': [ds_config["abbr"] for ds_config in datasets]},
     {'name': 'tau2_bench_avg', 'subsets': [ds_config["abbr"] for ds_config in datasets], 'weights': tau2_task_weights},
 ]
 
