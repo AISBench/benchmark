@@ -1,24 +1,24 @@
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.openicl.icl_prompt_template import MMPromptTemplate
-from ais_bench.benchmark.datasets import RefCOCOPlusDataset
-from ais_bench.benchmark.datasets.refcoco import refcoco_bbox_postprocess
+from ais_bench.benchmark.datasets import RefCOCOgDataset
+from ais_bench.benchmark.datasets.refcoco import IMAGE_BASE64_TYPE, refcoco_bbox_postprocess
 from ais_bench.benchmark.openicl.icl_evaluator import BBoxIoUEvaluator
 
 
-refcoco_plus_reader_cfg = dict(
+refcocog_reader_cfg = dict(
     input_columns=['question', 'image'],
     output_column='answer'
 )
 
-refcoco_plus_infer_cfg = dict(
+refcocog_infer_cfg = dict(
     prompt_template=dict(
         type=MMPromptTemplate,
         template=dict(
             round=[
                 dict(role='HUMAN', prompt_mm={
                     'text': {'type': 'text', 'text': '{question}'},
-                    'image': {'type': 'image_url', 'image_url': {'url': 'file://{image}'}},
+                    'image': {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,{image}'}},
                 })
             ]
         )
@@ -27,26 +27,26 @@ refcoco_plus_infer_cfg = dict(
     inferencer=dict(type=GenInferencer),
 )
 
-refcoco_plus_eval_cfg = dict(
+refcocog_eval_cfg = dict(
     evaluator=dict(type=BBoxIoUEvaluator, iou_threshold=0.5, coord_scale=1000.0),
     pred_postprocessor=dict(type=refcoco_bbox_postprocess),
 )
 
 _splits = [
     'val',
-    'testA',
-    'testB',
+    'test',
 ]
 
-refcoco_plus_datasets = [
+refcocog_datasets = [
     dict(
-        abbr='RefCOCOPlus_' + split,
-        type=RefCOCOPlusDataset,
-        path='ais_bench/datasets/RefCOCOplus/data',
+        abbr='RefCOCOg_base64_' + split,
+        type=RefCOCOgDataset,
+        path='ais_bench/datasets/RefCOCOg/data',
         split=split,
-        reader_cfg=refcoco_plus_reader_cfg,
-        infer_cfg=refcoco_plus_infer_cfg,
-        eval_cfg=refcoco_plus_eval_cfg,
+        image_type=IMAGE_BASE64_TYPE,
+        reader_cfg=refcocog_reader_cfg,
+        infer_cfg=refcocog_infer_cfg,
+        eval_cfg=refcocog_eval_cfg,
     )
     for split in _splits
 ]

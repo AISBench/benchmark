@@ -7,7 +7,7 @@ from ais_bench.benchmark.openicl.icl_evaluator import BBoxIoUEvaluator
 
 
 refcocog_reader_cfg = dict(
-    input_columns=['content'],
+    input_columns=['question', 'image'],
     output_column='answer'
 )
 
@@ -33,13 +33,13 @@ refcocog_eval_cfg = dict(
 )
 
 _splits = [
-    ('RefCOCOg_val', 'val'),
-    ('RefCOCOg_test', 'test'),
+    'val',
+    'test',
 ]
 
 refcocog_datasets = [
     dict(
-        abbr=abbr,
+        abbr='RefCOCOg_' + split,
         type=RefCOCOgDataset,
         path='ais_bench/datasets/RefCOCOg/data',
         split=split,
@@ -47,5 +47,5 @@ refcocog_datasets = [
         infer_cfg=refcocog_infer_cfg,
         eval_cfg=refcocog_eval_cfg,
     )
-    for abbr, split in _splits
+    for split in _splits
 ]
