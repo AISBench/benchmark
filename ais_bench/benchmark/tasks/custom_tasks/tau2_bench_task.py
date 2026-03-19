@@ -217,7 +217,7 @@ class TAU2BenchTask(BaseTask):
             self.logger.error("No metrics captured. Please check the Tau2 run.")
             return
         out_json = osp.join(f"{self.out_dir}", f"{self.cfg['datasets'][0][0]['abbr']}.json")
-        results = {"accuracy": 100 * self.captured_metrics.avg_reward}
+        results = {f"pass@{self.run_config.num_trials}": 100 * self.captured_metrics.avg_reward}
         with open(out_json, "w") as f:
             json.dump(results, f, indent=4)
         self.logger.info(f"Evaluation results saved to {out_json}")
