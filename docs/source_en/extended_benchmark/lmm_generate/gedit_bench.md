@@ -39,6 +39,8 @@
 
 ### Evaluating Qwen-Image-Edit Model Based on MindIE Framework
 
+For the inference implementation of Qwen-Image-Edit model, refer to https://modelers.cn/models/MindIE/Qwen-Image-Edit-2509.
+
 #### Hardware Requirements
 
 Ascend Server:
@@ -96,7 +98,15 @@ docker exec -it ${NAME} bash
 
 In the container, refer to AISBench's [Installation Instructions](../../get_started/install.md) to install the latest AISBench tool.
 
-4. **Prepare Model Weights and Dataset**
+4. **Install Additional Dependencies for Qwen-Image-Edit**
+
+```shell
+pip install diffusers==0.35.1
+pip install transformers==4.52.4
+pip install yunchang==0.6.0
+```
+
+5. **Prepare Model Weights and Dataset**
 
 Refer to [Qwen-Image-Edit-2509](https://huggingface.co/Qwen/Qwen-Image-Edit-2509) to obtain model weights.
 Refer to [GEdit-Bench Dataset](https://huggingface.co/datasets/stepfun-ai/GEdit-Bench) to obtain the dataset.
