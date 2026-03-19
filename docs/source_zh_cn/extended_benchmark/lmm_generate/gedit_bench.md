@@ -30,10 +30,10 @@
 
 ## AISBench测评 GEdit-Bench实践
 ### 基于MindIE框架对Qwen-Image-Edit模型进行测评
+Qwen-Image-Edit模型的推理实现参考 https://modelers.cn/models/MindIE/Qwen-Image-Edit-2509。
 #### 硬件要求
 昇腾服务器：
-800I A2 (单芯片64GB显存)
-800I A3
+800I A2 (单芯片64GB显存) / 800I A3
 #### 环境准备(以800I A2硬件为例)
 基于MindIE提供的镜像完成测评。
 1. **拉取MindIE镜像**
@@ -74,7 +74,14 @@ docker exec -it ${NAME} bash
 ```
 在容器中参考AISBench的[安装说明](../../get_started/install.md)安装最新的AISBench工具。
 
-4. **准备好模型权重和数据集**
+4. **补充安装Qwen-Image-Edit运行依赖**
+```shell
+pip install diffusers==0.35.1
+pip install transformers==4.52.4
+pip install yunchang==0.6.0
+```
+
+5. **准备好模型权重和数据集**
 参考[Qwen-Image-Edit-2509](https://huggingface.co/Qwen/Qwen-Image-Edit-2509)获取模型权重。
 参考[GEdit-Bench数据集](https://huggingface.co/datasets/stepfun-ai/GEdit-Bench)获取数据集。
 将在数据集放在`${PATH_TO_WORKSPACE}/benchmark/ais_bench/datasets`目录下(使用软链接也可以)。
