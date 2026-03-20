@@ -17,7 +17,10 @@ refcocog_infer_cfg = dict(
         template=dict(
             round=[
                 dict(role='HUMAN', prompt_mm={
-                    'text': {'type': 'text', 'text': '{question}'},
+                    'text': {
+                        'type': 'text',
+                        'text': 'Locate every object that matches the description "{question}" in the image. Report bbox coordinates in JSON format.'
+                    },
                     'image': {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,{image}'}},
                 })
             ]

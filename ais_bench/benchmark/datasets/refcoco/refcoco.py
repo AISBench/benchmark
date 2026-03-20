@@ -25,11 +25,6 @@ logger = AISLogger()
 IMAGE_PATH_TYPE = 'image_path'
 IMAGE_BASE64_TYPE = 'image_base64'
 
-REFCOCO_PROMPT_TEMPLATE = (
-    'Locate every object that matches the description "{ref_sentence}" '
-    'in the image. Report bbox coordinates in JSON format.'
-)
-
 TEMP_IMAGE_STORE_DIR = 'temp_save_images'
 
 def _parse_float_sequence_within(input_str: str) -> list[float]:
@@ -126,11 +121,6 @@ class RefCOCODataset(BaseDataset):
         return [x_coord, y_coord, x_coord + bbox_width, y_coord + bbox_height]
 
     @staticmethod
-    def _build_prompt(answer_text: Any) -> str:
-        ref_sentence = _remove_leading_articles(str(answer_text))
-        return REFCOCO_PROMPT_TEMPLATE.format(ref_sentence=ref_sentence)
-
-    @staticmethod
     def _build_rows(
         sample: pd.Series,
         image_value: str,
@@ -146,15 +136,12 @@ class RefCOCODataset(BaseDataset):
 
         rows: list[dict[str, str]] = []
         for answer_text in sample['answer']:
-            prompt = RefCOCODataset._build_prompt(answer_text)
             content = get_content_str([
                 {'type': 'image_url', 'image_url': image_value},
-                {'type': 'text', 'text': prompt},
+                {'type': 'text', 'text': answer_text},
             ])
             rows.append({
                 'content': content,
-                'question': prompt,
-                'image': image_value,
                 'answer': reference_answer,
             })
         return rows
@@ -171,6 +158,14 @@ class RefCOCODataset(BaseDataset):
         bbox to ``[x_min, y_min, x_max, y_max]``, and expands the answer list
         into one benchmark row per referring expression.
 
+        Each output row has a ``content`` field that encodes the image and
+        referring expression together using ``AIS_CONTENT_TAG`` delimiters
+        (via :func:`get_content_str`). During inference the
+        :meth:`PromptList.format_mm` method splits ``content`` on
+        ``AIS_CONTENT_TAG`` and uses the ``AIS_IMAGE_START`` /
+        ``AIS_TEXT_START`` prefixes to populate the ``prompt_mm`` template
+        with the image URL and question text respectively.
+
         Args:
             path: Dataset root containing RefCOCO parquet shards.
             split: Split prefix to load, for example ``val`` or ``testA``.
@@ -179,9 +174,11 @@ class RefCOCODataset(BaseDataset):
                 ``IMAGE_BASE64_TYPE``.
 
         Returns:
-            A HuggingFace ``Dataset`` whose rows contain ``content`` for
-            multimodal prompting and ``answer`` as the serialized reference
-            bbox payload used by evaluation.
+            A HuggingFace ``Dataset`` with columns:
+            - content: encoded multimodal string consumed by
+              ``format_mm`` to fill the ``prompt_mm`` template.
+            - answer: JSON-serialized reference bbox payload used by
+              evaluation.
         """
         resolved_path = get_data_path(path)
         image_type = kwargs.get('image_type', IMAGE_PATH_TYPE)
