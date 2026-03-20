@@ -399,7 +399,7 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 
 1. **长序列推理场景需求**：随着大语言模型的发展，模型处理长文本的能力成为重要评估指标。L-Eval数据集是专门用于评估长文本理解能力的基准测试，支持该数据集能够满足长序列推理场景的测评需求。同时，Mooncake论文提出的流量负载复现方式，为性能测评提供了更贴近真实场景的评估方法。
 
-2. **多模态模型评估需求**：Qwen-VL、Deepseek-ocr等多模态模型的快速发展，需要全面的多模态评估能力。MMStar、VideoMME、OCRBench、MMMU、OmniDocBench、VQA等数据集覆盖了视觉问答、视频理解、文本理解、大学水平问题等多个维度，能够全面评估多模态模型的能力。
+2. **多模态理解类模型评估需求**：Qwen-VL、Deepseek-ocr等多模态理解类模型的快速发展，需要全面的多模态评估能力。MMStar、VideoMME、OCRBench、MMMU、OmniDocBench、VQA等数据集覆盖了视觉问答、视频理解、文本理解、大学水平问题等多个维度，能够全面评估多模态模型的能力。
 
 3. **安全性需求**：在生产环境中，API Key鉴权认证是保障服务安全的重要手段。支持API Key鉴权能够满足企业级部署的安全要求。
 
@@ -408,6 +408,8 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 5. **易用性提升需求**：用户反馈工具在使用过程中存在一些不便之处，如无法指定推理数据条数、合并数据集时无法查看子数据集精度等，需要通过参数优化提升易用性。
 
 6. **集群测评能力需求**：在实际生产环境中，需要更细粒度的性能分析能力，如EPD分离的encoding阶段耗时统计、基于timestamp的流量负载复现等，以满足集群测评的需求。
+
+7. **多模态生成类模型评估需求**：Qwen-Image-Edit等多模态生成类模型的快速发展，需要全面的多模态生成能力评估。GEdit数据集支持对图片编辑能力的评估，输出语义一致性、感知质量等维度的评估结果。
 
 ### 2.1.2 价值概述
 
@@ -474,7 +476,7 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 3. 执行精度或性能测评
 4. 查看评估结果，与OpenCompass结果对比
 
-#### 场景2：多模态模型全面评估
+#### 场景2：多模态生成类模型全面评估
 
 **场景描述**：用户需要全面评估多模态模型在不同维度上的能力。
 
@@ -565,13 +567,31 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 3. 执行性能测评
 4. 查看encoding阶段耗时统计或流量负载复现结果
 
+#### 场景7：多模态生成类模型评估场景
+
+**场景描述**：用户需要评估多模态生成类模型的能力。
+
+**子场景**：
+
+1. **裁判模型评估能力**：使用裁判模型对被测模型的推理结果进行评估
+2. **图片编辑能力评估**：使用GEdit数据集评估模型的图片编辑能力
+
+**关键任务操作**：
+
+1. 准备GEdit数据集
+2. 启动裁判模型推理服务（或配置API）
+3. 配置模型和数据集参数
+4. 执行精度测评
+5. 查看评估结果，与Step1X-Edit的benchmark脚本结果对比
+
+
 ## 2.3特性影响分析
 
 ### 2.3.1 系统位置及周边接口
 
 本版本特性主要涉及以下系统模块：
 
-1. **数据集加载模块**（`ais_bench/benchmark/datasets/`）：新增L-Eval、MMStar、VideoMME、OCRBench、MMMU、OmniDocBench、VQA、DAPO-math、GEdit等数据集的加载器。
+1. **数据集加载模块**（`ais_bench/benchmark/datasets/`）：新增L-Eval、MMStar、VideoMME、OCRBench、MMMU、OmniDocBench、VQA、DAPO-math、加载器。 拓展裁判模型基础数据集加载器，GEdit数据集在此基础上拓展。
 
 2. **模型接口模块**（`ais_bench/benchmark/models/api_models/`）：扩展vLLM系列API接口，支持API Key鉴权认证、stream参数配置、url参数配置等。
 
@@ -579,11 +599,13 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 
 4. **评估器模块**（`ais_bench/benchmark/openicl/icl_evaluator/`）：新增或扩展评估器，支持Rouge、ANLS、精准匹配等多种评估方式。
 
-5. **命令行接口模块**（`ais_bench/benchmark/cli/`）：扩展命令行参数，支持--num-prompts、--merge-ds、--max-num-workers、--pressure-time、--num-warmups等参数。
+5. **命令行接口模块**（`ais_bench/benchmark/cli/argument_parser.py`）：扩展命令行参数，支持--num-prompts、--merge-ds、--max-num-workers、--pressure-time、--num-warmups等参数。
 
-6. **配置管理模块**（`ais_bench/benchmark/global_consts.py`）：新增LOG_LEVEL配置，移除PRESSURE_TIME、CONNECTION_ADD_RATE等配置。
+6. **工作流模块**（`ais_bench/benchmark/cli/workers.py`）：新增裁判模型推理工作流模块，继承原始被测模型推理工作流的能力和接口定义，用于处理涉及裁判模型推理的测评任务。
 
-7. **性能计算模块**（`ais_bench/benchmark/calculators/`）：扩展性能计算器，支持EPD分离的encoding阶段耗时统计、基于timestamp的流量负载复现等。
+7. **配置管理模块**（`ais_bench/benchmark/global_consts.py`）：新增LOG_LEVEL配置，移除PRESSURE_TIME、CONNECTION_ADD_RATE等配置。
+
+8. **性能计算模块**（`ais_bench/benchmark/calculators/`）：扩展性能计算器，支持EPD分离的encoding阶段耗时统计、基于timestamp的流量负载复现等。
 
 **周边接口**：
 
@@ -612,6 +634,10 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
    - 部分参数在debug模式下不生效（如--max-num-workers）
    - 部分参数需要特定模式支持（如--pressure-time需要--pressure模式）
 
+5. **裁判模型中断续推DFX能力限制**：
+   - 如果被测模型的推理过程进行了中断续推，因为被测推理结果发生改变，裁判模型会基于新的推理结果全部重新推理而非继承续推。
+   - 裁判模型推理过程不支持配置num_return_sequence参数，默认num_return_sequence=1。
+
 ### 2.3.3 与其他需求及特性的交互分析
 
 1. **与现有数据集支持的交互**：新增数据集与现有数据集共享相同的数据加载框架和评估框架，不会产生冲突。
@@ -621,6 +647,8 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 3. **与性能测评的交互**：EPD分离统计、流量负载复现等功能扩展了性能测评的能力，与现有性能测评功能兼容。
 
 4. **与易用性优化的交互**：命令行参数和配置参数的优化提升了工具的易用性，与现有功能兼容。
+
+5. **与原始精度测评工作流的交互**：工作流中接入的裁判模型推理过程只处理有裁判模型配置的评测任务，不影响常规配置的精度测评任务。
 
 ### 2.3.4 平台差异性分析
 
