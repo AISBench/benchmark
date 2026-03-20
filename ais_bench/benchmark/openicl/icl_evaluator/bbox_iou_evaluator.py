@@ -71,11 +71,6 @@ class BBoxIoUEvaluator(BaseEvaluator):
         details = []
         scores = []
         for pred, ref in zip(predictions, references):
-            refer = json.loads(ref) if isinstance(ref, str) else ref
-            gt_box = [float(value) for value in refer[self.reference_bbox_key]]
-            image_width = float(refer[self.image_width_key])
-            image_height = float(refer[self.image_height_key])
-
             detail = {
                 'pred': pred,
                 'answer': ref,
@@ -84,14 +79,19 @@ class BBoxIoUEvaluator(BaseEvaluator):
             }
 
             try:
+                refer = json.loads(ref) if isinstance(ref, str) else ref
+                image_width = float(refer[self.image_width_key])
+                image_height = float(refer[self.image_height_key])
                 pred_box_pixel = self._scale_prediction(pred, image_width, image_height)
+                gt_box = [float(value) for value in refer[self.reference_bbox_key]]
+
                 iou = _compute_iou(pred_box_pixel, gt_box)
                 correct = iou >= self.iou_threshold
                 detail['correct'] = correct
                 detail['iou'] = iou
                 detail['pred_bbox_pixel'] = pred_box_pixel
                 scores.append(1 if correct else 0)
-            except (TypeError, ValueError, KeyError, json.JSONDecodeError) as error:
+            except (TypeError, ValueError, KeyError, json.JSONDecodeError, IndexError) as error:
                 detail['iou'] = 0.0
                 detail['pred_bbox_pixel'] = None
                 detail['invalid'] = True
