@@ -2189,7 +2189,7 @@ sequenceDiagram
 - 执行精度测评
 - 预期结果：使用环境变量的API Key（优先级更高）
 
-# 6.Use Case三至六实现
+# 6.Use Case三至七实现
 
 ## 6.1 Use Case三：多模态数据集支持
 
@@ -2255,7 +2255,132 @@ sequenceDiagram
 **主要接口**：
 
 - `EncodingTimeCalculator.calculate()`: 计算encoding阶段耗时
-- `TraceReplayCalculator.replay()`: 流量负载复现
+- `TraceReplayCalculator.replay()`: 流量负载复
+
+## 6.5 Use Case七：裁判模型评估能力
+
+**设计思路**：引入裁判模型对被测模型的推理结果进行自动化评估，解决没有标准答案或需要评估推理过程合理性的场景。裁判模型支持LLM（大语言模型）和LMM（大型多模态模型）两种类型，可以独立部署，与被测模型解耦。
+
+**关键实现**：
+
+1. **裁判数据集基类设计（BaseJDGDataset）**：
+   - 定义统一的裁判数据集加载接口，继承自BaseDataset
+   - 实现模板方法模式，将数据加载、预测结果加载、数据合并等流程固化在基类中
+   - 提供抽象方法`_load_from_predictions()`和`_modify_dataset_item()`供子类实现
+   - 支持从被测模型推理结果文件中加载数据，构建裁判推理所需的输入
+
+2. **LLM裁判模型实现（LLMJudgeDataset）**：
+   - 继承自BaseJDGDataset，实现文本类评估的数据加载
+   - 从预测结果文件中加载被测模型的推理结果
+   - 将推理结果与原始数据集合并，构建裁判推理的输入
+   - 支持从裁判模型输出中提取A/B选择等判断结果
+
+3. **LMM裁判模型实现（LMMImgJDGDataset）**：
+   - 继承自BaseJDGDataset，实现多模态评估的数据加载
+   - 从预测结果文件中加载被测模型生成的图片路径
+   - 将图片转换为Base64编码格式，支持多模态输入
+   - 支持SC（语义一致性）和PQ（感知质量）两种评估维度
+   - 使用并行处理加速图片转换（ThreadPoolExecutor，max_workers=8）
+
+4. **裁判评估器实现**：
+   - `LLMJudgeCorrectEvaluator`：LLM裁判模型评估器，从裁判模型输出中提取正确性判断
+   - `LMMJudgeImageEditEvaluator`：LMM裁判模型评估器，支持SC和PQ两种评估指标
+   - 从裁判模型推理结果中提取评分，计算最终评估指标
+
+5. **裁判模型工作流实现（JudgeInfer）**：
+   - 继承自BaseWorker，实现裁判模型推理的完整工作流
+   - 支持配置预处理、任务分区、结果后处理等流程
+   - 支持与被测模型推理结果的对接
+   - 支持中断续推（但裁判模型推理不支持续推，会重新推理）
+
+6. **命令行接口扩展**：
+   - 支持`--mode infer_judge`：仅完成从被测模型推理到裁判模型推理结果的输出，不进行指标提取
+   - 支持`--mode judge`：基于被测模型推理结果，仅完成裁判模型的推理，不进行指标提取
+   - 支持与常规测评模式的无缝切换
+
+**主要接口**：
+
+- `BaseJDGDataset.load(predictions_path)`: 裁判数据集加载接口
+- `LLMJudgeDataset._load_from_predictions(prediction_path)`: 加载LLM裁判预测结果
+- `LMMImgJDGDataset._load_from_predictions(prediction_path)`: 加载LMM裁判预测结果（含图片处理）
+- `LLMJudgeCorrectEvaluator.score(predictions, references)`: LLM裁判评估器评分
+- `LMMJudgeImageEditEvaluator.score(predictions, references)`: LMM裁判评估器评分
+- `JudgeInfer.do_work(cfg)`: 裁判模型工作流执行
+
+**设计亮点**：
+
+1. **模板方法模式**：BaseJDGDataset定义了裁判数据集加载的算法骨架，将不变的步骤在基类中实现，将可变的步骤延迟到子类实现
+2. **策略模式**：不同类型的裁判数据集和评估器可以灵活切换，支持多种评估场景
+3. **解耦设计**：裁判模型与被测模型完全解耦，可以独立部署在不同硬件平台
+4. **并行优化**：图片处理使用并行处理，提升数据加载效率
+5. **向后兼容**：裁判模型配置为可选配置，不影响常规精度测评任务
+
+## 6.6 Use Case八：GEdit图片编辑评估
+
+**设计思路**：GEdit数据集用于评估多模态生成类模型的图片编辑能力，通过LMM裁判模型对编辑后的图片进行多维度评估。评估包括两个阶段：SC（Semantic Consistency，语义一致性）评估编辑是否成功执行，PQ（Perceptual Quality，感知质量）评估生成图片的自然度和伪影程度。
+
+**关键实现**：
+
+1. **GEdit数据集加载器（GEditDataset）**：
+   - 继承自BaseDataset，实现GEdit数据集的加载
+   - 支持数据集切分功能（split_count、split_index），支持分布式评估
+   - 支持原始图片（input_image_raw）和Base64编码图片（input_image）两种格式
+   - 使用并行处理（ThreadPoolExecutor，max_workers=8）加速图片Base64转换
+   - 支持数据集大小控制（GEDIT_COUNT=1212，可调整用于快速测试）
+
+2. **GEdit裁判数据集实现**：
+   - `GEditSCJDGDataset`：继承自ImgSCJDGDataset，实现SC评估的数据加载
+   - `GEditPQJDGDataset`：继承自ImgPQJDGDataset，实现PQ评估的数据加载
+   - 从被测模型推理结果中加载编辑后的图片，转换为Base64格式
+   - 构建裁判模型推理所需的输入（原始图片、编辑后图片、编辑指令等）
+
+3. **GEdit评估器（GEditEvaluator）**：
+   - 继承自BaseEvaluator，实现GEdit数据集的精度评估
+   - 计算推理成功率（accuracy = 100 * len(predictions) / len(references)）
+   - 支持详细的评估结果输出（pred、ref等）
+
+4. **两阶段评估流程**：
+   - 第一阶段：SC评估，判断图片编辑是否成功执行
+   - 第二阶段：PQ评估，评估生成图片的自然度和伪影程度
+   - 最终O指标：SC和PQ的几何平均（O = sqrt(SC * PQ)）
+
+5. **结果汇总工具**：
+   - GEdit Bench的部分指标需要基于不同case粒度指标进行计算
+   - 无法在常规summarizer中汇总计算，需要依赖新增工具（display_results.py）
+   - 支持按语言（中文/英文）分组统计评估结果
+   - 支持CSV格式导出，便于与其他工具集成
+
+**主要接口**：
+
+- `GEditDataset.load(path, use_raw, split_count, split_index)`: GEdit数据集加载
+- `GEditSCJDGDataset._get_dataset_class()`: 返回GEditDataset类
+- `GEditPQJDGDataset._get_dataset_class()`: 返回GEditDataset类
+- `GEditEvaluator.score(predictions, references)`: GEdit评估器评分
+- `ImgSCJDGDataset._modify_dataset_item()`: SC评估数据项修改
+- `ImgPQJDGDataset._modify_dataset_item()`: PQ评估数据项修改
+
+**设计亮点**：
+
+1. **数据集切分支持**：支持将GEdit数据集平均切分成多个部分，分配给多个模型实例进行推理，提高推理效率
+2. **并行图片处理**：使用ThreadPoolExecutor并行处理图片Base64转换，提升数据加载效率
+3. **两阶段评估**：SC和PQ评估独立进行，单个评估失败不影响另一个评估
+4. **精度对齐**：与Step1X-Edit的benchmark脚本结果对齐，确保评估结果的一致性
+5. **专用结果工具**：提供display_results.py工具进行GEdit评估结果汇总，支持SC、PQ、O指标计算
+
+**约束条件**：
+
+1. **硬件平台限制**：目前多模态生成类模型的开源服务化框架（vllm omni）还不成熟，当前工具只适配了基于昇腾NPU的Qwen-Image-Edit模型后端
+2. **评估指标计算**：GEdit Bench的部分指标需要基于不同case粒度指标进行计算，无法在常规summarizer中汇总计算，需要依赖新增工具
+3. **图片格式要求**：支持PNG、JPEG等常见图片格式，输出统一为PNG格式
+4. **Base64编码**：图片传输采用Base64编码，可能增加网络传输开销
+5. **数据集准备**：需要准备GEdit数据集，包括输入图片和编辑指令
+
+**与裁判模型的交互**：
+
+- GEdit评估依赖LMM裁判模型进行SC和PQ评估
+- 裁判模型需要具备图片理解能力（如Qwen2.5-VL-7B）
+- 裁判模型推理与被测模型推理解耦，可部署在不同硬件平台
+- 裁判模型推理结果通过judger（裁判）标识，与常规评估结果区分现
 
 # 7.可靠性&amp;可用性设计
 
