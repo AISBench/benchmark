@@ -7,6 +7,7 @@ import random
 import threading
 import sys
 import time
+import re
 from typing import Any
 
 from mmengine.config import Config, ConfigDict
@@ -146,12 +147,13 @@ class TAU2BenchTask(BaseTask):
 
         def monitor_file():
             nonlocal completed
+            task_id_pattern = re.compile(r'"task_id"\s*:')
             while True:
                 if osp.exists(save_to):
                     try:
                         with open(save_to, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                        new_completed = len(data.get('simulations', []))
+                            content = f.read()
+                        new_completed = len(task_id_pattern.findall(content))
                         if new_completed > completed:
                             pbar.update(new_completed - completed)
                             task_state_manager.update_task_state(
@@ -160,9 +162,9 @@ class TAU2BenchTask(BaseTask):
                                 }
                             )
                             completed = new_completed
-                    except (json.JSONDecodeError, IOError, OSError):
+                    except (IOError, OSError):
                         pass
-                time.sleep(0.3)
+                time.sleep(0.5)
                 if completed >= total_tasks:
                     pbar.update(completed - pbar.n)
                     break
