@@ -148,8 +148,9 @@ class TAU2BenchTask(BaseTask):
             nonlocal completed
             while True:
                 if osp.exists(save_to):
-                    with open(save_to, 'r') as f:
-                        data = json.load(f)
+                    try:
+                        with open(save_to, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
                         new_completed = len(data.get('simulations', []))
                         if new_completed > completed:
                             pbar.update(new_completed - completed)
@@ -159,6 +160,8 @@ class TAU2BenchTask(BaseTask):
                                 }
                             )
                             completed = new_completed
+                    except (json.JSONDecodeError, IOError, OSError):
+                        pass
                 time.sleep(0.3)
                 if completed >= total_tasks:
                     pbar.update(completed - pbar.n)
