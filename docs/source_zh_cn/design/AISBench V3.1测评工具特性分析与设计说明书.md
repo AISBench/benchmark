@@ -160,15 +160,17 @@
 
 图1：AISBench系统架构图
 
-图2：AISBench数据流时序图
+图2：AISBench常规测评数据流时序图
 
-图3：L-Eval数据集精度测评时序图
+图3：AISBench裁判模型测评数据流时序图
 
-图4：L-Eval数据集性能测评时序图
+图4：L-Eval数据集精度测评时序图
 
-图5：API Key鉴权认证时序图
+图5：L-Eval数据集性能测评时序图
 
-图6：AISBench安全数据流图（2层）
+图6：API Key鉴权认证时序图
+
+图7：AISBench安全数据流图（2层）
 
 # 1.特性概述
 
@@ -206,7 +208,11 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 7. **集群测评能力增强**：
    - EPD分离的encoding阶段耗时统计
    - 基于timestamp的流量负载复现
-8. **GEdit数据集支持**：支持图片编辑能力的评估，包括语义一致性和感知质量等维度。
+8. **裁判模型评估能力**：
+   - 支持LLM裁判模型对文本答案正确性进行判断
+   - 支持LMM裁判模型对多模态输出进行评估
+   - 支持裁判模型与被测模型的解耦部署
+9. **GEdit数据集支持**：支持图片编辑能力的评估，包括语义一致性和感知质量等维度。
 
 ## 1.2特性需求列表
 
@@ -1070,6 +1076,16 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
    - 支持基于timestamp的流量负载复现
    - 支持精准的性能分析
 
+7. **裁判模型评估场景**：
+   - 支持LLM裁判模型对文本答案正确性进行判断
+   - 支持LMM裁判模型对多模态输出进行评估
+   - 支持多裁判模型并行评估，提供可靠的评估结果
+
+8. **GEdit图片编辑评估场景**：
+   - 支持GEdit数据集的图片编辑能力评估
+   - 支持SC（语义一致性）和PQ（感知质量）两阶段评估
+   - 与Step1X-Edit的benchmark脚本精度对齐
+
 ### 3.1.2 性能目标
 
 1. **精度目标**：
@@ -1117,13 +1133,17 @@ graph TB
     subgraph "任务管理层"
         TaskMgr[任务管理器]
         Workflow[工作流执行器]
+        JudgeWorkflow[裁判模型工作流执行器]
     end
 
     subgraph "核心功能层"
         DatasetLoader[数据集加载器]
+        JudgeDatasetLoader[裁判数据集加载器]
         ModelWrapper[模型包装器]
+        JudgeModelWrapper[裁判模型包装器]
         Inferencer[推理引擎]
         Evaluator[评估器]
+        JudgeEvaluator[裁判评估器]
         Calculator[性能计算器]
     end
 
@@ -1135,26 +1155,36 @@ graph TB
 
     subgraph "外部服务"
         VLLMService[vLLM服务]
+        JudgeService[裁判模型服务]
         DatasetFiles[数据集文件]
     end
 
     CLI --> TaskMgr
     Config --> TaskMgr
     TaskMgr --> Workflow
+    TaskMgr --> JudgeWorkflow
     Workflow --> DatasetLoader
     Workflow --> ModelWrapper
     Workflow --> Inferencer
     Workflow --> Evaluator
     Workflow --> Calculator
+    JudgeWorkflow --> JudgeDatasetLoader
+    JudgeWorkflow --> JudgeModelWrapper
+    JudgeWorkflow --> JudgeEvaluator
 
     DatasetLoader --> Registry
+    JudgeDatasetLoader --> Registry
     ModelWrapper --> Registry
+    JudgeModelWrapper --> Registry
     Inferencer --> Registry
     Evaluator --> Registry
+    JudgeEvaluator --> Registry
     Calculator --> Registry
 
     ModelWrapper --> VLLMService
+    JudgeModelWrapper --> JudgeService
     DatasetLoader --> DatasetFiles
+    JudgeDatasetLoader --> DatasetFiles
 
     Registry --> Logger
     Registry --> Utils
@@ -1180,13 +1210,20 @@ graph TB
 - `VQADataset`：VQA数据集加载器（DocVQA、InfoVQA）
 - `DAPOMathDataset`：DAPO-math数据集加载器
 - `GEditDataset`：GEdit数据集加载器
+- `BaseJDGDataset`：裁判模型数据集基类，定义统一的裁判数据集接口
+- `LLMJudgeDataset`：LLM裁判模型数据集加载器，支持文本类评估
+- `LMMImgJDGDataset`：LMM裁判模型数据集加载器，支持多模态评估
+- `GEditSCJDGDataset`：GEdit SC评估数据集加载器
+- `GEditPQJDGDataset`：GEdit PQ评估数据集加载器
 
 **设计要点**：
 
 - 所有数据集继承自`BaseDataset`，实现统一的`load()`接口
+- 裁判模型数据集继承自`BaseJDGDataset`，支持从预测结果加载数据
 - 通过注册机制（`LOAD_DATASET`）统一管理
 - 支持本地数据集和远程数据集加载
 - 支持数据集预处理和格式化
+- 裁判数据集支持从被测模型推理结果中加载数据进行二次推理
 
 #### 3.2.3.2 模型模块（models/）
 
@@ -1237,12 +1274,16 @@ graph TB
 - `ANLSEvaluator`：ANLS指标评估器
 - `CodeUEvaluator`：Code U数据集专用评估器
 - `SciFiEvaluator`：Sci-Fi数据集专用评估器
+- `LLMJudgeCorrectEvaluator`：LLM裁判模型评估器，用于文本答案正确性判断
+- `LMMJudgeImageEditEvaluator`：LMM裁判模型评估器，用于图片编辑质量评估
 
 **设计要点**：
 
 - 支持多种评估指标（Rouge、准确率、ANLS等）
 - 支持自定义评估器
 - 支持子数据集精度统计和加权平均
+- 裁判模型评估器支持从裁判模型推理结果中提取评估指标
+- LMM裁判模型评估器支持SC（语义一致性）和PQ（感知质量）两种评估维度
 
 #### 3.2.3.5 性能计算模块（calculators/）
 
@@ -1277,8 +1318,11 @@ graph TB
 - 支持参数验证和默认值设置
 - 支持debug模式和dry-run模式
 - 支持参数优先级机制
+- 支持裁判模型相关参数（--mode infer_judge、--mode judge等）
 
 ### 3.2.4 数据流设计
+
+#### 3.2.4.1 常规测评数据流
 
 ```mermaid
 sequenceDiagram
@@ -1312,7 +1356,57 @@ sequenceDiagram
     CLI-->>User: 输出测评结果
 ```
 
-图2：AISBench数据流时序图
+图2：AISBench常规测评数据流时序图
+
+#### 3.2.4.2 裁判模型测评数据流
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant CLI as 命令行接口
+    participant TaskMgr as 任务管理器
+    participant DatasetLoader as 数据集加载器
+    participant ModelWrapper as 模型包装器
+    participant Inferencer as 推理引擎
+    participant JudgeDatasetLoader as 裁判数据集加载器
+    participant JudgeModelWrapper as 裁判模型包装器
+    participant JudgeEvaluator as 裁判评估器
+    participant VLLMService as vLLM服务
+    participant JudgeService as 裁判模型服务
+
+    User->>CLI: 执行裁判模型测评命令
+    CLI->>TaskMgr: 创建测评任务
+    TaskMgr->>DatasetLoader: 加载数据集
+    DatasetLoader-->>TaskMgr: 返回数据集
+    TaskMgr->>ModelWrapper: 初始化被测模型
+    ModelWrapper->>VLLMService: 建立连接
+    VLLMService-->>ModelWrapper: 连接成功
+    TaskMgr->>Inferencer: 执行被测模型推理
+    loop 批量推理
+        Inferencer->>ModelWrapper: 发送推理请求
+        ModelWrapper->>VLLMService: HTTP/HTTPS请求
+        VLLMService-->>ModelWrapper: 返回推理结果
+        ModelWrapper-->>Inferencer: 返回结果
+    end
+    Inferencer-->>TaskMgr: 返回所有推理结果
+    TaskMgr->>JudgeDatasetLoader: 加载裁判数据集（从推理结果）
+    JudgeDatasetLoader-->>TaskMgr: 返回裁判数据集
+    TaskMgr->>JudgeModelWrapper: 初始化裁判模型
+    JudgeModelWrapper->>JudgeService: 建立连接
+    JudgeService-->>JudgeModelWrapper: 连接成功
+    TaskMgr->>JudgeModelWrapper: 执行裁判模型推理
+    loop 批量裁判推理
+        JudgeModelWrapper->>JudgeService: 发送裁判请求
+        JudgeService-->>JudgeModelWrapper: 返回判断结果
+    end
+    JudgeModelWrapper-->>TaskMgr: 返回所有判断结果
+    TaskMgr->>JudgeEvaluator: 计算评估指标
+    JudgeEvaluator-->>TaskMgr: 返回评估结果
+    TaskMgr-->>CLI: 返回测评结果
+    CLI-->>User: 输出测评结果
+```
+
+图3：AISBench裁判模型测评数据流时序图
 
 ### 3.2.5 Use Case分解
 
@@ -1342,6 +1436,16 @@ sequenceDiagram
 6. **Use Case 6：集群测评能力增强**
    - 支持EPD分离的encoding阶段耗时统计
    - 支持基于timestamp的流量负载复现
+
+7. **Use Case 7：裁判模型评估能力**
+   - 支持LLM裁判模型对文本答案正确性进行判断
+   - 支持LMM裁判模型对多模态输出进行评估
+   - 支持裁判模型与被测模型的解耦部署
+
+8. **Use Case 8：GEdit图片编辑评估**
+   - 支持GEdit数据集的图片编辑能力评估
+   - 支持SC（语义一致性）和PQ（感知质量）两阶段评估
+   - 与Step1X-Edit的benchmark脚本精度对齐
 
 ### 3.2.6 对接原则
 
