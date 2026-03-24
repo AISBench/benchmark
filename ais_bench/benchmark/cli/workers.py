@@ -51,7 +51,7 @@ class Infer(BaseWorker):
         custom_infer = cfg.get("infer")
         custom_task = None
         if custom_infer:
-            custom_task = custom_infer["runner"]["task"].get("type")
+            custom_task = custom_infer.get("runner", {}).get("task", {}).get("type")
             if custom_task == EmptyTask:
                 self.skip = True
                 return cfg
@@ -293,7 +293,7 @@ class Eval(BaseWorker):
         custom_eval = cfg.get("eval")
         custom_task = None
         if custom_eval:
-            custom_task = custom_eval["runner"]["task"].get("type")
+            custom_task = custom_eval.get("runner", {}).get("task", {}).get("type")
             if custom_task == EmptyTask:
                 self.skip = True
                 return cfg
