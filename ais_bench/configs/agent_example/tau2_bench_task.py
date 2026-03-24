@@ -25,7 +25,7 @@ for task in sub_tasks:
         dict(
             abbr=f'tau2_bench_{task}',
             args = dict(
-                domain = "airline",                      # -d, 要运行的模拟域，可选值为 get_options().domains ["airline", "retail", "telecom"]
+                domain = task,                      # -d, 要运行的模拟域，可选值为 get_options().domains ["airline", "retail", "telecom"]
                 num_trials = 1,                     # 每个任务运行的次数，默认为 1
                 # agent = "baseline",                 # 使用的 agent 实现，默认为 DEFAULT_AGENT_IMPLEMENTATION
                 # agent_llm = "openai/gpt-4o",               # agent 使用的 LLM，默认为 DEFAULT_LLM_AGENT

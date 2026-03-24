@@ -58,7 +58,7 @@ class Infer(BaseWorker):
 
         new_cfg = dict(
             infer=dict(
-                partitioner=  dict(type=get_config_type(NaivePartitioner)),
+                partitioner=dict(type=get_config_type(NaivePartitioner)),
                 runner=dict(
                     max_num_workers=self.args.max_num_workers,
                     max_workers_per_gpu=self.args.max_workers_per_gpu,
