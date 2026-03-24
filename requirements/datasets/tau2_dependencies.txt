@@ -1,0 +1,3 @@
+# tau2-bench
+# Install via git clone in editable mode
+-e git+https://github.com/sierra-research/tau2-bench.git#egg=tau2
