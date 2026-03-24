@@ -24,6 +24,45 @@ Execute the following commands to install the extended dependency packages for A
 pip3 install -r requirements/api.txt
 pip3 install -r requirements/extra.txt
 ```
+
+### 1.3 Tiktoken Encoding File Download Failed (SSL Certificate Verification Failed / Connection Timeout)
+
+**Problem Description:**
+```
+requests.exceptions.SSLError: HTTPSConnectionPool(host='openaipublic.blob.core.windows.net', port=443): Max retries exceeded with url: /encodings/cl100k_base.tiktoken (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1007)')))
+```
+Or:
+```
+requests.exceptions.ConnectTimeout: HTTPSConnectionPool(host='openaipublic.blob.core.windows.net', port=443): Max retries exceeded with url: /encodings/cl100k_base.tiktoken (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0xffff8075bbb0>, 'Connection to openaipublic.blob.core.windows.net timed out. (connect timeout=None)'))
+```
+
+**Root Cause:**
+In offline or network-restricted environments, the tiktoken encoding file (cl100k_base.tiktoken) cannot be downloaded from `openaipublic.blob.core.windows.net`, causing the tiktoken library initialization to fail.
+
+**Recommended Solutions:**
+
+1. Download the tiktoken encoding file in an environment with network access:
+   - Download URL: https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken
+   - Rename the file to: `9b5ad71b2ce5302211f9c61530b329a4922fc6a4`
+
+2. Transfer the downloaded file to the target machine's cache directory (e.g., `~/tiktoken_cache/`)
+
+3. Set the environment variable pointing to the cache directory:
+   ```python
+   import os
+   tiktoken_cache_dir = "path_to_tiktoken_cache_folder"
+   os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
+   ```
+   Or:
+   ```shell
+   export TIKTOKEN_CACHE_DIR=path_to_tiktoken_cache_folder
+   ```
+
+4. Verify the file exists:
+   ```python
+   import os
+   assert os.path.exists(os.path.join(tiktoken_cache_dir, "9b5ad71b2ce5302211f9c61530b329a4922fc6a4"))
+   ```
 ---
 
 ## 2. Parameter Configuration Issues
