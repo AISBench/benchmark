@@ -19,6 +19,13 @@ models = [
 work_dir = 'outputs/default/'
 
 datasets = []
+
+task_count_map = {
+    "airline": 5,
+    "retail": 11,
+    "telecom": 11,
+}
+
 sub_tasks = ["airline", "retail", "telecom"]
 for task in sub_tasks:
     datasets.append(
@@ -26,17 +33,17 @@ for task in sub_tasks:
             abbr=f'tau2_bench_{task}',
             args = dict(
                 domain = task,                      # -d, 要运行的模拟域，可选值为 get_options().domains ["airline", "retail", "telecom"]
-                num_trials = 1,                     # 每个任务运行的次数，默认为 1
+                num_trials = 5,                     # 每个任务运行的次数，默认为 1
                 # agent = "baseline",                 # 使用的 agent 实现，默认为 DEFAULT_AGENT_IMPLEMENTATION
                 # agent_llm = "openai/gpt-4o",               # agent 使用的 LLM，默认为 DEFAULT_LLM_AGENT
                 # agent_llm_args = {"api_base": "http://localhost:2998/v1", "temperature": 0.0},  # agent LLM 的参数，默认为 {"temperature": DEFAULT_LLM_TEMPERATURE_AGENT}
                 user = None,                  # 使用的 user 实现，默认为 DEFAULT_USER_IMPLEMENTATION
                 llm_user = "openai/qwen3",                # user 使用的 LLM，默认为 DEFAULT_LLM_USER
-                llm_args_user = {"api_base": "http://localhost:2498/v1", "temperature": 1.0},   # user LLM 的参数，默认为 {"temperature": DEFAULT_LLM_TEMPERATURE_USER}
+                llm_args_user = {"api_base": "http://localhost:2498/v1", "temperature": 0.0},   # user LLM 的参数，默认为 {"temperature": DEFAULT_LLM_TEMPERATURE_USER}
                 task_set_name = None,               # 要运行的任务集，如未提供则加载域的默认任务集
                 task_split_name = None,           # 要运行的任务分割，默认为 'base'
                 task_ids = None,                    # 可选，只运行指定 ID 的任务
-                num_tasks = 5,                   # 要运行的任务数量
+                num_tasks = task_count_map[task],                   # 要运行的任务数量
                 max_steps = None,                    # 模拟运行的最大步数，默认为 DEFAULT_MAX_STEPS
                 max_errors = None,                     # 模拟中连续允许的最大工具错误数，默认为 DEFAULT_MAX_ERRORS
                 # save_to = None,                     # 模拟结果的保存路径，保存到 data/simulations/<save_to>.json
