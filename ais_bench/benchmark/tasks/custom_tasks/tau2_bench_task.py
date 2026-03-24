@@ -135,7 +135,7 @@ class TAU2BenchTask(BaseTask):
         total_tasks = self._get_task_count(self.run_config) * self.run_config.num_trials
         save_to = f"{self.run_config.save_to}.json"
         pbar = tqdm(total=total_tasks, desc="Running TAU2 Bench", unit="task")
-        task_state_manager.update_task_state(
+        self.task_state_manager.update_task_state(
             {
                 "status": "running",
                 "total_count": total_tasks,
@@ -156,7 +156,7 @@ class TAU2BenchTask(BaseTask):
                         new_completed = len(task_id_pattern.findall(content))
                         if new_completed > completed:
                             pbar.update(new_completed - completed)
-                            task_state_manager.update_task_state(
+                            self.task_state_manager.update_task_state(
                                 {
                                     "finish_count": new_completed,
                                 }
@@ -177,7 +177,7 @@ class TAU2BenchTask(BaseTask):
             monitor_thread.join()
         finally:
             pbar.update(total_tasks - pbar.n)
-            task_state_manager.update_task_state(
+            self.task_state_manager.update_task_state(
                 {
                     "finish_count": total_tasks,
                 }
