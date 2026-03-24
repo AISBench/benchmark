@@ -237,7 +237,7 @@ class TAU2BenchTask(BaseTask):
         out_json = osp.join(f"{self.out_dir}", f"{self.cfg['datasets'][0][0]['abbr']}.json")
         results = {
             f"pass@{self.run_config.num_trials}": 100 * self.captured_metrics.avg_reward,
-            "total_count": self.run_config.num_trials,
+            "total_count": self._get_task_count(self.run_config),
         }
         with open(out_json, "w") as f:
             json.dump(results, f, indent=4)
