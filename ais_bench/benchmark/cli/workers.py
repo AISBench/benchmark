@@ -51,7 +51,7 @@ class Infer(BaseWorker):
         custom_infer = cfg.get("infer")
         custom_task = None
         if custom_infer:
-            custom_task = custom_infer["runner"]["task"].get("type")
+            custom_task = custom_infer.get("runner", {}).get("task", {}).get("type")
             if custom_task == EmptyTask:
                 self.skip = True
                 return cfg
