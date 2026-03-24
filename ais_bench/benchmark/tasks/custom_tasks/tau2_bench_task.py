@@ -69,6 +69,7 @@ from tau2.metrics.agent_metrics import compute_metrics
 
 # ================= 替换tau2中计费函数 =================
 import tau2.utils.llm_utils as tau2_llm_utils
+from tau2.utils.display import ConsoleDisplay
 import loguru
 
 _original_tau2_get_response_cost = tau2_llm_utils.get_response_cost
@@ -80,6 +81,18 @@ def _patched_logger_error(message, *args, **kwargs):
     _original_tau2_logger_error(message, *args, **kwargs)
 
 tau2_llm_utils.logger.error = _patched_logger_error
+
+# 保存原始的 input 方法
+original_input = ConsoleDisplay.console.input
+
+# 猴子补丁：替换 input 方法为总是返回 "y"
+def auto_y_input(prompt):
+    print(f"自动响应: {prompt.strip()} -> y")
+    return "y"
+
+# 应用补丁
+ConsoleDisplay.console.input = auto_y_input
+
 # ================= 替换tau2中计费函数 =================
 
 @TASKS.register_module()
