@@ -23,7 +23,7 @@ class NaivePartitioner(BasePartitioner):
     """
 
     def __init__(self,
-                 out_dir: str,
+                 out_dir: str = '',
                  n: int = 1,
                  keep_keys: Optional[List[str]] = None):
         super().__init__(out_dir=out_dir, keep_keys=keep_keys)
@@ -33,7 +33,7 @@ class NaivePartitioner(BasePartitioner):
                   model_dataset_combinations: List[Dict[str,
                                                         List[ConfigDict]]],
                   work_dir: str,
-                  out_dir: str,
+                  out_dir: str = '',
                   add_cfg: Dict = {}) -> List[Dict]:
         """Partition model-dataset pairs into tasks. Each task is defined as a
         dict and will run independently as a unit. Its structure is as

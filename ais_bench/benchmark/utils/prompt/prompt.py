@@ -61,6 +61,8 @@ def get_prompt_hash(dataset_cfg: Union[ConfigDict, List[ConfigDict]]) -> str:
             hashes = ','.join([get_prompt_hash(cfg) for cfg in dataset_cfg])
             hash_object = hashlib.sha256(hashes.encode())
             return hash_object.hexdigest()
+    if not dataset_cfg.get("infer_cfg"):
+        return "/"
     if 'reader_cfg' in dataset_cfg.infer_cfg:
         # new config
         reader_cfg = dict(type='DatasetReader',
