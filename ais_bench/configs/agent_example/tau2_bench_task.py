@@ -99,8 +99,11 @@ for ds_config in datasets:
     else:
         tau2_task_weights[ds_config["abbr"]] = ds_config["args"]["num_tasks"]
 
+_all_sub_set = [(ds_config["abbr"], 'accuracy') for ds_config in datasets]
+
 tau2_summary_groups = [
-    {'name': 'tau2_bench_avg', 'subsets': [ds_config["abbr"] for ds_config in datasets], 'weights': tau2_task_weights},
+    {'name': 'tau2_bench_avg', 'subsets': _all_sub_set},
+    {'name': 'tau2_bench_avg-weighted', 'subsets': _all_sub_set, 'weights': tau2_task_weights},
 ]
 
 summarizer = dict(
