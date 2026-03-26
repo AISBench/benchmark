@@ -2255,7 +2255,7 @@ sequenceDiagram
 **主要接口**：
 
 - `EncodingTimeCalculator.calculate()`: 计算encoding阶段耗时
-- `TraceReplayCalculator.replay()`: 流量负载复
+- `TraceReplayCalculator.replay()`: 流量负载复现
 
 ## 6.5 Use Case七：裁判模型评估能力
 
