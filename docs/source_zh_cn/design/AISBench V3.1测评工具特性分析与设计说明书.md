@@ -2189,7 +2189,7 @@ sequenceDiagram
 - 执行精度测评
 - 预期结果：使用环境变量的API Key（优先级更高）
 
-# 6.Use Case三至七实现
+# 6.Use Case三至八实现
 
 ## 6.1 Use Case三：多模态数据集支持
 
