@@ -30,6 +30,8 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2026.3.10\]** Integrated the first image generation evaluation benchmark GEdit-Bench, supporting evaluation of image generation models. See [Evaluate GEdit-Bench in AISBench](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/extended_benchmark/lmm_generate/gedit_bench.html) for details. 🔥🔥🔥
+- **\[2026.3.1\]** Support for integrating judge models for evaluation. See [Evaluate with Judge Models](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/advanced_tutorials/judge_model_evaluate.html). 🔥🔥🔥
 - **\[2026.1.31\]** Support for [Mooncake Trace](ais_bench/benchmark/configs/datasets/mooncake_trace/README_en.md) trace dataset performance evaluation; supports timestamp-based request scheduling, hash_id caching, and reproducible prompt generation. See the dataset README for details. 🔥🔥🔥
 - **\[2025.12.19\]** 🎉 **AISBench Architecture Refactoring Completed!**
   - ✨ **Architecture Upgrade**: Comprehensive refactoring of cli, models, inferencer, and tasks components, supporting rapid integration of new test benchmarks. See 📚 [Developer Documentation](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/develop_guide/contributing.html) for details!

@@ -29,6 +29,8 @@
 > **⭐️收藏项目**，你将能第一时间获取 AISBench评测工具 的最新动态～
 
 ## 🔥 最新进展
+- **\[2026.3.10\]** 接入首个图像生成类评测基准GEdit-Bench， 支持对图像生成模型进行评测，详见[在AISBench中测评GEdit-Bench](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/extended_benchmark/lmm_generate/gedit_bench.html)。 🔥🔥🔥
+- **\[2026.3.1\]** 支持接入裁判模型进行评估，详见[使用裁判模型进行测评](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/advanced_tutorials/judge_model_evaluate.html)。 🔥🔥🔥
 - **\[2026.1.31\]** 支持 [Mooncake Trace](ais_bench/benchmark/configs/datasets/mooncake_trace/README.md) trace 数据集性能测评，支持按时间戳调度请求、hash_id 缓存与可复现 prompt 生成，详见数据集 README。🔥🔥🔥
 - **\[2025.12.19\]** 🎉 **AISBench 架构全面重构完成！**
   - ✨ **架构升级**：对cli、models、inferencer、tasks组件进行了全面重构，支持快速接入新的测试基准，参考📚 [开发者文档](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/develop_guide/contributing.html)了解详情！
