@@ -150,7 +150,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 所选模型任务`vllm_api_general_chat`、数据集任务`demo_gsm8k_gen_4_shot_cot_chat_prompt`和结果呈现任务`example`的具体信息(简介，使用约束等)可以分别从如下链接中查询含义：
 - `--models`: 📚 [服务化推理后端](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/all_params/models.html#id2)
 
-- `--datasets`: 📚 [开源数据集](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/all_params/datasets.html#id3) → 📚 [详细介绍](ais_bench/benchmark/configs/datasets/demo/README.md)
+- `--datasets`: 📚 [开源数据集](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/get_started/datasets.html#id3) → 📚 [详细介绍](ais_bench/benchmark/configs/datasets/demo/README.md)
 
 - `--summarizer`: 📚 [结果汇总任务](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/all_params/summarizer.html)
 

@@ -26,6 +26,46 @@ aisbench环境torch和torchvision版本不匹配
 pip3 install -r requirements/api.txt
 pip3 install -r requirements/extra.txt
 ```
+
+### 1.3 tiktoken 编码文件下载失败（SSL证书验证失败/连接超时）
+
+**问题描述：**
+```
+requests.exceptions.SSLError: HTTPSConnectionPool(host='openaipublic.blob.core.windows.net', port=443): Max retries exceeded with url: /encodings/cl100k_base.tiktoken (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1007)')))
+```
+或
+```
+requests.exceptions.ConnectTimeout: HTTPSConnectionPool(host='openaipublic.blob.core.windows.net', port=443): Max retries exceeded with url: /encodings/cl100k_base.tiktoken (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0xffff8075bbb0>, 'Connection to openaipublic.blob.core.windows.net timed out. (connect timeout=None)'))
+```
+
+**问题根因：**
+
+在离线环境或网络受限环境下，无法从 `openaipublic.blob.core.windows.net` 下载 tiktoken 编码文件（cl100k_base.tiktoken），导致 tiktoken 库初始化失败。
+
+**建议的处理方式如下：**
+
+1. 在有网络的环境下下载 tiktoken 编码文件：
+   - 下载链接：https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken
+   - 文件重命名为：`9b5ad71b2ce5302211f9c61530b329a4922fc6a4`
+
+2. 将下载的文件传输到目标机器的缓存目录（如 `~/tiktoken_cache/`）
+
+3. 设置环境变量指向缓存目录：
+   ```python
+   import os
+   tiktoken_cache_dir = "path_to_tiktoken_cache_folder"
+   os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
+   ```
+   或
+   ```shell
+   export TIKTOKEN_CACHE_DIR=path_to_tiktoken_cache_folder
+   ```
+
+4. 验证文件存在：
+   ```python
+   import os
+   assert os.path.exists(os.path.join(tiktoken_cache_dir, "9b5ad71b2ce5302211f9c61530b329a4922fc6a4"))
+   ```
 ---
 
 ## 2. 参数配置问题
