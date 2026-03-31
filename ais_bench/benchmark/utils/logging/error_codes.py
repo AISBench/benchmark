@@ -40,7 +40,7 @@ class ErrorType(Enum):
     TASK = "TASK"     # task error type
 
 class BaseErrorCode:
-    FAQ_BASE_URL = "https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/faqs/error_codes.html#"
+    FAQ_BASE_URL = "https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/faqs/error_codes.html#"
 
     def __init__(self, code_name: str, module: ErrorModule, err_type: ErrorType, code: int,
                  message: str):

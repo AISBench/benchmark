@@ -79,7 +79,7 @@ class TestBaseErrorCode(unittest.TestCase):
 
     def test_faq_url(self):
         """测试faq_url是否正确生成"""
-        expected_url = "https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/faqs/error_codes.html#utils-cfg-001"
+        expected_url = "https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/faqs/error_codes.html#utils-cfg-001"
         self.assertEqual(self.error_code.faq_url, expected_url)
 
     def test_full_code_formatting(self):
@@ -95,12 +95,12 @@ class TestBaseErrorCode(unittest.TestCase):
         # 测试代码大于等于100的情况
         error_code_triple = BaseErrorCode("UTILS-CFG-123", ErrorModule.UTILS, ErrorType.CONFIG, 123, "test")
         self.assertEqual(error_code_triple.full_code, "UTILS-CFG-123")
-        
+
     def test_invalid_code_name(self):
         """测试code_name与full_code不匹配时抛出ValueError"""
         with self.assertRaises(ValueError) as context:
             BaseErrorCode("INVALID-CODE", ErrorModule.UTILS, ErrorType.CONFIG, 1, "test")
-        
+
         self.assertIn("code_name INVALID-CODE is not equal to full_code UTILS-CFG-001", str(context.exception))
 
 

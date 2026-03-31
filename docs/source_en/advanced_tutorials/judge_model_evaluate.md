@@ -29,7 +29,7 @@ graph LR;
 
 ## Quick Start
 
-Taking the aime2025 dataset evaluation as an example, the usage is basically consistent with [AISBench Quick Start](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/get_started/quick_start.html#). This quick start section only covers the differences.
+Taking the aime2025 dataset evaluation as an example, the usage is basically consistent with [AISBench Quick Start](https://ais-bench-benchmark.readthedocs.io/en/latest/get_started/quick_start.html#). This quick start section only covers the differences.
 
 ### Command Meaning
 
