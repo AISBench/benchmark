@@ -118,7 +118,7 @@ class DefaultPerfSummarizer:
             model_cfg: Model configuration
             perf_datas: Raw performance data
         """
-        tokenizer = AISTokenizer(model_cfg.get("path"))
+        tokenizer = AISTokenizer(model_cfg.get("path"), model_cfg.get("trust_remote_code", False))
         conn = init_db(db_file_path)
         all_numpy_data = load_all_numpy_from_db(conn)
 

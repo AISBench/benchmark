@@ -424,6 +424,7 @@ class MooncakeTraceDataset(BaseDataset):
         fixed_schedule_auto_offset=False,
         fixed_schedule_start_offset=0,
         fixed_schedule_end_offset=-1,
+        trust_remote_code=False,
     ):
         """
         Load Mooncake trace dataset
@@ -507,7 +508,7 @@ class MooncakeTraceDataset(BaseDataset):
 
         # 2. Load tokenizer
         self.logger.info(f"Loading tokenizer from: {model_path}")
-        tokenizer = load_tokenizer(model_path)
+        tokenizer = load_tokenizer(model_path, trust_remote_code=trust_remote_code)
         self.logger.info(f"Tokenizer loaded successfully, vocab_size: {tokenizer.vocab_size}")
 
         # 3. Load and tokenize corpus

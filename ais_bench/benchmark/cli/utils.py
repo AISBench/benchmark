@@ -29,12 +29,14 @@ def fill_model_path_if_datasets_need(model_cfg, dataset_cfg):
     data_type = get_config_type(dataset_cfg.get("type"))
     if data_type in DATASETS_NEED_MODELS:
         model_path = model_cfg.get("path")
+        trust_remote_code = model_cfg.get("trust_remote_code", False)
         if not model_path:
             raise AISBenchConfigError(
                 UTILS_CODES.SYNTHETIC_DS_MISS_REQUIRED_PARAM,
                 "[path] in model config is required for synthetic(tokenid) and sharegpt dataset."
             )
-        dataset_cfg.update({"model_path": model_path})
+        dataset_cfg.update({"model_path": model_path, "trust_remote_code": trust_remote_code})
+
 
 def fill_test_range_use_num_prompts(num_prompts: int, dataset_cfg: dict):
     if not num_prompts:

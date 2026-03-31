@@ -22,7 +22,8 @@ class ShareGPTDataset(BaseDataset):
     @staticmethod
     def load(path, disable_shuffle, **kwargs):
         tokenizer_path = kwargs.get("model_path", None)
-        tokenizer = load_tokenizer(tokenizer_path)
+        trust_remote_code = kwargs.get("trust_remote_code", False)
+        tokenizer = load_tokenizer(tokenizer_path, trust_remote_code=trust_remote_code)
         path = get_data_path(path, local_mode=True)
         with open(path) as f:
             dataset = json.load(f)

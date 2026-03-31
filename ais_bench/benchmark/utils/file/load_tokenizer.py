@@ -12,7 +12,7 @@ __all__ = ["load_tokenizer", "AISTokenizer"]
 logger = AISLogger()
 
 
-def load_tokenizer(tokenizer_path: str):
+def load_tokenizer(tokenizer_path: str, trust_remote_code=False):
     """Load a tokenizer from the specified path.
 
     Args:
@@ -33,7 +33,7 @@ def load_tokenizer(tokenizer_path: str):
         )
 
     try:
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=trust_remote_code)
         logger.debug(f"Successfully loaded tokenizer from: {tokenizer_path}")
         return tokenizer
     except Exception as e:
@@ -44,8 +44,8 @@ def load_tokenizer(tokenizer_path: str):
 
 
 class AISTokenizer:
-    def __init__(self, tokenizer_path: str):
-        self.tokenizer = load_tokenizer(tokenizer_path)
+    def __init__(self, tokenizer_path: str, trust_remote_code=False):
+        self.tokenizer = load_tokenizer(tokenizer_path, trust_remote_code=trust_remote_code)
 
     def encode(self, prompt: list, add_special_tokens: bool = True) -> Tuple[float, List[int]]:
         """Encode a string into tokens, measuring processing time."""
