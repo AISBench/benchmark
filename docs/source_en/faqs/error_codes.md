@@ -394,7 +394,7 @@ This indicates that all requests during the inference process failed. You need t
 ### Error Description
 When calculating steady-state performance metrics, no requests belonging to the steady state were found among all request information, and steady-state metrics cannot be calculated.
 ### Solution
-You can check the concurrency graph of inference requests (reference document: https://ais-bench-benchmark-rf.readthedocs.io/en/latest/base_tutorials/results_intro/performance_visualization.html) to confirm whether the `Request Concurrency Count` in the concurrency step graph reaches the concurrency number set in the model configuration file (the `batch_size` parameter) **and at least two requests reach the maximum concurrency number**.
+You can check the concurrency graph of inference requests (reference document: https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/results_intro/performance_visualization.html) to confirm whether the `Request Concurrency Count` in the concurrency step graph reaches the concurrency number set in the model configuration file (the `batch_size` parameter) **and at least two requests reach the maximum concurrency number**.
 
 If the above conditions are not met, you can try the following methods to achieve a steady state:
 

@@ -365,7 +365,7 @@ All requests failed, cannot calculate performance results. Please check the erro
 ### 错误描述
 计算稳态性能指标时，在所有请求信息中找不到属于稳定阶段的请求，无法计算稳态指标。
 ### 解决办法
-可以检查一下推理请求的并发图（参考文档：https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/results_intro/performance_visualization.html），确认并发阶梯图中`Request Concurrency Count`是否达到模型配置文件中设置的并发数（`batch_size`参数）**且至少存在两个请求达到最大并发数**。
+可以检查一下推理请求的并发图（参考文档：https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/results_intro/performance_visualization.html），确认并发阶梯图中`Request Concurrency Count`是否达到模型配置文件中设置的并发数（`batch_size`参数）**且至少存在两个请求达到最大并发数**。
 若未满足上述条件，可以尝试以下方式达到稳定状态：
 #### 并发阶梯图中`Request Concurrency Count`持续增长之后直接持续下降
 1. 降低推理请求的并发数（模型配置文件中的`batch_size`参数）。

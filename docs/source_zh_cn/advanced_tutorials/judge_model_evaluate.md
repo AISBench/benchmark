@@ -24,7 +24,7 @@ graph LR;
 ```
 
 ## 快速上手
-以aime2025数据集评测为例，使能方式与[AISBench工具快速入门](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/get_started/quick_start.html#)基本一致，快速上手中仅做差异化说明
+以aime2025数据集评测为例，使能方式与[AISBench工具快速入门](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/get_started/quick_start.html#)基本一致，快速上手中仅做差异化说明
 
 ### 命令含义
 AISBench命令中通过`--datasets`指定的裁判模型数据集任务`aime2025_gen_0_shot_llmjudge`。
