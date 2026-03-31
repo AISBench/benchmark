@@ -35,6 +35,7 @@ class BaseModel:
     """
 
     is_api: bool = False
+    launcher: str = "torchrun"
 
     def __init__(self,
                  path: str,
