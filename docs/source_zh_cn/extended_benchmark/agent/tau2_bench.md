@@ -10,7 +10,7 @@
   - 双方均可调用工具、修改状态、验证结果，更贴近真实协作场景。
 - **核心目标**：评测智能体的 **任务完成、工具使用、策略遵守、多轮沟通** 综合能力。
 
-### 二、四大评测领域
+### 二、三大评测领域
 覆盖真实客服场景，每个领域含独立 **业务策略、工具集、数据库、任务集**：
 
 1. **Airline（航空）**
@@ -140,7 +140,11 @@ Press Up/Down arrow to page, 'P' to PAUSE/RESUME screen refresh, 'Ctrl + C' to e
 | tau2_bench_airline | / | pass^1 | unknown | 50 | 38.00 |
 | tau2_bench_retail | / | pass^1 | unknown | 114 | 21.05 |
 | tau2_bench_telecom | / | pass^1 | unknown | 114 | 33.33 |
+| tau2_bench_avg | - | naive_average | unknown | / | 30.80 |
+| tau2_bench_avg-weighted | - | weighted_average | unknown | / | 29.14 |
 ```
+- `tau2_bench_avg` 表示三大领域的简单平均得分。
+- `tau2_bench_avg-weighted` 表示三大领域的加权平均得分（权重为各领域的任务数），权重为每个领域的任务数。
 
 4. 最终`outputs/default/{时间戳}`目录下结果文件的结构如下：
 
@@ -218,6 +222,25 @@ for task in sub_tasks:
 ```
 
 2. 执行`ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3`命令后每条case会执行`num_trials`次，进度条的总数也会相应增加至`num_trials`倍。
+```
++-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
+| Task Name                         |   Process | Progress                                                   | Time Cost   | Status   | Log Path                                        | Extend Parameters   |
++===================================+===========+============================================================+=============+==========+=================================================+=====================+
+| openai-v1-chat/tau2_bench_airline |   1856223 | [######                        ] 30/150 Running TAU2 Bench | 0:07:13     | running  | logs/eval/openai-v1-chat/tau2_bench_airline.out | None                |
++-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
+| openai-v1-chat/tau2_bench_retail  |   1856224 | [######                        ] 75/342 Running TAU2 Bench | 0:11:56     | running  | logs/eval/openai-v1-chat/tau2_bench_retail.out  | None                |
++-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
+| openai-v1-chat/tau2_bench_telecom |   1856222 | [######                        ] 76/342 Running TAU2 Bench | 1:09:51     | running  | logs/eval/openai-v1-chat/tau2_bench_telecom.out | None                |
++-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
+```
 
 3. 最终打印的精度结果如下：
-
+```shell
+| dataset | version | metric | mode | total_count | openai-v1-chat |
+|----- | ----- | ----- | ----- | ----- | -----|
+| tau2_bench_airline | / | pass^3 | unknown | 50 | 38.00 |
+| tau2_bench_retail | / | pass^3 | unknown | 114 | 21.05 |
+| tau2_bench_telecom | / | pass^3 | unknown | 114 | 33.33 |
+| tau2_bench_avg | - | naive_average | unknown | / | 30.80 |
+| tau2_bench_avg-weighted | - | weighted_average | unknown | / | 29.14 |
+```
