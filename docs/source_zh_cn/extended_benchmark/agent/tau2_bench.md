@@ -134,9 +134,43 @@ Press Up/Down arrow to page, 'P' to PAUSE/RESUME screen refresh, 'Ctrl + C' to e
 执行过程中所有结果文件会生成在`outputs/default/{时间戳}`（如`outputs/default/20260408_091146`）目录下，过程中可以在`outputs/default/{时间戳}/logs/eval/openai-v1-chat/tau2_bench_{任务名称}.out`查看对应任务的详细执行日志。
 
 3. 任务执行完成后，会打印如下精度结果：
-
+```shell
+| dataset | version | metric | mode | total_count | openai-v1-chat |
+|----- | ----- | ----- | ----- | ----- | -----|
+| tau2_bench_airline | / | pass^1 | unknown | 50 | 38.00 |
+| tau2_bench_retail | / | pass^1 | unknown | 114 | 21.05 |
+| tau2_bench_telecom | / | pass^1 | unknown | 114 | 33.33 |
+```
 
 4. 最终`outputs/default/{时间戳}`目录下结果文件的结构如下：
+
+```shell
+outputs/default/20260408_091146
+├── configs
+│   └── 20260409_111604_1191827.py
+├── logs # 过程日志
+│   └── eval
+│       └── openai-v1-chat
+│           ├── tau2_bench_airline.out # airline评测过程详细执行日志
+│           ├── tau2_bench_retail.out # retail评测过程详细执行日志
+│           └── tau2_bench_telecom.out # telecom评测过程详细执行日志
+├── results # 最终结果
+│   └── openai-v1-chat
+│       ├── tau2_bench_airline # airline评测过程详细执行结果
+│       │   └── tau2_run_detail.json
+│       ├── tau2_bench_airline.json # airline任务的精度结果
+│       ├── tau2_bench_retail # retail任务的评测过程详细执行结果
+│       │   └── tau2_run_detail.json
+│       ├── tau2_bench_retail.json # retail任务的精度结果
+│       ├── tau2_bench_telecom # telecom任务的评测过程详细执行结果
+│       │   └── tau2_run_detail.json
+│       └── tau2_bench_telecom.json # telecom任务的精度结果
+└── summary # 最终汇总的精度结果
+    ├── summary_20260409_111604.csv
+    ├── summary_20260409_111604.md
+    └── summary_20260409_111604.txt
+
+```
 
 
 ## 中断后继续执行测评
