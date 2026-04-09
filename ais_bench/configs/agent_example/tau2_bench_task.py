@@ -44,7 +44,7 @@ for task in sub_tasks:
                 task_set_name = None,               # 要运行的任务集，如未提供则加载域的默认任务集
                 task_split_name = None,           # 要运行的任务分割，默认为 'base'，可选 'base','train', 'test'
                 task_ids = None,                    # 可选，只运行指定 ID 的任务
-                num_tasks = task_count_map[task],                   # 要运行的任务数量
+                num_tasks = task_count_map[task],                   # 要运行的任务数量，若为None则取不同任务分割的默认数量
                 max_steps = None,                    # 模拟运行的最大步数，默认为 DEFAULT_MAX_STEPS=200
                 max_errors = None,                     # 模拟中连续允许的最大工具错误数，默认为 DEFAULT_MAX_ERRORS=10
                 max_concurrency = 5,               # 并发运行的最大模拟数，默认为 DEFAULT_MAX_CONCURRENCY=5
@@ -69,7 +69,7 @@ eval = dict(
 
 
 """
-default tasks count reference
+不同任务分割的默认case数量
 ### Airline
 - train : 30
 - test : 20
