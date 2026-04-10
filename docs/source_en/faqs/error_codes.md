@@ -1295,3 +1295,97 @@ If you need to resolve this issue, [please submit an issue](https://github.com/A
 No direct solution is available at this time.
 ### Solution
 If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+
+## SWEB-DEPENDENCY-001
+### Error Description
+`mini-swe-agent` dependency is missing when running SWEBench infer, so task initialization fails.
+### Solution
+Install the dependency and retry:
+```bash
+pip install mini-swe-agent
+```
+If you use a virtual environment, make sure `ais_bench` and `mini-swe-agent` are installed in the same Python environment.
+
+## SWEB-DEPENDENCY-002
+### Error Description
+SWE-bench harness dependency is missing when running SWEBench eval.
+### Solution
+Install the harness from the official repository, then retry:
+```bash
+git clone https://github.com/SWE-bench/SWE-bench.git
+cd SWE-bench
+pip install -e .
+```
+
+## SWEB-PARAM-001
+### Error Description
+No valid model config is detected for SWEBench infer (required fields like `model/url/api_key` are missing or empty).
+### Solution
+Check `models[0]` in your task config and provide at least:
+1. `model`, for example `hosted_vllm/qwen3`
+2. `url`, for example `http://127.0.0.1:2998/v1`
+3. `api_key`, `EMPTY` is acceptable for local tests
+
+## SWEB-PARAM-002
+### Error Description
+Invalid SWEBench dataset name that is not in the supported name set.
+### Solution
+Set dataset `name` to one of: `full`, `verified`, `lite`, `multilingual`.
+
+## SWEB-DATA-001
+### Error Description
+Prediction input contains `instance_id` values that do not exist in the current dataset.
+### Solution
+Ensure the prediction file and eval dataset are fully aligned:
+1. Run infer and eval with the same dataset config.
+2. Check whether `instance_id` entries in predictions were manually changed or mixed from another run.
+
+## SWEB-DATA-002
+### Error Description
+Failed to load SWEBench dataset from Hugging Face online source.
+### Solution
+Check network connectivity and Hugging Face access first. If your environment is restricted, download parquet files manually and configure a local `path`.
+
+## SWEB-DATA-003
+### Error Description
+Failed to read or parse local SWEBench parquet files.
+### Solution
+Validate local data integrity and format:
+1. Confirm files are valid parquet files.
+2. Confirm file naming matches the target `split` (for example `test-*.parquet`).
+3. Re-download or re-export corrupted files and retry.
+
+## SWEB-FILE-001
+### Error Description
+Prediction file is missing during SWEBench eval (`*.json` or `preds.json` not found).
+### Solution
+Run infer successfully before eval, and confirm prediction files exist under `work_dir/predictions` for the target model.
+
+## SWEB-FILE-002
+### Error Description
+Local SWEBench dataset path resolution failed (path does not exist or is not accessible).
+### Solution
+Check whether `path` in config is correct, and verify the current user has read permission for that directory/file.
+
+## SWEB-FILE-003
+### Error Description
+No parquet file for the target split is found under the local dataset path.
+### Solution
+Ensure one of the following exists:
+1. `<root>/data/<split>-*.parquet`
+2. `<root>/<split>-*.parquet`
+For single-file use cases, `path` can point directly to that parquet file.
+
+## SWEB-RUNTIME-001
+### Error Description
+Required Docker image for SWEBench is unavailable locally and pulling failed.
+### Solution
+Check Docker daemon status and network, then run `docker pull` for the image shown in logs. Retry after image is available.
+
+## SWEB-RUNTIME-002
+### Error Description
+Runtime error occurs during SWEBench execution (for example harness execution failure or future task exception).
+### Solution
+Use detailed logs to triage:
+1. Check dependency installation, Docker availability, and prediction file format first.
+2. If it persists, keep full logs and open an issue with the error code: <https://github.com/AISBench/benchmark/issues>.
