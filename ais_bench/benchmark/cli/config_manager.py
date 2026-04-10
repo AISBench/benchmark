@@ -9,11 +9,11 @@ from ais_bench.benchmark.datasets.custom import make_custom_dataset_config
 from ais_bench.benchmark.utils.file import match_cfg_file
 from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
-from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts
+from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
 
 class CustomConfigChecker:
     MODEL_REQUIRED_FIELDS = ['type', 'abbr', 'attr']
-    DATASET_REQUIRED_FIELDS = ['type', 'abbr', 'reader_cfg', 'infer_cfg', 'eval_cfg']
+    DATASET_REQUIRED_FIELDS = ['type', 'abbr']
     SUMMARIZER_REQUIRED_FIELDS = ['attr']
 
     def __init__(self, config, file_path):
@@ -327,6 +327,8 @@ class ConfigManager:
         # dump config
         output_config_path = osp.join(self.cfg.work_dir, 'configs',
                                     f'{self.cfg_time_str}_{os.getpid()}.py')
+
+        recur_convert_config_type(self.cfg)
         self.cfg.dump(output_config_path)
         # eval nums set
         if (self.args.num_prompts and self.args.num_prompts < 0) or self.args.num_prompts == 0:
