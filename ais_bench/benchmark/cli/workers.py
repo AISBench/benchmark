@@ -285,7 +285,7 @@ class Eval(BaseWorker):
             runner_cfg = new_cfg['eval']['runner']
             runner_cfg['max_num_workers'] = self.args.max_num_workers
             runner_cfg['max_workers_per_gpu'] = self.args.max_workers_per_gpu
-            runner_cfg['debug'] = runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
+            runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
             runner_cfg['task']['dump_details'] = cfg.cli_args.dump_eval_details
             runner_cfg['task']['cal_extract_rate'] = cfg.cli_args.dump_extract_rate
 
