@@ -12,7 +12,7 @@ ARC是一个包含7,787道真实小学阶段科学选择题的新数据集，旨
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir ARC/
 cp -r OpenCompassData-core-20240207/data/ARC/* ARC/
 rm -r OpenCompassData-core-20240207/

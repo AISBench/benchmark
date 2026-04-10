@@ -39,7 +39,7 @@ class MMPromptTemplate(BasePromptTemplate):
             if "prompt_mm" not in data.keys():
                 return False
         return True
-    
+
     def format_mm_url(self, template, entry):
         """
         for mm_custom dataset
@@ -103,6 +103,7 @@ class MMPromptTemplate(BasePromptTemplate):
         template = self.format_mm_url(self.template, entry)
         template = self._encode_template(template, ice=False)
         template = template.format_mm(**entry)
+
         for i, item in enumerate(template):
             if "prompt_mm" in item:
                 template[i]["prompt_mm"] = self.get_mm_template(item)

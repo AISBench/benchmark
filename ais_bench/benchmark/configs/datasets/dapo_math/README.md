@@ -26,9 +26,11 @@ rm -rf dapo-math-17k/data
 ```
 
 - 在 `{工具根路径}/ais_bench/datasets` 目录下执行 `tree dapo-math-17k/` 查看目录结构，若目录结构如下所示，则说明数据集部署成功。
-dapo-math-17k
-├──dapo-math-17k.parquet
-└── README.md
+   ```
+   dapo-math-17k
+   ├── dapo-math-17k.parquet
+   └── README.md
+   ```
 
 ## 可用数据集任务
 | 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 对应源码配置文件路径 |

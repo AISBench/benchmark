@@ -1,0 +1,13 @@
+case_type: benchmark
+case_group:
+  - run_other_commands
+  - common_commands
+  - short
+  - refactor_success_1202
+case_name: performance_dataset_custom_with_autogen_max_tokens # 在整个工程的case中必须唯一
+enable: y
+script:
+  start: run.sh
+  end: clean.sh
+timeout: 60
+rank_size: 3

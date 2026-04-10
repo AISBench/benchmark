@@ -1,6 +1,5 @@
 import os
 import json
-import stat
 import shutil
 import tempfile
 import unittest
@@ -121,17 +120,19 @@ class TestReadAndClearStatuses(unittest.TestCase):
         with open(p, "w", encoding="utf-8") as f:
             json.dump([{"k": 1}], f)
 
-        # Make file read-only to cause failure when opening with 'w'
-        os.chmod(p, stat.S_IREAD)
-        try:
+        # Mock open to raise IOError when writing to the file
+        original_open = open
+        def mock_open(file_path, mode='r', *args, **kwargs):
+            if mode == 'w' and file_path == p:
+                raise IOError("Permission denied")
+            return original_open(file_path, mode, *args, **kwargs)
+
+        with patch('builtins.open', side_effect=mock_open):
             with patch.object(file_module, "logger") as mock_logger:
                 out = read_and_clear_statuses(self.tmpdir, [name])
                 # It should still return the content read
                 self.assertEqual(out, [{"k": 1}])
                 mock_logger.warning.assert_called()
-        finally:
-            # Restore permissions so tearDown can clean up
-            os.chmod(p, stat.S_IWUSR | stat.S_IREAD)
 
 
 class TestMatchFiles(unittest.TestCase):

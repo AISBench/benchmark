@@ -14,7 +14,7 @@ The data is extracted from modern and contemporary Chinese literary works and th
 # Within the Linux server, under the tool root path
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir -p FewCLUE/cluewsc/
 cp -r OpenCompassData-core-20240207/data/FewCLUE/cluewsc/* FewCLUE/cluewsc/
 rm -r OpenCompassData-core-20240207/

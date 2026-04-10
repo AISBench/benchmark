@@ -40,7 +40,7 @@ class ErrorType(Enum):
     TASK = "TASK"     # task error type
 
 class BaseErrorCode:
-    FAQ_BASE_URL = "https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/faqs/error_codes.html#"
+    FAQ_BASE_URL = "https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/faqs/error_codes.html#"
 
     def __init__(self, code_name: str, module: ErrorModule, err_type: ErrorType, code: int,
                  message: str):
@@ -136,6 +136,7 @@ class TINFER_CODES:
     INVALID_RAMP_UP_STRATEGY = BaseErrorCode("TINFER-PARAM-004", ErrorModule.TASK_INFER, ErrorType.PARAM, 4, "invalid ramp up strategy") # docs coverd
     VIRTUAL_MEMORY_USAGE_TOO_HIGH = BaseErrorCode("TINFER-PARAM-005", ErrorModule.TASK_INFER, ErrorType.PARAM, 5, "virtual memory usage too high") # docs coverd
     WARMUP_FAILED = BaseErrorCode("TINFER-RUNTIME-001", ErrorModule.TASK_INFER, ErrorType.RUNTIME, 1, "warmup failed")
+    NO_TIMESTAMPS_ERROR = BaseErrorCode("TINFER-PARAM-006", ErrorModule.TASK_INFER, ErrorType.PARAM, 6, "no timestamps found in datasets") # docs coverd
 
 
 class TEVAL_CODES:
@@ -274,6 +275,7 @@ class DSET_CODES:
     # Parameter related errors
     INVALID_REPEAT_FACTOR = BaseErrorCode("DSET-PARAM-002", ErrorModule.DATASET, ErrorType.PARAM, 2, "invalid repeat factor") # docs coverd
     INVALID_PARAM_VALUE = BaseErrorCode("DSET-PARAM-004", ErrorModule.DATASET, ErrorType.PARAM, 4, "invalid parameter value") # docs coverd
+    MISSING_REQUIRED_PARAM = BaseErrorCode("DSET-PARAM-005", ErrorModule.DATASET, ErrorType.PARAM, 5, "missing required parameter") # docs coverd
 
     # Dependency related errors
     EVALUATION_LIBRARY_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-002", ErrorModule.DATASET, ErrorType.DEPENDENCY, 2, "evaluation library not installed") # docs coverd

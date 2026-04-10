@@ -29,7 +29,7 @@ from ais_bench.benchmark.datasets.videobench import *
 from ais_bench.benchmark.datasets.vocalsound import *
 from ais_bench.benchmark.datasets.lambada import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.lcsts import * # noqa: F401, F403
-from ais_bench.benchmark.datasets.siqa import * # noqa: F401, F403  
+from ais_bench.benchmark.datasets.siqa import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.xsum import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.sharegpt import *
 from ais_bench.benchmark.datasets.mtbench import *
@@ -52,3 +52,4 @@ from ais_bench.benchmark.datasets.tnews import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.videomme import *
 from ais_bench.benchmark.datasets.mmstar import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.dapo_math import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.mooncake_trace import * # noqa: F401, F403

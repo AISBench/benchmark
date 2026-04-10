@@ -7,7 +7,7 @@ body:
     id: location
     attributes:
       label: Documentation Location (Multiple document links can be specified)
-      placeholder: E.g., https://ais-bench-benchmark-rf.readthedocs.io/en/latest/get_started/install.html
+      placeholder: E.g., https://ais-bench-benchmark.readthedocs.io/en/latest/get_started/install.html
     validations:
       required: true
   - type: textarea
@@ -30,4 +30,5 @@ body:
     attributes:
       label: Additional Information
       description: Relevant code/screenshots/user feedback, etc. (Drag and drop to upload images)
+    validations:
       required: false

@@ -6,7 +6,6 @@ from multiprocessing import BoundedSemaphore
 from typing import List, Optional
 
 import aiohttp
-from tqdm import tqdm
 
 from ais_bench.benchmark.models.output import RequestOutput
 from ais_bench.benchmark.registry import ICL_INFERENCERS
@@ -165,4 +164,9 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
             for index, max_out_len in enumerate(max_out_lens):
                 data_list[index]["max_out_len"] = max_out_len if max_out_len else self.model.max_out_len
 
+        timestamps = retriever.dataset_reader.get_timestamp()
+        if timestamps is not None:
+            for index, timestamp in enumerate(timestamps):
+                if isinstance(timestamp, (int, float)):
+                    data_list[index]["timestamp"] = timestamp / 1000 # ms to s
         return data_list

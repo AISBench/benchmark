@@ -13,6 +13,7 @@ import pickle
 from mmengine.config import Config, ConfigDict
 from collections import defaultdict
 
+
 from ais_bench.benchmark.global_consts import WORKERS_NUM
 from ais_bench.benchmark.registry import ICL_INFERENCERS, TASKS, ICL_RETRIEVERS
 from ais_bench.benchmark.tasks.base import BaseTask, TaskStateManager
@@ -23,7 +24,7 @@ from ais_bench.benchmark.tasks.utils import (
     TokenProducer,
     format_dict_as_table,
 )
-from ais_bench.benchmark.openicl.icl_inferencer.icl_base_api_inferencer import BaseApiInferencer
+from ais_bench.benchmark.openicl.icl_inferencer.icl_base_api_inferencer import BaseApiInferencer, ApiInferencerConfig
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg, merge_dataset_abbr_from_cfg
 from ais_bench.benchmark.utils.config import build_dataset_from_cfg
 from ais_bench.benchmark.utils.logging.error_codes import TINFER_CODES
@@ -44,9 +45,8 @@ def run_single_inferencer(
     max_concurrency: int,
     indexes: Dict,
     token_bucket: BoundedSemaphore,
-    total_data_num: int,
-    global_index: mp.RawValue = None,
-    global_lock: mp.Lock = None,
+    api_inferencer_config: ApiInferencerConfig,
+
 ):
     """Run a single inferencer that reads samples from shared memory.
 
@@ -62,12 +62,9 @@ def run_single_inferencer(
     """
     inferencer_cfg["model_cfg"] = model_cfg
     inferencer_cfg["batch_size"] = max_concurrency
-    inferencer = ICL_INFERENCERS.build(inferencer_cfg)
-    inferencer.set_global_index(global_index)
-    inferencer.set_global_lock(global_lock)
-    inferencer.set_data_count(total_data_num)
+    inferencer: BaseApiInferencer = ICL_INFERENCERS.build(inferencer_cfg)
     # pressure mode each process has a copy of the data list
-
+    inferencer.set_config(api_inferencer_config)
     inferencer.inference_with_shm(
         shm_name,
         message_shm_name,
@@ -167,7 +164,7 @@ class OpenICLApiInferTask(BaseTask):
             data_abbr = dataset_cfg["abbr"]
             cur_data_cache = finish_cache_data.get(data_abbr, {})
             infer_cfg = dataset_cfg["infer_cfg"]
-            dataset = build_dataset_from_cfg(dataset_cfg)
+            dataset = build_dataset_from_cfg(dataset_cfg, task_state_manager=self.task_state_manager)
             retriever_cfg = infer_cfg["retriever"].copy()
             retriever_cfg["dataset"] = dataset
             retriever_cfg["prompt_template"] = infer_cfg.get("prompt_template", None)
@@ -311,10 +308,7 @@ class OpenICLApiInferTask(BaseTask):
             dataset_shm: Shared memory containing dataset
             message_shm: Shared memory for message passing
             indexes: Indexes for data
-            data_index_value: Value for data index
             token_bucket: Token bucket for rate limiting
-            global_index: Global index for data
-            global_lock: Global lock for data
         """
         if self.concurrency > CONCURRENCY_PER_PROCESS:
             self.logger.warning(
@@ -323,7 +317,7 @@ class OpenICLApiInferTask(BaseTask):
             )
         else:
             self.logger.info(f"Debug mode, run with concurrency: {self.concurrency}")
-        self.inferencer.set_data_count(len(indexes))
+        self.inferencer.total_data_count = len(indexes)
         self.inferencer.inference_with_shm(dataset_shm.name, message_shm.name, indexes, token_bucket)
 
     def _run_multi_process(
@@ -338,7 +332,6 @@ class OpenICLApiInferTask(BaseTask):
         Args:
             dataset_shm: Shared memory containing dataset
             indexes: Indexes for data
-            data_index_value: Value for data index
             token_bucket: Token bucket for rate limiting
             message_shms: List to store message shared memory objects (mutated)
 
@@ -375,9 +368,12 @@ class OpenICLApiInferTask(BaseTask):
                         concurrency,
                         indexes,
                         token_bucket,
-                        per_worker_data_num[i],
-                        global_index,
-                        global_lock,
+                        ApiInferencerConfig(
+                            global_index=global_index,
+                            global_lock=global_lock,
+                            use_timestamp=self.inferencer.use_timestamp,
+                            total_data_count=per_worker_data_num[i],
+                        ),
                     ),
                 )
 
@@ -399,6 +395,31 @@ class OpenICLApiInferTask(BaseTask):
                     # If pid is None but message_shm was created, clean it up directly
                     self._cleanup_shms(message_shm)
         return processes
+
+    def _get_timestamps(self, data_list: List):
+        """Get timestamps from data_list.
+        """
+        timestamps = []
+        use_timestamp = self.model_cfg.get("use_timestamp", False)
+        for data in data_list:
+            if data.get("timestamp") is not None:
+                timestamps.append(data["timestamp"])
+        if timestamps:
+            if not use_timestamp:
+                self.logger.warning("Found timestamps in datasets, but `use_timestamp` is False, use `request_rate` config for request delay!"
+                                    "Please set `use_timestamp` to True in model config if you want to enable timestamp-based request delay.")
+                return []
+            else:
+                self.inferencer.use_timestamp = True
+                self.logger.warning("Found timestamps in datasets, use timestamps for request delay, `request_rate` config will be ignored!")
+                return timestamps
+        else:
+            if use_timestamp:
+                raise ParameterValueError(
+                    TINFER_CODES.NO_TIMESTAMPS_ERROR,
+                    "Not found timestamps in datasets, but `use_timestamp` is True! "
+                    "Make sure your dataset contains `timestamp` field or set `use_timestamp` to False in model config.")
+        return []
 
     def warm_up(self, data_list: List, task_state_manager: TaskStateManager):
         """Warm up the inferencer.
@@ -452,6 +473,7 @@ class OpenICLApiInferTask(BaseTask):
 
     def run(self, task_state_manager: TaskStateManager):
         self.logger.info(f"Task [{task_abbr_from_cfg(self.cfg)}]")
+        self.task_state_manager = task_state_manager
         self.inferencer:BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
         self.clean_failed_results()
 
@@ -459,17 +481,22 @@ class OpenICLApiInferTask(BaseTask):
         if len(data_list) == 0:
             self.logger.warning(f"Get no data to infer, task finished")
             return
+
+        # get timestamps from data_list
+        timestamps = self._get_timestamps(data_list)
+
         self.warm_up(data_list, task_state_manager)
         dataset_size, dataset_shm, indexes = self._dump_dataset_to_share_memory(data_list, global_indexes)
         # In pressure mode, treat the first `concurrency` requests as the dataset size
         if self.pressure:
             request_num = self.concurrency
         else:
-            request_num = dataset_size
+            request_num = len(global_indexes)
 
         # Create token producer
         token_producer = TokenProducer(
             self.model_cfg.pop("request_rate", 0),
+            timestamps,
             self.model_cfg.pop("traffic_cfg", {}),
             request_num,
             self.task_mode,

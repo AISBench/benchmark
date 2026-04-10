@@ -26,3 +26,4 @@ rm aime2025.zip
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
 | --- | --- | --- | --- | --- | --- |
 | aime2025_gen | Generative task for the AIME2025 dataset | Accuracy | 0-shot | Chat format | aime2025_gen_0_shot_chat_prompt.py |
+| aime2025_gen_0_shot_llmjudge | AIME2025 | Generative task for the AIME2025 dataset | Accuracy evaluated by judge model | 0-shot | Chat format | aime2025_gen_0_shot_llmjudge.py |

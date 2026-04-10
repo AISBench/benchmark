@@ -11,7 +11,7 @@ LCSTS数据集是一个大规模、高质量中文短文本摘要数据集，由
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir LCSTS/
 cp -r OpenCompassData-core-20240207/data/LCSTS/* LCSTS/
 rm -r OpenCompassData-core-20240207/
