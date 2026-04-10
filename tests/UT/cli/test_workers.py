@@ -19,6 +19,9 @@ from ais_bench.benchmark.cli.workers import (
     WorkFlowExecutor,
     WORK_FLOW
 )
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners import LocalRunner
+from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask, OpenICLInferTask
 
 # 创建一个模拟ConfigDict类，支持点访问和merge_from_dict方法
 class MockConfigDict(dict):
@@ -84,10 +87,8 @@ class TestInfer:
         self.mock_args.debug = False
         self.infer_worker = Infer(self.mock_args)
 
-    @patch('ais_bench.benchmark.cli.workers.get_config_type')
-    def test_update_cfg_service_model(self, mock_get_config_type):
+    def test_update_cfg_service_model(self):
         """测试update_cfg方法，使用service模型"""
-        mock_get_config_type.side_effect = ['MockNaivePartitioner', 'MockOpenICLApiInferTask', 'MockLocalRunner']
 
         cfg = MockConfigDict({
             'models': [{'attr': 'service', 'abbr': 'test_model'}],
@@ -107,18 +108,16 @@ class TestInfer:
             result = self.infer_worker.update_cfg(cfg)
 
         assert result == cfg
-        assert cfg['infer']['partitioner']['type'] == 'MockNaivePartitioner'
-        assert cfg['infer']['runner']['type'] == 'MockLocalRunner'
-        assert cfg['infer']['runner']['task']['type'] == 'MockOpenICLApiInferTask'
+        assert cfg['infer']['partitioner']['type'] == NaivePartitioner
+        assert cfg['infer']['runner']['type'] == LocalRunner
+        assert cfg['infer']['runner']['task']['type'] == OpenICLApiInferTask
         assert cfg['infer']['runner']['max_num_workers'] == 4
         assert cfg['infer']['runner']['max_workers_per_gpu'] == 2
         assert cfg['infer']['runner']['debug'] == False
         assert cfg['infer']['partitioner']['out_dir'] == '/test/workdir/predictions/'
 
-    @patch('ais_bench.benchmark.cli.workers.get_config_type')
-    def test_update_cfg_local_model(self, mock_get_config_type):
+    def test_update_cfg_local_model(self):
         """测试update_cfg方法，使用local模型"""
-        mock_get_config_type.side_effect = ['MockNaivePartitioner', 'MockOpenICLInferTask', 'MockLocalRunner']
 
         cfg = MockConfigDict({
             'models': [{'attr': 'local', 'abbr': 'test_model'}],
@@ -135,7 +134,7 @@ class TestInfer:
         with patch('os.path.join', return_value='/test/workdir/predictions/'):
             self.infer_worker.update_cfg(cfg)
 
-        assert cfg['infer']['runner']['task']['type'] == 'MockOpenICLInferTask'
+        assert cfg['infer']['runner']['task']['type'] == OpenICLInferTask
         assert cfg['infer']['runner']['debug'] == True
 
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
@@ -322,11 +321,8 @@ class TestEval:
         self.mock_args.debug = False
         self.eval_worker = Eval(self.mock_args)
 
-    @patch('ais_bench.benchmark.cli.workers.get_config_type')
-    def test_update_cfg(self, mock_get_config_type):
+    def test_update_cfg(self):
         """测试update_cfg方法"""
-        # 设置mock返回值
-        mock_get_config_type.side_effect = ['MockNaivePartitioner', 'MockOpenICLEvalTask', 'MockLocalRunner']
 
         # 创建测试配置 - 使用MockConfigDict
         cli_args = MagicMock()
@@ -347,9 +343,9 @@ class TestEval:
 
         # 验证结果
         assert result == cfg
-        assert cfg['eval']['partitioner']['type'] == 'MockNaivePartitioner'
-        assert cfg['eval']['runner']['type'] == 'MockLocalRunner'
-        assert cfg['eval']['runner']['task']['type'] == 'MockOpenICLEvalTask'
+        assert cfg['eval']['partitioner']['type'] == NaivePartitioner
+        assert cfg['eval']['runner']['type'] == LocalRunner
+        assert cfg['eval']['runner']['task']['type'] == OpenICLEvalTask
         assert cfg['eval']['runner']['max_num_workers'] == 4
         assert cfg['eval']['runner']['max_workers_per_gpu'] == 2
         assert cfg['eval']['runner']['debug'] == True
