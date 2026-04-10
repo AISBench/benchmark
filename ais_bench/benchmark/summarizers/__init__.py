@@ -2,3 +2,4 @@
 from ais_bench.benchmark.summarizers.default import DefaultSummarizer  # noqa: F401
 from ais_bench.benchmark.summarizers.default_subjective import DefaultSubjectiveSummarizer  # noqa: F401
 from ais_bench.benchmark.summarizers.default_perf import DefaultPerfSummarizer # noqa: F401
+from ais_bench.benchmark.summarizers.swebench import SWEBenchSummarizer  # noqa: F401
