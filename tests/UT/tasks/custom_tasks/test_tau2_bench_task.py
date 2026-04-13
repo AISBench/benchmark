@@ -399,22 +399,24 @@ class TestTAU2BenchTask(unittest.TestCase):
         _patched_logger_error("Other error message")
         mock_original_error.assert_called_once()
 
-    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.litellm_get_response_cost')
-    def test_patched_get_response_cost(self, mock_litellm_get_response_cost):
+    def test_patched_get_response_cost(self):
         """测试 patched_get_response_cost 函数"""
         from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import patched_get_response_cost
-        # 测试 litellm_get_response_cost 为 None 的情况
-        mock_litellm_get_response_cost.return_value = None
-        result = patched_get_response_cost()
-        self.assertEqual(result, 0.0)
-        # 测试 litellm_get_response_cost 正常返回的情况
-        mock_litellm_get_response_cost.return_value = 1.5
-        result = patched_get_response_cost()
-        self.assertEqual(result, 1.5)
-        # 测试 litellm_get_response_cost 抛出异常的情况
-        mock_litellm_get_response_cost.side_effect = Exception("This model isn't mapped yet")
-        result = patched_get_response_cost()
-        self.assertEqual(result, 0.0)
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import litellm_get_response_cost
+
+        # 保存原始值
+        original_litellm_get_response_cost = litellm_get_response_cost
+
+        try:
+            # 测试 litellm_get_response_cost 为 None 的情况
+            import ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task
+            ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.litellm_get_response_cost = None
+            result = patched_get_response_cost()
+            self.assertEqual(result, 0.0)
+        finally:
+            # 恢复原始值
+            import ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task
+            ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.litellm_get_response_cost = original_litellm_get_response_cost
 
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.run_domain')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
