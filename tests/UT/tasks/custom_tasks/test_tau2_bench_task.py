@@ -130,6 +130,24 @@ class TestTAU2BenchTask(unittest.TestCase):
         expected_dataset_dir = os.path.join(expected_out_dir, "test_dataset")
         self.assertTrue(os.path.exists(expected_dataset_dir))
 
+    def test_prepare_out_dir_existing_file(self):
+        """测试准备输出目录方法 - 文件已存在的情况"""
+        # 创建文件
+        expected_out_dir = os.path.join(self.temp_dir, "results", "gpt-3.5-turbo", "test_dataset")
+        os.makedirs(expected_out_dir, exist_ok=True)
+        existing_file = os.path.join(expected_out_dir, "tau2_run_detail")
+        with open(existing_file, 'w') as f:
+            f.write("test content")
+
+        # 执行测试
+        task = TAU2BenchTask(self.cfg)
+        task._prepare_out_dir()
+
+        # 验证文件是否被删除
+        self.assertFalse(os.path.exists(existing_file))
+        # 验证目录是否存在
+        self.assertTrue(os.path.exists(expected_out_dir))
+
     def test_refresh_cfg(self):
         """测试刷新配置方法"""
         task = TAU2BenchTask(self.cfg)
@@ -175,6 +193,24 @@ class TestTAU2BenchTask(unittest.TestCase):
         mock_get_tasks.assert_called_once()
 
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
+    def test_get_task_count_with_task_set_name(self, mock_get_tasks):
+        """测试获取任务数量方法 - 有 task_set_name 的情况"""
+        # 模拟 get_tasks 返回 3 个任务
+        mock_get_tasks.return_value = [1, 2, 3]
+
+        task = TAU2BenchTask(self.cfg)
+        task._refresh_cfg()
+        run_cfg = task._construct_run_cfg()
+        # 设置 task_set_name
+        run_cfg.task_set_name = "test_task_set"
+        task_count = task._get_task_count(run_cfg)
+
+        # 验证任务数量是否正确
+        self.assertEqual(task_count, 3)
+        # 验证 get_tasks 是否被正确调用
+        mock_get_tasks.assert_called_once()
+
+    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.compute_metrics')
     def test_dump_eval_results(self, mock_compute_metrics, mock_get_tasks):
         """测试导出评估结果方法"""
@@ -204,6 +240,25 @@ class TestTAU2BenchTask(unittest.TestCase):
             results = json.load(f)
         self.assertEqual(results.get("pass^2"), 80.0)  # 0.8 * 100
         self.assertEqual(results.get("total_count"), 3)  # 因为 get_tasks 被 mock 为返回 3 个任务
+
+    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
+    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.compute_metrics')
+    def test_dump_eval_results_no_metrics(self, mock_compute_metrics, mock_get_tasks):
+        """测试导出评估结果方法 - 无 metrics 的情况"""
+        # 模拟 compute_metrics 返回 None
+        mock_compute_metrics.return_value = None
+
+        task = TAU2BenchTask(self.cfg)
+        task._prepare_out_dir()
+        task._refresh_cfg()
+        task.run_config = mock.MagicMock()
+
+        # 执行测试
+        task._dump_eval_results({})
+
+        # 验证结果文件是否未创建（因为 metrics 为 None）
+        expected_out_json = os.path.join(self.temp_dir, "results", "gpt-3.5-turbo", "test_dataset.json")
+        self.assertFalse(os.path.exists(expected_out_json))
 
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.run_domain')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.compute_metrics')
