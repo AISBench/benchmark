@@ -26,6 +26,7 @@ from ais_bench.benchmark.datasets.bbh import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.race import *
 from ais_bench.benchmark.datasets.textvqa import *
 from ais_bench.benchmark.datasets.videobench import *
+from ais_bench.benchmark.datasets.vbench import *
 from ais_bench.benchmark.datasets.vocalsound import *
 from ais_bench.benchmark.datasets.lambada import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.lcsts import * # noqa: F401, F403
