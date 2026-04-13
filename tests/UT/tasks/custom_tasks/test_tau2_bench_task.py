@@ -388,6 +388,46 @@ class TestTAU2BenchTask(unittest.TestCase):
         result = auto_y_input("Do you want to continue?")
         self.assertEqual(result, "y")
 
+    def test_patched_functions(self):
+        """测试补丁函数"""
+        # 测试 _patched_logger_error 函数
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import _patched_logger_error
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import _original_tau2_logger_error
+        # 保存原始的 _original_tau2_logger_error
+        original_error = _original_tau2_logger_error
+        try:
+            # 模拟 _original_tau2_logger_error
+            mock_error = mock.MagicMock()
+            from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import tau2_llm_utils
+            tau2_llm_utils.logger.error = mock_error
+            # 测试包含 "This model isn't mapped yet" 的情况
+            _patched_logger_error("This model isn't mapped yet")
+            mock_error.assert_not_called()
+            # 测试不包含 "This model isn't mapped yet" 的情况
+            _patched_logger_error("Other error message")
+            mock_error.assert_called_once()
+        finally:
+            # 恢复原始的 _original_tau2_logger_error
+            from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import tau2_llm_utils
+            tau2_llm_utils.logger.error = original_error
+
+    def test_patched_get_response_cost(self):
+        """测试 patched_get_response_cost 函数"""
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import patched_get_response_cost
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import litellm_get_response_cost
+        # 保存原始的 litellm_get_response_cost
+        original_get_response_cost = litellm_get_response_cost
+        try:
+            # 测试 litellm_get_response_cost 为 None 的情况
+            from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import litellm_get_response_cost
+            litellm_get_response_cost = None
+            result = patched_get_response_cost()
+            self.assertEqual(result, 0.0)
+        finally:
+            # 恢复原始的 litellm_get_response_cost
+            from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import litellm_get_response_cost
+            litellm_get_response_cost = original_get_response_cost
+
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.run_domain')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.tqdm')
