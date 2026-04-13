@@ -189,7 +189,8 @@ class TestTAU2BenchTask(unittest.TestCase):
         task = TAU2BenchTask(self.cfg)
         task._prepare_out_dir()
         task._refresh_cfg()
-        task.run_config = task._construct_run_cfg()
+        task.run_config = mock.MagicMock()
+        task.run_config.num_trials = 2
 
         # 执行测试
         task._dump_eval_results({})
@@ -207,7 +208,8 @@ class TestTAU2BenchTask(unittest.TestCase):
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.run_domain')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.compute_metrics')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
-    def test_run(self, mock_get_tasks, mock_compute_metrics, mock_run_domain):
+    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.tqdm')
+    def test_run(self, mock_tqdm, mock_get_tasks, mock_compute_metrics, mock_run_domain):
         """测试 run 方法"""
         # 模拟依赖
         mock_get_tasks.return_value = [1, 2, 3]
@@ -231,6 +233,13 @@ class TestTAU2BenchTask(unittest.TestCase):
         mock_metrics = mock.MagicMock()
         mock_metrics.avg_reward = 0.7
         mock_compute_metrics.return_value = mock_metrics
+
+        # 模拟 tqdm
+        mock_pbar = mock.MagicMock()
+        mock_tqdm_instance = mock.MagicMock()
+        mock_tqdm_instance.__enter__.return_value = mock_pbar
+        mock_tqdm_instance.__exit__.return_value = None
+        mock_tqdm.return_value = mock_tqdm_instance
 
         task = TAU2BenchTask(self.cfg)
 
