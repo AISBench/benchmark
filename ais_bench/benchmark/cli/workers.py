@@ -66,6 +66,8 @@ class Infer(BaseWorker):
             new_cfg = dict(infer=cfg.infer)
             if not new_cfg["infer"].get("partitioner"):
                 new_cfg["infer"]["partitioner"] = dict(type=NaivePartitioner)
+            if new_cfg["infer"].get("runner") and new_cfg["infer"]["runner"].get("type") is None:
+                new_cfg["infer"]["runner"]["type"] = LocalRunner
         else:
             new_cfg = dict(
                 infer=dict(
@@ -317,6 +319,8 @@ class Eval(BaseWorker):
             new_cfg = dict(eval=cfg.eval)
             if not new_cfg["eval"].get("partitioner"):
                 new_cfg["eval"]["partitioner"] = dict(type=NaivePartitioner)
+            if new_cfg["eval"].get("runner") and new_cfg["eval"]["runner"].get("type") is None:
+                new_cfg["eval"]["runner"]["type"] = LocalRunner
         else:
             new_cfg = dict(
                 eval=dict(
