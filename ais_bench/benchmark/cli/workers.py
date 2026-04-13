@@ -306,7 +306,6 @@ class Eval(BaseWorker):
                 self.skip = True
                 return cfg
 
-    def update_cfg(self, cfg: ConfigDict) -> None:
         def update_eval_cfg(new_cfg: ConfigDict) -> None:
             runner_cfg = new_cfg['eval']['runner']
             runner_cfg['max_num_workers'] = self.args.max_num_workers
@@ -327,9 +326,10 @@ class Eval(BaseWorker):
                     partitioner=dict(type=NaivePartitioner),
                     runner=dict(
                         type=LocalRunner,
-                    task=dict(type=custom_task if custom_task else OpenICLEvalTask),
-                ),
-            ))
+                        task=dict(type=custom_task if custom_task else OpenICLEvalTask),
+                    ),
+                )
+            )
 
         update_eval_cfg(new_cfg)
         cfg.merge_from_dict(new_cfg)
