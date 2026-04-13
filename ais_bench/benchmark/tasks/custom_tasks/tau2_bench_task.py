@@ -24,7 +24,6 @@ from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg, model_abbr_from_cfg, dataset_abbr_from_cfg
-from ais_bench.benchmark.utils.logging.error_codes import TASK_CODES
 from ais_bench.benchmark.tasks.base import BaseTask
 
 # ================= 替换litellm中计费函数 =================
@@ -233,7 +232,7 @@ class TAU2BenchTask(BaseTask):
     def _dump_eval_results(self, simulation_results):
         self.captured_metrics = compute_metrics(simulation_results)
         if self.captured_metrics is None:
-            self.logger.error(TASK_CODES.UNKNOWN_ERROR, "No metrics captured. Please check the Tau2 run.")
+            self.logger.error(UTILS_CODES.UNKNOWN_ERROR, "No metrics captured. Please check the Tau2 run.")
             return
         out_json = osp.join(f"{self.out_dir}", f"{self.cfg['datasets'][0][0]['abbr']}.json")
         results = {
