@@ -118,7 +118,7 @@ class DefaultPerfSummarizer:
             model_cfg: Model configuration
             perf_datas: Raw performance data
         """
-        tokenizer = AISTokenizer(model_cfg.get("path"))
+        tokenizer = AISTokenizer(model_cfg.get("path"), model_cfg.get("trust_remote_code", False))
         conn = init_db(db_file_path)
         all_numpy_data = load_all_numpy_from_db(conn)
 
@@ -256,7 +256,7 @@ class DefaultPerfSummarizer:
         details_perf_datas = defaultdict(list)
 
         # check tokenizer
-        load_tokenizer(tokenizer_path=model_cfg.get("path"))
+        load_tokenizer(tokenizer_path=model_cfg.get("path"), trust_remote_code=model_cfg.get("trust_remote_code", False))
 
         with multiprocessing.Manager() as manager:
             manager_list = manager.list()

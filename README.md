@@ -17,8 +17,8 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)
 <br><br>
 [🌐官方网站](https://www.aisbench.com) |
-[📖工具文档](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/) |
-[👨‍💻开发者文档](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/develop_guide/contributing.html) |
+[📖工具文档](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/) |
+[👨‍💻开发者文档](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/develop_guide/contributing.html) |
 [🔥最新进展](#-最新进展)|
 [🤔报告问题](https://github.com/AISBench/benchmark/issues/new/choose)
 <br><br>简体中文 | [English](README_en.md)
@@ -29,9 +29,11 @@
 > **⭐️收藏项目**，你将能第一时间获取 AISBench评测工具 的最新动态～
 
 ## 🔥 最新进展
+- **\[2026.3.10\]** 接入首个图像生成类评测基准GEdit-Bench， 支持对图像生成模型进行评测，详见[在AISBench中测评GEdit-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/lmm_generate/gedit_bench.html)。 🔥🔥🔥
+- **\[2026.3.1\]** 支持接入裁判模型进行评估，详见[使用裁判模型进行测评](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/judge_model_evaluate.html)。 🔥🔥🔥
 - **\[2026.1.31\]** 支持 [Mooncake Trace](ais_bench/benchmark/configs/datasets/mooncake_trace/README.md) trace 数据集性能测评，支持按时间戳调度请求、hash_id 缓存与可复现 prompt 生成，详见数据集 README。🔥🔥🔥
 - **\[2025.12.19\]** 🎉 **AISBench 架构全面重构完成！**
-  - ✨ **架构升级**：对cli、models、inferencer、tasks组件进行了全面重构，支持快速接入新的测试基准，参考📚 [开发者文档](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/develop_guide/contributing.html)了解详情！
+  - ✨ **架构升级**：对cli、models、inferencer、tasks组件进行了全面重构，支持快速接入新的测试基准，参考📚 [开发者文档](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/develop_guide/contributing.html)了解详情！
   - 🖥️ **任务管理界面**：全新的任务UI管理界面，支持同时监控每个任务的详细执行状态，包括任务名称、进度、时间成本、状态、日志路径、扩展参数等，让任务执行状态一目了然！
   - ⚡ **并行执行增强**：扩展了多任务并行功能，支持多个性能或精度测评任务并行执行，大幅提升评测效率！
   - 📊 **新增15+测评基准**：新增docvqa、infovqa、ocrbench_v2、omnidocbench、mmmu、mmmu_pro、mmstar、videomme、FewCLUE系列、dapo_math、leval等多模态和文本测评基准！
@@ -39,29 +41,29 @@
   - 🔧 **功能增强**：新增流式推理开关、自定义URL路径、API key配置；支持API模型推理warmup；支持自定义多模态数据集性能测评；部分数据集支持服务化PPL（困惑度）测评等多项功能！
   - 🏗️ **基础设施优化**：重构local models和api models组件，统一流式和非流式实现；重构inferencer组件，采用多进程+协程调用方式，提高并发能力；测试结果数据格式优化为jsonl，降低IO压力；采用错误码统一管理错误信息等！
 - **\[2025.11.25\]** 支持服务化模型PPL(Perplexity-based，困惑度)模式精度测评。🔥🔥🔥
-- **\[2025.9.08\]** 支持📚[模拟真实业务流量](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/advanced_tutorials/rps_distribution.html)：通过控制请求发送速率波动，感知在模拟真实场景下服务化的性能测评结果！🔥🔥🔥
+- **\[2025.9.08\]** 支持📚[模拟真实业务流量](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/rps_distribution.html)：通过控制请求发送速率波动，感知在模拟真实场景下服务化的性能测评结果！🔥🔥🔥
 
-- **\[2025.8.28\]** 支持📚[多次独立重复推理精度场景](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id12)，计算pass@k/cons@k/avg@n等不同维度的精度指标！🔬🔬🔬
+- **\[2025.8.28\]** 支持📚[多次独立重复推理精度场景](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id12)，计算pass@k/cons@k/avg@n等不同维度的精度指标！🔬🔬🔬
 
 - **\[2025.8.19\]**
   - 新增Function Call专用模型配置 [vllm_api_function_call_chat](ais_bench/benchmark/configs/models/vllm_api/vllm_api_function_call_chat.py)，支持 [BFCL 函数调用能力评估](ais_bench/benchmark/configs/datasets/BFCL/README.md) 🔥🔥🔥
-  - 提供工具支持的[性能测试规格说明](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/performance_benchmark.html#id25)，优化推理集群场景工具内存占用及性能计算。最大规格场景（250K条请求，输入/输出token 4K/4K）内存占用降低60%，内存占用小于64GB；性能结果计算效率提升20倍。🚀🚀🚀
+  - 提供工具支持的[性能测试规格说明](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/performance_benchmark.html#id25)，优化推理集群场景工具内存占用及性能计算。最大规格场景（250K条请求，输入/输出token 4K/4K）内存占用降低60%，内存占用小于64GB；性能结果计算效率提升20倍。🚀🚀🚀
 - **\[2025.7.15\]**
-  - 支持[sharegpt](ais_bench/benchmark/configs/datasets/sharegpt/README.md)和[mtbench](ais_bench/benchmark/configs/datasets/mtbench/README.md)多轮对话数据集服务化性能测评和可视化，测评方式见📚[多轮对话测评指南](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/advanced_tutorials/multiturn_benchmark.html)！🔥🔥🔥
-  - 性能评测场景使用[自定义数据集](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/advanced_tutorials/custom_dataset.html)，支持按请求粒度指定最大输出长度！🔥🔥🔥
+  - 支持[sharegpt](ais_bench/benchmark/configs/datasets/sharegpt/README.md)和[mtbench](ais_bench/benchmark/configs/datasets/mtbench/README.md)多轮对话数据集服务化性能测评和可视化，测评方式见📚[多轮对话测评指南](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/multiturn_benchmark.html)！🔥🔥🔥
+  - 性能评测场景使用[自定义数据集](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/custom_dataset.html)，支持按请求粒度指定最大输出长度！🔥🔥🔥
 
-- **\[2025.6.19\]** 支持📚[性能评测结果可视化](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/results_intro/performance_visualization.html)，辅助定位推理服务性能瓶颈！🔥🔥🔥
+- **\[2025.6.19\]** 支持📚[性能评测结果可视化](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/results_intro/performance_visualization.html)，辅助定位推理服务性能瓶颈！🔥🔥🔥
 - **\[2025.6.12\]** 支持[textvqa](ais_bench/benchmark/configs/datasets/textvqa/README.md)、[videobench](ais_bench/benchmark/configs/datasets/videobench/README.md)和[vocalsound](ais_bench/benchmark/configs/datasets/vocalsound/README.md)等多模态数据集的精度和性能评测！🔥🔥🔥
 
 - **\[2025.6.6\]** AISBench支持稳态性能评测，获取系统真实最佳性能，参考📚 [服务化稳定状态性能测试](doc/users_guide/stable_stage.md)进行快速上手! 🔥🔥🔥
 
-- **\[2025.5.16\]** 支持3W+高并发服务化性能评测，📚 [性能指标](doc/users_guide/performance_metric.md)对齐🔗 [vllm benchmark](https://github.com/vllm-project/vllm/tree/main/benchmarks)，参考📚 [服务化性能测评指南](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/performance_benchmark.html)了解详情！🔥🔥🔥
+- **\[2025.5.16\]** 支持3W+高并发服务化性能评测，📚 [性能指标](doc/users_guide/performance_metric.md)对齐🔗 [vllm benchmark](https://github.com/vllm-project/vllm/tree/main/benchmarks)，参考📚 [服务化性能测评指南](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/performance_benchmark.html)了解详情！🔥🔥🔥
 
-- **\[2025.4.30\]** 精度评测支持断点续测和失败用例重测，大幅提高精度评测鲁棒性，参考📚 [中断续测 & 失败用例重测](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id10)进行快速上手! 🔥🔥🔥
+- **\[2025.4.30\]** 精度评测支持断点续测和失败用例重测，大幅提高精度评测鲁棒性，参考📚 [中断续测 & 失败用例重测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id10)进行快速上手! 🔥🔥🔥
 
 - **\[2025.4.15\]** 优化固定batch发送请求的方式为continuous batch模式发送请求，大幅提高精度评测效率! 🔥🔥🔥
 
-- **\[2025.4.12\]** 支持合并MMLU、Ceval等所有多文件数据集为单个数据集任务进行精度评测，参考📚 [合并多文件数据集](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id11)了解详情！ 🔥🔥🔥
+- **\[2025.4.12\]** 支持合并MMLU、Ceval等所有多文件数据集为单个数据集任务进行精度评测，参考📚 [合并多文件数据集](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id11)了解详情！ 🔥🔥🔥
 
 
 ## 🌏 简介
@@ -69,9 +71,9 @@ AISBench Benchmark 是基于 [OpenCompass](https://github.com/open-compass/openc
 
 当前，AISBench 支持两大类推理任务的评测场景：
 
-🔍 [精度测评](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/home.html#id2)：支持对服务化模型和本地模型在各类问答、推理基准数据集上的精度验证，覆盖文本、多模态等多种场景。
+🔍 [精度测评](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/home.html#id2)：支持对服务化模型和本地模型在各类问答、推理基准数据集上的精度验证，覆盖文本、多模态等多种场景。
 
-🚀 [性能测评](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/home.html#id5)：支持对服务化模型的延迟与吞吐率评估，并可进行压测场景下的极限性能测试，支持稳态性能评测和真实业务流量模拟。
+🚀 [性能测评](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/home.html#id5)：支持对服务化模型的延迟与吞吐率评估，并可进行压测场景下的极限性能测试，支持稳态性能评测和真实业务流量模拟。
 
 ## 🛠️ 工具安装
 ✅ 环境要求
@@ -148,11 +150,11 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 ### 任务含义查询(可选)
 所选模型任务`vllm_api_general_chat`、数据集任务`demo_gsm8k_gen_4_shot_cot_chat_prompt`和结果呈现任务`example`的具体信息(简介，使用约束等)可以分别从如下链接中查询含义：
-- `--models`: 📚 [服务化推理后端](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/all_params/models.html#id2)
+- `--models`: 📚 [服务化推理后端](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/all_params/models.html#id2)
 
-- `--datasets`: 📚 [开源数据集](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/all_params/datasets.html#id3) → 📚 [详细介绍](ais_bench/benchmark/configs/datasets/demo/README.md)
+- `--datasets`: 📚 [开源数据集](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/get_started/datasets.html#id3) → 📚 [详细介绍](ais_bench/benchmark/configs/datasets/demo/README.md)
 
-- `--summarizer`: 📚 [结果汇总任务](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/all_params/summarizer.html)
+- `--summarizer`: 📚 [结果汇总任务](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/all_params/summarizer.html)
 
 ### 运行命令前置准备
 - `--models`: 使用`vllm_api_general_chat`模型任务，需要准备支持`v1/chat/completions`子服务的推理服务，可以参考🔗 [VLLM启动OpenAI 兼容服务器](https://docs.vllm.com.cn/en/latest/getting_started/quickstart.html#openai-compatible-server)启动推理服务
@@ -178,7 +180,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 ```
 
-- 快速入门中数据集任务配置文件`demo_gsm8k_gen_4_shot_cot_chat_prompt.py`不需要做额外修改，数据集任务配置文件内容介绍可参考📚 [配置开源数据集](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/all_params/datasets.html#id6)
+- 快速入门中数据集任务配置文件`demo_gsm8k_gen_4_shot_cot_chat_prompt.py`不需要做额外修改，数据集任务配置文件内容介绍可参考📚 [配置开源数据集](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/all_params/datasets.html#id6)
 
 模型配置文件`vllm_api_general_chat.py`中包含了模型运行相关的配置内容，是需要依据实际情况修改的。快速入门中需要修改的内容用注释标明。
 ```python
@@ -275,7 +277,7 @@ dataset                 version  metric   mode  vllm_api_general_chat
 demo_gsm8k              401e4c   accuracy gen                   62.50
 ```
 
-更多教程请查看我们的👉[文档](https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/)
+更多教程请查看我们的👉[文档](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/)
 
 
 ## 🔜 即将推出

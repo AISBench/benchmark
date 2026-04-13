@@ -365,7 +365,7 @@ All requests failed, cannot calculate performance results. Please check the erro
 ### 错误描述
 计算稳态性能指标时，在所有请求信息中找不到属于稳定阶段的请求，无法计算稳态指标。
 ### 解决办法
-可以检查一下推理请求的并发图（参考文档：https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/results_intro/performance_visualization.html），确认并发阶梯图中`Request Concurrency Count`是否达到模型配置文件中设置的并发数（`batch_size`参数）**且至少存在两个请求达到最大并发数**。
+可以检查一下推理请求的并发图（参考文档：https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/results_intro/performance_visualization.html），确认并发阶梯图中`Request Concurrency Count`是否达到模型配置文件中设置的并发数（`batch_size`参数）**且至少存在两个请求达到最大并发数**。
 若未满足上述条件，可以尝试以下方式达到稳定状态：
 #### 并发阶梯图中`Request Concurrency Count`持续增长之后直接持续下降
 1. 降低推理请求的并发数（模型配置文件中的`batch_size`参数）。
@@ -1261,3 +1261,97 @@ cd human-eval && pip install -e .
 暂未有直接解决方法。
 ### 解决办法
 如有解决此问题的诉求，[请提issue](https://github.com/AISBench/benchmark/issues)，请在issue描述中附上此错误码。
+
+## SWEB-DEPENDENCY-001
+### 错误描述
+运行 SWEBench infer 时缺少 `mini-swe-agent` 依赖，任务初始化失败。
+### 解决办法
+执行以下命令安装依赖后重试：
+```bash
+pip install mini-swe-agent
+```
+若你使用虚拟环境，请确认 `ais_bench` 与 `mini-swe-agent` 安装在同一 Python 环境。
+
+## SWEB-DEPENDENCY-002
+### 错误描述
+运行 SWEBench eval 时缺少 SWE-bench harness 依赖。
+### 解决办法
+按照官方仓库安装 harness 后重试：
+```bash
+git clone https://github.com/SWE-bench/SWE-bench.git
+cd SWE-bench
+pip install -e .
+```
+
+## SWEB-PARAM-001
+### 错误描述
+SWEBench infer 未检测到可用模型配置（`model/url/api_key` 等关键字段缺失或为空）。
+### 解决办法
+检查任务配置中的 `models[0]`，至少补齐以下字段：
+1. `model`：如 `hosted_vllm/qwen3`
+2. `url`：如 `http://127.0.0.1:2998/v1`
+3. `api_key`：本地测试可设为 `EMPTY`
+
+## SWEB-PARAM-002
+### 错误描述
+SWEBench 数据集名称非法，不在支持的名称集合内。
+### 解决办法
+将数据集 `name` 修正为受支持值：`full`、`verified`、`lite`、`multilingual`。
+
+## SWEB-DATA-001
+### 错误描述
+评测输入的预测结果包含不存在于当前数据集的 `instance_id`。
+### 解决办法
+确保预测文件与评测数据集完全对应：
+1. 使用同一份数据集配置执行 infer 与 eval。
+2. 检查预测文件中的 `instance_id` 是否被手工修改或混入其他实验结果。
+
+## SWEB-DATA-002
+### 错误描述
+从 Hugging Face 在线加载 SWEBench 数据集失败。
+### 解决办法
+优先检查网络连通性与 Hugging Face 可访问性；若环境受限，请先手工下载 parquet 数据并在配置中设置本地 `path`。
+
+## SWEB-DATA-003
+### 错误描述
+本地 SWEBench parquet 文件读取或解析失败。
+### 解决办法
+检查本地文件完整性与格式：
+1. 确认文件为有效 parquet。
+2. 确认 `split` 与文件命名一致（例如 `test-*.parquet`）。
+3. 重新下载或重新导出损坏文件后重试。
+
+## SWEB-FILE-001
+### 错误描述
+执行 SWEBench eval 时找不到预测文件（`*.json` 或 `preds.json`）。
+### 解决办法
+先成功执行 infer，再执行 eval；并确认 `work_dir/predictions` 下存在目标模型对应的预测结果文件。
+
+## SWEB-FILE-002
+### 错误描述
+本地 SWEBench 数据集路径解析失败（路径不存在或不可访问）。
+### 解决办法
+检查配置中的 `path` 是否正确，并确认当前运行用户对该目录/文件有读取权限。
+
+## SWEB-FILE-003
+### 错误描述
+在本地数据集路径下未找到目标 split 的 parquet 文件。
+### 解决办法
+确认路径中存在以下任一形式的文件：
+1. `<root>/data/<split>-*.parquet`
+2. `<root>/<split>-*.parquet`
+若使用单文件，也可直接将 `path` 指向该 parquet 文件。
+
+## SWEB-RUNTIME-001
+### 错误描述
+SWEBench 运行所需 Docker 镜像不存在，且拉取失败。
+### 解决办法
+检查 Docker 服务状态与网络后，手工执行 `docker pull` 拉取日志中提示的镜像；确认镜像可见后重新运行任务。
+
+## SWEB-RUNTIME-002
+### 错误描述
+SWEBench 执行阶段出现运行时异常（如 harness 执行失败或并发任务异常）。
+### 解决办法
+根据日志中的详细异常定位处理：
+1. 优先检查依赖安装、Docker 可用性、预测文件格式。
+2. 若问题持续，保留完整日志并携带错误码提交 issue：<https://github.com/AISBench/benchmark/issues>。

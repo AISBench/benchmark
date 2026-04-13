@@ -41,23 +41,10 @@ class TestModelPostprocessors(unittest.TestCase):
             }
         ]
 
-    def test_list_decorator_with_list(self):
-        """Test list_decorator with list input."""
-        @mp.list_decorator
-        def test_func(text):
-            return text.upper()
-
-        result = test_func(["hello", "world"])
-        self.assertEqual(result, ["HELLO", "WORLD"])
-
-    def test_list_decorator_with_string(self):
-        """Test list_decorator with string input."""
-        @mp.list_decorator
-        def test_func(text):
-            return text.upper()
-
-        result = test_func("hello")
-        self.assertEqual(result, "HELLO")
+    def test_deprecated_module_exports_current_api(self):
+        """Deprecated module should expose the current public API."""
+        self.assertTrue(hasattr(mp, "extract_non_reasoning_content"))
+        self.assertTrue(callable(mp.extract_non_reasoning_content))
 
     def test_extract_non_reasoning_content_only_end_token(self):
         """Test extract_non_reasoning_content with only end token."""

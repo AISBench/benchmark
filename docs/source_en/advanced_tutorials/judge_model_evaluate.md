@@ -2,7 +2,7 @@
 
 ## Why Use Judge Model for Evaluation
 
-In conventional evaluation tasks, the process of evaluating model inference results typically involves extracting answers from the inference results using methods like regular expressions and comparing them with ground truth answers to determine whether the model's inference results are correct, ultimately calculating a total score. The overall process is as follows:
+In conventional evaluation tasks, the process of evaluating model inference results typically involves extracting answers from inference results using methods like regular expressions, comparing them with ground truth answers, and determining whether the model's inference results are correct, ultimately calculating a total score. The overall process is as follows:
 
 ```mermaid
 graph LR;
@@ -13,7 +13,7 @@ graph LR;
   E --> F((Present Results))
 ```
 
-However, in some evaluation scenarios, there is no ground truth answer, or it's not only necessary to check the ground truth answer but also to verify whether the process of obtaining the ground truth answer is correct. In such cases, conventional answer extraction methods cannot meet these evaluation requirements. Therefore, it's necessary to introduce a judge model to evaluate the inference results of the tested model. The overall evaluation process with judge model intervention is as follows:
+However, some evaluation scenarios have no ground truth answer, or require not only determining whether the answer is correct but also evaluating whether the reasoning process is sound. In such cases, conventional answer extraction methods cannot meet these requirements, so it is necessary to introduce a judge model to evaluate the tested model's inference results. The overall evaluation process with judge model intervention is as follows:
 
 ```mermaid
 graph LR;
@@ -29,7 +29,7 @@ graph LR;
 
 ## Quick Start
 
-Taking the aime2025 dataset evaluation as an example, the usage is basically consistent with [AISBench Quick Start](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/get_started/quick_start.html#). This quick start section only covers the differences.
+Taking the aime2025 dataset evaluation as an example, the usage is basically consistent with [AISBench Quick Start](https://ais-bench-benchmark.readthedocs.io/en/latest/get_started/quick_start.html#). This quick start section only covers the differences.
 
 ### Command Meaning
 

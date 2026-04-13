@@ -10,6 +10,7 @@ class ErrorModule(Enum):
     TASK = "TASK"                                # Task
     TASK_INFER = "TINFER"                        # inference Task
     TASK_EVALUATE = "TEVAL"                      # evaluate Task
+    SWEBENCH = "SWEB"                            # swebench task/dataset
     TASK_MONITOR = "TMON"                        # TaskMonitor
     TASK_STATUS_MANAGER = "TSMAN"                # TaskStateManager
     ICL_INFERENCER = "ICLI"                      # icl_inferencer
@@ -40,7 +41,7 @@ class ErrorType(Enum):
     TASK = "TASK"     # task error type
 
 class BaseErrorCode:
-    FAQ_BASE_URL = "https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/faqs/error_codes.html#"
+    FAQ_BASE_URL = "https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/faqs/error_codes.html#"
 
     def __init__(self, code_name: str, module: ErrorModule, err_type: ErrorType, code: int,
                  message: str):
@@ -142,6 +143,27 @@ class TINFER_CODES:
 class TEVAL_CODES:
     UNKNOWN_ERROR = BaseErrorCode("TEVAL-UNK-001", ErrorModule.TASK_EVALUATE, ErrorType.UNKNOWN, 1, "unknown error of evaluate task")
     N_K_ILLEGAL = BaseErrorCode("TEVAL-PARAM-001", ErrorModule.TASK_EVALUATE, ErrorType.PARAM, 1, "n and k parameters illegal") # docs coverd
+
+
+class SWEB_CODES:
+    UNKNOWN_ERROR = BaseErrorCode("SWEB-UNK-001", ErrorModule.SWEBENCH, ErrorType.UNKNOWN, 1, "unknown error of swebench workflow")
+
+    MINISWEAGENT_IMPORT_ERROR = BaseErrorCode("SWEB-DEPENDENCY-001", ErrorModule.SWEBENCH, ErrorType.DEPENDENCY, 1, "mini-swe-agent dependency import error")
+    SWEBENCH_HARNESS_IMPORT_ERROR = BaseErrorCode("SWEB-DEPENDENCY-002", ErrorModule.SWEBENCH, ErrorType.DEPENDENCY, 2, "SWE-bench harness dependency import error")
+
+    MODEL_NOT_SET = BaseErrorCode("SWEB-PARAM-001", ErrorModule.SWEBENCH, ErrorType.PARAM, 1, "model is not configured for swebench inference")
+    INVALID_DATASET_NAME = BaseErrorCode("SWEB-PARAM-002", ErrorModule.SWEBENCH, ErrorType.PARAM, 2, "invalid swebench dataset name")
+
+    PREDICTION_IDS_NOT_FOUND = BaseErrorCode("SWEB-DATA-001", ErrorModule.SWEBENCH, ErrorType.DATA, 1, "prediction ids are not found in swebench dataset")
+    HF_DATASET_LOAD_FAILED = BaseErrorCode("SWEB-DATA-002", ErrorModule.SWEBENCH, ErrorType.DATA, 2, "failed to load swebench dataset from Hugging Face")
+    LOCAL_PARQUET_LOAD_FAILED = BaseErrorCode("SWEB-DATA-003", ErrorModule.SWEBENCH, ErrorType.DATA, 3, "failed to load local swebench parquet dataset")
+
+    PREDICTIONS_FILE_NOT_FOUND = BaseErrorCode("SWEB-FILE-001", ErrorModule.SWEBENCH, ErrorType.FILE, 1, "predictions file not found for swebench evaluation")
+    LOCAL_PATH_RESOLVE_FAILED = BaseErrorCode("SWEB-FILE-002", ErrorModule.SWEBENCH, ErrorType.FILE, 2, "failed to resolve local swebench dataset path")
+    LOCAL_PARQUET_NOT_FOUND = BaseErrorCode("SWEB-FILE-003", ErrorModule.SWEBENCH, ErrorType.FILE, 3, "local swebench parquet file not found")
+
+    DOCKER_IMAGE_UNAVAILABLE = BaseErrorCode("SWEB-RUNTIME-001", ErrorModule.SWEBENCH, ErrorType.RUNTIME, 1, "required swebench docker image is unavailable")
+    HARNESS_RUNTIME_FAILED = BaseErrorCode("SWEB-RUNTIME-002", ErrorModule.SWEBENCH, ErrorType.RUNTIME, 2, "SWE-bench harness runtime failed")
 
 
 class ICLI_CODES:
@@ -294,6 +316,7 @@ ERROR_CODES_CLASSES = [
     TSMAN_CODES,
     TINFER_CODES,
     TEVAL_CODES,
+    SWEB_CODES,
     ICLI_CODES,
     ICLE_CODES,
     ICLR_CODES,

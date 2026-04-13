@@ -160,19 +160,21 @@
 
 图1：AISBench系统架构图
 
-图2：AISBench数据流时序图
+图2：AISBench常规测评数据流时序图
 
-图3：L-Eval数据集精度测评时序图
+图3：AISBench裁判模型测评数据流时序图
 
-图4：L-Eval数据集性能测评时序图
+图4：L-Eval数据集精度测评时序图
 
-图5：API Key鉴权认证时序图
+图5：L-Eval数据集性能测评时序图
 
-图6：AISBench安全数据流图（2层）
+图6：API Key鉴权认证时序图
+
+图7：AISBench安全数据流图（2层）
 
 # 1.特性概述
 
-AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipub.xiaoman.tech/>)推出的AI模型测评工具，旨在为AI模型提供全面的精度和性能评估能力。本版本在原有功能基础上，新增了长序列推理场景支持、多模态数据集覆盖、API Key鉴权认证、PPL评测能力、工具易用性优化、集群测评能力增强等多项特性，进一步提升了测评工具的完整性、易用性和专业性。
+AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipub.xiaoman.tech/>)推出的AI模型测评工具，旨在为AI模型提供全面的精度和性能评估能力。本版本在原有功能基础上，新增了长序列推理场景支持、多模态数据集覆盖、API Key鉴权认证、PPL评测能力、裁判模型评估、GEdit bench图片编辑多模态评测、工具易用性优化、集群测评能力增强等多项特性，进一步提升了测评工具的完整性、易用性和专业性。
 
 本版本的主要价值包括：
 
@@ -180,8 +182,10 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 2. **多模态模型全面覆盖**：新增MMStar、VideoMME、OCRBench、MMMU、OmniDocBench、VQA等多个多模态数据集支持，覆盖视觉问答、视频理解、文本理解、大学水平问题等多个维度。
 3. **安全性增强**：支持API Key鉴权认证，增强服务化推理的安全性。
 4. **评测能力扩展**：新增PPL（困惑度）评测能力，支持预训练模型的测评；新增DAPO-math数据集支持，覆盖强化学习场景。
-5. **易用性提升**：通过命令行参数优化、配置参数优化等方式，提升工具的易用性和灵活性。
-6. **集群测评能力**：支持EPD分离的encoding阶段耗时统计、基于timestamp的流量负载复现等高级功能。
+5. **裁判模型评估能力**：引入裁判模型对生成内容进行自动评估，支持主观任务（如回答质量、创意写作等）的量化评测，提升评估的全面性和客观性。
+6. **图片编辑多模态评测**：新增GEdit bench基准支持，专门评测多模态生成模型的图片编辑能力，覆盖图像修改、内容添加、风格转换等场景，满足对图像生成与编辑模型的测评需求。
+7. **易用性提升**：通过命令行参数优化、配置参数优化等方式，提升工具的易用性和灵活性。
+8. **集群测评能力**：支持EPD分离的encoding阶段耗时统计、基于timestamp的流量负载复现等高级功能。
 
 本文档详细描述了上述特性的需求分析、架构设计、实现方案等内容，适用于AISBench测评工具的研发、测试和使用人员。
 
@@ -206,7 +210,11 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 7. **集群测评能力增强**：
    - EPD分离的encoding阶段耗时统计
    - 基于timestamp的流量负载复现
-8. **GEdit数据集支持**：支持图片编辑能力的评估，包括语义一致性和感知质量等维度。
+8. **裁判模型评估能力**：
+   - 支持LLM裁判模型对文本答案正确性进行判断
+   - 支持LMM裁判模型对多模态输出进行评估
+   - 支持裁判模型与被测模型的解耦部署
+9. **GEdit数据集支持**：支持图片编辑能力的评估，包括语义一致性和感知质量等维度。
 
 ## 1.2特性需求列表
 
@@ -399,7 +407,7 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 
 1. **长序列推理场景需求**：随着大语言模型的发展，模型处理长文本的能力成为重要评估指标。L-Eval数据集是专门用于评估长文本理解能力的基准测试，支持该数据集能够满足长序列推理场景的测评需求。同时，Mooncake论文提出的流量负载复现方式，为性能测评提供了更贴近真实场景的评估方法。
 
-2. **多模态模型评估需求**：Qwen-VL、Deepseek-ocr等多模态模型的快速发展，需要全面的多模态评估能力。MMStar、VideoMME、OCRBench、MMMU、OmniDocBench、VQA等数据集覆盖了视觉问答、视频理解、文本理解、大学水平问题等多个维度，能够全面评估多模态模型的能力。
+2. **多模态理解类模型评估需求**：Qwen-VL、Deepseek-ocr等多模态理解类模型的快速发展，需要全面的多模态评估能力。MMStar、VideoMME、OCRBench、MMMU、OmniDocBench、VQA等数据集覆盖了视觉问答、视频理解、文本理解、大学水平问题等多个维度，能够全面评估多模态模型的能力。
 
 3. **安全性需求**：在生产环境中，API Key鉴权认证是保障服务安全的重要手段。支持API Key鉴权能够满足企业级部署的安全要求。
 
@@ -408,6 +416,8 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 5. **易用性提升需求**：用户反馈工具在使用过程中存在一些不便之处，如无法指定推理数据条数、合并数据集时无法查看子数据集精度等，需要通过参数优化提升易用性。
 
 6. **集群测评能力需求**：在实际生产环境中，需要更细粒度的性能分析能力，如EPD分离的encoding阶段耗时统计、基于timestamp的流量负载复现等，以满足集群测评的需求。
+
+7. **多模态生成类模型评估需求**：Qwen-Image-Edit等多模态生成类模型的快速发展，需要全面的多模态生成能力评估。GEdit数据集支持对图片编辑能力的评估，输出语义一致性、感知质量等维度的评估结果。
 
 ### 2.1.2 价值概述
 
@@ -474,7 +484,7 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 3. 执行精度或性能测评
 4. 查看评估结果，与OpenCompass结果对比
 
-#### 场景2：多模态模型全面评估
+#### 场景2：多模态理解类模型全面评估
 
 **场景描述**：用户需要全面评估多模态模型在不同维度上的能力。
 
@@ -565,13 +575,31 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 3. 执行性能测评
 4. 查看encoding阶段耗时统计或流量负载复现结果
 
+#### 场景7：多模态生成类模型评估场景
+
+**场景描述**：用户需要评估多模态生成类模型的能力。
+
+**子场景**：
+
+1. **裁判模型评估能力**：使用裁判模型对被测模型的推理结果进行评估
+2. **图片编辑能力评估**：使用GEdit数据集评估模型的图片编辑能力
+
+**关键任务操作**：
+
+1. 准备GEdit数据集
+2. 启动裁判模型推理服务（或配置API）
+3. 配置模型和数据集参数
+4. 执行精度测评
+5. 查看评估结果，与Step1X-Edit的benchmark脚本结果对比
+
+
 ## 2.3特性影响分析
 
 ### 2.3.1 系统位置及周边接口
 
 本版本特性主要涉及以下系统模块：
 
-1. **数据集加载模块**（`ais_bench/benchmark/datasets/`）：新增L-Eval、MMStar、VideoMME、OCRBench、MMMU、OmniDocBench、VQA、DAPO-math、GEdit等数据集的加载器。
+1. **数据集加载模块**（`ais_bench/benchmark/datasets/`）：新增L-Eval、MMStar、VideoMME、OCRBench、MMMU、OmniDocBench、VQA、DAPO-math、加载器。 拓展裁判模型基础数据集加载器，GEdit数据集在此基础上拓展。
 
 2. **模型接口模块**（`ais_bench/benchmark/models/api_models/`）：扩展vLLM系列API接口，支持API Key鉴权认证、stream参数配置、url参数配置等。
 
@@ -579,11 +607,13 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 
 4. **评估器模块**（`ais_bench/benchmark/openicl/icl_evaluator/`）：新增或扩展评估器，支持Rouge、ANLS、精准匹配等多种评估方式。
 
-5. **命令行接口模块**（`ais_bench/benchmark/cli/`）：扩展命令行参数，支持--num-prompts、--merge-ds、--max-num-workers、--pressure-time、--num-warmups等参数。
+5. **命令行接口模块**（`ais_bench/benchmark/cli/argument_parser.py`）：扩展命令行参数，支持--num-prompts、--merge-ds、--max-num-workers、--pressure-time、--num-warmups等参数。
 
-6. **配置管理模块**（`ais_bench/benchmark/global_consts.py`）：新增LOG_LEVEL配置，移除PRESSURE_TIME、CONNECTION_ADD_RATE等配置。
+6. **工作流模块**（`ais_bench/benchmark/cli/workers.py`）：新增裁判模型推理工作流模块，继承原始被测模型推理工作流的能力和接口定义，用于处理涉及裁判模型推理的测评任务。
 
-7. **性能计算模块**（`ais_bench/benchmark/calculators/`）：扩展性能计算器，支持EPD分离的encoding阶段耗时统计、基于timestamp的流量负载复现等。
+7. **配置管理模块**（`ais_bench/benchmark/global_consts.py`）：新增LOG_LEVEL配置，移除PRESSURE_TIME、CONNECTION_ADD_RATE等配置。
+
+8. **性能计算模块**（`ais_bench/benchmark/calculators/`）：扩展性能计算器，支持EPD分离的encoding阶段耗时统计、基于timestamp的流量负载复现等。
 
 **周边接口**：
 
@@ -612,6 +642,14 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
    - 部分参数在debug模式下不生效（如--max-num-workers）
    - 部分参数需要特定模式支持（如--pressure-time需要--pressure模式）
 
+5. **裁判模型中断续推DFX能力限制**：
+   - 如果被测模型的推理过程进行了中断续推，因为被测推理结果发生改变，裁判模型会基于新的推理结果全部重新推理而非继承续推。
+   - 裁判模型推理过程不支持配置num_return_sequence参数，默认num_return_sequence=1。
+
+6. **GEdit Bench测评限制**：
+   - GEdit Bench的部分指标需要基于不同其他case粒度指标（不同task算出）进行计算，无法在常规summarizer中汇总计算，需要依赖新增工具
+   - 目前多模态生成类模型的开源服务化框架（vllm omni）还不成熟，当前工具只适配了一个基于昇腾NPU的Qwen-Image-Edit模型后端可支持 GEdit Bench。
+
 ### 2.3.3 与其他需求及特性的交互分析
 
 1. **与现有数据集支持的交互**：新增数据集与现有数据集共享相同的数据加载框架和评估框架，不会产生冲突。
@@ -622,12 +660,14 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 
 4. **与易用性优化的交互**：命令行参数和配置参数的优化提升了工具的易用性，与现有功能兼容。
 
+5. **与原始精度测评工作流的交互**：工作流中接入的裁判模型推理过程只处理有裁判模型配置的评测任务，不影响常规配置的精度测评任务。
+
 ### 2.3.4 平台差异性分析
 
 **硬件平台**：
 
-- **NPU（昇腾）**：支持vLLM-ascend离线推理和vLLM在线推理，支持多模态数据集评估
-- **GPU**：支持transformer离线推理、vLLM在线推理，支持多模态数据集评估
+- **NPU（昇腾）**：支持vLLM-ascend离线推理和vLLM在线推理，支持多模态数据集评估。目前GEdit Bench测评仅适配基于昇腾NPU的Qwen-Image-Edit模型后端
+- **GPU**：支持transformer离线推理、vLLM在线推理，支持多模态数据集评估。裁判模型推理支持GPU部署
 - **CPU**：主要用于开发和测试环境，性能测评能力有限
 
 **操作系统**：
@@ -635,22 +675,37 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 - **Linux**：主要支持平台，所有功能均支持
 - **Windows/macOS**：部分功能可能受限，主要依赖Python环境和相关库的支持
 
+**裁判模型平台差异**：
+
+- 裁判模型支持独立部署或API调用方式
+- LLM裁判模型用于文本类评估（如A/B选择判断）
+- LMM（大视觉模型）裁判模型用于多模态评估（如图片编辑质量评估）
+- 裁判模型推理过程与被测模型推理过程解耦，可部署在不同硬件平台
+
 ### 2.3.5 兼容性分析
 
 1. **向后兼容性**：
    - 保留老版本的配置方式（如global_consts.py中的PRESSURE_TIME、CONNECTION_ADD_RATE），通过兼容机制支持
    - 保留老版本的model type配置方式，通过stream参数统一
    - 新增参数均为可选参数，不影响现有功能
+   - 裁判模型配置为可选配置，不影响常规精度测评任务
 
 2. **向前兼容性**：
    - 新版本的数据集格式与老版本兼容
    - 新版本的配置文件格式与老版本兼容
    - 新版本的评估结果格式与老版本兼容
+   - 裁判模型评估结果格式与常规评估结果格式一致
 
 3. **跨版本兼容性**：
    - 支持不同版本的vLLM服务
    - 支持不同版本的数据集格式
    - 通过版本检测和适配机制保证兼容性
+   - 裁判模型支持不同版本的模型后端
+
+4. **GEdit数据集兼容性**：
+   - 支持与Step1X-Edit的benchmark脚本精度对齐
+   - 评估结果支持CSV格式导出，便于与其他工具集成
+   - 支持按语言（中文/英文）分组统计评估结果
 
 ### 2.3.6 约束及限制
 
@@ -658,18 +713,30 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
    - 需要用户自行准备数据集文件
    - 多模态数据集需要准备相应的媒体文件
    - 数据集路径需要正确配置
+   - GEdit数据集需要准备输入图片和编辑指令
 
 2. **模型服务约束**：
    - 需要模型服务正常运行
    - 需要模型服务支持相应的接口
    - 需要网络连接正常
+   - 裁判模型需要独立部署或配置API访问地址
 
 3. **资源约束**：
    - 长序列推理需要较大的内存和计算资源
    - 多模态数据集需要较大的存储空间
    - 并行任务数受CPU核心数限制
 
-### 2.3.1硬件限制
+4. **裁判模型约束**：
+   - 裁判模型推理过程不支持配置num_return_sequence参数，默认num_return_sequence=1
+   - 如果被测模型的推理过程进行了中断续推，裁判模型会基于新的推理结果全部重新推理而非继承续推
+   - 裁判模型需要具备足够的能力进行准确评估（如LMM裁判模型需要具备图片理解能力）
+
+5. **GEdit Bench测评约束**：
+   - GEdit Bench的部分指标需要基于不同case粒度指标进行计算，无法在常规summarizer中汇总计算，需要依赖新增工具（display_results.py）
+   - 目前多模态生成类模型的开源服务化框架（vllm omni）还不成熟，当前工具只适配了基于昇腾NPU的Qwen-Image-Edit模型后端
+   - GEdit评估需要两阶段裁判模型推理：SC（语义一致性）评估和PQ（感知质量）评估
+
+### 2.3.7 硬件限制
 
 **硬件约束**：
 
@@ -677,21 +744,27 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
    - 长序列推理场景需要较大的内存（建议≥32GB）
    - 多模态数据集处理需要较大的内存（建议≥16GB）
    - 并行任务执行需要根据任务数分配内存
+   - 裁判模型推理需要额外内存资源（建议≥8GB）
+   - GEdit图片处理需要较大内存用于图片编解码（建议≥16GB）
 
 2. **存储要求**：
    - 数据集文件需要足够的存储空间（建议≥100GB）
    - 多模态数据集（图片、视频）需要更大的存储空间
    - 评估结果文件需要一定的存储空间
+   - GEdit数据集需要存储原始图片和编辑后图片（建议预留≥50GB）
+   - 裁判模型推理中间结果需要临时存储空间
 
 3. **计算资源要求**：
    - NPU/GPU需要支持相应的计算能力
    - 并行任务数受CPU核心数限制（建议不超过CPU核心数的80%）
    - 性能测评需要足够的网络带宽
+   - 裁判模型推理需要独立的计算资源，建议与被测模型部署在不同设备
 
 4. **网络要求**：
    - 服务化推理需要稳定的网络连接
    - API Key鉴权需要网络连接正常
    - 流量负载复现需要精确的时间同步
+   - 裁判模型API调用需要低延迟网络连接
 
 **规避方案**：
 
@@ -699,8 +772,9 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 - 对于存储不足的情况，可以通过使用外部存储、数据压缩等方式解决
 - 对于计算资源不足的情况，可以通过降低并发数、使用更高效的推理后端等方式优化
 - 对于网络不稳定的情况，可以通过重试机制、超时设置等方式提高容错性
+- 对于裁判模型资源不足的情况，可以通过异步调用、批量推理等方式优化资源利用
 
-### 2.3.2技术限制
+### 2.3.8 技术限制
 
 **操作系统**：
 
@@ -719,6 +793,22 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 - **vLLM**：需要vLLM服务正常运行，版本兼容性需要验证
 - **数据集库**：需要huggingface datasets等库支持
 - **评估库**：需要rouge-score、nltk等评估库支持
+- **图片处理库**：GEdit评估需要PIL/Pillow库支持图片编解码
+- **并发处理库**：需要concurrent.futures支持并行处理
+
+**裁判模型技术限制**：
+
+- **LLM裁判模型**：需要支持文本输入输出，具备A/B判断能力
+- **LMM裁判模型**：需要支持多模态输入（图片+文本），具备图片理解能力
+- **裁判模型接口**：需要兼容OpenAI API格式或自定义接口适配
+- **评估精度依赖**：裁判模型的评估精度直接影响最终评估结果的准确性
+
+**GEdit技术限制**：
+
+- **图片格式**：支持PNG、JPEG等常见图片格式，输出统一为PNG格式
+- **Base64编码**：图片传输采用Base64编码，可能增加网络传输开销
+- **评估指标计算**：SC和PQ指标需要分别计算，最终O指标为几何平均
+- **数据集切分**：支持数据集切分以支持分布式评估
 
 **规避方案**：
 
@@ -726,8 +816,9 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 - 提供Docker镜像，统一运行环境
 - 提供版本检测和兼容性检查机制
 - 对于不兼容的情况，提供明确的错误提示和解决方案
+- 对于裁判模型能力不足的情况，提供多种裁判模型选择和自定义配置
 
-### 2.3.3对License的影响分析
+### 2.3.9 对License的影响分析
 
 本版本特性涉及的第三方开源软件及其License如下：
 
@@ -741,28 +832,38 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
    - 各数据集可能有不同的License要求
    - 影响：使用数据集需要遵循相应的License要求
 
-3. **vLLM**：
+3. **GEdit数据集**：
+   - 来源：Step1X-Edit/GEdit-Bench
+   - License：需要查看具体License
+   - 影响：数据集使用需要遵循相应的License要求，评估结果需要与Step1X-Edit benchmark脚本对齐
+
+4. **vLLM**：
    - 来源：vllm-project/vllm (<https://github.com/vllm-project/vllm>)
    - License：Apache 2.0
    - 影响：使用vLLM需要遵循Apache 2.0 License
 
-4. **OpenCompass**：
+5. **OpenCompass**：
    - 来源：open-compass/opencompass (<https://github.com/open-compass/opencompass>)
    - License：Apache 2.0
    - 影响：作为对比参考，不影响License合规性
 
-5. **Python依赖库**：
+6. **Python依赖库**：
    - aiohttp、datasets、transformers、rouge-score等
    - 各库有不同的License（Apache 2.0、MIT、BSD等）
    - 影响：需要确保所有依赖库的License兼容
+
+7. **图片处理库**：
+   - PIL/Pillow：PIL Software License（BSD-like）
+   - 影响：图片处理功能需要遵循相应License
 
 **合规性分析**：
 
 - 所有使用的第三方开源软件均为开源License，允许商业使用
 - 需要在使用文档中明确标注使用的第三方软件及其License
 - 需要遵循各License的要求（如保留版权声明等）
+- 裁判模型的选择需要考虑其License是否允许用于评估目的
 
-### 2.3.4对系统性能规格的影响分析
+### 2.3.10 对系统性能规格的影响分析
 
 **内存要求**：
 
@@ -770,37 +871,45 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 - **长序列推理场景**：建议≥32GB内存（处理长文本需要较大内存）
 - **多模态数据集场景**：建议≥16GB内存（图片、视频处理需要内存）
 - **并行任务场景**：根据并行任务数动态分配，建议每个任务≥4GB内存
+- **裁判模型推理场景**：建议≥8GB内存（裁判模型独立运行）
+- **GEdit评估场景**：建议≥16GB内存（图片编解码和Base64转换）
 
 **存储要求**：
 
 - **数据集存储**：建议≥100GB可用空间
 - **多模态数据集**：根据数据集大小，可能需要数百GB空间
 - **结果存储**：根据测评规模，建议预留≥10GB空间
+- **GEdit数据集**：建议预留≥50GB空间（原始图片和编辑后图片）
+- **裁判模型中间结果**：建议预留≥5GB临时存储空间
 
 **CPU要求**：
 
 - **基础要求**：建议≥4核CPU
 - **并行任务场景**：建议CPU核心数≥并行任务数
 - **性能测评场景**：建议≥8核CPU（高并发场景）
+- **图片处理场景**：建议≥4核CPU（并行图片编解码）
 
 **网络要求**：
 
 - **服务化推理**：建议网络带宽≥100Mbps
 - **API Key鉴权**：需要稳定的网络连接
 - **流量负载复现**：需要精确的时间同步（NTP同步）
+- **裁判模型API调用**：建议网络延迟<50ms，带宽≥100Mbps
 
 **GPU/NPU要求**：
 
 - **推理加速**：需要支持相应的GPU/NPU硬件
 - **多模态处理**：需要支持多模态模型的GPU/NPU
+- **裁判模型**：建议独立部署，需要≥8GB显存（LMM裁判模型建议≥16GB显存）
 
-### 2.3.5对系统可靠性规格的影响分析
+### 2.3.11 对系统可靠性规格的影响分析
 
 **可靠性假设**：
 
 - 模型服务可用性：假设模型服务的可用性≥99%
 - 网络连接稳定性：假设网络连接的稳定性≥99%
 - 数据集完整性：假设数据集文件的完整性为100%
+- 裁判模型服务可用性：假设裁判模型服务的可用性≥99%
 
 **可靠性约束**：
 
@@ -808,14 +917,31 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 - **超时控制**：对于长时间无响应的请求，支持超时控制
 - **错误处理**：对于API Key错误、数据集加载失败等异常情况，提供明确的错误提示
 - **数据一致性**：确保评估结果的数据一致性，避免因网络波动等原因导致的数据不一致
+- **裁判模型容错**：裁判模型推理失败时，提供明确的错误提示和日志记录
+- **GEdit评估容错**：图片处理失败时，跳过该case并记录错误信息
 
 **可靠性目标**：
 
 - 在正常网络和服务条件下，测评任务的成功率≥99%
 - 对于单次请求失败，通过重试机制保证最终成功率
 - 对于关键数据（评估结果），确保数据不丢失、不损坏
+- 裁判模型推理过程的成功率≥99%
+- GEdit评估过程的图片处理成功率≥99.9%
 
-### 2.3.6对系统兼容性的影响分析
+**裁判模型可靠性设计**：
+
+- 裁判模型推理与被测模型推理解耦，互不影响
+- 支持裁判模型推理结果缓存，避免重复推理
+- 裁判模型服务异常时，提供降级策略（如跳过评估或使用默认评分）
+- 支持裁判模型推理进度持久化，支持中断续推
+
+**GEdit评估可靠性设计**：
+
+- 图片处理采用并行处理，单个图片处理失败不影响整体评估
+- 评估结果实时保存，支持断点续评估
+- SC和PQ评估独立进行，单个评估失败不影响另一个评估
+
+### 2.3.12 对系统兼容性的影响分析
 
 **前向兼容性**：
 
@@ -823,18 +949,21 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 - 新版本支持老版本的数据集格式
 - 新版本支持老版本的评估结果格式
 - 老版本的用户可以平滑升级到新版本
+- 裁判模型配置为可选配置，不影响无裁判模型的测评任务
 
 **向后兼容性**：
 
 - 保留老版本的配置方式（如global_consts.py中的配置）
 - 保留老版本的命令行参数（如不冲突的参数）
 - 保留老版本的模型接口（通过兼容机制）
+- 裁判模型评估结果格式与常规评估结果格式保持一致
 
 **跨版本兼容性**：
 
 - 支持不同版本的vLLM服务（通过版本检测和适配）
 - 支持不同版本的数据集格式（通过格式转换）
 - 支持不同版本的Python（3.8+）
+- 裁判模型支持不同版本的模型后端
 
 **兼容性保证措施**：
 
@@ -842,7 +971,19 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 - 提供配置迁移工具，帮助用户迁移老版本配置
 - 提供详细的升级文档，指导用户平滑升级
 
-### 2.3.7与其他重大特性的交互性，冲突性的影响分析
+**裁判模型兼容性**：
+
+- 支持多种裁判模型后端（LLM、LMM）
+- 裁判模型接口兼容OpenAI API格式
+- 裁判模型配置支持热更新，无需重启服务
+
+**GEdit兼容性**：
+
+- 支持与Step1X-Edit benchmark脚本结果对齐
+- 评估结果支持CSV格式导出
+- 支持按语言分组统计评估结果
+
+### 2.3.13 与其他重大特性的交互性，冲突性的影响分析
 
 **与现有数据集支持的交互**：
 
@@ -864,6 +1005,26 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
 - 命令行参数和配置参数的优化提升了工具的易用性
 - 与现有功能兼容，不会产生冲突
 
+**与原始精度测评工作流的交互**：
+
+- 工作流中接入的裁判模型推理过程只处理有裁判模型配置的评测任务
+- 不影响常规配置的精度测评任务
+- 裁判模型推理结果与原始评估结果格式一致
+
+**裁判模型与其他特性的交互**：
+
+- **与数据集的交互**：裁判模型数据集（如LLMJudgeDataset、LMMImgJDGDataset）继承自BaseJDGDataset，支持从预测结果加载数据
+- **与评估器的交互**：裁判模型评估器（如LLMJudgeCorrectEvaluator、LMMJudgeImageEditEvaluator）继承自BaseEvaluator，与现有评估框架兼容
+- **与工作流的交互**：裁判模型推理工作流继承原始推理工作流，支持中断续推（但裁判模型推理不支持续推，会重新推理）
+- **与summarizer的交互**：裁判模型评估结果通过judger_info标识，与常规评估结果区分
+
+**GEdit与其他特性的交互**：
+
+- **与多模态数据集的交互**：GEdit数据集继承自BaseDataset，与现有数据集框架兼容
+- **与裁判模型的交互**：GEdit评估依赖LMM裁判模型进行SC和PQ评估
+- **与图片处理的交互**：GEdit数据集加载时进行图片Base64转换，与现有图片处理工具兼容
+- **与结果展示的交互**：GEdit评估结果需要专用工具（display_results.py）进行汇总展示
+
 **潜在冲突及解决方案**：
 
 - **冲突1**：老版本的model type配置与新版本的stream参数配置可能冲突
@@ -872,6 +1033,10 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
   - **解决方案**：命令行参数优先级高于配置文件，同时保留配置文件支持
 - **冲突3**：并行任务数与系统资源可能冲突
   - **解决方案**：提供资源检测机制，自动调整并行任务数，避免资源耗尽
+- **冲突4**：裁判模型推理中断续推与被测模型中断续推可能冲突
+  - **解决方案**：被测模型中断续推后，裁判模型会基于新结果重新推理，确保评估结果一致性
+- **冲突5**：GEdit评估指标计算与常规summarizer不兼容
+  - **解决方案**：提供专用工具（display_results.py）进行GEdit评估结果汇总，支持SC、PQ、O指标计算
 
 # 3.特性/功能实现原理(可分解出来多个Use Case)
 
@@ -912,6 +1077,16 @@ AISBench是[AISBench人工智能系统性能评测基准委员会](<https://aipu
    - 支持EPD分离的encoding阶段耗时统计
    - 支持基于timestamp的流量负载复现
    - 支持精准的性能分析
+
+7. **裁判模型评估场景**：
+   - 支持LLM裁判模型对文本答案正确性进行判断
+   - 支持LMM裁判模型对多模态输出进行评估
+   - 支持多裁判模型并行评估，提供可靠的评估结果
+
+8. **GEdit图片编辑评估场景**：
+   - 支持GEdit数据集的图片编辑能力评估
+   - 支持SC（语义一致性）和PQ（感知质量）两阶段评估
+   - 与Step1X-Edit的benchmark脚本精度对齐
 
 ### 3.1.2 性能目标
 
@@ -960,13 +1135,17 @@ graph TB
     subgraph "任务管理层"
         TaskMgr[任务管理器]
         Workflow[工作流执行器]
+        JudgeWorkflow[裁判模型工作流执行器]
     end
 
     subgraph "核心功能层"
         DatasetLoader[数据集加载器]
+        JudgeDatasetLoader[裁判数据集加载器]
         ModelWrapper[模型包装器]
+        JudgeModelWrapper[裁判模型包装器]
         Inferencer[推理引擎]
         Evaluator[评估器]
+        JudgeEvaluator[裁判评估器]
         Calculator[性能计算器]
     end
 
@@ -978,26 +1157,36 @@ graph TB
 
     subgraph "外部服务"
         VLLMService[vLLM服务]
+        JudgeService[裁判模型服务]
         DatasetFiles[数据集文件]
     end
 
     CLI --> TaskMgr
     Config --> TaskMgr
     TaskMgr --> Workflow
+    TaskMgr --> JudgeWorkflow
     Workflow --> DatasetLoader
     Workflow --> ModelWrapper
     Workflow --> Inferencer
     Workflow --> Evaluator
     Workflow --> Calculator
+    JudgeWorkflow --> JudgeDatasetLoader
+    JudgeWorkflow --> JudgeModelWrapper
+    JudgeWorkflow --> JudgeEvaluator
 
     DatasetLoader --> Registry
+    JudgeDatasetLoader --> Registry
     ModelWrapper --> Registry
+    JudgeModelWrapper --> Registry
     Inferencer --> Registry
     Evaluator --> Registry
+    JudgeEvaluator --> Registry
     Calculator --> Registry
 
     ModelWrapper --> VLLMService
+    JudgeModelWrapper --> JudgeService
     DatasetLoader --> DatasetFiles
+    JudgeDatasetLoader --> DatasetFiles
 
     Registry --> Logger
     Registry --> Utils
@@ -1023,13 +1212,20 @@ graph TB
 - `VQADataset`：VQA数据集加载器（DocVQA、InfoVQA）
 - `DAPOMathDataset`：DAPO-math数据集加载器
 - `GEditDataset`：GEdit数据集加载器
+- `BaseJDGDataset`：裁判模型数据集基类，定义统一的裁判数据集接口
+- `LLMJudgeDataset`：LLM裁判模型数据集加载器，支持文本类评估
+- `LMMImgJDGDataset`：LMM裁判模型数据集加载器，支持多模态评估
+- `GEditSCJDGDataset`：GEdit SC评估数据集加载器
+- `GEditPQJDGDataset`：GEdit PQ评估数据集加载器
 
 **设计要点**：
 
 - 所有数据集继承自`BaseDataset`，实现统一的`load()`接口
+- 裁判模型数据集继承自`BaseJDGDataset`，支持从预测结果加载数据
 - 通过注册机制（`LOAD_DATASET`）统一管理
 - 支持本地数据集和远程数据集加载
 - 支持数据集预处理和格式化
+- 裁判数据集支持从被测模型推理结果中加载数据进行二次推理
 
 #### 3.2.3.2 模型模块（models/）
 
@@ -1080,12 +1276,16 @@ graph TB
 - `ANLSEvaluator`：ANLS指标评估器
 - `CodeUEvaluator`：Code U数据集专用评估器
 - `SciFiEvaluator`：Sci-Fi数据集专用评估器
+- `LLMJudgeCorrectEvaluator`：LLM裁判模型评估器，用于文本答案正确性判断
+- `LMMJudgeImageEditEvaluator`：LMM裁判模型评估器，用于图片编辑质量评估
 
 **设计要点**：
 
 - 支持多种评估指标（Rouge、准确率、ANLS等）
 - 支持自定义评估器
 - 支持子数据集精度统计和加权平均
+- 裁判模型评估器支持从裁判模型推理结果中提取评估指标
+- LMM裁判模型评估器支持SC（语义一致性）和PQ（感知质量）两种评估维度
 
 #### 3.2.3.5 性能计算模块（calculators/）
 
@@ -1120,8 +1320,11 @@ graph TB
 - 支持参数验证和默认值设置
 - 支持debug模式和dry-run模式
 - 支持参数优先级机制
+- 支持裁判模型相关参数（--mode infer_judge、--mode judge等）
 
 ### 3.2.4 数据流设计
+
+#### 3.2.4.1 常规测评数据流
 
 ```mermaid
 sequenceDiagram
@@ -1155,7 +1358,57 @@ sequenceDiagram
     CLI-->>User: 输出测评结果
 ```
 
-图2：AISBench数据流时序图
+图2：AISBench常规测评数据流时序图
+
+#### 3.2.4.2 裁判模型测评数据流
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant CLI as 命令行接口
+    participant TaskMgr as 任务管理器
+    participant DatasetLoader as 数据集加载器
+    participant ModelWrapper as 模型包装器
+    participant Inferencer as 推理引擎
+    participant JudgeDatasetLoader as 裁判数据集加载器
+    participant JudgeModelWrapper as 裁判模型包装器
+    participant JudgeEvaluator as 裁判评估器
+    participant VLLMService as vLLM服务
+    participant JudgeService as 裁判模型服务
+
+    User->>CLI: 执行裁判模型测评命令
+    CLI->>TaskMgr: 创建测评任务
+    TaskMgr->>DatasetLoader: 加载数据集
+    DatasetLoader-->>TaskMgr: 返回数据集
+    TaskMgr->>ModelWrapper: 初始化被测模型
+    ModelWrapper->>VLLMService: 建立连接
+    VLLMService-->>ModelWrapper: 连接成功
+    TaskMgr->>Inferencer: 执行被测模型推理
+    loop 批量推理
+        Inferencer->>ModelWrapper: 发送推理请求
+        ModelWrapper->>VLLMService: HTTP/HTTPS请求
+        VLLMService-->>ModelWrapper: 返回推理结果
+        ModelWrapper-->>Inferencer: 返回结果
+    end
+    Inferencer-->>TaskMgr: 返回所有推理结果
+    TaskMgr->>JudgeDatasetLoader: 加载裁判数据集（从推理结果）
+    JudgeDatasetLoader-->>TaskMgr: 返回裁判数据集
+    TaskMgr->>JudgeModelWrapper: 初始化裁判模型
+    JudgeModelWrapper->>JudgeService: 建立连接
+    JudgeService-->>JudgeModelWrapper: 连接成功
+    TaskMgr->>JudgeModelWrapper: 执行裁判模型推理
+    loop 批量裁判推理
+        JudgeModelWrapper->>JudgeService: 发送裁判请求
+        JudgeService-->>JudgeModelWrapper: 返回判断结果
+    end
+    JudgeModelWrapper-->>TaskMgr: 返回所有判断结果
+    TaskMgr->>JudgeEvaluator: 计算评估指标
+    JudgeEvaluator-->>TaskMgr: 返回评估结果
+    TaskMgr-->>CLI: 返回测评结果
+    CLI-->>User: 输出测评结果
+```
+
+图3：AISBench裁判模型测评数据流时序图
 
 ### 3.2.5 Use Case分解
 
@@ -1185,6 +1438,16 @@ sequenceDiagram
 6. **Use Case 6：集群测评能力增强**
    - 支持EPD分离的encoding阶段耗时统计
    - 支持基于timestamp的流量负载复现
+
+7. **Use Case 7：裁判模型评估能力**
+   - 支持LLM裁判模型对文本答案正确性进行判断
+   - 支持LMM裁判模型对多模态输出进行评估
+   - 支持裁判模型与被测模型的解耦部署
+
+8. **Use Case 8：GEdit图片编辑评估**
+   - 支持GEdit数据集的图片编辑能力评估
+   - 支持SC（语义一致性）和PQ（感知质量）两阶段评估
+   - 与Step1X-Edit的benchmark脚本精度对齐
 
 ### 3.2.6 对接原则
 
@@ -1928,7 +2191,7 @@ sequenceDiagram
 - 执行精度测评
 - 预期结果：使用环境变量的API Key（优先级更高）
 
-# 6.Use Case三至六实现
+# 6.Use Case三至八实现
 
 ## 6.1 Use Case三：多模态数据集支持
 
@@ -1995,6 +2258,131 @@ sequenceDiagram
 
 - `EncodingTimeCalculator.calculate()`: 计算encoding阶段耗时
 - `TraceReplayCalculator.replay()`: 流量负载复现
+
+## 6.5 Use Case七：裁判模型评估能力
+
+**设计思路**：引入裁判模型对被测模型的推理结果进行自动化评估，解决没有标准答案或需要评估推理过程合理性的场景。裁判模型支持LLM（大语言模型）和LMM（大型多模态模型）两种类型，可以独立部署，与被测模型解耦。
+
+**关键实现**：
+
+1. **裁判数据集基类设计（BaseJDGDataset）**：
+   - 定义统一的裁判数据集加载接口，继承自BaseDataset
+   - 实现模板方法模式，将数据加载、预测结果加载、数据合并等流程固化在基类中
+   - 提供抽象方法`_load_from_predictions()`和`_modify_dataset_item()`供子类实现
+   - 支持从被测模型推理结果文件中加载数据，构建裁判推理所需的输入
+
+2. **LLM裁判模型实现（LLMJudgeDataset）**：
+   - 继承自BaseJDGDataset，实现文本类评估的数据加载
+   - 从预测结果文件中加载被测模型的推理结果
+   - 将推理结果与原始数据集合并，构建裁判推理的输入
+   - 支持从裁判模型输出中提取A/B选择等判断结果
+
+3. **LMM裁判模型实现（LMMImgJDGDataset）**：
+   - 继承自BaseJDGDataset，实现多模态评估的数据加载
+   - 从预测结果文件中加载被测模型生成的图片路径
+   - 将图片转换为Base64编码格式，支持多模态输入
+   - 支持SC（语义一致性）和PQ（感知质量）两种评估维度
+   - 使用并行处理加速图片转换（ThreadPoolExecutor，max_workers=8）
+
+4. **裁判评估器实现**：
+   - `LLMJudgeCorrectEvaluator`：LLM裁判模型评估器，从裁判模型输出中提取正确性判断
+   - `LMMJudgeImageEditEvaluator`：LMM裁判模型评估器，支持SC和PQ两种评估指标
+   - 从裁判模型推理结果中提取评分，计算最终评估指标
+
+5. **裁判模型工作流实现（JudgeInfer）**：
+   - 继承自BaseWorker，实现裁判模型推理的完整工作流
+   - 支持配置预处理、任务分区、结果后处理等流程
+   - 支持与被测模型推理结果的对接
+   - 支持中断续推（但裁判模型推理不支持续推，会重新推理）
+
+6. **命令行接口扩展**：
+   - 支持`--mode infer_judge`：仅完成从被测模型推理到裁判模型推理结果的输出，不进行指标提取
+   - 支持`--mode judge`：基于被测模型推理结果，仅完成裁判模型的推理，不进行指标提取
+   - 支持与常规测评模式的无缝切换
+
+**主要接口**：
+
+- `BaseJDGDataset.load(predictions_path)`: 裁判数据集加载接口
+- `LLMJudgeDataset._load_from_predictions(prediction_path)`: 加载LLM裁判预测结果
+- `LMMImgJDGDataset._load_from_predictions(prediction_path)`: 加载LMM裁判预测结果（含图片处理）
+- `LLMJudgeCorrectEvaluator.score(predictions, references)`: LLM裁判评估器评分
+- `LMMJudgeImageEditEvaluator.score(predictions, references)`: LMM裁判评估器评分
+- `JudgeInfer.do_work(cfg)`: 裁判模型工作流执行
+
+**设计亮点**：
+
+1. **模板方法模式**：BaseJDGDataset定义了裁判数据集加载的算法骨架，将不变的步骤在基类中实现，将可变的步骤延迟到子类实现
+2. **策略模式**：不同类型的裁判数据集和评估器可以灵活切换，支持多种评估场景
+3. **解耦设计**：裁判模型与被测模型完全解耦，可以独立部署在不同硬件平台
+4. **并行优化**：图片处理使用并行处理，提升数据加载效率
+5. **向后兼容**：裁判模型配置为可选配置，不影响常规精度测评任务
+
+## 6.6 Use Case八：GEdit图片编辑评估
+
+**设计思路**：GEdit数据集用于评估多模态生成类模型的图片编辑能力，通过LMM裁判模型对编辑后的图片进行多维度评估。评估包括两个阶段：SC（Semantic Consistency，语义一致性）评估编辑是否成功执行，PQ（Perceptual Quality，感知质量）评估生成图片的自然度和伪影程度。
+
+**关键实现**：
+
+1. **GEdit数据集加载器（GEditDataset）**：
+   - 继承自BaseDataset，实现GEdit数据集的加载
+   - 支持数据集切分功能（split_count、split_index），支持分布式评估
+   - 支持原始图片（input_image_raw）和Base64编码图片（input_image）两种格式
+   - 使用并行处理（ThreadPoolExecutor，max_workers=8）加速图片Base64转换
+   - 支持数据集大小控制（GEDIT_COUNT=1212，可调整用于快速测试）
+
+2. **GEdit裁判数据集实现**：
+   - `GEditSCJDGDataset`：继承自ImgSCJDGDataset，实现SC评估的数据加载
+   - `GEditPQJDGDataset`：继承自ImgPQJDGDataset，实现PQ评估的数据加载
+   - 从被测模型推理结果中加载编辑后的图片，转换为Base64格式
+   - 构建裁判模型推理所需的输入（原始图片、编辑后图片、编辑指令等）
+
+3. **GEdit评估器（GEditEvaluator）**：
+   - 继承自BaseEvaluator，实现GEdit数据集的精度评估
+   - 计算推理成功率（accuracy = 100 * len(predictions) / len(references)）
+   - 支持详细的评估结果输出（pred、ref等）
+
+4. **两阶段评估流程**：
+   - 第一阶段：SC评估，判断图片编辑是否成功执行
+   - 第二阶段：PQ评估，评估生成图片的自然度和伪影程度
+   - 最终O指标：SC和PQ的几何平均（O = sqrt(SC * PQ)）
+
+5. **结果汇总工具**：
+   - GEdit Bench的部分指标需要基于不同case粒度指标进行计算
+   - 无法在常规summarizer中汇总计算，需要依赖新增工具（display_results.py）
+   - 支持按语言（中文/英文）分组统计评估结果
+   - 支持CSV格式导出，便于与其他工具集成
+
+**主要接口**：
+
+- `GEditDataset.load(path, use_raw, split_count, split_index)`: GEdit数据集加载
+- `GEditSCJDGDataset._get_dataset_class()`: 返回GEditDataset类
+- `GEditPQJDGDataset._get_dataset_class()`: 返回GEditDataset类
+- `GEditEvaluator.score(predictions, references)`: GEdit评估器评分
+- `ImgSCJDGDataset._modify_dataset_item()`: SC评估数据项修改
+- `ImgPQJDGDataset._modify_dataset_item()`: PQ评估数据项修改
+
+**设计亮点**：
+
+1. **数据集切分支持**：支持将GEdit数据集平均切分成多个部分，分配给多个模型实例进行推理，提高推理效率
+2. **并行图片处理**：使用ThreadPoolExecutor并行处理图片Base64转换，提升数据加载效率
+3. **两阶段评估**：SC和PQ评估独立进行，单个评估失败不影响另一个评估
+4. **精度对齐**：与Step1X-Edit的benchmark脚本结果对齐，确保评估结果的一致性
+5. **专用结果工具**：提供display_results.py工具进行GEdit评估结果汇总，支持SC、PQ、O指标计算
+
+**约束条件**：
+
+1. **硬件平台限制**：目前多模态生成类模型的开源服务化框架（vllm omni）还不成熟，当前工具只适配了基于昇腾NPU的Qwen-Image-Edit模型后端
+2. **评估指标计算**：GEdit Bench的部分指标需要基于不同case粒度指标进行计算，无法在常规summarizer中汇总计算，需要依赖新增工具
+3. **图片格式要求**：支持PNG、JPEG等常见图片格式，输出统一为PNG格式
+4. **Base64编码**：图片传输采用Base64编码，可能增加网络传输开销
+5. **数据集准备**：需要准备GEdit数据集，包括输入图片和编辑指令
+
+**与裁判模型的交互**：
+
+- GEdit评估依赖LMM裁判模型进行SC和PQ评估
+- 裁判模型需要具备图片理解能力（如Qwen2.5-VL-7B）
+- 裁判模型推理与被测模型推理解耦，可部署在不同硬件平台
+- 裁判模型推理结果通过judger（裁判）标识，与常规评估结果区分
 
 # 7.可靠性&amp;可用性设计
 

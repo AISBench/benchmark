@@ -36,12 +36,12 @@ jobs:
               bug: `🌟 Welcome to file an issue for the AISBench benchmark tool. You can try the following ways to find solutions to your issue:
               1. [Strongly recommended❤️‍🔥]Ensure your issue description is complete, then try to ask [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark) for help, as deepwiki contains all the knowledge related to the tool
               2. Search for similar issues in the [tool's historical issues](https://github.com/AISBench/benchmark/issues/) using key log fragments or keywords
-              3. Search in the [official documentation](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/) search bar using key log fragments or keywords
+              3. Search in the [official documentation](https://ais-bench-benchmark.readthedocs.io/en/latest/) search bar using key log fragments or keywords
               4. Seek help from repository maintainers (mention @SJTUyh in the issue comment)`,
               question: `🌟 Welcome to file an issue for the AISBench benchmark tool. You can try the following ways to find solutions to your issue:
               1. [Strongly recommended❤️‍🔥]Ensure your issue description is complete, then try to ask [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark) for help, as deepwiki contains all the knowledge related to the tool
               2. Search for similar issues in the [tool's historical issues](https://github.com/AISBench/benchmark/issues/) using key log fragments or keywords
-              3. Search in the [official documentation](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/) search bar using key log fragments or keywords
+              3. Search in the [official documentation](https://ais-bench-benchmark.readthedocs.io/en/latest/) search bar using key log fragments or keywords
               4. Seek help from repository maintainers (mention @SJTUyh in the issue comment)`,
               enhancement: `🌟 Welcome to file a new feature request for the AISBench benchmark tool. Please ensure your issue description is clear so that repository maintainers can accurately understand your request. Maintainers will typically respond to new feature requests within 3 days.`,
               documentation: `🙏 Thank you for finding documentation issues in the AISBench benchmark tool. Please ensure your issue description clearly explains the documentation problem so we can fix it faster. Maintainers will typically respond to documentation issues within 1 day.`

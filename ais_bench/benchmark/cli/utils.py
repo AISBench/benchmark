@@ -2,18 +2,20 @@ import sys
 import os
 from datetime import datetime
 
+from mmengine.config import ConfigDict, Config
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
 DATASETS_NEED_MODELS = ["ais_bench.benchmark.datasets.synthetic.SyntheticDataset",
-                      "ais_bench.benchmark.datasets.sharegpt.ShareGPTDataset",
-                      "ais_bench.benchmark.datasets.mooncake_trace.MooncakeTraceDataset"]
+                        "ais_bench.benchmark.datasets.sharegpt.ShareGPTDataset",
+                        "ais_bench.benchmark.datasets.mooncake_trace.MooncakeTraceDataset"]
 MAX_NUM_WORKERS = int(os.cpu_count() * 0.8)
 DEFAULT_PRESSURE_TIME = 15
-MAX_PRESSURE_TIME = 60 * 60 * 24 # 24 hours
+MAX_PRESSURE_TIME = 60 * 60 * 24  # 24 hours
 
 logger = AISLogger()
+
 
 def get_config_type(obj) -> str:
     if obj is None:
@@ -21,6 +23,27 @@ def get_config_type(obj) -> str:
     if isinstance(obj, str):
         return obj
     return f"{obj.__module__}.{obj.__name__}"
+
+
+def recur_convert_config_type(cfg):
+    """Recursively convert the type of the config to the string type.
+
+    Args:
+        cfg: The config to convert.
+    """
+    if isinstance(cfg, (dict, ConfigDict, Config)):
+        for key, value in cfg.items():
+            if key == "type" or key == "judge_dataset_type":
+                cfg[key] = get_config_type(value)
+            else:
+                cfg[key] = recur_convert_config_type(value)
+    elif isinstance(cfg, list):
+        for i, item in enumerate(cfg):
+            cfg[i] = recur_convert_config_type(item) if isinstance(
+                item, (dict, ConfigDict, Config, list)) else item
+    else:
+        return cfg
+    return cfg
 
 
 def get_current_time_str():
@@ -31,12 +54,14 @@ def fill_model_path_if_datasets_need(model_cfg, dataset_cfg):
     data_type = get_config_type(dataset_cfg.get("type"))
     if data_type in DATASETS_NEED_MODELS:
         model_path = model_cfg.get("path")
+        trust_remote_code = model_cfg.get("trust_remote_code", False)
         if not model_path:
             raise AISBenchConfigError(
                 UTILS_CODES.SYNTHETIC_DS_MISS_REQUIRED_PARAM,
                 "[path] in model config is required for synthetic(tokenid) and sharegpt dataset."
             )
-        dataset_cfg.update({"model_path": model_path})
+        dataset_cfg.update({"model_path": model_path, "trust_remote_code": trust_remote_code})
+
 
 def fill_test_range_use_num_prompts(num_prompts: int, dataset_cfg: dict):
     if not num_prompts:
