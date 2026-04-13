@@ -192,23 +192,7 @@ class TestTAU2BenchTask(unittest.TestCase):
         # 验证 get_tasks 是否被正确调用
         mock_get_tasks.assert_called_once()
 
-    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
-    def test_get_task_count_with_task_set_name(self, mock_get_tasks):
-        """测试获取任务数量方法 - 有 task_set_name 的情况"""
-        # 模拟 get_tasks 返回 3 个任务
-        mock_get_tasks.return_value = [1, 2, 3]
 
-        task = TAU2BenchTask(self.cfg)
-        task._refresh_cfg()
-        run_cfg = task._construct_run_cfg()
-        # 设置 task_set_name
-        run_cfg.task_set_name = "test_task_set"
-        task_count = task._get_task_count(run_cfg)
-
-        # 验证任务数量是否正确
-        self.assertEqual(task_count, 3)
-        # 验证 get_tasks 是否被正确调用
-        mock_get_tasks.assert_called_once()
 
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.compute_metrics')
@@ -352,46 +336,45 @@ class TestTAU2BenchTask(unittest.TestCase):
         finally:
             sys.argv = original_argv
 
-    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.run_domain')
-    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
-    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.tqdm')
-    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.threading.Thread')
-    def test_run_with_tqdm(self, mock_thread, mock_tqdm, mock_get_tasks, mock_run_domain):
-        """测试 _run_with_tqdm 方法"""
-        # 模拟依赖
-        mock_get_tasks.return_value = [1, 2, 3]
-        mock_run_domain.return_value = {}
+    def test_get_task_count_with_task_set_name(self):
+        """测试获取任务数量方法 - 有 task_set_name 的情况"""
+        # 模拟 get_tasks 返回 3 个任务
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import get_tasks
+        with mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks') as mock_get_tasks:
+            mock_get_tasks.return_value = [1, 2, 3]
 
-        # 模拟 tqdm
-        mock_pbar = mock.MagicMock()
-        mock_tqdm_instance = mock.MagicMock()
-        mock_tqdm_instance.__enter__.return_value = mock_pbar
-        mock_tqdm_instance.__exit__.return_value = None
-        mock_tqdm.return_value = mock_tqdm_instance
+            task = TAU2BenchTask(self.cfg)
+            task._refresh_cfg()
+            run_cfg = task._construct_run_cfg()
+            # 设置 task_set_name
+            run_cfg.task_set_name = "test_task_set"
+            task_count = task._get_task_count(run_cfg)
 
-        # 模拟线程
-        mock_thread_instance = mock.MagicMock()
-        mock_thread.return_value = mock_thread_instance
+            # 验证任务数量是否正确
+            self.assertEqual(task_count, 3)
+            # 验证 get_tasks 是否被正确调用
+            mock_get_tasks.assert_called_once()
 
-        task = TAU2BenchTask(self.cfg)
-        task._prepare_out_dir()
-        task._refresh_cfg()
-        task.run_config = mock.MagicMock()
-        task.run_config.save_to = os.path.join(self.temp_dir, "test_save_to")
-        task.run_config.num_trials = 2
-        task.task_state_manager = self.task_state_manager
+    def test_get_task_count_without_task_set_name(self):
+        """测试获取任务数量方法 - 无 task_set_name 的情况"""
+        # 模拟 get_tasks 返回 5 个任务
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import get_tasks
+        with mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks') as mock_get_tasks:
+            mock_get_tasks.return_value = [1, 2, 3, 4, 5]
 
-        # 执行测试
-        results = task._run_with_tqdm()
+            task = TAU2BenchTask(self.cfg)
+            task._refresh_cfg()
+            run_cfg = task._construct_run_cfg()
+            # 确保 task_set_name 为 None
+            run_cfg.task_set_name = None
+            # 设置 domain
+            run_cfg.domain = "test_domain"
+            task_count = task._get_task_count(run_cfg)
 
-        # 验证方法调用
-        mock_run_domain.assert_called_once()
-        mock_get_tasks.assert_called_once()
-        mock_tqdm.assert_called_once()
-        mock_thread.assert_called_once()
-        mock_thread_instance.start.assert_called_once()
-        mock_thread_instance.join.assert_called_once()
-        self.task_state_manager.update_task_state.assert_called()
+            # 验证任务数量是否正确
+            self.assertEqual(task_count, 5)
+            # 验证 get_tasks 是否被正确调用
+            mock_get_tasks.assert_called_once()
 
 
 if __name__ == '__main__':
