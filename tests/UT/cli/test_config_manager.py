@@ -61,7 +61,7 @@ class TestCustomConfigChecker(unittest.TestCase):
     def test_check_model_missing_required_field(self):
         """测试model缺少必需字段"""
         invalid_config = {
-            'models': [{'type': 'test_model', 'abbr': 'test'}],  # 缺少attr字段
+            'models': [{'type': 'test_model'}],  # 缺少abbr字段
             'datasets': [{'type': 'test_dataset', 'abbr': 'test', 'reader_cfg': {}, 'infer_cfg': {}, 'eval_cfg': {}}],
             'summarizer': {'attr': {}}
         }
