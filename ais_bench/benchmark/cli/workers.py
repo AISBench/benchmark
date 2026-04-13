@@ -76,7 +76,8 @@ class Infer(BaseWorker):
             )
         update_new_infer_cfg(new_cfg)
         cfg.merge_from_dict(new_cfg)
-        cfg.infer.partitioner["out_dir"] = osp.join(cfg["work_dir"], "predictions/")
+        if cfg.infer.get("partitioner"):
+            cfg.infer.partitioner["out_dir"] = osp.join(cfg["work_dir"], "predictions/")
         return cfg
 
     def do_work(self, cfg: ConfigDict):
@@ -325,7 +326,8 @@ class Eval(BaseWorker):
 
         update_eval_cfg(new_cfg)
         cfg.merge_from_dict(new_cfg)
-        cfg.eval.partitioner["out_dir"] = osp.join(cfg["work_dir"], "results/")
+        if cfg.eval.get("partitioner"):
+            cfg.eval.partitioner["out_dir"] = osp.join(cfg["work_dir"], "results/")
         return cfg
 
     def do_work(self, cfg: ConfigDict):
