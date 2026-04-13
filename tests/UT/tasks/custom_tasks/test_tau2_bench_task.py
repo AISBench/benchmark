@@ -216,8 +216,11 @@ class TestTAU2BenchTask(unittest.TestCase):
 
         # 模拟 run_domain 函数，创建 save_to 文件并写入任务数据
         def mock_run_domain_func(run_config):
-            # 创建 save_to 文件并写入任务数据
-            save_to_file = f"{run_config.save_to}.json"
+            # 确保 save_to 有值
+            if not run_config.save_to:
+                save_to_file = os.path.join(self.temp_dir, "test_save_to.json")
+            else:
+                save_to_file = f"{run_config.save_to}.json"
             os.makedirs(os.path.dirname(save_to_file), exist_ok=True)
             with open(save_to_file, 'w') as f:
                 # 写入 3 个任务的数据，每个任务执行 2 次
