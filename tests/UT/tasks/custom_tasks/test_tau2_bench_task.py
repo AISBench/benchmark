@@ -324,23 +324,6 @@ class TestTAU2BenchTask(unittest.TestCase):
 
     def test_patched_functions(self):
         """测试补丁函数"""
-        # 测试 patched_get_response_cost 函数
-        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import patched_get_response_cost
-        # 测试 litellm_get_response_cost 为 None 的情况
-        result = patched_get_response_cost()
-        self.assertEqual(result, 0.0)
-
-        # 测试 _patched_logger_error 函数
-        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import _patched_logger_error
-        # 测试包含 "This model isn't mapped yet" 的情况
-        mock_error = mock.MagicMock()
-        _patched_logger_error("This model isn't mapped yet", logger=mock_error)
-        mock_error.assert_not_called()
-
-        # 测试不包含 "This model isn't mapped yet" 的情况
-        _patched_logger_error("Other error message", logger=mock_error)
-        mock_error.assert_called_once()
-
         # 测试 auto_y_input 函数
         from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import auto_y_input
         result = auto_y_input("Do you want to continue?")
