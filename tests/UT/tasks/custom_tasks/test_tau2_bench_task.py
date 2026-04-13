@@ -322,5 +322,53 @@ class TestTAU2BenchTask(unittest.TestCase):
 
 
 
+    def test_patched_functions(self):
+        """测试补丁函数"""
+        # 测试 patched_get_response_cost 函数
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import patched_get_response_cost
+        # 测试 litellm_get_response_cost 为 None 的情况
+        result = patched_get_response_cost()
+        self.assertEqual(result, 0.0)
+
+        # 测试 _patched_logger_error 函数
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import _patched_logger_error
+        # 测试包含 "This model isn't mapped yet" 的情况
+        mock_error = mock.MagicMock()
+        _patched_logger_error("This model isn't mapped yet", logger=mock_error)
+        mock_error.assert_not_called()
+
+        # 测试不包含 "This model isn't mapped yet" 的情况
+        _patched_logger_error("Other error message", logger=mock_error)
+        mock_error.assert_called_once()
+
+        # 测试 auto_y_input 函数
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import auto_y_input
+        result = auto_y_input("Do you want to continue?")
+        self.assertEqual(result, "y")
+
+    def test_construct_run_cfg_with_none_values(self):
+        """测试构建运行配置方法 - 包含 None 值的情况"""
+        task = TAU2BenchTask(self.cfg)
+        # 添加 None 值到数据集参数
+        task.cfg["datasets"][0][0]["args"]["none_param"] = None
+        task._refresh_cfg()
+        run_cfg = task._construct_run_cfg()
+        # 验证配置是否正确构建
+        self.assertIsNotNone(run_cfg)
+
+    def test_parse_args(self):
+        """测试 parse_args 函数"""
+        from ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task import parse_args
+        # 模拟命令行参数
+        import sys
+        original_argv = sys.argv
+        try:
+            sys.argv = ["tau2_bench_task.py", "test_config.py"]
+            args = parse_args()
+            self.assertEqual(args.config, "test_config.py")
+        finally:
+            sys.argv = original_argv
+
+
 if __name__ == '__main__':
     unittest.main()
