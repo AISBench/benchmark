@@ -102,7 +102,8 @@ class TestTAU2BenchTask(unittest.TestCase):
         task = TAU2BenchTask(self.cfg)
         # 手动复制模型参数到数据集参数，模拟 _refresh_cfg 的行为
         model_params = self.cfg["models"][0]
-        dataset_args = self.cfg["datasets"][0][0]["args"]
+        # 获取 task 实例中的配置，因为 BaseTask 会深拷贝配置
+        dataset_args = task.cfg["datasets"][0][0]["args"]
 
         # 执行测试
         task._refresh_cfg()
