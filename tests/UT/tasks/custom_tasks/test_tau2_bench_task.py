@@ -140,13 +140,17 @@ class TestTAU2BenchTask(unittest.TestCase):
         # 验证 get_tasks 是否被正确调用
         mock_get_tasks.assert_called_once()
 
+    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.compute_metrics')
-    def test_dump_eval_results(self, mock_compute_metrics):
+    def test_dump_eval_results(self, mock_compute_metrics, mock_get_tasks):
         """测试导出评估结果方法"""
         # 模拟 compute_metrics 返回值
         mock_metrics = mock.MagicMock()
         mock_metrics.avg_reward = 0.8
         mock_compute_metrics.return_value = mock_metrics
+
+        # 模拟 get_tasks 返回 3 个任务
+        mock_get_tasks.return_value = [1, 2, 3]
 
         task = TAU2BenchTask(self.cfg)
         task._prepare_out_dir()
@@ -164,7 +168,7 @@ class TestTAU2BenchTask(unittest.TestCase):
         with open(expected_out_json, 'r') as f:
             results = json.load(f)
         self.assertEqual(results.get("pass^2"), 80.0)  # 0.8 * 100
-        self.assertEqual(results.get("total_count"), 0)  # 因为 get_tasks 被 mock 了
+        self.assertEqual(results.get("total_count"), 3)  # 因为 get_tasks 被 mock 为返回 3 个任务
 
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.run_domain')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.compute_metrics')
