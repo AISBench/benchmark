@@ -173,7 +173,23 @@ class TestTAU2BenchTask(unittest.TestCase):
         """测试 run 方法"""
         # 模拟依赖
         mock_get_tasks.return_value = [1, 2, 3]
-        mock_run_domain.return_value = {}
+
+        # 模拟 run_domain 函数，创建 save_to 文件并写入任务数据
+        def mock_run_domain_func(run_config):
+            # 创建 save_to 文件并写入任务数据
+            save_to_file = f"{run_config.save_to}.json"
+            os.makedirs(os.path.dirname(save_to_file), exist_ok=True)
+            with open(save_to_file, 'w') as f:
+                # 写入 3 个任务的数据，每个任务执行 2 次
+                tasks = []
+                for i in range(3):
+                    for j in range(2):
+                        tasks.append({"task_id": f"task_{i}_{j}"})
+                json.dump(tasks, f)
+            return {}
+
+        mock_run_domain.side_effect = mock_run_domain_func
+
         mock_metrics = mock.MagicMock()
         mock_metrics.avg_reward = 0.7
         mock_compute_metrics.return_value = mock_metrics
@@ -188,6 +204,7 @@ class TestTAU2BenchTask(unittest.TestCase):
         mock_compute_metrics.assert_called_once()
         # 验证任务状态更新
         self.task_state_manager.update_task_state.assert_called()
+
 
 
 if __name__ == '__main__':
