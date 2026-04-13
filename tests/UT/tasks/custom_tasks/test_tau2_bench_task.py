@@ -6,56 +6,33 @@ from unittest import mock
 from pathlib import Path
 
 # Mock litellm and tau2 modules before importing TAU2BenchTask
-mock_litellm = mock.MagicMock()
-mock_litellm.utils = mock.MagicMock()
-mock_litellm.cost_calculator = mock.MagicMock()
-
-mock_tau2 = mock.MagicMock()
-mock_tau2.data_model = mock.MagicMock()
-mock_tau2.data_model.simulation = mock.MagicMock()
-mock_tau2.data_model.simulation.RunConfig = mock.MagicMock()
-mock_tau2.run = mock.MagicMock()
-mock_tau2.run.run_domain = mock.MagicMock()
-mock_tau2.run.get_tasks = mock.MagicMock()
-mock_tau2.metrics = mock.MagicMock()
-mock_tau2.metrics.agent_metrics = mock.MagicMock()
-mock_tau2.metrics.agent_metrics.compute_metrics = mock.MagicMock()
-mock_tau2.utils = mock.MagicMock()
-mock_tau2.utils.llm_utils = mock.MagicMock()
-mock_tau2.utils.display = mock.MagicMock()
-mock_tau2.utils.display.ConsoleDisplay = mock.MagicMock()
-mock_tau2.utils.display.ConsoleDisplay.console = mock.MagicMock()
-mock_tau2.utils.display.ConsoleDisplay.console.input = mock.MagicMock(return_value="y")
-
-# Create a module for mocking
 import sys
-class MockModule:
-    pass
+from unittest import mock
 
 # Mock litellm module
-sys.modules['litellm'] = MockModule()
-sys.modules['litellm.utils'] = MockModule()
-sys.modules['litellm.cost_calculator'] = MockModule()
+sys.modules['litellm'] = mock.MagicMock()
+sys.modules['litellm.utils'] = mock.MagicMock()
+sys.modules['litellm.cost_calculator'] = mock.MagicMock()
 sys.modules['litellm.utils'].get_response_cost = mock.MagicMock()
 sys.modules['litellm.cost_calculator'].get_response_cost = mock.MagicMock()
 
 # Mock tau2 module
-sys.modules['tau2'] = MockModule()
-sys.modules['tau2.data_model'] = MockModule()
-sys.modules['tau2.data_model.simulation'] = MockModule()
+sys.modules['tau2'] = mock.MagicMock()
+sys.modules['tau2.data_model'] = mock.MagicMock()
+sys.modules['tau2.data_model.simulation'] = mock.MagicMock()
 sys.modules['tau2.data_model.simulation'].RunConfig = mock.MagicMock()
-sys.modules['tau2.run'] = MockModule()
+sys.modules['tau2.run'] = mock.MagicMock()
 sys.modules['tau2.run'].run_domain = mock.MagicMock()
 sys.modules['tau2.run'].get_tasks = mock.MagicMock()
-sys.modules['tau2.metrics'] = MockModule()
-sys.modules['tau2.metrics.agent_metrics'] = MockModule()
+sys.modules['tau2.metrics'] = mock.MagicMock()
+sys.modules['tau2.metrics.agent_metrics'] = mock.MagicMock()
 sys.modules['tau2.metrics.agent_metrics'].compute_metrics = mock.MagicMock()
-sys.modules['tau2.utils'] = MockModule()
-sys.modules['tau2.utils.llm_utils'] = MockModule()
+sys.modules['tau2.utils'] = mock.MagicMock()
+sys.modules['tau2.utils.llm_utils'] = mock.MagicMock()
 sys.modules['tau2.utils.llm_utils'].get_response_cost = mock.MagicMock()
 sys.modules['tau2.utils.llm_utils'].logger = mock.MagicMock()
 sys.modules['tau2.utils.llm_utils'].logger.error = mock.MagicMock()
-sys.modules['tau2.utils.display'] = MockModule()
+sys.modules['tau2.utils.display'] = mock.MagicMock()
 sys.modules['tau2.utils.display'].ConsoleDisplay = mock.MagicMock()
 sys.modules['tau2.utils.display'].ConsoleDisplay.console = mock.MagicMock()
 sys.modules['tau2.utils.display'].ConsoleDisplay.console.input = mock.MagicMock(return_value="y")
