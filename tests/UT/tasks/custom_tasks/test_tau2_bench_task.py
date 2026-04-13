@@ -355,7 +355,8 @@ class TestTAU2BenchTask(unittest.TestCase):
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.run_domain')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.tqdm')
-    def test_run_with_tqdm(self, mock_tqdm, mock_get_tasks, mock_run_domain):
+    @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.threading.Thread')
+    def test_run_with_tqdm(self, mock_thread, mock_tqdm, mock_get_tasks, mock_run_domain):
         """测试 _run_with_tqdm 方法"""
         # 模拟依赖
         mock_get_tasks.return_value = [1, 2, 3]
@@ -368,6 +369,10 @@ class TestTAU2BenchTask(unittest.TestCase):
         mock_tqdm_instance.__exit__.return_value = None
         mock_tqdm.return_value = mock_tqdm_instance
 
+        # 模拟线程
+        mock_thread_instance = mock.MagicMock()
+        mock_thread.return_value = mock_thread_instance
+
         task = TAU2BenchTask(self.cfg)
         task._prepare_out_dir()
         task._refresh_cfg()
@@ -376,12 +381,6 @@ class TestTAU2BenchTask(unittest.TestCase):
         task.run_config.num_trials = 2
         task.task_state_manager = self.task_state_manager
 
-        # 创建模拟的 save_to.json 文件
-        save_to_file = f"{task.run_config.save_to}.json"
-        os.makedirs(os.path.dirname(save_to_file), exist_ok=True)
-        with open(save_to_file, 'w') as f:
-            json.dump([{"task_id": "task_1"}, {"task_id": "task_2"}], f)
-
         # 执行测试
         results = task._run_with_tqdm()
 
@@ -389,6 +388,9 @@ class TestTAU2BenchTask(unittest.TestCase):
         mock_run_domain.assert_called_once()
         mock_get_tasks.assert_called_once()
         mock_tqdm.assert_called_once()
+        mock_thread.assert_called_once()
+        mock_thread_instance.start.assert_called_once()
+        mock_thread_instance.join.assert_called_once()
         self.task_state_manager.update_task_state.assert_called()
 
 
