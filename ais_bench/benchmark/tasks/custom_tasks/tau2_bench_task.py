@@ -70,7 +70,6 @@ from tau2.metrics.agent_metrics import compute_metrics
 # ================= 替换tau2中计费函数 =================
 import tau2.utils.llm_utils as tau2_llm_utils
 from tau2.utils.display import ConsoleDisplay
-import loguru
 
 _original_tau2_get_response_cost = tau2_llm_utils.get_response_cost
 _original_tau2_logger_error = tau2_llm_utils.logger.error
