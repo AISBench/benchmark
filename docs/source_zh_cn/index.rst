@@ -64,6 +64,7 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
    :hidden:
 
    extended_benchmark/lmm_generate/index
+   extended_benchmark/agent/index
 
 
 
