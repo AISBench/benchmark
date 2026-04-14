@@ -1,7 +1,7 @@
 from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
-from ais_bench.benchmark.datasets import GPQADataset, GPQA_Simple_Eval_postprocess, GPQAEvaluator
+from ais_bench.benchmark.datasets import GPQADataset, GPQA_Simple_Eval_postprocess, GPQA_MinMax_postprocess, GPQAEvaluator
 
 # openai_simple_eval prompt
 align_prompt = """
@@ -29,8 +29,13 @@ gpqa_infer_cfg = dict(
     retriever=dict(type=ZeroRetriever),
     inferencer=dict(type=GenInferencer))
 
+postprocessors_map = {
+    'simple-eval': GPQA_Simple_Eval_postprocess, # Default to using the same answer extraction method as the openai simple-eval tool
+    'minmax': GPQA_MinMax_postprocess # Special answer format extraction for MinMax series models
+}
+
 gpqa_eval_cfg = dict(evaluator=dict(type=GPQAEvaluator),
-                     pred_postprocessor=dict(type=GPQA_Simple_Eval_postprocess))
+                     pred_postprocessor=dict(type=postprocessors_map['simple-eval'] ))
 
 gpqa_datasets = []
 gpqa_subsets = {
