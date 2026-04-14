@@ -185,7 +185,7 @@ class VQAEvalMethod:
             '?',
             '!',
         ]
-        self.special_tokens = ['☞', '☟', '☜', '<unk>', '<|im_end|>']
+        self.special_tokens = ['☞', '☟', '☜', '<unk>', '<|im_end|>', '<|endoftext|>']
 
     def process_punctuation(self, in_text):
         if len(in_text) > MAX_TARGET_LENGTH:

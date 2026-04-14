@@ -42,26 +42,30 @@ class Infer(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
         def get_task_type() -> str:
             if cfg["models"][0]["attr"] == "service":
-                return get_config_type(OpenICLApiInferTask)
+                return OpenICLApiInferTask
             else:
-                return get_config_type(OpenICLInferTask)
+                return OpenICLInferTask
 
-        new_cfg = dict(
-            infer=dict(
-                partitioner=dict(type=get_config_type(NaivePartitioner)),
-                runner=dict(
-                    max_num_workers=self.args.max_num_workers,
-                    max_workers_per_gpu=self.args.max_workers_per_gpu,
-                    debug=self.args.debug,
-                    task=dict(type=get_task_type()),
-                    type=get_config_type(LocalRunner),
+        def update_new_infer_cfg(new_cfg: ConfigDict) -> None:
+            runner_cfg = new_cfg['infer']['runner']
+            runner_cfg['max_num_workers'] = self.args.max_num_workers
+            runner_cfg['max_workers_per_gpu'] = self.args.max_workers_per_gpu
+            runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
+
+        if cfg.get('infer'):
+            new_cfg = dict(infer=cfg.infer)
+        else:
+            new_cfg = dict(
+                infer=dict(
+                    partitioner=dict(type=NaivePartitioner),
+                    runner=dict(
+                        task=dict(type=get_task_type()),
+                        type=LocalRunner,
+                    ),
                 ),
-            ),
-        )
-
+            )
+        update_new_infer_cfg(new_cfg)
         cfg.merge_from_dict(new_cfg)
-        if cfg.cli_args.debug:
-            cfg.infer.runner.debug = True
         cfg.infer.partitioner["out_dir"] = osp.join(cfg["work_dir"], "predictions/")
         return cfg
 
@@ -277,26 +281,28 @@ class JudgeInfer(BaseWorker):
 
 class Eval(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
-        new_cfg = dict(
-            eval=dict(
-                partitioner=dict(type=get_config_type(NaivePartitioner)),
-                runner=dict(
-                    max_num_workers=self.args.max_num_workers,
-                    debug=self.args.debug,
-                    task=dict(type=get_config_type(OpenICLEvalTask)),
-                ),
-            ),
-        )
+        def update_eval_cfg(new_cfg: ConfigDict) -> None:
+            runner_cfg = new_cfg['eval']['runner']
+            runner_cfg['max_num_workers'] = self.args.max_num_workers
+            runner_cfg['max_workers_per_gpu'] = self.args.max_workers_per_gpu
+            runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
+            runner_cfg['task']['dump_details'] = cfg.cli_args.dump_eval_details
+            runner_cfg['task']['cal_extract_rate'] = cfg.cli_args.dump_extract_rate
 
-        new_cfg["eval"]["runner"]["type"] = get_config_type(LocalRunner)
-        new_cfg["eval"]["runner"]["max_workers_per_gpu"] = self.args.max_workers_per_gpu
+        if cfg.get('eval'):
+            new_cfg = dict(eval=cfg.eval)
+        else:
+            new_cfg = dict(
+                eval=dict(
+                    partitioner=dict(type=NaivePartitioner),
+                    runner=dict(
+                        type=LocalRunner,
+                    task=dict(type=OpenICLEvalTask),
+                ),
+            ))
+
+        update_eval_cfg(new_cfg)
         cfg.merge_from_dict(new_cfg)
-        if cfg.cli_args.dump_eval_details:
-            cfg.eval.runner.task.dump_details = True
-        if cfg.cli_args.dump_extract_rate:
-            cfg.eval.runner.task.cal_extract_rate = True
-        if cfg.cli_args.debug:
-            cfg.eval.runner.debug = True
         cfg.eval.partitioner["out_dir"] = osp.join(cfg["work_dir"], "results/")
         return cfg
 
