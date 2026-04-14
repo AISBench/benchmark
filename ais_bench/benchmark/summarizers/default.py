@@ -286,13 +286,24 @@ class DefaultSummarizer:
                 elif isinstance(item, (list, tuple)):
                     summarizer_dataset_abbrs.append((item[0], item[1]))
 
+        has_total_count = False
+        for dataset_abbr in dataset_metrics:
+            if 'total_count' in dataset_metrics[dataset_abbr]:
+                has_total_count = True
+                break
+
         table = []
         header = ['dataset', 'version', 'metric', 'mode'] + self.model_abbrs
+        if has_total_count:
+            header = ['dataset', 'version', 'metric', 'mode', 'total_count'] + self.model_abbrs
         table.append(header)
         for dataset_abbr, metric in summarizer_dataset_abbrs:
             if dataset_abbr not in dataset_metrics:
                 if not skip_all_slash:
-                    table.append([dataset_abbr, '-', '-', '-'] + ['-'] * len(self.model_abbrs))
+                    if has_total_count:
+                        table.append([dataset_abbr, '-', '-', '-', '-'] + ['-'] * len(self.model_abbrs))
+                    else:
+                        table.append([dataset_abbr, '-', '-', '-'] + ['-'] * len(self.model_abbrs))
                 continue
             if metric is None:
                 metric = dataset_metrics[dataset_abbr][0]
@@ -300,15 +311,26 @@ class DefaultSummarizer:
                 pass
             else:
                 if not skip_all_slash:
-                    table.append([dataset_abbr, '-', '-', '-'] + ['-'] * len(self.model_abbrs))
+                    if has_total_count:
+                        table.append([dataset_abbr, '-', '-', '-', '-'] + ['-'] * len(self.model_abbrs))
+                    else:
+                        table.append([dataset_abbr, '-', '-', '-'] + ['-'] * len(self.model_abbrs))
                 continue
 
+            total_count_value = '/'
+            if 'total_count' in dataset_metrics[dataset_abbr]:
+                first_model_abbr = self.model_abbrs[0]
+                if dataset_abbr in parsed_results[first_model_abbr] and 'total_count' in parsed_results[first_model_abbr][dataset_abbr]:
+                    total_count_value = str(int(parsed_results[first_model_abbr][dataset_abbr]['total_count']))
+
             row = [dataset_abbr, prompt_version.get(dataset_abbr, '-'), metric, dataset_eval_mode.get(dataset_abbr, '-')]
+            if has_total_count:
+                row.append(total_count_value)
             for model_abbr in self.model_abbrs:
                 if dataset_abbr in parsed_results[model_abbr]:
                     row.append('{:.02f}'.format(parsed_results[model_abbr][dataset_abbr][metric]))
-                    correct_count = parsed_results[model_abbr][dataset_abbr].pop('correct_count', None)
-                    total_count = parsed_results[model_abbr][dataset_abbr].pop('total_count', None)
+                    correct_count = parsed_results[model_abbr][dataset_abbr].get('correct_count', None)
+                    total_count = parsed_results[model_abbr][dataset_abbr].get('total_count', None)
                     if correct_count is not None and total_count is not None:
                         row[-1] = str(row[-1]) + f' ({correct_count}/{total_count})'
                 else:

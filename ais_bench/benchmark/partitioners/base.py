@@ -111,8 +111,8 @@ class BasePartitioner:
         filtered_tasks = []
         for task in tasks:
             mode = task.get("cli_args", {}).get("mode")
-            dataset_type = task["datasets"][0][0]["type"]
-            model_type = task["models"][0]["type"]
+            dataset_type = task["datasets"][0][0].get("type", None)
+            model_type = task["models"][0].get("type", None)
             if mode not in ["perf", "perf_viz"] and dataset_type in ONLY_PERF_DATASETS:
                 self.logger.warning(
                     f"'{dataset_type}' can only be used for performance evaluation, "

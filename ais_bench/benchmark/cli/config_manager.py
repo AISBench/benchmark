@@ -12,8 +12,8 @@ from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchC
 from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
 
 class CustomConfigChecker:
-    MODEL_REQUIRED_FIELDS = ['type', 'abbr', 'attr']
-    DATASET_REQUIRED_FIELDS = ['type', 'abbr']
+    MODEL_REQUIRED_FIELDS = ['abbr']
+    DATASET_REQUIRED_FIELDS = ['abbr']
     SUMMARIZER_REQUIRED_FIELDS = ['attr']
 
     def __init__(self, config, file_path):
@@ -106,6 +106,8 @@ class ConfigManager:
 
     def _fill_dataset_configs(self):
         for dataset_cfg in self.cfg["datasets"]:
+            if dataset_cfg.get("infer_cfg", None) is None:
+                continue
             fill_test_range_use_num_prompts(self.cfg["cli_args"].get("num_prompts"), dataset_cfg)
             fill_model_path_if_datasets_need(self.cfg["models"][0], dataset_cfg)
             retriever_cfg = dataset_cfg["infer_cfg"]["retriever"]
