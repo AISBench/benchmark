@@ -5,7 +5,7 @@ from ais_bench.benchmark.datasets import ShareGPTDataset, ShareGPTEvaluator, mat
 
 
 sharegpt_reader_cfg = dict(
-    input_columns=["question", "answer"],
+    input_columns=["question", "answer", "max_out_len"],
     output_column="answer"
 )
 
