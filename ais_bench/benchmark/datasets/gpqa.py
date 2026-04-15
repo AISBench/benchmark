@@ -113,3 +113,12 @@ def GPQA_Simple_Eval_postprocess(text: str) -> str:
     if match:
         return match.group(1)
     return None
+
+@TEXT_POSTPROCESSORS.register_module()
+def GPQA_MinMax_postprocess(text: str) -> str:
+    ANSWER_PATTERN = r'(?i)\banswer\b[ \t]*:[ \t]*(?:\*\*)?[ \t]*([A-D])\b'
+    match = re.findall(ANSWER_PATTERN, text)
+    match = match[-1] if match else None
+    if match:
+        return match
+    return None
