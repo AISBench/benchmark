@@ -30,6 +30,8 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2026.4.14\]** Integrated the authoritative large model agent evaluation benchmark τ²-Bench, supporting evaluation of dialogue, tool calling, and compliance capabilities in dual-control environments. See [Evaluate τ²-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/tau2_bench.html) for details. 🔥🔥🔥
+- **\[2026.4.10\]** Integrated the first agent evaluation benchmark SWE-Bench, supporting evaluation of agent models. See [Evaluate SWE-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench.html) for details. 🔥🔥🔥
 - **\[2026.3.10\]** Integrated the first image generation evaluation benchmark GEdit-Bench, supporting evaluation of image generation models. See [Evaluate GEdit-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/lmm_generate/gedit_bench.html) for details. 🔥🔥🔥
 - **\[2026.3.1\]** Supports integrating judge models for evaluation. See [Evaluate with Judge Models](https://ais-bench-benchmark.readthedocs.io/en/latest/advanced_tutorials/judge_model_evaluate.html). 🔥🔥🔥
 - **\[2026.1.31\]** Support for [Mooncake Trace](ais_bench/benchmark/configs/datasets/mooncake_trace/README_en.md) trace dataset performance evaluation; supports timestamp-based request scheduling, hash_id caching, and reproducible prompt generation. See the dataset README for details. 🔥🔥🔥

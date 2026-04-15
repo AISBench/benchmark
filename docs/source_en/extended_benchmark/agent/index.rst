@@ -4,3 +4,4 @@ agent evaluation benchmark
    :maxdepth: 2
 
    tau2_bench
+   swe_bench

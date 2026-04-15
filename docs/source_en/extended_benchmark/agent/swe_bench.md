@@ -12,7 +12,7 @@ SWE-bench is a benchmark for evaluating how well large language models solve rea
   - `eval`: call the SWE-bench harness to run evaluation and count resolved instances
 - Result summary: output key metrics such as `accuracy`, `submitted_accuracy`, and `resolved_instances`
 
-This directory already provides 4 example configs:
+Directory `ais_bench/configs/swe_bench_examples/` already provides 4 example configs:
 
 - `mini_swe_agent_swe_bench_lite.py`
 - `mini_swe_agent_swe_bench_verified.py`

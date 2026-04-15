@@ -29,6 +29,8 @@
 > **⭐️收藏项目**，你将能第一时间获取 AISBench评测工具 的最新动态～
 
 ## 🔥 最新进展
+- **\[2026.4.14\]** 接入大模型智能体评测基准τ²-Bench，支持双控环境下的对话、工具调用与合规能力评估，详见[在AISBench中测评τ²-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/tau2_bench.html)。 🔥🔥🔥
+- **\[2026.4.10\]** 接入首个智能体评测基准SWE-Bench， 支持对智能体模型进行评测，详见[在AISBench中测评SWE-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/swe_bench.html)。 🔥🔥🔥
 - **\[2026.3.10\]** 接入首个图像生成类评测基准GEdit-Bench， 支持对图像生成模型进行评测，详见[在AISBench中测评GEdit-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/lmm_generate/gedit_bench.html)。 🔥🔥🔥
 - **\[2026.3.1\]** 支持接入裁判模型进行评估，详见[使用裁判模型进行测评](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/judge_model_evaluate.html)。 🔥🔥🔥
 - **\[2026.1.31\]** 支持 [Mooncake Trace](ais_bench/benchmark/configs/datasets/mooncake_trace/README.md) trace 数据集性能测评，支持按时间戳调度请求、hash_id 缓存与可复现 prompt 生成，详见数据集 README。🔥🔥🔥
@@ -60,10 +62,6 @@
 - **\[2025.5.16\]** 支持3W+高并发服务化性能评测，📚 [性能指标](doc/users_guide/performance_metric.md)对齐🔗 [vllm benchmark](https://github.com/vllm-project/vllm/tree/main/benchmarks)，参考📚 [服务化性能测评指南](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/performance_benchmark.html)了解详情！🔥🔥🔥
 
 - **\[2025.4.30\]** 精度评测支持断点续测和失败用例重测，大幅提高精度评测鲁棒性，参考📚 [中断续测 & 失败用例重测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id10)进行快速上手! 🔥🔥🔥
-
-- **\[2025.4.15\]** 优化固定batch发送请求的方式为continuous batch模式发送请求，大幅提高精度评测效率! 🔥🔥🔥
-
-- **\[2025.4.12\]** 支持合并MMLU、Ceval等所有多文件数据集为单个数据集任务进行精度评测，参考📚 [合并多文件数据集](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id11)了解详情！ 🔥🔥🔥
 
 
 ## 🌏 简介
