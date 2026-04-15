@@ -1,7 +1,7 @@
 # FewCLUE_cluewsc
 中文 | [English](README_en.md)
 ## 数据集简介
-Winograd Scheme Challenge（WSC）是一类代词消歧的任务，即判断句子中的代词指代的是哪个名词。题目以真假判别的方式出现，如：  
+Winograd Scheme Challenge（WSC）是一类代词消歧的任务，即判断句子中的代词指代的是哪个名词。题目以真假判别的方式出现，如：
 句子：这时候放在[床]上[枕头]旁边的[手机]响了，我感到奇怪，因为欠费已被停机两个月，现在[它]突然响了。需要判断“它”指代的是“床”、“枕头”，还是“手机”？
 从中国现当代作家文学作品中抽取，再经语言专家人工挑选、标注。
 
@@ -14,7 +14,7 @@ Winograd Scheme Challenge（WSC）是一类代词消歧的任务，即判断句�
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir -p FewCLUE/cluewsc/
 cp -r OpenCompassData-core-20240207/data/FewCLUE/cluewsc/* FewCLUE/cluewsc/
 rm -r OpenCompassData-core-20240207/

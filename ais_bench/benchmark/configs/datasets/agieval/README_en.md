@@ -12,7 +12,7 @@ AGIEval is a new benchmark designed specifically for evaluating foundation model
 # Inside the Linux server, at the tool root path
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir agieval/
 cp -r OpenCompassData-core-20240207/data/AGIEval/data/v1/* agieval/
 rm -r OpenCompassData-core-20240207/

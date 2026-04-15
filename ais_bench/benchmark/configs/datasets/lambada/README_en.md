@@ -12,7 +12,7 @@ The LAMBADA (Language Modeling Broadened to Account for Discourse Aspects) datas
 # Within the Linux server, under the tool root path
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir lambada/
 cp -r OpenCompassData-core-20240207/data/lambada/* lambada/
 rm -r OpenCompassData-core-20240207/

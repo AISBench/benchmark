@@ -163,7 +163,7 @@ The query result will look like this:
 
 ```
 
-- In the Quick Start section, the dataset task configuration file `textvqa_gen.py` does not require any additional modifications. The content introduction of the dataset task configuration file can be referred to📚 [Configuring Open-Source Datasets](../base_tutorials/all_params/datasets.md#configuring-open-source-datasets)
+- In the Quick Start section, the dataset task configuration file `textvqa_gen.py` does not require any additional modifications. The content introduction of the dataset task configuration file can be referred to📚 [Configuring Open-Source Datasets](../get_started/datasets.md#configuring-open-source-datasets)
 
 - The model configuration file `vllm_api_stream_chat.py` contains the configuration content related to model operation and needs to be modified according to the actual situation. The contents that need to be modified in the quick start are marked with comments.
 ```python

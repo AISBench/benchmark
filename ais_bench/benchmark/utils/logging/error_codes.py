@@ -10,6 +10,7 @@ class ErrorModule(Enum):
     TASK = "TASK"                                # Task
     TASK_INFER = "TINFER"                        # inference Task
     TASK_EVALUATE = "TEVAL"                      # evaluate Task
+    SWEBENCH = "SWEB"                            # swebench task/dataset
     TASK_MONITOR = "TMON"                        # TaskMonitor
     TASK_STATUS_MANAGER = "TSMAN"                # TaskStateManager
     ICL_INFERENCER = "ICLI"                      # icl_inferencer
@@ -40,7 +41,7 @@ class ErrorType(Enum):
     TASK = "TASK"     # task error type
 
 class BaseErrorCode:
-    FAQ_BASE_URL = "https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/faqs/error_codes.html#"
+    FAQ_BASE_URL = "https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/faqs/error_codes.html#"
 
     def __init__(self, code_name: str, module: ErrorModule, err_type: ErrorType, code: int,
                  message: str):
@@ -136,11 +137,33 @@ class TINFER_CODES:
     INVALID_RAMP_UP_STRATEGY = BaseErrorCode("TINFER-PARAM-004", ErrorModule.TASK_INFER, ErrorType.PARAM, 4, "invalid ramp up strategy") # docs coverd
     VIRTUAL_MEMORY_USAGE_TOO_HIGH = BaseErrorCode("TINFER-PARAM-005", ErrorModule.TASK_INFER, ErrorType.PARAM, 5, "virtual memory usage too high") # docs coverd
     WARMUP_FAILED = BaseErrorCode("TINFER-RUNTIME-001", ErrorModule.TASK_INFER, ErrorType.RUNTIME, 1, "warmup failed")
+    NO_TIMESTAMPS_ERROR = BaseErrorCode("TINFER-PARAM-006", ErrorModule.TASK_INFER, ErrorType.PARAM, 6, "no timestamps found in datasets") # docs coverd
 
 
 class TEVAL_CODES:
     UNKNOWN_ERROR = BaseErrorCode("TEVAL-UNK-001", ErrorModule.TASK_EVALUATE, ErrorType.UNKNOWN, 1, "unknown error of evaluate task")
     N_K_ILLEGAL = BaseErrorCode("TEVAL-PARAM-001", ErrorModule.TASK_EVALUATE, ErrorType.PARAM, 1, "n and k parameters illegal") # docs coverd
+
+
+class SWEB_CODES:
+    UNKNOWN_ERROR = BaseErrorCode("SWEB-UNK-001", ErrorModule.SWEBENCH, ErrorType.UNKNOWN, 1, "unknown error of swebench workflow")
+
+    MINISWEAGENT_IMPORT_ERROR = BaseErrorCode("SWEB-DEPENDENCY-001", ErrorModule.SWEBENCH, ErrorType.DEPENDENCY, 1, "mini-swe-agent dependency import error")
+    SWEBENCH_HARNESS_IMPORT_ERROR = BaseErrorCode("SWEB-DEPENDENCY-002", ErrorModule.SWEBENCH, ErrorType.DEPENDENCY, 2, "SWE-bench harness dependency import error")
+
+    MODEL_NOT_SET = BaseErrorCode("SWEB-PARAM-001", ErrorModule.SWEBENCH, ErrorType.PARAM, 1, "model is not configured for swebench inference")
+    INVALID_DATASET_NAME = BaseErrorCode("SWEB-PARAM-002", ErrorModule.SWEBENCH, ErrorType.PARAM, 2, "invalid swebench dataset name")
+
+    PREDICTION_IDS_NOT_FOUND = BaseErrorCode("SWEB-DATA-001", ErrorModule.SWEBENCH, ErrorType.DATA, 1, "prediction ids are not found in swebench dataset")
+    HF_DATASET_LOAD_FAILED = BaseErrorCode("SWEB-DATA-002", ErrorModule.SWEBENCH, ErrorType.DATA, 2, "failed to load swebench dataset from Hugging Face")
+    LOCAL_PARQUET_LOAD_FAILED = BaseErrorCode("SWEB-DATA-003", ErrorModule.SWEBENCH, ErrorType.DATA, 3, "failed to load local swebench parquet dataset")
+
+    PREDICTIONS_FILE_NOT_FOUND = BaseErrorCode("SWEB-FILE-001", ErrorModule.SWEBENCH, ErrorType.FILE, 1, "predictions file not found for swebench evaluation")
+    LOCAL_PATH_RESOLVE_FAILED = BaseErrorCode("SWEB-FILE-002", ErrorModule.SWEBENCH, ErrorType.FILE, 2, "failed to resolve local swebench dataset path")
+    LOCAL_PARQUET_NOT_FOUND = BaseErrorCode("SWEB-FILE-003", ErrorModule.SWEBENCH, ErrorType.FILE, 3, "local swebench parquet file not found")
+
+    DOCKER_IMAGE_UNAVAILABLE = BaseErrorCode("SWEB-RUNTIME-001", ErrorModule.SWEBENCH, ErrorType.RUNTIME, 1, "required swebench docker image is unavailable")
+    HARNESS_RUNTIME_FAILED = BaseErrorCode("SWEB-RUNTIME-002", ErrorModule.SWEBENCH, ErrorType.RUNTIME, 2, "SWE-bench harness runtime failed")
 
 
 class ICLI_CODES:
@@ -274,6 +297,7 @@ class DSET_CODES:
     # Parameter related errors
     INVALID_REPEAT_FACTOR = BaseErrorCode("DSET-PARAM-002", ErrorModule.DATASET, ErrorType.PARAM, 2, "invalid repeat factor") # docs coverd
     INVALID_PARAM_VALUE = BaseErrorCode("DSET-PARAM-004", ErrorModule.DATASET, ErrorType.PARAM, 4, "invalid parameter value") # docs coverd
+    MISSING_REQUIRED_PARAM = BaseErrorCode("DSET-PARAM-005", ErrorModule.DATASET, ErrorType.PARAM, 5, "missing required parameter") # docs coverd
 
     # Dependency related errors
     EVALUATION_LIBRARY_NOT_INSTALLED = BaseErrorCode("DSET-DEPENDENCY-002", ErrorModule.DATASET, ErrorType.DEPENDENCY, 2, "evaluation library not installed") # docs coverd
@@ -292,6 +316,7 @@ ERROR_CODES_CLASSES = [
     TSMAN_CODES,
     TINFER_CODES,
     TEVAL_CODES,
+    SWEB_CODES,
     ICLI_CODES,
     ICLE_CODES,
     ICLR_CODES,

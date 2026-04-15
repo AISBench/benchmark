@@ -1,0 +1,47 @@
+name: Prevent Issue Close with not_fixed Label
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  prevent-close:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check not_fixed label and reopen if needed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = issue.labels.map(label => label.name.toLowerCase());
+            const issueNumber = issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // 检查是否存在 not_fixed 标签
+            if (labels.includes('not_fixed')) {
+              console.log(`Issue #${issueNumber} has 'not_fixed' label, preventing closure...`);
+
+              // 重新打开 issue
+              await github.rest.issues.update({
+                owner: owner,
+                repo: repo,
+                issue_number: issueNumber,
+                state: 'open'
+              });
+
+              // 添加评论说明
+              await github.rest.issues.createComment({
+                owner: owner,
+                repo: repo,
+                issue_number: issueNumber,
+                body: `⚠️ **此 Issue 无法关闭**\n\n该 Issue 带有 \`not_fixed\` 标签，表示问题尚未完全解决。\n\n修复此问题的 PR 可能已经合入，请 @${issue.user.login} 验证后移除 \`not_fixed\` 标签并手动关闭此 Issue。`
+              });
+
+              console.log(`Issue #${issueNumber} has been reopened due to 'not_fixed' label`);
+            } else {
+              console.log(`Issue #${issueNumber} does not have 'not_fixed' label, allowing closure`);
+            }

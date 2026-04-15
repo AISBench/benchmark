@@ -1,6 +1,8 @@
 from typing import List, Tuple, Union
 import os
 import json
+import mmap
+import orjson
 import fnmatch
 import tabulate
 
@@ -20,11 +22,11 @@ logger = AISLogger()
 
 def write_status(file_path, status):
     """Write status to a JSON file, appending to existing content.
-    
+
     Args:
         file_path: Path to the status file
         status: Status data to append
-        
+
     Returns:
         bool: True if successful, False otherwise
     """
@@ -54,7 +56,6 @@ def write_status(file_path, status):
     try:
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(existing_data, f)
-        logger.debug(f"Successfully wrote status to '{file_path}' ({len(existing_data)} total statuses)")
         return True
     except IOError as e:
         logger.warning(f"Failed to write status to '{file_path}': {e}")
@@ -63,11 +64,11 @@ def write_status(file_path, status):
 
 def read_and_clear_statuses(tmp_file_dir, tmp_file_name_list):
     """Read all task statuses and clear temporary files.
-    
+
     Args:
         tmp_file_dir: Directory containing temporary status files
         tmp_file_name_list: List of temporary file names to process
-        
+
     Returns:
         list: List of all task statuses, empty list if error occurs
     """
@@ -77,22 +78,22 @@ def read_and_clear_statuses(tmp_file_dir, tmp_file_name_list):
 
     abs_path_list = [os.path.join(tmp_file_dir, tmp_file_name) for tmp_file_name in tmp_file_name_list]
     all_status = []
-    
+
     logger.debug(f"Reading and clearing {len(abs_path_list)} status files from '{tmp_file_dir}'")
-    
+
     for tmp_file in abs_path_list:
         try:
             # read existing content
             with open(tmp_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
+
             status_count = len(data)
             all_status.extend(data)
-            
+
             # clear file content
             with open(tmp_file, 'w', encoding='utf-8') as f:
                 json.dump([], f)
-            
+
             logger.debug(f"Read {status_count} statuses from '{tmp_file}' and cleared file")
 
         except json.JSONDecodeError as e:
@@ -105,7 +106,7 @@ def read_and_clear_statuses(tmp_file_dir, tmp_file_name_list):
                     json.dump([], f)
             except IOError as write_err:
                 logger.warning(f"Failed to clear corrupted file '{tmp_file}': {write_err}")
-                
+
         except IOError as e:
             logger.warning(
                 f"Failed to read status file '{tmp_file}': {e}. "
@@ -116,7 +117,7 @@ def read_and_clear_statuses(tmp_file_dir, tmp_file_name_list):
                     json.dump([], f)
             except IOError as write_err:
                 logger.warning(f"Failed to clear unreadable file '{tmp_file}': {write_err}")
-    
+
     logger.debug(f"Total statuses collected: {len(all_status)}")
     return all_status
 
@@ -125,12 +126,12 @@ def match_files(path: str,
                 pattern: Union[str, List],
                 fuzzy: bool = False) -> List[Tuple[str, str]]:
     """Match files in directory based on pattern(s).
-    
+
     Args:
         path: Directory path to search
         pattern: Single pattern string or list of patterns to match
         fuzzy: If True, wraps patterns with wildcards (*pattern*)
-        
+
     Returns:
         List of tuples (filename_without_ext, full_path), sorted by filename
     """
@@ -138,9 +139,9 @@ def match_files(path: str,
         pattern = [pattern]
     if fuzzy:
         pattern = [f'*{p}*' for p in pattern]
-    
+
     logger.debug(f"Searching for files in '{path}' with patterns: {pattern} (fuzzy={fuzzy})")
-    
+
     files_list = []
     for root, _, files in os.walk(path):
         for name in files:
@@ -159,14 +160,14 @@ def match_cfg_file(workdir: Union[str, List[str]],
 
     Additionally, if the pattern itself points to an existing file, it will be
     directly returned.
-    
+
     Args:
         workdir: Single directory path or list of directory paths to search
         pattern: Single pattern string or list of patterns to match (auto-appends .py)
-        
+
     Returns:
         List of tuples (filename_without_ext, full_path) for matched config files
-        
+
     Raises:
         FileMatchError: If patterns match 0 or more than 1 config file
     """
@@ -181,9 +182,9 @@ def match_cfg_file(workdir: Union[str, List[str]],
     if isinstance(pattern, str):
         pattern = [pattern]
     pattern = [p + '.py' if not p.endswith('.py') else p for p in pattern]
-    
+
     logger.debug(f"Matching config files in {workdir} with patterns: {[p[:-3] for p in pattern]}")
-    
+
     files = _mf_with_multi_workdirs(workdir, pattern, fuzzy=False)
     if len(files) != len(pattern):
         nomatched = []
@@ -228,3 +229,30 @@ def check_mm_custom(path):
             if line["type"] not in ["image", "video", "audio"]:
                 return False
     return True
+
+def load_jsonl(path: str) -> List[dict]:
+    """Load JSONL file into a list of dictionaries.
+
+    Args:
+        path: Path to the JSONL file
+
+    Returns:
+        List of dictionaries, each representing a line in the JSONL file
+    """
+    preds = []
+    with open(path, "rb") as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            for line in iter(mm.readline, b""):
+                preds.append(orjson.loads(line))
+    return preds
+
+def dump_jsonl(data: List[dict], path: str):
+    """Dump a list of dictionaries to a JSONL file.
+
+    Args:
+        data: List of dictionaries to be dumped
+        path: Path to the output JSONL file
+    """
+    with open(path, 'wb') as f:
+        for item in data:
+            f.write(orjson.dumps(item) + b'\n')

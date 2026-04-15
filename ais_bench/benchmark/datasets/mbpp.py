@@ -225,7 +225,7 @@ class MBPPEvaluator(BaseEvaluator):
                 DSET_CODES.INVALID_MBPP_METRIC,
                 f"MBPP evaluator metric must be 'MBPP' or 'MBPPPlus', got '{self.metric}'"
             )
-        super.__init__()
+        super().__init__()
 
     def score(self, predictions, references):
         if len(predictions) != len(references):
@@ -397,13 +397,13 @@ def execution(programs, task_id, timeout):
                     exec(programs, exec_globals)
             key.append('pass')
         except TimeOutException:
-            logger.debug(f"Program execution timeout for index {index}")
+            logger.debug(f"Program execution timeout for task_id {task_id}")
             key.append('timeout')
         except AssertionError as e:
-            logger.debug(f"Program assertion failed for index {index}: {e}")
+            logger.debug(f"Program assertion failed for task_id {task_id}: {e}")
             key.append('wrong_answer')
         except BaseException as e:
-            logger.debug(f"Program execution failed for index {index}: {e}")
+            logger.debug(f"Program execution failed for task_id {task_id}: {e}")
             key.append('failed')
 
     manager = multiprocessing.Manager()
@@ -428,10 +428,11 @@ class MBPPPassKEvaluator(MBPPEvaluator):
         k(Tuple[int]): Choices of Pass@k. Defaults to (1, 10, 100)
     """
 
-    def __init__(self, k=(1, 10, 100)) -> None:
+    def __init__(self, k=(1, 10, 100), metric: str = 'MBPP') -> None:
         if not isinstance(k, Sequence):
             k = (k, )
         self.k = k
+        super().__init__(metric=metric)
 
     @staticmethod
     def estimate_pass_at_k(

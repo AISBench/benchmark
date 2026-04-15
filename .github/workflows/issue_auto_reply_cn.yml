@@ -1,0 +1,92 @@
+name: Issue 自动回复
+on:
+  issues:
+    types: [opened]  # 仅监听 Issue 新建事件
+
+permissions:
+  issues: write
+
+jobs:
+  auto-reply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 根据标签回复 Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 获取 Issue 信息和标签列表
+            const issue = context.payload.issue;
+            const issueTitle = issue.title;
+            const labels = issue.labels.map(label => label.name.toLowerCase());
+            const issueNumber = issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // 检测标题是否包含中文字符
+            const hasChinese = /[\u4e00-\u9fa5]/.test(issueTitle);
+
+            // 如果标题不包含中文字符，跳过自动回复
+            if (!hasChinese) {
+              console.log(`Issue #${issueNumber} 标题不包含中文字符，跳过自动回复`);
+              return;
+            }
+
+            // 定义不同标签对应的回复内容
+            const replyMap = {
+              bug: `🌟欢迎给AISBench benchmark测评工具提issue，您可以先尝试以下途径寻求issue的解决方法：
+              1. 【强烈推荐❤️‍🔥】确保issue描述完整后，可以试着将issue交给[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)回答，deepwiki包含了和工具相关的所有知识库
+              2. 在 [工具历史issue](https://github.com/AISBench/benchmark/issues/) 中通过问题的关键日志片段或关键词检索相似issue
+              3. 在 [官方文档](https://ais-bench-benchmark.readthedocs.io/zh_cn/latest/) 的**搜索栏**中通过问题的关键日志片段或关键词检索
+              4. 寻求仓库维护者的帮助（issue评论区中 @SJTUyh）`,
+              question: `🌟欢迎给AISBench benchmark测评工具提issue，您可以先尝试以下途径寻求issue的解决方法：
+              1. 【强烈推荐❤️‍🔥】确保issue描述完整后，可以试着将issue交给[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)回答，deepwiki包含了和工具相关的所有知识库
+              2. 在 [工具历史issue](https://github.com/AISBench/benchmark/issues/) 中通过问题的关键日志片段或关键词检索相似issue
+              3. 在 [官方文档](https://ais-bench-benchmark.readthedocs.io/zh_cn/latest/) 的**搜索栏**中通过问题的关键日志片段或关键词检索
+              4. 寻求仓库维护者的帮助（issue评论区中 @SJTUyh）`,
+              enhancement: `🌟欢迎给AISBench benchmark测评工具提新特性诉求，请确保在issue中描述清晰，以便仓库维护者能准确理解您的诉求。对于新特性诉求仓库维护者一般会在3天内给您答复。`,
+              documentation: `🙏感谢您发现AISBench benchmark测评工具的文档漏洞，请确保在issue中描述清晰文档问题，以便我们能更快修复文档。对于文档漏洞仓库维护者一般会在1天内给您答复。`
+            };
+
+            // 遍历标签，匹配并发送对应回复（多标签时优先按 bug→question→enhancement→documentation 顺序）
+            let replyContent = '';
+            if (labels.includes('bug')) {
+              replyContent = replyMap.bug;
+            } else if (labels.includes('question')) {
+              replyContent = replyMap.question;
+            } else if (labels.includes('enhancement')) {
+              replyContent = replyMap.enhancement;
+            } else if (labels.includes('documentation')) {
+              replyContent = replyMap.documentation;
+            } else {
+              replyContent = `🌟欢迎给AISBench benchmark测评工具提issue，我们会尽快处理您的诉求~`;
+            }
+
+            // 有匹配标签时发送回复
+            await github.rest.issues.createComment({
+              owner: owner,
+              repo: repo,
+              issue_number: issueNumber,
+              body: replyContent
+            });
+            console.log(`已为 Issue #${issueNumber} 发送自动回复（标签：${labels.join(', ')}）`);
+
+            // 根据标签指派Issue
+            if (labels.includes('enhancement')) {
+              // 当标签为enhancement时，指派给Keithwwa和SJTUyh
+              await github.rest.issues.update({
+                owner: owner,
+                repo: repo,
+                issue_number: issueNumber,
+                assignees: ['Keithwwa', 'SJTUyh']
+              });
+              console.log(`已将 Issue #${issueNumber} 指派给 Keithwwa 和 SJTUyh（enhancement标签）`);
+            } else if (labels.includes('documentation')) {
+              // 当标签为documentation时，指派给SJTUyh
+              await github.rest.issues.update({
+                owner: owner,
+                repo: repo,
+                issue_number: issueNumber,
+                assignees: ['SJTUyh']
+              });
+              console.log(`已将 Issue #${issueNumber} 指派给 SJTUyh（documentation标签）`);
+            }

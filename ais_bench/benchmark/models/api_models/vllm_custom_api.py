@@ -89,18 +89,28 @@ class VLLMCustomAPI(BaseAPIModel):
             stream=self.stream,
         )
         request_body = request_body | generation_kwargs
+        if self.stream:
+            request_body["stream_options"] = {"include_usage": True}
         return request_body
+
+    async def _parse_usage(self, json_content: dict, output: Output):
+        if json_content.get("usage"):
+            output.input_tokens = json_content["usage"].get("prompt_tokens", 0)
+            output.output_tokens = json_content["usage"].get("completion_tokens", 0)
 
     async def parse_text_response(self, api_response: dict, output: Output):
         generated_text = api_response.get("choices", [{}])[0].get("text", "")
         output.content = generated_text
+        await self._parse_usage(api_response, output)
         self.logger.debug(f"Output content: {output.content}")
 
     async def parse_stream_response(self, api_response: dict, output: Output):
+        generated_text = ""
         if len(api_response.get("choices", [])) > 0:
             generated_text = api_response["choices"][0]["text"]
         if generated_text:
             output.content += generated_text
+        await self._parse_usage(api_response, output)
 
     async def get_ppl_request_body(self, input_data:PromptType, max_out_len: int, output: PPLRequestOutput, **args):
         request_body = await self.get_request_body(input_data, max_out_len, output, **args)

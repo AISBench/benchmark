@@ -7,7 +7,7 @@ body:
     id: location
     attributes:
       label: 文档位置（可指定多个文档链接）
-      placeholder: 例：https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/get_started/install.html
+      placeholder: 例：https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/get_started/install.html
     validations:
       required: true
   - type: textarea
@@ -30,4 +30,5 @@ body:
     attributes:
       label: 附加信息
       description: 相关代码/截图/用户反馈等（拖拽上传图片）
+    validations:
       required: false

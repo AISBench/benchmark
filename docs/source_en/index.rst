@@ -19,6 +19,7 @@ To help you quickly get started with AISBench Benchmark Tool, we recommend learn
 
 * For users who want to use AISBench Benchmark Tool, it is recommended to first read the :doc:`Installation Guide <get_started/install>` to ensure correct environment configuration.
 * The :doc:`Quick Start <get_started/quick_start>` provided in this tutorial will guide you through basic accuracy evaluation configuration and execution.
+* The :doc:`Dataset Preparation Guide <get_started/datasets>` will help you understand the supported datasets and how to prepare them for evaluation.
 * The Basic Tutorial section will introduce :doc:`Evaluation Scenario Introduction <base_tutorials/scenes_intro/index>`, :doc:`Evaluation Result Explanation <base_tutorials/results_intro/index>`, and :doc:`Detailed Parameter Description <base_tutorials/all_params/index>` to help you better understand the use of major evaluation scenarios.
 * For a deeper understanding of advanced usage of AISBench Benchmark Tool, you can refer to the :doc:`Advanced Tutorial <advanced_tutorials/run_custom_config>`.
 * You can refer to the :doc:`Best Practices <best_practices/practice_nvidia>` section to learn best practices for using AISBench Benchmark Tool in different scenarios.
@@ -31,6 +32,7 @@ To help you quickly get started with AISBench Benchmark Tool, we recommend learn
 
    get_started/install
    get_started/quick_start
+   get_started/datasets
 
 .. toctree::
    :maxdepth: 1
@@ -52,6 +54,14 @@ To help you quickly get started with AISBench Benchmark Tool, we recommend learn
    advanced_tutorials/multiturn_benchmark
    advanced_tutorials/synthetic_dataset
    advanced_tutorials/custom_dataset
+   advanced_tutorials/judge_model_evaluate
+
+.. toctree::
+   :maxdepth: 2
+   :caption: 📐 Extended Benchmarks
+   :hidden:
+
+   extended_benchmark/lmm_generate/index
 
 .. toctree::
    :maxdepth: 2
@@ -60,6 +70,7 @@ To help you quickly get started with AISBench Benchmark Tool, we recommend learn
 
    best_practices/practice_nvidia
    best_practices/practice_ascend
+   best_practices/replicate_llm_datasets_accuracy
 
 .. toctree::
    :maxdepth: 2

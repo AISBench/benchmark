@@ -7,6 +7,7 @@ models = [
         abbr="mindie-stream-api",
         path="",
         request_rate=0,
+        use_timestamp=False,
         retry=2,
         host_ip="localhost",
         host_port=8080,

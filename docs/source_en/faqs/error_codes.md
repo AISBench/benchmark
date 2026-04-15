@@ -394,7 +394,7 @@ This indicates that all requests during the inference process failed. You need t
 ### Error Description
 When calculating steady-state performance metrics, no requests belonging to the steady state were found among all request information, and steady-state metrics cannot be calculated.
 ### Solution
-You can check the concurrency graph of inference requests (reference document: https://ais-bench-benchmark-rf.readthedocs.io/en/latest/base_tutorials/results_intro/performance_visualization.html) to confirm whether the `Request Concurrency Count` in the concurrency step graph reaches the concurrency number set in the model configuration file (the `batch_size` parameter) **and at least two requests reach the maximum concurrency number**.
+You can check the concurrency graph of inference requests (reference document: https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/results_intro/performance_visualization.html) to confirm whether the `Request Concurrency Count` in the concurrency step graph reaches the concurrency number set in the model configuration file (the `batch_size` parameter) **and at least two requests reach the maximum concurrency number**.
 
 If the above conditions are not met, you can try the following methods to achieve a steady state:
 
@@ -508,6 +508,25 @@ Virtual memory usage too high: 90% > 80% (Total memory: 50 GB "Used: 45 GB, Avai
 It indicates that the current system memory is 50GB, with 45GB used and 5GB available, while the dataset requires 3000MB of memory, thus triggering this error. Solutions are divided into two cases:
 1. If the total system memory is insufficient, increase the system memory.
 2. If the total system memory is sufficient but the memory required by the dataset is greater than the available memory, clear the occupied memory or cache on the current server.
+
+## TINFER-PARAM-006
+### Error Description
+No timestamps found in datasets, but `use_timestamp` is True! Make sure your dataset contains `timestamp` field or set `use_timestamp` to False in model config.
+### Solution
+If the error log is `No timestamps found in datasets, but `use_timestamp` is True! Make sure your dataset contains `timestamp` field or set `use_timestamp` to False in model config.`, it means the dataset configuration file does not contain the `timestamp` field, but the `use_timestamp` parameter in the model configuration file is True. You need to set the `use_timestamp` parameter in the model configuration file to False.
+
+Example:
+```python
+# In vllm_stream_api_chat.py
+models = [
+    dict(
+        attr="service",
+        # ......
+        use_timestamp=False,
+        # ......
+    ),
+]
+```
 
 ## TINFER-IMPL-001
 ### Error Description
@@ -1186,6 +1205,7 @@ The dataset file does not exist.
 1. If the error message is `Path is not a directory or Parquet file: /path/to/dataset.jsonl`, it means `/path/to/dataset.jsonl` is not a dataset in the required `.parquet` format. Please confirm that the dataset format meets expectations.
 2. If the error message is `No Parquet file found in /path/to/dataset/.`, it means no `.parquet` format dataset is found in the path `/path/to/dataset/`. Please confirm that the dataset format meets expectations.
 3. If the error message is `"Dataset file not found: /path/to/dataset/`, it means the dataset path `/path/to/dataset/` itself does not exist. Please confirm that the dataset path matches the expected input path.
+4. If the error message is `Corpus file not found. Please ensure {DEFAULT_CORPUS_FILE} exists in one of: [...]` when using the mooncake_trace dataset, the required corpus file was not found. Place `assets/shakespeare.txt` under **`ais_bench/third_party/aiperf/assets/shakespeare.txt`** (relative to the ais_bench package root), or under one of the paths listed in the error message.
 
 ## DSET-DATA-002
 ### Error Description
@@ -1233,7 +1253,24 @@ aime2024_datasets = [
 ### Error Description
 Invalid parameters in the dataset configuration file.
 ### Solution
-Please check for invalid parameter value issues in the dataset configuration file based on the detailed error message.
+Please check for invalid parameter value issues in the dataset configuration file based on the detailed error message. Typical scenarios for mooncake_trace / timestamp-based scheduling:
+1. **timestamp**: The `timestamp` field in trace data must be of type float or int and >= 0; otherwise an error is raised with a type or range message.
+2. **hash_ids and input_length incompatible**: When the error message contains `Input length: ..., Hash IDs: ..., Block size: 512 ... Final block size: ... must be > 0 and <= 512`, ensure `(len(hash_ids)-1)*512+1 <= input_length <= len(hash_ids)*512`.
+3. **fixed_schedule parameters**: When `fixed_schedule_end_offset >= 0`, `fixed_schedule_start_offset` must be <= `fixed_schedule_end_offset`.
+
+## DSET-PARAM-005
+### Error Description
+Required parameters are missing during dataset loading or processing.
+### Solution
+Check and supply the missing required parameters according to the detailed error message. For example:
+1. If the error is `mean must be provided`, when using the mooncake_trace dataset you must provide the `mean` parameter (via the trace's `input_length` field) for prompt generation.
+2. If the error is `Either 'input_text' or 'input_length' must be provided`, in a **single JSONL record** of mooncake trace data, you must provide the `input_length` field when `input_text` is not provided.
+
+## DSET-UNK-001
+### Error Description
+Unknown error of the dataset or a dependent component due to incorrect initialization.
+### Solution
+If the error is **"RNG manager not initialized. Call init_rng() first."**, the mooncake_trace prompt generator called `derive_rng` before `init_rng` was called. Normal loading via `MooncakeTraceDataset.load()` calls `init_rng(random_seed)` automatically; this error usually occurs when calling lower-level APIs or in tests without proper initialization order. Ensure `init_rng(seed)` is called before any RNG-dependent generation logic.
 
 ## DSET-DEPENDENCY-002
 ### Error Description
@@ -1258,3 +1295,97 @@ If you need to resolve this issue, [please submit an issue](https://github.com/A
 No direct solution is available at this time.
 ### Solution
 If you need to resolve this issue, [please submit an issue](https://github.com/AISBench/benchmark/issues) and include this error code in the issue description.
+
+## SWEB-DEPENDENCY-001
+### Error Description
+`mini-swe-agent` dependency is missing when running SWEBench infer, so task initialization fails.
+### Solution
+Install the dependency and retry:
+```bash
+pip install mini-swe-agent
+```
+If you use a virtual environment, make sure `ais_bench` and `mini-swe-agent` are installed in the same Python environment.
+
+## SWEB-DEPENDENCY-002
+### Error Description
+SWE-bench harness dependency is missing when running SWEBench eval.
+### Solution
+Install the harness from the official repository, then retry:
+```bash
+git clone https://github.com/SWE-bench/SWE-bench.git
+cd SWE-bench
+pip install -e .
+```
+
+## SWEB-PARAM-001
+### Error Description
+No valid model config is detected for SWEBench infer (required fields like `model/url/api_key` are missing or empty).
+### Solution
+Check `models[0]` in your task config and provide at least:
+1. `model`, for example `hosted_vllm/qwen3`
+2. `url`, for example `http://127.0.0.1:2998/v1`
+3. `api_key`, `EMPTY` is acceptable for local tests
+
+## SWEB-PARAM-002
+### Error Description
+Invalid SWEBench dataset name that is not in the supported name set.
+### Solution
+Set dataset `name` to one of: `full`, `verified`, `lite`, `multilingual`.
+
+## SWEB-DATA-001
+### Error Description
+Prediction input contains `instance_id` values that do not exist in the current dataset.
+### Solution
+Ensure the prediction file and eval dataset are fully aligned:
+1. Run infer and eval with the same dataset config.
+2. Check whether `instance_id` entries in predictions were manually changed or mixed from another run.
+
+## SWEB-DATA-002
+### Error Description
+Failed to load SWEBench dataset from Hugging Face online source.
+### Solution
+Check network connectivity and Hugging Face access first. If your environment is restricted, download parquet files manually and configure a local `path`.
+
+## SWEB-DATA-003
+### Error Description
+Failed to read or parse local SWEBench parquet files.
+### Solution
+Validate local data integrity and format:
+1. Confirm files are valid parquet files.
+2. Confirm file naming matches the target `split` (for example `test-*.parquet`).
+3. Re-download or re-export corrupted files and retry.
+
+## SWEB-FILE-001
+### Error Description
+Prediction file is missing during SWEBench eval (`*.json` or `preds.json` not found).
+### Solution
+Run infer successfully before eval, and confirm prediction files exist under `work_dir/predictions` for the target model.
+
+## SWEB-FILE-002
+### Error Description
+Local SWEBench dataset path resolution failed (path does not exist or is not accessible).
+### Solution
+Check whether `path` in config is correct, and verify the current user has read permission for that directory/file.
+
+## SWEB-FILE-003
+### Error Description
+No parquet file for the target split is found under the local dataset path.
+### Solution
+Ensure one of the following exists:
+1. `<root>/data/<split>-*.parquet`
+2. `<root>/<split>-*.parquet`
+For single-file use cases, `path` can point directly to that parquet file.
+
+## SWEB-RUNTIME-001
+### Error Description
+Required Docker image for SWEBench is unavailable locally and pulling failed.
+### Solution
+Check Docker daemon status and network, then run `docker pull` for the image shown in logs. Retry after image is available.
+
+## SWEB-RUNTIME-002
+### Error Description
+Runtime error occurs during SWEBench execution (for example harness execution failure or future task exception).
+### Solution
+Use detailed logs to triage:
+1. Check dependency installation, Docker availability, and prediction file format first.
+2. If it persists, keep full logs and open an issue with the error code: <https://github.com/AISBench/benchmark/issues>.

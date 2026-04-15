@@ -12,7 +12,7 @@ AGIEval—是一个专为评估基础模型而设计的新型基准测试，其�
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
-unzip OpenCompassData-core-20240207.zip
+unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir agieval/
 cp -r OpenCompassData-core-20240207/data/AGIEval/data/v1/* agieval/
 rm -r OpenCompassData-core-20240207/

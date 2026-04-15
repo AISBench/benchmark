@@ -1,0 +1,13 @@
+case_type: benchmark
+case_group: # 用例属于的用例组，必须包含用例的一级和二级目录名称，冒烟框架中指定用例组就可以跑所有用例组中的case
+  - run_server_accuracy
+  - run_with_reuse
+  - short
+  - refactor_success_1202
+case_name: default_kill_gsm8k
+enable: y
+script:
+  start: run.sh # 启动时运行的脚本名
+  end: clean.sh # 结束时清理资源的脚本
+timeout: 60 # 用例超时时间
+rank_size: 3 # 用例执行时的优先级，冒烟用例表格中的用例不要低于3（低于3的是验证安装成功之类的更基本的框架用例）

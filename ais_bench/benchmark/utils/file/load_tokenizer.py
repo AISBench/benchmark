@@ -7,11 +7,12 @@ from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import FileOperationError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
-__all__ = ['load_tokenizer', 'AISTokenizer']
+__all__ = ["load_tokenizer", "AISTokenizer"]
 
 logger = AISLogger()
 
-def load_tokenizer(tokenizer_path: str):
+
+def load_tokenizer(tokenizer_path: str, trust_remote_code=False):
     """Load a tokenizer from the specified path.
 
     Args:
@@ -28,36 +29,42 @@ def load_tokenizer(tokenizer_path: str):
     if not os.path.exists(tokenizer_path):
         raise FileOperationError(
             UTILS_CODES.TOKENIZER_PATH_NOT_FOUND,
-            f"Tokenizer path '{tokenizer_path}' does not exist"
+            f"Tokenizer path '{tokenizer_path}' does not exist",
         )
 
     try:
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=trust_remote_code)
         logger.debug(f"Successfully loaded tokenizer from: {tokenizer_path}")
         return tokenizer
     except Exception as e:
         raise FileOperationError(
             UTILS_CODES.TOKENIZER_LOAD_FAILED,
-            f"Failed to load tokenizer from {tokenizer_path}: {type(e).__name__}: {e}"
+            f"Failed to load tokenizer from {tokenizer_path}: {type(e).__name__}: {e}",
         ) from e
 
 
 class AISTokenizer:
-    def __init__(self, tokenizer_path: str):
-        self.tokenizer = load_tokenizer(tokenizer_path)
+    def __init__(self, tokenizer_path: str, trust_remote_code=False):
+        self.tokenizer = load_tokenizer(tokenizer_path, trust_remote_code=trust_remote_code)
 
-    def encode(self, prompt: list) -> Tuple[float, List[int]]:
+    def encode(self, prompt: list, add_special_tokens: bool = True) -> Tuple[float, List[int]]:
         """Encode a string into tokens, measuring processing time."""
         if isinstance(prompt, list):
-            messages = self.tokenizer.apply_chat_template(
-                prompt, add_generation_prompt=True, tokenize=False
-            )
+            try:
+                messages = self.tokenizer.apply_chat_template(
+                    prompt, add_generation_prompt=True, tokenize=False
+                )
+            except Exception as e:
+                logger.debug(f"Failed to encode prompt: {prompt} with error: {type(e).__name__}: {e}")
+                messages = ""
+                for msg in prompt:
+                    messages += msg.get("content", "")
         elif isinstance(prompt, str):
             messages = prompt
         else:
-            # self.logger.error(f"Prompt: {prompt} is not a list or string.")
+            logger.debug(f"Prompt: {prompt} is not a list or string.")
             return []
-        tokens = self.tokenizer.encode(messages)
+        tokens = self.tokenizer.encode(messages, add_special_tokens=add_special_tokens)
         return tokens
 
     def decode(self, tokens: List[int]) -> Tuple[List[float], str]:

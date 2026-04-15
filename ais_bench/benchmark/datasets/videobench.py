@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 
 from datasets import Dataset
@@ -136,3 +137,18 @@ class VideoBenchEvaluator(BaseEvaluator):
             details.append(detail)
         result = {'accuracy': 100 * correct / count, 'details': details}
         return result
+
+
+class VideoBenchEvaluatorForVita(VideoBenchEvaluator):
+
+    def find_choice(self, result):
+        if not isinstance(result, str):
+            return ""
+
+        if '☜' in result:
+            result = result.split('☜')[-1]
+
+        result = result.replace('<|im_end|>', '').strip()
+
+        m = re.search(r'\b([A-F])\b', result)
+        return m.group(1) if m else ""

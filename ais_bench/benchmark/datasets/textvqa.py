@@ -185,7 +185,7 @@ class VQAEvalMethod:
             '?',
             '!',
         ]
-        self.special_tokens = ['☞', '☟', '☜', '<unk>', '<|im_end|>']
+        self.special_tokens = ['☞', '☟', '☜', '<unk>', '<|im_end|>', '<|endoftext|>']
 
     def process_punctuation(self, in_text):
         if len(in_text) > MAX_TARGET_LENGTH:
@@ -348,3 +348,33 @@ class TEXTEvaluatorForGlm4v(TEXTEvaluator):
             processed_pred.append(pred)
         result = super().score(processed_pred, references)
         return result
+
+
+class TEXTEvaluatorForVita(TEXTEvaluator):
+
+    def _extract_answer(self, text: str) -> str:
+        if not isinstance(text, str):
+            return ""
+
+        text = text.replace('\n', ' ').replace('\t', ' ').strip()
+
+        for token in ['<|im_end|>', '<|end_of_box|>', '<|begin_of_box|>', '<unk>']:
+            text = text.replace(token, '')
+
+        text = text.strip()
+
+        for sep in ['☜', '☞', '☟']:
+            if sep in text:
+                text = text.split(sep)[-1].strip()
+
+        text = re.sub(r'^[!>\s]+', '', text).strip()
+        return text
+
+    def score(self, predictions, references):
+        processed_predictions = []
+        for pred in predictions:
+            try:
+                processed_predictions.append(self._extract_answer(pred))
+            except Exception:
+                processed_predictions.append(pred if isinstance(pred, str) else "")
+        return super().score(processed_predictions, references)
