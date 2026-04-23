@@ -1,5 +1,6 @@
 from ais_bench.benchmark.datasets.aime2024 import *  # noqa: F401, F403
 from ais_bench.benchmark.datasets.aime2025 import *  # noqa: F401, F403
+from ais_bench.benchmark.datasets.aime2026 import *  # noqa: F401, F403
 from ais_bench.benchmark.datasets.gsm8k import *  # noqa: F401, F403
 from ais_bench.benchmark.datasets.ceval import *  # noqa: F401, F403
 from ais_bench.benchmark.datasets.boolq import *  # noqa: F401, F403
