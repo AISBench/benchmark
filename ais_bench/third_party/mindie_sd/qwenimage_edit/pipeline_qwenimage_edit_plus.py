@@ -18,8 +18,14 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from transformers import Qwen2_5_VLForConditionalGeneration, Qwen2Tokenizer, Qwen2VLProcessor
-
+try:
+    from transformers import Qwen2_5_VLForConditionalGeneration, Qwen2Tokenizer, Qwen2VLProcessor
+except ImportError as e:
+    raise ImportError(
+        "cannot import necessary classes (Qwen2_5_VLForConditionalGeneration, Qwen2Tokenizer, Qwen2VLProcessor) from transformers. "
+        "Please install/upgrade to a compatible transformers version. refer to https://huggingface.co/docs/transformers/installation"     
+    ) from e
+    
 from diffusers.image_processor import PipelineImageInput, VaeImageProcessor
 from diffusers.loaders import QwenImageLoraLoaderMixin
 from diffusers.models import AutoencoderKLQwenImage

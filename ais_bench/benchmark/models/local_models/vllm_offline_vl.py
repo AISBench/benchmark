@@ -46,13 +46,25 @@ class VLLMOfflineVLModel(BaseModel):
         self.llm = LLM(model=self.path, **model_kwargs)
 
         if any(item in self.path.lower() for item in ['omni']):
-            from transformers import Qwen2_5OmniProcessor
+            try:
+                from transformers import Qwen2_5OmniProcessor
+            except ImportError as e:
+                raise ImportError(
+                    "cannot import necessary classes Qwen2_5OmniProcessor from transformers. "
+                    "Please install/upgrade to a compatible transformers version. refer to https://huggingface.co/docs/transformers/installation"
+                ) from e
             self.processor = Qwen2_5OmniProcessor.from_pretrained(self.path)
         elif any(item in self.path.lower() for item in ['2.5', '2_5', 'qwen25', 'mimo']):
             from transformers import AutoProcessor
             self.processor = AutoProcessor.from_pretrained(self.path)
         else:
-            from transformers import Qwen2VLProcessor
+            try:
+                from transformers import Qwen2VLProcessor
+            except ImportError as e:
+                raise ImportError(
+                    "cannot import necessary classes Qwen2VLProcessor from transformers. "
+                    "Please install/upgrade to a compatible transformers version. refer to https://huggingface.co/docs/transformers/installation"
+                ) from e
             self.processor = Qwen2VLProcessor.from_pretrained(self.path)
 
         sample_kwargs.update({"max_tokens": self.max_out_len})
