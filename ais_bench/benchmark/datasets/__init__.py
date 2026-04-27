@@ -54,3 +54,4 @@ from ais_bench.benchmark.datasets.mmstar import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.dapo_math import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.mooncake_trace import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.swebench import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.mathvision import * # noqa: F401, F403
