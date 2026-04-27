@@ -3,11 +3,13 @@ import os
 import re
 import copy
 import string
+import ast
+from pathlib import Path
 from os import environ
 import pandas as pd
 import numpy as np
 
-from datasets import Dataset, DatasetDict
+from datasets import Dataset
 
 from ais_bench.benchmark.openicl import BaseEvaluator
 from ais_bench.benchmark.registry import LOAD_DATASET, TEXT_POSTPROCESSORS
@@ -18,6 +20,42 @@ from .base import BaseDataset
 
 logger = AISLogger()
 IMAGE_MAP_LEN = 64
+
+MMMU_SUBSET_LIST = [
+    'Accounting',
+    'Agriculture',
+    'Architecture_and_Engineering',
+    'Art',
+    'Art_Theory',
+    'Basic_Medical_Science',
+    'Biology',
+    'Chemistry',
+    'Clinical_Medicine',
+    'Computer_Science',
+    'Design',
+    'Diagnostics_and_Laboratory_Medicine',
+    'Economics',
+    'Electronics',
+    'Energy_and_Power',
+    'Finance',
+    'Geography',
+    'History',
+    'Literature',
+    'Manage',
+    'Marketing',
+    'Materials',
+    'Math',
+    'Mechanical_Engineering',
+    'Music',
+    'Pharmacy',
+    'Physics',
+    'Psychology',
+    'Public_Health',
+    'Sociology',
+]
+
+MMMU_MULTI_CHOICE_TYPE = 'multiple-choice'
+MMMU_OPEN_TYPE = 'open'
 
 def dump_image(line, image_root_path):
     """Extracts and saves image(s) from a data record to the specified root directory.
@@ -143,80 +181,365 @@ def build_choices(item):
             ret[ch] = item[ch]
     return ret
 
+
+def _safe_list(value):
+    if value is None:
+        return []
+    if isinstance(value, float) and pd.isna(value):
+        return []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        try:
+            parsed = ast.literal_eval(stripped)
+            if isinstance(parsed, (list, tuple)):
+                return list(parsed)
+        except Exception:
+            return [stripped]
+    return [value]
+
+
+def _answer_character(index):
+    if index < 26:
+        return chr(ord('A') + index)
+    return str(index - 25)
+
+
+def _format_mmmu_choices(choices):
+    return '\n'.join(
+        f'{_answer_character(index)}) {choice}' for index, choice in enumerate(choices)
+    )
+
+
+def _format_mmmu_letters(choices):
+    return ','.join(_answer_character(index) for index in range(len(choices)))
+
+
+def _build_mmmu_mcq_prompt(question, choices, prompt_template=None):
+    if not prompt_template:
+        raise ValueError('MMMU multiple-choice prompt template must be provided by dataset config.')
+    return prompt_template.format(
+        question=question,
+        choices=_format_mmmu_choices(choices),
+        letters=_format_mmmu_letters(choices),
+    )
+
+
+def _parquet_sort_key(path):
+    path_str = str(path).replace('\\', '/')
+    subset_order = len(MMMU_SUBSET_LIST)
+    for index, subset in enumerate(MMMU_SUBSET_LIST):
+        if f'/{subset}/' in path_str or f'/{subset}-' in path_str or f'_{subset}_' in path_str:
+            subset_order = index
+            break
+    return subset_order, path_str
+
+
+def _find_mmmu_parquet_files(root, split, subset_list=None):
+    root = Path(root)
+    if root.is_file():
+        if root.suffix.lower() != '.parquet':
+            raise ValueError(f'MMMU only supports local parquet files now, got: {root}')
+        return [root]
+    if not root.is_dir():
+        raise FileNotFoundError(f'MMMU dataset path does not exist: {root}')
+
+    subsets = subset_list or MMMU_SUBSET_LIST
+    split_patterns = [
+        f'{split}-*.parquet',
+        f'{split}.parquet',
+        f'*{split}*.parquet',
+    ]
+    files = []
+    for subset in subsets:
+        subset_dirs = [
+            root / subset,
+            root / 'data' / subset,
+            root / subset / 'data',
+        ]
+        for subset_dir in subset_dirs:
+            if not subset_dir.is_dir():
+                continue
+            for pattern in split_patterns:
+                files.extend(subset_dir.glob(pattern))
+
+        subset_patterns = [
+            f'**/{subset}/{split}-*.parquet',
+            f'**/{subset}/{split}.parquet',
+            f'**/{subset}/*{split}*.parquet',
+            f'**/{split}-{subset}-*.parquet',
+            f'**/{split}_{subset}_*.parquet',
+            f'**/{subset}-{split}-*.parquet',
+            f'**/{subset}_{split}_*.parquet',
+        ]
+        for pattern in subset_patterns:
+            files.extend(root.glob(pattern))
+
+    if not files:
+        for pattern in split_patterns:
+            files.extend(root.glob(f'**/{pattern}'))
+    return sorted(set(files), key=_parquet_sort_key)
+
+
+def _infer_subject_from_parquet_path(parquet_path):
+    path_str = str(parquet_path).replace('\\', '/')
+    for subset in MMMU_SUBSET_LIST:
+        if f'/{subset}/' in path_str or f'/{subset}-' in path_str or f'_{subset}_' in path_str:
+            return subset
+    return None
+
+
+def _load_mmmu_records(path, split='validation', subset_list=None):
+    resolved_path = get_data_path(path)
+    parquet_files = _find_mmmu_parquet_files(resolved_path, split, subset_list=subset_list)
+    if not parquet_files:
+        raise FileNotFoundError(
+            f'No MMMU parquet files found under {resolved_path}. '
+            f'Expected files such as {split}-*.parquet in subject subdirectories.'
+        )
+
+    records = []
+    for parquet_file in parquet_files:
+        data = pd.read_parquet(parquet_file)
+        subject = _infer_subject_from_parquet_path(parquet_file)
+        if subject and 'subject' not in data.columns:
+            data['subject'] = subject
+        records.extend(row.to_dict() for _, row in data.iterrows())
+    return records, resolved_path, True
+
+
+def _resolve_mmmu_existing_image_path(image_path, data_root, image_root_path):
+    if not image_path:
+        return None
+    image_path = str(image_path)
+    candidates = [image_path]
+    if data_root and not os.path.isabs(image_path):
+        candidates.append(os.path.join(data_root, image_path))
+    if image_root_path and not os.path.isabs(image_path):
+        candidates.append(os.path.join(image_root_path, image_path))
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return os.path.abspath(candidate)
+    return None
+
+
+def _write_mmmu_image_bytes(image_bytes, output_path):
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    if isinstance(image_bytes, list):
+        image_bytes = bytes(image_bytes)
+    with open(output_path, 'wb') as file:
+        file.write(image_bytes)
+    return output_path
+
+
+def _build_mmmu_image_path(record, image_index, image_root_path, suffix='.png'):
+    stem = record.get('id', record.get('index', 'sample'))
+    stem = re.sub(r'[^0-9A-Za-z_.-]+', '_', str(stem))
+    return os.path.join(image_root_path, f'{stem}_{image_index}{suffix}')
+
+
+def _dump_mmmu_image(candidate, record, image_index, image_root_path, data_root):
+    if candidate is None:
+        return None
+    if isinstance(candidate, float) and pd.isna(candidate):
+        return None
+    if isinstance(candidate, dict):
+        path = _resolve_mmmu_existing_image_path(candidate.get('path'), data_root, image_root_path)
+        if path:
+            return path
+        bytes_data = candidate.get('bytes')
+        if bytes_data:
+            suffix = Path(candidate.get('path', '')).suffix or '.png'
+            return _write_mmmu_image_bytes(
+                bytes_data,
+                _build_mmmu_image_path(record, image_index, image_root_path, suffix=suffix),
+            )
+    if isinstance(candidate, (bytes, bytearray)):
+        return _write_mmmu_image_bytes(
+            candidate,
+            _build_mmmu_image_path(record, image_index, image_root_path),
+        )
+    if hasattr(candidate, 'save'):
+        output_path = _build_mmmu_image_path(record, image_index, image_root_path)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        candidate.save(output_path)
+        return output_path
+    if isinstance(candidate, str):
+        path = _resolve_mmmu_existing_image_path(candidate, data_root, image_root_path)
+        if path:
+            return path
+        output_path = _build_mmmu_image_path(record, image_index, image_root_path)
+        try:
+            decode_base64_to_image_file(candidate, output_path)
+            return output_path
+        except Exception:
+            logger.debug('Failed to decode MMMU image string as base64; trying next candidate.')
+    return None
+
+
+def _collect_mmmu_images(record, image_root_path, data_root):
+    image_map = {}
+    for image_index in range(1, 8):
+        image = record.get(f'image_{image_index}')
+        image_path = _dump_mmmu_image(image, record, image_index, image_root_path, data_root)
+        if image_path:
+            image_map[image_index] = image_path
+
+    if not image_map:
+        candidates = _safe_list(record.get('image'))
+        for image_index, image in enumerate(candidates, start=1):
+            image_path = _dump_mmmu_image(image, record, image_index, image_root_path, data_root)
+            if image_path:
+                image_map[image_index] = image_path
+
+    if not image_map:
+        candidates = _safe_list(record.get('image_path'))
+        for image_index, image in enumerate(candidates, start=1):
+            image_path = _dump_mmmu_image(image, record, image_index, image_root_path, data_root)
+            if image_path:
+                image_map[image_index] = image_path
+    return image_map
+
+
+def _parse_mmmu_text_with_images(text, image_map):
+    msgs = []
+    pattern = r'<image[_ ](\d+)>'
+    last_end = 0
+    found_placeholder = False
+
+    for match in re.finditer(pattern, text):
+        found_placeholder = True
+        if match.start() > last_end:
+            text_segment = text[last_end:match.start()]
+            if text_segment.strip():
+                msgs.append(dict(type='text', text=text_segment))
+        image_num = int(match.group(1))
+        if image_num in image_map:
+            msgs.append(dict(type='image_url', image_url=image_map[image_num]))
+        last_end = match.end()
+
+    if last_end < len(text):
+        text_segment = text[last_end:]
+        if text_segment.strip():
+            msgs.append(dict(type='text', text=text_segment))
+
+    if not found_placeholder and image_map:
+        msgs = [dict(type='image_url', image_url=image_map[index]) for index in sorted(image_map)] + msgs
+    return msgs
+
+
+def _parse_mmmu_choice_prediction(prediction, num_choices):
+    match = re.search(
+        r'(?i)^ANSWER\s*:\s*([A-Za-z\d ,]+)\s*(?:$|\n|\.)',
+        prediction,
+        flags=re.MULTILINE,
+    )
+    if match is None:
+        match = re.search(
+            r'(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$|\.)',
+            prediction,
+        )
+    if match is None:
+        for letter in reversed(prediction):
+            if letter.isupper():
+                return letter
+        return ''
+
+    matched = match.group(1).strip().rstrip('.')
+    allowed_options = {_answer_character(index) for index in range(num_choices)}
+    return matched if matched in allowed_options else ''
+
+
+def _extract_mmmu_open_prediction(prediction):
+    match = re.search(r'ANSWER:\s*(.*)', prediction)
+    if match:
+        return match.group(1).strip()
+    return prediction.strip()
+
 @LOAD_DATASET.register_module()
 class MMMUDataset(BaseDataset):
 
     @staticmethod
-    def load(path, start_text_prompt='', end_text_prompt='', option_prompt=''):
-        path = get_data_path(path)
-        image_root_path = os.path.join(os.path.dirname(path), "MMMU_images")
-        logger.info(f"Convert base64 to image and save it in {image_root_path}")
-        skip_noimg = True
-        
-        data = pd.read_csv(path, sep='\t')
-        if skip_noimg and 'image' in data:
-            data = data[~pd.isna(data['image'])]
-        # The image field can store the base64 encoded image or another question index (for saving space)
-        if 'image' in data:
-            data['image'] = [str(x) for x in data['image']]
-            image_map = {x: y for x, y in zip(data['index'], data['image'])}
-            for k in image_map:
-                if len(image_map[k]) <= IMAGE_MAP_LEN:
-                    idx = image_map[k]
-                    image_map[k] = image_map[idx]
+    def load(path='ais_bench/datasets/mmmu',
+             split='validation',
+             subset_list=None,
+             mult_choice_prompt=None,
+             open_prompt=None,
+             start_text_prompt='',
+             end_text_prompt='',
+             option_prompt=''):
+        records, resolved_path, is_local = _load_mmmu_records(
+            path, split=split, subset_list=subset_list
+        )
+        if is_local:
+            base_dir = resolved_path if os.path.isdir(resolved_path) else os.path.dirname(resolved_path)
+        else:
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..', 'datasets'))
+        image_root_path = os.path.join(base_dir, 'MMMU_images')
+        os.makedirs(image_root_path, exist_ok=True)
+        logger.info(f'Preparing MMMU images under {image_root_path}')
+        data_root = resolved_path if is_local and os.path.isdir(resolved_path) else os.path.dirname(resolved_path) if is_local else None
 
-            images = [toliststr(image_map[k]) for k in data['index']]
-            data['image'] = [x[0] if len(x) == 1 else x for x in images]
-        if 'image_path' in data:
-            paths = [toliststr(x) for x in data['image_path']]
-            data['image_path'] = [x[0] if len(x) == 1 else x for x in paths]
-
-        if np.all([isinstance(x, int) for x in data['index']]):
-            data['index'] = [int(x) for x in data['index']]
-
-        sheet_indices = list(range(0, len(data), 1))
-        data = data.iloc[sheet_indices]
         dataset = []
-        for i in sheet_indices:
-            line = data.iloc[i]
-            tgt_path = dump_image(line, image_root_path)
+        for index, record in enumerate(records):
+            question = str(record.get('question', '')).strip()
+            if not question:
+                logger.warning(f'Skipping MMMU record without question at index {index}')
+                continue
 
-            options = {
-                cand: line[cand]
-                for cand in string.ascii_uppercase
-                if cand in line and not pd.isna(line[cand])
-            }
-            options_prompt = option_prompt
-            for key, item in options.items():
-                options_prompt += f'{key}. {item}\n'
-            
-            hint = line['hint'] if ('hint' in line and not pd.isna(line['hint'])) else None
-            # get text prompt 
-            prompt = ''
-            if hint is not None:
-                prompt += f'Hint: {hint}\n'
-            prompt += start_text_prompt
-            prompt += line["question"]
-            if len(options):
-                prompt += options_prompt
-                prompt += end_text_prompt
-            # add image info
-            msgs = []
-            if isinstance(tgt_path, list):
-                msgs.extend([dict(type='image_url', image_url=p) for p in tgt_path])
+            question_type = record.get('question_type') or (
+                MMMU_MULTI_CHOICE_TYPE if _safe_list(record.get('options')) else MMMU_OPEN_TYPE
+            )
+            options = _safe_list(record.get('options'))
+            if not options:
+                options = [
+                    record[ch] for ch in string.ascii_uppercase
+                    if ch in record and not pd.isna(record[ch])
+                ]
+
+            if question_type == MMMU_MULTI_CHOICE_TYPE:
+                prompt = _build_mmmu_mcq_prompt(question, options, mult_choice_prompt)
+                choices = {
+                    _answer_character(item_index): str(option)
+                    for item_index, option in enumerate(options)
+                }
+                answer = {
+                    'type': MMMU_MULTI_CHOICE_TYPE,
+                    'choices': json.dumps(choices, ensure_ascii=False),
+                    'answer': str(record.get('answer', '')).strip(),
+                    'split': split,
+                    'subject': record.get('subject'),
+                    'subfield': record.get('subfield'),
+                    'category': record.get('category', record.get('subject')),
+                    'l2-category': record.get('l2-category', record.get('subfield')),
+                }
             else:
-                msgs = [dict(type='image_url', image_url=tgt_path)]
-            msgs.append(dict(type='text', text=prompt))
-            # split image text in order
-            msgs = split_MMMU(msgs)
+                if not open_prompt:
+                    raise ValueError('MMMU open-question prompt template must be provided by dataset config.')
+                prompt = open_prompt.format(question=question)
+                answer = {
+                    'type': MMMU_OPEN_TYPE,
+                    'answer': str(record.get('answer', '')).strip(),
+                    'split': split,
+                    'subject': record.get('subject'),
+                    'subfield': record.get('subfield'),
+                    'category': record.get('category', record.get('subject')),
+                    'l2-category': record.get('l2-category', record.get('subfield')),
+                }
+
+            image_map = _collect_mmmu_images(record, image_root_path, data_root)
+            msgs = _parse_mmmu_text_with_images(prompt, image_map)
             content = get_content_str(msgs)
-            choices = build_choices(line)
-            dataset.append({"content": content, 
-                            "answer": {'choices': json.dumps(choices), 
-                                        'answer': line['answer'],
-                                        'split': line['split'] if 'split' in line else None,
-                                        'l2-category': line['l2-category'] if 'l2-category' in line else None,
-                                        'category': line['category'] if 'category' in line else None}})
+            first_image = image_map[min(image_map)] if image_map else ''
+            dataset.append({
+                'content': content,
+                'question': prompt,
+                'image': first_image,
+                'answer': answer,
+            })
         return Dataset.from_list(dataset)
 
 
@@ -348,12 +671,23 @@ class MMMUEvaluator(BaseEvaluator):
                 if char in pred:
                     pred = pred.replace(char, '')
             detail = {'pred': pred, 'answer': refer, 'correct': False}
-            choices = json.loads(refer['choices'])
-            infer_res = can_infer(pred, choices)
-            overall_key = '[' + refer['split'] + ']: Overall'
-            key_category = '[' + refer['split'] + ']: ' +  refer['category']
-            key_l2_category = '[' + refer['split'] + ']: ' +  refer['l2-category']
-            score = 1 if infer_res == refer['answer'] else 0
+            refer = refer if isinstance(refer, dict) else {'type': MMMU_OPEN_TYPE, 'answer': refer}
+            split = refer.get('split') or 'validation'
+            category = refer.get('category') or refer.get('subject') or 'Unknown'
+            l2_category = refer.get('l2-category') or refer.get('subfield') or category
+
+            if refer.get('type') == MMMU_MULTI_CHOICE_TYPE:
+                choices = json.loads(refer['choices']) if isinstance(refer.get('choices'), str) else refer.get('choices', {})
+                parsed_pred = _parse_mmmu_choice_prediction(pred, len(choices))
+                score = 1 if parsed_pred == str(refer.get('answer', '')).strip() else 0
+            else:
+                parsed_pred = _extract_mmmu_open_prediction(pred)
+                score = 1 if parsed_pred.strip().lower() == str(refer.get('answer', '')).strip().lower() else 0
+
+            overall_key = f'[{split}]: Overall'
+            key_category = f'[{split}]: {category}'
+            key_l2_category = f'[{split}]: {l2_category}'
+            detail['parsed_pred'] = parsed_pred
             if score == 1:
                 detail['correct'] = True
             details.append(detail)
