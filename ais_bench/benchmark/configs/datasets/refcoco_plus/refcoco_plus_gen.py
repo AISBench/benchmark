@@ -39,11 +39,7 @@ refcoco_plus_eval_cfg = dict(
         type=BBoxIoUEvaluator,
         iou_threshold=0.5,
         coord_scale=1000.0,
-        smart_resize_cfg=dict(
-            factor=32,
-            min_pixels=65536,
-            max_pixels=16 * 16 * 4 * 16384,
-        ),
+        smart_resize_cfg=None,
     ),
     pred_postprocessor=dict(type=refcoco_bbox_postprocess),
 )
