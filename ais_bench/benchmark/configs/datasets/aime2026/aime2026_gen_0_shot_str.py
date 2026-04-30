@@ -13,7 +13,7 @@ aime2026_reader_cfg = dict(
 aime2026_infer_cfg = dict(
     prompt_template=dict(
         type=PromptTemplate,
-        template='{problem}\nPlease reason step by step, and put your final answer within \\boxed{}.'
+        template='\nSolve the following math problem step by step. Put your answer inside \\boxed{}.\n\n{problem}\n\nRemember to put your answer inside \\boxed{}.'
     ),
     retriever=dict(type=ZeroRetriever),
     inferencer=dict(type=GenInferencer)

@@ -16,7 +16,7 @@ aime2026_infer_cfg = dict(
             round=[
                 dict(
                     role="HUMAN",
-                    prompt="{problem}\nRemember to put your final answer within \\boxed{}.",
+                    prompt="\nSolve the following math problem step by step. Put your answer inside \\boxed{}.\n\n{problem}\n\nRemember to put your answer inside \\boxed{}.",
                 ),
             ],
         ),
