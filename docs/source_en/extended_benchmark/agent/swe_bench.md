@@ -6,16 +6,17 @@ SWE-bench is a benchmark for evaluating how well large language models solve rea
 
 `ais_bench` currently supports the following SWEbench capabilities:
 
-- Datasets: `full`, `verified`, `lite`, `multilingual`
+- Datasets: `full`, `verified` 、`verified_mini`, `lite`, `multilingual`
 - Tasks:
   - `infer`: call `mini-swe-agent` to generate patches (`model_patch`)
   - `eval`: call the SWE-bench harness to run evaluation and count resolved instances
 - Result summary: output key metrics such as `accuracy`, `submitted_accuracy`, and `resolved_instances`
 
-Directory `ais_bench/configs/swe_bench_examples/` already provides 4 example configs:
+Directory `ais_bench/configs/swe_bench_examples/` provides the following example configs:
 
 - `mini_swe_agent_swe_bench_lite.py`
 - `mini_swe_agent_swe_bench_verified.py`
+- `mini_swe_agent_swe_bench_verified_mini.py`
 - `mini_swe_agent_swe_bench_full.py`
 - `mini_swe_agent_swe_bench_multilingual.py`
 
@@ -43,6 +44,12 @@ cd -
 ```bash
 docker --version
 docker ps
+```
+
+4) On ARM hosts, enable Docker x86 emulation (binfmt):
+
+```bash
+docker run --rm --privileged tonistiigi/binfmt --install all
 ```
 
 ## 3. Minimal Configuration (Run First, Tune Later)
@@ -128,6 +135,7 @@ The default output directory is `outputs/default/<timestamp>/`. Focus on:
 
 The following error codes come from `SWEB_CODES`. You can also refer to the full FAQ:
 
+- English FAQ: `docs/source_en/faqs/error_codes.md`
 - Chinese FAQ: `docs/source_zh_cn/faqs/error_codes.md`
 
 ### 1) `SWEB-DEPENDENCY-001`: Missing mini-swe-agent
@@ -170,7 +178,7 @@ The following error codes come from `SWEB_CODES`. You can also refer to the full
 - Cause: unavailable images, network issues, or insufficient container runtime environment
 - Fix:
   - Check `docker ps` first
-  - Verify required images can be pulled
+  - Verify images can be pulled from Docker Hub (for example: `docker pull swebench/sweb.eval.x86_64.astropy_1776_astropy-6938:latest`)
   - Retry with `--reuse` to avoid recomputing completed instances
 
 ## 7. Advanced Tips (Optional)
