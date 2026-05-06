@@ -201,6 +201,7 @@ class TestTAU2BenchTask(unittest.TestCase):
         # 模拟 compute_metrics 返回值
         mock_metrics = mock.MagicMock()
         mock_metrics.avg_reward = 0.8
+        mock_metrics.pass_hat_ks = {1: 0.8, 2: 0.64}
         mock_compute_metrics.return_value = mock_metrics
 
         # 模拟 get_tasks 返回 3 个任务
@@ -284,6 +285,7 @@ class TestTAU2BenchTask(unittest.TestCase):
 
         mock_metrics = mock.MagicMock()
         mock_metrics.avg_reward = 0.7
+        mock_metrics.pass_hat_ks = {1: 0.7, 2: 0.49}
         mock_compute_metrics.return_value = mock_metrics
 
         # 模拟 tqdm
