@@ -14,11 +14,11 @@ SWE-bench is a benchmark for evaluating how well large language models solve rea
 
 Directory `ais_bench/configs/swe_bench_examples/` provides the following example configs:
 
-- `mini_swe_agent_swe_bench_lite.py`
-- `mini_swe_agent_swe_bench_verified.py`
-- `mini_swe_agent_swe_bench_verified_mini.py`
-- `mini_swe_agent_swe_bench_full.py`
-- `mini_swe_agent_swe_bench_multilingual.py`
+- `mini_swe_agent_swe_bench_lite.py`: SWE-bench Lite (`princeton-nlp/SWE-Bench_Lite`) — commonly used for quick iterations.
+- `mini_swe_agent_swe_bench_verified.py`: SWE-bench Verified (`princeton-nlp/SWE-Bench_Verified`, **500** instances) — a human-validated subset of the SWE-bench test set.
+- `mini_swe_agent_swe_bench_verified_mini.py`: SWE-bench Verified Mini (`MariusHobbhahn/swe-bench-verified-mini`, **50** instances) — a community subset of Verified designed to be much cheaper to run; see the dataset card and the subset construction repo: `https://huggingface.co/datasets/MariusHobbhahn/swe-bench-verified-mini` and `https://github.com/mariushobbhahn/make_swe_bench_verified_mini`.
+- `mini_swe_agent_swe_bench_full.py`: SWE-bench Full (`princeton-nlp/SWE-Bench`) — the full test set.
+- `mini_swe_agent_swe_bench_multilingual.py`: SWE-bench Multilingual (`SWE-bench/SWE-bench_Multilingual`) — multilingual issue statements.
 
 ## 2. Prerequisites
 
@@ -135,8 +135,7 @@ The default output directory is `outputs/default/<timestamp>/`. Focus on:
 
 The following error codes come from `SWEB_CODES`. You can also refer to the full FAQ:
 
-- English FAQ: `docs/source_en/faqs/error_codes.md`
-- Chinese FAQ: `docs/source_zh_cn/faqs/error_codes.md`
+- FAQ: `docs/source_en/faqs/error_codes.md`
 
 ### 1) `SWEB-DEPENDENCY-001`: Missing mini-swe-agent
 
