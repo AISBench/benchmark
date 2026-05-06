@@ -1,18 +1,3 @@
-AISBench Benchmark
-
-Copyright 2026 AISBench Authors
-
-Licensed under the Apache License, Version 2.0; you may not use the
-original works in this repository except in compliance with that license.
-The complete license text follows below.
-
-This distribution may include third-party software. Such components remain
-under their respective licenses. See the NOTICE file in this repository,
-and the license files under ais_bench/third_party/, for attribution and
-full third-party license texts.
-
--------------------------------------------------------------------------------
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -201,7 +186,7 @@ full third-party license texts.
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright 2026 AISBench Authors
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
