@@ -140,8 +140,8 @@ During execution, all result files will be generated in the `outputs/default/{ti
 | tau2_bench_airline | / | pass^1 | unknown | 50 | 38.00 |
 | tau2_bench_retail | / | pass^1 | unknown | 114 | 21.05 |
 | tau2_bench_telecom | / | pass^1 | unknown | 114 | 33.33 |
-| tau2_bench_avg | - | naive_average | unknown | / | 30.80 |
-| tau2_bench_avg-weighted | - | weighted_average | unknown | / | 29.14 |
+| tau2_bench_pass^1_avg | - | naive_average | unknown | / | 30.80 |
+| tau2_bench_pass^1_avg-weighted | - | weighted_average | unknown | / | 29.14 |
 ```
 - `tau2_bench_avg` represents the simple average score across the three domains.
 - `tau2_bench_avg-weighted` represents the weighted average score across the three domains (weights are the number of tasks in each domain).
@@ -238,9 +238,21 @@ for task in sub_tasks:
 ```shell
 | dataset | version | metric | mode | total_count | openai-v1-chat |
 |----- | ----- | ----- | ----- | ----- | -----|
-| tau2_bench_airline | / | pass^3 | unknown | 50 | 38.00 |
-| tau2_bench_retail | / | pass^3 | unknown | 114 | 21.05 |
-| tau2_bench_telecom | / | pass^3 | unknown | 114 | 33.33 |
-| tau2_bench_avg | - | naive_average | unknown | / | 30.80 |
-| tau2_bench_avg-weighted | - | weighted_average | unknown | / | 29.14 |
+| tau2_bench_airline | a39421 | pass^1 | gen | 10 | 46.00 |
+| tau2_bench_airline | a39421 | pass^2 | gen | 10 | 37.00 |
+| tau2_bench_airline | a39421 | pass^3 | gen | 10 | 34.00 |
+| tau2_bench_airline | a39421 | pass^4 | gen | 10 | 32.00 |
+| tau2_bench_airline | a39421 | pass^5 | gen | 10 | 30.00 |
+| tau2_bench_retail | a39421 | pass^1 | gen | 23 | 32.17 |
+| tau2_bench_retail | a39421 | pass^2 | gen | 23 | 19.13 |
+| tau2_bench_retail | a39421 | pass^3 | gen | 23 | 13.48 |
+| tau2_bench_retail | a39421 | pass^4 | gen | 23 | 8.70 |
+| tau2_bench_retail | a39421 | pass^5 | gen | 23 | 4.35 |
+| tau2_bench_telecom | a39421 | pass^1 | gen | 23 | 62.61 |
+| tau2_bench_telecom | a39421 | pass^2 | gen | 23 | 44.78 |
+| tau2_bench_telecom | a39421 | pass^3 | gen | 23 | 36.52 |
+| tau2_bench_telecom | a39421 | pass^4 | gen | 23 | 32.17 |
+| tau2_bench_telecom | a39421 | pass^5 | gen | 23 | 30.43 |
+| tau2_bench_pass^5_avg | - | naive_average | gen | / | 21.59 |
+| tau2_bench_pass^5_avg-weighted | - | weighted_average | gen | / | 19.64 |
 ```
