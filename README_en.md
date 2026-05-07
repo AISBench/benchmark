@@ -30,7 +30,7 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
-- **\[2026.5.07\]** Integrated VBench 1.0 for video generation quality evaluation: supports running multi-dimension quality/semantic metrics on **generated videos** on GPU / NPU. See [`docs/source_en/extended_benchmark/lmm_generate/vbench.md`](docs/source_en/extended_benchmark/lmm_generate/vbench.md) for examples and notes. 🔥🔥🔥
+- **\[2026.5.07\]** Integrated VBench 1.0 for video generation quality evaluation: supports running multi-dimension quality/semantic metrics on **generated videos** on GPU / NPU. See [Evaluate VBench in AISBench](docs/source_en/extended_benchmark/lmm_generate/vbench.md) for examples and notes. 🔥🔥🔥
 - **\[2026.4.14\]** Integrated the authoritative large model agent evaluation benchmark τ²-Bench, supporting evaluation of dialogue, tool calling, and compliance capabilities in dual-control environments. See [Evaluate τ²-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/tau2_bench.html) for details. 🔥🔥🔥
 - **\[2026.4.10\]** Integrated the first agent evaluation benchmark SWE-Bench, supporting evaluation of agent models. See [Evaluate SWE-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench.html) for details. 🔥🔥🔥
 - **\[2026.3.10\]** Integrated the first image generation evaluation benchmark GEdit-Bench, supporting evaluation of image generation models. See [Evaluate GEdit-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/lmm_generate/gedit_bench.html) for details. 🔥🔥🔥
