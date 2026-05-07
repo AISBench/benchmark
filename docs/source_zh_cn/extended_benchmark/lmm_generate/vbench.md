@@ -6,8 +6,8 @@ AISBench **已适配 VBench 1.0**。仓库目录 `ais_bench/configs/vbench_examp
 
 ## 目录
 
-- [快速开始](#快速开始)
 - [依赖与环境](#依赖与环境)
+- [快速开始](#快速开始)
 - [配置与输出](#配置与输出)
 - [评分汇总（Quality / Semantic / Total）](#评分汇总quality--semantic--total)
 - [Prompt Suite（官方 prompt 结构）](#prompt-suite官方-prompt-结构)

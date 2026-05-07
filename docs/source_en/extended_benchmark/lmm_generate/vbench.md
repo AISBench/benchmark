@@ -6,8 +6,8 @@ AISBench has **adapted to VBench 1.0**. The repository directory `ais_bench/conf
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
 - [Dependencies and Environment](#dependencies-and-environment)
+- [Quick Start](#quick-start)
 - [Configuration and Output](#configuration-and-output)
 - [Score Aggregation (Quality / Semantic / Total)](#score-aggregation-quality--semantic--total)
 - [Prompt Suite (Official Prompt Structure)](#prompt-suite-official-prompt-structure)
