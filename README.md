@@ -29,7 +29,7 @@
 > **⭐️收藏项目**，你将能第一时间获取 AISBench评测工具 的最新动态～
 
 ## 🔥 最新进展
-- **\[2026.5.07\]** 接入视频生成质量评测基准 VBench 1.0：支持在 GPU / NPU 上对**已有生成视频目录**进行多维度质量/语义指标测评（Eval 阶段直接读视频，不依赖 predictions）。示例与说明见 [`ais_bench/configs/vbench_examples/README.md`](ais_bench/configs/vbench_examples/README.md)。 🔥🔥🔥
+- **\[2026.5.07\]** 接入视频生成质量评测基准 VBench 1.0：支持在 GPU / NPU 上对**已有生成视频目录**进行多维度质量/语义指标测评（Eval 阶段直接读视频，不依赖 predictions）。示例与说明见 [`docs/source_zh_cn/extended_benchmark/lmm_generate/vbench.md`](docs/source_zh_cn/extended_benchmark/lmm_generate/vbench.md)。 🔥🔥🔥
 - **\[2026.4.14\]** 接入大模型智能体评测基准τ²-Bench，支持双控环境下的对话、工具调用与合规能力评估，详见[在AISBench中测评τ²-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/tau2_bench.html)。 🔥🔥🔥
 - **\[2026.4.10\]** 接入首个智能体评测基准SWE-Bench， 支持对智能体模型进行评测，详见[在AISBench中测评SWE-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/swe_bench.html)。 🔥🔥🔥
 - **\[2026.3.10\]** 接入首个图像生成类评测基准GEdit-Bench， 支持对图像生成模型进行评测，详见[在AISBench中测评GEdit-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/lmm_generate/gedit_bench.html)。 🔥🔥🔥
@@ -146,15 +146,6 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 多任务测评请参考：📚 精度场景的[多任务测评](./docs/source_zh_cn/base_tutorials/scenes_intro/accuracy_benchmark.md#多任务测评) 和 性能场景的[多任务测评](./docs/source_zh_cn/base_tutorials/scenes_intro/performance_benchmark.md#多任务测评)。
 
 如需自行组合测评任务，实现更灵活的测评方式，可参考：📚 [自定义配置文件运行AISBench](./docs/source_zh_cn/advanced_tutorials/run_custom_config.md#自定义配置文件运行AISBench)。
-
-### VBench（视频生成质量评测）快速入口
-若你已**生成好视频文件**，想直接对视频目录做 VBench 1.0 多维度评测，可使用本仓库提供的独立示例配置（Eval 阶段直接读取视频目录计算指标）：
-
-- **说明与示例配置**：[`ais_bench/configs/vbench_examples/README.md`](ais_bench/configs/vbench_examples/README.md)
-- **一键运行示例**：
-```bash
-ais_bench ais_bench/configs/vbench_examples/eval_vbench_standard.py --mode eval
-```
 
 ### 任务含义查询(可选)
 所选模型任务`vllm_api_general_chat`、数据集任务`demo_gsm8k_gen_4_shot_cot_chat_prompt`和结果呈现任务`example`的具体信息(简介，使用约束等)可以分别从如下链接中查询含义：

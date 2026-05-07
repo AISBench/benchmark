@@ -1,7 +1,7 @@
 ## VBench 本地缓存依赖清单
 
 - **缓存根目录**：默认使用环境变量 `VBENCH_CACHE_DIR`，若未设置，则为 `~/.cache/vbench`。另支持在 AISBench 的 VBench 示例配置**顶层**设置同名变量（见下文「在 AISBench 配置中指定缓存目录」）。
-- **一键下载脚本**：[`ais_bench/configs/vbench_examples/download_vbench_cache.sh`](download_vbench_cache.sh) 会自动按下述结构下载/准备资源。
+- **一键下载脚本**：`ais_bench/configs/vbench_examples/download_vbench_cache.sh` 会自动按下述结构下载/准备资源。
 
 ### 目录结构目标
 
