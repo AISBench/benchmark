@@ -30,6 +30,7 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2026.5.07\]** Integrated VBench 1.0 for video generation quality evaluation: supports running multi-dimension quality/semantic metrics on **an existing folder of generated videos** on GPU / NPU (Eval stage reads videos directly; no `predictions/` required). See [`ais_bench/configs/vbench_examples/README.md`](ais_bench/configs/vbench_examples/README.md) for examples and notes. 🔥🔥🔥
 - **\[2026.4.14\]** Integrated the authoritative large model agent evaluation benchmark τ²-Bench, supporting evaluation of dialogue, tool calling, and compliance capabilities in dual-control environments. See [Evaluate τ²-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/tau2_bench.html) for details. 🔥🔥🔥
 - **\[2026.4.10\]** Integrated the first agent evaluation benchmark SWE-Bench, supporting evaluation of agent models. See [Evaluate SWE-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench.html) for details. 🔥🔥🔥
 - **\[2026.3.10\]** Integrated the first image generation evaluation benchmark GEdit-Bench, supporting evaluation of image generation models. See [Evaluate GEdit-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/lmm_generate/gedit_bench.html) for details. 🔥🔥🔥
@@ -155,6 +156,15 @@ Detailed information (introduction, usage constraints, etc.) about the selected 
 - `--models`: 📚 [Service Deployment Inference Backend](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/all_params/models.html#id2)
 - `--datasets`: 📚 [Open-Source Datasets](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/all_params/datasets.html#id3) → 📚 [Detailed Introduction](ais_bench/benchmark/configs/datasets/demo/README_en.md)
 - `--summarizer`: 📚 [Result Summary Tasks](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/all_params/summarizer.html)
+
+### VBench (video generation quality) quick entry
+If you already have **generated video files** and want to run VBench 1.0 metrics directly on a video folder, use the standalone example configs shipped in this repo (Eval stage reads videos directly):
+
+- **Docs & example configs**: [`ais_bench/configs/vbench_examples/README.md`](ais_bench/configs/vbench_examples/README.md)
+- **Run an example**:
+```bash
+ais_bench ais_bench/configs/vbench_examples/eval_vbench_standard.py --mode eval
+```
 
 
 # Modification of Configuration Files Corresponding to Tasks
