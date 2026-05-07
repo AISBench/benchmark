@@ -2,27 +2,52 @@
 
 **VBench** (VBench: Comprehensive Benchmark Suite for Video Generative Models) is a benchmark suite for video generative models. It organizes evaluation around perception-related metrics such as subject consistency, motion smoothness, temporal flickering, and spatial relationship (the official Standard suite has **16 dimensions**), and provides matching prompts, pipelines, and validation methods for each dimension.
 
-AISBench has **adapted to VBench 1.0**. The repository directory `ais_bench/configs/vbench_examples/` contains **standalone configuration file** examples for running quality/semantic dimension evaluation on already-generated videos on **GPU** or **NPU**. **AISBench currently does not include multimodal video generation**, so please generate videos first and then run the evaluation.
+AISBench has **adapted to VBench 1.0**. The repository directory `ais_bench/configs/vbench_examples/` contains **standalone configuration file** examples for running quality/semantic dimension evaluation on generated videos on **GPU** or **NPU**. **AISBench currently does not include multimodal video generation**, so please generate videos first and then run the evaluation. (For Standard mode, see the [Dataset Generation](#dataset-generation) section.)
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
-- [Run Mode `-m eval`: Notes and Limitations](#run-mode--m-eval-notes-and-limitations)
+- [Dependencies and Environment](#dependencies-and-environment)
 - [Configuration and Output](#configuration-and-output)
 - [Score Aggregation (Quality / Semantic / Total)](#score-aggregation-quality--semantic--total)
-- [Dependencies and Environment](#dependencies-and-environment)
 - [Prompt Suite (Official Prompt Structure)](#prompt-suite-official-prompt-structure)
 - [Dataset Generation](#dataset-generation)
 - [Sampling Pseudocode (Reference Official)](#sampling-pseudocode-reference-official)
 - [Format Requirements](#format-requirements)
+
+## Dependencies and Environment
+
+#### decord (Video Decoding)
+
+On **x86_64**, `pip install decord` usually works directly. On **ARM** and other environments without prebuilt wheels, build from source, for example:
+
+```bash
+git clone https://github.com/dmlc/decord
+cd decord
+mkdir build && cd build
+cmake .. -DUSE_CUDA=0 -DCMAKE_BUILD_TYPE=Release
+make
+cd ../python
+python3 setup.py install --user
+```
+
+#### detectron2 and GRiT
+
+Dimensions like `object_class`, `multiple_objects`, `color`, and `spatial_relationship` depend on GRiT, which in turn depends on detectron2. AISBench **uniformly** uses the in-repo **`ais_bench/third_party/detectron2`** (shared by GPU/NPU). Run an editable install from the repo root:
+
+`pip install -e ais_bench/third_party/detectron2 --no-build-isolation`
+
+#### torchvision on Ascend (Optional)
+
+Some torchvision operators (such as `nms` and `roi_align`) may run only on CPU on Ascend, leading to low evaluation efficiency. If `torch < 2.7.1`, refer to [Ascend torchvision adaptation](https://gitcode.com/Ascend/vision) to install a matching version for speedup.
 
 ## Quick Start
 
 1. **Prepare the video directory**
    For both Standard and Custom modes, set `DATA_PATH` in the corresponding configuration to the root directory of the generated videos (absolute or relative path). You can also copy the configuration file, change `DATA_PATH`, and then run `ais_bench <your_config.py> --mode eval`. (See [Dataset Generation](#dataset-generation) for video sampling notes.)
 
-2. **(Strongly Recommended) Warm Up the Local Cache**
-   VBench loads various small model weights; without a cache it may spend a long time downloading online or even fail. **The one-click download script only reads `VBENCH_CACHE_DIR` from the shell**, independent of the top-level variable in the config file. To share the same directory with the evaluation, run `export VBENCH_CACHE_DIR=...` in the terminal first. See [Dependencies and Environment](#dependencies-and-environment) below and [vbench_cache_dependencies.md](vbench_cache_dependencies.md) for details.
+2. **Download third-party dependencies to local cache**
+   VBench loads multiple small model weights for video generation quality evaluation. It is recommended to download them in advance. By default, the evaluation will also try to download dependencies automatically, but downloads may fail and break the evaluation. For details, see [`vbench_cache_dependencies.md`](./vbench_cache_dependencies.md).
 
 ```bash
 # Use default cache directory ~/.cache/vbench
@@ -33,20 +58,20 @@ VBENCH_CACHE_DIR=/your/custom/cache/dir \
   bash ais_bench/configs/vbench_examples/download_vbench_cache.sh
 ```
 
-3. **Optional: Specify the Cache in the Config**
-   Setting `VBENCH_CACHE_DIR = "/path/to/cache"` (or the alias `vbench_cache_dir`) at the top of the example configuration overrides the environment variable in the evaluation subprocess **before** vbench is imported. If not set, the `export` from the shell is used.
+3. **Specify the cache in the config**
+   Setting `VBENCH_CACHE_DIR = "/path/to/cache"` (or the alias `vbench_cache_dir`) at the top of the example configuration overrides the environment variable in the evaluation subprocess **before** vbench is imported. If not set, the `export VBENCH_CACHE_DIR` from the shell is used.
 
-4. **Run the Evaluation (explicit `--mode eval` recommended)**
+4. **Run the evaluation (must explicitly specify `--mode eval`)**
 
 ```bash
 # Standard (16 dimensions, official Prompt Suite)
-ais_bench ais_bench/configs/vbench_examples/eval_vbench_standard.py --mode eval
+ais_bench ais_bench/configs/vbench_examples/eval_vbench_standard.py --mode eval --max-num-workers 1
 
 # Custom (10 dimensions, custom prompts)
-ais_bench ais_bench/configs/vbench_examples/eval_vbench_custom.py --mode eval
+ais_bench ais_bench/configs/vbench_examples/eval_vbench_custom.py --mode eval --max-num-workers 1
 ```
 
-(`-m eval` is equivalent to `--mode eval`, consistent with the comments at the top of the example configurations in the same directory.)
+**Note**: It is recommended to set `--max-num-workers <num>` to evaluate on multiple devices in parallel for better throughput.
 
 ## Configuration and Output
 
@@ -101,47 +126,6 @@ Computed similarly; all dimensions in this group have DIM_WEIGHT **1**. Includes
 When a dimension is missing from the results, aggregation treats it as **0** (consistent with `normalized.get(k, 0)`).
 
 The default `work_dir` is `outputs/default`; use `--work_dir` to change it.
-
-## Dependencies and Environment
-
-- The evaluation logic is encapsulated in **`ais_bench/third_party/vbench`** (VBench 1.0 interface).
-
-#### decord (Video Decoding)
-
-On **x86_64**, `pip install decord` usually works directly. On **ARM** and other environments without prebuilt wheels, build from source, for example:
-
-```bash
-git clone https://github.com/dmlc/decord
-cd decord
-mkdir build && cd build
-cmake .. -DUSE_CUDA=0 -DCMAKE_BUILD_TYPE=Release
-make
-cd ../python
-python3 setup.py install --user
-```
-
-#### detectron2 and GRiT
-
-Dimensions like `object_class`, `multiple_objects`, `color`, and `spatial_relationship` depend on GRiT, which in turn depends on detectron2. AISBench **uniformly** uses the in-repo **`ais_bench/third_party/detectron2`** (shared by GPU/NPU). Run an editable install from the repo root:
-
-`pip install -e ais_bench/third_party/detectron2 --no-build-isolation`
-
-#### torchvision on Ascend (Optional)
-
-Some torchvision operators (such as nms and `roi_align`) may run only on CPU on Ascend, leading to low evaluation efficiency. If `torch < 2.7.1`, refer to [Ascend torchvision adaptation](https://gitcode.com/Ascend/vision) to install a matching version for speedup.
-
-#### Per-Dimension Model Weights
-
-Prepare the models and weights required by each dimension yourself, following the official VBench instructions.
-
-#### Small Model Dependencies and Local Cache
-
-Small models such as CLIP, DINO, MUSIQ, RAFT, ViCLIP, GRiT, Tag2Text, and BERT base default to the directory in environment variable **`VBENCH_CACHE_DIR`** (or `~/.cache/vbench` if unset).
-
-- `VBENCH_CACHE_DIR` can be set at the top of the config; it takes effect before vbench is imported in the subprocess.
-- **`download_vbench_cache.sh` only respects the `export` of the current shell**; export the same directory beforehand to keep paths consistent with the evaluation. See [vbench_cache_dependencies.md](vbench_cache_dependencies.md) for the full list and manual download steps.
-- The script skips files that already exist and is safe to run multiple times.
-- If the script fails or you need partial manual downloads, refer to [vbench_cache_dependencies.md](vbench_cache_dependencies.md).
 
 ## Prompt Suite (Official Prompt Structure)
 
