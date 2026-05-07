@@ -128,31 +128,26 @@ class VBenchEvalTask(BaseTask):
                     raise FileNotFoundError(
                         f"VBench full_info json not found. Set dataset full_json_dir or place VBench_full_info.json at {default_full}"
                     )
-            # dimension_list
-            dimension_list = dataset_cfg.get('dimension_list') or eval_cfg.get('dimension_list')
-            if not dimension_list:
-                dimension_list = [
-                    'subject_consistency', 'background_consistency', 'aesthetic_quality',
-                    'imaging_quality', 'object_class', 'multiple_objects', 'color',
-                    'spatial_relationship', 'scene', 'temporal_style', 'overall_consistency',
-                    'human_action', 'temporal_flickering', 'motion_smoothness', 'dynamic_degree',
-                    'appearance_style',
-                ]
             # output dir: work_dir/results/<model_abbr>/
             model_abbr = model_abbr_from_cfg(self.model_cfg)
             dataset_abbr = dataset_abbr_from_cfg(dataset_cfg)
             output_dir = osp.join(self.work_dir, self.output_subdir, model_abbr)
             os.makedirs(output_dir, exist_ok=True)
 
+            import torch
+            device = torch.device(device_str)
+            vbench = VBench(device, full_json_dir, output_dir)
+
+            # dimension_list: prefer config override; otherwise use vbench's built-in full list
+            dimension_list = dataset_cfg.get('dimension_list') or eval_cfg.get('dimension_list')
+            if not dimension_list:
+                dimension_list = vbench.build_full_dimension_list()
+
             if get_rank() == 0:
                 self.logger.info(
                     f"VBench eval: videos_path={videos_path}, device={device_str}, "
                     f"dimensions={len(dimension_list)}, output_dir={output_dir}"
                 )
-
-            import torch
-            device = torch.device(device_str)
-            vbench = VBench(device, full_json_dir, output_dir)
 
             # 注册进度回调，将 VBench 内部的维度进度映射到 TaskStateManager
             if task_state_manager is not None:
@@ -180,7 +175,8 @@ class VBenchEvalTask(BaseTask):
             if prompt_file and osp.isfile(prompt_file):
                 with open(prompt_file, 'r') as f:
                     prompt_list = json.load(f)
-                assert isinstance(prompt_list, dict), "prompt_file must be JSON dict {video_path: prompt}"
+                if not isinstance(prompt_list, dict):
+                    raise ValueError("prompt_file must be JSON dict {video_path: prompt}")
 
             kwargs = {}
             if eval_cfg.get('category'):
