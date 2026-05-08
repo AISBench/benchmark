@@ -103,8 +103,8 @@ for ds_config in datasets:
 _all_sub_set = [(ds_config["abbr"], f'pass^{datasets[0]["args"]["num_trials"]}') for ds_config in datasets]
 
 tau2_summary_groups = [
-    {'name': 'tau2_bench_avg', 'subsets': _all_sub_set},
-    {'name': 'tau2_bench_avg-weighted', 'subsets': _all_sub_set, 'weights': tau2_task_weights},
+    {'name': f'tau2_bench_pass^{datasets[0]["args"]["num_trials"]}_avg', 'subsets': _all_sub_set},
+    {'name': f'tau2_bench_pass^{datasets[0]["args"]["num_trials"]}_avg-weighted', 'subsets': _all_sub_set, 'weights': tau2_task_weights},
 ]
 
 summarizer = dict(

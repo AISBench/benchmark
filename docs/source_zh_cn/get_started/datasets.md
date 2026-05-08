@@ -17,6 +17,7 @@ AISBench Benchmark当前支持的数据集类型如下：
 | agieval          | 综合考试/推理         | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/agieval/README.md) |
 | aime2024         | 数学推理              | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2024/README.md) |
 | aime2025         | 数学推理              | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2025/README.md) |
+| aime2026         | 数学推理              | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2026/README.md) |
 | bbh              | 多任务（Big-Bench Hard） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/bbh/README.md) |
 | cmmlu            | 中文理解/知识问答     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/cmmlu/README.md) |
 | ceval            | 中文职业考试          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ceval/README.md) |
@@ -67,6 +68,7 @@ AISBench Benchmark当前支持的数据集类型如下：
 | Video-MME       | 多模态理解（视频+文）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README.md) |
 | OCRBench_v2    | 多模态理解（图+文，OCR评估） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ocrbench_v2/README.md) |
 | RealWorldQA       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/realworldqa/README.md) |
+| MathVision       | 多模态理解（图+文）      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mathvision/README.md) |
 
 ### 多轮对话类数据集
 | 数据集名称 | 分类     | 详细介绍&获取方式                                                                                                     |

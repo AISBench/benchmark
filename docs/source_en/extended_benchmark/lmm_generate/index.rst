@@ -4,3 +4,4 @@ Extended Multimodal Generation Benchmarks
    :maxdepth: 2
 
    gedit_bench
+   vbench

@@ -19,6 +19,7 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | agieval | Comprehensive Exams / Reasoning | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/agieval/README_en.md) |
 | aime2024 | Mathematical Reasoning | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2024/README_en.md) |
 | aime2025 | Mathematical Reasoning | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2025/README_en.md) |
+| aime2026 | Mathematical Reasoning | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2026/README_en.md) |
 | bbh | Multi-Task (Big-Bench Hard) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/bbh/README_en.md) |
 | cmmlu | Chinese Understanding / Knowledge Q&A | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/cmmlu/README_en.md) |
 | ceval | Chinese Professional Exams | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ceval/README_en.md) |
@@ -61,15 +62,16 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | textvqa | Multimodal Understanding (Image + Text) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/textvqa/README_en.md) |
 | videobench | Multimodal Understanding (Video) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videobench/README_en.md) |
 | vocalsound | Multimodal Understanding (Audio) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/vocalsound/README_en.md) |
-| Omnidocbench          | Image OCR (Image + Text)    | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/omnidocbench/README.md) |
-| MMMU       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu/README.md) |
-| MMMU_Pro       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README.md) |
-| InfoVQA       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README.md) |
-| DocVQA       | Multimodal Understanding (Image + Text)     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README.md) |
-| MMStar       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmstar/README.md) |
-| Video-MME       | Multimodal Understanding (video + Text)     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README.md) |
+| Omnidocbench          | Image OCR (Image + Text)    | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/omnidocbench/README_en.md) |
+| MMMU       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu/README_en.md) |
+| MMMU_Pro       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README_en.md) |
+| InfoVQA       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README_en.md) |
+| DocVQA       | Multimodal Understanding (Image + Text)     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README_en.md) |
+| MMStar       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmstar/README_en.md) |
+| Video-MME       | Multimodal Understanding (video + Text)     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README_en.md) |
 | OCRBench_v2    | Multimodal Understanding (Image + Text, OCR Evaluation) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ocrbench_v2/README_en.md) |
 | RealWorldQA       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/realworldqa/README_en.md) |
+| MathVision       | Multimodal Understanding (Image + Text)      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mathvision/README_en.md) |
 
 
 ### Multi-Turn Dialogue Datasets
@@ -97,7 +99,7 @@ ais_bench/benchmark/configs/datasets
 │   ├── gsm8k_gen_0_shot_cot_str.py
 │   ├── gsm8k_gen_4_shot_cot_str.py
 │   ├── gsm8k_gen_4_shot_cot_chat_prompt.py
-│   └── README.md
+│   └── README_en.md
 ├── ...
 ├── vocalsound
 ├── winogrande
