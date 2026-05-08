@@ -29,6 +29,7 @@
 > **⭐️收藏项目**，你将能第一时间获取 AISBench评测工具 的最新动态～
 
 ## 🔥 最新进展
+- **\[2026.5.07\]** 接入视频生成质量评测基准 VBench 1.0：支持在 GPU / NPU 上对**生成视频**进行多维度质量/语义指标测评。示例与说明见 [在AISBench中测评VBench](docs/source_zh_cn/extended_benchmark/lmm_generate/vbench.md)。 🔥🔥🔥
 - **\[2026.4.14\]** 接入大模型智能体评测基准τ²-Bench，支持双控环境下的对话、工具调用与合规能力评估，详见[在AISBench中测评τ²-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/tau2_bench.html)。 🔥🔥🔥
 - **\[2026.4.10\]** 接入首个智能体评测基准SWE-Bench， 支持对智能体模型进行评测，详见[在AISBench中测评SWE-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/swe_bench.html)。 🔥🔥🔥
 - **\[2026.3.10\]** 接入首个图像生成类评测基准GEdit-Bench， 支持对图像生成模型进行评测，详见[在AISBench中测评GEdit-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/lmm_generate/gedit_bench.html)。 🔥🔥🔥

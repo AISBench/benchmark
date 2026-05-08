@@ -140,8 +140,8 @@ Press Up/Down arrow to page, 'P' to PAUSE/RESUME screen refresh, 'Ctrl + C' to e
 | tau2_bench_airline | / | pass^1 | unknown | 50 | 38.00 |
 | tau2_bench_retail | / | pass^1 | unknown | 114 | 21.05 |
 | tau2_bench_telecom | / | pass^1 | unknown | 114 | 33.33 |
-| tau2_bench_avg | - | naive_average | unknown | / | 30.80 |
-| tau2_bench_avg-weighted | - | weighted_average | unknown | / | 29.14 |
+| tau2_bench_pass^1_avg | - | naive_average | unknown | / | 30.80 |
+| tau2_bench_pass^1_avg-weighted | - | weighted_average | unknown | / | 29.14 |
 ```
 - `tau2_bench_avg` 表示三大领域的简单平均得分。
 - `tau2_bench_avg-weighted` 表示三大领域的加权平均得分（权重为各领域的任务数），权重为每个领域的任务数。
@@ -213,7 +213,7 @@ for task in sub_tasks:
             abbr=f'tau2_bench_{task}',
             args = dict(
                 domain = task,                      # -d, 要运行的模拟域，可选值为 "airline", "retail", "telecom"
-                num_trials = 3,                     # 每个任务运行的次数，默认为 1
+                num_trials = 5,                     # 每个任务运行的次数，默认为 1
                 # ......
             ),
         )
@@ -226,11 +226,11 @@ for task in sub_tasks:
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
 | Task Name                         |   Process | Progress                                                   | Time Cost   | Status   | Log Path                                        | Extend Parameters   |
 +===================================+===========+============================================================+=============+==========+=================================================+=====================+
-| openai-v1-chat/tau2_bench_airline |   1856223 | [######                        ] 30/150 Running TAU2 Bench | 0:07:13     | running  | logs/eval/openai-v1-chat/tau2_bench_airline.out | None                |
+| openai-v1-chat/tau2_bench_airline |   1856223 | [######                        ] 30/250 Running TAU2 Bench | 0:07:13     | running  | logs/eval/openai-v1-chat/tau2_bench_airline.out | None                |
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
-| openai-v1-chat/tau2_bench_retail  |   1856224 | [######                        ] 75/342 Running TAU2 Bench | 0:11:56     | running  | logs/eval/openai-v1-chat/tau2_bench_retail.out  | None                |
+| openai-v1-chat/tau2_bench_retail  |   1856224 | [######                        ] 75/568 Running TAU2 Bench | 0:11:56     | running  | logs/eval/openai-v1-chat/tau2_bench_retail.out  | None                |
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
-| openai-v1-chat/tau2_bench_telecom |   1856222 | [######                        ] 76/342 Running TAU2 Bench | 1:09:51     | running  | logs/eval/openai-v1-chat/tau2_bench_telecom.out | None                |
+| openai-v1-chat/tau2_bench_telecom |   1856222 | [######                        ] 76/568 Running TAU2 Bench | 1:09:51     | running  | logs/eval/openai-v1-chat/tau2_bench_telecom.out | None                |
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
 ```
 
@@ -238,9 +238,21 @@ for task in sub_tasks:
 ```shell
 | dataset | version | metric | mode | total_count | openai-v1-chat |
 |----- | ----- | ----- | ----- | ----- | -----|
-| tau2_bench_airline | / | pass^3 | unknown | 50 | 38.00 |
-| tau2_bench_retail | / | pass^3 | unknown | 114 | 21.05 |
-| tau2_bench_telecom | / | pass^3 | unknown | 114 | 33.33 |
-| tau2_bench_avg | - | naive_average | unknown | / | 30.80 |
-| tau2_bench_avg-weighted | - | weighted_average | unknown | / | 29.14 |
+| tau2_bench_airline | a39421 | pass^1 | gen | 10 | 46.00 |
+| tau2_bench_airline | a39421 | pass^2 | gen | 10 | 37.00 |
+| tau2_bench_airline | a39421 | pass^3 | gen | 10 | 34.00 |
+| tau2_bench_airline | a39421 | pass^4 | gen | 10 | 32.00 |
+| tau2_bench_airline | a39421 | pass^5 | gen | 10 | 30.00 |
+| tau2_bench_retail | a39421 | pass^1 | gen | 23 | 32.17 |
+| tau2_bench_retail | a39421 | pass^2 | gen | 23 | 19.13 |
+| tau2_bench_retail | a39421 | pass^3 | gen | 23 | 13.48 |
+| tau2_bench_retail | a39421 | pass^4 | gen | 23 | 8.70 |
+| tau2_bench_retail | a39421 | pass^5 | gen | 23 | 4.35 |
+| tau2_bench_telecom | a39421 | pass^1 | gen | 23 | 62.61 |
+| tau2_bench_telecom | a39421 | pass^2 | gen | 23 | 44.78 |
+| tau2_bench_telecom | a39421 | pass^3 | gen | 23 | 36.52 |
+| tau2_bench_telecom | a39421 | pass^4 | gen | 23 | 32.17 |
+| tau2_bench_telecom | a39421 | pass^5 | gen | 23 | 30.43 |
+| tau2_bench_pass^5_avg | - | naive_average | gen | / | 21.59 |
+| tau2_bench_pass^5_avg-weighted | - | weighted_average | gen | / | 19.64 |
 ```

@@ -2,6 +2,7 @@ from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template_mm impo
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.datasets import MMMUDataset, MMMUEvaluator
+from ais_bench.benchmark.utils.postprocess.text_postprocessors import last_option_postprocess
 
 
 START_TEXT_PROMPT = "Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: [LETTER]' (without quotes) where [LETTER] is one of A,B,C,D. Think step by step before answering.\n\n"
@@ -30,7 +31,8 @@ mmmu_infer_cfg = dict(
 )
 
 mmmu_eval_cfg = dict(
-    evaluator=dict(type=MMMUEvaluator)
+    evaluator=dict(type=MMMUEvaluator),
+    pred_postprocessor=dict(type=last_option_postprocess, options="ABCD"),
 )
 
 mmmu_datasets = [
