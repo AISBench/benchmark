@@ -1,4 +1,5 @@
 import io
+import importlib
 import json
 import os
 import tempfile
@@ -17,6 +18,8 @@ from ais_bench.benchmark.datasets.refcoco.refcoco import (
 )
 from ais_bench.benchmark.datasets.utils.datasets import get_content_str
 from ais_bench.benchmark.registry import TEXT_POSTPROCESSORS
+
+refcoco_module = importlib.import_module("ais_bench.benchmark.datasets.refcoco.refcoco")
 
 
 def _build_test_image_bytes(color=(255, 0, 0), size=(8, 6)):
@@ -48,13 +51,9 @@ class TestRefCOCODataset(unittest.TestCase):
                 pass
 
             with (
-                patch(
-                    "ais_bench.benchmark.datasets.refcoco.refcoco.get_data_path",
-                    return_value=temp_dir,
-                ),
-                patch(
-                    "ais_bench.benchmark.datasets.refcoco.refcoco.pd.read_parquet",
-                    return_value=sample_frame,
+                patch.object(refcoco_module, "get_data_path", return_value=temp_dir),
+                patch.object(
+                    refcoco_module.pd, "read_parquet", return_value=sample_frame
                 ),
             ):
                 # when
@@ -124,13 +123,9 @@ class TestRefCOCODataset(unittest.TestCase):
                 pass
 
             with (
-                patch(
-                    "ais_bench.benchmark.datasets.refcoco.refcoco.get_data_path",
-                    return_value=temp_dir,
-                ),
-                patch(
-                    "ais_bench.benchmark.datasets.refcoco.refcoco.pd.read_parquet",
-                    return_value=sample_frame,
+                patch.object(refcoco_module, "get_data_path", return_value=temp_dir),
+                patch.object(
+                    refcoco_module.pd, "read_parquet", return_value=sample_frame
                 ),
             ):
                 # when
@@ -179,10 +174,7 @@ class TestRefCOCODataset(unittest.TestCase):
     ):
         # given
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch(
-                "ais_bench.benchmark.datasets.refcoco.refcoco.get_data_path",
-                return_value=temp_dir,
-            ):
+            with patch.object(refcoco_module, "get_data_path", return_value=temp_dir):
                 # when / then
                 with self.assertRaises(FileNotFoundError):
                     RefCOCODataset.load("/unused", "testA")
@@ -209,13 +201,9 @@ class TestRefCOCODataset(unittest.TestCase):
                 pass
 
             with (
-                patch(
-                    "ais_bench.benchmark.datasets.refcoco.refcoco.get_data_path",
-                    return_value=temp_dir,
-                ),
-                patch(
-                    "ais_bench.benchmark.datasets.refcoco.refcoco.pd.read_parquet",
-                    return_value=invalid_frame,
+                patch.object(refcoco_module, "get_data_path", return_value=temp_dir),
+                patch.object(
+                    refcoco_module.pd, "read_parquet", return_value=invalid_frame
                 ),
             ):
                 # when / then
