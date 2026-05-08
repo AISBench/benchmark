@@ -19,6 +19,7 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | agieval | Comprehensive Exams / Reasoning | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/agieval/README_en.md) |
 | aime2024 | Mathematical Reasoning | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2024/README_en.md) |
 | aime2025 | Mathematical Reasoning | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2025/README_en.md) |
+| aime2026 | Mathematical Reasoning | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2026/README_en.md) |
 | bbh | Multi-Task (Big-Bench Hard) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/bbh/README_en.md) |
 | cmmlu | Chinese Understanding / Knowledge Q&A | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/cmmlu/README_en.md) |
 | ceval | Chinese Professional Exams | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ceval/README_en.md) |
