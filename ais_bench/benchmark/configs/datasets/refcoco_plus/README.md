@@ -12,7 +12,7 @@ RefCOCO+ 与 RefCOCO 共享相同的数据字段和评估流程，仍然采用 p
 - 数据特点：相较 RefCOCO，RefCOCO+ 的 referring expression 更严格，不使用显式空间方位词
 - 数据格式：`data/` 目录下的 `<split>-*.parquet` 文件
 
-> 🔗 数据集主页[https://huggingface.co/datasets/lmms-lab/RefCOCOplus](https://huggingface.co/datasets/lmms-lab/RefCOCOplus)
+> 🔗 数据集主页 [https://huggingface.co/datasets/lmms-lab/RefCOCOplus](https://huggingface.co/datasets/lmms-lab/RefCOCOplus)
 
 ## 数据集部署
 
