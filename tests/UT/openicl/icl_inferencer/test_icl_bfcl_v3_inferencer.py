@@ -119,11 +119,11 @@ class TestBaseBFCLV3Inferencer(unittest.TestCase):
         input_data = {"function": json.dumps([{"name": "test"}])}
         result = inferencer._load_json_field(input_data, "function")
         self.assertEqual(result, [{"name": "test"}])
-        
+
         # Test with missing key and default
         result = inferencer._load_json_field(input_data, "missing", default=[])
         self.assertEqual(result, [])
-        
+
         # Test with missing key and no default
         result = inferencer._load_json_field(input_data, "missing")
         self.assertEqual(result, [])
@@ -131,7 +131,7 @@ class TestBaseBFCLV3Inferencer(unittest.TestCase):
     def test_convert_message_to_prompt_list(self):
         """Test convert_message_to_prompt_list method."""
         inferencer = BaseBFCLV3Inferencer()
-        
+
         # Test normal message
         message = [
             {"role": "user", "content": "Hello"},
@@ -144,26 +144,26 @@ class TestBaseBFCLV3Inferencer(unittest.TestCase):
         self.assertEqual(result[0]["prompt"], "Hello")
         self.assertEqual(result[1]["role"], "BOT")
         self.assertEqual(result[1]["prompt"], "Hi")
-        
+
         # Test message without role
         message = [{"content": "test"}]
         with mock.patch.object(inferencer.logger, 'warning'):
             result = inferencer.convert_message_to_prompt_list(message)
             self.assertEqual(len(result), 1)
             self.assertEqual(result[0]["role"], "HUMAN")
-        
+
         # Test message without role and content
         message = [{}]
         with mock.patch.object(inferencer.logger, 'warning'):
             result = inferencer.convert_message_to_prompt_list(message)
             self.assertEqual(len(result), 0)
-        
+
         # Test unknown role
         message = [{"role": "unknown", "content": "test"}]
         with mock.patch.object(inferencer.logger, 'warning'):
             result = inferencer.convert_message_to_prompt_list(message)
             self.assertEqual(len(result), 0)
-        
+
         # Test message with extra fields
         message = [{"role": "user", "content": "test", "extra": "field"}]
         result = inferencer.convert_message_to_prompt_list(message)
@@ -180,14 +180,14 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
         inferencer = BFCLV3FunctionInferencer()
         mock_preprocess.return_value = [{"name": "processed_func"}]
         mock_convert.return_value = [{"type": "function", "function": {"name": "test_func"}}]
-        
+
         input_data = {
             "function": json.dumps([{"name": "test_func"}]),
             "data_name": "simple_0",
             "prompt": json.dumps([{"role": "user", "content": "test"}]),
         }
         result = inferencer.pre_query_processing(input_data)
-        
+
         self.assertIn("message", result)
         self.assertIn("tools", result)
         self.assertEqual(input_data["prompt"], [{"role": "user", "content": "test"}])
@@ -201,18 +201,18 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
         mock_preprocess.return_value = [{"name": "processed_func"}]
         mock_convert.return_value = [{"type": "function"}]
         mock_prompt = "Add function: {functions}"
-        
+
         input_data = {
             "function": json.dumps([{"name": "test_func"}]),
             "data_name": "simple_0",
         }
         inference_data = {"message": []}
         holdout_function = [{"name": "holdout_func"}]
-        
+
         result_inference_data, current_turn_message = inferencer.add_holdout_function(
             input_data, inference_data, holdout_function
         )
-        
+
         self.assertIn("tools", result_inference_data)
         self.assertEqual(len(current_turn_message), 1)
         self.assertEqual(current_turn_message[0]["role"], "user")
@@ -237,11 +237,11 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
         }
         inference_data = {"message": []}
         current_turn_response = []
-        
+
         with mock.patch('ais_bench.benchmark.openicl.icl_inferencer.icl_bfcl_v3_inferencer.convert_to_function_call') as mock_convert:
             mock_convert.return_value = [{"func1": {"arg": "value"}}, {"func2": {"arg2": "value2"}}]
             result = inferencer.extra_multi_turn_response(output, inference_data, current_turn_response)
-            
+
             self.assertEqual(len(result), 2)
             self.assertIn("tool_call_ids", inference_data)
             self.assertEqual(len(inference_data["message"]), 1)
@@ -258,11 +258,11 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
         }
         inference_data = {"message": []}
         current_turn_response = []
-        
+
         with mock.patch('ais_bench.benchmark.openicl.icl_inferencer.icl_bfcl_v3_inferencer.convert_to_function_call') as mock_convert:
             mock_convert.return_value = [{"func": "test"}]
             result = inferencer.extra_multi_turn_response(output, inference_data, current_turn_response)
-            
+
             self.assertEqual(len(result), 1)
 
     def test_extra_multi_turn_response_with_invalid_json(self):
@@ -277,7 +277,7 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
         }
         inference_data = {"message": []}
         current_turn_response = []
-        
+
         result = inferencer.extra_multi_turn_response(output, inference_data, current_turn_response)
         self.assertEqual(result, [])
 
@@ -294,7 +294,7 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
         }
         inference_data = {"message": []}
         current_turn_response = []
-        
+
         with mock.patch('ais_bench.benchmark.openicl.icl_inferencer.icl_bfcl_v3_inferencer.convert_to_function_call', side_effect=Exception("Error")):
             result = inferencer.extra_multi_turn_response(output, inference_data, current_turn_response)
             self.assertEqual(result, [])
@@ -310,7 +310,7 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
                 ]
             }
         }
-        
+
         inferencer.extrat_single_turn_response(output)
         self.assertEqual(len(output.tool_calls), 1)
 
@@ -323,7 +323,7 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
                 "content": "test content"
             }
         }
-        
+
         inferencer.extrat_single_turn_response(output)
         self.assertEqual(output.tool_calls, "test content")
 
@@ -336,7 +336,7 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
                 "content": ""
             }
         }
-        
+
         inferencer.extrat_single_turn_response(output)
         self.assertEqual(output.tool_calls, [])
 
@@ -349,9 +349,9 @@ class TestBFCLV3FunctionInferencer(unittest.TestCase):
         }
         execution_results = ["result1", "result2"]
         model_response_data = {}
-        
+
         result = inferencer.add_execution_results(inference_data, execution_results, model_response_data)
-        
+
         self.assertEqual(len(result["message"]), 2)
         self.assertEqual(result["message"][0]["role"], "tool")
         self.assertEqual(result["message"][0]["content"], "result1")
@@ -368,14 +368,14 @@ class TestBFCLV3PromptInferencer(unittest.TestCase):
         inferencer = BFCLV3PromptInferencer()
         mock_preprocess.return_value = [{"name": "processed_func"}]
         mock_system_prompt.return_value = "processed system prompt"
-        
+
         input_data = {
             "function": json.dumps([{"name": "test_func"}]),
             "data_name": "simple_0",
             "prompt": json.dumps(["system prompt", "user prompt"]),
         }
         result = inferencer.pre_query_processing(input_data)
-        
+
         self.assertIn("message", result)
         self.assertEqual(input_data["prompt"][0], "processed system prompt")
 
@@ -384,15 +384,15 @@ class TestBFCLV3PromptInferencer(unittest.TestCase):
         """Test add_holdout_function method."""
         inferencer = BFCLV3PromptInferencer()
         mock_prompt_template.format.return_value = "Add function: {functions}"
-        
+
         input_data = {}
         inference_data = {"message": []}
         holdout_function = [{"name": "holdout_func"}]
-        
+
         result_inference_data, current_turn_message = inferencer.add_holdout_function(
             input_data, inference_data, holdout_function
         )
-        
+
         self.assertEqual(result_inference_data, inference_data)
         self.assertEqual(len(current_turn_message), 1)
         self.assertEqual(current_turn_message[0]["role"], "user")
@@ -407,11 +407,11 @@ class TestBFCLV3PromptInferencer(unittest.TestCase):
         }
         inference_data = {"message": []}
         current_turn_response = []
-        
+
         with mock.patch('ais_bench.benchmark.openicl.icl_inferencer.icl_bfcl_v3_inferencer.default_decode_execute_prompting') as mock_decode:
             mock_decode.return_value = [{"func": "test"}]
             result = inferencer.extra_multi_turn_response(output, inference_data, current_turn_response)
-            
+
             self.assertEqual(len(result), 1)
             self.assertEqual(len(current_turn_response), 1)
             self.assertEqual(len(inference_data["message"]), 1)
@@ -424,7 +424,7 @@ class TestBFCLV3PromptInferencer(unittest.TestCase):
         output.extra_details_data = {"message": {}}
         inference_data = {"message": []}
         current_turn_response = []
-        
+
         with mock.patch('ais_bench.benchmark.openicl.icl_inferencer.icl_bfcl_v3_inferencer.default_decode_execute_prompting', side_effect=Exception("Error")):
             result = inferencer.extra_multi_turn_response(output, inference_data, current_turn_response)
             self.assertEqual(result, [])
@@ -434,7 +434,7 @@ class TestBFCLV3PromptInferencer(unittest.TestCase):
         inferencer = BFCLV3PromptInferencer()
         output = FunctionCallOutput()
         output.content = "test content"
-        
+
         inferencer.extrat_single_turn_response(output)
         self.assertEqual(output.tool_calls, "test content")
 
@@ -443,7 +443,7 @@ class TestBFCLV3PromptInferencer(unittest.TestCase):
         inferencer = BFCLV3PromptInferencer()
         output = FunctionCallOutput()
         output.content = ""
-        
+
         inferencer.extrat_single_turn_response(output)
         self.assertEqual(output.tool_calls, "")
 
@@ -453,11 +453,11 @@ class TestBFCLV3PromptInferencer(unittest.TestCase):
         inference_data = {"message": []}
         execution_results = ["result1", "result2"]
         model_response = [{"func": "test"}]
-        
+
         with mock.patch('ais_bench.benchmark.openicl.icl_inferencer.icl_bfcl_v3_inferencer.format_execution_results_prompting') as mock_format:
             mock_format.return_value = "Formatted results"
             result = inferencer.add_execution_results(inference_data, execution_results, model_response)
-            
+
             self.assertEqual(len(result["message"]), 1)
             self.assertEqual(result["message"][0]["role"], "user")
 
@@ -471,9 +471,9 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test initialization with returns_tool_calls=True."""
         m_build.return_value = DummyModel()
         model_cfg = {"returns_tool_calls": True}
-        
+
         inferencer = BFCLV3FunctionCallInferencer(model_cfg=model_cfg)
-        
+
         self.assertTrue(inferencer.returns_tool_calls)
         self.assertIsInstance(inferencer.impl, BFCLV3FunctionInferencer)
         self.assertIn("function-call-model-", inferencer.model_name)
@@ -484,9 +484,9 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test initialization with returns_tool_calls=False."""
         m_build.return_value = DummyModel()
         model_cfg = {"returns_tool_calls": False}
-        
+
         inferencer = BFCLV3FunctionCallInferencer(model_cfg=model_cfg)
-        
+
         self.assertFalse(inferencer.returns_tool_calls)
         self.assertIsInstance(inferencer.impl, BFCLV3PromptInferencer)
         self.assertIn("prompt-model-", inferencer.model_name)
@@ -497,7 +497,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test initialization with perf_mode raises error."""
         m_build.return_value = DummyModel()
         model_cfg = {}
-        
+
         with self.assertRaises(AISBenchNotImplementedError):
             BFCLV3FunctionCallInferencer(model_cfg=model_cfg, mode="perf")
 
@@ -509,7 +509,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         model.stream = True
         m_build.return_value = model
         model_cfg = {}
-        
+
         with self.assertRaises(AISBenchNotImplementedError):
             BFCLV3FunctionCallInferencer(model_cfg=model_cfg)
 
@@ -520,9 +520,9 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
         retriever = DummyRetriever()
-        
+
         data_list = inferencer.get_data_list(retriever)
-        
+
         self.assertEqual(len(data_list), 2)
         self.assertEqual(data_list[0]["data_name"], "simple_0")
         self.assertEqual(data_list[0]["data_abbr"], "test_dataset")
@@ -536,7 +536,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test decode_multi_turn_response with successful decoding."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {
             "data_name": "simple_0",
             "initial_config": [],
@@ -553,23 +553,23 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         inference_data = {"message": []}
         current_turn_response = []
         current_step_inference_log = []
-        
+
         mock_is_empty.return_value = False
         mock_execute.return_value = (["result1"], {})
-        
+
         with mock.patch.object(inferencer.impl, 'extra_multi_turn_response', return_value=[{"func1": {}}]) as mock_extra:
             # Make extra_multi_turn_response append to current_turn_response
             def side_effect(output, inference_data, current_turn_response):
                 current_turn_response.append({"func1": {}})
                 return [{"func1": {}}]
             mock_extra.side_effect = side_effect
-            
+
             with mock.patch.object(inferencer.impl, 'add_execution_results', return_value=inference_data):
                 result = asyncio.run(asyncio.to_thread(
                     inferencer.decode_multi_turn_response,
                     data, output, inference_data, current_turn_response, current_step_inference_log
                 ))
-                
+
                 self.assertTrue(result)
                 self.assertEqual(len(current_step_inference_log), 2)
                 mock_execute.assert_called_once()
@@ -581,28 +581,28 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test decode_multi_turn_response with empty response."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {"data_name": "simple_0"}
         output = FunctionCallOutput()
         output.content = "test"
         inference_data = {}
         current_turn_response = []
         current_step_inference_log = []
-        
+
         mock_is_empty.return_value = True
-        
+
         with mock.patch.object(inferencer.impl, 'extra_multi_turn_response', return_value=[]) as mock_extra:
             # Make extra_multi_turn_response append to current_turn_response even when empty
             def side_effect(output, inference_data, current_turn_response):
                 current_turn_response.append("empty_response")
                 return []
             mock_extra.side_effect = side_effect
-            
+
             result = asyncio.run(asyncio.to_thread(
                 inferencer.decode_multi_turn_response,
                 data, output, inference_data, current_turn_response, current_step_inference_log
             ))
-            
+
             self.assertFalse(result)
             self.assertEqual(len(current_step_inference_log), 1)
 
@@ -612,15 +612,15 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test _add_next_turn_user_message method."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         inference_data = {"message": []}
         user_message = [{"role": "user", "content": "test"}]
-        
+
         async def run_test():
             return await inferencer._add_next_turn_user_message(inference_data, user_message)
-        
+
         result = asyncio.run(run_test())
-        
+
         self.assertEqual(result["message"], user_message)
         self.assertEqual(inference_data["message"], user_message)
 
@@ -632,7 +632,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test do_request with multi_turn data."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {
             "data_name": "multi_turn_base_0",
             "prompt": [
@@ -643,17 +643,17 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
             "involved_classes": json.dumps({}),
             "missed_function": json.dumps({}),
         }
-        
+
         mock_is_empty.return_value = False
         mock_execute.return_value = (["result"], {})
-        
+
         async def run_test():
             with mock.patch.object(inferencer, '_inference_multi_turn') as mock_multi:
                 mock_multi.return_value = None
                 session = mock.MagicMock()
                 await inferencer.do_request(data, None, session)
                 mock_multi.assert_called_once()
-        
+
         asyncio.run(run_test())
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
@@ -662,19 +662,19 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test do_request with single turn data."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {
             "data_name": "simple_0",
             "prompt": [{"role": "user", "content": "test"}],
         }
-        
+
         async def run_test():
             with mock.patch.object(inferencer, '_inference_single_turn') as mock_single:
                 mock_single.return_value = None
                 session = mock.MagicMock()
                 await inferencer.do_request(data, None, session)
                 mock_single.assert_called_once()
-        
+
         asyncio.run(run_test())
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
@@ -686,7 +686,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test _inference_multi_turn method."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {
             "index": 0,
             "data_abbr": "test_dataset",
@@ -700,12 +700,12 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
             "involved_classes": json.dumps({}),
             "missed_function": json.dumps({}),
         }
-        finial_output = FunctionCallOutput()
+        final_output = FunctionCallOutput()
         session = mock.MagicMock()
-        
+
         mock_is_empty.return_value = False
         mock_execute.return_value = (["result"], {})
-        
+
         with mock.patch.object(inferencer.impl, 'pre_query_processing', return_value={"message": []}), \
              mock.patch.object(inferencer.impl, 'convert_message_to_prompt_list', return_value=PromptList()), \
              mock.patch.object(inferencer.impl, 'add_execution_results', return_value={"message": []}), \
@@ -717,13 +717,13 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
              mock.patch.object(inferencer.status_counter, 'finish'), \
              mock.patch.object(inferencer.status_counter, 'case_finish'), \
              mock.patch.object(inferencer.output_handler, 'report_cache_info'):
-            
+
             # Make extra_multi_turn_response append to current_turn_response
             def extra_side_effect(output, inference_data, current_turn_response):
                 current_turn_response.append({"func": {}})
                 return [{"func": {}}]
             mock_extra.side_effect = extra_side_effect
-            
+
             async def mock_gen(*args, **kwargs):
                 # output is the 3rd positional argument (after prompt_list and max_out_len)
                 if len(args) >= 3:
@@ -738,15 +738,15 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
                             "tool_calls": [{"id": "call_1", "function": {"name": "func1", "arguments": "{}"}}]
                         }
                     }
-            
+
             mock_generate.side_effect = mock_gen
-            
+
             async def run_test():
-                await inferencer._inference_multi_turn(data, finial_output, session)
-            
+                await inferencer._inference_multi_turn(data, final_output, session)
+
             asyncio.run(run_test())
-            
-            self.assertTrue(finial_output.success)
+
+            self.assertTrue(final_output.success)
             mock_generate.assert_called()
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
@@ -758,7 +758,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test _inference_multi_turn with holdout function."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {
             "index": 0,
             "data_abbr": "test_dataset",
@@ -771,12 +771,12 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
             "involved_classes": json.dumps({}),
             "missed_function": json.dumps({"0": [{"name": "holdout_func"}]}),
         }
-        finial_output = FunctionCallOutput()
+        final_output = FunctionCallOutput()
         session = mock.MagicMock()
-        
+
         mock_is_empty.return_value = False
         mock_execute.return_value = (["result"], {})
-        
+
         with mock.patch.object(inferencer.impl, 'pre_query_processing', return_value={"message": []}), \
              mock.patch.object(inferencer.impl, 'add_holdout_function', return_value=({"message": []}, [{"role": "user", "content": "holdout"}])), \
              mock.patch.object(inferencer.impl, 'convert_message_to_prompt_list', return_value=PromptList()), \
@@ -789,13 +789,13 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
              mock.patch.object(inferencer.status_counter, 'finish'), \
              mock.patch.object(inferencer.status_counter, 'case_finish'), \
              mock.patch.object(inferencer.output_handler, 'report_cache_info'):
-            
+
             # Make extra_multi_turn_response append to current_turn_response
             def extra_side_effect(output, inference_data, current_turn_response):
                 current_turn_response.append({"func": {}})
                 return [{"func": {}}]
             mock_extra.side_effect = extra_side_effect
-            
+
             async def mock_gen(*args, **kwargs):
                 # output is the 3rd positional argument (after prompt_list and max_out_len)
                 if len(args) >= 3:
@@ -810,15 +810,15 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
                             "tool_calls": [{"id": "call_1", "function": {"name": "func1", "arguments": "{}"}}]
                         }
                     }
-            
+
             mock_generate.side_effect = mock_gen
-            
+
             async def run_test():
-                await inferencer._inference_multi_turn(data, finial_output, session)
-            
+                await inferencer._inference_multi_turn(data, final_output, session)
+
             asyncio.run(run_test())
-            
-            self.assertTrue(finial_output.success)
+
+            self.assertTrue(final_output.success)
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
@@ -827,7 +827,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test _inference_multi_turn when model fails."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {
             "index": 0,
             "data_abbr": "test_dataset",
@@ -840,9 +840,9 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
             "involved_classes": json.dumps({}),
             "missed_function": json.dumps({}),
         }
-        finial_output = FunctionCallOutput()
+        final_output = FunctionCallOutput()
         session = mock.MagicMock()
-        
+
         with mock.patch.object(inferencer.impl, 'pre_query_processing', return_value={"message": []}), \
              mock.patch.object(inferencer.impl, 'convert_message_to_prompt_list', return_value=PromptList()), \
              mock.patch.object(inferencer.model, 'generate') as mock_generate, \
@@ -851,7 +851,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
              mock.patch.object(inferencer.status_counter, 'case_finish'), \
              mock.patch.object(inferencer.output_handler, 'report_cache_info'), \
              mock.patch.object(inferencer.logger, 'warning'):
-            
+
             async def mock_gen(*args, **kwargs):
                 # output is the 3rd positional argument (after prompt_list and max_out_len)
                 if len(args) >= 3:
@@ -861,15 +861,15 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
                 if output_obj:
                     output_obj.success = False
                     output_obj.error_info = "Test error"
-            
+
             mock_generate.side_effect = mock_gen
-            
+
             async def run_test():
-                await inferencer._inference_multi_turn(data, finial_output, session)
-            
+                await inferencer._inference_multi_turn(data, final_output, session)
+
             asyncio.run(run_test())
-            
-            self.assertFalse(finial_output.success)
+
+            self.assertFalse(final_output.success)
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
@@ -879,7 +879,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test _inference_multi_turn with maximum steps reached."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {
             "index": 0,
             "data_abbr": "test_dataset",
@@ -892,11 +892,11 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
             "involved_classes": json.dumps({}),
             "missed_function": json.dumps({}),
         }
-        finial_output = FunctionCallOutput()
+        final_output = FunctionCallOutput()
         session = mock.MagicMock()
-        
+
         mock_is_empty.return_value = False
-        
+
         with mock.patch.object(inferencer.impl, 'pre_query_processing', return_value={"message": []}), \
              mock.patch.object(inferencer.impl, 'convert_message_to_prompt_list', return_value=PromptList()), \
              mock.patch.object(inferencer.impl, 'add_execution_results', return_value={"message": []}), \
@@ -909,13 +909,13 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
              mock.patch.object(inferencer.status_counter, 'case_finish'), \
              mock.patch.object(inferencer.output_handler, 'report_cache_info'), \
              mock.patch('ais_bench.benchmark.openicl.icl_inferencer.icl_bfcl_v3_inferencer.execute_multi_turn_func_call', return_value=([], {})):
-            
+
             # Make extra_multi_turn_response append to current_turn_response
             def extra_side_effect(output, inference_data, current_turn_response):
                 current_turn_response.append({"func": {}})
                 return [{"func": {}}]
             mock_extra.side_effect = extra_side_effect
-            
+
             async def mock_gen(*args, **kwargs):
                 # output is the 3rd positional argument (after prompt_list and max_out_len)
                 if len(args) >= 3:
@@ -930,16 +930,16 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
                             "tool_calls": [{"id": "call_1", "function": {"name": "func1", "arguments": "{}"}}]
                         }
                     }
-            
+
             mock_generate.side_effect = mock_gen
-            
+
             async def run_test():
-                await inferencer._inference_multi_turn(data, finial_output, session)
-            
+                await inferencer._inference_multi_turn(data, final_output, session)
+
             asyncio.run(run_test())
-            
+
             # Should have reached max steps
-            self.assertTrue(finial_output.success)
+            self.assertTrue(final_output.success)
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
@@ -947,7 +947,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test _inference_single_turn with successful generation."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {
             "index": 0,
             "data_abbr": "test_dataset",
@@ -957,7 +957,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         }
         output = FunctionCallOutput()
         session = mock.MagicMock()
-        
+
         with mock.patch.object(inferencer.impl, 'pre_query_processing', return_value={"message": []}), \
              mock.patch.object(inferencer.impl, 'convert_message_to_prompt_list', return_value=PromptList()), \
              mock.patch.object(inferencer.impl, 'extrat_single_turn_response') as mock_extract, \
@@ -967,7 +967,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
              mock.patch.object(inferencer.status_counter, 'finish'), \
              mock.patch.object(inferencer.status_counter, 'case_finish'), \
              mock.patch.object(inferencer.output_handler, 'report_cache_info'):
-            
+
             async def mock_gen(*args, **kwargs):
                 # output is the 3rd positional argument (after prompt_list and max_out_len)
                 if len(args) >= 3:
@@ -978,14 +978,14 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
                     output_obj.success = True
                     output_obj.content = "test response"
                     output_obj.reasoning_content = None
-            
+
             mock_generate.side_effect = mock_gen
-            
+
             async def run_test():
                 await inferencer._inference_single_turn(data, output, session)
-            
+
             asyncio.run(run_test())
-            
+
             self.assertTrue(output.success)
             mock_extract.assert_called_once()
 
@@ -995,7 +995,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         """Test _inference_single_turn when model fails."""
         m_build.return_value = DummyModel()
         inferencer = BFCLV3FunctionCallInferencer(model_cfg={})
-        
+
         data = {
             "index": 0,
             "data_abbr": "test_dataset",
@@ -1005,7 +1005,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
         }
         output = FunctionCallOutput()
         session = mock.MagicMock()
-        
+
         with mock.patch.object(inferencer.impl, 'pre_query_processing', return_value={"message": []}), \
              mock.patch.object(inferencer.impl, 'convert_message_to_prompt_list', return_value=PromptList()), \
              mock.patch.object(inferencer.model, 'generate') as mock_generate, \
@@ -1014,7 +1014,7 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
              mock.patch.object(inferencer.status_counter, 'finish'), \
              mock.patch.object(inferencer.status_counter, 'case_finish'), \
              mock.patch.object(inferencer.output_handler, 'report_cache_info'):
-            
+
             async def mock_gen(*args, **kwargs):
                 # output is the 3rd positional argument (after prompt_list and max_out_len)
                 if len(args) >= 3:
@@ -1024,12 +1024,12 @@ class TestBFCLV3FunctionCallInferencer(unittest.TestCase):
                 if output_obj:
                     output_obj.success = False
                     output_obj.error_info = "Test error"
-            
+
             mock_generate.side_effect = mock_gen
-            
+
             async def run_test():
                 await inferencer._inference_single_turn(data, output, session)
-            
+
             asyncio.run(run_test())
-            
+
             self.assertFalse(output.success)

@@ -1,0 +1,54 @@
+AISBench Benchmark
+Copyright 2026 AISBench Authors
+
+This project contains third-party components:
+
+Detectron2
+
+  Copyright (c) Facebook, Inc. and its affiliates.
+  SPDX-License-Identifier: Apache-2.0
+  Full license text: ais_bench/third_party/detectron2/LICENSE
+
+  Bundled under ais_bench/third_party/detectron2/ for evaluation features
+  that depend on GRiT / detectron2.
+
+VBench
+
+  Upstream project: https://github.com/Vchitect/VBench
+  SPDX-License-Identifier: Apache-2.0
+  Full license text: ais_bench/third_party/vbench/LICENSE
+
+  Bundled under ais_bench/third_party/vbench/ for video generation
+  benchmark evaluation.
+
+MindIE SD (Qwen Image Edit)
+
+  Path: ais_bench/third_party/mindie_sd/
+  Summary license file: ais_bench/third_party/mindie_sd/LICENSE
+
+  The bundled Python sources adapt components that are licensed under the
+  Apache License, Version 2.0 (full text: LICENSE at repository root, and
+  ais_bench/third_party/mindie_sd/LICENSE). Attribution by upstream, as
+  stated in source file headers, includes:
+
+    - QwenImage pipeline and transformer modules:
+      Copyright 2025 Qwen-Image Team and The HuggingFace Team.
+      (pipeline_qwenimage_edit_plus.py, transformer_qwenimage.py)
+
+    - FlowMatchEulerDiscrete scheduler:
+      Copyright 2025 Stability AI, Katherine Crowson and The HuggingFace Team.
+      (scheduling_flow_match_euler_discrete.py)
+
+    - GroupCoordinator / parallel group helpers:
+      Copyright 2024 xDiT team; adapted from vLLM distributed code
+      (Copyright 2023 The vLLM team; Copyright (c) 2022, NVIDIA CORPORATION).
+      (distributed/group_coordinator.py)
+
+    - Sequence-parallel all-to-all utilities:
+      Copyright (c) Microsoft Corporation and Jiarui Fang. SPDX-License-Identifier: Apache-2.0
+      (distributed/all_to_all.py)
+
+  Runtime dependencies (installed separately, not vendored here) may include
+  the MindIE SD Python module (`mindiesd`), `torch_npu`, `yunchang`, and other
+  packages referenced by the integration code; those components remain under
+  their respective licenses shipped with your environment.

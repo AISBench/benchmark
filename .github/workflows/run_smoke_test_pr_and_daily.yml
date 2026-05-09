@@ -1,0 +1,84 @@
+name: run_smoke_framework_daily
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron:  '0 2 * * *'
+  pull_request:
+    paths:
+      - 'ais_bench/benchmark/**'
+      - 'smoke_tests/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PY310_VERSION: 3.10.19
+
+jobs:
+  run_smoke_test_cases:
+    environment: smoke-test-approval
+    runs-on: [self-hosted, Linux, smoke]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Run Smoke Cases
+        id: run_cases  # 增加ID，用于后续判断
+        continue-on-error: true  # 即使测试执行失败，也继续后续步骤
+        run: |
+          bash smoke_tests/scripts/run_steps.sh -t short
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Smoke test execution failed, please check the logs. "
+            echo "test_execution_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "[INFO] Smoke test finish execution, need to check whether all test cases passed. "
+            echo "test_execution_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get Result files
+        id: get_results  # 增加ID
+        continue-on-error: true  # 即使检测到失败用例，也继续后续步骤
+        run: |
+          # 找到最新的RunWorkspace文件夹（兼容无结果的情况）
+          RUNWORKSPACE_DIR=$(ls -td smoke_tests/RunWorkspace/* 2>/dev/null | head -1)
+          if [ -z "$RUNWORKSPACE_DIR" ]; then
+            echo "[WARNING] No RunWorkspace directory found!"
+            mkdir -p smoke_tests/RunWorkspace/empty_dir
+            RUNWORKSPACE_DIR=smoke_tests/RunWorkspace/empty_dir
+          fi
+          echo "Found RunWorkspace directory: $RUNWORKSPACE_DIR"
+          # 打包文件夹
+          RUNWORKSPACE_NAME=$(basename "$RUNWORKSPACE_DIR")
+          tar -czf "${RUNWORKSPACE_NAME}.tar.gz" -C "smoke_tests/RunWorkspace" "${RUNWORKSPACE_NAME}"
+          echo "Packed RunWorkspace as ${RUNWORKSPACE_NAME}.tar.gz"
+          # 检查失败用例并记录状态（不终止步骤）
+          if [ -d "$RUNWORKSPACE_DIR/failed_case_logs/" ]; then
+            echo "[ERROR] Some test cases failed, please check failed_case_logs/. "
+            echo "test_case_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "[INFO] All test cases passed. "
+            echo "test_case_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Results
+        if: always()  # 关键：无论前面步骤是否失败，都执行上传
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke_test_results
+          path: "*.tar.gz"
+          retention-days: 7
+
+      - name: Final Check
+        if: always()  # 最后统一判断是否失败，终止Job
+        run: |
+          # 判断测试执行是否失败 或 测试用例是否失败
+          if [ "${{ steps.run_cases.outputs.test_execution_failed }}" = "true" ] || [ "${{ steps.get_results.outputs.test_case_failed }}" = "true" ]; then
+            echo "[ERROR] Smoke test failed (execution or test cases)!"
+            exit 1
+          else
+            echo "[INFO] Smoke test passed completely!"
+            exit 0
+          fi

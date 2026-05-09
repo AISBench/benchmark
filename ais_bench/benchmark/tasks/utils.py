@@ -1,7 +1,6 @@
 import os
 import time
 import struct
-from collections import OrderedDict
 from typing import Dict, List, Any
 from multiprocessing import Event, shared_memory, BoundedSemaphore
 
@@ -30,7 +29,8 @@ from ais_bench.benchmark.utils.visualization.rps_distribution_plot import plot_r
 MAX_VIRTUAL_MEMORY_USAGE_PERCENT = 80
 INDEX_READ_FLAG = -1
 
-FINAL_RPS_MINIMUM_THRESHOLD = 0.1  # minimum acceptable RPS
+WARNING_RPS_MINIMUM_THRESHOLD = 0.1  # minimum warning RPS, below the threshold write a warning log
+FINAL_RPS_MINIMUM_THRESHOLD = 0.001  # minimum acceptable RPS
 MIN_RELIABLE_INTERVAL = 0.001  # minimum reliable time interval (1 millisecond)
 
 logger = AISLogger()
@@ -376,6 +376,7 @@ class TokenProducer:
     def __init__(
         self,
         request_rate: float,
+        time_stamps: List[float],
         traffic_cfg: ConfigDict,
         request_num: int = None,
         mode: str = "infer",
@@ -384,6 +385,7 @@ class TokenProducer:
         """
         Args:
             request_rate: Desired request rate (RPS) used to pace requests.
+            time_stamps: List of timestamps in seconds.
             traffic_cfg: Traffic configuration controlling ramp-up and burstiness.
             request_num: Total number of requests to schedule when known.
             pressure_mode: If True, after generating the first `request_num` tokens
@@ -406,8 +408,8 @@ class TokenProducer:
         self.perf_mode = self.pressure_mode or mode == "perf"
         self.burstiness = 1.0
         self.work_dir = work_dir
-        # When request_rate < 0.1, treat as infinite (no pacing applied here)
-        if self.request_rate < FINAL_RPS_MINIMUM_THRESHOLD:
+        # When request_rate < 0.001, treat as infinite (no pacing applied here)
+        if self.request_rate < FINAL_RPS_MINIMUM_THRESHOLD and not time_stamps:
             self.token_bucket = None
             if self.pressure_mode:
                 self.logger.warning("Pressure mode with no request rate applied, concurrency will increase rapidly")
@@ -417,10 +419,18 @@ class TokenProducer:
             for _ in range(request_num + 1):
                 self.token_bucket.acquire()
 
+        if self.request_rate < WARNING_RPS_MINIMUM_THRESHOLD:
+            self.logger.warning(f"The request rate is below {WARNING_RPS_MINIMUM_THRESHOLD}, resulting in an "
+                                "excessively long interval between two consecutive requests.")
+
+        self.interval_lists = []
+        # If timestamps are provided, use them directly
+        if time_stamps:
+            self.interval_lists = time_stamps[:]
+            return
+
         # If `traffic_cfg` is provided, pre-generate `interval_lists` for ramp-up; after
         # exhausting it, fall back to gamma-distributed intervals based on request_rate.
-        self.interval_lists = []
-        # if traffic_cfg:
         self.burstiness = float(traffic_cfg.get("burstiness", self.burstiness))
         ramp_up_strategy = traffic_cfg.get("ramp_up_strategy")
         ramp_up_start_rps = traffic_cfg.get("ramp_up_start_rps")
@@ -630,13 +640,19 @@ class TokenProducer:
         if not self.token_bucket:
             return
         interval_index = 0
-        theta = 1.0 / (self.request_rate * self.burstiness)
+        theta = 1.0 / (self.request_rate * self.burstiness) if self.request_rate > 0 else 0
 
         start_time = time.perf_counter()
+        if len(self.interval_lists) > 0:
+            start_time += self.interval_lists[0]
 
         while not stop_evt.is_set():
             if interval_index < len(self.interval_lists):
                 interval = self.interval_lists[interval_index]
+                current_time = time.perf_counter()
+                sleep_interval = interval - (current_time - start_time)
+                if sleep_interval > 0:
+                    time.sleep(sleep_interval)
                 try:
                     self.token_bucket.release()
                 except ValueError as e:
@@ -645,11 +661,14 @@ class TokenProducer:
                     wait_interval = np.random.gamma(shape=self.burstiness, scale=theta)
                     time.sleep(wait_interval)
                     continue
-                current_time = time.perf_counter()
-                sleep_interval = interval - (current_time - start_time)
-                if sleep_interval > 0:
-                    time.sleep(sleep_interval)
                 interval_index += 1
+            elif not self.pressure_mode:
+                try:
+                    self.token_bucket.release() # release None token to avoid deadlock
+                except Exception:
+                    pass
+                interval = np.random.gamma(shape=self.burstiness, scale=theta)
+                time.sleep(interval)
             else:
                 try:
                     # After first batch requests are sent, subsequent requests

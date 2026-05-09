@@ -17,8 +17,8 @@ def model_abbr_from_cfg(cfg: Union[ConfigDict, List[ConfigDict]]) -> str:
         return "_".join(model_abbr_from_cfg(c) for c in cfg)
     if "abbr" in cfg:
         return cfg["abbr"]
-    
-    model_abbr = cfg["type"] 
+
+    model_abbr = cfg["type"]
     if "path" in cfg:
         model_abbr += "_" + "_".join(osp.realpath(cfg["path"]).split("/")[-2:])
     model_abbr = model_abbr.replace("/", "_")
@@ -72,7 +72,7 @@ def get_infer_output_path(
             dataset_abbr = dataset_cfgs[0].get('abbr')
     else:
         dataset_abbr = dataset_abbr_from_cfg(dataset_cfgs)
-    
+
     output_path = osp.join(root_path, model_abbr, f"{dataset_abbr}.{file_extension}")
     logger.debug(f"Generated output path: {output_path}")
     return output_path

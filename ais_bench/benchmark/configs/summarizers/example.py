@@ -13,6 +13,7 @@ with read_base():
     from .groups.scibench import scibench_summary_groups
     from .groups.mgsm import mgsm_summary_groups
     from .groups.longbench import longbench_summary_groups
+    from .groups.mmlu_pro import mmlu_pro_summary_groups
 
 summarizer = dict(
     attr = "accuracy",

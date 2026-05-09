@@ -22,6 +22,7 @@ from ais_bench.benchmark.utils.logging.exceptions import AISBenchImplementationE
 
 DB_REF_KEY = "__db_ref__"
 DB_DATA_DIR = "db_data"
+BASE64_MAX_DISPLAY_LEN = 256
 
 
 class BaseInferencerOutputHandler:
@@ -56,7 +57,14 @@ class BaseInferencerOutputHandler:
         self.save_every = save_every
 
     @abstractmethod
-    def get_prediction_result(self, output: Union[str, Output], gold: Optional[str] = None, input: Optional[Union[str, List[str]]] = None) -> dict:
+    def get_prediction_result(
+        self,
+        output: Union[str, Output],
+        gold: Optional[str] = None,
+        input: Optional[Union[str, List[str]]] = None,
+        data_abbr: Optional[str] = ""
+
+    ) -> dict:
         """
         Get the prediction result.
 
@@ -64,7 +72,7 @@ class BaseInferencerOutputHandler:
             output (Union[str, Output]): Output result from inference
             gold (Optional[str]): Ground truth data for comparison
             input (Optional[Union[str, List[str]]]): Input data for the inference
-
+            data_abbr (Optional[str]): Abbreviation of the dataset
         Returns:
             dict: Prediction result
         """
@@ -74,6 +82,7 @@ class BaseInferencerOutputHandler:
     def get_result(
         self,
         conn: sqlite3.Connection,
+        data_abbr: str,
         input: Union[str, List[str]],
         output: Union[str, Output],
         gold: Optional[str] = None,
@@ -113,7 +122,7 @@ class BaseInferencerOutputHandler:
             if gold:
                 result_data["gold"] = gold
         else:
-            result_data = self.get_prediction_result(output, gold=gold, input=input)
+            result_data = self.get_prediction_result(output, gold=gold, input=input, data_abbr=data_abbr)
         if not result_data.get("success", True):
             self.all_success = False
             if isinstance(output, Output) and hasattr(output, "error_info"):
@@ -365,7 +374,7 @@ class BaseInferencerOutputHandler:
                     try:
                         uid = str(uuid.uuid4())[:8]
 
-                        result_data = self.get_result(conn, *item[2:])
+                        result_data = self.get_result(conn, *item[1:])
                         id, data_abbr = item[0], item[1]
                         json_data = {
                             "data_abbr": data_abbr,

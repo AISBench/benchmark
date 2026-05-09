@@ -209,7 +209,7 @@ class TestBFCLV3OutputHandler(unittest.TestCase):
         output.tool_calls = [{"function": "test", "arguments": {}}]
         output.inference_log = []
         
-        result = handler.get_result(conn, "test_input", output, "test_gold")
+        result = handler.get_result(conn, "data_abbr", "test_input", output, "test_gold")
         
         self.assertEqual(result["success"], True)
         self.assertEqual(result["uuid"], "test_uuid_integration")
@@ -230,7 +230,7 @@ class TestBFCLV3OutputHandler(unittest.TestCase):
         output.inference_log = []
         output.error_info = "Integration test error"
         
-        result = handler.get_result(conn, "test_input", output, "test_gold")
+        result = handler.get_result(conn, "data_abbr", "test_input", output, "test_gold")
         
         self.assertEqual(result["success"], False)
         self.assertIn("error_info", result)
@@ -263,7 +263,7 @@ class TestBFCLV3OutputHandler(unittest.TestCase):
             "throughput": 100
         })
         
-        result = handler.get_result(conn, "test_input", output, "test_gold")
+        result = handler.get_result(conn, "data_abbr", "test_input", output, "test_gold")
         
         # In perf_mode, get_result should call get_metrics
         self.assertIn("latency", result)
@@ -274,4 +274,3 @@ class TestBFCLV3OutputHandler(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

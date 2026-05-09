@@ -102,7 +102,7 @@ class VocalSoundEvaluator(BaseEvaluator):
         details = []
         for i, j in zip(predictions, references):
             detail = {'pred': i, 'answer': j, 'correct': False}
-            if len(i) > 1:
+            if len(i) >= 1:
                 i = self.find_choice(i[0])
             count += 1
             if i == j:

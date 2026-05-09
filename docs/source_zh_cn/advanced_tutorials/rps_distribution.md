@@ -83,6 +83,7 @@ models = [
 >   - **判断规则**
 >     - 当启用爬升行为时，`request_rate`不再起作用，而由`ramp_up_end_rps`作为`目标速率`；
 >     - 反之，不启用爬升行为时，`request_rate`将作为`目标速率`；
+>     - 当模型配置中 **use_timestamp** 为 True 且数据集包含 timestamp 时，请求按 timestamp 发送，**request_rate** 与 **traffic_cfg** 不参与调度；
 >   - **瞬发场景**：$目标速率 < 0.1$时，**所有请求的发送速率视为瞬发**
 >
 

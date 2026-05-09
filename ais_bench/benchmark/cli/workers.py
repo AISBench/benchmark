@@ -1,5 +1,7 @@
+import os
 import os.path as osp
 import copy
+import shutil
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
@@ -8,12 +10,16 @@ from mmengine.config import ConfigDict
 from ais_bench.benchmark.registry import PARTITIONERS, RUNNERS, build_from_cfg
 from ais_bench.benchmark.utils.config.run import get_config_type
 from ais_bench.benchmark.utils.logging.logger import AISLogger
+from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidException
+from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask, OpenICLInferTask
+from ais_bench.benchmark.tasks.base import EmptyTask
 from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
-from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need
+from ais_bench.benchmark.cli.utils import clear_repeat_tasks
+from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
 
 logger = AISLogger()
 
@@ -21,6 +27,7 @@ logger = AISLogger()
 class BaseWorker(ABC):
     def __init__(self, args) -> None:
         self.args = args
+        self.skip = False
 
     @abstractmethod
     def update_cfg(self, cfg: ConfigDict) -> None:
@@ -34,36 +41,56 @@ class BaseWorker(ABC):
 
 
 class Infer(BaseWorker):
-    def update_cfg(self, cfg: ConfigDict) -> None:
+    def update_cfg(self, cfg: ConfigDict) -> ConfigDict:
         def get_task_type() -> str:
             if cfg["models"][0]["attr"] == "service":
-                return get_config_type(OpenICLApiInferTask)
+                return OpenICLApiInferTask
             else:
-                return get_config_type(OpenICLInferTask)
+                return OpenICLInferTask
 
-        new_cfg = dict(
-            infer=dict(
-                partitioner=dict(type=get_config_type(NaivePartitioner)),
-                runner=dict(
-                    max_num_workers=self.args.max_num_workers,
-                    max_workers_per_gpu=self.args.max_workers_per_gpu,
-                    debug=self.args.debug,
-                    task=dict(type=get_task_type()),
-                    type=get_config_type(LocalRunner),
+        custom_infer = cfg.get("infer")
+        custom_task = None
+        if custom_infer:
+            custom_task = custom_infer.get("runner", {}).get("task", {}).get("type")
+            if custom_task == EmptyTask:
+                self.skip = True
+                return cfg
+
+        def update_new_infer_cfg(new_cfg: ConfigDict) -> None:
+            runner_cfg = new_cfg['infer']['runner']
+            runner_cfg['max_num_workers'] = self.args.max_num_workers
+            runner_cfg['max_workers_per_gpu'] = self.args.max_workers_per_gpu
+            runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
+
+        if cfg.get('infer'):
+            new_cfg = dict(infer=cfg.infer)
+            if not new_cfg["infer"].get("partitioner"):
+                new_cfg["infer"]["partitioner"] = dict(type=NaivePartitioner)
+            if new_cfg["infer"].get("runner") and new_cfg["infer"]["runner"].get("type") is None:
+                new_cfg["infer"]["runner"]["type"] = LocalRunner
+        else:
+            new_cfg = dict(
+                infer=dict(
+                    partitioner=dict(type=NaivePartitioner),
+                    runner=dict(
+                        task=dict(type=custom_task if custom_task else get_task_type()),
+                        type=LocalRunner,
+                    ),
                 ),
-            ),
-        )
-
+            )
+        update_new_infer_cfg(new_cfg)
         cfg.merge_from_dict(new_cfg)
-        if cfg.cli_args.debug:
-            cfg.infer.runner.debug = True
         cfg.infer.partitioner["out_dir"] = osp.join(cfg["work_dir"], "predictions/")
         return cfg
 
     def do_work(self, cfg: ConfigDict):
+        if self.skip:
+            logger.info("EmptyTask is selected, skip inference.")
+            return
         partitioner = PARTITIONERS.build(cfg.infer.partitioner)
         logger.info("Starting inference tasks...")
         tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
 
         # update tasks cfg before run
         self._update_tasks_cfg(tasks, cfg)
@@ -108,37 +135,219 @@ class Infer(BaseWorker):
                 task.attack = cfg.attack
 
 
-class Eval(BaseWorker):
-    def update_cfg(self, cfg: ConfigDict) -> None:
+class JudgeInfer(BaseWorker):
+    def __init__(self, args) -> None:
+        super().__init__(args)
+        self.judge_model_type = None
+
+    def update_cfg(self, cfg: ConfigDict) -> ConfigDict:
+        for dataset_cfg in cfg["datasets"]:
+            judge_infer_cfg = dataset_cfg.get("judge_infer_cfg")
+            if judge_infer_cfg:
+                self.judge_model_type = judge_infer_cfg["judge_model"]["attr"]
+
+        if self.judge_model_type is None:
+            logger.debug("Skip Judge Infer")
+            return cfg
+
+        def get_task_type() -> str:
+            if self.judge_model_type == "service":
+                return get_config_type(OpenICLApiInferTask)
+            else:
+                return get_config_type(OpenICLInferTask)
+
         new_cfg = dict(
-            eval=dict(
+            judge_infer=dict(
                 partitioner=dict(type=get_config_type(NaivePartitioner)),
                 runner=dict(
                     max_num_workers=self.args.max_num_workers,
+                    max_workers_per_gpu=self.args.max_workers_per_gpu,
                     debug=self.args.debug,
-                    task=dict(type=get_config_type(OpenICLEvalTask)),
+                    task=dict(type=get_task_type()),
+                    type=get_config_type(LocalRunner),
                 ),
             ),
         )
 
-        new_cfg["eval"]["runner"]["type"] = get_config_type(LocalRunner)
-        new_cfg["eval"]["runner"]["max_workers_per_gpu"] = self.args.max_workers_per_gpu
         cfg.merge_from_dict(new_cfg)
-        if cfg.cli_args.dump_eval_details:
-            cfg.eval.runner.task.dump_details = True
-        if cfg.cli_args.dump_extract_rate:
-            cfg.eval.runner.task.cal_extract_rate = True
         if cfg.cli_args.debug:
-            cfg.eval.runner.debug = True
+            cfg.judge_infer.runner.debug = True
+        cfg.judge_infer.partitioner["out_dir"] = osp.join(cfg["work_dir"], "predictions/")
+        return cfg
+
+    def do_work(self, cfg: ConfigDict):
+        if self.judge_model_type is None:
+            logger.debug("Skip Judge Infer")
+            return
+
+        partitioner = PARTITIONERS.build(cfg.judge_infer.partitioner)
+        logger.info("Starting inference tasks...")
+        self._cfg_pre_process(cfg)
+        tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
+
+        # delete the tasks without judge_infer_cfg
+        new_tasks = []
+        for task in tasks:
+            if task["datasets"][0][0].get("judge_infer_cfg"):
+                new_tasks.append(task)
+        tasks = new_tasks
+        if len(tasks) == 0:
+            return
+
+        # update tasks cfg before run
+        self._update_tasks_cfg(tasks, cfg)
+
+        if (
+            cfg.get("cli_args", {}).get("merge_ds", False)
+            or cfg.get("cli_args", {}).get("mode") == "perf" # performance mode will enable merge datasets by default
+        ):
+            logger.info("Merging datasets with the same model and inferencer...")
+            tasks = self._merge_datasets(tasks)
+
+        runner = RUNNERS.build(cfg.judge_infer.runner)
+        self._results_pre_process(tasks, cfg)
+        runner(tasks)
+        self._result_post_process(tasks, cfg)
+        logger.info("Inference tasks completed.")
+
+    def _merge_datasets(self, tasks):
+        # merge datasets with the same model, dataset type and inferencer
+        task_groups = defaultdict(list)
+        for task in tasks:
+            key = (
+                task["models"][0]["abbr"] # same model
+                + "_"
+                + str(task['datasets'][0][0]['type']) # same dataset type
+                + "_"
+                + str(task["datasets"][0][0]["infer_cfg"]["inferencer"]) # same inferencer with the same args
+            )
+            task_groups[key].append(task)
+        new_tasks = []
+        for key, task_group in task_groups.items():
+            new_task = copy.deepcopy(task_group[0])
+            if len(task_group) > 1:
+                for t in task_group[1:]:
+                    new_task["datasets"][0].extend(t["datasets"][0])
+            new_tasks.append(new_task)
+        return new_tasks
+
+    def _cfg_pre_process(self, cfg: ConfigDict) -> None:
+        self.org_dataset_abbrs = {}
+        def change_judge_dataset_abbr(item):
+            if item.get("judge_infer_cfg"):
+                org_dataset_abbr = item["abbr"]
+                new_dataset_abbr = f'{item["abbr"]}-{item["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                item["abbr"] = new_dataset_abbr
+                self.org_dataset_abbrs[new_dataset_abbr] = org_dataset_abbr
+        if cfg.get('model_dataset_combinations', None) is not None:
+            for item in cfg.model_dataset_combinations:
+                for dataset in item["datasets"]:
+                    change_judge_dataset_abbr(dataset)
+        for dataset in cfg.datasets:
+            change_judge_dataset_abbr(dataset)
+        return cfg
+
+    def _update_tasks_cfg(self, tasks, cfg: ConfigDict):
+        # update parameters to correct sub cfg
+        if hasattr(cfg, "attack"):
+            for task in tasks:
+                cfg.attack.dataset = task.datasets[0][0].abbr
+                task.attack = cfg.attack
+
+        # update judge cfgs to model cfgs and data
+        for task in tasks:
+            task["datasets"] = copy.deepcopy(task["datasets"])
+            task["models"] = copy.deepcopy(task["models"])
+            task["datasets"][0][0]["predictions_path"] = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}.jsonl')
+            if not osp.exists(task["datasets"][0][0]["predictions_path"]):
+                raise PredictionInvalidException(TMAN_CODES.UNKNOWN_ERROR, f"Predictions path {task['datasets'][0][0]['predictions_path']} does not exist.")
+            model_abbr = task["models"][0]["abbr"]
+            task["models"][0] = task["datasets"][0][0]["judge_infer_cfg"].pop("judge_model")
+            task["models"][0]["abbr"] = model_abbr
+            task["datasets"][0][0]["type"] = task["datasets"][0][0]["judge_infer_cfg"].pop("judge_dataset_type")
+            task["datasets"][0][0]["reader_cfg"] = task["datasets"][0][0]["judge_infer_cfg"].pop("judge_reader_cfg")
+            task["datasets"][0][0]["infer_cfg"] = task["datasets"][0][0].pop("judge_infer_cfg")
+
+    def _results_pre_process(self, tasks, cfg: ConfigDict):
+        # Copy the original judge infer predictions to cached predictions
+        for task in tasks:
+            judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
+            cache_model_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{self.org_dataset_abbrs[task["datasets"][0][0]["abbr"]]}-cached.jsonl')
+            if osp.exists(judge_org_prediction_path):
+                os.remove(judge_org_prediction_path)
+            if osp.exists(cache_model_org_prediction_path):
+                shutil.copy(cache_model_org_prediction_path, judge_org_prediction_path)
+                os.remove(cache_model_org_prediction_path)
+
+    def _result_post_process(self, tasks, cfg: ConfigDict):
+        # Reconstruct the judge infer predictions to normal predictions format
+        for task in tasks:
+            model_org_prediction_path = task["datasets"][0][0]["predictions_path"]
+            model_preds: dict = {item["uuid"]: item for item in load_jsonl(model_org_prediction_path)}
+            judge_org_prediction_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}.jsonl')
+            judge_preds: list = load_jsonl(judge_org_prediction_path)
+            cache_judge_org_preds_path = osp.join(cfg.judge_infer.partitioner.out_dir, task["models"][0]["abbr"], f'{task["datasets"][0][0]["abbr"]}-cached.jsonl')
+            shutil.copy(judge_org_prediction_path, cache_judge_org_preds_path)
+            for i, pred in enumerate(judge_preds):
+                uuid = pred["gold"]
+                judge_preds[i]["id"] = model_preds[uuid]["id"]
+            os.remove(judge_org_prediction_path)
+            dump_jsonl(judge_preds, judge_org_prediction_path)
+
+
+class Eval(BaseWorker):
+    def update_cfg(self, cfg: ConfigDict) -> ConfigDict:
+        custom_eval = cfg.get("eval")
+        custom_task = None
+        if custom_eval:
+            custom_task = custom_eval.get("runner", {}).get("task", {}).get("type")
+            if custom_task == EmptyTask:
+                self.skip = True
+                return cfg
+
+        def update_eval_cfg(new_cfg: ConfigDict) -> None:
+            runner_cfg = new_cfg['eval']['runner']
+            runner_cfg['max_num_workers'] = self.args.max_num_workers
+            runner_cfg['max_workers_per_gpu'] = self.args.max_workers_per_gpu
+            runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
+            runner_cfg['task']['dump_details'] = cfg.cli_args.dump_eval_details
+            runner_cfg['task']['cal_extract_rate'] = cfg.cli_args.dump_extract_rate
+
+        if cfg.get('eval'):
+            new_cfg = dict(eval=cfg.eval)
+            if not new_cfg["eval"].get("partitioner"):
+                new_cfg["eval"]["partitioner"] = dict(type=NaivePartitioner)
+            if new_cfg["eval"].get("runner") and new_cfg["eval"]["runner"].get("type") is None:
+                new_cfg["eval"]["runner"]["type"] = LocalRunner
+        else:
+            new_cfg = dict(
+                eval=dict(
+                    partitioner=dict(type=NaivePartitioner),
+                    runner=dict(
+                        type=LocalRunner,
+                        task=dict(type=custom_task if custom_task else OpenICLEvalTask),
+                    ),
+                )
+            )
+
+        update_eval_cfg(new_cfg)
+        cfg.merge_from_dict(new_cfg)
         cfg.eval.partitioner["out_dir"] = osp.join(cfg["work_dir"], "results/")
         return cfg
 
     def do_work(self, cfg: ConfigDict):
+        if self.skip:
+            logger.info("EmptyTask is selected, skip evaluation.")
+            return
         partitioner = PARTITIONERS.build(cfg.eval.partitioner)
         logger.info("Starting evaluation tasks...")
-        tasks = partitioner(cfg)
+        self._cfg_pre_process(cfg)
 
-        # update tasks cfg before run
+        tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
+
+        # Update tasks cfg before run
         self._update_tasks_cfg(tasks, cfg)
 
         runner = RUNNERS.build(cfg.eval.runner)
@@ -150,9 +359,29 @@ class Eval(BaseWorker):
             runner(tasks)
         logger.info("Evaluation tasks completed.")
 
+    def _cfg_pre_process(self, cfg: ConfigDict) -> None:
+        self.org_dataset_abbrs = {}
+        def change_eval_dataset_abbr(item):
+            if item.get("judge_infer_cfg"):
+                org_dataset_abbr = item["abbr"]
+                new_dataset_abbr = f'{item["abbr"]}-{item["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                item["abbr"] = new_dataset_abbr
+                self.org_dataset_abbrs[new_dataset_abbr] = org_dataset_abbr
+        if cfg.get('model_dataset_combinations', None) is not None:
+            for item in cfg.model_dataset_combinations:
+                for dataset in item["datasets"]:
+                    change_eval_dataset_abbr(dataset)
+        for dataset in cfg.datasets:
+            change_eval_dataset_abbr(dataset)
+        return cfg
+
     def _update_tasks_cfg(self, tasks, cfg: ConfigDict):
-        # update parameters to correct sub cfg
-        pass
+        # Replace default model config to judge model config
+        self.judge_result_paths = {}
+        for task in tasks:
+            task["datasets"] = copy.deepcopy(task["datasets"])
+            if task["datasets"][0][0].get("judge_infer_cfg"):
+                task["datasets"][0][0].pop("judge_infer_cfg")
 
 
 class AccViz(BaseWorker):
@@ -171,6 +400,7 @@ class AccViz(BaseWorker):
     def do_work(self, cfg: ConfigDict) -> int:
         logger.info("Summarizing evaluation results...")
         summarizer_cfg = cfg.get("summarizer", {})
+        cfg = self._cfg_pre_process(cfg)
 
         # For subjective summarizer
         if summarizer_cfg.get("function", None):
@@ -203,6 +433,13 @@ class AccViz(BaseWorker):
             summarizer = build_from_cfg(summarizer_cfg)
             summarizer.summarize(time_str=self.args.cfg_time_str)
 
+    def _cfg_pre_process(self, cfg: ConfigDict) -> None:
+        for i, dataset in enumerate(cfg.datasets):
+            if dataset.get("judge_infer_cfg"):
+                cfg.datasets[i]["abbr"] = f'{cfg.datasets[i]["abbr"]}-{cfg.datasets[i]["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                cfg.datasets[i].pop("judge_infer_cfg")
+        return cfg
+
 
 class PerfViz(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
@@ -233,9 +470,11 @@ class PerfViz(BaseWorker):
 
 
 WORK_FLOW = dict(
-    all=[Infer, Eval, AccViz],
+    all=[Infer, JudgeInfer, Eval, AccViz],
     infer=[Infer],
-    eval=[Eval, AccViz],
+    judge=[JudgeInfer],
+    infer_judge=[Infer, JudgeInfer],
+    eval=[JudgeInfer, Eval, AccViz],
     viz=[AccViz],
     perf=[Infer, PerfViz],
     perf_viz=[PerfViz],
@@ -249,4 +488,5 @@ class WorkFlowExecutor:
 
     def execute(self) -> None:
         for worker in self.workflow:
-            worker.do_work(self.cfg)
+            cfg = copy.deepcopy(self.cfg)
+            worker.do_work(cfg)

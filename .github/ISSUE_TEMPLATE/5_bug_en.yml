@@ -10,10 +10,10 @@ body:
       value: |
         ## 👉 Check Here First If You Encounter Issues
         ### 🌟 First Time Using the Tool and Facing Problems?
-        Following the [🚀 Quick Start](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/get_started/quick_start.html) guide can resolve 90% of basic tool usage issues!
+        Following the [🚀 Quick Start](https://ais-bench-benchmark.readthedocs.io/en/latest/get_started/quick_start.html) guide can resolve 90% of basic tool usage issues!
 
         ### 🧭 Try Searching the FAQ for Solutions to Common Issues
-        Search the [📑 FAQ](https://ais-bench-benchmark-rf.readthedocs.io/en/latest/faqs/faq.html) — currently, the FAQ can resolve 0% of common issues.
+        Search the [📑 FAQ](https://ais-bench-benchmark.readthedocs.io/en/latest/faqs/faq.html) — currently, the FAQ can resolve 0% of common issues.
 
         ### ❓ Search Historical Issues for Rare Similar Problems
         Search for similar historical issues in [🔖 Issues](https://github.com/AISBench/benchmark/issues)

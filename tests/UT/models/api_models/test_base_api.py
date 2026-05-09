@@ -61,6 +61,8 @@ class TestBaseAPIModel(unittest.TestCase):
             "host_ip": "127.0.0.1",
             "host_port": 8000
         }
+        self.ipv6_kwargs = self.default_kwargs.copy()
+        self.ipv6_kwargs["host_ip"] = "::1"
 
     def test_init(self):
         model = self.model_class(**self.default_kwargs)
@@ -69,6 +71,10 @@ class TestBaseAPIModel(unittest.TestCase):
         self.assertEqual(model.max_out_len, 100)
         self.assertEqual(model.retry, 1)
         self.assertEqual(model.base_url, "http://127.0.0.1:8000/")
+
+    def test_init_with_ipv6_host_ip(self):
+        model = self.model_class(**self.ipv6_kwargs)
+        self.assertEqual(model.base_url, "http://[::1]:8000/")
 
     def test_init_with_url(self):
         kwargs = self.default_kwargs.copy()
@@ -85,6 +91,16 @@ class TestBaseAPIModel(unittest.TestCase):
     def test_get_base_url(self):
         model = self.model_class(**self.default_kwargs)
         self.assertEqual(model._get_base_url(), "http://127.0.0.1:8000/")
+
+    def test_get_base_url_with_ipv6_host_ip(self):
+        model = self.model_class(**self.ipv6_kwargs)
+        self.assertEqual(model._get_base_url(), "http://[::1]:8000/")
+
+    def test_get_base_url_with_hostname(self):
+        kwargs = self.default_kwargs.copy()
+        kwargs["host_ip"] = "localhost"
+        model = self.model_class(**kwargs)
+        self.assertEqual(model._get_base_url(), "http://localhost:8000/")
 
     @mock.patch('requests.get')
     def test_get_service_model_path_success(self, mock_get):

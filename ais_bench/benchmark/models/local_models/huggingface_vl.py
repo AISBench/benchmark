@@ -117,7 +117,14 @@ class HuggingFaceQwen2VLwithChatTemplate(BaseModel):
         raise ValueError('pad_token_id is not set for this tokenizer. Please set `pad_token_id={PAD_TOKEN_ID}` in model_cfg.')
 
     def _load_model(self, path: str, kwargs: dict, peft_path: Optional[str] = None, peft_kwargs: dict = dict()):
-        from transformers import AutoModel, Qwen2_5_VLForConditionalGeneration
+        try:
+            from transformers import AutoModel, Qwen2_5_VLForConditionalGeneration
+        except ImportError as e:
+            raise ImportError(
+                "cannot import necessary classes (AutoModel, Qwen2_5_VLForConditionalGeneration) from transformers. "
+                "Please install/upgrade to a compatible transformers version. refer to https://huggingface.co/docs/transformers/installation"
+            ) from e
+            
 
         DEFAULT_MODEL_KWARGS = dict(device_map='auto', trust_remote_code=True)
         model_kwargs = DEFAULT_MODEL_KWARGS

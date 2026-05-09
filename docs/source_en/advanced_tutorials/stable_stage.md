@@ -81,7 +81,7 @@ Executing the query command will yield results similar to the following:
 ```
 
 
-- The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in this quick start does not require additional modifications. For an introduction to the content of dataset task configuration files, refer to 📚 [Open-Source Datasets](../base_tutorials/all_params/datasets.md#open-source-datasets).
+- The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in this quick start does not require additional modifications. For an introduction to the content of dataset task configuration files, refer to 📚 [Open-Source Datasets](../get_started/datasets.md#open-source-datasets).
 
 The model configuration file `vllm_api_stream_chat.py` contains configuration settings related to model operation and **needs to be modified according to actual conditions**. The content to be modified in this quick start is marked with comments:
 

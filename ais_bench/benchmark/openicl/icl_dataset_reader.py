@@ -107,6 +107,12 @@ class DatasetReader:
         else:
             return None
 
+    def get_timestamp(self):
+        if "timestamp" in self.input_columns and "timestamp" in self.dataset['test'].features:
+            return self.dataset['test']['timestamp']
+        else:
+            return None
+
 
 def load_partial_dataset(
         dataset: Dataset,

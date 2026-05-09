@@ -1,4 +1,3 @@
-
 import os
 import os.path as osp
 import tabulate
@@ -10,11 +9,11 @@ from ais_bench.benchmark.datasets.custom import make_custom_dataset_config
 from ais_bench.benchmark.utils.file import match_cfg_file
 from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
-from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts
+from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
 
 class CustomConfigChecker:
-    MODEL_REQUIRED_FIELDS = ['type', 'abbr', 'attr']
-    DATASET_REQUIRED_FIELDS = ['type', 'abbr', 'reader_cfg', 'infer_cfg', 'eval_cfg']
+    MODEL_REQUIRED_FIELDS = ['abbr']
+    DATASET_REQUIRED_FIELDS = ['abbr']
     SUMMARIZER_REQUIRED_FIELDS = ['attr']
 
     def __init__(self, config, file_path):
@@ -104,9 +103,11 @@ class ConfigManager:
         self._update_cfg_of_workflow(workflow)
         self._dump_and_reload_config()
         return self.cfg
-    
+
     def _fill_dataset_configs(self):
         for dataset_cfg in self.cfg["datasets"]:
+            if dataset_cfg.get("infer_cfg", None) is None:
+                continue
             fill_test_range_use_num_prompts(self.cfg["cli_args"].get("num_prompts"), dataset_cfg)
             fill_model_path_if_datasets_need(self.cfg["models"][0], dataset_cfg)
             retriever_cfg = dataset_cfg["infer_cfg"]["retriever"]
@@ -328,6 +329,8 @@ class ConfigManager:
         # dump config
         output_config_path = osp.join(self.cfg.work_dir, 'configs',
                                     f'{self.cfg_time_str}_{os.getpid()}.py')
+
+        recur_convert_config_type(self.cfg)
         self.cfg.dump(output_config_path)
         # eval nums set
         if (self.args.num_prompts and self.args.num_prompts < 0) or self.args.num_prompts == 0:

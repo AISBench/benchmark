@@ -1,7 +1,7 @@
 from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template_mm import MMPromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
-from ais_bench.benchmark.datasets import VideoBenchDataset, VideoBenchEvaluator
+from ais_bench.benchmark.datasets import VideoBenchDataset, VideoBenchEvaluator, VideoBenchEvaluatorForVita
 
 DEFAULT_NUM_FRAMES = 5 # Default number of frames to sample from each video when loading datasets
 

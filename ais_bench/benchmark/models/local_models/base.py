@@ -57,7 +57,7 @@ class BaseModel:
         self.is_synthetic = False
 
     @abstractmethod
-    def _generate(self, input, max_out_len: int) -> List[str]:
+    def generate(self, inputs, max_out_len: int) -> List[str]:
         """Generate result given a input.
 
         Args:
@@ -133,17 +133,6 @@ class BaseModel:
         """
         return self.template_parser.parse_template(prompt_template, mode)
 
-    def generate_from_template(self, templates: List[PromptType], **kwargs):
-        """Generate completion from a list of templates.
-
-        Args:
-            templates (List[PromptType]): A list of templates.
-            max_out_len (int): The maximum length of the output.
-        """
-        inputs = self.parse_template(templates, mode='gen')
-        max_out_lens = kwargs.get("max_out_lens", [None] * len(templates))
-        return self.generate(inputs, max_out_lens, **kwargs)
-
     def get_token_len_from_template(
             self,
             templates: Union[PromptType, List[PromptType]],
@@ -203,6 +192,15 @@ class BaseModel:
 
     def to(self, device):
         self.model.to(device)
+
+class BaseLMModel(BaseModel):
+    """Base class for language models.
+    """
+    def generate(self, inputs, outputs, **kwargs) -> List[str]:
+        raise AISBenchNotImplementedError(
+            MODEL_CODES.UNKNOWN_ERROR,
+            f'{self.__class__.__name__} does not supported'
+            ' to be called in base classes')
 
 
 class LMTemplateParser:

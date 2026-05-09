@@ -15,7 +15,7 @@ This command does not specify other command-line options, so it defaults to an a
 The specific information (introduction, usage constraints, etc.) of the selected model task `vllm_api_general_chat`, dataset task `demo_gsm8k_gen_4_shot_cot_chat_prompt`, and result presentation task `example` can be queried from the following links respectively:
 - `--models`: 📚 [Service-Oriented Inference Backend](../base_tutorials/all_params/models.md#service-oriented-inference-backend)
 
-- `--datasets`: 📚 [Open Source Datasets](../base_tutorials/all_params/datasets.md#open-source-datasets) → 📚 [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README_en.md)
+- `--datasets`: 📚 [Open Source Datasets](../get_started/datasets.md#open-source-datasets) → 📚 [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README_en.md)
 
 - `--summarizer`: 📚 [Result Summary Tasks](../base_tutorials/all_params/summarizer.md)
 
@@ -43,7 +43,7 @@ Executing the query command will yield the following results:
 
 ```
 
-- The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in the quick start does not require additional modifications. For an introduction to the content of the dataset task configuration file, please refer to 📚 [Configuring Open Source Datasets](../base_tutorials/all_params/datasets.md#configuring-open-source-datasets).
+- The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in the quick start does not require additional modifications. For an introduction to the content of the dataset task configuration file, please refer to 📚 [Configuring Open Source Datasets](../get_started/datasets.md#configuring-open-source-datasets).
 
 The model configuration file `vllm_api_general_chat.py` contains configuration content related to model operation and needs to be modified according to the actual situation. The content that needs to be modified in the quick start is marked with comments.
 ```python
@@ -58,6 +58,7 @@ models = [
         model="DeepSeek-R1",        # Specify the name of the model loaded on the server, configured according to the actual model name pulled by the VLLM inference service (configure as an empty string to get it automatically)
         stream=False,
         request_rate=0,           # Request sending frequency: send 1 request to the server every 1/request_rate seconds; if less than 0.1, all requests are sent at once
+        use_timestamp=False,      # Whether to schedule requests by dataset timestamp; used with timestamped datasets (e.g. Mooncake Trace)
         retry=2,                  # Maximum number of retries per request
         api_key="",               # Custom API key, default is an empty string
         host_ip="localhost",      # Specify the IP of the inference service

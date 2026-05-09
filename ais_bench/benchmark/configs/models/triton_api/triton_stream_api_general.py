@@ -9,6 +9,7 @@ models = [
         stream=True,
         model_name="",
         request_rate=0,
+        use_timestamp=False,
         retry=2,
         host_ip="localhost",
         host_port=8080,

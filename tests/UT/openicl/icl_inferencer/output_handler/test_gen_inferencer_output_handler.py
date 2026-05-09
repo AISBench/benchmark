@@ -33,7 +33,7 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         
         handler._extract_and_write_arrays = mock.Mock(return_value={"latency": 0.1, "throughput": 100})
         
-        result = handler.get_result(conn, "input", output, "gold")
+        result = handler.get_result(conn, "data_abbr", "input", output, "gold")
         self.assertIn("latency", result)
         handler._extract_and_write_arrays.assert_called_once()
         
@@ -51,10 +51,10 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         # Test with string output - should work now with UUID generation
         string_output = "predicted_text"
         
-        result = handler.get_result(conn, "input", string_output, "gold")
+        result = handler.get_result(conn, "data_abbr", "input", string_output, "gold")
         self.assertEqual(result["success"], True)
         self.assertIn("uuid", result)
-        # UUID should be generated (8 characters)
+        # UUID should be generated (8 characters from uuid.uuid4().hex[:8])
         self.assertEqual(len(result["uuid"]), 8)
         self.assertEqual(result["prediction"], "predicted_text")
         self.assertEqual(result["origin_prompt"], "input")
@@ -72,7 +72,16 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         output.uuid = "test_uuid"
         output.get_prediction = mock.Mock(return_value="predicted_text")
         
-        result = handler.get_result(conn, "input", output, "gold")
+        # Mock get_prediction_result to return expected result
+        handler.get_prediction_result = mock.Mock(return_value={
+            "success": True,
+            "uuid": "test_uuid",
+            "prediction": "predicted_text",
+            "origin_prompt": "input",
+            "gold": "gold"
+        })
+        
+        result = handler.get_result(conn, "data_abbr", "input", output, "gold")
         self.assertEqual(result["success"], True)
         self.assertEqual(result["uuid"], "test_uuid")
         self.assertEqual(result["prediction"], "predicted_text")
@@ -92,7 +101,16 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         output.error_info = "Test error"
         output.get_prediction = mock.Mock(return_value="")
         
-        result = handler.get_result(conn, "input", output, "gold")
+        # Mock get_prediction_result to return failed result
+        handler.get_prediction_result = mock.Mock(return_value={
+            "success": False,
+            "uuid": "test_uuid",
+            "prediction": "",
+            "origin_prompt": "input",
+            "gold": "gold"
+        })
+        
+        result = handler.get_result(conn, "data_abbr", "input", output, "gold")
         self.assertEqual(result["success"], False)
         self.assertIn("error_info", result)
         self.assertEqual(result["error_info"], "Test error")
@@ -111,7 +129,16 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         # No error_info attribute
         output.get_prediction = mock.Mock(return_value="")
         
-        result = handler.get_result(conn, "input", output, "gold")
+        # Mock get_prediction_result to return failed result
+        handler.get_prediction_result = mock.Mock(return_value={
+            "success": False,
+            "uuid": "test_uuid",
+            "prediction": "",
+            "origin_prompt": "input",
+            "gold": "gold"
+        })
+        
+        result = handler.get_result(conn, "data_abbr", "input", output, "gold")
         self.assertEqual(result["success"], False)
         self.assertFalse(handler.all_success)
         
@@ -127,7 +154,15 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         output.uuid = "test_uuid"
         output.get_prediction = mock.Mock(return_value="predicted_text")
         
-        result = handler.get_result(conn, "input", output, None)
+        # Mock get_prediction_result to return result without gold
+        handler.get_prediction_result = mock.Mock(return_value={
+            "success": True,
+            "uuid": "test_uuid",
+            "prediction": "predicted_text",
+            "origin_prompt": "input"
+        })
+        
+        result = handler.get_result(conn, "data_abbr", "input", output, None)
         self.assertNotIn("gold", result)
         
         conn.close()
@@ -138,7 +173,7 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         conn = sqlite3.connect(":memory:")
         
         string_output = "predicted_text"
-        result = handler.get_result(conn, "input", string_output, None)
+        result = handler.get_result(conn, "data_abbr", "input", string_output, None)
         
         self.assertEqual(result["success"], True)
         self.assertIn("uuid", result)
@@ -155,8 +190,8 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         conn = sqlite3.connect(":memory:")
         
         string_output = "predicted_text"
-        result1 = handler.get_result(conn, "input1", string_output, "gold1")
-        result2 = handler.get_result(conn, "input2", string_output, "gold2")
+        result1 = handler.get_result(conn, "data_abbr", "input1", string_output, "gold1")
+        result2 = handler.get_result(conn, "data_abbr", "input2", string_output, "gold2")
         
         # UUIDs should be different for different calls
         self.assertNotEqual(result1["uuid"], result2["uuid"])
@@ -178,7 +213,7 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         
         handler._extract_and_write_arrays = mock.Mock(return_value={"latency": 0.1, "throughput": 100})
         
-        result = handler.get_result(conn, "input", output, "gold")
+        result = handler.get_result(conn, "data_abbr", "input", output, "gold")
         self.assertIn("latency", result)
         handler._extract_and_write_arrays.assert_called_once()
         
@@ -199,7 +234,7 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         # and now properly generates UUID for string output
         string_output = "predicted_text"
         
-        result = handler.get_result(conn, "input", string_output, "gold")
+        result = handler.get_result(conn, "data_abbr", "input", string_output, "gold")
         self.assertEqual(result["success"], True)
         self.assertIn("uuid", result)
         # UUID should be generated (8 characters)
@@ -224,7 +259,16 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         if hasattr(output, "error_info"):
             delattr(output, "error_info")
         
-        result = handler.get_result(conn, "input", output, "gold")
+        # Mock get_prediction_result to return failed result
+        handler.get_prediction_result = mock.Mock(return_value={
+            "success": False,
+            "uuid": "test_uuid",
+            "prediction": "",
+            "origin_prompt": "input",
+            "gold": "gold"
+        })
+        
+        result = handler.get_result(conn, "data_abbr", "input", output, "gold")
         self.assertEqual(result["success"], False)
         self.assertFalse(handler.all_success)
         # Should not have error_info when it doesn't exist
@@ -235,4 +279,3 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

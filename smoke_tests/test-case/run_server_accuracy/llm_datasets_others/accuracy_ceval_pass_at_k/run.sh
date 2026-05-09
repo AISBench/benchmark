@@ -39,7 +39,7 @@ echo -e "\033[1;32m[1/1]\033[0m Test case - ${CASE_NAME}"
 
 # 执行命令
 set -o pipefail  # 启用管道整体失败检测
-ais_bench --models ${CASE_NAME} --datasets ${CASE_NAME} --work-dir ${CASE_OUTPUT_PATH} 2>&1 | tee ${CUR_DIR}/tmplog.txt
+ais_bench --models ${CASE_NAME} --datasets ${CASE_NAME} --work-dir ${CASE_OUTPUT_PATH} --max-num-workers 3 2>&1 | tee ${CUR_DIR}/tmplog.txt
 if [ $? -eq 0 ]
 then
     echo "Run $CASE_NAME test: Success"

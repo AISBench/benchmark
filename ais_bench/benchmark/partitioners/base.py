@@ -25,6 +25,7 @@ class BasePartitioner:
 
             - eval.runner.task.judge_cfg
             - eval.runner.task.dump_details
+            - VBENCH_CACHE_DIR, vbench_cache_dir (for VBenchEvalTask subprocess)
     """
 
     def __init__(self, out_dir: str, keep_keys: Optional[List[str]] = None):
@@ -36,6 +37,10 @@ class BasePartitioner:
                 'eval.runner.task.dump_details',
                 'eval.given_pred',
                 'eval.runner.task.cal_extract_rate',
+                # Top-level experiment keys copied into each task cfg for subprocess
+                # (LocalRunner dumps task cfg; vbench reads VBENCH_CACHE_DIR before import).
+                'VBENCH_CACHE_DIR',
+                'vbench_cache_dir',
             ]
         else:
             self.keep_keys = keep_keys
@@ -111,8 +116,8 @@ class BasePartitioner:
         filtered_tasks = []
         for task in tasks:
             mode = task.get("cli_args", {}).get("mode")
-            dataset_type = task["datasets"][0][0]["type"]
-            model_type = task["models"][0]["type"]
+            dataset_type = task["datasets"][0][0].get("type", None)
+            model_type = task["models"][0].get("type", None)
             if mode not in ["perf", "perf_viz"] and dataset_type in ONLY_PERF_DATASETS:
                 self.logger.warning(
                     f"'{dataset_type}' can only be used for performance evaluation, "

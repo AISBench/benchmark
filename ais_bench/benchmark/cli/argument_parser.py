@@ -61,7 +61,7 @@ class ArgumentParser():
             help='Running mode. Choose "perf" for performance evaluation, "infer" to run inference only, '
             '"eval" to evaluate existing inference results, or "viz" to visualize the results. '
             'The default mode is "all", which runs all steps.',
-            choices=['all', 'infer', 'eval', 'viz', 'perf', 'perf_viz'],
+            choices=['all', 'infer', 'eval', 'viz', 'perf', 'perf_viz', 'judge', 'infer_judge'],
             default='all',
             type=str
         )

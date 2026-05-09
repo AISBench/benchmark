@@ -170,7 +170,7 @@ class TestPPLInferencerOutputHandler(unittest.TestCase):
         output.origin_prompt_logprobs = []
         output.get_prediction = mock.Mock(return_value="A")
         
-        result = handler.get_result(conn, "input", output, gold="A")
+        result = handler.get_result(conn, "data_abbr", "input", output, gold="A")
         
         self.assertTrue(result["success"])
         self.assertEqual(result["uuid"], "test_uuid")
@@ -195,7 +195,7 @@ class TestPPLInferencerOutputHandler(unittest.TestCase):
         output.error_info = "Test error"
         output.get_prediction = mock.Mock(return_value=None)
         
-        result = handler.get_result(conn, "input", output, gold="A")
+        result = handler.get_result(conn, "data_abbr", "input", output, gold="A")
         
         self.assertFalse(result["success"])
         self.assertIn("error_info", result)
@@ -216,7 +216,7 @@ class TestPPLInferencerOutputHandler(unittest.TestCase):
         
         handler._extract_and_write_arrays = mock.Mock(return_value={"latency": 0.1, "throughput": 100})
         
-        result = handler.get_result(conn, "input", output, gold="A")
+        result = handler.get_result(conn, "data_abbr", "input", output, gold="A")
         
         self.assertIn("latency", result)
         self.assertIn("throughput", result)
@@ -227,4 +227,3 @@ class TestPPLInferencerOutputHandler(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

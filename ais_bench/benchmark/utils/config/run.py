@@ -6,16 +6,42 @@ from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
+from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
+from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
+from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
+from ais_bench.benchmark.openicl.icl_evaluator import AccEvaluator
 
 logger = AISLogger()
 
-def try_fill_in_custom_cfgs(config):
-    return config
-
 
 def get_config_type(obj) -> str:
-    return f'{obj.__module__}.{obj.__name__}'
+    if isinstance(obj, str):
+        return obj
+    return f"{obj.__module__}.{obj.__name__}"
 
+
+def try_fill_in_custom_cfgs(config):
+    if "datasets" not in config:
+        return config
+
+    for dataset_cfg in config["datasets"]:
+        if "infer_cfg" not in dataset_cfg:
+            logger.debug(f"Filling in infer config for dataset {dataset_cfg['abbr']}")
+            dataset_cfg["infer_cfg"] = dict(
+            prompt_template=dict(type=get_config_type(PromptTemplate), template="{dummy}"),
+            retriever=dict(type=get_config_type(ZeroRetriever)),
+            inferencer=dict(type=get_config_type(GenInferencer)),
+            )
+        if "reader_cfg" not in dataset_cfg:
+            logger.debug(f"Filling in reader config for dataset {dataset_cfg['abbr']}")
+            dataset_cfg["reader_cfg"] = dict(input_columns=["dummy"], output_column="dummy")
+        if "eval_cfg" not in dataset_cfg:
+            logger.debug(f"Filling in eval config for dataset {dataset_cfg['abbr']}")
+            dataset_cfg["eval_cfg"] = dict(
+            evaluator=dict(type=get_config_type(AccEvaluator)),
+            )
+
+    return config
 
 def get_models_attr(cfg):
     logger.debug(f"Checking model attributes for {len(cfg['models'])} models")

@@ -24,6 +24,45 @@ Execute the following commands to install the extended dependency packages for A
 pip3 install -r requirements/api.txt
 pip3 install -r requirements/extra.txt
 ```
+
+### 1.3 Tiktoken Encoding File Download Failed (SSL Certificate Verification Failed / Connection Timeout)
+
+**Problem Description:**
+```
+requests.exceptions.SSLError: HTTPSConnectionPool(host='openaipublic.blob.core.windows.net', port=443): Max retries exceeded with url: /encodings/cl100k_base.tiktoken (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1007)')))
+```
+Or:
+```
+requests.exceptions.ConnectTimeout: HTTPSConnectionPool(host='openaipublic.blob.core.windows.net', port=443): Max retries exceeded with url: /encodings/cl100k_base.tiktoken (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0xffff8075bbb0>, 'Connection to openaipublic.blob.core.windows.net timed out. (connect timeout=None)'))
+```
+
+**Root Cause:**
+In offline or network-restricted environments, the tiktoken encoding file (cl100k_base.tiktoken) cannot be downloaded from `openaipublic.blob.core.windows.net`, causing the tiktoken library initialization to fail.
+
+**Recommended Solutions:**
+
+1. Download the tiktoken encoding file in an environment with network access:
+   - Download URL: https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken
+   - Rename the file to: `9b5ad71b2ce5302211f9c61530b329a4922fc6a4`
+
+2. Transfer the downloaded file to the target machine's cache directory (e.g., `~/tiktoken_cache/`)
+
+3. Set the environment variable pointing to the cache directory:
+   ```python
+   import os
+   tiktoken_cache_dir = "path_to_tiktoken_cache_folder"
+   os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
+   ```
+   Or:
+   ```shell
+   export TIKTOKEN_CACHE_DIR=path_to_tiktoken_cache_folder
+   ```
+
+4. Verify the file exists:
+   ```python
+   import os
+   assert os.path.exists(os.path.join(tiktoken_cache_dir, "9b5ad71b2ce5302211f9c61530b329a4922fc6a4"))
+   ```
 ---
 
 ## 2. Parameter Configuration Issues
@@ -70,7 +109,7 @@ Configure `'trust_remote_code=True'` in the model configuration file to inform T
 Incorrect dataset configuration, causing AISBench to fail to locate the dataset path.
 
 **Recommended Solutions:**
-1. Refer to the [Dataset Preparation Guide](../base_tutorials/all_params/datasets.md) to complete dataset preparation.
+1. Refer to the [Dataset Preparation Guide](../get_started/datasets.md) to complete dataset preparation.
 2. It is recommended to place open-source datasets in `{tool_root_path}/ais_bench/datasets`.
 3. For custom dataset paths, modify the configuration file specified by `--datasets`, and update the `path` field to the actual dataset path (ensure the data format in the actual path matches the requirements).
 ![Image Description](https://foruda.gitee.com/images/1752204096428670468/faa01659_15797231.png "Screenshot")
@@ -246,7 +285,7 @@ Accuracy results for datasets with multiple subcategories (such as CEval and MML
 
 **Recommended Solutions:**
 1. Compare the configuration parameters in `--models` with those in the AISBench Wiki, including the maximum output length `max_out_len` (to prevent truncation) and post-processing parameters `generation_kwargs`.
-2. Refer to the AISBench community’s [Dataset Preparation Guide](../base_tutorials/all_params/datasets.md) to complete dataset preparation.
+2. Refer to the AISBench community’s [Dataset Preparation Guide](../get_started/datasets.md) to complete dataset preparation.
 3. Submit the discrepancy results as an Issue to seek assistance.
 
 
@@ -256,7 +295,7 @@ Accuracy results for datasets with multiple subcategories (such as CEval and MML
 The dataset was not configured according to the documentation instructions.
 
 **Recommended Solutions:**
-Refer to the AISBench community’s [Dataset Preparation Guide](../base_tutorials/all_params/datasets.md#) to complete dataset preparation.
+Refer to the AISBench community’s [Dataset Preparation Guide](../get_started/datasets.md) to complete dataset preparation.
 
 ---
 

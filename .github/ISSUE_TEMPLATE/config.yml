@@ -2,8 +2,8 @@ blank_issues_enabled: false  # 禁止空白 Issue，强制使用模板
 
 contact_links:
   - name: 📚 官方文档
-    url: https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/
+    url: https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/
     about: 遇到问题请在官方文档中搜索。
   - name: 📚 Documentation
-    url: https://ais-bench-benchmark-rf.readthedocs.io/en/latest/
+    url: https://ais-bench-benchmark.readthedocs.io/en/latest/
     about: Check if your question is answered in the documentation.

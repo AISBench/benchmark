@@ -45,7 +45,7 @@ class TestLoadTokenizer(unittest.TestCase):
         result = load_tokenizer(self.tokenizer_path)
 
         self.assertIs(result, mock_tokenizer)
-        mock_auto_tokenizer.from_pretrained.assert_called_once_with(self.tokenizer_path)
+        mock_auto_tokenizer.from_pretrained.assert_called_once_with(self.tokenizer_path, trust_remote_code=False)
 
     @patch.object(lt_module, "AutoTokenizer")
     def test_load_tokenizer_loading_fails_value_error(self, mock_auto_tokenizer):
@@ -111,7 +111,7 @@ class TestLoadTokenizer(unittest.TestCase):
         result = load_tokenizer(abs_path)
 
         self.assertIs(result, mock_tokenizer)
-        mock_auto_tokenizer.from_pretrained.assert_called_once_with(abs_path)
+        mock_auto_tokenizer.from_pretrained.assert_called_once_with(abs_path, trust_remote_code=False)
 
 class TestLoadTokenizerEdgeCases(unittest.TestCase):
     """Edge case tests for load_tokenizer."""

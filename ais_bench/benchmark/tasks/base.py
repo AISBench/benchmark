@@ -134,6 +134,14 @@ class BaseTask:
         return output_paths
 
 
+class EmptyTask(BaseTask):
+    def run(self):
+        pass
+
+    def get_command(self, cfg_path, template) -> str:
+        return ""
+
+
 class TaskStateManager:
     def __init__(self, tmp_path: str, task_name: str, is_debug: bool, refresh_interval: int = 0.5):
         self.logger = AISLogger()

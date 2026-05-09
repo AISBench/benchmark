@@ -53,7 +53,7 @@ class Registry(OriginalRegistry):
 
 PARTITIONERS = Registry('partitioner', locations=get_locations('partitioners'))
 RUNNERS = Registry('runner', locations=get_locations('runners'))
-TASKS = Registry('task', locations=get_locations('tasks'))
+TASKS = Registry('task', locations=get_locations('tasks') + get_locations('tasks.custom_tasks'))
 MODELS = Registry('model', locations=get_locations('models'))
 # TODO: LOAD_DATASET -> DATASETS
 LOAD_DATASET = Registry('load_dataset', locations=get_locations('datasets'))

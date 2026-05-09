@@ -1,7 +1,7 @@
 from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template_mm import MMPromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
-from ais_bench.benchmark.datasets import TEXTVQADataset, TEXTEvaluator
+from ais_bench.benchmark.datasets import TEXTVQADataset, TEXTEvaluator, TEXTEvaluatorForVita
 
 
 textvqa_reader_cfg = dict(

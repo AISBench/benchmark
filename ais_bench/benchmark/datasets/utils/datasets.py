@@ -23,7 +23,11 @@ MM_DATASETS = [
     "ais_bench.benchmark.datasets.VocalSoundDataset",
 ]
 # Multimodal APIs.
-MM_APIS = ["ais_bench.benchmark.models.VLLMCustomAPIChat"]
+MM_APIS = [
+    "ais_bench.benchmark.models.VLLMCustomAPIChat",
+    "ais_bench.benchmark.models.VLLMCustomAPIChatStream",
+    "ais_bench.benchmark.models.api_models.vita_generate_api.VITAGenerateAPI",
+]
 
 def get_cache_dir(default_dir):
     # TODO Add any necessary supplementary information for here
@@ -69,7 +73,7 @@ def get_sample_data(data_list: list, sample_mode: str = "default", request_count
         data_list (list): Data list.
         sample_mode (str): Sample mode.
         request_count (int): Request count.
-    
+
     Raises:
         ValueError: If sample mode is not supported.
         ValueError: If request count is negative.
@@ -101,7 +105,7 @@ def get_sample_data(data_list: list, sample_mode: str = "default", request_count
         return shuffle_data
     else:
         raise ValueError(f"Sample mode: {sample_mode} is not supported!")
-    
+
 def get_meta_json(dataset_path, meta_path):
     ori_meta_path = meta_path
     if not meta_path:
@@ -389,7 +393,7 @@ def relaxed_correctness(target: str,
         return relative_change <= max_relative_change
     else:
         return prediction.lower() == target.lower()
-    
+
 def anls_compute(groundtruth, prediction):
     gt_answer = ' '.join(groundtruth.strip().lower().split())
     det_answer = ' '.join(prediction.strip().lower().split())

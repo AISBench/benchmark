@@ -5,6 +5,5 @@ Detailed Parameter Description
 
    cli_args
    models
-   datasets
    summarizer
    mode

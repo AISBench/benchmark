@@ -1,0 +1,13 @@
+case_type: benchmark
+case_group:
+  - run_server_accuracy
+  - lmm_datasets_main
+  - short
+  - refactor_success_1202
+case_name: accuracy_refcoco_plus
+enable: y
+script:
+  start: run.sh
+  end: clean.sh
+timeout: 60
+rank_size: 3

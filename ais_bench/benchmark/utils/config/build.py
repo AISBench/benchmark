@@ -1,6 +1,7 @@
 import os
 import copy
 import ipaddress
+from typing import Any
 
 from mmengine.config import ConfigDict
 
@@ -29,6 +30,7 @@ def _validate_model_cfg(model_cfg: ConfigDict) -> dict:
             "attr must be 'local' or 'service'",
         ),
         "abbr": lambda v: (isinstance(v, str), "abbr must be a string"),
+        "use_timestamp": lambda v:(isinstance(v, bool), "use_timestamp must be a boolean"),
         "path": lambda v: (
             not v or (isinstance(v, str) and os.path.exists(v)),
             f"path is not accessible or does not exist: {v}",
@@ -110,13 +112,15 @@ def _validate_model_cfg(model_cfg: ConfigDict) -> dict:
                     if not validator(traffic_cfg[field]):
                         errors[f"traffic_cfg.{field}"] = error_msg
     return errors
-    
 
-def build_dataset_from_cfg(dataset_cfg: ConfigDict):
+
+def build_dataset_from_cfg(dataset_cfg: ConfigDict, task_state_manager: Any = None):
     logger.debug(f"Building dataset from config: type={dataset_cfg.get('type')} abbr={dataset_cfg.get('abbr')}")
     dataset_cfg = copy.deepcopy(dataset_cfg)
     dataset_cfg.pop("infer_cfg", None)
     dataset_cfg.pop("eval_cfg", None)
+    if task_state_manager is not None:
+        dataset_cfg["task_state_manager"] = task_state_manager
     return LOAD_DATASET.build(dataset_cfg)
 
 
@@ -131,6 +135,7 @@ def build_model_from_cfg(model_cfg: ConfigDict):
             UTILS_CODES.MODEL_CONFIG_VALIDATE_FAILED,
             f"{model_name} build failed with the following errors: {errors}"
         )
+    model_cfg.pop("use_timestamp", None)
     model_cfg.pop("run_cfg", None)
     model_cfg.pop("request_rate", None)
     model_cfg.pop("batch_size", None)

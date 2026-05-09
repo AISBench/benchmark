@@ -9,6 +9,7 @@ models = [
         model="",
         stream=True,
         request_rate=0,
+        use_timestamp=False,
         retry=2,
         api_key="",
         host_ip="localhost",
