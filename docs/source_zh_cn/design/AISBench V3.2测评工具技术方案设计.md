@@ -1,12 +1,3 @@
----
-**状态 (Status):** Draft / Reviewing / Approved / Rejected / Superseded
-**作者 (Authors):** @Your_Community
-**创建日期 (Created):** 2026-05-09
-**更新日期 (Updated):** 2026-05-09
-**相关 Issue/PR:** #285,#286,#279
-
----
-
 # 1. 概述
 
 ## 1.1 简介

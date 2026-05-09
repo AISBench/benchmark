@@ -1,12 +1,3 @@
----
-**Status:** Draft / Reviewing / Approved / Rejected / Superseded
-**Authors:** @Your_Community
-**Created:** 2026-05-09
-**Updated:** 2026-05-09
-**Related Issue/PR:** #285,#286,#279
-
----
-
 # 1. Overview
 
 ## 1.1 Introduction
