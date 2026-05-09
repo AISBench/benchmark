@@ -281,9 +281,8 @@ demo_gsm8k              401e4c   accuracy gen                   62.50
 
 ## 🔜 即将推出
 - [x] **\[已完成\]** ✅ AISBench完成全面重构，支持在AISBench框架下🔌插件化集成前沿测试基准，以应对业界愈发复杂多样化的测试任务；并且显著提高易用性。
-- [ ] **\[规划中\]** 新增GEdit数据集，提供Qwen-Image-Edit等图片编辑模型的自动化测评能力
-- [ ] **\[规划中\]** 新增多模态理解的Encoding阶段耗时等性能指标，增强EPD分离场景的性能测评能力
-- [ ] **\[规划中\]** 新增自定义合成图片/视频等多模态数据，基于[mooncake_trace](https://raw.githubusercontent.com/kvcache-ai/Mooncake/refs/heads/main/FAST25-release/arxiv-trace/mooncake_trace.jsonl )格式回放现网流量等特性，增强集群性能测评能力，支持测评内容可复现
+- [ ] **\[规划中\]** 持续扩展业界前沿的多模态测评能力，支持更多多模态数据集和评测场景。
+- [ ] **\[规划中\]** 提供业界主流Agent测评能力，支持Agent任务链和工具调用等复杂场景的评测
 
 ## 🤝 致谢
 - 本项目代码基于🔗 [OpenCompass](https://github.com/open-compass/opencompass)做拓展开发。
