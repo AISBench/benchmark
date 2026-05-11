@@ -201,6 +201,7 @@ class TestTAU2BenchTask(unittest.TestCase):
         # 模拟 compute_metrics 返回值
         mock_metrics = mock.MagicMock()
         mock_metrics.avg_reward = 0.8
+        mock_metrics.pass_hat_ks = {1: 0.8, 2: 0.64}
         mock_compute_metrics.return_value = mock_metrics
 
         # 模拟 get_tasks 返回 3 个任务
@@ -222,7 +223,8 @@ class TestTAU2BenchTask(unittest.TestCase):
         # 验证结果文件内容
         with open(expected_out_json, 'r') as f:
             results = json.load(f)
-        self.assertEqual(results.get("pass^2"), 80.0)  # 0.8 * 100
+        self.assertEqual(results.get("pass^1"), 80.0)  # 0.8 * 100
+        self.assertEqual(results.get("pass^2"), 64.0)  # 0.64 * 100
         self.assertEqual(results.get("total_count"), 3)  # 因为 get_tasks 被 mock 为返回 3 个任务
 
     @mock.patch('ais_bench.benchmark.tasks.custom_tasks.tau2_bench_task.get_tasks')
@@ -284,6 +286,7 @@ class TestTAU2BenchTask(unittest.TestCase):
 
         mock_metrics = mock.MagicMock()
         mock_metrics.avg_reward = 0.7
+        mock_metrics.pass_hat_ks = {1: 0.7, 2: 0.49}
         mock_compute_metrics.return_value = mock_metrics
 
         # 模拟 tqdm
