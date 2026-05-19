@@ -42,8 +42,7 @@ mmmu_infer_cfg = dict(
 )
 
 mmmu_eval_cfg = dict(
-    evaluator=dict(type=MMMUEvaluator),
-    pred_postprocessor=dict(type=last_option_postprocess, options="ABCD"),
+    evaluator=dict(type=MMMUEvaluator)
 )
 
 mmmu_datasets = [
