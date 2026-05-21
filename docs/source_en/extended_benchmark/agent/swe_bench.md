@@ -28,7 +28,10 @@ Before running, make sure the following dependencies are available:
 1) Install `mini-swe-agent` (required for infer)
 
 ```bash
-pip install mini-swe-agent
+git clone https://github.com/AISBench/mini-swe-agent.git
+cd mini-swe-agent
+pip install -e .
+cd -
 ```
 
 2) Install the SWE-bench harness (required for eval)
