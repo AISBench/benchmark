@@ -63,7 +63,7 @@
 > 注意，AISBench依赖的tau2-bench仓库的commit id为 c5b2d228d850c59b749b93cf32c4745d3aa53967（2025年2月的版本）。
 
 ### 3. 配置τ²-Bench任务的自定义配置文件
-1. 在AISBench工具根目录下修改`ais_bench/configs/agent_examples/tau2_bench_task.py`中必要的配置（主要是配置被测推理服务和模拟用户的推理服务的信息）
+1. 在AISBench工具根目录下修改`ais_bench/configs/agent_example/tau2_bench_task.py`中必要的配置（主要是配置被测推理服务和模拟用户的推理服务的信息）
 ```python
 # ......
 models = [
@@ -108,7 +108,7 @@ for task in sub_tasks:
 1. 在AISBench工具根目录下执行以下命令：
    ```bash
    # 执行τ²-Bench任务
-   ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3
+   ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3
    ```
    - `--max-num-workers`参数表示任务最大并发数，`--max-num-workers 3`表示"airline", "retail", "telecom"这3个任务会并行执行。
 
@@ -198,12 +198,12 @@ Press Up/Down arrow to page, 'P' to PAUSE/RESUME screen refresh, 'Ctrl + C' to e
 
 这个时候可以手动中断任务执行，例如按下`Ctrl + C`, 随后执行如下命令在之前完成的测评进度基础上继续测评：
 ```bash
-# ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3 --reuse {时间戳}
-ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3 --reuse 20260408_091146
+# ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3 --reuse {时间戳}
+ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3 --reuse 20260408_091146
 ```
 
 ## 单条case多次执行（pass^k）
-1. 在AISBench工具根目录下修改`ais_bench/configs/agent_examples/tau2_bench_task.py` `num_trials`参数的取值为需要执行的次数（默认为1）
+1. 在AISBench工具根目录下修改`ais_bench/configs/agent_example/tau2_bench_task.py` `num_trials`参数的取值为需要执行的次数（默认为1）
 ```python
 # ......
 sub_tasks = ["airline", "retail", "telecom"]
@@ -221,7 +221,7 @@ for task in sub_tasks:
 # ......
 ```
 
-2. 执行`ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3`命令后每条case会执行`num_trials`次，进度条的总数也会相应增加至`num_trials`倍。
+2. 执行`ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3`命令后每条case会执行`num_trials`次，进度条的总数也会相应增加至`num_trials`倍。
 ```
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
 | Task Name                         |   Process | Progress                                                   | Time Cost   | Status   | Log Path                                        | Extend Parameters   |
