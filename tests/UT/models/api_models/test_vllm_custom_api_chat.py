@@ -82,6 +82,11 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
         model = VLLMCustomAPIChat(path="test-path", host_ip="127.0.0.1", host_port=9000)
         url = model._get_url()
         self.assertEqual(url, "http://127.0.0.1:9000/v1/chat/completions")
+
+        # 测试自定义URL不带末尾/的情况
+        model.base_url = "http://127.0.0.1:9000/member1/deepseek_v4"
+        url = model._get_url()
+        self.assertEqual(url, "http://127.0.0.1:9000/member1/deepseek_v4/v1/chat/completions")
         
         # 测试SSL情况
         model = VLLMCustomAPIChat(path="test-path", enable_ssl=True)
