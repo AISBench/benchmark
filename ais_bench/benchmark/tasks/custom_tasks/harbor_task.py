@@ -156,10 +156,10 @@ class HarborTask(BaseTask):
             if isinstance(env_list, list):
                 config.verifier.env.update({k: v for k, v in (e.split("=", 1) for e in env_list if "=" in e)})
 
-        details_dir = Path(self.work_dir) / "details"
-        config_path = details_dir / "config.json"
+        existing_job_dir = Path(self.out_detail_dir) / config.job_name
+        config_path = existing_job_dir / "config.json"
         if config_path.exists():
-            return self._resume_job(details_dir)
+            return self._resume_job(existing_job_dir)
 
         if args.get("path"):
             config.datasets = [
@@ -218,6 +218,9 @@ class HarborTask(BaseTask):
                 raise ValueError(f"Config file not found: {config_path}")
             from harbor.models.job.config import JobConfig
             config = JobConfig.model_validate_json(config_path.read_text())
+            self.logger.info(f"Resuming job from {job_dir}")
+            self.logger.info(f"Config jobs_dir: {config.jobs_dir}, job_name: {config.job_name}")
+            self.logger.info(f"Expected job_dir: {config.jobs_dir / config.job_name}")
             job = await Job.create(config)
             return job, await job.run()
 
