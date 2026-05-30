@@ -122,6 +122,43 @@ class TestGsm8kAgentEvaluator(unittest.TestCase):
         out3 = eva.score(predictions=['5'], references=[5], steps=steps3)
         self.assertIn('follow_acc', out3)
 
+    def test_get_action_found(self):
+        eva = Gsm8kAgentEvaluator.__new__(Gsm8kAgentEvaluator)
+        eva.action = 'PythonInterpreter'
+        steps = [{'type': 'PythonInterpreter', 'result': {'text': '5'}, 'errmsg': ''}]
+        result = eva.get_action(steps)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['type'], 'PythonInterpreter')
+
+    def test_get_action_not_found(self):
+        eva = Gsm8kAgentEvaluator.__new__(Gsm8kAgentEvaluator)
+        eva.action = 'PythonInterpreter'
+        steps = [{'type': 'Other', 'result': {'text': '5'}, 'errmsg': ''}]
+        result = eva.get_action(steps)
+        self.assertIsNone(result)
+
+    def test_score_with_action_error(self):
+        eva = Gsm8kAgentEvaluator.__new__(Gsm8kAgentEvaluator)
+        eva.action = 'PythonInterpreter'
+        steps = [[
+            {'type': 'PythonInterpreter', 'errmsg': 'error occurred', 'result': {'text': '5'}}
+        ]]
+        out = eva.score(predictions=['6'], references=[5], steps=steps)
+        self.assertIn('code_acc', out)
+        self.assertEqual(out['code_acc'], 0)
+        self.assertEqual(out['action_pct'], 100)
+
+    def test_score_pred_correct_no_action(self):
+        eva = Gsm8kAgentEvaluator.__new__(Gsm8kAgentEvaluator)
+        eva.action = 'PythonInterpreter'
+        steps = [
+            [{'type': 'Other'}],
+            [{'type': 'PythonInterpreter', 'errmsg': '', 'result': {'text': '7'}}]
+        ]
+        out = eva.score(predictions=['5', '6'], references=[5, 7], steps=steps)
+        self.assertIn('follow_acc', out)
+        self.assertEqual(out['follow_acc'], 50.0)
+
 
 if __name__ == '__main__':
     unittest.main()
