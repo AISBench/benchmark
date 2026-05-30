@@ -314,7 +314,7 @@ class HarborTask(BaseTask):
                     reward_distribution[score_key] = reward_distribution.get(score_key, 0) + 1
 
         total_reward = sum(all_rewards) if all_rewards else 0.0
-        avg_reward = (total_reward / total_count) if total_count > 0 else 0.0
+        avg_reward = (total_reward / job_result.n_total_trials) if job_result.n_total_trials > 0 else 0.0
 
         pass_at_k = {}
         if job_result.stats and job_result.stats.evals:
