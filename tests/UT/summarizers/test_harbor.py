@@ -849,5 +849,339 @@ class TestHarborSummarizerSummarize(unittest.TestCase):
         result = summarizer.summarize(time_str="test_time")
 
 
+class TestHarborSummarizerEdgeCases(unittest.TestCase):
+    """Test edge cases for HarborSummarizer"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+        self.model_cfg = {
+            "type": "TestModel",
+            "abbr": "test_model",
+            "path": "/the/path/to/test_path"
+        }
+
+        self.dataset_cfg = {
+            "type": "TestDataset",
+            "abbr": "test_dataset",
+            "infer_cfg": {
+                "inferencer": {"type": "GenInferencer"}
+            }
+        }
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.AISLogger')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.model_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.dataset_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.load')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.mkdir_or_exist')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.HarborSummarizer._print_harbor_details')
+    @mock.patch('builtins.print')
+    @mock.patch('builtins.open', create=True)
+    def test_summarize_metric_none_branch(self, mock_open, mock_print, mock_print_details, mock_mkdir, mock_mmengine_load, mock_dataset_abbr, mock_model_abbr, mock_ais_logger):
+        """Test summarize when metric is None (row 130-136)"""
+        mock_logger = mock.MagicMock()
+        mock_ais_logger.return_value = mock_logger
+        mock_model_abbr.side_effect = iter(["test_model"])
+        mock_dataset_abbr.return_value = "test_dataset"
+
+        results_dir = os.path.join(self.temp_dir, "results", "test_model")
+        os.makedirs(results_dir, exist_ok=True)
+        result_file = os.path.join(results_dir, "test_dataset.json")
+        with open(result_file, 'w') as f:
+            json.dump({"score": 0.9, "accuracy": 0.85}, f)
+
+        summary_dir = os.path.join(self.temp_dir, "summary")
+        os.makedirs(summary_dir, exist_ok=True)
+
+        mock_open.return_value = mock.MagicMock()
+        mock_mmengine_load.return_value = {"score": 0.9, "accuracy": 0.85}
+
+        config = ConfigDict({
+            "models": [self.model_cfg],
+            "datasets": [self.dataset_cfg],
+            "work_dir": self.temp_dir,
+            "path": "./test_path"
+        })
+
+        summarizer = HarborSummarizer(config)
+        summarizer.model_abbrs = ["test_model"]
+        summarizer.dataset_abbrs = ["test_dataset"]
+        summarizer._update_dataset_abbrs = mock.MagicMock()
+
+        result = summarizer.summarize(time_str="test_time")
+
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.AISLogger')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.model_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.dataset_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.load')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.mkdir_or_exist')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.HarborSummarizer._print_harbor_details')
+    @mock.patch('builtins.print')
+    @mock.patch('builtins.open', create=True)
+    def test_summarize_only_correct_count_and_total_count(self, mock_open, mock_print, mock_print_details, mock_mkdir, mock_mmengine_load, mock_dataset_abbr, mock_model_abbr, mock_ais_logger):
+        """Test summarize when only correct_count and total_count are metrics"""
+        mock_logger = mock.MagicMock()
+        mock_ais_logger.return_value = mock_logger
+        mock_model_abbr.side_effect = iter(["test_model"])
+        mock_dataset_abbr.return_value = "test_dataset"
+
+        results_dir = os.path.join(self.temp_dir, "results", "test_model")
+        os.makedirs(results_dir, exist_ok=True)
+        result_file = os.path.join(results_dir, "test_dataset.json")
+        with open(result_file, 'w') as f:
+            json.dump({"correct_count": 80, "total_count": 100}, f)
+
+        summary_dir = os.path.join(self.temp_dir, "summary")
+        os.makedirs(summary_dir, exist_ok=True)
+
+        mock_open.return_value = mock.MagicMock()
+        mock_mmengine_load.return_value = {"correct_count": 80, "total_count": 100}
+
+        config = ConfigDict({
+            "models": [self.model_cfg],
+            "datasets": [self.dataset_cfg],
+            "work_dir": self.temp_dir,
+            "path": "./test_path"
+        })
+
+        summarizer = HarborSummarizer(config)
+        summarizer.model_abbrs = ["test_model"]
+        summarizer.dataset_abbrs = ["test_dataset"]
+        summarizer._update_dataset_abbrs = mock.MagicMock()
+
+        result = summarizer.summarize(time_str="test_time")
+
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.AISLogger')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.model_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.dataset_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.load')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.mkdir_or_exist')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.HarborSummarizer._print_harbor_details')
+    @mock.patch('builtins.print')
+    @mock.patch('builtins.open', create=True)
+    def test_summarize_with_multiple_summary_groups(self, mock_open, mock_print, mock_print_details, mock_mkdir, mock_mmengine_load, mock_dataset_abbr, mock_model_abbr, mock_ais_logger):
+        """Test summarize with multiple summary_groups (row 145-152)"""
+        mock_logger = mock.MagicMock()
+        mock_ais_logger.return_value = mock_logger
+        mock_model_abbr.side_effect = iter(["model1", "model2"])
+        mock_dataset_abbr.side_effect = iter(["dataset1", "dataset2"])
+
+        for model in ["model1", "model2"]:
+            for dataset in ["dataset1", "dataset2"]:
+                results_dir = os.path.join(self.temp_dir, "results", model)
+                os.makedirs(results_dir, exist_ok=True)
+                result_file = os.path.join(results_dir, f"{dataset}.json")
+                with open(result_file, 'w') as f:
+                    json.dump({"avg_score": 0.85, "accuracy": 0.9}, f)
+
+        summary_dir = os.path.join(self.temp_dir, "summary")
+        os.makedirs(summary_dir, exist_ok=True)
+
+        mock_open.return_value = mock.MagicMock()
+        mock_mmengine_load.return_value = {"avg_score": 0.85, "accuracy": 0.9}
+
+        config = ConfigDict({
+            "models": [{"abbr": "model1"}, {"abbr": "model2"}],
+            "datasets": [self.dataset_cfg, self.dataset_cfg],
+            "work_dir": self.temp_dir,
+            "path": "./test_path"
+        })
+
+        summary_groups = [
+            {"name": "group1", "subsets": ["dataset1", "dataset2"], "version": "v1.0"},
+            {"name": "group2", "subsets": ["dataset1"], "metric": "avg_score"},
+            {"name": "group3", "subsets": ["dataset2"], "version": "v2.0", "metric": "accuracy"}
+        ]
+
+        summarizer = HarborSummarizer(config, summary_groups=summary_groups)
+        summarizer.model_abbrs = ["model1", "model2"]
+        summarizer.dataset_abbrs = ["dataset1", "dataset2"]
+        summarizer._update_dataset_abbrs = mock.MagicMock()
+
+        result = summarizer.summarize(time_str="test_time")
+
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.AISLogger')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.model_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.dataset_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.load')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.mkdir_or_exist')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.HarborSummarizer._print_harbor_details')
+    @mock.patch('builtins.print')
+    @mock.patch('builtins.open', create=True)
+    def test_summarize_with_all_whitelist_metrics(self, mock_open, mock_print, mock_print_details, mock_mkdir, mock_mmengine_load, mock_dataset_abbr, mock_model_abbr, mock_ais_logger):
+        """Test summarize with all whitelist metrics (avg_score, score, accuracy, n_errors, n_total_trials)"""
+        mock_logger = mock.MagicMock()
+        mock_ais_logger.return_value = mock_logger
+        mock_model_abbr.side_effect = iter(["test_model"])
+        mock_dataset_abbr.return_value = "test_dataset"
+
+        results_dir = os.path.join(self.temp_dir, "results", "test_model")
+        os.makedirs(results_dir, exist_ok=True)
+        result_file = os.path.join(results_dir, "test_dataset.json")
+        with open(result_file, 'w') as f:
+            json.dump({
+                "avg_score": 0.85,
+                "score": 0.90,
+                "accuracy": 0.88,
+                "n_errors": 5,
+                "n_total_trials": 100,
+                "total_count": 50
+            }, f)
+
+        summary_dir = os.path.join(self.temp_dir, "summary")
+        os.makedirs(summary_dir, exist_ok=True)
+
+        mock_open.return_value = mock.MagicMock()
+        mock_mmengine_load.return_value = {
+            "avg_score": 0.85,
+            "score": 0.90,
+            "accuracy": 0.88,
+            "n_errors": 5,
+            "n_total_trials": 100,
+            "total_count": 50
+        }
+
+        config = ConfigDict({
+            "models": [self.model_cfg],
+            "datasets": [self.dataset_cfg],
+            "work_dir": self.temp_dir,
+            "path": "./test_path"
+        })
+
+        summarizer = HarborSummarizer(config)
+        summarizer.model_abbrs = ["test_model"]
+        summarizer.dataset_abbrs = ["test_dataset"]
+        summarizer._update_dataset_abbrs = mock.MagicMock()
+
+        result = summarizer.summarize(time_str="test_time")
+
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.AISLogger')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.model_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.dataset_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.load')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.mkdir_or_exist')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.HarborSummarizer._print_harbor_details')
+    @mock.patch('builtins.print')
+    @mock.patch('builtins.open', create=True)
+    def test_summarize_without_total_count_in_metrics(self, mock_open, mock_print, mock_print_details, mock_mkdir, mock_mmengine_load, mock_dataset_abbr, mock_model_abbr, mock_ais_logger):
+        """Test summarize when total_count is not in metrics (row 116-120)"""
+        mock_logger = mock.MagicMock()
+        mock_ais_logger.return_value = mock_logger
+        mock_model_abbr.side_effect = iter(["test_model"])
+        mock_dataset_abbr.return_value = "test_dataset"
+
+        results_dir = os.path.join(self.temp_dir, "results", "test_model")
+        os.makedirs(results_dir, exist_ok=True)
+        result_file = os.path.join(results_dir, "test_dataset.json")
+        with open(result_file, 'w') as f:
+            json.dump({"avg_score": 0.85, "accuracy": 0.9}, f)
+
+        summary_dir = os.path.join(self.temp_dir, "summary")
+        os.makedirs(summary_dir, exist_ok=True)
+
+        mock_open.return_value = mock.MagicMock()
+        mock_mmengine_load.return_value = {"avg_score": 0.85, "accuracy": 0.9}
+
+        config = ConfigDict({
+            "models": [self.model_cfg],
+            "datasets": [self.dataset_cfg],
+            "work_dir": self.temp_dir,
+            "path": "./test_path"
+        })
+
+        summarizer = HarborSummarizer(config)
+        summarizer.model_abbrs = ["test_model"]
+        summarizer.dataset_abbrs = ["test_dataset"]
+        summarizer._update_dataset_abbrs = mock.MagicMock()
+
+        result = summarizer.summarize(time_str="test_time")
+
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.AISLogger')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.model_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.dataset_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.load')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.mkdir_or_exist')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.HarborSummarizer._print_harbor_details')
+    @mock.patch('builtins.print')
+    @mock.patch('builtins.open', create=True)
+    def test_summarize_model_not_in_parsed_results(self, mock_open, mock_print, mock_print_details, mock_mkdir, mock_mmengine_load, mock_dataset_abbr, mock_model_abbr, mock_ais_logger):
+        """Test summarize when model is not in parsed_results"""
+        mock_logger = mock.MagicMock()
+        mock_ais_logger.return_value = mock_logger
+        mock_model_abbr.side_effect = iter(["model1", "model2"])
+        mock_dataset_abbr.return_value = "test_dataset"
+
+        results_dir = os.path.join(self.temp_dir, "results", "model1")
+        os.makedirs(results_dir, exist_ok=True)
+        result_file = os.path.join(results_dir, "test_dataset.json")
+        with open(result_file, 'w') as f:
+            json.dump({"avg_score": 0.85}, f)
+
+        summary_dir = os.path.join(self.temp_dir, "summary")
+        os.makedirs(summary_dir, exist_ok=True)
+
+        mock_open.return_value = mock.MagicMock()
+        mock_mmengine_load.return_value = {"avg_score": 0.85}
+
+        config = ConfigDict({
+            "models": [{"abbr": "model1"}, {"abbr": "model2"}],
+            "datasets": [self.dataset_cfg],
+            "work_dir": self.temp_dir,
+            "path": "./test_path"
+        })
+
+        summarizer = HarborSummarizer(config)
+        summarizer.model_abbrs = ["model1", "model2"]
+        summarizer.dataset_abbrs = ["test_dataset"]
+        summarizer._update_dataset_abbrs = mock.MagicMock()
+
+        result = summarizer.summarize(time_str="test_time")
+
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.AISLogger')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.model_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.dataset_abbr_from_cfg')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.load')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.mmengine.mkdir_or_exist')
+    @mock.patch('ais_bench.benchmark.summarizers.harbor.HarborSummarizer._print_harbor_details')
+    @mock.patch('builtins.print')
+    @mock.patch('builtins.open', create=True)
+    def test_summarize_with_raw_results_get_fallback(self, mock_open, mock_print, mock_print_details, mock_mkdir, mock_mmengine_load, mock_dataset_abbr, mock_model_abbr, mock_ais_logger):
+        """Test summarize uses raw_results.get fallback for total_count"""
+        mock_logger = mock.MagicMock()
+        mock_ais_logger.return_value = mock_logger
+        mock_model_abbr.side_effect = iter(["test_model"])
+        mock_dataset_abbr.return_value = "test_dataset"
+
+        results_dir = os.path.join(self.temp_dir, "results", "test_model")
+        os.makedirs(results_dir, exist_ok=True)
+        result_file = os.path.join(results_dir, "test_dataset.json")
+        with open(result_file, 'w') as f:
+            json.dump({"avg_score": 0.85}, f)
+
+        summary_dir = os.path.join(self.temp_dir, "summary")
+        os.makedirs(summary_dir, exist_ok=True)
+
+        mock_open.return_value = mock.MagicMock()
+        mock_mmengine_load.return_value = {"avg_score": 0.85}
+
+        config = ConfigDict({
+            "models": [self.model_cfg],
+            "datasets": [self.dataset_cfg],
+            "work_dir": self.temp_dir,
+            "path": "./test_path"
+        })
+
+        summarizer = HarborSummarizer(config)
+        summarizer.model_abbrs = ["test_model"]
+        summarizer.dataset_abbrs = ["test_dataset"]
+        summarizer._update_dataset_abbrs = mock.MagicMock()
+
+        result = summarizer.summarize(time_str="test_time")
+
+
 if __name__ == '__main__':
     unittest.main()
