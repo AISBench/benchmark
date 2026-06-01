@@ -56,6 +56,9 @@ Ensure Docker version >= 20.10.0 and Docker Compose version >= 2.0.0. Also prepa
    pip install harbor==0.6.1
    ```
 
+> ⚠️ Note: Installing Harbor will upgrade the datasets library to version 4.0.0 or higher, which will cause dependency conflicts for the datasets library after installation. This does not affect tests for Terminal-Bench datasets using Harbor. However, if you need to test other datasets, you will need to downgrade the datasets library.
+
+
 ### 4. Prepare AISBench-modified Terminal-Bench-2 Dataset and Images
 
 AISBench modified dataset repository: [https://github.com/AISBench/terminal-bench-2](https://github.com/AISBench/terminal-bench-2)

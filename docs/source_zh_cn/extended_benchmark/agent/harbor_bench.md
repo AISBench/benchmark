@@ -54,6 +54,8 @@
    ```bash
    pip install harbor==0.6.1
    ```
+> ⚠️注意：安装harbor会将datasets库的版本升级到4.0.0以上的版本，这会导致安装后报datasets库的依赖冲突，对于执行harbor测试terminal-bench相关数据集没有影响，但是如果你需要测试其他数据集，需要降低datasets库的版本。
+
 
 ### 4. 准备AISBench修改过的Terminal-Bench-2数据集和对应镜像
 AISBench修改的数据集获取链接：https://github.com/AISBench/terminal-bench-2
