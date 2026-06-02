@@ -87,6 +87,22 @@ class TestBoxedFunctions(unittest.TestCase):
         result = extract_boxed_answer(text)
         self.assertIsNone(result)
 
+    def test_last_boxed_only_string_multiple(self):
+        text = "First \\boxed{1} then \\boxed{2}"
+        result = last_boxed_only_string(text)
+        self.assertEqual(result, '\\boxed{2}')
+
+    def test_extract_boxed_answer_fbox(self):
+        from ais_bench.benchmark.utils.logging.exceptions import AISBenchDataContentError
+        text = "The answer is \\fbox{99}"
+        with self.assertRaises(AISBenchDataContentError):
+            extract_boxed_answer(text)
+
+    def test_extract_boxed_answer_no_double_brace(self):
+        text = "\\boxed{42}"
+        result = extract_boxed_answer(text, strip_double_curly_brace=False)
+        self.assertEqual(result, '42')
+
 
 class TestNormalizeFinalAnswer(unittest.TestCase):
     """测试 normalize_final_answer"""
@@ -141,6 +157,27 @@ class TestNormalizeFinalAnswer(unittest.TestCase):
         result = normalize_final_answer("100,000")
         self.assertEqual(result, '100000')
 
+    def test_normalize_with_le(self):
+        result = normalize_final_answer("x \\le 5")
+        self.assertNotIn('\\le', result)
+        self.assertIn('<', result)
+
+    def test_normalize_textbf(self):
+        result = normalize_final_answer("\\textbf{hello}")
+        self.assertEqual(result, 'hello')
+
+    def test_normalize_overline(self):
+        result = normalize_final_answer("\\overline{AB}")
+        self.assertEqual(result, 'AB')
+
+    def test_normalize_sqrt_shorthand(self):
+        result = normalize_final_answer("sqrt3")
+        self.assertIn('sqrt{3}', result)
+
+    def test_normalize_with_non_digit_comma(self):
+        result = normalize_final_answer("hello,world")
+        self.assertIn('hello', result)
+
 
 class TestExtractAnswer(unittest.TestCase):
     """测试 extract_answer"""
@@ -162,6 +199,16 @@ class TestExtractAnswer(unittest.TestCase):
         text = "No answer here"
         result = extract_answer(text)
         self.assertEqual(result, '')
+
+    def test_extract_answer_with_extra_text(self):
+        text = "blah\nANSWER: 42\nmore stuff"
+        result = extract_answer(text)
+        self.assertEqual(result, '42')
+
+    def test_extract_answer_multiple_patterns(self):
+        text = "first ANSWER: wrong\nsecond ANSWER: right"
+        result = extract_answer(text)
+        self.assertEqual(result, 'wrong')
 
 
 class TestMATHDataset(unittest.TestCase):
@@ -400,6 +447,128 @@ class TestMATHEvaluator(unittest.TestCase):
         result = evaluator._strip_string_v2('42.000')
         self.assertEqual(result, '42')
 
+    def test_fix_fracs_short_substring(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._fix_fracs('\\frac1')
+        self.assertEqual(result, '\\frac1')
+
+    def test_strip_string_empty(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._strip_string('')
+        self.assertEqual(result, '')
+
+    def test_strip_string_leading_dot(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._strip_string('.5')
+        self.assertEqual(result, '\\frac{1}{2}')
+
+    def test_strip_string_with_circ(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._strip_string('90^{\\circ}')
+        self.assertNotIn('circ', result)
+
+    def test_strip_string_with_percentage(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._strip_string('50\\%')
+        self.assertNotIn('%', result)
+
+    def test_strip_string_with_tfrac(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._strip_string('\\tfrac{1}{2}')
+        self.assertNotIn('tfrac', result)
+        self.assertIn('frac', result)
+
+    def test_strip_string_with_dfrac(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._strip_string('\\dfrac{1}{2}')
+        self.assertNotIn('dfrac', result)
+
+    def test_strip_string_with_left_right(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._strip_string('\\left(42\\right)')
+        self.assertNotIn('\\left', result)
+        self.assertNotIn('\\right', result)
+
+    def test_is_equiv_v2_same(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator.is_equiv('42', '42')
+        self.assertTrue(result)
+
+    def test_is_equiv_v2_different(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator.is_equiv('42', '43')
+        self.assertFalse(result)
+
+    def test_is_equiv_with_normalization(self):
+        evaluator = MATHEvaluator()
+        result = evaluator.is_equiv('100,000', '100000')
+        self.assertTrue(result)
+
+    def test_score_details_structure(self):
+        evaluator = MATHEvaluator()
+        result = evaluator.score(['42'], ['42'])
+        detail = result['details'][0]
+        self.assertIn('pred', detail)
+        self.assertIn('answer', detail)
+        self.assertIn('correct', detail)
+        self.assertTrue(detail['correct'])
+
+    def test_fix_a_slash_b_non_int(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._fix_a_slash_b('a/b')
+        self.assertEqual(result, 'a/b')
+
+    def test_fix_sqrt_no_sqrt(self):
+        evaluator = MATHEvaluator()
+        result = evaluator._fix_sqrt('42')
+        self.assertEqual(result, '42')
+
+    def test_strip_string_v2_with_cdot(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator._strip_string_v2('3\\cdot4')
+        self.assertNotIn('\\cdot', result)
+
+    def test_strip_string_v2_with_mbox(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator._strip_string_v2('\\mbox{text}')
+        self.assertNotIn('\\mbox', result)
+
+    def test_strip_string_v2_with_inf(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator._strip_string_v2('inf')
+        self.assertIn('\\infty', result)
+
+    def test_strip_string_v2_with_mathbf(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator._strip_string_v2('\\mathbf{x}')
+        self.assertNotIn('\\mathbf', result)
+
+    def test_strip_string_v2_trailing_dot(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator._strip_string_v2('42.')
+        self.assertEqual(result, '42')
+
+    def test_strip_string_v2_with_equals_short(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator._strip_string_v2('x=42')
+        self.assertEqual(result, '42')
+
+    def test_strip_string_v2_leading_dot(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator._strip_string_v2('.5')
+        self.assertTrue(result.startswith('0'))
+
+    def test_strip_string_v2_empty(self):
+        evaluator = MATHEvaluator(version='v2')
+        result = evaluator._strip_string_v2('')
+        self.assertEqual(result, '')
+
+    def test_remove_right_units_multiple_splits(self):
+        from ais_bench.benchmark.utils.logging.exceptions import AISBenchDataContentError
+        evaluator = MATHEvaluator()
+        with self.assertRaises(AISBenchDataContentError):
+            evaluator._remove_right_units('a\\text{ b\\text{ c')
+
 
 class TestMATHAgentEvaluator(unittest.TestCase):
     """测试 MATHAgentEvaluator"""
@@ -460,6 +629,61 @@ class TestMATHAgentEvaluator(unittest.TestCase):
         self.assertIn('reasoning_acc', result)
         self.assertIn('code_acc', result)
         self.assertIn('action_pct', result)
+
+    def test_soft_equal_key_error(self):
+        evaluator = MATHAgentEvaluator()
+        step = {}
+        result = evaluator.soft_equal('pred', '42', step)
+        self.assertFalse(result)
+
+    def test_soft_equal_type_error(self):
+        evaluator = MATHAgentEvaluator()
+        step = {'result': None}
+        result = evaluator.soft_equal('pred', '42', step)
+        self.assertFalse(result)
+
+    def test_score_with_action_no_error(self):
+        evaluator = MATHAgentEvaluator()
+        predictions = ['42']
+        references = ['43']
+        steps = [
+            [{'type': 'PythonInterpreter', 'result': {'text': '42'}, 'errmsg': None}]
+        ]
+        result = evaluator.score(predictions, references, steps)
+        self.assertEqual(result['code_acc'], 100)
+        self.assertEqual(result['action_pct'], 100)
+
+    def test_score_pred_correct_with_action(self):
+        evaluator = MATHAgentEvaluator()
+        predictions = ['42']
+        references = ['42']
+        steps = [
+            [{'type': 'PythonInterpreter', 'result': {'text': '42'}, 'errmsg': None}]
+        ]
+        result = evaluator.score(predictions, references, steps)
+        self.assertEqual(result['follow_acc'], 100)
+        self.assertEqual(result['reasoning_acc'], 100)
+
+    def test_score_pred_correct_no_action(self):
+        evaluator = MATHAgentEvaluator()
+        predictions = ['42', '43']
+        references = ['42', '44']
+        steps = [
+            [],
+            [{'type': 'PythonInterpreter', 'result': {'text': '43'}, 'errmsg': None}]
+        ]
+        result = evaluator.score(predictions, references, steps)
+        self.assertEqual(result['follow_acc'], 50.0)
+
+    def test_get_action_returns_last_match(self):
+        evaluator = MATHAgentEvaluator()
+        steps = [
+            {'type': 'PythonInterpreter', 'id': 1},
+            {'type': 'Other'},
+            {'type': 'PythonInterpreter', 'id': 2},
+        ]
+        result = evaluator.get_action(steps)
+        self.assertEqual(result['id'], 2)
 
 
 if __name__ == '__main__':

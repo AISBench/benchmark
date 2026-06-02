@@ -146,6 +146,38 @@ class TestRealworldQAEvaluator(unittest.TestCase):
         self.assertIn("ANSWER: [ANSWER]", formatted)
         self.assertIn("step by step", formatted)
 
+    def test_extract_answer_with_colon_no_space(self):
+        evaluator = RealworldQAEvaluator()
+        result = evaluator._extract_answer("ANSWER:answer")
+        self.assertEqual(result, "answer")
+
+    def test_extract_answer_with_multiple_colons(self):
+        evaluator = RealworldQAEvaluator()
+        result = evaluator._extract_answer("ANSWER: a: b")
+        self.assertEqual(result, "a: b")
+
+    def test_normalize_answer_tabs(self):
+        evaluator = RealworldQAEvaluator()
+        self.assertEqual(evaluator._normalize_answer("\ttab\t"), "tab")
+
+    def test_score_with_all_dict_references(self):
+        evaluator = RealworldQAEvaluator()
+        result = evaluator.score(
+            ["ANSWER: A", "ANSWER: B"],
+            [{"answer": "A"}, {"answer": "B"}],
+        )
+        self.assertEqual(result["accuracy"], 100.0)
+        self.assertTrue(all(d["correct"] for d in result["details"]))
+
+    def test_score_mixed_string_and_dict(self):
+        evaluator = RealworldQAEvaluator()
+        result = evaluator.score(
+            ["ANSWER: A", "ANSWER: B", "ANSWER: C"],
+            ["A", {"answer": "B"}, "C"],
+        )
+        self.assertEqual(result["accuracy"], 100.0)
+        self.assertEqual(len(result["details"]), 3)
+
 
 if __name__ == "__main__":
     unittest.main()
