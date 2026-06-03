@@ -238,7 +238,7 @@ datasets.append(
     dict(
         abbr='harbor_terminal-bench-2',
         args=dict(
-            path="/home/y30044005/yh_dev/terminal-bench-2/",
+            path="/path/to/terminal-bench-2/",
             n_attempts=5,  # 每个trial尝试5次
             n_concurrent_trials=5,
         ),
