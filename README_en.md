@@ -30,6 +30,8 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2026.5.30\]** Support for evaluating Terminal-Bench 2.0 in AISBench, significantly reducing evaluation costs 🔥🔥🔥. Search for the `mini` keyword in the corresponding evaluation documentation:
+  - [Evaluate Terminal-Bench 2.0 in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/harbor_bench.html)
 - **\[2026.5.18]** Support for evaluating mini subsets of SWE-Bench, TAU2-Bench, and VBench 1.0 in AISBench, significantly reducing evaluation costs 🔥🔥🔥. Search for the `mini` keyword in the corresponding evaluation documentation:
   - [Evaluate SWE-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench.html)
   - [Evaluate TAU2-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/tau2_bench.html)
