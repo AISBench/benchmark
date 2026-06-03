@@ -50,7 +50,7 @@ class ShareGPTDataset(BaseDataset):
                     )
                 except:
                     output_len = None
-                chat["max_out_len"] = output_len
+                chat["max_out_len"].append(output_len)
                 chat["answer"].append(data["conversations"][i + 1]["value"])
             new_dataset.append(chat)
         logger.info(

@@ -106,9 +106,9 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
         output = RequestOutput(self.perf_mode)
         output.turn_id, output.uuid = turn_id, uid
 
-        max_out_len = max_out_len[-1] if isinstance(max_out_len, list) else max_out_len
+        cur_max_out_len = max_out_len[-1] if isinstance(max_out_len, list) else max_out_len
         await self.status_counter.post()
-        await self.model.generate(history, max_out_len, output, session=session, **data)
+        await self.model.generate(history, cur_max_out_len, output, session=session, **data)
         if output.success:
             await self.status_counter.rev()
         else:
@@ -140,9 +140,9 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
             history = await asyncio.to_thread(self.model.parse_template, PromptList(left_prompt + chat[:i] + right_prompt), mode="gen")
             output = RequestOutput(self.perf_mode)
             output.turn_id, output.uuid = turn_id, uid
-            max_out_len = max_out_len[turn_id] if isinstance(max_out_len, list) else max_out_len
+            cur_max_out_len = max_out_len[turn_id] if isinstance(max_out_len, list) else max_out_len
             await self.status_counter.post()
-            await self.model.generate(history, max_out_len, output, session=session, **data)
+            await self.model.generate(history, cur_max_out_len, output, session=session, **data)
             turn_id += 1
             if output.success:
                 await self.status_counter.rev()
@@ -180,9 +180,9 @@ class MultiTurnGenInferencer(BaseApiInferencer, BaseLocalInferencer):
             history = await asyncio.to_thread(self.model.parse_template, PromptList(left_prompt + chat[:i] + right_prompt), mode="gen")
             output = RequestOutput(self.perf_mode)
             output.turn_id, output.uuid = turn_id, uid
-            max_out_len = max_out_len[turn_id] if isinstance(max_out_len, list) else max_out_len
+            cur_max_out_len = max_out_len[turn_id] if isinstance(max_out_len, list) else max_out_len
             await self.status_counter.post()
-            await self.model.generate(history, max_out_len, output, session=session, **data)
+            await self.model.generate(history, cur_max_out_len, output, session=session, **data)
             turn_id += 1
             if output.success:
                 await self.status_counter.rev()
