@@ -7,12 +7,6 @@ import json
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import SWEBP_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError
-from minisweagent.run.utils.batch_instances import BatchInstance
-
-DATASET_MAPPING = {
-    "full": "ScaleAI/SWE-bench_Pro",
-    "mini": "ScaleAI/SWE-bench_Pro_Mini",
-}
 
 
 def cleanup_swebench_pro_containers():
@@ -161,28 +155,6 @@ def get_dockerhub_image_uri(raw_instance: dict) -> str:
         tag = tag[:128]
     
     return f"jefzda/sweap-images:{tag}"
-
-
-def build_instance(raw_instance: dict) -> BatchInstance:
-    return BatchInstance(
-                instance_id=raw_instance["instance_id"],
-                problem_statement=raw_instance["problem_statement"],
-                image_name=get_dockerhub_image_uri(raw_instance),
-                repo_name=raw_instance["repo"],
-                base_commit=raw_instance["base_commit"],
-                extra_fields={
-                    k: v
-                    for k, v in raw_instance.items()
-                    if k
-                    not in [
-                        "instance_id",
-                        "problem_statement",
-                        "image_name",
-                        "repo_name",
-                        "base_commit",
-                    ]
-                },
-            )
 
 
 def load_base_docker(docker_dir_abs, iid):

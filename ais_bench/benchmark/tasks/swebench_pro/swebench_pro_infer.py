@@ -30,7 +30,6 @@ from ais_bench.benchmark.utils.logging.exceptions import (
 from ais_bench.benchmark.tasks.swebench_pro.utils import (
     cleanup_swebench_pro_containers,
     ensure_swebench_pro_docker_images,
-    build_instance,
     get_dockerhub_image_uri,
     merge_nested_dicts,
 )
@@ -186,6 +185,7 @@ class SWEBenchProInferTask(BaseTask):
                 RunBatchConfig,
             )
             from minisweagent.config import get_config_path
+            from minisweagent.run.utils.batch_instances import BatchInstance
         except ImportError as e:
             raise AISBenchImportError(
                 SWEBP_CODES.MINISWEAGENT_IMPORT_ERROR,
@@ -282,6 +282,27 @@ class SWEBenchProInferTask(BaseTask):
                 "progress_description": "SWEBenchPro infer",
             }
         )
+
+        def build_instance(raw_instance: dict) -> BatchInstance:
+            return BatchInstance(
+                        instance_id=raw_instance["instance_id"],
+                        problem_statement=raw_instance["problem_statement"],
+                        image_name=get_dockerhub_image_uri(raw_instance),
+                        repo_name=raw_instance["repo"],
+                        base_commit=raw_instance["base_commit"],
+                        extra_fields={
+                            k: v
+                            for k, v in raw_instance.items()
+                            if k
+                            not in [
+                                "instance_id",
+                                "problem_statement",
+                                "image_name",
+                                "repo_name",
+                                "base_commit",
+                            ]
+                        },
+                    )
 
         workers = self.model_cfg.get("batch_size", 1)
         pro_instances = [build_instance(inst) for inst in instances]
