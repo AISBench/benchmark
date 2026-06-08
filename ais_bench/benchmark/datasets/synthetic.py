@@ -6,12 +6,14 @@ from tqdm import tqdm
 
 import numpy as np
 import torch
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, PreTrainedTokenizerFast
 
 from datasets import Dataset
 from ais_bench.benchmark.registry import LOAD_DATASET
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.datasets.base import BaseDataset
+from ais_bench.benchmark.utils.logging.exceptions import FileOperationError
+from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
 
 
 @dataclass
@@ -299,11 +301,23 @@ class SyntheticDataset(BaseDataset):
 
             model_path_value = normalize_file_path(model_path_value)
             tokenizer_file_path = self.find_first_file_path(model_path_value, "tokenizer_config.json")
-
-            tokenizer_model = AutoTokenizer.from_pretrained(
-                os.path.dirname(tokenizer_file_path),
-                trust_remote_code=trust_remote_code
-            )
+            try:
+                tokenizer_model = AutoTokenizer.from_pretrained(
+                    os.path.dirname(tokenizer_file_path),
+                    trust_remote_code=trust_remote_code
+                )
+            except Exception as e1:
+                try:
+                    tokenizer_model = PreTrainedTokenizerFast.from_pretrained(
+                        os.path.dirname(tokenizer_file_path), trust_remote_code=trust_remote_code
+                    )
+                except Exception as e2:
+                    raise FileOperationError(
+                        UTILS_CODES.TOKENIZER_LOAD_FAILED,
+                        f"Failed to load tokenizer from {tokenizer_file_path}: "
+                        f"AutoTokenizer failed({type(e1).__name__}: {e1}), "
+                        f"PreTrainedTokenizerFast also failed({type(e2).__name__}: {e2})",
+                    ) from e2
 
             vocab_size = tokenizer_model.vocab_size
             vocab_size = tokenid_config.get("VocabSize", None) if not vocab_size else vocab_size # The vocab_size defined in the model has higher priority

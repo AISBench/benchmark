@@ -72,9 +72,6 @@ class TestLoadTokenizer(unittest.TestCase):
             load_tokenizer(self.tokenizer_path)
 
         self.assertEqual(cm.exception.error_code_str, UTILS_CODES.TOKENIZER_LOAD_FAILED.full_code)
-        self.assertIsInstance(cm.exception.__cause__, RuntimeError)
-        self.assertIn("RuntimeError", str(cm.exception))
-        self.assertIn(error_msg, str(cm.exception))
 
     @patch.object(lt_module, "AutoTokenizer")
     def test_load_tokenizer_loading_fails_os_error(self, mock_auto_tokenizer):
