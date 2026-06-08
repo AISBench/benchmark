@@ -28,6 +28,7 @@ datasets = [
         name="lite",
         split="test",
         filter_spec="",
+        instance_ids_file="",
         shuffle=False,
         step_limit=STEP_LIMIT,
     ),
