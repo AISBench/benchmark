@@ -5,4 +5,5 @@ agent评测基准
 
    tau2_bench
    swe_bench
+   swe_bench_pro
    harbor_bench
