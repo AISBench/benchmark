@@ -11,6 +11,7 @@ class ErrorModule(Enum):
     TASK_INFER = "TINFER"                        # inference Task
     TASK_EVALUATE = "TEVAL"                      # evaluate Task
     SWEBENCH = "SWEB"                            # swebench task/dataset
+    SWEBENCH_PRO = "SWEBP"                       # swebench_pro task/dataset
     TASK_MONITOR = "TMON"                        # TaskMonitor
     TASK_STATUS_MANAGER = "TSMAN"                # TaskStateManager
     ICL_INFERENCER = "ICLI"                      # icl_inferencer
@@ -166,6 +167,27 @@ class SWEB_CODES:
     HARNESS_RUNTIME_FAILED = BaseErrorCode("SWEB-RUNTIME-002", ErrorModule.SWEBENCH, ErrorType.RUNTIME, 2, "SWE-bench harness runtime failed")
 
 
+class SWEBP_CODES:
+    UNKNOWN_ERROR = BaseErrorCode("SWEBP-UNK-001", ErrorModule.SWEBENCH_PRO, ErrorType.UNKNOWN, 1, "unknown error of swebench_pro workflow")
+
+    MINISWEAGENT_IMPORT_ERROR = BaseErrorCode("SWEBP-DEPENDENCY-001", ErrorModule.SWEBENCH_PRO, ErrorType.DEPENDENCY, 1, "mini-swe-agent dependency import error")
+    SWEBENCH_HARNESS_IMPORT_ERROR = BaseErrorCode("SWEBP-DEPENDENCY-002", ErrorModule.SWEBENCH_PRO, ErrorType.DEPENDENCY, 2, "SWE-bench Pro harness dependency import error")
+
+    MODEL_NOT_SET = BaseErrorCode("SWEBP-PARAM-001", ErrorModule.SWEBENCH_PRO, ErrorType.PARAM, 1, "model is not configured for swebench_pro inference")
+    INVALID_DATASET_NAME = BaseErrorCode("SWEBP-PARAM-002", ErrorModule.SWEBENCH_PRO, ErrorType.PARAM, 2, "invalid swebench_pro dataset name")
+
+    PREDICTION_IDS_NOT_FOUND = BaseErrorCode("SWEBP-DATA-001", ErrorModule.SWEBENCH_PRO, ErrorType.DATA, 1, "prediction ids are not found in swebench_pro dataset")
+    HF_DATASET_LOAD_FAILED = BaseErrorCode("SWEBP-DATA-002", ErrorModule.SWEBENCH_PRO, ErrorType.DATA, 2, "failed to load swebench_pro dataset from Hugging Face")
+    LOCAL_PARQUET_LOAD_FAILED = BaseErrorCode("SWEBP-DATA-003", ErrorModule.SWEBENCH_PRO, ErrorType.DATA, 3, "failed to load local swebench_pro parquet dataset")
+
+    PREDICTIONS_FILE_NOT_FOUND = BaseErrorCode("SWEBP-FILE-001", ErrorModule.SWEBENCH_PRO, ErrorType.FILE, 1, "predictions file not found for swebench_pro evaluation")
+    LOCAL_PATH_RESOLVE_FAILED = BaseErrorCode("SWEBP-FILE-002", ErrorModule.SWEBENCH_PRO, ErrorType.FILE, 2, "failed to resolve local swebench_pro dataset path")
+    LOCAL_PARQUET_NOT_FOUND = BaseErrorCode("SWEBP-FILE-003", ErrorModule.SWEBENCH_PRO, ErrorType.FILE, 3, "local swebench_pro parquet file not found")
+
+    DOCKER_IMAGE_UNAVAILABLE = BaseErrorCode("SWEBP-RUNTIME-001", ErrorModule.SWEBENCH_PRO, ErrorType.RUNTIME, 1, "required swebench_pro docker image is unavailable")
+    HARNESS_RUNTIME_FAILED = BaseErrorCode("SWEBP-RUNTIME-002", ErrorModule.SWEBENCH_PRO, ErrorType.RUNTIME, 2, "SWE-bench Pro harness runtime failed")
+
+
 class ICLI_CODES:
     UNKNOWN_ERROR = BaseErrorCode("ICLI-UNK-001", ErrorModule.ICL_INFERENCER, ErrorType.UNKNOWN, 1, "unknown error of icl inferencer")
     INVALID_PARAM_VALUE = BaseErrorCode("ICLI-PARAM-001", ErrorModule.ICL_INFERENCER, ErrorType.PARAM, 1, "invalid parameter value") # docs coverd
@@ -317,6 +339,7 @@ ERROR_CODES_CLASSES = [
     TINFER_CODES,
     TEVAL_CODES,
     SWEB_CODES,
+    SWEBP_CODES,
     ICLI_CODES,
     ICLE_CODES,
     ICLR_CODES,

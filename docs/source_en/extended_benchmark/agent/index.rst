@@ -5,4 +5,5 @@ agent evaluation benchmark
 
    tau2_bench
    swe_bench
+   swe_bench_pro
    harbor_bench
