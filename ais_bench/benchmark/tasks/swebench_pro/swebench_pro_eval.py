@@ -25,6 +25,7 @@ from ais_bench.benchmark.utils.core.abbr import (
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import SWEBP_CODES
 from ais_bench.benchmark.utils.logging.exceptions import (
+    AISBenchImportError,
     AISBenchValueError,
     FileOperationError,
 )
@@ -81,11 +82,12 @@ def isSolved(tests: list, fail_to_pass: str, pass_to_pass: str) -> bool:
     Returns:
         True if problem is solved, False if not solved
     """
+    import ast
     try:
         passed_tests = {x["name"] for x in tests if x.get("status") == "PASSED"}
         
-        f2p = set(eval(fail_to_pass)) if fail_to_pass and fail_to_pass.strip() else set()
-        p2p = set(eval(pass_to_pass)) if pass_to_pass and pass_to_pass.strip() else set()
+        f2p = set(ast.literal_eval(fail_to_pass)) if fail_to_pass and fail_to_pass.strip() else set()
+        p2p = set(ast.literal_eval(pass_to_pass)) if pass_to_pass and pass_to_pass.strip() else set()
         
         return (f2p | p2p) <= passed_tests
     except Exception:
@@ -111,7 +113,7 @@ def _build_eval_report(
     Returns:
         report dictionary
     """
-    with open(original_pred_path) as f:
+    with open(original_pred_path, encoding="utf-8") as f:
         predictions = json.load(f)
     
     build_patch_ids = []
@@ -139,7 +141,7 @@ def _build_eval_report(
             continue
         
         try:
-            with open(eval_result_path) as f:
+            with open(eval_result_path, encoding="utf-8") as f:
                 eval_output = json.load(f)
         except (json.JSONDecodeError, OSError):
             unresolved_ids.append(instance_id)
@@ -302,7 +304,7 @@ class SWEBenchProEvalTask(BaseTask):
                 )
 
         original_pred_path = pred_path
-        with open(pred_path) as f:
+        with open(pred_path, encoding="utf-8") as f:
             raw_preds = json.load(f)
         
         if isinstance(raw_preds, dict):
@@ -354,8 +356,11 @@ class SWEBenchProEvalTask(BaseTask):
         # Record existing Docker images and ensure required images
         try:
             import docker
-        except Exception:
-            raise RuntimeError("docker SDK is not installed. Install via 'pip install docker' or run without --use_local_docker")
+        except ImportError as e:
+            raise AISBenchImportError(
+                SWEBP_CODES.SWEBENCH_HARNESS_IMPORT_ERROR,
+                "docker SDK is not installed. Install via 'pip install docker'"
+            ) from e
         docker_client = docker.from_env()
         prior_images = list_swebench_pro_images(docker_client)
         
@@ -496,7 +501,7 @@ class SWEBenchProEvalTask(BaseTask):
         self.logger.info("Accuracy: %.2f", report.get("accuracy", 0))
 
         report_path = run_eval_dir / f"{model_abbr}_{dataset_abbr}_report.json"
-        with open(report_path, "w") as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
 
         self.logger.info("Eval report saved to: %s", report_path)

@@ -32,6 +32,7 @@ from ais_bench.benchmark.tasks.swebench_pro.utils import (
     ensure_swebench_pro_docker_images,
     get_dockerhub_image_uri,
     merge_nested_dicts,
+    build_problem_statement,
 )
 
 
@@ -221,7 +222,7 @@ class SWEBenchProInferTask(BaseTask):
         existing_preds = {}
         if osp.isfile(out_path):
             try:
-                with open(out_path) as f:
+                with open(out_path, encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
                     existing_preds = data
@@ -229,7 +230,7 @@ class SWEBenchProInferTask(BaseTask):
                 pass
         if not existing_preds and (out_dir / "preds.json").exists():
             try:
-                with open(out_dir / "preds.json") as f:
+                with open(out_dir / "preds.json", encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
                     existing_preds = data
@@ -286,7 +287,7 @@ class SWEBenchProInferTask(BaseTask):
         def build_instance(raw_instance: dict) -> BatchInstance:
             return BatchInstance(
                         instance_id=raw_instance["instance_id"],
-                        problem_statement=raw_instance["problem_statement"],
+                        problem_statement=build_problem_statement(raw_instance),
                         image_name=get_dockerhub_image_uri(raw_instance),
                         repo_name=raw_instance["repo"],
                         base_commit=raw_instance["base_commit"],
@@ -374,7 +375,7 @@ class SWEBenchProInferTask(BaseTask):
         preds_path = out_dir / "preds.json"
         merged = dict(existing_preds)
         if preds_path.exists():
-            with open(preds_path) as f:
+            with open(preds_path, encoding="utf-8") as f:
                 new_preds = json.load(f)
             if isinstance(new_preds, dict):
                 merged.update(new_preds)
@@ -384,7 +385,7 @@ class SWEBenchProInferTask(BaseTask):
                 if isinstance(pred, dict):
                     pred["model_name_or_path"] = model_abbr
             mkdir_or_exist(osp.dirname(out_path))
-            with open(out_path, "w") as f:
+            with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(merged, f, indent=2, ensure_ascii=False)
                 f.write("\n")
         if preds_path.exists():

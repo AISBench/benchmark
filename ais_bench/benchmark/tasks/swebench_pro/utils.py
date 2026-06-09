@@ -6,7 +6,7 @@ import json
 
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import SWEBP_CODES
-from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError, AISBenchImportError
 
 
 def cleanup_swebench_pro_containers():
@@ -158,18 +158,19 @@ def get_dockerhub_image_uri(raw_instance: dict) -> str:
 
 
 def load_base_docker(docker_dir_abs, iid):
-    with open(f"{docker_dir_abs}/base_dockerfile/{iid}/Dockerfile") as fp:
+    with open(f"{docker_dir_abs}/base_dockerfile/{iid}/Dockerfile", encoding="utf-8") as fp:
         return fp.read()
 
 
 def instance_docker(docker_dir_abs, iid):
-    with open(f"{docker_dir_abs}/instance_dockerfile/{iid}/Dockerfile") as fp:
+    with open(f"{docker_dir_abs}/instance_dockerfile/{iid}/Dockerfile", encoding="utf-8") as fp:
         return fp.read()
 
 
 def create_entryscript(docker_dir_abs, sample):
+    import ast
     before_repo_set_cmd = sample["before_repo_set_cmd"].strip().split("\n")[-1]
-    selected_test_files_to_run = ",".join(eval(sample["selected_test_files_to_run"]))
+    selected_test_files_to_run = ",".join(ast.literal_eval(sample["selected_test_files_to_run"]))
     base_commit = sample["base_commit"]
     base_dockerfile = load_base_docker(docker_dir_abs, sample["instance_id"])
     instance_dockerfile = instance_docker(docker_dir_abs, sample["instance_id"])
@@ -208,7 +209,7 @@ def load_local_script(scripts_dir, instance_id, script_name):
     if not os.path.exists(script_path):
         raise FileNotFoundError(f"Script not found: {script_path}")
     
-    with open(script_path, 'r') as f:
+    with open(script_path, 'r', encoding="utf-8") as f:
         return f.read()
 
 
@@ -217,7 +218,7 @@ def prepare_run(uid, output_dir, prefix, redo):
     os.makedirs(uid_dir, exist_ok=True)
     output_path = os.path.join(uid_dir, f"{prefix}_output.json")
     if not redo and os.path.exists(output_path):
-        with open(output_path, "r") as f:
+        with open(output_path, "r", encoding="utf-8") as f:
             return json.load(f), output_path, os.path.join(uid_dir, "workspace")
     workspace_dir = os.path.join(uid_dir, "workspace")
     os.makedirs(workspace_dir, exist_ok=True)
@@ -263,12 +264,12 @@ def assemble_workspace_files(uid, scripts_dir, docker_dir_abs, patch, sample):
 def write_files_local(workspace_dir, files):
     for rel_path, content in files.items():
         dst = os.path.join(workspace_dir, rel_path)
-        with open(dst, "w") as f:
+        with open(dst, "w", encoding="utf-8") as f:
             f.write(content)
 
 
 def write_patch_snapshot(output_dir, uid, prefix, patch):
-    with open(os.path.join(output_dir, uid, f"{prefix}_patch.diff"), "w") as f:
+    with open(os.path.join(output_dir, uid, f"{prefix}_patch.diff"), "w", encoding="utf-8") as f:
         f.write(patch)
 
 
@@ -277,11 +278,11 @@ def collect_outputs_local(workspace_dir, output_dir, uid, prefix, logger):
         src_path = os.path.join(workspace_dir, src_name)
         dest_path = os.path.join(output_dir, uid, dest_name)
         try:
-            with open(src_path, "r") as f_in:
+            with open(src_path, "r", encoding="utf-8") as f_in:
                 content = f_in.read()
         except FileNotFoundError:
             content = ""
-        with open(dest_path, "w") as f_out:
+        with open(dest_path, "w", encoding="utf-8") as f_out:
             f_out.write(content if content is not None else "")
 
     _copy_safe("stdout.log", f"{prefix}_stdout.log")
@@ -289,9 +290,9 @@ def collect_outputs_local(workspace_dir, output_dir, uid, prefix, logger):
 
     # Then try to read output.json
     try:
-        with open(os.path.join(workspace_dir, "output.json"), "r") as f_in:
+        with open(os.path.join(workspace_dir, "output.json"), "r", encoding="utf-8") as f_in:
             output = json.load(f_in)
-            with open(os.path.join(output_dir, uid, f"{prefix}_output.json"), "w") as f:
+            with open(os.path.join(output_dir, uid, f"{prefix}_output.json"), "w", encoding="utf-8") as f:
                 json.dump(output, f)
             return output
     except FileNotFoundError:
@@ -303,16 +304,20 @@ def collect_outputs_local(workspace_dir, output_dir, uid, prefix, logger):
 
 
 def save_entryscript_copy(output_dir, uid, prefix, entryscript_content):
-    with open(os.path.join(output_dir, uid, f"{prefix}_entryscript.sh"), "w") as f:
+    with open(os.path.join(output_dir, uid, f"{prefix}_entryscript.sh"), "w", encoding="utf-8") as f:
         f.write(entryscript_content if entryscript_content is not None else "")
 
 
 def eval_with_docker(patch, sample, output_dir, scripts_dir, docker_dir_abs, logger, prefix="", docker_client=None, timeout=7200):
+    try:
+        import docker
+    except ImportError as e:
+        raise AISBenchImportError(
+            SWEBP_CODES.SWEBENCH_HARNESS_IMPORT_ERROR,
+            "docker SDK is not installed. Install via 'pip install docker'"
+        ) from e
+    
     if docker_client is None:
-        try:
-            import docker
-        except Exception:
-            raise RuntimeError("docker SDK is not installed. Install via 'pip install docker' or run without --use_local_docker")
         docker_client = docker.from_env()
  
     uid = sample["instance_id"]

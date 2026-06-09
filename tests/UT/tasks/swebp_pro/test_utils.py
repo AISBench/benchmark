@@ -953,14 +953,16 @@ class TestEvalWithDockerFull(unittest.TestCase):
             mock_get_uri.return_value = "test-image"
 
             mock_container = MagicMock()
-            mock_container.wait.side_effect = Exception("Timeout")
+            timeout_error = Exception("Timeout")
+            mock_container.wait.side_effect = timeout_error
             mock_container.stop = MagicMock()
             mock_container.kill = MagicMock()
 
             mock_client = MagicMock()
             mock_client.containers.run.return_value = mock_container
             mock_client.errors = MagicMock()
-            mock_client.errors.Timeout = Exception
+            mock_client.errors.Timeout = type('Timeout', (Exception,), {})
+            mock_container.wait.side_effect = mock_client.errors.Timeout("Timeout")
 
             mock_logger = MagicMock()
             sample = {"instance_id": "test-123"}
@@ -970,7 +972,12 @@ class TestEvalWithDockerFull(unittest.TestCase):
                 mock_logger, "prefix", mock_client, 3600
             )
 
-            self.assertIsNone(result)
+            self.assertEqual(result, {
+                "tests": [],
+                "error": "timeout",
+                "message": "Evaluation timed out after 3600 seconds",
+                "instance_id": "test-123"
+            })
 
     @patch('ais_bench.benchmark.tasks.swebench_pro.utils.collect_outputs_local')
     @patch('ais_bench.benchmark.tasks.swebench_pro.utils.get_dockerhub_image_uri')
@@ -1011,6 +1018,8 @@ class TestEvalWithDockerMoreScenarios(unittest.TestCase):
     @patch('ais_bench.benchmark.tasks.swebench_pro.utils.get_dockerhub_image_uri')
     @patch('ais_bench.benchmark.tasks.swebench_pro.utils.assemble_workspace_files')
     def test_raises_when_docker_not_installed(self, mock_assemble, mock_get_uri, mock_save, mock_collect):
+        from ais_bench.benchmark.utils.logging.exceptions import AISBenchImportError
+        
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_assemble.return_value = ({"patch.diff": "patch"}, "entryscript")
             mock_get_uri.return_value = "test-image"
@@ -1018,7 +1027,7 @@ class TestEvalWithDockerMoreScenarios(unittest.TestCase):
             sample = {"instance_id": "test-123"}
 
             with patch.dict('sys.modules', {'docker': None}):
-                with self.assertRaises(RuntimeError):
+                with self.assertRaises(AISBenchImportError):
                     self.utils.eval_with_docker(
                         "test patch", sample, tmpdir, Path(tmpdir), Path(tmpdir),
                         MagicMock(), "prefix", None, 3600
