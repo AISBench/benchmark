@@ -229,7 +229,7 @@ The following error codes come from `SWEBP_CODES`. You can also refer to the ful
 
 - Symptom: infer fails to start with dependency import errors
 - Cause: `mini-swe-agent` is not installed
-- Fix: run `pip install mini-swe-agent`
+- Fix: install the adapted version from scaleapi's repository as described in the Prerequisites section
 
 ### 2) `SWEBP-PARAM-001`: Empty model configuration
 

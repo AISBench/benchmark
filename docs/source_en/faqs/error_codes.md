@@ -1394,9 +1394,13 @@ Use detailed logs to triage:
 ### Error Description
 `mini-swe-agent` dependency is missing when running SWE-Bench Pro infer, so task initialization fails.
 ### Solution
-Install the dependency and retry:
+Install the adapted dependency from scaleapi's repository and retry:
 ```bash
-pip install mini-swe-agent
+git clone https://github.com/scaleapi/mini-swe-agent.git
+
+cd mini-swe-agent/
+
+pip install -e .
 ```
 If you use a virtual environment, make sure `ais_bench` and `mini-swe-agent` are installed in the same Python environment.
 

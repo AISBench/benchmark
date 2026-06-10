@@ -229,7 +229,7 @@ ais_bench ais_bench/configs/swe_bench_pro_examples/mini_swe_agent_swe_bench_pro_
 
 - 现象：infer 启动时报依赖导入失败
 - 原因：未安装 `mini-swe-agent`
-- 处理：执行 `pip install mini-swe-agent`
+- 处理：处理：按照“前置依赖”章节中的说明，从 scaleapi 的仓库克隆并安装适配版本的 mini-swe-agent
 
 ### 2) `SWEBP-PARAM-001`：模型配置为空
 
