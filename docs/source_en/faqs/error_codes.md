@@ -1389,3 +1389,54 @@ Runtime error occurs during SWEBench execution (for example harness execution fa
 Use detailed logs to triage:
 1. Check dependency installation, Docker availability, and prediction file format first.
 2. If it persists, keep full logs and open an issue with the error code: <https://github.com/AISBench/benchmark/issues>.
+
+## SWEBP-DEPENDENCY-001
+### Error Description
+`mini-swe-agent` dependency is missing when running SWE-Bench Pro infer, so task initialization fails.
+### Solution
+Install the dependency and retry:
+```bash
+pip install mini-swe-agent
+```
+If you use a virtual environment, make sure `ais_bench` and `mini-swe-agent` are installed in the same Python environment.
+
+## SWEBP-PARAM-001
+### Error Description
+No valid model config is detected for SWE-Bench Pro infer (required fields like `model/url/api_key` are missing or empty).
+### Solution
+Check `models[0]` in your task config and provide at least:
+1. `model`, for example `hosted_vllm/qwen3`
+2. `url`, for example `http://127.0.0.1:2998/v1`
+3. `api_key`, `EMPTY` is acceptable for local tests
+
+## SWEBP-PARAM-002
+### Error Description
+Invalid SWE-Bench Pro dataset name that is not in the supported name set.
+### Solution
+Set dataset `name` to one of: `full`, `mini`.
+
+## SWEBP-DATA-001
+### Error Description
+Failed to load SWE-Bench Pro dataset from Hugging Face online source, or local file not found.
+### Solution
+Check network connectivity and Hugging Face access first. If your environment is restricted, download data manually and configure a local `path`. The local path must be a valid parquet file path.
+
+## SWEBP-FILE-001
+### Error Description
+Prediction file is missing during SWE-Bench Pro eval (`*.json` or `preds.json` not found).
+### Solution
+Run infer successfully before eval, and confirm prediction files exist under `work_dir/predictions` for the target model.
+
+## SWEBP-RUNTIME-001
+### Error Description
+Required Docker image for SWE-Bench Pro is unavailable locally and pulling failed.
+### Solution
+Check Docker daemon status and network, then run `docker pull` for the image shown in logs. Retry after image is available.
+
+## SWEBP-RUNTIME-002
+### Error Description
+Runtime error occurs during SWE-Bench Pro execution (for example harness execution failure or future task exception).
+### Solution
+Use detailed logs to triage:
+1. Check dependency installation, Docker availability, and prediction file format first.
+2. If it persists, keep full logs and open an issue with the error code: <https://github.com/AISBench/benchmark/issues>.
