@@ -17,8 +17,6 @@ from ais_bench.benchmark.tasks.swebench_pro import utils as utils_module
 
 
 class TestStripBinaryHunks(unittest.TestCase):
-    """Test strip_binary_hunks function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -119,17 +117,12 @@ diff --git a/file.py b/file.py
 
 
 class TestGetDockerhubImageUri(unittest.TestCase):
-    """Test get_dockerhub_image_uri function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
 
     def test_generates_correct_uri(self):
-        instance = {
-            "instance_id": "instance_test_123",
-            "repo": "test/repo",
-        }
+        instance = {"instance_id": "instance_test_123", "repo": "test/repo"}
         result = self.utils.get_dockerhub_image_uri(instance)
         self.assertIn("test.repo", result)
         self.assertTrue(result.startswith("jefzda/sweap-images:"))
@@ -154,37 +147,26 @@ class TestGetDockerhubImageUri(unittest.TestCase):
         self.assertTrue(result.startswith("jefzda/sweap-images:"))
 
     def test_strips_vnan_suffix_for_other_repos(self):
-        instance = {
-            "instance_id": "instance_other_repo-abc123-vnan",
-            "repo": "owner/repo",
-        }
+        instance = {"instance_id": "instance_other_repo-abc123-vnan", "repo": "owner/repo"}
         result = self.utils.get_dockerhub_image_uri(instance)
         self.assertNotIn("-vnan", result)
         self.assertTrue(result.startswith("jefzda/sweap-images:"))
 
     def test_keeps_non_vnan_hash(self):
-        instance = {
-            "instance_id": "instance_owner_repo-abc123",
-            "repo": "owner/repo",
-        }
+        instance = {"instance_id": "instance_owner_repo-abc123", "repo": "owner/repo"}
         result = self.utils.get_dockerhub_image_uri(instance)
         self.assertIn("owner.repo", result)
         self.assertTrue(result.startswith("jefzda/sweap-images:"))
 
     def test_truncates_long_tags(self):
         long_hash = "a" * 200
-        instance = {
-            "instance_id": f"instance_test_{long_hash}",
-            "repo": "test/repo",
-        }
+        instance = {"instance_id": f"instance_test_{long_hash}", "repo": "test/repo"}
         result = self.utils.get_dockerhub_image_uri(instance)
         tag = result.split(":")[-1]
         self.assertLessEqual(len(tag), 128)
 
 
 class TestMergeNestedDicts(unittest.TestCase):
-    """Test merge_nested_dicts function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -216,8 +198,6 @@ class TestMergeNestedDicts(unittest.TestCase):
 
 
 class TestEvalWithDocker(unittest.TestCase):
-    """Test eval_with_docker function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -233,17 +213,9 @@ class TestEvalWithDocker(unittest.TestCase):
 
             instance = {"instance_id": "test-123"}
             result = self.utils.eval_with_docker(
-                "test patch",
-                instance,
-                tmpdir,
-                Path(tmpdir),
-                Path(tmpdir),
-                MagicMock(),
-                "prefix",
-                MagicMock(),
-                3600
+                "test patch", instance, tmpdir, Path(tmpdir), Path(tmpdir),
+                MagicMock(), "prefix", MagicMock(), 3600
             )
-
             self.assertEqual(result, expected_output)
 
     @patch('ais_bench.benchmark.tasks.swebench_pro.utils.assemble_workspace_files')
@@ -254,24 +226,14 @@ class TestEvalWithDocker(unittest.TestCase):
 
             instance = {"instance_id": "test-123"}
             result = self.utils.eval_with_docker(
-                "test patch",
-                instance,
-                tmpdir,
-                Path(tmpdir),
-                Path(tmpdir),
-                mock_logger,
-                "prefix",
-                MagicMock(),
-                3600
+                "test patch", instance, tmpdir, Path(tmpdir), Path(tmpdir),
+                mock_logger, "prefix", MagicMock(), 3600
             )
-
             self.assertIsNone(result)
             mock_logger.error.assert_called_once()
 
 
 class TestBuildProblemStatement(unittest.TestCase):
-    """Test build_problem_statement function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -282,20 +244,14 @@ class TestBuildProblemStatement(unittest.TestCase):
         self.assertEqual(result, "Fix the bug")
 
     def test_includes_requirements(self):
-        row = {
-            "problem_statement": "Fix the bug",
-            "requirements": "pip install pytest"
-        }
+        row = {"problem_statement": "Fix the bug", "requirements": "pip install pytest"}
         result = self.utils.build_problem_statement(row)
         self.assertIn("Fix the bug", result)
         self.assertIn("Requirements:", result)
         self.assertIn("pip install pytest", result)
 
     def test_includes_interface(self):
-        row = {
-            "problem_statement": "Fix the bug",
-            "interface": "def new_func():"
-        }
+        row = {"problem_statement": "Fix the bug", "interface": "def new_func():"}
         result = self.utils.build_problem_statement(row)
         self.assertIn("Fix the bug", result)
         self.assertIn("New interfaces introduced:", result)
@@ -314,8 +270,6 @@ class TestBuildProblemStatement(unittest.TestCase):
 
 
 class TestPrepareRun(unittest.TestCase):
-    """Test prepare_run function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -325,7 +279,6 @@ class TestPrepareRun(unittest.TestCase):
             existing, output_path, workspace = self.utils.prepare_run(
                 "test-123", tmpdir, "prefix", redo=False
             )
-
             self.assertIsNone(existing)
             self.assertTrue(os.path.exists(workspace))
             self.assertTrue(os.path.isdir(workspace))
@@ -342,7 +295,6 @@ class TestPrepareRun(unittest.TestCase):
             existing, output_path, workspace = self.utils.prepare_run(
                 "test-123", tmpdir, "prefix", redo=False
             )
-
             self.assertEqual(existing, expected)
 
     def test_redo_ignores_existing_output(self):
@@ -356,23 +308,17 @@ class TestPrepareRun(unittest.TestCase):
             existing, output_path, workspace = self.utils.prepare_run(
                 "test-123", tmpdir, "prefix", redo=True
             )
-
             self.assertIsNone(existing)
 
 
 class TestWriteFilesLocal(unittest.TestCase):
-    """Test write_files_local function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
 
     def test_writes_files_to_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            files = {
-                "file1.txt": "content1",
-                "file2.py": "print('hello')",
-            }
+            files = {"file1.txt": "content1", "file2.py": "print('hello')"}
             self.utils.write_files_local(tmpdir, files)
 
             self.assertTrue(os.path.exists(os.path.join(tmpdir, "file1.txt")))
@@ -383,8 +329,6 @@ class TestWriteFilesLocal(unittest.TestCase):
 
 
 class TestWritePatchSnapshot(unittest.TestCase):
-    """Test write_patch_snapshot function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -403,8 +347,6 @@ class TestWritePatchSnapshot(unittest.TestCase):
 
 
 class TestSaveEntryscriptCopy(unittest.TestCase):
-    """Test save_entryscript_copy function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -433,8 +375,6 @@ class TestSaveEntryscriptCopy(unittest.TestCase):
 
 
 class TestLoadLocalScript(unittest.TestCase):
-    """Test load_local_script function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -457,8 +397,6 @@ class TestLoadLocalScript(unittest.TestCase):
 
 
 class TestListSwebenchProImages(unittest.TestCase):
-    """Test list_swebench_pro_images function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -474,7 +412,6 @@ class TestListSwebenchProImages(unittest.TestCase):
         mock_client.images.list.return_value = [mock_image1, mock_image2, mock_image3]
 
         result = self.utils.list_swebench_pro_images(mock_client)
-
         self.assertEqual(result, {"jefzda/sweap-images:test1", "jefzda/sweap-images:test2"})
 
     def test_handles_exception(self):
@@ -482,13 +419,10 @@ class TestListSwebenchProImages(unittest.TestCase):
         mock_client.images.list.side_effect = Exception("Docker error")
 
         result = self.utils.list_swebench_pro_images(mock_client)
-
         self.assertEqual(result, set())
 
 
 class TestDockerImageExistsLocally(unittest.TestCase):
-    """Test docker_image_exists_locally function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -500,7 +434,6 @@ class TestDockerImageExistsLocally(unittest.TestCase):
         mock_run.return_value = mock_result
 
         result = self.utils.docker_image_exists_locally("test-image")
-
         self.assertTrue(result)
 
     @patch('subprocess.run')
@@ -510,7 +443,6 @@ class TestDockerImageExistsLocally(unittest.TestCase):
         mock_run.return_value = mock_result
 
         result = self.utils.docker_image_exists_locally("test-image")
-
         self.assertFalse(result)
 
     @patch('subprocess.run')
@@ -518,13 +450,10 @@ class TestDockerImageExistsLocally(unittest.TestCase):
         mock_run.side_effect = Exception("Docker error")
 
         result = self.utils.docker_image_exists_locally("test-image")
-
         self.assertFalse(result)
 
 
 class TestDockerPullImage(unittest.TestCase):
-    """Test docker_pull_image function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -537,7 +466,6 @@ class TestDockerPullImage(unittest.TestCase):
 
         mock_logger = MagicMock()
         result = self.utils.docker_pull_image("test-image", mock_logger)
-
         self.assertTrue(result)
 
     @patch('subprocess.run')
@@ -548,13 +476,10 @@ class TestDockerPullImage(unittest.TestCase):
 
         mock_logger = MagicMock()
         result = self.utils.docker_pull_image("test-image", mock_logger)
-
         self.assertFalse(result)
 
 
 class TestEnsureSwebenchProDockerImages(unittest.TestCase):
-    """Test ensure_swebench_pro_docker_images function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -584,7 +509,6 @@ class TestEnsureSwebenchProDockerImages(unittest.TestCase):
         get_image_name = lambda x: x["image"]
 
         self.utils.ensure_swebench_pro_docker_images(items, mock_logger, get_image_name)
-
         mock_pull.assert_called_once()
 
     @patch('ais_bench.benchmark.tasks.swebench_pro.utils.docker_pull_image')
@@ -610,13 +534,10 @@ class TestEnsureSwebenchProDockerImages(unittest.TestCase):
         get_image_name = lambda x: x["image"]
 
         self.utils.ensure_swebench_pro_docker_images(items, mock_logger, get_image_name)
-
         self.assertEqual(mock_exists.call_count, 2)
 
 
 class TestRemoveSwebenchProImage(unittest.TestCase):
-    """Test remove_swebench_pro_image function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -636,13 +557,10 @@ class TestRemoveSwebenchProImage(unittest.TestCase):
         mock_logger = MagicMock()
 
         self.utils.remove_swebench_pro_image(mock_client, "test-image", mock_logger)
-
         mock_logger.warning.assert_called_once()
 
 
 class TestCleanSwebenchProImages(unittest.TestCase):
-    """Test clean_swebench_pro_images function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -662,8 +580,6 @@ class TestCleanSwebenchProImages(unittest.TestCase):
 
 
 class TestCleanupSwebenchProContainers(unittest.TestCase):
-    """Test cleanup_swebench_pro_containers function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -679,7 +595,6 @@ class TestCleanupSwebenchProContainers(unittest.TestCase):
         mock_run.side_effect = [mock_result1, MagicMock(), mock_result2]
 
         self.utils.cleanup_swebench_pro_containers()
-
         self.assertEqual(mock_run.call_count, 3)
 
     @patch('subprocess.run')
@@ -694,19 +609,15 @@ class TestCleanupSwebenchProContainers(unittest.TestCase):
     @patch('subprocess.run')
     def test_cleanup_handles_docker_not_found(self, mock_run):
         mock_run.side_effect = FileNotFoundError("docker not found")
-
         self.utils.cleanup_swebench_pro_containers()
 
     @patch('subprocess.run')
     def test_cleanup_handles_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="docker", timeout=10)
-
         self.utils.cleanup_swebench_pro_containers()
 
 
 class TestCollectOutputsLocal(unittest.TestCase):
-    """Test collect_outputs_local function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -752,8 +663,6 @@ class TestCollectOutputsLocal(unittest.TestCase):
 
 
 class TestLoadBaseDocker(unittest.TestCase):
-    """Test load_base_docker function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -767,7 +676,6 @@ class TestLoadBaseDocker(unittest.TestCase):
             dockerfile_path.write_text("FROM python:3.9\nRUN echo hello")
 
             result = self.utils.load_base_docker(str(docker_dir), "test-123")
-
             self.assertIn("FROM python:3.9", result)
 
     def test_raises_for_missing_dockerfile(self):
@@ -777,8 +685,6 @@ class TestLoadBaseDocker(unittest.TestCase):
 
 
 class TestInstanceDocker(unittest.TestCase):
-    """Test instance_docker function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -792,7 +698,6 @@ class TestInstanceDocker(unittest.TestCase):
             dockerfile_path.write_text("FROM base\nRUN test")
 
             result = self.utils.instance_docker(str(docker_dir), "test-123")
-
             self.assertIn("FROM base", result)
 
     def test_raises_for_missing_dockerfile(self):
@@ -802,8 +707,6 @@ class TestInstanceDocker(unittest.TestCase):
 
 
 class TestCreateEntryscript(unittest.TestCase):
-    """Test create_entryscript function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -839,8 +742,6 @@ class TestCreateEntryscript(unittest.TestCase):
 
 
 class TestAssembleWorkspaceFiles(unittest.TestCase):
-    """Test assemble_workspace_files function."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -914,8 +815,6 @@ Binary files a/bin.bin and b/bin.bin differ
 
 
 class TestEvalWithDockerFull(unittest.TestCase):
-    """Test eval_with_docker function with more scenarios."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -953,16 +852,13 @@ class TestEvalWithDockerFull(unittest.TestCase):
             mock_get_uri.return_value = "test-image"
 
             mock_container = MagicMock()
-            timeout_error = Exception("Timeout")
-            mock_container.wait.side_effect = timeout_error
-            mock_container.stop = MagicMock()
-            mock_container.kill = MagicMock()
-
             mock_client = MagicMock()
             mock_client.containers.run.return_value = mock_container
             mock_client.errors = MagicMock()
             mock_client.errors.Timeout = type('Timeout', (Exception,), {})
             mock_container.wait.side_effect = mock_client.errors.Timeout("Timeout")
+            mock_container.stop = MagicMock()
+            mock_container.kill = MagicMock()
 
             mock_logger = MagicMock()
             sample = {"instance_id": "test-123"}
@@ -1007,8 +903,6 @@ class TestEvalWithDockerFull(unittest.TestCase):
 
 
 class TestEvalWithDockerMoreScenarios(unittest.TestCase):
-    """Test eval_with_docker function with more scenarios."""
-
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
@@ -1019,7 +913,7 @@ class TestEvalWithDockerMoreScenarios(unittest.TestCase):
     @patch('ais_bench.benchmark.tasks.swebench_pro.utils.assemble_workspace_files')
     def test_raises_when_docker_not_installed(self, mock_assemble, mock_get_uri, mock_save, mock_collect):
         from ais_bench.benchmark.utils.logging.exceptions import AISBenchImportError
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_assemble.return_value = ({"patch.diff": "patch"}, "entryscript")
             mock_get_uri.return_value = "test-image"
