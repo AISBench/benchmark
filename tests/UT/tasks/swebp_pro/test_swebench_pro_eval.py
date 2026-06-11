@@ -32,10 +32,11 @@ class TestFilterInstancesFromPreds(unittest.TestCase):
             "id2": {"instance_id": "id2"},
         }
 
-        filtered, skipped = self.eval_module._filter_instances_from_preds(
-            instances, predictions, "model", "dataset", Path("/tmp"),
-            rewrite_reports=False, exclude_completed=False
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filtered, skipped = self.eval_module._filter_instances_from_preds(
+                instances, predictions, "model", "dataset", Path(tmpdir),
+                rewrite_reports=False, exclude_completed=False
+            )
 
         self.assertEqual(len(filtered), 2)
         self.assertEqual(skipped, 1)
