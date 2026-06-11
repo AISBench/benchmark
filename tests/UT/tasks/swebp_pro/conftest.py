@@ -437,12 +437,21 @@ def _setup_mocks():
         'charset_normalizer': charset_normalizer,
     }
 
+    return MOCK_MODULES
+
+
+MOCK_MODULES = _setup_mocks()
+
+import pytest
+
+@pytest.fixture(scope="module", autouse=True)
+def mock_system_modules():
+    original_modules = {k: sys.modules[k] for k in MOCK_MODULES if k in sys.modules}
     for mod_name, mock_obj in MOCK_MODULES.items():
-        if mod_name not in sys.modules:
-            sys.modules[mod_name] = mock_obj
-
-    return len(MOCK_MODULES)
-
-
-num_mocked = _setup_mocks()
-print(f"[conftest] Mocked {num_mocked} modules at module load time", flush=True)
+        sys.modules[mod_name] = mock_obj
+    yield
+    for mod_name in MOCK_MODULES:
+        if mod_name in original_modules:
+            sys.modules[mod_name] = original_modules[mod_name]
+        else:
+            sys.modules.pop(mod_name, None)

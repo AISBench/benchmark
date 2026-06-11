@@ -124,7 +124,8 @@ class TestDatasetLoad(unittest.TestCase):
         dataset = self.dataset_module.SWEBenchProDataset.__new__(self.dataset_module.SWEBenchProDataset)
         dataset.logger = MagicMock()
 
-        with self.assertRaises(Exception):
+        from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+        with self.assertRaises(ParameterValueError):
             dataset.load("invalid_name", "test", "", False)
 
     @patch('ais_bench.benchmark.datasets.swebench_pro.load_dataset')
@@ -167,7 +168,6 @@ class TestDatasetLoad(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_get_data.return_value = tmpdir
-            Path(tmpdir) / "test-00000-of-00001.parquet"
             (Path(tmpdir) / "test-00000-of-00001.parquet").write_text("")
             mock_load_dataset.side_effect = Exception("Load Error")
 
