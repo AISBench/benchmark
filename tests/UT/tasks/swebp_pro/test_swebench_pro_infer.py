@@ -253,14 +253,10 @@ class TestMakeSWEBenchProProgressManager(unittest.TestCase):
 
     def test_handles_import_error(self):
         mock_tsm = MagicMock()
-        original_import = __builtins__['__import__']
 
-        def mock_import(name, *args, **kwargs):
-            if 'minisweagent.run.extra.utils.batch_progress' in name:
-                raise ImportError("module not found")
-            return original_import(name, *args, **kwargs)
-
-        with patch('builtins.__import__', side_effect=mock_import):
+        with patch.dict(sys.modules, {
+            'minisweagent.run.extra.utils.batch_progress': None,
+        }):
             manager, render_group = self.infer_module._make_swebench_pro_progress_manager(mock_tsm, 10, "out_dir")
 
         self.assertIsNotNone(manager)
