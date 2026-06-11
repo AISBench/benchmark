@@ -43,12 +43,16 @@ class MMLUProBaseEvaluator(BaseEvaluator):
 
     def is_equal(self, pred, refer):
         try:
-            refer_option, refer_string = refer.split('. ')
+            # Handle exact match first
+            if pred.strip() == refer.strip():
+                return True
+            # Limit split to 1 to avoid ValueError when refer contains multiple '. '
+            refer_option, refer_string = refer.split('. ', 1)
             if pred in CHOICES and refer_option == pred:
                 return True
             elif refer_string.strip() == pred:
                 return True
-            else :
+            else:
                 return False
         except Exception:
             pass

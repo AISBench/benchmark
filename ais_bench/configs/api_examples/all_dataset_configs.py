@@ -33,7 +33,7 @@ with read_base():
     from ais_bench.benchmark.configs.datasets.mmlu.mmlu_gen_5_shot_str import mmlu_datasets as mmlu_5_shot_str
 
     # mmlu_pro
-    from ais_bench.benchmark.configs.datasets.mmlu_pro.mmlu_pro_gen_0_shot_str import mmlu_pro_datasets as mmlu_pro_0_shot_str
+    from ais_bench.benchmark.configs.datasets.mmlu_pro.mmlu_pro_gen_0_shot_cot_str import mmlu_pro_datasets as mmlu_pro_0_shot_str
     from ais_bench.benchmark.configs.datasets.mmlu_pro.mmlu_pro_gen_5_shot_str import mmlu_pro_datasets as mmlu_pro_5_shot_str
 
     # boolq
