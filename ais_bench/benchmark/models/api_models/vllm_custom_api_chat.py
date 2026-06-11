@@ -94,7 +94,8 @@ class VLLMCustomAPIChat(BaseAPIModel):
 
     def _get_url(self) -> str:
         endpoint = "v1/chat/completions"
-        url = urllib.parse.urljoin(self.base_url, endpoint)
+        normalized_base_url = f"{self.base_url.rstrip('/')}/"
+        url = urllib.parse.urljoin(normalized_base_url, endpoint)
         self.logger.debug(f"Request url: {url}")
         return url
 
