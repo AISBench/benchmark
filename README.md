@@ -34,6 +34,7 @@
 
 ## 🔥 最新进展
 
+- **\[2026.5.30]** 支持在AISBench中测评基于Harbor的Terminal-Bench 2.0，并支持mini数据集，大幅降低评测成本🔥🔥🔥。示例与说明见 [在AISBench中测评基于Harbor的Terminal-Bench 2.0](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/harbor_bench.html)。
 - **\[2026.5.18]** 支持在AISBench中测评SWE-Bench、TAU2-Bench、VBench 1.0的mini子集，大幅降低评测成本🔥🔥🔥。mini子集示例与说明在对应测评文档中搜索`mini`关键词：
   - [在AISBench中测评SWE-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/swe_bench.html)
   - [在AISBench中测评TAU2-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/tau2_bench.html)
