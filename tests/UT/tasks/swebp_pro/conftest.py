@@ -22,7 +22,9 @@ def _setup_mocks():
     minisweagent.run.extra.run_batch.process_instance = MagicMock()
     minisweagent.run.extra.run_batch.RunBatchConfig = MagicMock()
     minisweagent.config = type('config', (), {})()
-    minisweagent.config.get_config_path = MagicMock()
+    mock_config_path = MagicMock()
+    mock_config_path.read_text.return_value = '{}'
+    minisweagent.config.get_config_path = MagicMock(return_value=mock_config_path)
 
     orjson = MagicMock()
     orjson.loads = MagicMock(return_value={})
