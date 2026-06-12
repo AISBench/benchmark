@@ -1,7 +1,7 @@
 #!/bin/bash
 
 usage() {
-    echo "用法: $0 --tag <TAG> [--os <操作系统>] [--py-version <Python版本>] [--obs-path <OBS工具路径>] [--hub-repo <镜像仓库>] [--image-output-dir <输出目录>] [--push <0|1>] [--upload <0|1>] [--use-cache <0|1>]"
+    echo "用法: $0 --tag <TAG> [--os <操作系统>] [--py-version <Python版本>] [--obs-path <OBS工具路径>] [--hub-repo <镜像仓库>] [--image-output-dir <输出目录>] [--push <0|1>] [--upload <0|1>] [--use-cache <0|1>] [--multi-arch <0|1>]"
     echo ""
     echo "参数说明:"
     echo "  --tag              必填，要更新的TAG名称，遵循AISBench仓库的tag命名规则，且必须是存在的tag，例如v3.1-20260522-master"
@@ -13,6 +13,7 @@ usage() {
     echo "  --push             可选，是否推送到远程仓库，默认: 0"
     echo "  --upload           可选，是否上传到OBS桶，默认: 0"
     echo "  --use-cache        可选，是否使用缓存构建，默认: 0"
+    echo "  --multi-arch       可选，是否构建多架构镜像（amd64+arm64），默认: 0。启用后在各架构机器上分别构建并推送各自架构镜像，再用docker manifest合并为统一tag（不带架构后缀）"
     echo ""
     echo "示例:"
     echo "  $0 --tag v3.1-20260522-master"
@@ -21,6 +22,7 @@ usage() {
     echo "  $0 --tag v3.1-20260522-master --image-output-dir /tmp/images"
     echo "  $0 --tag v3.1-20260522-master --push 1"
     echo "  $0 --tag v3.1-20260522-master --push 1 --upload 1"
+    echo "  $0 --tag v3.1-20260522-master --multi-arch 1 --push 1"
     exit 1
 }
 
@@ -33,6 +35,7 @@ image_output_dir="/home/ais_bench_ci/release_images"
 push=0
 upload=0
 use_cache=0
+multi_arch=0
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -72,6 +75,10 @@ while [[ $# -gt 0 ]]; do
             use_cache="$2"
             shift 2
             ;;
+        --multi-arch)
+            multi_arch="$2"
+            shift 2
+            ;;
         -h|--help)
             usage
             ;;
@@ -99,6 +106,8 @@ fi
 
 dockerfile_path="$(dirname "$0")/${dockerfile_dir}/Dockerfile.${py_version}.${OS}"
 image_name=${hub_repo}:${TAG}-${OS}-${py_version}-${arch}
+manifest_image_name=${hub_repo}:${TAG}-${OS}-${py_version}
+
 offline_pkg_name=ais_bench_benchmark_image_${TAG}-${OS}-${py_version}-${arch}.tar.gz
 offline_pkg_full_path=${image_output_dir}/${offline_pkg_name}
 
@@ -187,12 +196,38 @@ fi
 echo "镜像验证成功！"
 
 if [ "$push" == "1" ]; then
-    echo "开始推送新镜像到远程仓库（覆盖已有同名镜像）..."
+    echo "开始推送镜像到远程仓库（覆盖已有同名镜像）..."
     docker push ${image_name}
 
     if [ $? -ne 0 ]; then
         echo "错误：镜像推送失败，终止后续操作"
         exit 1
+    fi
+fi
+
+if [ "$multi_arch" == "1" ]; then
+    if [ "$push" != "1" ]; then
+        echo "提示：多架构模式下未开启推送，manifest合并需要已推送的镜像。跳过manifest合并。"
+    else
+        arch_image_amd64=${hub_repo}:${TAG}-${OS}-${py_version}-x86_64
+        arch_image_arm64=${hub_repo}:${TAG}-${OS}-${py_version}-aarch64
+
+        echo "开始创建多架构manifest list：${manifest_image_name}"
+        echo "  - ${arch_image_amd64}"
+        echo "  - ${arch_image_arm64}"
+
+        docker buildx imagetools create \
+            -t ${manifest_image_name} \
+            ${arch_image_amd64} \
+            ${arch_image_arm64}
+
+        if [ $? -ne 0 ]; then
+            echo "错误：多架构manifest创建失败"
+            exit 1
+        fi
+
+        echo "多架构manifest list已更新：${manifest_image_name}"
+        echo "  docker buildx imagetools inspect ${manifest_image_name}"
     fi
 fi
 
@@ -216,6 +251,9 @@ if [ "$upload" == "1" ]; then
     if [ $? -eq 0 ]; then
         echo "全部操作完成！"
         echo "镜像已更新：${image_name}"
+        if [ "$multi_arch" == "1" ] && [ "$push" == "1" ]; then
+            echo "多架构manifest list：${manifest_image_name}"
+        fi
         echo "离线包已更新并上传：${offline_pkg_name}"
     else
         echo "错误：OBS桶上传失败"
@@ -225,4 +263,7 @@ else
     echo "跳过上传到OBS桶（--upload 未设置为1）"
     echo "全部操作完成！"
     echo "镜像已构建：${image_name}"
+    if [ "$multi_arch" == "1" ] && [ "$push" == "1" ]; then
+        echo "多架构manifest list：${manifest_image_name}"
+    fi
 fi
