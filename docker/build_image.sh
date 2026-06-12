@@ -209,13 +209,19 @@ if [ "$multi_arch" == "1" ]; then
     if [ "$push" != "1" ]; then
         echo "提示：多架构模式下未开启推送，manifest合并需要已推送的镜像。跳过manifest合并。"
     else
-        echo "开始创建/更新多架构manifest list：${manifest_image_name}"
-        docker manifest create ${manifest_image_name} \
-            ${image_name} \
-            --amend \
-            ${manifest_image_name} 2>/dev/null || docker manifest create ${manifest_image_name} ${image_name}
+        arch_image_amd64=${hub_repo}:${TAG}-${OS}-${py_version}-x86_64
+        arch_image_arm64=${hub_repo}:${TAG}-${OS}-${py_version}-aarch64
 
-        docker manifest annotate ${manifest_image_name} ${image_name} --arch ${arch}
+        echo "开始创建多架构manifest list：${manifest_image_name}"
+        echo "  - ${arch_image_amd64}"
+        echo "  - ${arch_image_arm64}"
+
+        docker manifest create ${manifest_image_name} \
+            ${arch_image_amd64} \
+            ${arch_image_arm64}
+
+        docker manifest annotate ${manifest_image_name} ${arch_image_amd64} --arch amd64
+        docker manifest annotate ${manifest_image_name} ${arch_image_arm64} --arch arm64
 
         echo "推送多架构manifest list..."
         docker manifest push ${manifest_image_name}
