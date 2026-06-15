@@ -1,6 +1,9 @@
 # Docker Image Overview
 
 ## Quick Reference
+- AISBench Benchmark is maintained by the [AISBench AI System Performance Benchmark Committee](https://www.aisbench.com/about).
+
+- Image Overview
 
 | Item | Description |
 | --- | --- |
@@ -10,6 +13,16 @@
 | Supported Python | 3.10, 3.11, 3.12 |
 | Build strategy | Multi-stage build (builder → runtime) |
 | Working directory | `/benchmark` |
+
+
+- Where to get help
+    + [📖AISBench Benchmark Documentation](https://ais-bench-benchmark.readthedocs.io/en/latest/)
+    + [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)
+    + [🤔Report an Issue](https://github.com/AISBench/benchmark/issues/new/choose)
+
+### AISBench Benchmark
+AISBench Benchmark is a model evaluation tool built on [OpenCompass](https://github.com/open-compass/opencompass). It is compatible with OpenCompass's configuration system, dataset structure, and model backend implementation, and extends support for service-based models.
+> ⚠️Note: AISBench Benchmark images only support evaluation of service-based models, not offline inference models. Evaluation scenarios that require launching independent sandbox environments (such as SWE-Bench, terminal-bench 2, etc.) are also not currently supported.
 
 ## Image Tag Convention & Dockerfile Archive Paths
 
@@ -31,10 +44,10 @@ Where:
 
 | Dockerfile | Base Image | Python | Path |
 | --- | --- | --- | --- |
-| `Dockerfile.py310.ubuntu22.04` | `ubuntu:22.04` | 3.10 | `docker/ubuntu/` |
-| `Dockerfile.py312.ubuntu24.04` | `ubuntu:24.04` | 3.12 | `docker/ubuntu/` |
-| `Dockerfile.py310.openeuler22.03` | `openeuler/openeuler:22.03-lts` | 3.10 | `docker/openeuler/` |
-| `Dockerfile.py311.openeuler24.03` | `openeuler/openeuler:24.03-lts` | 3.11 | `docker/openeuler/` |
+| [Dockerfile.py310.ubuntu22.04](ubuntu/Dockerfile.py310.ubuntu22.04) | `ubuntu:22.04` | 3.10 | `docker/ubuntu/` |
+| [Dockerfile.py312.ubuntu24.04](ubuntu/Dockerfile.py312.ubuntu24.04) | `ubuntu:24.04` | 3.12 | `docker/ubuntu/` |
+| [Dockerfile.py310.openeuler22.03](openeuler/Dockerfile.py310.openeuler22.03) | `openeuler/openeuler:22.03-lts` | 3.10 | `docker/openeuler/` |
+| [Dockerfile.py311.openeuler24.03](openeuler/Dockerfile.py311.openeuler24.03) | `openeuler/openeuler:24.03-lts` | 3.11 | `docker/openeuler/` |
 
 Dockerfile naming convention: `Dockerfile.{py_version}.{os}`
 
@@ -167,6 +180,6 @@ docker build \
 
 ## License / Disclaimer
 
-This project's images and build scripts are licensed under the LICENSE file in the repository root.
+This project's images and build scripts are licensed under the [LICENSE file](https://github.com/AISBench/benchmark/blob/master/LICENSE) in the repository root.
 
 **Disclaimer**: This Docker image is provided "as is", without warranty of any kind, express or implied. Users should evaluate whether the image meets their requirements and assume full responsibility for any consequences arising from its use. Third-party software packages installed in the image are governed by their respective license terms.
