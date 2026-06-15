@@ -93,9 +93,9 @@ conda create --name ais_bench python=3.10 -y
 conda activate ais_bench
 ```
 
-📦 安装方式（源码安装）
+### 📦 安装方式-源码安装（首选）
 
-AISBench 当前仅提供源码安装方式，请确保安装环境联网：
+AISBench 当前推荐使用源码安装方式，以便获得更好的自定义配置文件使用体验，请确保安装环境联网：
 
 ```shell
 git clone https://github.com/AISBench/benchmark.git
@@ -134,6 +134,19 @@ pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
 ```shell
 pip3 install -r requirements/datasets/ocrbench_v2.txt
 ```
+
+### 📦 安装方式-一键安装（备选）
+
+AISBench 也提供了一键安装方式，适用于基于预置配置文件的快速体验和评估场景，请确保安装环境联网。
+- 基本功能的安装命令如下：
+```shell
+pip3 install ais_bench_benchmark
+```
+- 全量功能的安装命令如下：
+```shell
+pip3 install ais_bench_benchmark[full]
+```
+
 
 如需进一步配置、使用 CLI 或 Python 脚本发起评测任务，请参考[快速入门指南](#快速入门)。
 

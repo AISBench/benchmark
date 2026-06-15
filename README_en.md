@@ -101,9 +101,9 @@ conda create --name ais_bench python=3.10 -y
 conda activate ais_bench
 ```
 
-📦 Installation Method (Source Code Installation)
+### 📦 Installation Method - Source Code Installation (Preferred)
 
-AISBench currently only provides source code installation. Ensure the installation environment has internet access:
+AISBench currently recommends the source code installation method for a better custom configuration file experience. Ensure the installation environment has internet access:
 ```shell
 git clone https://github.com/AISBench/benchmark.git
 cd benchmark/
@@ -134,6 +134,19 @@ pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
 ```shell
 pip3 install -r requirements/datasets/ocrbench_v2.txt
 ```
+
+### 📦 Installation Method - One-Click Install (Alternative)
+
+AISBench also provides a one-click installation method, suitable for quick experience and evaluation scenarios based on preset configuration files. Ensure the installation environment has internet access.
+- Basic functionality installation command:
+```shell
+pip3 install ais_bench_benchmark
+```
+- Full functionality installation command:
+```shell
+pip3 install ais_bench_benchmark[full]
+```
+
 
 For further configuration or to initiate evaluation tasks using CLI or Python scripts, refer to the [Quick Start Guide](#quick-start).
 
