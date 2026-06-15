@@ -9,7 +9,7 @@ from ais_bench.benchmark.utils.postprocess.text_postprocessors import match_answ
 
 # 这里写template，最终输入给模型的数据是：template+question+choices，请注意你的数据选项个数，如果选项数量大于2则此处需要修改
 QUERY_TEMPLATE = """
-===在这里写Temlate
+===在这里写Template
 
 {question}
 
