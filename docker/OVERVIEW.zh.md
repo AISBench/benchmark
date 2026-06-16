@@ -1,6 +1,9 @@
 # Docker 镜像概览
 
 ## 快速参考
+- AISBench Benchmark由[AISBench人工智能系统性能评测基准委员会](https://www.aisbench.com/about)维护。
+
+- 镜像简介
 
 | 项目 | 说明 |
 | --- | --- |
@@ -10,6 +13,16 @@
 | 支持的 Python | 3.10, 3.11, 3.12 |
 | 构建方式 | 多阶段构建（builder → runtime） |
 | 工作目录 | `/benchmark` |
+
+
+- 从哪里获取帮助
+    + [📖AISBench Benchmark 文档](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/)
+    + [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AISBench/benchmark)
+    + [🤔报告问题](https://github.com/AISBench/benchmark/issues/new/choose)
+
+### AISBench Benchmark
+AISBench Benchmark 是基于 [OpenCompass](https://github.com/open-compass/opencompass) 构建的模型评测工具，兼容 OpenCompass 的配置体系、数据集结构与模型后端实现，并在此基础上扩展了对服务化模型的支持能力。
+> ⚠️注意：AISBench Benchmark的镜像只支持服务化模型的评测，不支持离线推理模型的评测。当前也不支持SWE-Bench、terminal-bench 2等测评过程中需要启动独立沙箱环境的测评常见
 
 ## 镜像 Tag 说明及 Dockerfile 归档路径
 
@@ -30,10 +43,10 @@
 
 | Dockerfile | 基础镜像 | Python | 路径 |
 | --- | --- | --- | --- |
-| `Dockerfile.py310.ubuntu22.04` | `ubuntu:22.04` | 3.10 | `docker/ubuntu/` |
-| `Dockerfile.py312.ubuntu24.04` | `ubuntu:24.04` | 3.12 | `docker/ubuntu/` |
-| `Dockerfile.py310.openeuler22.03` | `openeuler/openeuler:22.03-lts` | 3.10 | `docker/openeuler/` |
-| `Dockerfile.py311.openeuler24.03` | `openeuler/openeuler:24.03-lts` | 3.11 | `docker/openeuler/` |
+| [Dockerfile.py310.ubuntu22.04](ubuntu/Dockerfile.py310.ubuntu22.04) | `ubuntu:22.04` | 3.10 | `docker/ubuntu/` |
+| [Dockerfile.py312.ubuntu24.04](ubuntu/Dockerfile.py312.ubuntu24.04) | `ubuntu:24.04` | 3.12 | `docker/ubuntu/` |
+| [Dockerfile.py310.openeuler22.03](openeuler/Dockerfile.py310.openeuler22.03) | `openeuler/openeuler:22.03-lts` | 3.10 | `docker/openeuler/` |
+| [Dockerfile.py311.openeuler24.03](openeuler/Dockerfile.py311.openeuler24.03) | `openeuler/openeuler:24.03-lts` | 3.11 | `docker/openeuler/` |
 
 Dockerfile 命名规则：`Dockerfile.{py_version}.{os}`
 
@@ -153,6 +166,6 @@ docker build \
 
 ## 许可证 / 免责声明
 
-本项目镜像及其构建脚本按仓库根目录的 LICENSE 文件授权。
+本项目镜像及其构建脚本按仓库根目录的 [LICENSE 文件](https://github.com/AISBench/benchmark/blob/master/LICENSE) 授权。
 
 **免责声明**：本 Docker 镜像按"原样"提供，不提供任何明示或暗示的保证。使用者应自行评估镜像是否满足其需求，并对使用本镜像所产生的任何后果负责。镜像中安装的第三方软件包遵循其各自的许可证条款。
