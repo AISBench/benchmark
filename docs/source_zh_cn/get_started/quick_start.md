@@ -141,3 +141,7 @@ dataset                 version  metric   mode  vllm_api_general_chat
 ----------------------- -------- -------- ----- ----------------------
 demo_gsm8k              401e4c   accuracy gen                   62.50
 ```
+
+## 进阶：通过自定义配置文件运行
+
+> 💡 上述 CLI 方式适合快速验证。当需要**重复执行**、**复杂模型-数据集组合**、**精确控制参数**时，推荐使用 [自定义配置文件方式](../advanced_tutorials/run_custom_config.md)。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](../advanced_tutorials/run_custom_config.md)。

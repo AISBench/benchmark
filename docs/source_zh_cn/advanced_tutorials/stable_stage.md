@@ -188,6 +188,10 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
   ![full_plot_example.img](../img/request_concurrency/full_plot_example.png)
 具体这个html中的图标如何查看请参考📚 [性能测试可视化并发图使用说明](../base_tutorials/results_intro/performance_visualization.md)
 
+## 通过自定义配置文件实现
+
+> 💡 上述稳态性能测评场景也可以通过 [自定义配置文件方式](run_custom_config.md) 实现。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](run_custom_config.md#各场景自定义配置文件示例) 中"稳态性能测评"示例。
+
 ## 其他功能场景
 ### 性能结果重计算
 参考📚 [常规性能测试性能结果重计算](../base_tutorials/scenes_intro/performance_benchmark.md#性能结果重计算)

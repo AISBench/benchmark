@@ -21,6 +21,8 @@ SWE-bench是一个基准测试，用于评估大语言模型在从GitHub收集�
 - `mini_swe_agent_swe_bench_multilingual.py`：SWE-bench Multilingual（`SWE-bench/SWE-bench_Multilingual`），包含多语言 issue 描述的数据集。
 - `mini_swe_agent_swe_bench_multilingual_mini.py`：SWE-bench Multilingual Mini（**15**/**30**/**60** 条），AISBench官方构造的 Multilingual 子集，用于显著降低评测成本；子集筛选/构造方式见数据集卡与构造仓库：`https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini`、`https://github.com/AISBench/datasets/tree/main/mini_datasets/swe_bench_multiligual_mini`。
 
+> 💡 上述示例配置文件即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考这些示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
+
 
 
 ## 2. 前置依赖

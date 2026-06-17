@@ -403,6 +403,10 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 > ⚠️ 注意：当前数据集会按照默认队列顺序依次读取，不支持随机抽样或打乱顺序。
 
 
+## 通过自定义配置文件实现
+
+> 💡 上述所有功能场景（多任务测评、自定义序列长度、固定请求数等）均可以通过 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 实现。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md#各场景自定义配置文件示例) 中"服务化性能测评"、"合成数据集性能测评"、"稳态性能测评"等示例。
+
 ## 其他功能场景
 ### 性能结果重计算
 性能测试的主要功能场景评测工具会执行完整的性能采样 → 计算 → 汇总流程

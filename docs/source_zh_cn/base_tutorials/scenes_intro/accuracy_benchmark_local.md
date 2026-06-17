@@ -20,6 +20,10 @@
 ### 纯模型合并子数据集推理
 参考[服务化精度合并子数据集推理使用方法](accuracy_benchmark.md#合并子数据集推理)。
 
+## 通过自定义配置文件实现
+
+> 💡 上述所有功能场景（多任务测评、多任务并行、中断续测、合并子数据集等）均可以通过 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 实现。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md#各场景自定义配置文件示例) 中"纯模型精度测评"示例。
+
 ## 其他功能
 ### 纯模型推理结果重评估
 参考[服务化精度推理结果重评估使用方法](accuracy_benchmark.md#推理结果重评估)。

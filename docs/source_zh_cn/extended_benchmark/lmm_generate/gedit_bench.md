@@ -89,6 +89,8 @@ pip install yunchang==0.6.0
 #### 测评配置准备
 
 在容器中`${PATH_TO_WORKSPACE}/benchmark/ais_bench/configs/lmm_example`目录下，打开`multi_device_run_qwen_image_edit.py`文件，编辑如下内容设置模型配置：
+
+> 💡 上述 `multi_device_run_qwen_image_edit.py` 即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考此示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
 ```python
 # ......
 # ====== User configuration parameters =========

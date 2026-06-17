@@ -4,6 +4,8 @@
 
 AISBench **已适配 VBench 1.0**。仓库目录 `ais_bench/configs/vbench_examples/` 下放的是 **独立配置文件** 示例，在 **GPU** 或 **NPU** 上对**生成视频**做质量/语义类维度测评。**当前 AISBench 不包含多模态视频生成**，请先完成视频生成后再进行测评(Standard模式参考[数据集生成](#数据集生成)章节)。
 
+> 💡 上述 `vbench_examples/` 下的示例配置文件即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考这些示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
+
 ## 目录
 
 - [依赖与环境](#依赖与环境)
