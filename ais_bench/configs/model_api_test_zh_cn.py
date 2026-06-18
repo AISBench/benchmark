@@ -1,7 +1,7 @@
 from mmengine.config import read_base
 
 with read_base():
-# 模型任务，选择其中一个，其他模型任务参考：https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/all_params/models.html
+# 模型任务，选择其中一个，其他模型任务参考：https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/base_tutorials/all_params/models.html 获取更多数据集任务
     # vllm_api_general 是基础模型，仅支持文本生成
     from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general import models as vllm_api_general
     # vllm_api_general_chat 是对话模型，支持对话
@@ -10,11 +10,10 @@ with read_base():
     from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
     # vllm_api_general_stream 是流式模型，支持流式生成
     from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_stream import models as vllm_api_general_stream
+# 数据集任务，参考：https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/get_started/datasets.html 获取更多数据集任务
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
 
-# 数据集任务，参考：https://ais-bench-benchmark-rf.readthedocs.io/zh-cn/latest/get_started/datasets.html
-    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as gsm8k_4_shot_cot_str
-
-datasets = gsm8k_4_shot_cot_str
+# datasets =
 models = vllm_api_general_chat
 
 models[0]["path"] = ""  # 指定模型序列化词表文件的绝对路径（精度测试场景一般不需要配置）

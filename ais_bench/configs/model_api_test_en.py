@@ -12,9 +12,8 @@ with read_base():
     from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_stream import models as vllm_api_general_stream
 
 # dataset task, get from https://ais-bench-benchmark-rf.readthedocs.io/en/latest/get_started/datasets.html
-    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as gsm8k_4_shot_cot_str
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
 
-datasets = gsm8k_4_shot_cot_str
 models = vllm_api_general_chat
 
 models[0]["path"] = ""  # Specify the absolute path of the model serialized vocabulary file (generally not required for accuracy testing scenarios)

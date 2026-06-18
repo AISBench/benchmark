@@ -24,7 +24,7 @@ HLE（Humanity's Last Exam）是 Center for AI Safety 发布的前沿多模态�
 
 ## 可用数据集任务
 
-| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 对应源码配置文件路径 |
-| --- | --- | --- | --- | --- | --- |
-| hle | HLE 数据集 | 准确率 (accuracy)、置信度校准误差 (calibration_error) | 0-shot | 对话格式 | hle_llmjudge.py |
+| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| hle | HLE 数据集 | 准确率 (accuracy)、置信度校准误差 (calibration_error) | 0-shot | 对话格式 | `from ais_bench.benchmark.configs.datasets.hle.hle_llmjudge import hle_datasets as datasets` | [hle_llmjudge.py](hle_llmjudge.py) |
 

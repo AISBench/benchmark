@@ -34,9 +34,9 @@ pip3 install -r requirements/datasets/ocrbench_v2.txt
 ```
 
 ## 可用数据集任务
-| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 对应源码配置文件路径 |
-| --- | --- | --- | --- | --- | --- |
-| ocrbench_v2_gen_0_shot_chat | OCRBench_v2 数据集生成式任务，支持多模态输入（图像+文本） | 多种指标（根据任务类型） | 0-shot | 对话格式（多模态） | [ocrbench_v2_gen_0_shot_chat.py](ocrbench_v2_gen_0_shot_chat.py) |
+| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| ocrbench_v2_gen_0_shot_chat | OCRBench_v2 数据集生成式任务，支持多模态输入（图像+文本） | 多种指标（根据任务类型） | 0-shot | 对话格式（多模态） | `from ais_bench.benchmark.configs.datasets.ocrbench_v2.ocrbench_v2_gen_0_shot_chat import ocrbench_v2_datasets as datasets` | [ocrbench_v2_gen_0_shot_chat.py](ocrbench_v2_gen_0_shot_chat.py) |
 
 ## 支持的任务类型
 OCRBench_v2 数据集涵盖以下任务类型：

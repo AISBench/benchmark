@@ -45,7 +45,7 @@ rm -r OpenCompassData-core-20240207.zip
     └── sat-math.jsonl
     ```
 ## Available Dataset Tasks
-|Task Name|Description|Evaluation Metric|Few-shot|Prompt Format|Corresponding Source Code Configuration File Path|
-| --- | --- | --- | --- | --- | --- |
-|agieval_gen_0_shot_chat_prompt|AGIEval dataset generative task, containing a total of 21 subtasks|accuracy|0-shot|Chat format|[agieval_gen_0_shot_chat_prompt.py](agieval_gen_0_shot_chat_prompt.py)|
+|Task Name|Description|Evaluation Metric|Few-shot|Prompt Format|Import Statement|Corresponding Source Code Configuration File Path|
+| --- | --- | --- | --- | --- | --- | --- |
+|agieval_gen_0_shot_chat_prompt|AGIEval dataset generative task, containing a total of 21 subtasks|accuracy|0-shot|Chat format|`from ais_bench.benchmark.configs.datasets.agieval.agieval_gen_0_shot_chat_prompt import agieval_datasets as datasets`|[agieval_gen_0_shot_chat_prompt.py](agieval_gen_0_shot_chat_prompt.py)|
 ```
