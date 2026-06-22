@@ -12,7 +12,7 @@ models = vllm_api_general
 models[0]["host_ip"] = "localhost"
 models[0]["host_port"] = 8080
 
-work_dir = "outputs/ceval_merge_benchmark/"
+work_dir = "outputs/default/"
 
 infer = dict(
     partitioner=dict(type=NaivePartitioner),

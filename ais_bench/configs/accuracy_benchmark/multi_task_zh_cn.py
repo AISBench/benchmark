@@ -22,7 +22,7 @@ models[0]["batch_size"] = 1
 models[1]["max_out_len"] = 512
 models[1]["batch_size"] = 1
 
-work_dir = "outputs/multi_task_benchmark/"
+work_dir = "outputs/default/"
 
 infer = dict(
     partitioner=dict(type=NaivePartitioner),

@@ -13,7 +13,7 @@ models = vllm_api_general_chat
 models[0]["host_ip"] = "localhost"
 models[0]["host_port"] = 8080
 
-work_dir = "outputs/multi_task_resume_partial/"
+work_dir = "outputs/default/"
 
 infer = dict(
     partitioner=dict(type=NaivePartitioner),

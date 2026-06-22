@@ -12,7 +12,7 @@ models = vllm_api_stream_chat
 models[0]["host_ip"] = "localhost"
 models[0]["host_port"] = 8080
 
-work_dir = "outputs/fixed_prompts_benchmark/"
+work_dir = "outputs/default/"
 
 infer = dict(
     partitioner=dict(type=NaivePartitioner),

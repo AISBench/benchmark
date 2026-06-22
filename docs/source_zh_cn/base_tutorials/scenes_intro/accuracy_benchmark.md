@@ -14,32 +14,6 @@
 ### 单任务测评
 请参考主页📚 [快速入门](../../get_started/quick_start.md)。快速入门中已经提供了两种启动方式：
 
-- ⭐ 推荐：使用自定义配置文件 [快速入门-使用自定义配置文件](../../get_started/quick_start.md#-推荐使用自定义配置文件)
-- 备选：使用命令行参数 [快速入门-使用命令行参数](../../get_started/quick_start.md#备选使用命令行参数)
-
-如下是按照快速入门中的自定义配置文件方式启动单任务测评的最小可运行样例，完整配置文件请参考 [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py)：
-
-```python
-from mmengine.config import read_base
-from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
-
-with read_base():
-    from ais_bench.benchmark.configs.summarizers.example import summarizer
-    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
-    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_chat import models as vllm_api_general_chat
-
-models = vllm_api_general_chat
-# ...其余参数配置详见配置文件
-```
-
-执行命令：
-
-```bash
-ais_bench ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py
-```
-
 ### 多任务测评
 支持同时配置多个模型或多个数据集任务，通过单次命令进行批量测评，适用于大规模模型横向对比或多数据集精度对比分析。
 
@@ -82,9 +56,40 @@ models = vllm_api_general_chat + vllm_api_stream_chat
 ais_bench ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py
 ```
 
-> 💡 也可以基于 📚 [自定义模型-数据集配对](../../advanced_tutorials/run_custom_config.md#6-自定义模型-数据集配对) 通过 `model_dataset_combinations` 字段精确控制哪些模型与哪些数据集组合，避免不必要的笛卡尔积。
+#### 自定义模型-数据集配对（可选）
+
+默认情况下，上述配置中 `models` 列表与 `datasets` 列表会自动按笛卡尔积组合，子任务数为模型数 × 数据集数（本例为 2 × 2 = 4 个）。若希望精确控制哪些模型与哪些数据集配对（例如让部分模型只跑部分数据集、避免无意义的组合），可在配置文件中通过 `model_dataset_combinations` 字段显式声明配对关系：
+
+```python
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.tasks import OpenICLInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.example import summarizer
+    from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_4_shot_cot_str import gsm8k_datasets
+    from ais_bench.benchmark.configs.datasets.aime2024.aime2024_gen_0_shot_chat_prompt import aime2024_datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_chat import models as vllm_api_general_chat
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+datasets = gsm8k_datasets + aime2024_datasets
+models = vllm_api_general_chat + vllm_api_stream_chat
+
+# 关键：通过 model_dataset_combinations 精确控制配对
+# 下例仅生成 2 个子任务（笛卡尔积会生成 4 个）：
+#   - vllm_api_general_chat + gsm8k_gen_4_shot_cot_str
+#   - vllm_api_stream_chat + aime2024_gen_0_shot_chat_prompt
+model_dataset_combinations = [
+    dict(models=[models[0]], datasets=[datasets[0]]),
+    dict(models=[models[1]], datasets=[datasets[1]]),
+]
+```
+
+> ⚠️ **注意**：模型与数据集的唯一标识由 `abbr` 字段决定。同一配置文件中，相同 `abbr` 的模型或数据集重复出现的组合会被视为重复任务而被跳过。当通过 `.copy()` 等方式复用模型/数据集配置时，必须显式修改 `abbr` 以保证唯一性。详见 📚 [自定义模型与数据集组合](../../advanced_tutorials/run_custom_config.md#自定义模型与数据集组合)。
 
 :::
+
 :::{tab-item} 备选：使用命令行参数
 
 用户可通过`--models`和`--datasets`参数指定多个配置任务，命令示例：
