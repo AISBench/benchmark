@@ -164,3 +164,62 @@ img {
         margin-right: 270px;
     }
 }
+
+/* 快速入门双栏切换 Tab 样式 */
+.tab-container {
+    border: 1px solid #e1e4e5;
+    border-radius: 4px;
+    margin: 1.2em 0;
+    background: #fff;
+}
+
+.tab-container input[type="radio"] {
+    display: none;
+}
+
+.tab-container label.tab-label {
+    display: inline-block;
+    padding: 10px 24px;
+    cursor: pointer;
+    background: #f3f6f6;
+    border-bottom: 2px solid transparent;
+    font-weight: 600;
+    font-size: 0.95em;
+    transition: all 0.2s ease;
+    margin: 0;
+    user-select: none;
+}
+
+.tab-container label.tab-label:hover {
+    background: #e6ebeb;
+}
+
+.tab-container input[type="radio"]:checked + label.tab-label {
+    background: #fff;
+    border-bottom: 2px solid #2980b9;
+    color: #2980b9;
+}
+
+.tab-container .tab-content {
+    display: none;
+    padding: 16px 20px;
+    background: #fff;
+}
+
+.tab-container #tab-config:checked ~ #content-config,
+.tab-container #tab-cli:checked ~ #content-cli {
+    display: block;
+}
+
+@media screen and (max-width: 768px) {
+    .tab-container label.tab-label {
+        display: block;
+        width: 100%;
+        text-align: center;
+        border-bottom: 1px solid #e1e4e5;
+    }
+
+    .tab-container input[type="radio"]:checked + label.tab-label {
+        border-bottom: 2px solid #2980b9;
+    }
+}
