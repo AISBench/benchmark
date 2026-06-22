@@ -40,7 +40,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 <button class="tab-btn" data-tab="cli">备选：使用命令行参数</button>
 </div>
 
-<div class="tab-panel active" data-tab="config">
+<div class="tab-panel active" data-tab="config" markdown="1">
 
 ### ⭐ 推荐：使用自定义配置文件
 
@@ -104,7 +104,7 @@ ais_bench ais_bench/configs/model_api_test_zh_cn.py
 
 </div>
 
-<div class="tab-panel" data-tab="cli">
+<div class="tab-panel" data-tab="cli" markdown="1">
 
 ### 备选：使用命令行参数
 
