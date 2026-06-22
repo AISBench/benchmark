@@ -34,17 +34,15 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 ## 启动测评（两种方式任选其一）
 
-<div class="tab-container">
-<div class="tab-bar">
-<button class="tab-btn active" data-tab="config">⭐ 推荐：使用自定义配置文件</button>
-<button class="tab-btn" data-tab="cli">备选：使用命令行参数</button>
-</div>
+| ⭐ 推荐：使用自定义配置文件 | 备选：使用命令行参数 |
+| :--- | :--- |
+| 修改一个文件，集中管理所有配置，在任意路径写配置 | 通过 `--models` `--datasets` 参数指定 |
+| 一次编写，多次复用 | 每次运行需输入完整命令 |
+| 支持 Python 全部语法，灵活扩展 | 仅支持笛卡尔积组合 |
 
-<div class="tab-panel active" data-tab="config" markdown="1">
+````{tab} ⭐ 推荐：使用自定义配置文件
 
-### ⭐ 推荐：使用自定义配置文件
-
-AISBench 提供了预置的自定义配置文件 [model\_api\_test\_zh\_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_zh_cn.py)，将常见的推理服务化测试配置（模型选择、服务地址、端口、生成参数等）集中在一个文件中，无需分别查找和修改多个配置文件。该文件本质上是 Python 脚本，支持所有 Python 语法，你可以自由扩展。
+AISBench 提供了预置的自定义配置文件 [model_api_test_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_zh_cn.py)，将常见的推理服务化测试配置（模型选择、服务地址、端口、生成参数等）集中在一个文件中，无需分别查找和修改多个配置文件。该文件本质上是 Python 脚本，支持所有 Python 语法，你可以自由扩展。
 
 打开 `ais_bench/configs/model_api_test_zh_cn.py`，根据实际情况修改以下配置（如果是`pip3 install ais_bench_benchmark`方式直接安装工具，可以在任意路径自行创建`model_api_test_zh_cn.py`，将以下配置内容写入该文件）：
 
@@ -102,31 +100,15 @@ work_dir = 'outputs/default/'  # 指定任务结果和日志的保存工作目�
 ais_bench ais_bench/configs/model_api_test_zh_cn.py
 ```
 
-</div>
+````
 
-<div class="tab-panel" data-tab="cli" markdown="1">
-
-### 备选：使用命令行参数
+````{tab} 备选：使用命令行参数
 
 如果你更习惯使用命令行参数方式，AISBench 同样支持通过 `--models`、`--datasets`、`--summarizer` 参数直接指定任务。以下是与上述自定义配置文件方式**执行效果完全相同**的命令行方式。
-
-AISBench命令执行的单个或多个评测任务是由模型任务（单个或多个）、数据集任务（单个或多个）和结果呈现任务（单个）的组合定义的。以如下AISBench命令为例：
-
-```shell
-ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer example
-```
-
-此命令没有指定其他命令行，默认是一个精度评测场景的任务，其中：
-
-- `--models`指定了模型任务，即`vllm_api_general_chat`模型任务。
-- `--datasets`指定了数据集任务，即`demo_gsm8k_gen_4_shot_cot_chat_prompt`数据集任务。
-- `--summarizer`指定了结果呈现任务，即`example`结果呈现任务(不指定`--summarizer`精度评测场景默认使用`example`任务)，一般使用默认，不需要在命令行中指定。
 
 多任务测评请参考：📚 精度场景的[多任务测评](../base_tutorials/scenes_intro/accuracy_benchmark.md#多任务测评) 和 性能场景的[多任务测评](../base_tutorials/scenes_intro/performance_benchmark.md#多任务测评)。
 
 如需自行组合测评任务，实现更灵活的测评方式，可参考：📚 [自定义配置文件运行AISBench](../advanced_tutorials/run_custom_config.md#自定义配置文件运行AISBench)。
-
-#### 任务对应配置文件修改
 
 每个模型任务、数据集任务和结果呈现任务都对应一个配置文件，运行命令前需要修改这些配置文件的内容。这些配置文件路径可以通过在原有AISBench命令基础上加上`--search`来查询，例如：
 
@@ -149,7 +131,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 ```
 
-- 快速入门中数据集任务配置文件`demo_gsm8k_gen_4_shot_cot_chat_prompt.py`不需要做额外修改，数据集任务配置文件内容介绍可参考📚 [配置开源数据集](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/all_params/datasets.html#id6)
+- 快速入门中数据集任务配置文件`demo_gsm8k_gen_4_shot_cot_chat_prompt.py`不需要做额外修改，数据集任务配置文件内容介绍可参考📚 [配置开源数据集](../get_started/datasets.md#配置开源数据集)
 
 模型配置文件`vllm_api_general_chat.py`中包含了模型运行相关的配置内容，是需要依据实际情况修改的。快速入门中需要修改的内容用注释标明。
 
@@ -188,8 +170,7 @@ models = [
 ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt
 ```
 
-</div>
-</div>
+````
 
 ## 查看任务执行细节
 
@@ -217,9 +198,7 @@ outputs/default/20250628_151326/logs/infer/vllm-api-general-chat/demo_gsm8k.out
 ```
 
 > 💡 如果希望执行过程中将详细日志直接打印，执行命令时可以加上 `--debug`:
-`ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --debug`
-
-
+> `ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --debug`
 
 `Base path`（`outputs/default/20250628_151326`）下包含了所有任务的执行细节，命令执行结束后所有的执行细节如下：
 
@@ -248,7 +227,6 @@ outputs/default/20250628_151326/logs/infer/vllm-api-general-chat/demo_gsm8k.out
 
 > ⚠️ **注意**： 不同评测场景落盘任务执行细节内容不同，具体请参考具体评测场景的指南。
 
-
 ### 输出结果
 
 因为只有8条数据，会很快跑出结果，结果显示的示例如下
@@ -258,7 +236,3 @@ dataset                 version  metric   mode  vllm_api_general_chat
 ----------------------- -------- -------- ----- ----------------------
 demo_gsm8k              401e4c   accuracy gen                   62.50
 ```
-
-## 进阶：通过自定义配置文件运行
-
-> 💡 上述 CLI 方式适合快速验证。当需要**重复执行**、**复杂模型-数据集组合**、**精确控制参数**时，推荐使用 [自定义配置文件方式](../advanced_tutorials/run_custom_config.md)。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](../advanced_tutorials/run_custom_config.md)。

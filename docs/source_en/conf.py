@@ -35,6 +35,7 @@ extensions = [
     'sphinx.ext.imgconverter', # 支持图片格式转换
     'sphinx.ext.mathjax',    # 支持数学公式
     'sphinx.ext.viewcode',   # 查看代码源文件
+    'sphinx_design',         # 支持 tab-set、card 等 UI 组件
 ]
 
 # 4. 若使用 Markdown，需指定源文件后缀
@@ -58,7 +59,6 @@ myst_enable_extensions = [
     'dollarmath',            # 支持 $ 分隔的数学公式
     'html_admonition',       # 支持 HTML 警告框
     'replacements',          # 支持文本替换
-    'html',                  # 支持原始 HTML 标签透传
 ]
 
 # （可选）配置 Mermaid 输出格式
@@ -114,5 +114,3 @@ def setup(app):
     app.add_js_file('repo_links.js')
     # 添加自定义 JavaScript 以支持右侧目录
     app.add_js_file('right_toc.js')
-    # 添加 Tab 切换组件脚本
-    app.add_js_file('tabs.js')
