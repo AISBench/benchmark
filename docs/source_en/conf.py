@@ -113,3 +113,5 @@ def setup(app):
     app.add_js_file('repo_links.js')
     # 添加自定义 JavaScript 以支持右侧目录
     app.add_js_file('right_toc.js')
+    # 添加 Tab 切换组件脚本
+    app.add_js_file('tabs.js')

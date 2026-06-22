@@ -35,12 +35,12 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 ## 启动测评（两种方式任选其一）
 
 <div class="tab-container">
-<input type="radio" id="tab-config" name="quickstart-tabs" checked>
-<label class="tab-label" for="tab-config">⭐ 推荐：使用自定义配置文件</label>
-<input type="radio" id="tab-cli" name="quickstart-tabs">
-<label class="tab-label" for="tab-cli">备选：使用命令行参数</label>
+<div class="tab-bar">
+<button class="tab-btn active" data-tab="config">⭐ 推荐：使用自定义配置文件</button>
+<button class="tab-btn" data-tab="cli">备选：使用命令行参数</button>
+</div>
 
-<div class="tab-content" id="content-config">
+<div class="tab-panel active" data-tab="config">
 
 ### ⭐ 推荐：使用自定义配置文件
 
@@ -104,7 +104,7 @@ ais_bench ais_bench/configs/model_api_test_zh_cn.py
 
 </div>
 
-<div class="tab-content" id="content-cli">
+<div class="tab-panel" data-tab="cli">
 
 ### 备选：使用命令行参数
 

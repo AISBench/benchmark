@@ -173,53 +173,56 @@ img {
     background: #fff;
 }
 
-.tab-container input[type="radio"] {
-    display: none;
+.tab-container .tab-bar {
+    border-bottom: 1px solid #e1e4e5;
+    background: #f3f6f6;
 }
 
-.tab-container label.tab-label {
+.tab-container .tab-btn {
     display: inline-block;
     padding: 10px 24px;
     cursor: pointer;
-    background: #f3f6f6;
+    background: transparent;
+    border: none;
     border-bottom: 2px solid transparent;
     font-weight: 600;
     font-size: 0.95em;
     transition: all 0.2s ease;
     margin: 0;
     user-select: none;
+    color: #404040;
+    font-family: inherit;
 }
 
-.tab-container label.tab-label:hover {
+.tab-container .tab-btn:hover {
     background: #e6ebeb;
 }
 
-.tab-container input[type="radio"]:checked + label.tab-label {
+.tab-container .tab-btn.active {
     background: #fff;
     border-bottom: 2px solid #2980b9;
     color: #2980b9;
 }
 
-.tab-container .tab-content {
+.tab-container .tab-panel {
     display: none;
     padding: 16px 20px;
     background: #fff;
 }
 
-.tab-container #tab-config:checked ~ #content-config,
-.tab-container #tab-cli:checked ~ #content-cli {
+.tab-container .tab-panel.active {
     display: block;
 }
 
 @media screen and (max-width: 768px) {
-    .tab-container label.tab-label {
+    .tab-container .tab-btn {
         display: block;
         width: 100%;
         text-align: center;
         border-bottom: 1px solid #e1e4e5;
     }
 
-    .tab-container input[type="radio"]:checked + label.tab-label {
+    .tab-container .tab-btn.active {
         border-bottom: 2px solid #2980b9;
     }
 }
