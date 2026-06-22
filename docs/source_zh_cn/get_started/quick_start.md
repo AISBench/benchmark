@@ -40,7 +40,8 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 | 一次编写，多次复用 | 每次运行需输入完整命令 |
 | 支持 Python 全部语法，灵活扩展 | 仅支持笛卡尔积组合 |
 
-````{tab} ⭐ 推荐：使用自定义配置文件
+::::{tab-set}
+:::{tab-item} ⭐ 推荐：使用自定义配置文件
 
 AISBench 提供了预置的自定义配置文件 [model_api_test_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_zh_cn.py)，将常见的推理服务化测试配置（模型选择、服务地址、端口、生成参数等）集中在一个文件中，无需分别查找和修改多个配置文件。该文件本质上是 Python 脚本，支持所有 Python 语法，你可以自由扩展。
 
@@ -100,9 +101,8 @@ work_dir = 'outputs/default/'  # 指定任务结果和日志的保存工作目�
 ais_bench ais_bench/configs/model_api_test_zh_cn.py
 ```
 
-````
-
-````{tab} 备选：使用命令行参数
+:::
+:::{tab-item} 备选：使用命令行参数
 
 如果你更习惯使用命令行参数方式，AISBench 同样支持通过 `--models`、`--datasets`、`--summarizer` 参数直接指定任务。以下是与上述自定义配置文件方式**执行效果完全相同**的命令行方式。
 
@@ -170,7 +170,8 @@ models = [
 ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt
 ```
 
-````
+:::
+::::
 
 ## 查看任务执行细节
 
