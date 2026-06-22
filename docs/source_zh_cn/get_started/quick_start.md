@@ -1,40 +1,14 @@
 # 快速入门
 
-## 命令含义
-
-AISBench命令执行的单个或多个评测任务是由模型任务（单个或多个）、数据集任务（单个或多个）和结果呈现任务（单个）的组合定义的，AISBench的其他命令行则规定了评测任务的场景（精度评测场景、性能评测场景等）。以如下AISBench命令为例：
-
-```shell
-ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer example
-```
-
-此命令没有指定其他命令行，默认是一个精度评测场景的任务，其中：
-
-- `--models`指定了模型任务，即`vllm_api_general_chat`模型任务。
-
-- `--datasets`指定了数据集任务，即`demo_gsm8k_gen_4_shot_cot_chat_prompt`数据集任务。
-
-- `--summarizer`指定了结果呈现任务，即`example`结果呈现任务(不指定`--summarizer`精度评测场景默认使用`example`任务)，一般使用默认，不需要在命令行中指定，后续命令不指定。
-
-## 任务含义查询(可选)
-
-所选模型任务`vllm_api_general_chat`、数据集任务`demo_gsm8k_gen_4_shot_cot_chat_prompt`和结果呈现任务`example`的具体信息(简介，使用约束等)可以分别从如下链接中查询含义：
-
-- `--models`: 📚 [服务化推理后端](../base_tutorials/all_params/models.md#服务化推理后端)
-
-- `--datasets`: 📚 [开源数据集](../get_started/datasets.md#开源数据集) → 📚 [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README.md)
-
-- `--summarizer`: 📚 [结果汇总任务](../base_tutorials/all_params/summarizer.md)
-
 ## 运行命令前置准备
 
-- `--models`: 使用`vllm_api_general_chat`模型任务，需要准备支持`v1/chat/completions`子服务的推理服务，可以参考🔗 [VLLM启动OpenAI 兼容服务器](https://docs.vllm.com.cn/en/latest/getting_started/quickstart.html#openai-compatible-server)启动推理服务
-- `--datasets`: 使用`demo_gsm8k_gen_4_shot_cot_chat_prompt`数据集任务，需要准备gsm8k数据集，可以从🔗 [opencompass
-提供的gsm8k数据集压缩包](http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/gsm8k.zip)下载。将解压后的`gsm8k/`文件夹部署到AISBench评测工具根路径下的`ais_bench/datasets`文件夹下。
+- 需要准备支持`v1/chat/completions`子服务的推理服务，可以参考🔗 [VLLM启动OpenAI 兼容服务器](https://docs.vllm.com.cn/en/latest/getting_started/quickstart.html#openai-compatible-server)启动推理服务
+- 需要准备gsm8k数据集，可以从🔗 [opencompass
+  提供的gsm8k数据集压缩包](http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/gsm8k.zip)下载。将解压后的`gsm8k/`文件夹部署到AISBench评测工具根路径下的`ais_bench/datasets`文件夹下。
 
 ## 启动测评（两种方式任选其一）
 
-| ⭐ 推荐：使用自定义配置文件 | 备选：使用命令行参数 |
+| ⭐ 推荐：使用自定义配置文件 | 备选：使用命令行参数(原快速入门方式) |
 | :--- | :--- |
 | 修改一个文件，集中管理所有配置，在任意路径写配置 | 通过 `--models` `--datasets` 参数指定 |
 | 一次编写，多次复用 | 每次运行需输入完整命令 |
@@ -106,9 +80,27 @@ ais_bench ais_bench/configs/model_api_test_zh_cn.py
 
 如果你更习惯使用命令行参数方式，AISBench 同样支持通过 `--models`、`--datasets`、`--summarizer` 参数直接指定任务。以下是与上述自定义配置文件方式**执行效果完全相同**的命令行方式。
 
+AISBench命令执行的单个或多个评测任务是由模型任务（单个或多个）、数据集任务（单个或多个）和结果呈现任务（单个）的组合定义的。以如下AISBench命令为例：
+
+```shell
+ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer example
+```
+
+此命令没有指定其他命令行，默认是一个精度评测场景的任务，其中：
+
+- `--models`指定了模型任务，即`vllm_api_general_chat`模型任务。
+- `--datasets`指定了数据集任务，即`demo_gsm8k_gen_4_shot_cot_chat_prompt`数据集任务。
+- `--summarizer`指定了结果呈现任务，即`example`结果呈现任务(不指定`--summarizer`精度评测场景默认使用`example`任务)，一般使用默认，不需要在命令行中指定。
+
 多任务测评请参考：📚 精度场景的[多任务测评](../base_tutorials/scenes_intro/accuracy_benchmark.md#多任务测评) 和 性能场景的[多任务测评](../base_tutorials/scenes_intro/performance_benchmark.md#多任务测评)。
 
 如需自行组合测评任务，实现更灵活的测评方式，可参考：📚 [自定义配置文件运行AISBench](../advanced_tutorials/run_custom_config.md#自定义配置文件运行AISBench)。
+
+所选模型任务`vllm_api_general_chat`、数据集任务`demo_gsm8k_gen_4_shot_cot_chat_prompt`和结果呈现任务`example`的具体信息(简介，使用约束等)可以分别从如下链接中查询含义：
+
+- `--models`: 📚 [服务化推理后端](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/all_params/models.html#id2)
+- `--datasets`: 📚 [开源数据集](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/get_started/datasets.html#id3) → 📚 [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README.md)
+- `--summarizer`: 📚 [结果汇总任务](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/all_params/summarizer.html)
 
 每个模型任务、数据集任务和结果呈现任务都对应一个配置文件，运行命令前需要修改这些配置文件的内容。这些配置文件路径可以通过在原有AISBench命令基础上加上`--search`来查询，例如：
 
@@ -131,7 +123,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 ```
 
-- 快速入门中数据集任务配置文件`demo_gsm8k_gen_4_shot_cot_chat_prompt.py`不需要做额外修改，数据集任务配置文件内容介绍可参考📚 [配置开源数据集](../get_started/datasets.md#配置开源数据集)
+- 快速入门中数据集任务配置文件`demo_gsm8k_gen_4_shot_cot_chat_prompt.py`不需要做额外修改，数据集任务配置文件内容介绍可参考📚 [配置开源数据集](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/all_params/datasets.html#id6)
 
 模型配置文件`vllm_api_general_chat.py`中包含了模型运行相关的配置内容，是需要依据实际情况修改的。快速入门中需要修改的内容用注释标明。
 
@@ -175,7 +167,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 ## 查看任务执行细节
 
-执行AISBench命令后，正在执行的任务状态会在命令行实时刷新的看板上显示（键盘按"P"键可以停止刷新，用于复制看板信息，再按"P"可以继续刷新），例如：
+执行AISBench命令后，任务管理界面会在命令行实时刷新显示任务执行状态（键盘按"P"键可以暂停/恢复刷新，用于复制看板信息，再按"P"键可以继续刷新）。任务管理界面支持同时监控多个任务的详细执行状态，包括任务名称、进度、时间成本、状态、日志路径、扩展参数等信息，例如：
 
 ```
 Base path of result&log : outputs/default/20250628_151326
@@ -206,20 +198,20 @@ outputs/default/20250628_151326/logs/infer/vllm-api-general-chat/demo_gsm8k.out
 ```shell
 20250628_151326/
 ├── configs # 模型任务、数据集任务和结构呈现任务对应的配置文件合成的一个配置
-│   └── 20250628_151326_29317.py
+│   └── 20250628_151326_29317.py
 ├── logs # 执行过程中日志，命令中如果加--debug，不会有过程日志落盘（都直接打印出来了）
-│   ├── eval
-│   │   └── vllm-api-general-chat
-│   │       └── demo_gsm8k.out # 基于predictions/文件夹下的推理结果的精度评测过程的日志
-│   └── infer
-│       └── vllm-api-general-chat
-│           └── demo_gsm8k.out # 推理过程日志
+│   ├── eval
+│   │   └── vllm-api-general-chat
+│   │       └── demo_gsm8k.out # 基于predictions/文件夹下的推理结果的精度评测过程的日志
+│   └── infer
+│       └── vllm-api-general-chat
+│           └── demo_gsm8k.out # 推理过程日志
 ├── predictions
-│   └── vllm-api-general-chat
-│       └── demo_gsm8k.json # 推理结果（推理服务返回的所有输出）
+│   └── vllm-api-general-chat
+│       └── demo_gsm8k.json # 推理结果（推理服务返回的所有输出）
 ├── results
-│   └── vllm-api-general-chat
-│       └── demo_gsm8k.json # 精度评测计算的原始分数
+│   └── vllm-api-general-chat
+│       └── demo_gsm8k.json # 精度评测计算的原始分数
 └── summary
     ├── summary_20250628_151326.csv # 最终精度分数呈现（表格格式）
     ├── summary_20250628_151326.md # 最终精度分数呈现（markdown格式）
