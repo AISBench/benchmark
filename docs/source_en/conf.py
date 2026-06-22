@@ -59,6 +59,7 @@ myst_enable_extensions = [
     'dollarmath',            # 支持 $ 分隔的数学公式
     'html_admonition',       # 支持 HTML 警告框
     'replacements',          # 支持文本替换
+    'colon_fence',           # 支持 ::: 栅栏指令（用于 tab-set 等 sphinx_design 组件）
 ]
 
 # （可选）配置 Mermaid 输出格式
