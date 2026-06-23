@@ -16,7 +16,7 @@ textvqa_infer_cfg = dict(
         template=dict(
             round=[
                 dict(role="HUMAN", prompt_mm={
-                    "text": {"type": "text", "text": "{question} "+PROMPT},
+                    "text": {"type": "text", "text": f"{{question}} {PROMPT}"},
                     "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
                 })
             ]
