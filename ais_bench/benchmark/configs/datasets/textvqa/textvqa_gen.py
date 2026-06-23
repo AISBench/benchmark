@@ -3,7 +3,7 @@ from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.datasets import TEXTVQADataset, TEXTEvaluator, TEXTEvaluatorForVita
 
-
+PROMPT = "Answer the question using a single word or phrase."
 textvqa_reader_cfg = dict(
     input_columns=['question', 'image'],
     output_column='answer'
@@ -16,7 +16,7 @@ textvqa_infer_cfg = dict(
         template=dict(
             round=[
                 dict(role="HUMAN", prompt_mm={
-                    "text": {"type": "text", "text": "{question} Answer the question using a single word or phrase."},
+                    "text": {"type": "text", "text": "{question} "+PROMPT},
                     "image": {"type": "image_url", "image_url": {"url": "file://{image}"}},
                 })
             ]
