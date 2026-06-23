@@ -77,6 +77,8 @@ Terminal-Bench-2 pre-packaged images:
 
 Modify `ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py` under AISBench tool root directory:
 
+> 💡 The above `harbor_terminal_bench_2_task.py` is a concrete application of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to this example file to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
+
 ```python
 models = [
     dict(
@@ -97,22 +99,24 @@ models = [
 ]
 # ......
 datasets = []
-datasets.append(
-    dict(
-        abbr=f'harbor_terminal-bench-2',
-        args=dict(
-            n_attempts=1,  # -k/--n-attempts: Number of attempts per trial
-            timeout_multiplier=1.0,  # --timeout-multiplier: Timeout multiplier
-            # ......
-            n_concurrent_trials=5,  # -n/--n-concurrent: Number of concurrent trials
-            # ......
-            path="/path/to/terminal-bench-2/",  # -p/--path: Local dataset path
-            # ......
-            n_tasks=None,  # --n-tasks: Maximum number of tasks, None runs all, try setting a few for quick testing
-            # ......
-        ),
+for task in sub_tasks:
+    datasets.append(
+        dict(
+            abbr=f'harbor_{task}',
+            args=dict(
+                n_attempts=1,  # -k/--n-attempts: Number of attempts per trial
+                timeout_multiplier=1.0,  # --timeout-multiplier: Timeout multiplier (all timeouts multiplied by this coefficient)
+                # ......
+                n_concurrent_trials=5,  # -n/--n-concurrent: Number of concurrent trials
+                # ......
+                path="/path/to/terminal-bench-2/",  # -p/--path: Local dataset path
+                # ......
+                n_tasks=None,  # --n-tasks: Maximum number of tasks, None defaults to running all, set a few for quick testing
+                # ......
+            ),
+        )
     )
-)
+
 # ......
 ```
 

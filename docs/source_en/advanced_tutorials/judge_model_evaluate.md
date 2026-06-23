@@ -222,6 +222,10 @@ The result display example is as follows:
 
 From the quick start section of the judge model, you can see that except for the additional need to modify the judge model configuration in the data configuration file, the other evaluation execution methods are exactly the same as the conventional evaluation execution methods. Therefore, the execution methods for other accuracy evaluation function scenarios are also exactly the same.
 
+## Implement via Custom Config Files
+
+> 💡 The above judge model evaluation scenario can also be implemented through the [Custom Config File Method](run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax such as loops, conditional judgments, list comprehensions, etc. You can write the tested model, judge model, dataset, summarizer, and other configurations into a single file, write once and reuse multiple times. See the "Judge Model Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-config-file-examples-for-various-scenarios).
+
 ### Multi-task Evaluation
 
 Refer to [Accuracy Evaluation Scenario Multi-task Evaluation](../base_tutorials/scenes_intro/accuracy_benchmark.md#multi-task-evaluation)

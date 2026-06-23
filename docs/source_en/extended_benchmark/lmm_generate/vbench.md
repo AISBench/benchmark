@@ -4,6 +4,8 @@
 
 AISBench has **adapted to VBench 1.0**. The repository directory `ais_bench/configs/vbench_examples/` contains **standalone configuration file** examples for running quality/semantic dimension evaluation on generated videos on **GPU** or **NPU**. **AISBench currently does not include multimodal video generation**, so please generate videos first and then run the evaluation. (For Standard mode, see the [Dataset Generation](#dataset-generation) section.)
 
+> 💡 The example configuration files under `vbench_examples/` mentioned above are concrete applications of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to these example files to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
+
 ## Table of Contents
 
 - [Dependencies and Environment](#dependencies-and-environment)

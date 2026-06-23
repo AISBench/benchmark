@@ -64,6 +64,8 @@ Ensure local or cloud deployment of tested inference services following OpenAI c
 
 ### 3. Configure Custom Configuration File for τ²-Bench Tasks
 1. Modify necessary configurations in `ais_bench/configs/agent_example/tau2_bench_task.py` under AISBench tool root directory (mainly configuring information about tested inference services and user-simulating inference services)
+
+> 💡 The above `tau2_bench_task.py` is a concrete application of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to this example file to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
 ```python
 # ......
 models = [
@@ -226,11 +228,11 @@ for task in sub_tasks:
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
 | Task Name                         |   Process | Progress                                                   | Time Cost   | Status   | Log Path                                        | Extend Parameters   |
 +===================================+===========+============================================================+=============+==========+=================================================+=====================+
-| openai-v1-chat/tau2_bench_airline |   1856223 | [######                        ] 30/150 Running TAU2 Bench | 0:07:13     | running  | logs/eval/openai-v1-chat/tau2_bench_airline.out | None                |
+| openai-v1-chat/tau2_bench_airline |   1856223 | [######                        ] 30/250 Running TAU2 Bench | 0:07:13     | running  | logs/eval/openai-v1-chat/tau2_bench_airline.out | None                |
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
-| openai-v1-chat/tau2_bench_retail  |   1856224 | [######                        ] 75/342 Running TAU2 Bench | 0:11:56     | running  | logs/eval/openai-v1-chat/tau2_bench_retail.out  | None                |
+| openai-v1-chat/tau2_bench_retail  |   1856224 | [######                        ] 75/568 Running TAU2 Bench | 0:11:56     | running  | logs/eval/openai-v1-chat/tau2_bench_retail.out  | None                |
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
-| openai-v1-chat/tau2_bench_telecom |   1856222 | [######                        ] 76/342 Running TAU2 Bench | 1:09:51     | running  | logs/eval/openai-v1-chat/tau2_bench_telecom.out | None                |
+| openai-v1-chat/tau2_bench_telecom |   1856222 | [######                        ] 76/568 Running TAU2 Bench | 1:09:51     | running  | logs/eval/openai-v1-chat/tau2_bench_telecom.out | None                |
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
 ```
 

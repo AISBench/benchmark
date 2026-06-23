@@ -159,11 +159,89 @@ pip3 uninstall ais_bench_benchmark
 
 
 ## 🚀 Quick Start
-### Command Meaning
-A single or multiple evaluation tasks executed by an AISBench command are defined by a combination of model tasks (single or multiple), dataset tasks (single or multiple), and result presentation tasks (single). Other command-line options of AISBench specify the scenario of the evaluation task (accuracy evaluation scenario, performance evaluation scenario, etc.). Take the following AISBench command as an example:
+### Pre-execution Preparation
+
+- You need to prepare an inference service that supports the `v1/chat/completions` sub-service. Refer to 🔗 [VLLM Start OpenAI-Compatible Server](https://docs.vllm.com.cn/en/latest/getting_started/quickstart.html#openai-compatible-server) to start the inference service.
+- You need to prepare the GSM8K dataset. You can download it from the 🔗 [GSM8K dataset archive provided by OpenCompass](http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/gsm8k.zip). After decompression, place the `gsm8k/` folder under the `ais_bench/datasets` directory of the AISBench evaluation tool root path.
+
+### Start Evaluation (Choose one of two methods)
+
+| ⭐ Recommended: Use Custom Configuration File      | Alternative: Use Command-Line Parameters (Original Quick Start)                |
+| :------------------ | :------------------------------ |
+| Modify one file to centrally manage all configurations, write configurations at any path | Specify via `--models` and `--datasets` parameters |
+| Write once, reuse many times            | Each run requires entering the full command                  |
+| Supports full Python syntax for flexible extension | Only supports Cartesian product combinations                |
+
+**⭐ Recommended: Use Custom Configuration File**
+
+AISBench provides a preset custom configuration file [model_api_test_en.py](ais_bench/configs/model_api_test_en.py), which centralizes common inference service-deployed test configurations (model selection, service address, port, generation parameters, etc.) in one file, eliminating the need to look up and modify multiple configuration files. The file is essentially a Python script that supports all Python syntax, allowing you to freely extend it.
+
+Open `ais_bench/configs/model_api_test_en.py` and modify the following configuration according to your actual situation (if you installed the tool via `pip3 install ais_bench_benchmark`, you can create `model_api_test_en.py` at any path and write the following configuration content into that file):
+
+```python
+from mmengine.config import read_base
+
+with read_base():
+# Model task, select one. For other model tasks, see: https://ais-bench-benchmark-rf.readthedocs.io/en/latest/base_tutorials/all_params/models.html for more model tasks
+    # vllm_api_general is a base model that only supports text generation
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general import models as vllm_api_general
+    # vllm_api_general_chat is a chat model that supports dialogue
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_chat import models as vllm_api_general_chat
+    # vllm_api_stream_chat is a streaming chat model that supports streaming dialogue
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+    # vllm_api_general_stream is a streaming model that supports streaming generation
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_stream import models as vllm_api_general_stream
+
+# Dataset task, see: https://ais-bench-benchmark-rf.readthedocs.io/en/latest/get_started/datasets.html for more dataset tasks
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+
+models = vllm_api_general_chat
+
+models[0]["path"] = ""  # Specify the absolute path of the model serialized vocabulary file (generally not required for accuracy testing scenarios)
+models[0]["model"] = "" # Specify the model name loaded on the server, configured according to the actual model name pulled by the VLLM inference service (configure as an empty string to get it automatically)
+models[0]["request_rate"] = 0 # Request sending frequency: send 1 request to the server every 1/request_rate seconds; if less than 0.001, all requests are sent at once
+models[0]["api_key"] = "" # Custom API key, default is an empty string
+models[0]["host_ip"] = "localhost" # Specify the IP of the inference service
+models[0]["host_port"] = 8080 # Specify the port of the inference service
+models[0]["url"] = "" # Custom URL path for accessing the inference service (needs to be configured when the base URL is not a combination of http://host_ip:host_port; after configuration, host_ip and host_port will be ignored)
+models[0]["max_out_len"] = 512 # Maximum number of tokens output by the inference service
+models[0]["batch_size"] = 1 # Maximum concurrency for sending requests
+models[0]["trust_remote_code"] = False # Whether the tokenizer trusts remote code, default is False
+models[0]["generation_kwargs"] = dict( # Model inference parameters, configured with reference to the VLLM documentation; the AISBench evaluation tool does not process them and attaches them directly to the sent request
+    temperature=0.01,
+    ignore_eos=False,
+)
+
+# datasets[0]["path"] = ais_bench/datasets/gsm8k # Specify the absolute path of the dataset directory (required for accuracy testing scenarios)
+
+work_dir = 'outputs/default/'  # Specify the working directory for saving task results and logs (default is outputs/default/)
+
+```
+> 💡 The configuration file has pre-imported common model types (`vllm_api_general`, `vllm_api_general_chat`, `vllm_api_stream_chat`, `vllm_api_general_stream`). You only need to uncomment/modify the comment to switch. For more usage of custom configuration files, please refer to 📚 [Running AISBench with Custom Configuration File](./docs/source_en/advanced_tutorials/run_custom_config.md).
+
+For selecting, preparing, and using dataset tasks, refer to the following steps:
+1. Select a dataset task in 📚 [Open-Source Datasets](https://ais-bench-benchmark.readthedocs.io/en/latest/get_started/datasets.html#id3)
+2. Enter the data's 📚 [Detailed Introduction/Dataset Deployment](ais_bench/benchmark/configs/datasets/demo/README_en.md#dataset-deployment) to prepare the dataset
+3. Refer to 📚 [Detailed Introduction/Available Dataset Tasks](ais_bench/benchmark/configs/datasets/demo/README_en.md#available-dataset-tasks) to select an available dataset task, and copy the corresponding task import method (e.g., `from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets`) to the custom configuration file
+
+After modifying the configuration file, execute the following command to start the service-deployed accuracy evaluation:
+
+```bash
+ais_bench ais_bench/configs/model_api_test_en.py
+```
+
+***
+
+**Alternative: Use Command-Line Parameters**
+
+If you are more familiar with using command-line parameters, AISBench also supports directly specifying tasks via the `--models`, `--datasets`, and `--summarizer` parameters. The following is the command-line approach that has **exactly the same execution effect** as the above custom configuration file approach.
+
+A single or multiple evaluation tasks executed by an AISBench command are defined by a combination of model tasks (single or multiple), dataset tasks (single or multiple), and result presentation tasks (single). Take the following AISBench command as an example:
+
 ```shell
 ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer example
 ```
+
 This command does not specify other command-line options, so it defaults to an accuracy evaluation task, where:
 - `--models` specifies the model task: the `vllm_api_general_chat` model task.
 - `--datasets` specifies the dataset task: the `demo_gsm8k_gen_4_shot_cot_chat_prompt` dataset task.

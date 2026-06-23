@@ -133,6 +133,9 @@ datasets = [
 ```
 
 
+> 💡 The above config file method is essentially a simplified application of the [Custom Config File Method](run_custom_config.md). For more complex scenarios (such as multi-model/multi-dataset combinations, custom model parameters, judge models, etc.), refer to the "Custom Dataset Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-config-file-examples-for-various-scenarios).
+
+
 ### Guide to Using Dataset Supplementary Info (`.meta.json`)
 
 This feature currently only supports **performance evaluation scenarios**. The `ais_bench` system will automatically attempt to parse the input dataset file, so in most cases, a `.meta.json` file is **not required**. However, if the original dataset does not specify `max_tokens`, or if you need to configure data sampling, you must define these settings in a `.meta.json` file.
