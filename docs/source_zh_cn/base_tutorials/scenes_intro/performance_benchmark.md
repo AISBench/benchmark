@@ -679,12 +679,19 @@ ais_bench ais_bench/configs/performance_benchmark/multi_task_synthetic_zh_cn.py 
 
 ### 固定请求数测评
 
-当集规模过大，只想针数据对部分样本执行性能测试时，可使用 📚 [`--num-prompts`](../all_params/cli_args.md#公共参数) 参数指定读取的数据条数。
+当数据集规模过大，只想针对部分样本执行性能测试时，可使用以下两种方式控制读取的数据范围，二者作用一致，按使用习惯选择即可：
+
+- **基础方式**：通过命令行参数 📚 [`--num-prompts`](../all_params/cli_args.md#公共参数) 直接指定读取的数据条数，无需修改配置文件，使用最简单。
+- **进阶方式（功能更强大）**：在自定义配置文件中设置数据集的 `reader_cfg.test_range` 字段，支持更灵活的采样范围（如指定起始位置、自定义步长等），详细用法可参考 📚 [自定义配置文件](../../advanced_tutorials/run_custom_config.md)。
+
+示例如下：
 
 ::::{tab-set}
 :::{tab-item} ⭐ 推荐：使用自定义配置文件
 
-通过命令行参数 [`--num-prompts`](../all_params/cli_args.md#公共参数) 指定读取的数据条数，配置文件中不需要设置 `test_range`。完整样例请参考 [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py)：
+**方式一：基础方式 — 通过 `--num-prompts` 指定读取条数**
+
+完整样例请参考 [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py)：
 
 ```python
 from mmengine.config import read_base
@@ -707,6 +714,35 @@ models = vllm_api_stream_chat
 ais_bench ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py --mode perf --num-prompts 1
 ```
 
+**方式二：进阶方式 — 通过 `test_range` 灵活指定读取范围**
+
+如果需要更灵活的范围控制（如指定起始索引、自定义步长等），可在自定义配置文件中直接设置数据集的 `reader_cfg.test_range` 字段，无需通过命令行参数。完整样例请参考 [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py)：
+
+```python
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.tasks import OpenICLInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+# 关键：通过 reader_cfg.test_range 灵活控制采样范围
+# 例如：'[0:8]' 表示读取前 8 条样本；'[10:20]' 表示读取索引 10 到 20 的样本
+datasets[0]['reader_cfg']['test_range'] = '[0:8]'
+
+models = vllm_api_stream_chat
+# ...其余参数配置详见配置文件
+```
+
+执行命令（已在配置文件中指定 test_range，无需再传 `--num-prompts`）：
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py --mode perf
+```
+
 :::
 :::{tab-item} 备选：使用命令行参数
 
@@ -718,7 +754,7 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 :::
 ::::
 
-> ⚠️ 注意：当前数据集会按照默认队列顺序依次读取，不支持随机抽样或打乱顺序。
+> ⚠️ 注意：当前数据集会按照默认队列顺序依次读取，不支持随机抽样或打乱顺序。同时配置文件中设置 `reader_cfg.test_range` 与命令行 `--num-prompts` 时，命令行参数 `--num-prompts` 优先级更高。
 
 
 ## 通过自定义配置文件实现

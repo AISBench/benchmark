@@ -247,6 +247,10 @@ This command does not specify other command-line options, so it defaults to an a
 - `--datasets` specifies the dataset task: the `demo_gsm8k_gen_4_shot_cot_chat_prompt` dataset task.
 - `--summarizer` specifies the result presentation task: the `example` result presentation task (if `--summarizer` is not specified, the `example` task is used by default for accuracy evaluation scenarios). It is generally used as default and does not need to be specified in the command line (subsequent commands will omit this option).
 
+For multi-task evaluation, refer to: 📚 [Multi-Task Evaluation in Accuracy Scenarios](./docs/source_en/base_tutorials/scenes_intro/accuracy_benchmark.md#multi-task-evaluation) and [Multi-Task Evaluation in Performance Scenarios](./docs/source_en/base_tutorials/scenes_intro/performance_benchmark.md#multi-task-evaluation).
+
+If you need to combine evaluation tasks on your own for more flexible evaluation methods, refer to: 📚 [Running AISBench with Custom Configuration File](./docs/source_en/advanced_tutorials/run_custom_config.md#running-aisbench-with-a-custom-configuration-file).
+
 
 ### Task Meaning Query (Optional)
 Detailed information (introduction, usage constraints, etc.) about the selected model task (`vllm_api_general_chat`), dataset task (`demo_gsm8k_gen_4_shot_cot_chat_prompt`), and result presentation task (`example`) can be queried from the following links:

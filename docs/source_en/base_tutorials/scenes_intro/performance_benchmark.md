@@ -789,7 +789,86 @@ ais_bench performance_seq_combinations.py
 Not supported.
 
 :::
+::::
+
+### Fixed Request Count Evaluation
+
+When the dataset scale is too large and you only want to perform performance testing on a subset of samples, you can use either of the following two approaches to control the data reading range. They achieve the same goal, so just pick the one that fits your habit:
+
+- **Basic approach**: Specify the number of data entries to read directly via the command-line parameter 📚 [`--num-prompts`](../all_params/cli_args.md#common-parameters). No configuration file modification is required, and it is the simplest to use.
+- **Advanced approach (more powerful)**: Set the `reader_cfg.test_range` field of the dataset in the custom configuration file, which supports a more flexible sampling range (e.g., specifying a start index and custom step). For detailed usage, refer to 📚 [Custom Configuration Files](../../advanced_tutorials/run_custom_config.md).
+
+Example as follows:
+
+::::{tab-set}
+:::{tab-item} ⭐ Recommended: Using a Custom Configuration File
+
+**Method 1: Basic approach — Use `--num-prompts` to specify the number of entries to read**
+
+For a complete example, refer to [performance_fixed_request.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_fixed_request.py):
+
+```python
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.tasks import OpenICLInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+models = vllm_api_stream_chat
+# ...For other parameter configurations, please refer to the configuration file
+```
+
+Execute the command (specify reading only 1 sample via `--num-prompts 1`):
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/performance_fixed_request.py --mode perf --num-prompts 1
+```
+
+**Method 2: Advanced approach — Use `test_range` to flexibly specify the reading range**
+
+If you need more flexible range control (e.g., specifying a start index and custom step), you can set the `reader_cfg.test_range` field of the dataset directly in the custom configuration file, without passing any command-line parameter. For a complete example, refer to [performance_fixed_request.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_fixed_request.py):
+
+```python
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.tasks import OpenICLInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+# Key: control the sampling range flexibly via reader_cfg.test_range
+# For example, '[0:8]' reads the first 8 samples; '[10:20]' reads samples from index 10 to 20
+datasets[0]['reader_cfg']['test_range'] = '[0:8]'
+
+models = vllm_api_stream_chat
+# ...For other parameter configurations, please refer to the configuration file
+```
+
+Execute the command (test_range has been specified in the configuration file, no need to pass `--num-prompts`):
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/performance_fixed_request.py --mode perf
+```
+
 :::
+:::{tab-item} Alternative: Using Command-Line Parameters
+
+```bash
+ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --mode perf --num-prompts 1
+```
+The above command only performs inference on the first entry in the sample dataset and only measures the performance of this one entry.
+
+:::
+::::
+
+> ⚠️ Note: Currently, the dataset is read sequentially in the default queue order; random sampling or shuffling is not supported. When `reader_cfg.test_range` in the configuration file and the command-line `--num-prompts` are both specified, the command-line parameter `--num-prompts` takes precedence.
 
 ### Fixed Request Count Performance Evaluation
 
