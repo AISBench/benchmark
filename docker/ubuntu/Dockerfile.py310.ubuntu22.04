@@ -1,0 +1,151 @@
+FROM ubuntu:22.04 AS builder
+
+ARG GIT_TAG=latest
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ $(uname -m) = "x86_64" ]; then \
+        echo "deb http://repo.huaweicloud.com/ubuntu/ jammy main restricted universe multiverse" > /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu/ jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list; \
+    else \
+        echo "deb http://repo.huaweicloud.com/ubuntu-ports/ jammy main restricted universe multiverse" > /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu-ports/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu-ports/ jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu-ports/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list; \
+    fi && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    wget \
+    unzip \
+    vim \
+    python3.10 \
+    python3.10-dev \
+    python3.10-venv \
+    python3.10-distutils \
+    python3-pip \
+    && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+RUN git clone --depth 1 https://gh-proxy.com/https://github.com/AISBench/benchmark.git /benchmark
+
+WORKDIR /benchmark
+
+RUN if [ "$GIT_TAG" != "latest" ]; then \
+        git fetch --tags && \
+        git checkout tags/$GIT_TAG -b $GIT_TAG-branch; \
+    fi
+
+RUN ARCH=$(uname -m) && \
+    wget -P /tmp https://aisbench.obs.cn-north-4.myhuaweicloud.com/images/benchmark/dependencies/torch-2.12.0%2Bcpu-cp310-cp310-manylinux_2_28_${ARCH}.whl && \
+    python3.10 -m pip install --no-cache-dir /tmp/torch-2.12.0+cpu-cp310-cp310-manylinux_2_28_${ARCH}.whl \
+    -i https://repo.huaweicloud.com/repository/pypi/simple \
+    --trusted-host repo.huaweicloud.com \
+    --use-pep517 && \
+    rm /tmp/torch-2.12.0+cpu-cp310-cp310-manylinux_2_28_${ARCH}.whl
+
+RUN pip install --no-cache-dir \
+    -i https://repo.huaweicloud.com/repository/pypi/simple \
+    --trusted-host repo.huaweicloud.com \
+    --use-pep517 \
+    rouge_chinese
+
+RUN if [ -f "requirements/runtime.txt" ]; then \
+        pip install --no-cache-dir \
+        -r requirements/runtime.txt \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN if [ -f "requirements/extra.txt" ]; then \
+        pip install --no-cache-dir \
+        -r requirements/extra.txt \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN if [ -f "requirements/api.txt" ]; then \
+        pip install --no-cache-dir \
+        -r requirements/api.txt \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN if [ -f "requirements/datasets/bfcl_dependencies.txt" ]; then \
+        pip install --no-cache-dir \
+        -r requirements/datasets/bfcl_dependencies.txt \
+        --no-deps \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN pip install --no-cache-dir \
+    nltk==3.8 \
+    -i https://repo.huaweicloud.com/repository/pypi/simple \
+    --trusted-host repo.huaweicloud.com
+
+RUN if [ -f "setup.py" ]; then \
+        pip install --no-cache-dir \
+        -e ./ \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN curl -o /tmp/punkt.zip https://aisbench.obs.cn-north-4.myhuaweicloud.com/images/benchmark/dependencies/punkt.zip && \
+    mkdir -p /usr/share/nltk_data/tokenizers && \
+    unzip -q /tmp/punkt.zip -d /usr/share/nltk_data/tokenizers && \
+    rm /tmp/punkt.zip
+
+RUN python3.10 -c "import nltk; from nltk.tokenize import word_tokenize; tokens = word_tokenize('Hello World! 测试NLTK 3.8离线安装'); print('分词结果：', tokens)"
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV NLTK_DATA=/usr/share/nltk_data
+ENV PATH=/usr/local/bin:$PATH
+
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+        echo "deb http://repo.huaweicloud.com/ubuntu/ jammy main restricted universe multiverse" > /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu/ jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list; \
+    else \
+        echo "deb http://repo.huaweicloud.com/ubuntu-ports/ jammy main restricted universe multiverse" > /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu-ports/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu-ports/ jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+        echo "deb http://repo.huaweicloud.com/ubuntu-ports/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list; \
+    fi && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    vim \
+    git \
+    python3.10 \
+    python3.10-dev \
+    python3.10-venv \
+    python3.10-distutils \
+    python3-pip \
+    && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+COPY --from=builder /usr/local/lib/python3.10 /usr/local/lib/python3.10
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /usr/lib/python3/dist-packages /usr/lib/python3/dist-packages
+COPY --from=builder /benchmark /benchmark
+COPY --from=builder /usr/share/nltk_data /usr/share/nltk_data
+
+WORKDIR /benchmark

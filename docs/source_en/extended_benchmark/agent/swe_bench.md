@@ -19,6 +19,7 @@ Directory `ais_bench/configs/swe_bench_examples/` provides the following example
 - `mini_swe_agent_swe_bench_verified_mini.py`: SWE-bench Verified Mini (`MariusHobbhahn/swe-bench-verified-mini`, **50** instances) — a community subset of Verified designed to be much cheaper to run; see the dataset card and the subset construction repo: `https://huggingface.co/datasets/MariusHobbhahn/swe-bench-verified-mini` and `https://github.com/mariushobbhahn/make_swe_bench_verified_mini`.
 - `mini_swe_agent_swe_bench_full.py`: SWE-bench Full (`princeton-nlp/SWE-Bench`) — the full test set.
 - `mini_swe_agent_swe_bench_multilingual.py`: SWE-bench Multilingual (`SWE-bench/SWE-bench_Multilingual`) — multilingual issue statements.
+- `mini_swe_agent_swe_bench_multilingual_mini.py`: SWE-bench Multilingual Mini (**15**/**30**/**60** instances) — an AISBench-constructed Multilingual subset designed to significantly reduce evaluation cost; see the dataset card and construction repository: `https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini` and `https://github.com/AISBench/datasets/tree/main/mini_datasets/swe_bench_multiligual_mini`.
 
 ## 2. Prerequisites
 
@@ -27,7 +28,10 @@ Before running, make sure the following dependencies are available:
 1) Install `mini-swe-agent` (required for infer)
 
 ```bash
-pip install mini-swe-agent
+git clone https://github.com/AISBench/mini-swe-agent.git
+cd mini-swe-agent
+pip install -e .
+cd -
 ```
 
 2) Install the SWE-bench harness (required for eval)

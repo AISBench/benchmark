@@ -79,6 +79,7 @@ AISBench Benchmark当前支持的数据集类型如下：
 | RefCOCO      | 视觉定位（图+文）            | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/refcoco/README.md)      |
 | RefCOCO+     | 视觉定位（图+文）            | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/refcoco_plus/README.md) |
 | RefCOCOg     | 视觉定位（图+文）            | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/refcocog/README.md)     |
+| HLE          | 多模态理解（图+文）          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/hle/README.md)          |
 
 ### 多轮对话类数据集
 

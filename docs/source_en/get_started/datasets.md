@@ -79,6 +79,7 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | RefCOCO      | Visual Grounding (Image + Text)                         | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/refcoco/README_en.md)      |
 | RefCOCO+     | Visual Grounding (Image + Text)                         | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/refcoco_plus/README_en.md) |
 | RefCOCOg     | Visual Grounding (Image + Text)                         | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/refcocog/README_en.md)     |
+| HLE          | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/hle/README_en.md)          |
 
 ### Multi-Turn Dialogue Datasets
 

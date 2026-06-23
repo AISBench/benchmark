@@ -109,7 +109,7 @@ class DefaultSummarizer:
                     continue
                 _rst, _dm = {}, []
                 for metric, score in result.items():
-                    if metric not in METRIC_BLACKLIST and isinstance(score, (int, float)):
+                    if metric not in METRIC_BLACKLIST and isinstance(score, (int, float, str)):
                         _rst[metric] = score
                         _dm.append(metric)
                     else:
@@ -328,7 +328,11 @@ class DefaultSummarizer:
                 row.append(total_count_value)
             for model_abbr in self.model_abbrs:
                 if dataset_abbr in parsed_results[model_abbr]:
-                    row.append('{:.02f}'.format(parsed_results[model_abbr][dataset_abbr][metric]))
+                    metric_value = parsed_results[model_abbr][dataset_abbr][metric]
+                    if isinstance(metric_value, (int, float)):
+                        row.append('{:.02f}'.format(metric_value))
+                    else:
+                        row.append(str(metric_value))
                     correct_count = parsed_results[model_abbr][dataset_abbr].get('correct_count', None)
                     total_count = parsed_results[model_abbr][dataset_abbr].get('total_count', None)
                     if correct_count is not None and total_count is not None:

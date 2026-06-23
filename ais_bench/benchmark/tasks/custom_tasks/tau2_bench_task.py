@@ -252,7 +252,7 @@ def parse_args():
 
 
 if __name__ == '__main__':
-    logger = AISLogger(__name__)
+    logger = AISLogger()
     args = parse_args()
     cfg = Config.fromfile(args.config)
     task_state_manager = TaskStateManager(

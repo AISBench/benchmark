@@ -161,17 +161,23 @@ def do_setup():
         maintainer='AISBench Authors',
         cmdclass={'download_nltk': DownloadNLTK},
         setup_requires=['nltk==3.8'],
-        python_requires='>=3.8.0',
+        python_requires='>=3.10.0',
         install_requires=parse_requirements('requirements/runtime.txt'),
         extras_require={
-            'vllm':
-            parse_requirements('requirements/vllm.txt') +
+            'hf_vl':
+            parse_requirements('requirements/hf_vl_dependency.txt') +
             parse_requirements('requirements/runtime.txt'),
-            'api':
-            parse_requirements('requirements/api.txt') +
+            'bfcl':
+            parse_requirements('requirements/datasets/bfcl_dependencies.txt') +
+            parse_requirements('requirements/runtime.txt'),
+            'ocrbench_v2':
+            parse_requirements('requirements/datasets/ocrbench_v2.txt') +
             parse_requirements('requirements/runtime.txt'),
             'full':
             parse_requirements('requirements/extra.txt') +
+            parse_requirements('requirements/api.txt') +
+            parse_requirements('requirements/hf_vl_dependency.txt') +
+            parse_requirements('requirements/datasets/bfcl_dependencies.txt') +
             parse_requirements('requirements/runtime.txt'),
         },
         license='Apache License 2.0',
@@ -188,9 +194,9 @@ def do_setup():
             'AISBench',
         ],
         classifiers=[
-            'Programming Language :: Python :: 3.8',
-            'Programming Language :: Python :: 3.9',
             'Programming Language :: Python :: 3.10',
+            'Programming Language :: Python :: 3.11',
+            'Programming Language :: Python :: 3.12',
             'Intended Audience :: Developers',
             'Intended Audience :: Education',
             'Intended Audience :: Science/Research',

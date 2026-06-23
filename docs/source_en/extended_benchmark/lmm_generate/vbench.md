@@ -14,6 +14,7 @@ AISBench has **adapted to VBench 1.0**. The repository directory `ais_bench/conf
 - [Dataset Generation](#dataset-generation)
 - [Sampling Pseudocode (Reference Official)](#sampling-pseudocode-reference-official)
 - [Format Requirements](#format-requirements)
+- [VBench-1.0-mini (AISBench Official Sampled Subset)](#vbench-10-mini-aisbench-official-sampled-subset)
 
 ## Dependencies and Environment
 
@@ -162,7 +163,7 @@ The following table shows the mapping of **all 16 dimensions** in Standard mode 
 | appearance_style | appearance_style | 90 |
 | overall_consistency | overall_consistency | 93 |
 
-## Dataset Generation
+## Inference Result (Video) Generation
 
 This section is for users who **need to generate evaluation videos using the official approach** (and does not conflict with the Quick Start that runs evaluation on an existing directory).
 
@@ -263,3 +264,84 @@ for dimension in dimension_list:
 
 - **Method 1**: Embed the prompt in the filename: `get_prompt_from_filename` parses `xxx` from `{xxx}.mp4` or `{xxx}-0.mp4`.
 - **Method 2**: Provide a `prompt_file` (JSON: `{video_path: prompt}`); filename conventions can be ignored.
+
+## VBench-1.0-mini (AISBench Official Sampled Subset)
+
+**VBench-1.0-mini** is a VBench 1.0 sampled subset provided by AISBench, randomly selecting a small number of prompts from each of the 16 dimensions in the Prompt Suite. It is intended for fast model capability validation and evaluation pipeline verification. Dataset URL: [VBench-1.0-mini](https://modelers.cn/datasets/AISBench/VBench-1.0-mini).
+
+The core change in VBench-1.0-mini is replacing the original **`VBench_full_info.json`** with a condensed version that only contains the sampled prompts and their dimension mappings. All other evaluation code, dimension implementations, and model weights reuse the existing VBench system — no additional installation or modification is required.
+
+### Preparation
+
+1. **Download the VBench-1.0-mini dataset**
+
+   Download the dataset from [Modelers](https://modelers.cn/datasets/AISBench/VBench-1.0-mini). After downloading and extracting, note the dataset root directory path (referred to below as `<MINI_ROOT>`).
+
+2. **Download third-party dependency cache**
+
+   Same as the Standard mode, download VBench small model weights and resources in advance:
+
+   ```bash
+   bash ais_bench/configs/vbench_examples/download_vbench_cache.sh
+   ```
+
+### Replace VBench_full_info.json
+
+VBench-1.0-mini provides a condensed `VBench_full_info.json` corresponding to the sampled prompts. Specify the mini JSON path in the configuration file (e.g., `eval_vbench_standard.py`) using the `full_json_dir` field under `eval_cfg` or `dataset`:
+
+```python
+vbench_eval_cfg = dict(
+    load_ckpt_from_local=True,
+    full_json_dir="<MINI_ROOT>/VBench_full_info.json",
+)
+```
+
+### Inference Result (Video) Generation
+
+VBench-1.0-mini works the same way as Standard mode — only with fewer prompts. It is still recommended to organize generated videos in per-dimension subdirectories:
+
+```python
+import os
+
+dim_to_subdir = {
+    "background_consistency": "scene",
+    "aesthetic_quality": "overall_consistency",
+    "imaging_quality": "overall_consistency",
+    "motion_smoothness": "subject_consistency",
+    "dynamic_degree": "subject_consistency",
+}
+
+# Read the dimensions and prompts to generate from the mini full_info
+import json
+with open("ais_bench/third_party/vbench/VBench_full_info.json", "r") as f:
+    full_info = json.load(f)
+
+# Aggregate dimensions by prompt
+from collections import defaultdict
+prompt_dim_map = defaultdict(set)
+for entry in full_info:
+    prompt_dim_map[entry["prompt_en"]].update(entry["dimension"])
+
+for prompt, dims in prompt_dim_map.items():
+    for dim in dims:
+        subdir = dim_to_subdir.get(dim, dim)
+        save_dir = os.path.join(args.save_path, subdir)
+        os.makedirs(save_dir, exist_ok=True)
+
+        n = 25 if dim == "temporal_flickering" else 5
+        for index in range(n):
+            video = sample_func(prompt, index)
+            save_path = os.path.join(save_dir, f"{prompt}-{index}.mp4")
+            torchvision.io.write_video(save_path, video, fps=8)
+```
+
+### Run Evaluation
+
+After replacing `VBench_full_info.json` and preparing the video directory, the evaluation command is exactly the same as Standard mode:
+
+```bash
+# Must explicitly specify --mode eval, and set DATA_PATH to your video directory
+ais_bench ais_bench/configs/vbench_examples/eval_vbench_standard.py --mode eval --max-num-workers 1
+```
+
+If the prompts come from a custom video directory and do not use the dimension mappings in `VBench_full_info.json`, you can also use the Custom mode configuration for evaluation.

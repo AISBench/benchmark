@@ -30,6 +30,12 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2026.5.30\]** Support for evaluating Terminal-Bench 2.0 in AISBench, significantly reducing evaluation costs 🔥🔥🔥. Search for the `mini` keyword in the corresponding evaluation documentation:
+  - [Evaluate Terminal-Bench 2.0 in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/harbor_bench.html)
+- **\[2026.5.18]** Support for evaluating mini subsets of SWE-Bench, TAU2-Bench, and VBench 1.0 in AISBench, significantly reducing evaluation costs 🔥🔥🔥. Search for the `mini` keyword in the corresponding evaluation documentation:
+  - [Evaluate SWE-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench.html)
+  - [Evaluate TAU2-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/tau2_bench.html)
+  - [Evaluate VBench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/lmm_generate/vbench.html)
 - **\[2026.5.07\]** Integrated VBench 1.0 for video generation quality evaluation: supports running multi-dimension quality/semantic metrics on **generated videos** on GPU / NPU. See [Evaluate VBench in AISBench](docs/source_en/extended_benchmark/lmm_generate/vbench.md) for examples and notes. 🔥🔥🔥
 - **\[2026.4.14\]** Integrated the authoritative large model agent evaluation benchmark τ²-Bench, supporting evaluation of dialogue, tool calling, and compliance capabilities in dual-control environments. See [Evaluate τ²-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/tau2_bench.html) for details. 🔥🔥🔥
 - **\[2026.4.10\]** Integrated the first agent evaluation benchmark SWE-Bench, supporting evaluation of agent models. See [Evaluate SWE-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench.html) for details. 🔥🔥🔥
@@ -95,9 +101,9 @@ conda create --name ais_bench python=3.10 -y
 conda activate ais_bench
 ```
 
-📦 Installation Method (Source Code Installation)
+### 📦 Installation Method - Source Code Installation (Preferred)
 
-AISBench currently only provides source code installation. Ensure the installation environment has internet access:
+AISBench currently recommends the source code installation method for a better custom configuration file experience. Ensure the installation environment has internet access:
 ```shell
 git clone https://github.com/AISBench/benchmark.git
 cd benchmark/
@@ -128,6 +134,19 @@ pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
 ```shell
 pip3 install -r requirements/datasets/ocrbench_v2.txt
 ```
+
+### 📦 Installation Method - One-Click Install (Alternative)
+
+AISBench also provides a one-click installation method, suitable for quick experience and evaluation scenarios based on preset configuration files. Ensure the installation environment has internet access.
+- Basic functionality installation command:
+```shell
+pip3 install ais_bench_benchmark
+```
+- Full functionality installation command:
+```shell
+pip3 install ais_bench_benchmark[full]
+```
+
 
 For further configuration or to initiate evaluation tasks using CLI or Python scripts, refer to the [Quick Start Guide](#quick-start).
 

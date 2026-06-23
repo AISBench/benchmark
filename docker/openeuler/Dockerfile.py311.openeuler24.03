@@ -1,0 +1,108 @@
+FROM openeuler/openeuler:24.03-lts AS builder
+
+ARG GIT_TAG=latest
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+RUN dnf install -y \
+    git \
+    gcc openssl-devel bzip2-devel libffi-devel zlib-devel wget make findutils unzip sqlite-devel xz-devel \
+    gdbm-devel ncurses-devel readline-devel libxcrypt-devel \
+    python3 python3-pip \
+    && dnf clean all
+
+RUN git clone --depth 1 https://gh-proxy.com/https://github.com/AISBench/benchmark.git /benchmark
+
+WORKDIR /benchmark
+
+RUN if [ "$GIT_TAG" != "latest" ]; then \
+        git fetch --tags && \
+        git checkout tags/$GIT_TAG -b $GIT_TAG-branch; \
+    fi
+
+RUN ARCH=$(uname -m) && \
+    wget -P /tmp https://aisbench.obs.cn-north-4.myhuaweicloud.com/images/benchmark/dependencies/torch-2.12.0%2Bcpu-cp311-cp311-manylinux_2_28_${ARCH}.whl && \
+    python3.11 -m pip install --no-cache-dir /tmp/torch-2.12.0+cpu-cp311-cp311-manylinux_2_28_${ARCH}.whl \
+    -i https://repo.huaweicloud.com/repository/pypi/simple \
+    --trusted-host repo.huaweicloud.com \
+    --use-pep517 && \
+    rm /tmp/torch-2.12.0+cpu-cp311-cp311-manylinux_2_28_${ARCH}.whl
+
+RUN python3.11 -m pip install --no-cache-dir \
+    -i https://repo.huaweicloud.com/repository/pypi/simple \
+    --trusted-host repo.huaweicloud.com \
+    --use-pep517 \
+    rouge_chinese
+
+RUN if [ -f "requirements/runtime.txt" ]; then \
+        python3.11 -m pip install --no-cache-dir \
+        -r requirements/runtime.txt \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN if [ -f "requirements/extra.txt" ]; then \
+        python3.11 -m pip install --no-cache-dir \
+        -r requirements/extra.txt \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN if [ -f "requirements/api.txt" ]; then \
+        python3.11 -m pip install --no-cache-dir \
+        -r requirements/api.txt \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN if [ -f "requirements/datasets/bfcl_dependencies.txt" ]; then \
+        python3.11 -m pip install --no-cache-dir \
+        -r requirements/datasets/bfcl_dependencies.txt \
+        --no-deps \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN python3.11 -m pip install --no-cache-dir \
+    nltk==3.8 \
+    -i https://repo.huaweicloud.com/repository/pypi/simple \
+    --trusted-host repo.huaweicloud.com
+
+RUN if [ -f "setup.py" ]; then \
+        python3.11 -m pip install --no-cache-dir \
+        -e ./ \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517; \
+    fi
+
+RUN curl -o /tmp/punkt.zip https://aisbench.obs.cn-north-4.myhuaweicloud.com/images/benchmark/dependencies/punkt.zip && \
+    mkdir -p /usr/share/nltk_data/tokenizers && \
+    unzip -q /tmp/punkt.zip -d /usr/share/nltk_data/tokenizers && \
+    rm /tmp/punkt.zip
+
+RUN python3.11 -c "import nltk; from nltk.tokenize import word_tokenize; tokens = word_tokenize('Hello World! 测试NLTK 3.8离线安装'); print('分词结果：', tokens)"
+
+FROM openeuler/openeuler:24.03-lts
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV NLTK_DATA=/usr/share/nltk_data
+ENV PATH=/usr/local/bin:$PATH
+
+RUN dnf install -y gcc openssl-devel bzip2-devel libffi-devel zlib-devel wget make findutils unzip sqlite-devel xz-devel python3 python3-pip && dnf clean all
+
+COPY --from=builder /usr/share/nltk_data /usr/share/nltk_data
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /usr/local/lib64/python3.11/site-packages /usr/local/lib64/python3.11/site-packages
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/lib64/python3.11/site-packages /usr/lib64/python3.11/site-packages
+COPY --from=builder /usr/lib/python3.11/site-packages /usr/lib/python3.11/site-packages
+COPY --from=builder /benchmark /benchmark
+
+WORKDIR /benchmark

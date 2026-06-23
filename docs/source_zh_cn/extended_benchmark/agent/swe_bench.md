@@ -19,6 +19,9 @@ SWE-bench是一个基准测试，用于评估大语言模型在从GitHub收集�
 - `mini_swe_agent_swe_bench_verified_mini.py`：SWE-bench Verified Mini（`MariusHobbhahn/swe-bench-verified-mini`，**50** 条），社区构造的 Verified 子集，用于显著降低评测成本；子集筛选/构造方式见数据集卡与构造仓库：`https://huggingface.co/datasets/MariusHobbhahn/swe-bench-verified-mini`、`https://github.com/mariushobbhahn/make_swe_bench_verified_mini`。
 - `mini_swe_agent_swe_bench_full.py`：SWE-bench Full（`princeton-nlp/SWE-Bench`），完整测试集。
 - `mini_swe_agent_swe_bench_multilingual.py`：SWE-bench Multilingual（`SWE-bench/SWE-bench_Multilingual`），包含多语言 issue 描述的数据集。
+- `mini_swe_agent_swe_bench_multilingual_mini.py`：SWE-bench Multilingual Mini（**15**/**30**/**60** 条），AISBench官方构造的 Multilingual 子集，用于显著降低评测成本；子集筛选/构造方式见数据集卡与构造仓库：`https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini`、`https://github.com/AISBench/datasets/tree/main/mini_datasets/swe_bench_multiligual_mini`。
+
+
 
 ## 2. 前置依赖
 
@@ -27,7 +30,10 @@ SWE-bench是一个基准测试，用于评估大语言模型在从GitHub收集�
 1) 安装 `mini-swe-agent`（infer 依赖）
 
 ```bash
-pip install mini-swe-agent
+git clone https://github.com/AISBench/mini-swe-agent.git
+cd mini-swe-agent
+pip install -e .
+cd -
 ```
 
 2) 安装 SWE-bench harness（eval 依赖）

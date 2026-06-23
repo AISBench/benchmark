@@ -63,7 +63,7 @@ Ensure local or cloud deployment of tested inference services following OpenAI c
 > Note: The commit id of the tau2-bench repository used by AISBench is c5b2d228d850c59b749b93cf32c4745d3aa53967 (version from February 2025).
 
 ### 3. Configure Custom Configuration File for τ²-Bench Tasks
-1. Modify necessary configurations in `ais_bench/configs/agent_examples/tau2_bench_task.py` under AISBench tool root directory (mainly configuring information about tested inference services and user-simulating inference services)
+1. Modify necessary configurations in `ais_bench/configs/agent_example/tau2_bench_task.py` under AISBench tool root directory (mainly configuring information about tested inference services and user-simulating inference services)
 ```python
 # ......
 models = [
@@ -108,7 +108,7 @@ for task in sub_tasks:
 1. Execute the following command in AISBench tool root directory:
    ```bash
    # Execute τ²-Bench tasks
-   ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3
+   ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3
    ```
    - The `--max-num-workers` parameter indicates the maximum task concurrency. `--max-num-workers 3` means the three tasks "airline", "retail", "telecom" will be executed in parallel.
 
@@ -198,12 +198,12 @@ Press Up/Down arrow to page, 'P' to PAUSE/RESUME screen refresh, 'Ctrl + C' to e
 
 At this point, you can manually interrupt task execution, for example by pressing `Ctrl + C`, and then execute the following command to continue evaluation based on the previously completed evaluation progress:
 ```bash
-# ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3 --reuse {timestamp}
-ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3 --reuse 20260408_091146
+# ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3 --reuse {timestamp}
+ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3 --reuse 20260408_091146
 ```
 
 ## Multiple Executions of a Single Case (pass^k)
-1. Modify the value of the `num_trials` parameter in `ais_bench/configs/agent_examples/tau2_bench_task.py` under AISBench tool root directory to the number of executions needed (default is 1)
+1. Modify the value of the `num_trials` parameter in `ais_bench/configs/agent_example/tau2_bench_task.py` under AISBench tool root directory to the number of executions needed (default is 1)
 ```python
 # ......
 sub_tasks = ["airline", "retail", "telecom"]
@@ -221,7 +221,7 @@ for task in sub_tasks:
 # ......
 ```
 
-2. After executing the `ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3` command, each case will be executed `num_trials` times, and the total number in the progress bar will also increase to `num_trials` times.
+2. After executing the `ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3` command, each case will be executed `num_trials` times, and the total number in the progress bar will also increase to `num_trials` times.
 ```
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
 | Task Name                         |   Process | Progress                                                   | Time Cost   | Status   | Log Path                                        | Extend Parameters   |
@@ -255,4 +255,73 @@ for task in sub_tasks:
 | tau2_bench_telecom | a39421 | pass^5 | gen | 23 | 30.43 |
 | tau2_bench_pass^5_avg | - | naive_average | gen | / | 21.59 |
 | tau2_bench_pass^5_avg-weighted | - | weighted_average | gen | / | 19.64 |
+```
+
+## Using the TAU2-mini Sampled Subset
+
+**TAU2-mini** is a TAU2 sampled subset provided by AISBench, using K-means clustering to sample at approximately 1/10 scale of the original dataset. It yields roughly the same evaluation scores as the original dataset, making it ideal for quick model validation and reducing evaluation costs. Dataset URL: [TAU2-mini](https://modelers.cn/datasets/AISBench/TAU2-mini).
+
+### 1. Download the TAU2-mini Dataset
+
+Download the dataset from [Modelers](https://modelers.cn/datasets/AISBench/TAU2-mini). After downloading and extracting, note the dataset root directory path (referred to below as `<TAU2_MINI_ROOT>`).
+
+### 2. Replace tau2's Original Dataset Files
+
+Find the tau2 installation path with the following command:
+
+```bash
+pip3 show tau2 | grep "Editable project location"
+```
+
+This produces output similar to:
+
+```
+Editable project location: {tau2_root}/benchmark/src/tau2
+```
+
+Replace tau2's original dataset files with the TAU2-mini files (**back up** `{tau2_root}/src/benchmark/tau2/data/tau2/domains` first):
+
+```bash
+cp -r <TAU2_MINI_ROOT>/tau2_subsets/* {tau2_root}/src/benchmark/tau2/data/tau2/domains
+```
+
+### 3. Modify the AISBench tau2-bench Configuration File
+
+Based on the [Quick Start](#quick-start-with-τ²-bench-evaluation-in-aisbench) configuration above, additionally modify the `task_split_name` parameter in `ais_bench/configs/agent_example/tau2_bench_task.py`:
+
+```python
+# ......
+for task in sub_tasks:
+    datasets.append(
+        dict(
+            abbr=f'tau2_bench_{task}',
+            args = dict(
+                # ......
+                task_split_name = "mini",           # Use the mini split
+                # ......
+            ),
+        )
+    )
+
+# ......
+```
+
+### 4. Run Evaluation
+
+Same as the standard workflow:
+
+```bash
+ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3
+```
+
+After execution, the task counts per domain become airline **5**, retail **11**, and telecom **11**. Example accuracy results:
+
+```
+| dataset | version | metric | mode | total_count | openai-v1-chat |
+|----- | ----- | ----- | ----- | ----- | -----|
+| tau2_bench_airline | a39421 | pass^1 | gen | 5 | 40.00 |
+| tau2_bench_retail | a39421 | pass^1 | gen | 11 | 27.27 |
+| tau2_bench_telecom | a39421 | pass^1 | gen | 11 | 54.55 |
+| tau2_bench_pass^1_avg | - | naive_average | gen | / | 40.61 |
+| tau2_bench_pass^1_avg-weighted | - | weighted_average | gen | / | 40.74 |
 ```
