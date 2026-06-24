@@ -1,15 +1,15 @@
 import os
 import re
-import urllib.request
 import zipfile
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List
 
 from datasets import Dataset
 
 from ais_bench.benchmark.openicl.icl_evaluator import BaseEvaluator
 from ais_bench.benchmark.registry import LOAD_DATASET, ICL_EVALUATORS
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path, get_cache_dir
+from ais_bench.benchmark.datasets.utils.llm_judge import LLMJudgeDataset
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 
 from ..base import BaseDataset
@@ -32,13 +32,19 @@ START QUESTION
 
 END QUESTION"""
 
-# Download URL and cache configuration
-DOWNLOAD_URL = (
-    'https://modelscope.cn/datasets/evalscope/AA-LCR/resolve/master/'
-    'extracted_text/AA-LCR_extracted-text.zip'
-)
+# Judge prompt template for LLM-based evaluation (adapted from evalscope)
+JUDGE_PROMPT = """\
+Assess whether the following CANDIDATE ANSWER is CORRECT or INCORRECT. \
+For the CANDIDATE ANSWER to be correct, it must be consistent with the OFFICIAL ANSWER.
+
+The question, for reference only: {question}
+The OFFICIAL ANSWER: {answers}
+CANDIDATE ANSWER TO ASSESS: {model_answer}
+
+Reply only with CORRECT or INCORRECT."""
+
+# Local zip and cache configuration
 DEFAULT_CACHE_SUBDIR = 'aa_lcr'
-DEFAULT_ZIP_NAME = 'AA-LCR_extracted-text.zip'
 DEFAULT_EXTRACTED_DIR_NAME = 'lcr'
 
 # Default cache directory
@@ -46,9 +52,22 @@ DEFAULT_CACHE_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), '../../../../'
 )
 
+# Local zip path (relative to this file)
+_LOCAL_ZIP_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    '../../../datasets/aa_lcr/AA-LCR_extracted-text.zip'
+)
+
 
 def _ensure_text_dir_downloaded() -> Path:
-    """Ensure AA-LCR extracted texts are available locally; download and extract if missing."""
+    """Ensure AA-LCR extracted texts are available locally.
+
+    Expects the zip file to already exist at the local relative path:
+        ais_bench/datasets/aa_lcr/AA-LCR_extracted-text.zip
+
+    If the zip is missing, raises an error instructing the user to
+    place the dataset file manually.
+    """
     cache_root = Path(get_cache_dir(DEFAULT_CACHE_DIR)) / DEFAULT_CACHE_SUBDIR
     extracted_dir = cache_root / DEFAULT_EXTRACTED_DIR_NAME
 
@@ -56,15 +75,18 @@ def _ensure_text_dir_downloaded() -> Path:
         logger.info(f'AA-LCR documents found: {extracted_dir}')
         return extracted_dir
 
+    local_zip = Path(_LOCAL_ZIP_PATH).resolve()
+    if not local_zip.exists():
+        raise FileNotFoundError(
+            f'AA-LCR dataset zip not found at: {local_zip}\n'
+            'Please download AA-LCR_extracted-text.zip'
+        )
+
     cache_root.mkdir(parents=True, exist_ok=True)
-    zip_path = cache_root / DEFAULT_ZIP_NAME
 
     try:
-        logger.info(f'Downloading AA-LCR documents from {DOWNLOAD_URL} to {zip_path}...')
-        urllib.request.urlretrieve(DOWNLOAD_URL, zip_path)
-
-        logger.info(f'Extracting {zip_path} to {cache_root}...')
-        with zipfile.ZipFile(zip_path, 'r') as zf:
+        logger.info(f'Extracting {local_zip} to {cache_root}...')
+        with zipfile.ZipFile(local_zip, 'r') as zf:
             zf.extractall(cache_root)
 
         if not extracted_dir.exists():
@@ -76,16 +98,47 @@ def _ensure_text_dir_downloaded() -> Path:
         return extracted_dir
     except Exception as e:
         raise ValueError(
-            f'Failed to download or extract AA-LCR documents: {e}. '
-            'Please manually download and place documents in the cache directory.'
+            f'Failed to extract AA-LCR documents from {local_zip}: {e}. '
+            'Please check that the zip file is valid and not corrupted.'
         ) from e
-    finally:
-        # Best-effort cleanup of the zip file
-        try:
-            if zip_path.exists():
-                zip_path.unlink()
-        except Exception:
-            pass
+
+
+def _get_context(text_dir: Path, record: dict) -> str:
+    """Read and format the document context for a given record."""
+    doc_folder = text_dir / record['document_category'] / record['document_set_id']
+
+    if not doc_folder.exists() or not doc_folder.is_dir():
+        logger.warning(
+            f'Document folder not found: {doc_folder}. Returning empty context.'
+        )
+        return ''
+
+    doc_blocks = []
+    try:
+        for file_path in sorted(doc_folder.iterdir()):
+            if file_path.is_file():
+                try:
+                    content = file_path.read_text(encoding='utf-8').strip()
+                    if content:
+                        doc_blocks.append(content)
+                except (IOError, UnicodeDecodeError) as e:
+                    logger.warning(
+                        f'Could not read file {file_path}, skipping: {e}'
+                    )
+    except OSError as e:
+        logger.warning(
+            f'Could not access document folder {doc_folder}: {e}'
+        )
+        return (
+            f"ERROR: Could not read documents for "
+            f"{record['document_category']}/{record['document_set_id']}"
+        )
+
+    documents_text = '\n\n'.join(
+        f'BEGIN DOCUMENT {i + 1}:\n{doc}\nEND DOCUMENT {i + 1}'
+        for i, doc in enumerate(doc_blocks)
+    )
+    return documents_text
 
 
 @LOAD_DATASET.register_module()
@@ -134,58 +187,46 @@ class AALCRDataset(BaseDataset):
         return Dataset.from_list(raw_data)
 
 
-def _get_context(text_dir: Path, record: dict) -> str:
-    """Read and format the document context for a given record."""
-    doc_folder = text_dir / record['document_category'] / record['document_set_id']
+@LOAD_DATASET.register_module()
+class AALCRJGDataset(LLMJudgeDataset):
+    """AA-LCR Judge Dataset class for LLM-based evaluation.
 
-    if not doc_folder.exists() or not doc_folder.is_dir():
-        logger.warning(
-            f'Document folder not found: {doc_folder}. Returning empty context.'
-        )
-        return ''
+    Wrapper class that provides LLM Judge evaluation capabilities for
+    AA-LCR dataset. Follows the same pattern as HLEJGDataset.
 
-    doc_blocks = []
-    try:
-        for file_path in sorted(doc_folder.iterdir()):
-            if file_path.is_file():
-                try:
-                    content = file_path.read_text(encoding='utf-8').strip()
-                    if content:
-                        doc_blocks.append(content)
-                except (IOError, UnicodeDecodeError) as e:
-                    logger.warning(
-                        f'Could not read file {file_path}, skipping: {e}'
-                    )
-    except OSError as e:
-        logger.warning(
-            f'Could not access document folder {doc_folder}: {e}'
-        )
-        return (
-            f"ERROR: Could not read documents for "
-            f"{record['document_category']}/{record['document_set_id']}"
-        )
+    The judge dataset merges original dataset items (question, answers)
+    with model predictions (model_answer) so the judge model can compare
+    the candidate answer against the reference answer.
+    """
 
-    documents_text = '\n\n'.join(
-        f'BEGIN DOCUMENT {i + 1}:\n{doc}\nEND DOCUMENT {i + 1}'
-        for i, doc in enumerate(doc_blocks)
-    )
-    return documents_text
+    def _get_dataset_class(self):
+        """Return the base dataset class for LLM Judge evaluation."""
+        return AALCRDataset
 
 
 @ICL_EVALUATORS.register_module()
-class AALCREvaluator(BaseEvaluator):
-    """AA-LCR evaluator using relaxed accuracy.
+class AALCRJudgeEvaluator(BaseEvaluator):
+    """AA-LCR Judge evaluator for assessing model responses using LLM-based judgment.
 
-    Evaluates whether the model's answer contains the key information
-    from the reference answer. Uses case-insensitive substring matching
-    with normalization to provide a reasonable correctness check.
+    Evaluates model predictions by parsing judge model outputs (CORRECT/INCORRECT)
+    and computing accuracy metrics. Follows the same pattern as HLEJudgeEvaluator,
+    adapted for the simpler binary CORRECT/INCORRECT judge output format.
 
-    For the most accurate evaluation, LLM-based judging is recommended
-    (as used in the original evalscope implementation), but this evaluator
-    provides a fast rule-based alternative.
+    The judge model is expected to respond with "CORRECT" or "INCORRECT" for
+    each candidate answer, as instructed by the JUDGE_PROMPT template.
     """
 
-    def score(self, predictions: List, references: List) -> dict:
+    def score(self, predictions: List, references: List) -> Dict[str, Any]:
+        """Score predictions against references using LLM judge outputs.
+
+        Args:
+            predictions: List of judge model output strings (should contain
+                CORRECT or INCORRECT).
+            references: List of reference answers.
+
+        Returns:
+            Dictionary with accuracy and per-sample details.
+        """
         if len(predictions) != len(references):
             return {
                 'error': 'predictions and references have different '
@@ -197,15 +238,19 @@ class AALCREvaluator(BaseEvaluator):
         correct = 0
         total = 0
 
-        for index, (pred, ref) in enumerate(zip(predictions, references)):
+        for index, (judge_output, ref) in enumerate(zip(predictions, references)):
             total += 1
-            is_correct = _check_answer_correctness(pred, ref)
+            # Parse judge output: look for CORRECT using word boundary
+            # to avoid matching "INCORRECT" as "CORRECT"
+            is_correct = bool(
+                re.search(r'\bCORRECT\b', judge_output, re.IGNORECASE)
+            )
 
             if is_correct:
                 correct += 1
 
             details[str(index)] = {
-                'pred': pred,
+                'judge_output': judge_output,
                 'answer': ref,
                 'correct': is_correct,
             }
@@ -215,54 +260,3 @@ class AALCREvaluator(BaseEvaluator):
             'accuracy': accuracy,
             'details': details,
         }
-
-
-def _normalize_text(text: str) -> str:
-    """Normalize text for comparison."""
-    # Remove extra whitespace
-    text = ' '.join(text.split())
-    # Convert to lowercase
-    text = text.lower().strip()
-    return text
-
-
-def _check_answer_correctness(prediction: str, reference: str) -> bool:
-    """Check if the prediction matches the reference answer.
-
-    Uses multiple strategies:
-    1. Normalized exact match
-    2. Check if all key phrases from reference appear in prediction
-    3. Check if cleaned prediction contains cleaned reference
-    """
-    pred_norm = _normalize_text(prediction)
-    ref_norm = _normalize_text(reference)
-
-    # Strategy 1: Normalized exact match (after stripping common prefixes)
-    pred_clean = re.sub(
-        r'^(answer:?\s*|the\s+answer\s+is:?\s*|response:?\s*)',
-        '', pred_norm, flags=re.IGNORECASE
-    ).strip()
-    ref_clean = ref_norm.strip()
-
-    if pred_clean == ref_clean:
-        return True
-
-    # Strategy 2: Check if reference is contained in prediction
-    if ref_clean in pred_clean:
-        return True
-
-    # Strategy 3: Check keyword overlap for multi-line references
-    ref_lines = [l.strip() for l in ref_clean.split('\n') if l.strip()]
-    if len(ref_lines) > 1:
-        # For structured answers, check that key information is present
-        match_count = 0
-        for line in ref_lines:
-            # Extract key content from each reference line
-            key_content = re.sub(r'^\d+\.\s*', '', line).strip()
-            if key_content and key_content in pred_clean:
-                match_count += 1
-        # Require at least half of the reference lines to be present
-        if match_count >= len(ref_lines) / 2:
-            return True
-
-    return False
