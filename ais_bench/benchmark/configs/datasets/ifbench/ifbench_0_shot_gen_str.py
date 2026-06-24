@@ -25,7 +25,7 @@ ifbench_datasets = [
     dict(
         abbr='ifbench',
         type=IFBenchDataset,
-        path='ais_bench/datasets/ifbench/input_data.jsonl',
+        path='ais_bench/datasets/ifbench/data/train-00000-of-00001.parquet',
         reader_cfg=ifbench_reader_cfg,
         infer_cfg=ifbench_infer_cfg,
         eval_cfg=ifbench_eval_cfg,
