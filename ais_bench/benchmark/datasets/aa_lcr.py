@@ -258,11 +258,11 @@ class AALCRDataset(BaseDataset):
         because reference answers can be paraphrased.
     """
 
-    def __init__(self, reader_cfg=None, **kwargs):
+    def __init__(self, reader_cfg=None, k=1, n=1, task_state_manager=None, **kwargs):
         # Ensure the document corpus is available *before* BaseDataset
         # calls self.load(), which needs the text_dir.
         self.text_dir = _ensure_text_dir_downloaded()
-        super().__init__(reader_cfg=reader_cfg or {}, **kwargs)
+        super().__init__(reader_cfg=reader_cfg or {}, k=k, n=n, task_state_manager=task_state_manager, **kwargs)
 
     @staticmethod
     def load(path: str, name: str = 'default', **kwargs):
