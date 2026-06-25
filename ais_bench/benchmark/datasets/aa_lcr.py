@@ -1,3 +1,4 @@
+import csv
 import os
 import re
 import zipfile
@@ -16,11 +17,10 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 logger = AISLogger()
 
 # ---------------------------------------------------------------------------
-# Local paths – document corpus ZIP and metadata directory
+# Local paths – document corpus ZIP and metadata CSV
 # ---------------------------------------------------------------------------
 
 # Directory containing this file (benchmark/datasets/).
-# Used as the base to resolve data paths under datasets/aa_lcr/.
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Data root: <repo>/ais_bench/datasets/aa_lcr/
@@ -35,8 +35,8 @@ _DOC_ZIP_PATH = os.path.join(
     _DATA_DIR, 'extracted_text', 'AA-LCR_extracted-text.zip'
 )
 
-# Metadata directory (benchmark/ais_bench/datasets/aa_lcr/).
-_META_PATH = _DATA_DIR
+# CSV metadata file (benchmark/ais_bench/datasets/aa_lcr/AA-LCR_Dataset.csv).
+_CSV_PATH = os.path.join(_DATA_DIR, 'AA-LCR_Dataset.csv')
 
 # Cache subdirectory where the ZIP is extracted.
 DEFAULT_CACHE_SUBDIR: str = 'aa_lcr'
@@ -89,6 +89,9 @@ def _ensure_text_dir_downloaded() -> Path:
     containing the ``.txt`` files.  Subsequent calls return the cached path
     immediately.
 
+    This mirrors evalscope's ``_ensure_text_dir_downloaded()`` but reads
+    from a local ZIP instead of downloading from ModelScope.
+
     Returns:
         Path to the ``lcr/`` directory containing extracted ``.txt`` files.
 
@@ -103,7 +106,6 @@ def _ensure_text_dir_downloaded() -> Path:
         logger.info(f'AA-LCR documents found in cache: {extracted_dir}')
         return extracted_dir
 
-    # Resolve the local ZIP relative to this source file.
     local_zip = Path(_DOC_ZIP_PATH)
     if not local_zip.exists():
         raise FileNotFoundError(
@@ -138,13 +140,17 @@ def _ensure_text_dir_downloaded() -> Path:
 def _get_context(text_dir: Path, record: dict) -> str:
     """Read and format the document context for a given record.
 
-    Each record carries ``document_category`` and ``document_set_id`` that
-    together identify the sub-directory containing the relevant ``.txt`` files.
-    Every file is wrapped in ``BEGIN DOCUMENT … / END DOCUMENT …`` markers.
+    Documents are loaded in the order specified by ``data_source_filenames``,
+    matching the original AA-LCR reference implementation.  Each document is
+    wrapped in ``BEGIN DOCUMENT … / END DOCUMENT …`` markers.
+
+    This mirrors evalscope's ``AALCRAdapter._get_context()``.
 
     Args:
-        text_dir: Root directory of the extracted document corpus.
-        record: A single dataset record dict.
+        text_dir: Root directory of the extracted document corpus
+            (the ``lcr/`` directory).
+        record: A single dataset record dict with ``document_category``,
+            ``document_set_id`` and ``data_source_filenames``.
 
     Returns:
         Formatted string with all documents for this record, or an empty
@@ -159,10 +165,29 @@ def _get_context(text_dir: Path, record: dict) -> str:
         )
         return ''
 
+    # Resolve data_source_filenames – may be a semicolon-separated string
+    # (from CSV) or already a list (from HuggingFace dataset).
+    filenames_raw = record.get('data_source_filenames', '')
+    if isinstance(filenames_raw, str) and filenames_raw.strip():
+        ordered_filenames = [
+            fn.strip() for fn in filenames_raw.split(';') if fn.strip()
+        ]
+    elif isinstance(filenames_raw, list):
+        ordered_filenames = filenames_raw
+    else:
+        ordered_filenames = []
+
     doc_blocks: List[str] = []
-    try:
-        for file_path in sorted(doc_folder.iterdir()):
+
+    if ordered_filenames:
+        # Load documents in the order specified by data_source_filenames
+        # (matching the AA-LCR reference implementation).
+        for filename in ordered_filenames:
+            file_path = doc_folder / filename
             if not file_path.is_file():
+                logger.warning(
+                    f'Document file not found: {file_path}, skipping.'
+                )
                 continue
             try:
                 content = file_path.read_text(encoding='utf-8').strip()
@@ -172,14 +197,28 @@ def _get_context(text_dir: Path, record: dict) -> str:
                 logger.warning(
                     f'Could not read file {file_path}, skipping: {exc}'
                 )
-    except OSError as exc:
-        logger.warning(
-            f'Could not access document folder {doc_folder}: {exc}'
-        )
-        return (
-            f"ERROR: Could not read documents for "
-            f"{record['document_category']}/{record['document_set_id']}"
-        )
+    else:
+        # Fallback: iterate directory (sorted for determinism).
+        try:
+            for file_path in sorted(doc_folder.iterdir()):
+                if not file_path.is_file():
+                    continue
+                try:
+                    content = file_path.read_text(encoding='utf-8').strip()
+                    if content:
+                        doc_blocks.append(content)
+                except (IOError, UnicodeDecodeError) as exc:
+                    logger.warning(
+                        f'Could not read file {file_path}, skipping: {exc}'
+                    )
+        except OSError as exc:
+            logger.warning(
+                f'Could not access document folder {doc_folder}: {exc}'
+            )
+            return (
+                f"ERROR: Could not read documents for "
+                f"{record['document_category']}/{record['document_set_id']}"
+            )
 
     if not doc_blocks:
         logger.warning(
@@ -208,8 +247,8 @@ class AALCRDataset(BaseDataset):
     information across multiple documents to answer each question.
 
     The document corpus is read from a local ZIP and cached after first
-    extraction.  Question metadata is loaded from a local dataset
-    directory.  The two are linked via ``document_category`` and
+    extraction.  Question metadata is loaded from a local CSV file.
+    The two are linked via ``document_category`` and
     ``document_set_id`` fields — the same data-separation design used
     by the evalscope adapter.
 
@@ -229,6 +268,11 @@ class AALCRDataset(BaseDataset):
     def load(path: str, name: str = 'default', **kwargs):
         """Load AA-LCR dataset metadata and build long-context prompts.
 
+        Loads question metadata from the local CSV file, then for each
+        record reads the associated documents from the extracted corpus
+        and builds the full prompt.  This mirrors evalscope's
+        ``AALCRAdapter.record_to_sample()`` flow.
+
         Args:
             path: Local path to the dataset metadata directory
                 (e.g. ``benchmark/ais_bench/datasets/aa_lcr``).
@@ -239,39 +283,50 @@ class AALCRDataset(BaseDataset):
             ``answers``, ``question``, ``document_category``,
             ``document_set_id``, ``data_source_urls``.
         """
-        from datasets import load_dataset
+        # Resolve CSV path: prefer the local CSV file over HuggingFace
+        # load_dataset to avoid requiring network access.
+        csv_path = _CSV_PATH
+        if path and os.path.isabs(path):
+            candidate = os.path.join(path, 'AA-LCR_Dataset.csv')
+            if os.path.exists(candidate):
+                csv_path = candidate
 
-        # Use the file-relative metadata path; falls back to an absolute
-        # path if one is explicitly provided.
-        resolved_path = path if path and os.path.isabs(path) else _META_PATH
-        logger.debug(
-            f'Loading AA-LCR dataset metadata from: {resolved_path}'
-        )
+        logger.debug(f'Loading AA-LCR dataset metadata from: {csv_path}')
+
+        if not os.path.exists(csv_path):
+            raise FileNotFoundError(
+                f'AA-LCR CSV metadata file not found at: {csv_path}\n'
+                'Please ensure the file is placed at '
+                'benchmark/ais_bench/datasets/aa_lcr/AA-LCR_Dataset.csv '
+                'relative to the repository root.'
+            )
 
         text_dir = _ensure_text_dir_downloaded()
 
-        dataset = load_dataset(
-            path=resolved_path,
-            name=name,
-            trust_remote_code=True,
-            split='test',
-        )
+        # Load records directly from local CSV (adapted from evalscope's
+        # load_questions() in the AA-LCR README).
+        records: List[Dict[str, Any]] = []
+        with open(csv_path, encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                records.append(row)
+
+        logger.info(f'Loaded {len(records)} records from AA-LCR CSV')
 
         raw_data: List[Dict[str, Any]] = []
-        for i in range(len(dataset)):
-            item = dataset[i]
-            context = _get_context(text_dir, item)
+        for record in records:
+            context = _get_context(text_dir, record)
             prompt = PROMPT_TEMPLATE.format(
                 documents_text=context,
-                question=item['question'],
+                question=record['question'],
             )
             raw_data.append({
                 'input': prompt,
-                'answers': item['answer'],
-                'question': item['question'],
-                'document_category': item.get('document_category', ''),
-                'document_set_id': item.get('document_set_id', ''),
-                'data_source_urls': item.get('data_source_urls', ''),
+                'answers': record['answer'],
+                'question': record['question'],
+                'document_category': record.get('document_category', ''),
+                'document_set_id': record.get('document_set_id', ''),
+                'data_source_urls': record.get('data_source_urls', ''),
             })
 
         logger.debug(f'AA-LCR dataset loaded: {len(raw_data)} samples')
@@ -302,6 +357,10 @@ class AALCRJudgeEvaluator(BaseEvaluator):
     Parses judge model outputs looking for ``CORRECT`` / ``INCORRECT``
     and computes accuracy.  Uses word-boundary matching so that
     "INCORRECT" is not falsely matched as "CORRECT".
+
+    This mirrors evalscope's ``AALCRAdapter.llm_match_score()`` scoring
+    logic: a single regex pass with ``\\bCORRECT\\b`` to determine
+    correctness.
     """
 
     def score(self, predictions: List, references: List) -> Dict[str, Any]:
@@ -334,7 +393,8 @@ class AALCRJudgeEvaluator(BaseEvaluator):
         ):
             total += 1
             # Use word-boundary matching to avoid matching "CORRECT"
-            # inside "INCORRECT".
+            # inside "INCORRECT".  Same approach as evalscope's
+            # AALCRAdapter.llm_match_score().
             is_correct = bool(
                 re.search(r'\bCORRECT\b', judge_output, re.IGNORECASE)
             )

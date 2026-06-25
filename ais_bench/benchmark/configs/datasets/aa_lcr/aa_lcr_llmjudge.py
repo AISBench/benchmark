@@ -93,7 +93,7 @@ aa_lcr_datasets = [
     dict(
         abbr='aa_lcr',
         type=AALCRDataset,
-        path='ais_bench/datasets/aa_lcr/',
+        path='benchmark/ais_bench/datasets/aa_lcr/',
         reader_cfg=aa_lcr_reader_cfg,
         infer_cfg=aa_lcr_infer_cfg,
         judge_infer_cfg=aa_lcr_judge_infer_cfg,
