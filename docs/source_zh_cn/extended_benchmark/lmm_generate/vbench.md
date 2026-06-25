@@ -18,7 +18,7 @@ AISBench **已适配 VBench 1.0**。仓库目录 `ais_bench/configs/vbench_examp
 
 ## 依赖与环境
 
-#### decord（视频解码）
+### decord（视频解码）
 
 在 **x86_64** 上一般可直接 `pip install decord`。在 **ARM** 等无预编译 wheel 的环境需源码编译，例如：
 
@@ -32,13 +32,13 @@ cd ../python
 python3 setup.py install --user
 ```
 
-#### detectron2 与 GRiT
+### detectron2 与 GRiT
 
 `object_class`、`multiple_objects`、`color`、`spatial_relationship` 等维依赖 GRiT，继而依赖 detectron2。AISBench **统一**使用仓库内 **`ais_bench/third_party/detectron2`**（GPU/NPU 共用）。在仓库根目录执行可编辑安装：
 
 `pip install -e ais_bench/third_party/detectron2 --no-build-isolation`
 
-#### 昇腾上的 torchvision（可选）
+### 昇腾上的 torchvision（可选）
 
 部分 torchvision 算子（如 `nms`、`roi_align`）在昇腾上可能仅 CPU支持，测评效率低。若 `torch < 2.7.1`，可参考 [昇腾适配 torchvision](https://gitcode.com/Ascend/vision) 安装对应版本以提高推理效率。
 
@@ -48,7 +48,7 @@ python3 setup.py install --user
    Standard / Custom 均需在对应配置中将 `DATA_PATH` 设为生成视频的根目录（绝对或相对路径）。也可复制配置文件后改 `DATA_PATH`，再执行 `ais_bench <your_config.py> --mode eval`。（视频采样说明参考：[数据集生成](#数据集生成)）
 
 2. **下载第三方依赖本地缓存**
-   VBench 会加载多种小模型权重用于视频生成质量评测，建议提前手动下载，默认测评过程中会自动下载相关依赖，但存在下载失败导致测评任务；细节见 [`vbench_cache_dependencies.md`](./vbench_cache_dependencies.md)。
+   VBench 会加载多种小模型权重用于视频生成质量评测，建议提前手动下载，默认测评过程中会自动下载相关依赖，但存在下载失败导致测评任务失败；细节见 [`vbench_cache_dependencies.md`](./vbench_cache_dependencies.md)。
 
 ```bash
 # 使用默认缓存目录 ~/.cache/vbench
@@ -220,7 +220,7 @@ dim_to_subdir = {
     "aesthetic_quality": "overall_consistency",
     "imaging_quality": "overall_consistency",
     "motion_smoothness": "subject_consistency",
-    "dynamic_degree": "subject_consistency",
+    "dynamic_degree": "subject_consistency"
 }
 
 dimension_list = [
