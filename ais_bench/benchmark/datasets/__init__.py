@@ -65,4 +65,5 @@ from ais_bench.benchmark.datasets.swebench_pro import *  # noqa: F401, F403
 from ais_bench.benchmark.datasets.refcoco import *  # noqa: F401, F403
 from ais_bench.benchmark.datasets.hle import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.realworldqa import * # noqa: F401, F403
+from ais_bench.benchmark.datasets.oneig import *  # noqa: F401, F403
 
