@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 from datasets import Dataset
 
 from ais_bench.benchmark.datasets.base import BaseDataset
-from ais_bench.benchmark.datasets.utils.datasets import get_data_path, get_cache_dir
+from ais_bench.benchmark.datasets.utils.datasets import get_cache_dir
 from ais_bench.benchmark.datasets.utils.llm_judge import LLMJudgeDataset
 from ais_bench.benchmark.openicl.icl_evaluator import BaseEvaluator
 from ais_bench.benchmark.registry import ICL_EVALUATORS, LOAD_DATASET
@@ -19,14 +19,24 @@ logger = AISLogger()
 # Local paths – document corpus ZIP and metadata directory
 # ---------------------------------------------------------------------------
 
-# Document corpus ZIP (relative to the benchmark cache root).
-_DOC_ZIP_REL_PATH = os.path.join(
-    'ais_bench', 'datasets', 'aa_lcr', 'extracted_text',
-    'AA-LCR_extracted-text.zip'
+# Directory containing this file (benchmark/datasets/).
+# Used as the base to resolve data paths under datasets/aa_lcr/.
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Data root: <repo>/ais_bench/datasets/aa_lcr/
+#   _THIS_DIR  = ais_bench/benchmark/datasets/
+#   _DATA_DIR  = ais_bench/datasets/aa_lcr/   (../../datasets/aa_lcr)
+_DATA_DIR = os.path.abspath(os.path.join(
+    _THIS_DIR, '..', '..', 'datasets', 'aa_lcr'
+))
+
+# Document corpus ZIP (benchmark/ais_bench/datasets/aa_lcr/extracted_text/).
+_DOC_ZIP_PATH = os.path.join(
+    _DATA_DIR, 'extracted_text', 'AA-LCR_extracted-text.zip'
 )
 
-# Metadata directory (relative to the benchmark cache root).
-_META_REL_PATH = os.path.join('ais_bench', 'datasets', 'aa_lcr')
+# Metadata directory (benchmark/ais_bench/datasets/aa_lcr/).
+_META_PATH = _DATA_DIR
 
 # Cache subdirectory where the ZIP is extracted.
 DEFAULT_CACHE_SUBDIR: str = 'aa_lcr'
@@ -72,11 +82,12 @@ Reply only with CORRECT or INCORRECT."""
 def _ensure_text_dir_downloaded() -> Path:
     """Ensure AA-LCR extracted texts are available locally.
 
-    Looks for the document corpus ZIP at the local relative path
-    ``ais_bench/datasets/aa_lcr/extracted_text/AA-LCR_extracted-text.zip``,
-    extracts it into the cache directory on first use, and returns the path
-    to the ``lcr/`` directory containing the ``.txt`` files.  Subsequent
-    calls return the cached path immediately.
+    Looks for the document corpus ZIP at the relative path
+    ``benchmark/ais_bench/datasets/aa_lcr/extracted_text/AA-LCR_extracted-text.zip``
+    (sibling to this file in the repository), extracts it into the cache
+    directory on first use, and returns the path to the ``lcr/`` directory
+    containing the ``.txt`` files.  Subsequent calls return the cached path
+    immediately.
 
     Returns:
         Path to the ``lcr/`` directory containing extracted ``.txt`` files.
@@ -92,14 +103,14 @@ def _ensure_text_dir_downloaded() -> Path:
         logger.info(f'AA-LCR documents found in cache: {extracted_dir}')
         return extracted_dir
 
-    # Resolve the local ZIP via the same cache root used by other datasets.
-    local_zip = Path(get_cache_dir(DEFAULT_CACHE_ROOT)) / _DOC_ZIP_REL_PATH
+    # Resolve the local ZIP relative to this source file.
+    local_zip = Path(_DOC_ZIP_PATH)
     if not local_zip.exists():
         raise FileNotFoundError(
             f'AA-LCR document corpus ZIP not found at: {local_zip}\n'
             'Please ensure the file is placed at '
-            'ais_bench/datasets/aa_lcr/extracted_text/'
-            'AA-LCR_extracted-text.zip relative to the benchmark cache.'
+            'benchmark/ais_bench/datasets/aa_lcr/extracted_text/'
+            'AA-LCR_extracted-text.zip relative to the repository root.'
         )
 
     cache_root.mkdir(parents=True, exist_ok=True)
@@ -220,7 +231,7 @@ class AALCRDataset(BaseDataset):
 
         Args:
             path: Local path to the dataset metadata directory
-                (e.g. ``ais_bench/datasets/aa_lcr``).
+                (e.g. ``benchmark/ais_bench/datasets/aa_lcr``).
             name: Dataset configuration / subset name.
 
         Returns:
@@ -230,7 +241,9 @@ class AALCRDataset(BaseDataset):
         """
         from datasets import load_dataset
 
-        resolved_path = get_data_path(path, local_mode=True)
+        # Use the file-relative metadata path; falls back to an absolute
+        # path if one is explicitly provided.
+        resolved_path = path if path and os.path.isabs(path) else _META_PATH
         logger.debug(
             f'Loading AA-LCR dataset metadata from: {resolved_path}'
         )
