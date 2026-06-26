@@ -112,13 +112,12 @@ class HumanevalXEvaluator(BaseEvaluator):
 
     def score(self, predictions, references, test_set):
         prompts = [item['prompt'] for item in test_set]
-        problem_file = f'benchmark/ais_bench/datasets/humanevalx/humanevalx_{self.language}.jsonl.gz'
+        problem_file = f'ais_bench/datasets/humanevalx/humanevalx_{self.language}.jsonl.gz'
         # Get the absolute path
         problem_file = os.path.abspath(problem_file)
         import json
         # 定义文件路径
-        go_dir = f'./benchmark/ais_bench/benchmark/datasets/humanevalx/go/evaluation'
-
+        go_dir = f'./ais_bench/benchmark/datasets/humanevalx/go/evaluation'
         go_dir = os.path.abspath(go_dir)
 
         predictions = [{
