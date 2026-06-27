@@ -79,16 +79,37 @@ Reply only with CORRECT or INCORRECT."""
 # ---------------------------------------------------------------------------
 # Debug logger – writes AA-LCR prompts / judge / eval details to a dedicated
 # log file so the long prompts don't flood the main console output.
+#
+# Log path: ``<work_dir>/logs/aa_lcr_debug.log`` when ``work_dir`` has been
+# set via :func:`set_work_dir`, otherwise falls back to the cache directory.
 # ---------------------------------------------------------------------------
 
 _DEBUG_LOGGER: Optional[logging.Logger] = None
+_WORK_DIR: Optional[str] = None
+
+
+def set_work_dir(work_dir: str) -> None:
+    """Set the work directory for the AA-LCR debug log.
+
+    Call this once the benchmark work directory is known (e.g. from the
+    config manager after the timestamped output directory is created).
+    The debug log will be written to ``<work_dir>/logs/aa_lcr_debug.log``.
+
+    Args:
+        work_dir: Absolute or relative path to the benchmark work directory
+            (e.g. ``outputs/default/20260627_080620``).
+    """
+    global _WORK_DIR
+    _WORK_DIR = work_dir
 
 
 def _get_debug_logger() -> logging.Logger:
     """Lazy-init a dedicated file logger for AA-LCR debug output.
 
-    Writes to ``<cache>/aa_lcr/logs/aa_lcr_debug.log`` so the long
-    prompts don't flood the main console / log file.
+    When :func:`set_work_dir` has been called, writes to
+    ``<work_dir>/logs/aa_lcr_debug.log`` — the same ``logs/`` directory
+    used by other ais_bench log files.  Otherwise falls back to
+    ``<cache>/aa_lcr/logs/aa_lcr_debug.log``.
 
     Returns:
         Configured :class:`logging.Logger` instance.
@@ -97,9 +118,14 @@ def _get_debug_logger() -> logging.Logger:
     if _DEBUG_LOGGER is not None:
         return _DEBUG_LOGGER
 
-    log_dir = (
-        Path(get_cache_dir(DEFAULT_CACHE_ROOT)) / DEFAULT_CACHE_SUBDIR / 'logs'
-    )
+    if _WORK_DIR:
+        log_dir = Path(_WORK_DIR) / 'logs'
+    else:
+        log_dir = (
+            Path(get_cache_dir(DEFAULT_CACHE_ROOT))
+            / DEFAULT_CACHE_SUBDIR
+            / 'logs'
+        )
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / 'aa_lcr_debug.log'
 
