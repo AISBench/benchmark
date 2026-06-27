@@ -1,10 +1,9 @@
 import csv
-import logging
 import os
 import re
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from datasets import Dataset
 
@@ -74,75 +73,6 @@ The OFFICIAL ANSWER: {answers}
 CANDIDATE ANSWER TO ASSESS: {model_answer}
 
 Reply only with CORRECT or INCORRECT."""
-
-
-# ---------------------------------------------------------------------------
-# Debug logger – writes AA-LCR prompts / judge / eval details to a dedicated
-# log file so the long prompts don't flood the main console output.
-#
-# Log path: ``<work_dir>/logs/aa_lcr_debug.log`` when ``work_dir`` has been
-# set via :func:`set_work_dir`, otherwise falls back to the cache directory.
-# ---------------------------------------------------------------------------
-
-_DEBUG_LOGGER: Optional[logging.Logger] = None
-_WORK_DIR: Optional[str] = None
-
-
-def set_work_dir(work_dir: str) -> None:
-    """Set the work directory for the AA-LCR debug log.
-
-    Call this once the benchmark work directory is known (e.g. from the
-    config manager after the timestamped output directory is created).
-    The debug log will be written to ``<work_dir>/logs/aa_lcr_debug.log``.
-
-    Args:
-        work_dir: Absolute or relative path to the benchmark work directory
-            (e.g. ``outputs/default/20260627_080620``).
-    """
-    global _WORK_DIR
-    _WORK_DIR = work_dir
-
-
-def _get_debug_logger() -> logging.Logger:
-    """Lazy-init a dedicated file logger for AA-LCR debug output.
-
-    When :func:`set_work_dir` has been called, writes to
-    ``<work_dir>/logs/aa_lcr_debug.log`` — the same ``logs/`` directory
-    used by other ais_bench log files.  Otherwise falls back to
-    ``<cache>/aa_lcr/logs/aa_lcr_debug.log``.
-
-    Returns:
-        Configured :class:`logging.Logger` instance.
-    """
-    global _DEBUG_LOGGER
-    if _DEBUG_LOGGER is not None:
-        return _DEBUG_LOGGER
-
-    if _WORK_DIR:
-        log_dir = Path(_WORK_DIR) / 'logs'
-    else:
-        log_dir = (
-            Path(get_cache_dir(DEFAULT_CACHE_ROOT))
-            / DEFAULT_CACHE_SUBDIR
-            / 'logs'
-        )
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / 'aa_lcr_debug.log'
-
-    debug_logger = logging.getLogger('ais_bench.aa_lcr_debug')
-    debug_logger.propagate = False
-    debug_logger.setLevel(logging.DEBUG)
-    debug_logger.handlers.clear()
-
-    handler = logging.FileHandler(str(log_file), mode='a', encoding='utf-8')
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    ))
-    debug_logger.addHandler(handler)
-
-    logger.info(f'[AA-LCR DEBUG] Prompt debug log: {log_file}')
-    _DEBUG_LOGGER = debug_logger
-    return debug_logger
 
 
 # ---------------------------------------------------------------------------
@@ -391,21 +321,20 @@ class AALCRDataset(BaseDataset):
                 question=record['question'],
             )
 
-            # ====== DEBUG: log constructed prompt to dedicated log file ======
-            dbg = _get_debug_logger()
-            dbg.info(
+            # ====== log constructed prompt ======
+            logger.info(
                 '========== CONSTRUCTED PROMPT '
                 f'(question_id={record.get("question_id", "?")}) =========='
             )
-            dbg.info(f'QUESTION: {record["question"]}')
-            dbg.info(f'ANSWER:   {record["answer"]}')
-            dbg.info(
+            logger.info(f'QUESTION: {record["question"]}')
+            logger.info(f'ANSWER:   {record["answer"]}')
+            logger.info(
                 f'DOC_CATEGORY: {record.get("document_category", "?")}  '
                 f'DOC_SET: {record.get("document_set_id", "?")}'
             )
-            dbg.info(f'PROMPT ({len(prompt)} chars):\n{prompt}')
-            dbg.info('========== CONSTRUCTED PROMPT END ==========')
-            # =================================================================
+            logger.info(f'PROMPT ({len(prompt)} chars):\n{prompt}')
+            logger.info('========== CONSTRUCTED PROMPT END ==========')
+            # =======================================
 
             raw_data.append({
                 'input': prompt,
@@ -436,15 +365,14 @@ class AALCRJGDataset(LLMJudgeDataset):
         """Merge prediction into the dataset item and log the judge prompt."""
         super()._modify_dataset_item(dataset_item, pred_item)
 
-        # ====== DEBUG: log LLM Judge prompt to dedicated log file ======
-        dbg = _get_debug_logger()
-        dbg.info(
+        # ====== log LLM Judge prompt ======
+        logger.info(
             '========== JUDGE ITEM '
             f'(pred_uuid={pred_item.get("uuid", "?")}) =========='
         )
-        dbg.info(f'QUESTION:      {dataset_item.get("question", "N/A")}')
-        dbg.info(f'ANSWERS:       {dataset_item.get("answers", "N/A")}')
-        dbg.info(
+        logger.info(f'QUESTION:      {dataset_item.get("question", "N/A")}')
+        logger.info(f'ANSWERS:       {dataset_item.get("answers", "N/A")}')
+        logger.info(
             f'MODEL_ANSWER:  {dataset_item.get("model_answer", "N/A")}'
         )
         judge_prompt = JUDGE_PROMPT.format(
@@ -452,9 +380,9 @@ class AALCRJGDataset(LLMJudgeDataset):
             answers=dataset_item.get('answers', ''),
             model_answer=dataset_item.get('model_answer', ''),
         )
-        dbg.info(f'JUDGE_PROMPT ({len(judge_prompt)} chars):\n{judge_prompt}')
-        dbg.info('========== JUDGE ITEM END ==========')
-        # ==============================================================
+        logger.info(f'JUDGE_PROMPT ({len(judge_prompt)} chars):\n{judge_prompt}')
+        logger.info('========== JUDGE ITEM END ==========')
+        # ===================================
 
 
 # ---------------------------------------------------------------------------
@@ -519,28 +447,26 @@ class AALCRJudgeEvaluator(BaseEvaluator):
                 'correct': is_correct,
             }
 
-            # ====== DEBUG: log eval result to dedicated log file ======
-            dbg = _get_debug_logger()
-            dbg.info(
+            # ====== log eval result ======
+            logger.info(
                 f'========== EVAL RESULT (index={index}) =========='
             )
-            dbg.info(f'JUDGE_OUTPUT: {judge_output}')
-            dbg.info(f'REFERENCE:    {ref}')
-            dbg.info(
+            logger.info(f'JUDGE_OUTPUT: {judge_output}')
+            logger.info(f'REFERENCE:    {ref}')
+            logger.info(
                 f'IS_CORRECT:   {is_correct}'
             )
-            dbg.info(f'========== EVAL RESULT END ==========')
-            # ==========================================================
+            logger.info('========== EVAL RESULT END ==========')
+            # ==============================
 
         accuracy = correct / total * 100 if total > 0 else 0
 
-        # ====== DEBUG: log final accuracy summary ======
-        dbg = _get_debug_logger()
-        dbg.info(
+        # ====== log final accuracy summary ======
+        logger.info(
             '========== EVAL SUMMARY '
             f'(correct={correct}/{total}, accuracy={accuracy:.2f}%) =========='
         )
-        # ================================================
+        # =========================================
         return {
             'accuracy': accuracy,
             'details': details,
