@@ -1,9 +1,10 @@
 import csv
+import logging
 import os
 import re
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from datasets import Dataset
 
@@ -73,6 +74,49 @@ The OFFICIAL ANSWER: {answers}
 CANDIDATE ANSWER TO ASSESS: {model_answer}
 
 Reply only with CORRECT or INCORRECT."""
+
+
+# ---------------------------------------------------------------------------
+# Debug logger – writes AA-LCR prompts / judge / eval details to a dedicated
+# log file so the long prompts don't flood the main console output.
+# ---------------------------------------------------------------------------
+
+_DEBUG_LOGGER: Optional[logging.Logger] = None
+
+
+def _get_debug_logger() -> logging.Logger:
+    """Lazy-init a dedicated file logger for AA-LCR debug output.
+
+    Writes to ``<cache>/aa_lcr/logs/aa_lcr_debug.log`` so the long
+    prompts don't flood the main console / log file.
+
+    Returns:
+        Configured :class:`logging.Logger` instance.
+    """
+    global _DEBUG_LOGGER
+    if _DEBUG_LOGGER is not None:
+        return _DEBUG_LOGGER
+
+    log_dir = (
+        Path(get_cache_dir(DEFAULT_CACHE_ROOT)) / DEFAULT_CACHE_SUBDIR / 'logs'
+    )
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / 'aa_lcr_debug.log'
+
+    debug_logger = logging.getLogger('ais_bench.aa_lcr_debug')
+    debug_logger.propagate = False
+    debug_logger.setLevel(logging.DEBUG)
+    debug_logger.handlers.clear()
+
+    handler = logging.FileHandler(str(log_file), mode='a', encoding='utf-8')
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    ))
+    debug_logger.addHandler(handler)
+
+    logger.info(f'[AA-LCR DEBUG] Prompt debug log: {log_file}')
+    _DEBUG_LOGGER = debug_logger
+    return debug_logger
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +364,23 @@ class AALCRDataset(BaseDataset):
                 documents_text=context,
                 question=record['question'],
             )
+
+            # ====== DEBUG: log constructed prompt to dedicated log file ======
+            dbg = _get_debug_logger()
+            dbg.info(
+                '========== CONSTRUCTED PROMPT '
+                f'(question_id={record.get("question_id", "?")}) =========='
+            )
+            dbg.info(f'QUESTION: {record["question"]}')
+            dbg.info(f'ANSWER:   {record["answer"]}')
+            dbg.info(
+                f'DOC_CATEGORY: {record.get("document_category", "?")}  '
+                f'DOC_SET: {record.get("document_set_id", "?")}'
+            )
+            dbg.info(f'PROMPT ({len(prompt)} chars):\n{prompt}')
+            dbg.info('========== CONSTRUCTED PROMPT END ==========')
+            # =================================================================
+
             raw_data.append({
                 'input': prompt,
                 'answers': record['answer'],
@@ -344,6 +405,30 @@ class AALCRJGDataset(LLMJudgeDataset):
 
     def _get_dataset_class(self):
         return AALCRDataset
+
+    def _modify_dataset_item(self, dataset_item, pred_item):
+        """Merge prediction into the dataset item and log the judge prompt."""
+        super()._modify_dataset_item(dataset_item, pred_item)
+
+        # ====== DEBUG: log LLM Judge prompt to dedicated log file ======
+        dbg = _get_debug_logger()
+        dbg.info(
+            '========== JUDGE ITEM '
+            f'(pred_uuid={pred_item.get("uuid", "?")}) =========='
+        )
+        dbg.info(f'QUESTION:      {dataset_item.get("question", "N/A")}')
+        dbg.info(f'ANSWERS:       {dataset_item.get("answers", "N/A")}')
+        dbg.info(
+            f'MODEL_ANSWER:  {dataset_item.get("model_answer", "N/A")}'
+        )
+        judge_prompt = JUDGE_PROMPT.format(
+            question=dataset_item.get('question', ''),
+            answers=dataset_item.get('answers', ''),
+            model_answer=dataset_item.get('model_answer', ''),
+        )
+        dbg.info(f'JUDGE_PROMPT ({len(judge_prompt)} chars):\n{judge_prompt}')
+        dbg.info('========== JUDGE ITEM END ==========')
+        # ==============================================================
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +493,28 @@ class AALCRJudgeEvaluator(BaseEvaluator):
                 'correct': is_correct,
             }
 
+            # ====== DEBUG: log eval result to dedicated log file ======
+            dbg = _get_debug_logger()
+            dbg.info(
+                f'========== EVAL RESULT (index={index}) =========='
+            )
+            dbg.info(f'JUDGE_OUTPUT: {judge_output}')
+            dbg.info(f'REFERENCE:    {ref}')
+            dbg.info(
+                f'IS_CORRECT:   {is_correct}'
+            )
+            dbg.info(f'========== EVAL RESULT END ==========')
+            # ==========================================================
+
         accuracy = correct / total * 100 if total > 0 else 0
+
+        # ====== DEBUG: log final accuracy summary ======
+        dbg = _get_debug_logger()
+        dbg.info(
+            '========== EVAL SUMMARY '
+            f'(correct={correct}/{total}, accuracy={accuracy:.2f}%) =========='
+        )
+        # ================================================
         return {
             'accuracy': accuracy,
             'details': details,
