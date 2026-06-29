@@ -4,18 +4,6 @@
 
 AISBench **has adapted OneIG-Benchmark**. The `ais_bench/configs/oneig_examples/` directory contains **standalone configuration file** examples for multi-dimensional quality evaluation of **generated images** on **GPU**. OneIG uses an **eval-only** mode and does not include image generation steps. Please generate images using the model under evaluation before running the assessment.
 
-## Table of Contents
-
-- [Dataset Overview](#dataset-overview)
-- [Dependencies and Environment](#dependencies-and-environment)
-- [Quick Start](#quick-start)
-- [Configuration and Output](#configuration-and-output)
-- [Evaluation Metrics](#evaluation-metrics)
-- [Data Format](#data-format)
-- [Example Code](#example-code)
-- [FAQ](#faq)
-- [License](#license)
-
 ## Dataset Overview
 
 ### Background
@@ -534,51 +522,3 @@ MODEL_NAMES = ["model_a", "model_b"]
 IMAGE_GRIDS = ["2,2", "2,2"]                   # Must match MODEL_NAMES length
 ```
 
-## FAQ
-
-### Q1: Error `FileNotFoundError: ... CSD_embed.pt`
-
-**A**: CSD reference embedding file not found. Ensure the OneIG official repository is cloned and `ONEIG_ROOT` is configured correctly. `CSD_embed.pt` and `SE_embed.pt` are distributed with the repository, located in `{ONEIG_ROOT}/scripts/style/`.
-
-### Q2: Error `ModuleNotFoundError: No module named 'dreamsim'`
-
-**A**: DreamSim dependency not installed. Run `pip install -r requirements.txt` in the OneIG project directory.
-
-### Q3: Style task error `checkpoint.pth not found`
-
-**A**: CSD encoder weights need manual download. Download from [Google Drive](https://drive.google.com/file/d/1FX0xs8p-C7Ob-h5Y4cUhTeOepHzXv_46/view) and place at `{ONEIG_ROOT}/scripts/style/models/checkpoint.pth`.
-
-### Q4: DreamSim weight download failed
-
-**A**: If GitHub is inaccessible, manually download `dreamsim_ensemble_checkpoint.zip` and extract to `{ONEIG_ROOT}/models/` directory.
-
-### Q5: Low GPU utilization for Alignment/Text tasks
-
-**A**: Alignment and Text tasks support multi-GPU parallelism. Set the `num_gpus` parameter in the config (recommended 4) to improve inference efficiency.
-
-### Q6: `MODEL_NAMES` and `IMAGE_GRIDS` length mismatch
-
-**A**: `MODEL_NAMES` and `IMAGE_GRIDS` must correspond one-to-one. For example, evaluating 2 models requires both lists to have length 2. A `ValueError` is raised automatically if they don't match.
-
-### Q7: `oneig_total` shows `-` in results
-
-**A**: `oneig_total` is the average of all 5 sub-tasks. If `TASKS` doesn't include all 5 tasks, `oneig_total` won't be computed. Ensure `TASKS = ['alignment', 'text', 'reasoning', 'style', 'diversity']`.
-
-### Q8: What additional configuration is needed for ZH mode
-
-**A**: In ZH mode, Alignment and Diversity tasks additionally include the `multilingualism` category. Auxiliary data files automatically use the `_zh` suffix (e.g., `gt_answer_zh.json`, `text_content_zh.csv`), no manual specification needed.
-
-## License
-
-OneIG-Benchmark Official Repository: [https://github.com/OneIG-Bench/OneIG-Benchmark](https://github.com/OneIG-Bench/OneIG-Benchmark)
-
-OneIG-Benchmark Dataset: [https://huggingface.co/datasets/OneIG-Bench/OneIG-Benchmark](https://huggingface.co/datasets/OneIG-Bench/OneIG-Benchmark)
-
-AISBench adaptation code follows the AISBench repository license. OneIG official code and dataset copyrights belong to their respective owners. Please review official license agreements before use.
-
-Third-party model weight copyrights belong to their respective owners:
-- Qwen3-VL-8B-Instruct: Alibaba Group
-- LLM2CLIP: Microsoft
-- CSD (CLIP-Style-Diffusion): Paper authors
-- DreamSim: Paper authors
-- CLIP ViT-L-14: OpenAI

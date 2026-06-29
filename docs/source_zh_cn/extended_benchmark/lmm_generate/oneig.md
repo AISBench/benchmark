@@ -4,18 +4,6 @@
 
 AISBench **已适配 OneIG-Benchmark**。仓库目录 `ais_bench/configs/oneig_examples/` 下放的是 **独立配置文件** 示例，在 **GPU** 上对**生成图片**做多维度质量测评。OneIG 采用 **eval-only** 模式，不包含图片生成步骤，请先使用待评测模型生成图片后再进行测评。
 
-## 目录
-
-- [数据集概述](#数据集概述)
-- [依赖与环境](#依赖与环境)
-- [快速开始](#快速开始)
-- [配置与输出](#配置与输出)
-- [评测指标体系](#评测指标体系)
-- [数据格式说明](#数据格式说明)
-- [示例代码](#示例代码)
-- [常见问题解答（FAQ）](#常见问题解答faq)
-- [版权信息](#版权信息)
-
 ## 数据集概述
 
 ### 背景简介
@@ -534,51 +522,3 @@ MODEL_NAMES = ["model_a", "model_b"]
 IMAGE_GRIDS = ["2,2", "2,2"]                   # 与 MODEL_NAMES 长度一致
 ```
 
-## 常见问题解答（FAQ）
-
-### Q1: 评测报错 `FileNotFoundError: ... CSD_embed.pt`
-
-**A**：CSD 参考嵌入文件未找到。请确认已克隆 OneIG 官方仓库，并检查 `ONEIG_ROOT` 路径配置是否正确。`CSD_embed.pt` 和 `SE_embed.pt` 随仓库分发，位于 `{ONEIG_ROOT}/scripts/style/` 目录下。
-
-### Q2: 评测报错 `ModuleNotFoundError: No module named 'dreamsim'`
-
-**A**：DreamSim 依赖未安装。请在 OneIG 项目目录下执行 `pip install -r requirements.txt`。
-
-### Q3: Style 任务报错 `checkpoint.pth not found`
-
-**A**：CSD 编码器权重需要手动下载。请从 [Google Drive](https://drive.google.com/file/d/1FX0xs8p-C7Ob-h5Y4cUhTeOepHzXv_46/view) 下载，并放置到 `{ONEIG_ROOT}/scripts/style/models/checkpoint.pth`。
-
-### Q4: DreamSim 权重下载失败
-
-**A**：如果网络无法访问 GitHub，请手动下载 `dreamsim_ensemble_checkpoint.zip` 并解压到 `{ONEIG_ROOT}/models/` 目录。
-
-### Q5: Alignment/Text 任务 GPU 利用率低
-
-**A**：Alignment 和 Text 任务支持多 GPU 并行。请在配置中设置 `num_gpus` 参数（推荐 4），以提高推理效率。
-
-### Q6: `MODEL_NAMES` 和 `IMAGE_GRIDS` 长度不一致
-
-**A**：`MODEL_NAMES` 和 `IMAGE_GRIDS` 必须一一对应。例如评测 2 个模型，则两个列表长度均为 2。配置加载时会自动校验，不一致会抛出 `ValueError`。
-
-### Q7: 评测结果中 `oneig_total` 显示为 `-`
-
-**A**：`oneig_total` 是 5 个子任务的平均值。如果 `TASKS` 列表未包含全部 5 个任务，则 `oneig_total` 不会被计算。请确保 `TASKS = ['alignment', 'text', 'reasoning', 'style', 'diversity']`。
-
-### Q8: 中文模式（ZH）需要额外配置什么
-
-**A**：ZH 模式下，Alignment 和 Diversity 任务会额外包含 `multilingualism` 类别。辅助数据文件会自动使用 `_zh` 后缀（如 `gt_answer_zh.json`、`text_content_zh.csv`），无需手动指定。
-
-## 版权信息
-
-OneIG-Benchmark 官方仓库：[https://github.com/OneIG-Bench/OneIG-Benchmark](https://github.com/OneIG-Bench/OneIG-Benchmark)
-
-OneIG-Benchmark 数据集：[https://huggingface.co/datasets/OneIG-Bench/OneIG-Benchmark](https://huggingface.co/datasets/OneIG-Bench/OneIG-Benchmark)
-
-AISBench 适配代码遵循 AISBench 仓库许可证。OneIG 官方代码及数据集版权归其各自所有者所有，使用前请查阅官方许可协议。
-
-涉及的第三方模型权重版权归各自所有者所有：
-- Qwen3-VL-8B-Instruct：阿里巴巴集团
-- LLM2CLIP：微软
-- CSD（CLIP-Style-Diffusion）：相关论文作者
-- DreamSim：相关论文作者
-- CLIP ViT-L-14：OpenAI
