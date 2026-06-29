@@ -120,17 +120,20 @@ class IFBenchDataset(BaseDataset):
     @staticmethod
     def load(path: str, name: str = 'default'):
         path = get_data_path(path, local_mode=True)
-        logger.debug(f"Loading IFBench dataset from: {path}")
-        from datasets import load_dataset
-        dataset = load_dataset(path=path, name=name, trust_remote_code=True, split='train')
+        logger.info(f"Loading IFBench dataset from: {path}")
+        from datasets import Dataset
+        dataset = Dataset.from_parquet(path)
         raw_data = []
         for i in range(len(dataset)):
             item = dataset[i]
+            prompt = item['prompt']
+            logger.info(f"[ifbench] Sample[{i}] prompt: {prompt[:200]}..."
+                        if len(prompt) > 200 else f"[ifbench] Sample[{i}] prompt: {prompt}")
             raw_data.append({
-                'prompt': item['prompt'],
+                'prompt': prompt,
                 'reference': item,
             })
-        logger.debug(f"IFBench dataset loaded: {len(raw_data)} samples")
+        logger.info(f"IFBench dataset loaded: {len(raw_data)} samples")
         return Dataset.from_list(raw_data)
 
 
@@ -150,7 +153,7 @@ class IFBenchEvaluator(BaseEvaluator):
     """
 
     def score(self, predictions: List, references: List, origin_prompt: List = None) -> dict:
-        logger.debug(f"Starting IFBench evaluation with {len(predictions)} samples")
+        logger.info(f"Starting IFBench evaluation with {len(predictions)} samples")
 
         prompt_strict_correct, prompt_strict_total = 0, 0
         inst_strict_correct, inst_strict_total = 0, 0
@@ -168,6 +171,20 @@ class IFBenchEvaluator(BaseEvaluator):
                 for k in list(kwarg.keys()):
                     if kwarg[k] is None:
                         kwarg.pop(k, None)
+
+            prompt_text = refer.get('prompt', '')
+            pred_text = pred or ''
+            logger.info(
+                f"[ifbench] Sample[{index}] prompt: {prompt_text[:200]}..."
+                if len(prompt_text) > 200 else f"[ifbench] Sample[{index}] prompt: {prompt_text}"
+            )
+            logger.info(
+                f"[ifbench] Sample[{index}] prediction: {pred_text[:200]}..."
+                if len(pred_text) > 200 else f"[ifbench] Sample[{index}] prediction: {pred_text}"
+            )
+            logger.info(
+                f"[ifbench] Sample[{index}] instruction_ids: {refer['instruction_id_list']}"
+            )
 
             # strict evaluation
             example = test_instruction_following_strict(inp, pred)
@@ -196,6 +213,13 @@ class IFBenchEvaluator(BaseEvaluator):
             else:
                 grade = 'none'
 
+            logger.info(
+                f"[ifbench] Sample[{index}] strict: {sum(follow_instruction_list)}/{len(follow_instruction_list)}"
+                f" (prompt_level={'PASS' if is_strict_correct else 'FAIL'}), "
+                f"loose: prompt_level={'PASS' if is_loose_correct else 'FAIL'}, "
+                f"grade={grade}"
+            )
+
             details[str(index)] = {
                 'prompt': origin_prompt[index] if origin_prompt else refer.get('prompt', ''),
                 'pred': pred,
@@ -218,5 +242,13 @@ class IFBenchEvaluator(BaseEvaluator):
             'details': details,
         }
 
-        logger.debug("IFBench evaluation completed.")
+        logger.info("=" * 60)
+        logger.info("[ifbench] Evaluation Results:")
+        logger.info(f"  Prompt-level-strict-accuracy:  {results['Prompt-level-strict-accuracy']:.2f}%")
+        logger.info(f"  Inst-level-strict-accuracy:    {results['Inst-level-strict-accuracy']:.2f}%")
+        logger.info(f"  Prompt-level-loose-accuracy:   {results['Prompt-level-loose-accuracy']:.2f}%")
+        logger.info(f"  Inst-level-loose-accuracy:     {results['Inst-level-loose-accuracy']:.2f}%")
+        logger.info(f"  Total samples:                 {prompt_strict_total}")
+        logger.info("=" * 60)
+
         return results
