@@ -627,6 +627,9 @@ class TestSWEBenchProEvalTaskRun(unittest.TestCase):
         mock_build_dataset, mock_eval_docker, mock_build_report,
         mock_get_output_path, mock_ensure_images, mock_list_images, mock_clean_images
     ):
+        # NOTE: cleanup_swebench_pro_containers is intentionally NOT mocked here
+        # to verify the session-scoped cleanup path runs without error; it is a
+        # no-op when no containers match the session label.
         with tempfile.TemporaryDirectory() as tmpdir:
             cfg = MagicMock()
             cfg.cli_args = {"debug": False}

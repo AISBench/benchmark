@@ -30,11 +30,14 @@ from ais_bench.benchmark.utils.logging.exceptions import (
     FileOperationError,
 )
 from ais_bench.benchmark.tasks.swebench_pro.utils import (
-    ensure_swebench_pro_docker_images,
-    get_dockerhub_image_uri,
-    eval_with_docker,
-    list_swebench_pro_images,
+    add_swebench_pro_session_label_to_docker_client,
     clean_swebench_pro_images,
+    cleanup_swebench_pro_containers,
+    ensure_swebench_pro_docker_images,
+    eval_with_docker,
+    get_dockerhub_image_uri,
+    list_swebench_pro_images,
+    make_swebench_pro_session_id,
 )
 
 KEY_INSTANCE_ID = "instance_id"
@@ -361,7 +364,14 @@ class SWEBenchProEvalTask(BaseTask):
                 SWEBP_CODES.SWEBENCH_HARNESS_IMPORT_ERROR,
                 "docker SDK is not installed. Install via 'pip install docker'"
             ) from e
-        docker_client = docker.from_env()
+        session_id = make_swebench_pro_session_id()
+        self.logger.info("SWE-bench Pro eval session_id: %s", session_id)
+        # Wrap the Docker client so every eval container it creates is tagged
+        # with this task's session label. Cleanup later filters by that label,
+        # so concurrent SWE-bench Pro tasks never remove each other's containers.
+        docker_client = add_swebench_pro_session_label_to_docker_client(
+            docker.from_env(), session_id
+        )
         prior_images = list_swebench_pro_images(docker_client)
         
         ensure_swebench_pro_docker_images(
@@ -482,9 +492,15 @@ class SWEBenchProEvalTask(BaseTask):
         finally:
             if pbar is not None:
                 pbar.close()
-        
+            # Only remove containers tagged with this task's session label, so
+            # concurrently running SWE-bench Pro tasks are left untouched.
+            self.logger.info(
+                "Cleaning up eval containers for session %s...", session_id
+            )
+            cleanup_swebench_pro_containers(session_id=session_id)
+
         self.logger.info("All instances run.")
- 
+
         self.logger.info("Cleaning up SWE-bench Pro images...")
         clean_swebench_pro_images(docker_client, prior_images, self.logger)
         self.logger.info("Image cleanup completed.")

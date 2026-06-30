@@ -28,9 +28,11 @@ from ais_bench.benchmark.utils.logging.exceptions import (
     AISBenchValueError,
 )
 from ais_bench.benchmark.tasks.swebench_pro.utils import (
+    add_swebench_pro_session_label_to_run_args,
     cleanup_swebench_pro_containers,
     ensure_swebench_pro_docker_images,
     get_dockerhub_image_uri,
+    make_swebench_pro_session_id,
     merge_nested_dicts,
     build_problem_statement,
 )
@@ -270,6 +272,12 @@ class SWEBenchProInferTask(BaseTask):
         base_config = merge_nested_dicts(default_swebench_config, our_config)
         if dataset_cfg.get("step_limit") is not None:
             base_config.setdefault("agent", {})["step_limit"] = dataset_cfg["step_limit"]
+        session_id = make_swebench_pro_session_id()
+        # Tag every mini-swe-agent container with this task's session label via
+        # ``--label`` in Docker run_args. Cleanup later filters by that label so
+        # concurrently running SWE-bench Pro tasks never remove each other's containers.
+        add_swebench_pro_session_label_to_run_args(base_config, session_id)
+        self.logger.info("SWE-bench Pro infer session_id: %s", session_id)
         self.logger.info(f"base_config '{base_config}'")
 
         progress_manager, live_render_group = _make_swebench_pro_progress_manager(
@@ -357,13 +365,16 @@ class SWEBenchProInferTask(BaseTask):
                     for future in futures:
                         if not future.running() and not future.done():
                             future.cancel()
-                    cleanup_swebench_pro_containers()
+                    # Best-effort cleanup of this task's mini-swe-agent containers.
+                    cleanup_swebench_pro_containers(session_id=session_id)
                     executor.shutdown(wait=False)
                     raise
             finally:
                 if not interrupted[0]:
                     executor.shutdown(wait=True)
-                cleanup_swebench_pro_containers()
+                # After all work is done (normal or interrupted), attempt one more
+                # cleanup of only the containers owned by this task's session.
+                cleanup_swebench_pro_containers(session_id=session_id)
 
         if live_render_group is not None:
             from rich.live import Live
