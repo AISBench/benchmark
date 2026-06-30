@@ -8,6 +8,8 @@ from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError
 
 _logger = AISLogger(name="swebench.utils")
 
+DEFAULT_LITELLM_TIMEOUT = 200
+
 DATASET_MAPPING = {
     "full": "princeton-nlp/SWE-Bench",
     "verified": "princeton-nlp/SWE-Bench_Verified",

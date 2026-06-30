@@ -39,8 +39,8 @@ datasets = [
         step_limit=STEP_LIMIT,
         filter_spec="",
         shuffle=False,
-        swebp_scripts_dir= SWEBP_SCRIPT_PATH_ABS,
-        swebp_docker_dir= SWEBP_DOCKER_PATH_ABS,
+        swebp_scripts_dir=SWEBP_SCRIPT_PATH_ABS,
+        swebp_docker_dir=SWEBP_DOCKER_PATH_ABS,
     ),
 ]
 

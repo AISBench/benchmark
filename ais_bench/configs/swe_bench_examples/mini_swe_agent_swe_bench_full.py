@@ -13,7 +13,7 @@ models = [
         type="LiteLLMChat",
         model="",
         api_key="EMPTY",
-        url="http://127.0.0.1:8000/v1",  #API base, e.g. http://127.0.0.1:8000/v1
+        url="http://127.0.0.1:8000/v1",  # API base, e.g. http://127.0.0.1:8000/v1
         batch_size=1,
         generation_kwargs=dict(
             # Supports arbitrary generation parameters, consistent with regular model tasks.

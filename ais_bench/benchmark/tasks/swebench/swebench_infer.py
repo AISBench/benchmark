@@ -28,6 +28,7 @@ from ais_bench.benchmark.utils.logging.exceptions import (
 )
 from ais_bench.benchmark.tasks.swebench.utils import (
     DATASET_MAPPING,
+    DEFAULT_LITELLM_TIMEOUT,
     add_swebench_session_label_to_run_args,
     cleanup_swebench_containers,
     ensure_swebench_docker_images,
@@ -41,19 +42,23 @@ def _get_minisweagent_config(model_cfg: ConfigDict) -> dict:
     # LiteLLM requires provider prefix (e.g. hosted_vllm/qwen3) for custom API; add it when url is set and name has no /
     if model_cfg.get("url") and model_name:
         model_name = f"hosted_vllm/{model_name}"
-    model_type = (
-        getattr(model_cfg.get("type"), "__name__", None)
-        or (model_cfg.get("type", "") if isinstance(model_cfg.get("type"), str) else "")
+    model_type = getattr(model_cfg.get("type"), "__name__", None) or (
+        model_cfg.get("type", "") if isinstance(model_cfg.get("type"), str) else ""
     )
     if isinstance(model_type, str):
         model_type = model_type.split(".")[-1]
     model_kwargs = dict(model_cfg.get("generation_kwargs", {}))
+    # Set default inference timeout (LiteLLM default is 600s, too long for SWE-bench)
+    model_kwargs.setdefault("timeout", DEFAULT_LITELLM_TIMEOUT)
     if model_cfg.get("api_key"):
         model_kwargs["api_key"] = model_cfg["api_key"]
     if model_cfg.get("url"):
         model_kwargs["api_base"] = model_cfg["url"]
     model_class = "litellm"
-    if "openrouter" in (model_type or "").lower() or "openrouter" in (str(model_cfg.get("type", ""))).lower():
+    if (
+        "openrouter" in (model_type or "").lower()
+        or "openrouter" in (str(model_cfg.get("type", ""))).lower()
+    ):
         model_class = "openrouter"
     # Avoid cost-calculation errors for local/custom models (e.g. hosted_vllm) not in litellm price map
     model_dict = {
@@ -150,7 +155,9 @@ def _make_swebench_progress_manager(
             RunBatchProgressManager,
         )
 
-        run_batch_manager = RunBatchProgressManager(num_instances, yaml_report_path=None)
+        run_batch_manager = RunBatchProgressManager(
+            num_instances, yaml_report_path=None
+        )
         composite = _CompositeProgressManager(tsm_manager, run_batch_manager)
         return composite, run_batch_manager.render_group
     except ImportError:
@@ -240,7 +247,9 @@ class SWEBenchInferTask(BaseTask):
         existing_ids = set(existing_preds.keys())
         instances = [i for i in instances if i["instance_id"] not in existing_ids]
         if existing_ids:
-            self.logger.info("Reuse: skipping %d already-done instances", len(existing_ids))
+            self.logger.info(
+                "Reuse: skipping %d already-done instances", len(existing_ids)
+            )
         if not instances:
             self.logger.info("All instances already done, nothing to run.")
             return
@@ -269,7 +278,9 @@ class SWEBenchInferTask(BaseTask):
         our_config.setdefault("environment", {})["environment_class"] = "docker"
         base_config = recursive_merge(default_swebench_config, our_config)
         if dataset_cfg.get("step_limit") is not None:
-            base_config.setdefault("agent", {})["step_limit"] = dataset_cfg["step_limit"]
+            base_config.setdefault("agent", {})["step_limit"] = dataset_cfg[
+                "step_limit"
+            ]
         session_id = make_swebench_session_id()
         add_swebench_session_label_to_run_args(base_config, session_id)
 

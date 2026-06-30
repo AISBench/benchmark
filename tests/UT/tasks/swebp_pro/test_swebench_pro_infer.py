@@ -1,14 +1,16 @@
 """Unit tests for ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer"""
+
 import unittest
 import tempfile
 import os
 import sys
 import json
-import shutil
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
+)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -53,7 +55,24 @@ class TestGetMinisweagentConfig(unittest.TestCase):
     def test_includes_url_as_api_base(self):
         cfg = {"url": "https://api.example.com/v1"}
         result = self.infer_module._get_minisweagent_config(cfg)
-        self.assertEqual(result["model"]["model_kwargs"]["api_base"], "https://api.example.com/v1")
+        self.assertEqual(
+            result["model"]["model_kwargs"]["api_base"], "https://api.example.com/v1"
+        )
+
+    def test_sets_default_timeout(self):
+        """Default timeout should match DEFAULT_LITELLM_TIMEOUT (not LiteLLM default of 600s)."""
+        cfg = {}
+        result = self.infer_module._get_minisweagent_config(cfg)
+        self.assertEqual(
+            result["model"]["model_kwargs"]["timeout"],
+            self.infer_module.DEFAULT_LITELLM_TIMEOUT,
+        )
+
+    def test_user_timeout_overrides_default(self):
+        """User-specified timeout in generation_kwargs should override default of 200."""
+        cfg = {"generation_kwargs": {"timeout": 120}}
+        result = self.infer_module._get_minisweagent_config(cfg)
+        self.assertEqual(result["model"]["model_kwargs"]["timeout"], 120)
 
 
 class TestAISBenchProgressManager(unittest.TestCase):
@@ -114,7 +133,7 @@ class TestParseArgs(unittest.TestCase):
     def setUpClass(cls):
         cls.infer_module = infer_module
 
-    @patch('argparse.ArgumentParser.parse_args')
+    @patch("argparse.ArgumentParser.parse_args")
     def test_parses_config_argument(self, mock_parse):
         mock_parse.return_value = MagicMock(config="test_config.py", infer_kwargs="{}")
 
@@ -122,11 +141,10 @@ class TestParseArgs(unittest.TestCase):
 
         self.assertEqual(args.config, "test_config.py")
 
-    @patch('argparse.ArgumentParser.parse_args')
+    @patch("argparse.ArgumentParser.parse_args")
     def test_parses_infer_kwargs(self, mock_parse):
         mock_parse.return_value = MagicMock(
-            config="test_config.py",
-            infer_kwargs='{"key": "value"}'
+            config="test_config.py", infer_kwargs='{"key": "value"}'
         )
 
         args = self.infer_module.parse_args()
@@ -225,8 +243,12 @@ class TestSWEBenchProInferTask(unittest.TestCase):
         cls.infer_module = infer_module
 
     def test_get_command(self):
-        with patch.object(self.infer_module.SWEBenchProInferTask, '__init__', lambda self, cfg: None):
-            task = self.infer_module.SWEBenchProInferTask.__new__(self.infer_module.SWEBenchProInferTask)
+        with patch.object(
+            self.infer_module.SWEBenchProInferTask, "__init__", lambda self, cfg: None
+        ):
+            task = self.infer_module.SWEBenchProInferTask.__new__(
+                self.infer_module.SWEBenchProInferTask
+            )
             command = task.get_command("config_path.yaml", "python {task_cmd}")
             self.assertIn("python", command)
             self.assertIn("config_path.yaml", command)
@@ -239,14 +261,16 @@ class TestMakeSWEBenchProProgressManager(unittest.TestCase):
     def setUpClass(cls):
         cls.infer_module = infer_module
 
-    @patch('minisweagent.run.extra.utils.batch_progress.RunBatchProgressManager')
+    @patch("minisweagent.run.extra.utils.batch_progress.RunBatchProgressManager")
     def test_returns_composite_manager(self, mock_rbpm_class):
         mock_tsm = MagicMock()
         mock_rbpm = MagicMock()
         mock_rbpm_class.return_value = mock_rbpm
         mock_rbpm.render_group = "render_group"
 
-        manager, render_group = self.infer_module._make_swebench_pro_progress_manager(mock_tsm, 10, Path("out_dir"))
+        manager, render_group = self.infer_module._make_swebench_pro_progress_manager(
+            mock_tsm, 10, Path("out_dir")
+        )
 
         self.assertIsNotNone(manager)
         self.assertEqual(render_group, "render_group")
@@ -254,10 +278,17 @@ class TestMakeSWEBenchProProgressManager(unittest.TestCase):
     def test_handles_import_error(self):
         mock_tsm = MagicMock()
 
-        with patch.dict(sys.modules, {
-            'minisweagent.run.extra.utils.batch_progress': None,
-        }):
-            manager, render_group = self.infer_module._make_swebench_pro_progress_manager(mock_tsm, 10, "out_dir")
+        with patch.dict(
+            sys.modules,
+            {
+                "minisweagent.run.extra.utils.batch_progress": None,
+            },
+        ):
+            manager, render_group = (
+                self.infer_module._make_swebench_pro_progress_manager(
+                    mock_tsm, 10, "out_dir"
+                )
+            )
 
         self.assertIsNotNone(manager)
         self.assertIsNone(render_group)
@@ -303,31 +334,60 @@ class TestSWEBenchProInferTaskRun(unittest.TestCase):
     def setUpClass(cls):
         cls.infer_module = infer_module
 
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.cleanup_swebench_pro_containers')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.ensure_swebench_pro_docker_images')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer._make_swebench_pro_progress_manager')
-    @patch('yaml.safe_load')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.get_infer_output_path')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.build_dataset_from_cfg')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.model_abbr_from_cfg')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.task_abbr_from_cfg')
-    @patch('concurrent.futures.ThreadPoolExecutor')
-    @patch('concurrent.futures.as_completed')
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.cleanup_swebench_pro_containers"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.ensure_swebench_pro_docker_images"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer._make_swebench_pro_progress_manager"
+    )
+    @patch("yaml.safe_load")
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.get_infer_output_path"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.build_dataset_from_cfg"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.model_abbr_from_cfg"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.task_abbr_from_cfg"
+    )
+    @patch("concurrent.futures.ThreadPoolExecutor")
+    @patch("concurrent.futures.as_completed")
     def test_run_all_instances_done(
-        self, mock_as_completed, mock_executor_class, mock_task_abbr, mock_model_abbr,
-        mock_build_dataset, mock_get_output_path, mock_yaml_load,
-        mock_make_progress, mock_ensure_images, mock_cleanup
+        self,
+        mock_as_completed,
+        mock_executor_class,
+        mock_task_abbr,
+        mock_model_abbr,
+        mock_build_dataset,
+        mock_get_output_path,
+        mock_yaml_load,
+        mock_make_progress,
+        mock_ensure_images,
+        mock_cleanup,
     ):
         with tempfile.TemporaryDirectory() as tmpdir:
             cfg = MagicMock()
             cfg.cli_args = {"debug": False}
             cfg.work_dir = tmpdir
 
-            task = self.infer_module.SWEBenchProInferTask.__new__(self.infer_module.SWEBenchProInferTask)
+            task = self.infer_module.SWEBenchProInferTask.__new__(
+                self.infer_module.SWEBenchProInferTask
+            )
             task.cfg = cfg
             task.work_dir = tmpdir
             task.logger = MagicMock()
-            task.model_cfg = {"type": "test", "model": "test-model", "api_key": "test-key", "url": "http://test"}
+            task.model_cfg = {
+                "type": "test",
+                "model": "test-model",
+                "api_key": "test-key",
+                "url": "http://test",
+            }
             task.dataset_cfgs = [{}]
 
             mock_model_abbr.return_value = "model1"
@@ -350,29 +410,55 @@ class TestSWEBenchProInferTaskRun(unittest.TestCase):
 
             task.run(task_state_manager)
 
-            task.logger.info.assert_any_call("All instances already done, nothing to run.")
+            task.logger.info.assert_any_call(
+                "All instances already done, nothing to run."
+            )
 
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.cleanup_swebench_pro_containers')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.ensure_swebench_pro_docker_images')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer._make_swebench_pro_progress_manager')
-    @patch('yaml.safe_load')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.get_infer_output_path')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.build_dataset_from_cfg')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.model_abbr_from_cfg')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.task_abbr_from_cfg')
-    @patch('concurrent.futures.ThreadPoolExecutor')
-    @patch('concurrent.futures.as_completed')
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.cleanup_swebench_pro_containers"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.ensure_swebench_pro_docker_images"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer._make_swebench_pro_progress_manager"
+    )
+    @patch("yaml.safe_load")
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.get_infer_output_path"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.build_dataset_from_cfg"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.model_abbr_from_cfg"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.task_abbr_from_cfg"
+    )
+    @patch("concurrent.futures.ThreadPoolExecutor")
+    @patch("concurrent.futures.as_completed")
     def test_run_no_model_set(
-        self, mock_as_completed, mock_executor_class, mock_task_abbr, mock_model_abbr,
-        mock_build_dataset, mock_get_output_path, mock_yaml_load,
-        mock_make_progress, mock_ensure_images, mock_cleanup
+        self,
+        mock_as_completed,
+        mock_executor_class,
+        mock_task_abbr,
+        mock_model_abbr,
+        mock_build_dataset,
+        mock_get_output_path,
+        mock_yaml_load,
+        mock_make_progress,
+        mock_ensure_images,
+        mock_cleanup,
     ):
         with tempfile.TemporaryDirectory() as tmpdir:
             cfg = MagicMock()
             cfg.cli_args = {"debug": False}
             cfg.work_dir = tmpdir
 
-            task = self.infer_module.SWEBenchProInferTask.__new__(self.infer_module.SWEBenchProInferTask)
+            task = self.infer_module.SWEBenchProInferTask.__new__(
+                self.infer_module.SWEBenchProInferTask
+            )
             task.cfg = cfg
             task.work_dir = tmpdir
             task.logger = MagicMock()
@@ -395,43 +481,74 @@ class TestSWEBenchProInferTaskRun(unittest.TestCase):
             with self.assertRaises(Exception):
                 task.run(task_state_manager)
 
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.cleanup_swebench_pro_containers')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.ensure_swebench_pro_docker_images')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer._make_swebench_pro_progress_manager')
-    @patch('yaml.safe_load')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.get_infer_output_path')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.build_dataset_from_cfg')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.model_abbr_from_cfg')
-    @patch('ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.task_abbr_from_cfg')
-    @patch('concurrent.futures.ThreadPoolExecutor')
-    @patch('concurrent.futures.as_completed')
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.cleanup_swebench_pro_containers"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.ensure_swebench_pro_docker_images"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer._make_swebench_pro_progress_manager"
+    )
+    @patch("yaml.safe_load")
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.get_infer_output_path"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.build_dataset_from_cfg"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.model_abbr_from_cfg"
+    )
+    @patch(
+        "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer.task_abbr_from_cfg"
+    )
+    @patch("concurrent.futures.ThreadPoolExecutor")
+    @patch("concurrent.futures.as_completed")
     def test_run_with_instances(
-        self, mock_as_completed, mock_executor_class, mock_task_abbr, mock_model_abbr,
-        mock_build_dataset, mock_get_output_path, mock_yaml_load,
-        mock_make_progress, mock_ensure_images, mock_cleanup
+        self,
+        mock_as_completed,
+        mock_executor_class,
+        mock_task_abbr,
+        mock_model_abbr,
+        mock_build_dataset,
+        mock_get_output_path,
+        mock_yaml_load,
+        mock_make_progress,
+        mock_ensure_images,
+        mock_cleanup,
     ):
         with tempfile.TemporaryDirectory() as tmpdir:
             cfg = MagicMock()
             cfg.cli_args = {"debug": False}
             cfg.work_dir = tmpdir
 
-            task = self.infer_module.SWEBenchProInferTask.__new__(self.infer_module.SWEBenchProInferTask)
+            task = self.infer_module.SWEBenchProInferTask.__new__(
+                self.infer_module.SWEBenchProInferTask
+            )
             task.cfg = cfg
             task.work_dir = tmpdir
             task.logger = MagicMock()
-            task.model_cfg = {"type": "test", "model": "test-model", "api_key": "test-key", "batch_size": 1}
+            task.model_cfg = {
+                "type": "test",
+                "model": "test-model",
+                "api_key": "test-key",
+                "batch_size": 1,
+            }
             task.dataset_cfgs = [{}]
 
             mock_model_abbr.return_value = "model1"
             mock_task_abbr.return_value = "task1"
 
             mock_dataset = MagicMock()
-            mock_dataset.test = [{
-                "instance_id": "id1",
-                "problem_statement": "test problem",
-                "repo": "test/repo",
-                "base_commit": "abc123"
-            }]
+            mock_dataset.test = [
+                {
+                    "instance_id": "id1",
+                    "problem_statement": "test problem",
+                    "repo": "test/repo",
+                    "base_commit": "abc123",
+                }
+            ]
             mock_build_dataset.return_value = mock_dataset
 
             mock_get_output_path.return_value = os.path.join(tmpdir, "preds.json")
@@ -458,5 +575,5 @@ class TestSWEBenchProInferTaskRun(unittest.TestCase):
             mock_executor_class.assert_called_once()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
