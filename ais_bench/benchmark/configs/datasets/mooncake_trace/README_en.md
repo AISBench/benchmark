@@ -129,7 +129,6 @@ When using `hash_ids`, `input_length` must satisfy:
      - **Explicitly specifying a path**: The specified path is used as the cache file path (relative paths are resolved against the project root, absolute paths are used as-is). Runtime behavior:
        - If the specified cache file **exists**: it is loaded directly as the dataset; prompts are **NOT** generated from the JSONL pointed to by `path`, which significantly speeds up loading and avoids regeneration
        - If the specified cache file **does not exist**: prompts are generated from the JSONL pointed to by `path` as usual, and the result is persisted to the specified path
-   - When fixed_schedule parameters are used, the cache filename includes them so different settings use different caches
    - If the cache file exists, it is loaded and prompt generation is skipped
    - Delete the cache file to regenerate
 
