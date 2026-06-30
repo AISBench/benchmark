@@ -7,7 +7,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 if PROJECT_ROOT not in sys.path:
@@ -579,42 +579,162 @@ class TestCleanSwebenchProImages(unittest.TestCase):
                 mock_logger.debug.assert_called_once()
 
 
-class TestCleanupSwebenchProContainers(unittest.TestCase):
+class TestSwebenchProContainerCleanup(unittest.TestCase):
+    """Session-scoped container cleanup tests (mirror swebench session isolation)."""
+
     @classmethod
     def setUpClass(cls):
         cls.utils = utils_module
 
-    @patch('subprocess.run')
-    def test_cleanup_containers_success(self, mock_run):
-        mock_result1 = MagicMock()
-        mock_result1.returncode = 0
-        mock_result1.stdout = "container1\ncontainer2\n"
-        mock_result2 = MagicMock()
-        mock_result2.returncode = 0
-        mock_result2.stdout = ""
-        mock_run.side_effect = [mock_result1, MagicMock(), mock_result2]
+    def test_list_swebench_pro_container_ids_queries_session_label(self):
+        result = subprocess.CompletedProcess(args=[], returncode=0, stdout="one\ntwo\n")
 
-        self.utils.cleanup_swebench_pro_containers()
-        self.assertEqual(mock_run.call_count, 3)
+        with patch.object(utils_module.subprocess, "run", return_value=result) as mock_run:
+            container_ids = self.utils.list_swebench_pro_container_ids("session-1")
 
-    @patch('subprocess.run')
-    def test_cleanup_no_containers(self, mock_run):
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = ""
-        mock_run.return_value = mock_result
+        self.assertEqual(container_ids, {"one", "two"})
+        self.assertEqual(
+            mock_run.call_args_list,
+            [
+                call(
+                    [
+                        "docker",
+                        "ps",
+                        "-aq",
+                        "--filter",
+                        f"label={utils_module.SWEBENCH_PRO_SESSION_LABEL}=session-1",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                ),
+            ],
+        )
 
-        self.utils.cleanup_swebench_pro_containers()
+    def test_list_swebench_pro_container_ids_without_session_is_empty(self):
+        with patch.object(utils_module.subprocess, "run", MagicMock()) as mock_run:
+            container_ids = self.utils.list_swebench_pro_container_ids()
 
-    @patch('subprocess.run')
-    def test_cleanup_handles_docker_not_found(self, mock_run):
-        mock_run.side_effect = FileNotFoundError("docker not found")
-        self.utils.cleanup_swebench_pro_containers()
+        self.assertEqual(container_ids, set())
+        mock_run.assert_not_called()
 
-    @patch('subprocess.run')
-    def test_cleanup_handles_timeout(self, mock_run):
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="docker", timeout=10)
-        self.utils.cleanup_swebench_pro_containers()
+    def test_cleanup_removes_only_session_tagged_ids(self):
+        # Simulate docker CLI: ``docker ps`` returns container IDs tagged with
+        # the session label, ``docker rm -f`` removes them.
+        def fake_run(cmd, **kwargs):
+            if "ps" in cmd:
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=0, stdout="session-a\nsession-b\n", stderr=""
+                )
+            if "rm" in cmd:
+                return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+        with patch.object(utils_module.subprocess, "run", side_effect=fake_run) as mock_run:
+            self.utils.cleanup_swebench_pro_containers(session_id="session-1")
+
+        # docker ps (list) + docker rm -f (cleanup)
+        self.assertEqual(mock_run.call_count, 2)
+        rm_call = mock_run.call_args_list[1]
+        self.assertEqual(
+            rm_call,
+            call(
+                ["docker", "rm", "-f", "session-a", "session-b"],
+                capture_output=True,
+                timeout=30,
+            ),
+        )
+
+    def test_cleanup_without_recorded_or_session_ids_is_noop(self):
+        with patch.object(utils_module.subprocess, "run", MagicMock()) as mock_run:
+            self.utils.cleanup_swebench_pro_containers()
+
+        mock_run.assert_not_called()
+
+    def test_cleanup_handles_docker_not_found(self):
+        def fake_run(cmd, **kwargs):
+            if "ps" in cmd:
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=0, stdout="c1\n", stderr=""
+                )
+            if "rm" in cmd:
+                raise FileNotFoundError("docker not found")
+
+        with patch.object(utils_module.subprocess, "run", side_effect=fake_run):
+            # Should not raise even when docker rm fails with FileNotFoundError.
+            self.utils.cleanup_swebench_pro_containers(session_id="session-1")
+
+    def test_cleanup_handles_timeout(self):
+        def fake_run(cmd, **kwargs):
+            if "ps" in cmd:
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=0, stdout="c1\n", stderr=""
+                )
+            if "rm" in cmd:
+                raise subprocess.TimeoutExpired(cmd="docker", timeout=30)
+
+        with patch.object(utils_module.subprocess, "run", side_effect=fake_run):
+            # Should not raise even when docker rm times out.
+            self.utils.cleanup_swebench_pro_containers(session_id="session-1")
+
+    def test_add_session_label_to_run_args_preserves_existing_args(self):
+        config = {"environment": {"run_args": ["--rm", "--network", "none"]}}
+
+        self.utils.add_swebench_pro_session_label_to_run_args(config, "session-1")
+
+        self.assertEqual(
+            config["environment"]["run_args"],
+            [
+                "--rm",
+                "--network",
+                "none",
+                "--label",
+                f"{utils_module.SWEBENCH_PRO_SESSION_LABEL}=session-1",
+            ],
+        )
+
+    def test_add_session_label_to_run_args_defaults_run_args(self):
+        config = {}
+        self.utils.add_swebench_pro_session_label_to_run_args(config, "session-1")
+        self.assertEqual(
+            config["environment"]["run_args"],
+            ["--rm", "--label", f"{utils_module.SWEBENCH_PRO_SESSION_LABEL}=session-1"],
+        )
+
+    def test_docker_client_wrapper_adds_session_label_without_changing_name(self):
+        client = MagicMock()
+        wrapped = self.utils.add_swebench_pro_session_label_to_docker_client(
+            client,
+            "session-1",
+        )
+
+        wrapped.containers.run(
+            "image",
+            name="default-name",
+            labels={"existing": "value"},
+        )
+
+        client.containers.run.assert_called_once_with(
+            "image",
+            name="default-name",
+            labels={
+                "existing": "value",
+                utils_module.SWEBENCH_PRO_SESSION_LABEL: "session-1",
+            },
+        )
+
+    def test_docker_client_wrapper_passes_through_other_attrs(self):
+        client = MagicMock()
+        wrapped = self.utils.add_swebench_pro_session_label_to_docker_client(
+            client, "session-1"
+        )
+        # ``images`` and other APIs are not containers; ensure they pass through.
+        _ = wrapped.images
+        client.images.__getattr__  # attribute exists on mock
+        self.assertIs(wrapped.images, client.images)
+
+    def test_make_swebench_pro_session_id_is_unique(self):
+        ids = {self.utils.make_swebench_pro_session_id() for _ in range(100)}
+        self.assertEqual(len(ids), 100)
 
 
 class TestCollectOutputsLocal(unittest.TestCase):

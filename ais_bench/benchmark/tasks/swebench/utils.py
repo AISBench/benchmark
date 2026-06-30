@@ -26,7 +26,7 @@ def make_swebench_session_id() -> str:
     return uuid.uuid4().hex
 
 
-def _merge_docker_labels(labels, session_id: str) -> dict:
+def _merge_docker_labels(labels, session_id: str, label_key: str = SWEBENCH_SESSION_LABEL) -> dict:
     """Merge session label into Docker labels dict.
 
     Docker SDK ``containers.create/run(labels=...)`` expects a mapping
@@ -43,19 +43,21 @@ def _merge_docker_labels(labels, session_id: str) -> dict:
                 merged[k] = v
     else:
         merged = {}
-    merged[SWEBENCH_SESSION_LABEL] = session_id
+    merged[label_key] = session_id
     return merged
 
 
 class _DockerContainersWithSessionLabel:
-    def __init__(self, containers, session_id: str):
+    def __init__(self, containers, session_id: str, label_key: str = SWEBENCH_SESSION_LABEL):
         self._containers = containers
         self._session_id = session_id
+        self._label_key = label_key
 
     def create(self, *args, **kwargs):
         kwargs["labels"] = _merge_docker_labels(
             kwargs.get("labels"),
             self._session_id,
+            self._label_key,
         )
         return self._containers.create(*args, **kwargs)
 
@@ -63,6 +65,7 @@ class _DockerContainersWithSessionLabel:
         kwargs["labels"] = _merge_docker_labels(
             kwargs.get("labels"),
             self._session_id,
+            self._label_key,
         )
         return self._containers.run(*args, **kwargs)
 
@@ -71,23 +74,24 @@ class _DockerContainersWithSessionLabel:
 
 
 class _DockerClientWithSessionLabel:
-    def __init__(self, client, session_id: str):
+    def __init__(self, client, session_id: str, label_key: str = SWEBENCH_SESSION_LABEL):
         self._client = client
         self.containers = _DockerContainersWithSessionLabel(
             client.containers,
             session_id,
+            label_key,
         )
 
     def __getattr__(self, name):
         return getattr(self._client, name)
 
 
-def add_swebench_session_label_to_docker_client(client, session_id: str):
+def add_swebench_session_label_to_docker_client(client, session_id: str, label_key: str = SWEBENCH_SESSION_LABEL):
     """Return a Docker client wrapper that labels containers it creates."""
-    return _DockerClientWithSessionLabel(client, session_id)
+    return _DockerClientWithSessionLabel(client, session_id, label_key)
 
 
-def list_swebench_container_ids(session_id: Optional[str] = None) -> Set[str]:
+def list_swebench_container_ids(session_id: Optional[str] = None, label_key: str = SWEBENCH_SESSION_LABEL) -> Set[str]:
     """Return Docker container IDs tagged for one SWE-bench task session."""
     if not session_id:
         return set()
@@ -100,7 +104,7 @@ def list_swebench_container_ids(session_id: Optional[str] = None) -> Set[str]:
                 "ps",
                 "-aq",
                 "--filter",
-                f"label={SWEBENCH_SESSION_LABEL}={session_id}",
+                f"label={label_key}={session_id}",
             ],
             capture_output=True,
             text=True,
@@ -123,10 +127,11 @@ def cleanup_swebench_containers(
     *,
     container_ids: Optional[Iterable[str]] = None,
     session_id: Optional[str] = None,
+    label_key: str = SWEBENCH_SESSION_LABEL,
 ):
     """Stop and remove containers created by the current SWE-bench task."""
     targets = set(container_ids or [])
-    targets.update(list_swebench_container_ids(session_id))
+    targets.update(list_swebench_container_ids(session_id, label_key))
     targets = sorted(targets)
     if not targets:
         return
@@ -144,11 +149,11 @@ def cleanup_swebench_containers(
         _logger.warning("Unexpected error removing containers", exc_info=True)
 
 
-def add_swebench_session_label_to_run_args(config: dict, session_id: str) -> None:
+def add_swebench_session_label_to_run_args(config: dict, session_id: str, label_key: str = SWEBENCH_SESSION_LABEL) -> None:
     """Add this task's Docker label to mini-swe-agent Docker run args."""
     environment = config.setdefault("environment", {})
     run_args = list(environment.get("run_args", ["--rm"]))
-    label_flag = f"{SWEBENCH_SESSION_LABEL}={session_id}"
+    label_flag = f"{label_key}={session_id}"
     if label_flag not in run_args:
         run_args.extend(["--label", label_flag])
     environment["run_args"] = run_args

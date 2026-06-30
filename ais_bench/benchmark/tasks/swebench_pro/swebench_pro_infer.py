@@ -28,9 +28,11 @@ from ais_bench.benchmark.utils.logging.exceptions import (
     AISBenchValueError,
 )
 from ais_bench.benchmark.tasks.swebench_pro.utils import (
+    add_swebench_pro_session_label_to_run_args,
     cleanup_swebench_pro_containers,
     ensure_swebench_pro_docker_images,
     get_dockerhub_image_uri,
+    make_swebench_pro_session_id,
     merge_nested_dicts,
     build_problem_statement,
     sanitize_config_for_logging,
@@ -282,6 +284,10 @@ class SWEBenchProInferTask(BaseTask):
             base_config.setdefault("agent", {})["step_limit"] = dataset_cfg[
                 "step_limit"
             ]
+
+        session_id = make_swebench_pro_session_id()
+        add_swebench_pro_session_label_to_run_args(base_config, session_id)
+
         self.logger.info("base_config '%s'", sanitize_config_for_logging(base_config))
 
         progress_manager, live_render_group = _make_swebench_pro_progress_manager(
@@ -369,13 +375,13 @@ class SWEBenchProInferTask(BaseTask):
                     for future in futures:
                         if not future.running() and not future.done():
                             future.cancel()
-                    cleanup_swebench_pro_containers()
+                    cleanup_swebench_pro_containers(session_id=session_id)
                     executor.shutdown(wait=False)
                     raise
             finally:
                 if not interrupted[0]:
                     executor.shutdown(wait=True)
-                cleanup_swebench_pro_containers()
+                cleanup_swebench_pro_containers(session_id=session_id)
 
         if live_render_group is not None:
             from rich.live import Live
