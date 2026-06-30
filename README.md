@@ -152,9 +152,6 @@ pip3 install ais_bench_benchmark
 pip3 install ais_bench_benchmark[full]
 ```
 
-
-如需进一步配置、使用 CLI 或 Python 脚本发起评测任务，请参考[快速入门指南](#快速入门)。
-
 ## ❌ 工具卸载
 
 如需卸载 AISBench Benchmark，可执行以下命令：

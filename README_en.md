@@ -153,9 +153,6 @@ pip3 install ais_bench_benchmark[full]
 ```
 
 
-For further configuration or to initiate evaluation tasks using CLI or Python scripts, refer to the [Quick Start Guide](#quick-start).
-
-
 ## ❌ Tool Uninstallation
 To uninstall AISBench Benchmark, execute the following command:
 ```shell
