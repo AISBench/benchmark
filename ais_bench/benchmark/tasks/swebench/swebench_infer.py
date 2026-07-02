@@ -6,9 +6,8 @@ import os.path as osp
 import sys
 import threading
 import time
-import shutil
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from mmengine.config import Config, ConfigDict
 from mmengine.utils import mkdir_or_exist
@@ -28,9 +27,12 @@ from ais_bench.benchmark.utils.logging.exceptions import (
     AISBenchValueError,
 )
 from ais_bench.benchmark.tasks.swebench.utils import (
-    cleanup_swebench_containers,
     DATASET_MAPPING,
+    DEFAULT_LITELLM_TIMEOUT,
+    add_swebench_session_label_to_run_args,
+    cleanup_swebench_containers,
     ensure_swebench_docker_images,
+    make_swebench_session_id,
 )
 
 
@@ -40,19 +42,23 @@ def _get_minisweagent_config(model_cfg: ConfigDict) -> dict:
     # LiteLLM requires provider prefix (e.g. hosted_vllm/qwen3) for custom API; add it when url is set and name has no /
     if model_cfg.get("url") and model_name:
         model_name = f"hosted_vllm/{model_name}"
-    model_type = (
-        getattr(model_cfg.get("type"), "__name__", None)
-        or (model_cfg.get("type", "") if isinstance(model_cfg.get("type"), str) else "")
+    model_type = getattr(model_cfg.get("type"), "__name__", None) or (
+        model_cfg.get("type", "") if isinstance(model_cfg.get("type"), str) else ""
     )
     if isinstance(model_type, str):
         model_type = model_type.split(".")[-1]
     model_kwargs = dict(model_cfg.get("generation_kwargs", {}))
+    # Set default inference timeout (LiteLLM default is 600s, too long for SWE-bench)
+    model_kwargs.setdefault("timeout", DEFAULT_LITELLM_TIMEOUT)
     if model_cfg.get("api_key"):
         model_kwargs["api_key"] = model_cfg["api_key"]
     if model_cfg.get("url"):
         model_kwargs["api_base"] = model_cfg["url"]
     model_class = "litellm"
-    if "openrouter" in (model_type or "").lower() or "openrouter" in (str(model_cfg.get("type", ""))).lower():
+    if (
+        "openrouter" in (model_type or "").lower()
+        or "openrouter" in (str(model_cfg.get("type", ""))).lower()
+    ):
         model_class = "openrouter"
     # Avoid cost-calculation errors for local/custom models (e.g. hosted_vllm) not in litellm price map
     model_dict = {
@@ -148,9 +154,10 @@ def _make_swebench_progress_manager(
         from minisweagent.run.benchmarks.utils.batch_progress import (
             RunBatchProgressManager,
         )
-        from rich.live import Live
 
-        run_batch_manager = RunBatchProgressManager(num_instances, yaml_report_path=None)
+        run_batch_manager = RunBatchProgressManager(
+            num_instances, yaml_report_path=None
+        )
         composite = _CompositeProgressManager(tsm_manager, run_batch_manager)
         return composite, run_batch_manager.render_group
     except ImportError:
@@ -192,8 +199,8 @@ class SWEBenchInferTask(BaseTask):
         except ImportError as e:
             raise AISBenchImportError(
                 SWEB_CODES.MINISWEAGENT_IMPORT_ERROR,
-                "SWEBenchInferTask requires mini-swe-agent. "
-                "Install with: pip install mini-swe-agent"
+                "SWEBenchInferTask requires mini-swe-agent (AISBench fork). "
+                "Install from: https://github.com/AISBench/mini-swe-agent",
             ) from e
 
         dataset_cfg = self.dataset_cfgs[0]
@@ -215,7 +222,6 @@ class SWEBenchInferTask(BaseTask):
             osp.join(self.work_dir, self.output_subdir),
             file_extension="json",
         )
-
 
         out_dir = Path(osp.splitext(out_path)[0])
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -241,7 +247,9 @@ class SWEBenchInferTask(BaseTask):
         existing_ids = set(existing_preds.keys())
         instances = [i for i in instances if i["instance_id"] not in existing_ids]
         if existing_ids:
-            self.logger.info("Reuse: skipping %d already-done instances", len(existing_ids))
+            self.logger.info(
+                "Reuse: skipping %d already-done instances", len(existing_ids)
+            )
         if not instances:
             self.logger.info("All instances already done, nothing to run.")
             return
@@ -264,12 +272,17 @@ class SWEBenchInferTask(BaseTask):
                 "No model set for SWEBench infer. In your config (e.g. swe_bench_lite.py), set "
                 "models[0]['model'], models[0]['url'], and models[0]['api_key']. "
                 "Example for local vLLM: model='hosted_vllm/qwen3', url='http://127.0.0.1:2998/v1', api_key='EMPTY'. "
-                "Or run: mini-extra config setup (to use mini-swe-agent defaults)."
+                "Or install AISBench's mini-swe-agent fork: "
+                "https://github.com/AISBench/mini-swe-agent",
             )
         our_config.setdefault("environment", {})["environment_class"] = "docker"
         base_config = recursive_merge(default_swebench_config, our_config)
         if dataset_cfg.get("step_limit") is not None:
-            base_config.setdefault("agent", {})["step_limit"] = dataset_cfg["step_limit"]
+            base_config.setdefault("agent", {})["step_limit"] = dataset_cfg[
+                "step_limit"
+            ]
+        session_id = make_swebench_session_id()
+        add_swebench_session_label_to_run_args(base_config, session_id)
 
         progress_manager, live_render_group = _make_swebench_progress_manager(
             task_state_manager, len(instances)
@@ -328,14 +341,14 @@ class SWEBenchInferTask(BaseTask):
                         if not future.running() and not future.done():
                             future.cancel()
                     # Best-effort cleanup of any remaining mini-swe-agent containers when user interrupts.
-                    cleanup_swebench_containers()
+                    cleanup_swebench_containers(session_id=session_id)
                     executor.shutdown(wait=False)
                     raise
             finally:
                 if not interrupted[0]:
                     executor.shutdown(wait=True)
                 # After all work is done (normal or interrupted), attempt one more cleanup.
-                cleanup_swebench_containers()
+                cleanup_swebench_containers(session_id=session_id)
 
         if live_render_group is not None:
             from rich.live import Live

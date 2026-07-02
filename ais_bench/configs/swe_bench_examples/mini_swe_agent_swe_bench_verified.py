@@ -15,7 +15,14 @@ models = [
         api_key="EMPTY",
         url="http://127.0.0.1:8000/v1",  # API base, e.g. http://127.0.0.1:8000/v1
         batch_size=1,
-        generation_kwargs=dict(),
+        generation_kwargs=dict(
+            # Supports arbitrary generation parameters, consistent with regular model tasks.
+            # Common parameters include temperature, top_p, top_k, timeout, etc.
+            # temperature=0.0,   # Set 0 for deterministic output; omit or set >0 for diversity
+            # top_p=1.0,
+            # top_k=-1,
+            # timeout=200,       # Inference timeout in seconds
+        ),
     )
 ]
 

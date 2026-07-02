@@ -19,6 +19,12 @@ models = [
                 "input_cost_per_token": 0.0,
                 "output_cost_per_token": 0.0,
             },
+            "llm_call_kwargs": { # LLM调用参数
+                "max_tokens": 4096, # 最大输出token数
+                # "temperature": 0.7,
+                # "top_p": 0.9,
+                # "top_k": 50,
+            },
         },
         agent_env=None,  # --ae/--agent-env: 传递给agent的环境变量
     )

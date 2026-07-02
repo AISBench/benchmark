@@ -4,9 +4,28 @@ import re
 from typing import Callable, Iterable, TypeVar
 import json
 
+import copy
+
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import SWEBP_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError, AISBenchImportError
+
+
+def sanitize_config_for_logging(config: dict) -> dict:
+    """Deep-copy a config dict and mask sensitive fields (e.g. api_key) for safe logging."""
+    SENSITIVE_KEYS = {"api_key"}
+
+    def _mask(obj):
+        if isinstance(obj, dict):
+            return {
+                k: "***" if k in SENSITIVE_KEYS else _mask(v)
+                for k, v in obj.items()
+            }
+        if isinstance(obj, list):
+            return [_mask(v) for v in obj]
+        return obj
+
+    return _mask(copy.deepcopy(config))
 
 
 def cleanup_swebench_pro_containers():

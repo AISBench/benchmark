@@ -75,7 +75,7 @@ The (default) `~/.cache/vbench/` should at least contain:
 - **Tag2Text Scene Description Model**
   - **Path**: `caption_model/tag2text_swin_14m.pth`
   - **Used by**: `scene`
-  - **Source**: `https://huggingface.co/spaces/xinyu1205/recognize-anything/resolve/main/tag2text_swin_14m.pth`
+  - **Source**: `https://huggingface.co/xinyu1205/recognize_anything_model/resolve/main/tag2text_swin_14m.pth`
 
 - **ViCLIP Video-Text Model + BPE Vocab**
   - **Paths**:
@@ -356,7 +356,7 @@ wget -O "$CACHE_DIR/grit_model/grit_b_densecap_objectdet.pth" \
 - **Used by**: `scene`
 - **Target Path**: `caption_model/tag2text_swin_14m.pth`
 - **Official Download Link**:
-  - Original: `https://huggingface.co/spaces/xinyu1205/recognize-anything/resolve/main/tag2text_swin_14m.pth`
+  - Original: `https://huggingface.co/xinyu1205/recognize_anything_model/resolve/main/tag2text_swin_14m.pth`
 - **Command-line Example**:
 
 ```bash
@@ -364,7 +364,7 @@ export CACHE_DIR=${VBENCH_CACHE_DIR:-$HOME/.cache/vbench}
 mkdir -p "$CACHE_DIR/caption_model"
 
 wget -O "$CACHE_DIR/caption_model/tag2text_swin_14m.pth" \
-  "https://huggingface.co/spaces/xinyu1205/recognize-anything/resolve/main/tag2text_swin_14m.pth"
+  "https://huggingface.co/xinyu1205/recognize_anything_model/resolve/main/tag2text_swin_14m.pth"
 ```
 
 - **Browser Method**: After downloading, move to `$CACHE_DIR/caption_model/tag2text_swin_14m.pth`.
