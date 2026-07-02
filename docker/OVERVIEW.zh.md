@@ -22,7 +22,7 @@
 
 ### AISBench Benchmark
 AISBench Benchmark 是基于 [OpenCompass](https://github.com/open-compass/opencompass) 构建的模型评测工具，兼容 OpenCompass 的配置体系、数据集结构与模型后端实现，并在此基础上扩展了对服务化模型的支持能力。
-> ⚠️注意：AISBench Benchmark的镜像只支持服务化模型的评测，不支持离线推理模型的评测。当前也不支持SWE-Bench、terminal-bench 2等测评过程中需要启动独立沙箱环境的测评常见
+> ⚠️注意：AISBench Benchmark 镜像主要用于服务化模型评测，不支持离线推理模型评测。镜像内未内置 SWE-Bench、terminal-bench 2 等需要独立沙箱环境的测评流程，但已预装 Docker Engine（>= 20.0）与 Docker Compose v2（>= 2.0.0），用户可手动启动嵌套容器运行这些测评。详见[使用预装 Docker](#使用预装-docker适用于沙箱类测评)。
 
 ## 镜像 Tag 说明及 Dockerfile 归档路径
 
@@ -105,6 +105,77 @@ for dir in /datasets/*; do name=$(basename "$dir"); ln -s "$dir" "/benchmark/ais
 ```
 ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_string --search
 ```
+
+#### 使用预装 Docker（适用于沙箱类测评）
+
+镜像内置 Docker Engine（>= 20.0）与 Docker Compose v2（>= 2.0.0），二进制位于 `/usr/local/bin/`，可用于 terminal-bench 2、SWE-Bench 等需要嵌套容器的测评场景。Docker daemon **不会自动启动**，需以特权模式启动容器并在容器内手动启动 `dockerd`。
+
+**步骤一：以 Docker-in-Docker 模式启动容器**
+
+```bash
+# 必须使用 --privileged，否则 dockerd 无法创建网络命名空间、挂载 cgroup 等
+# 若需要完全隔离的嵌套容器，不要挂载宿主机的 /var/run/docker.sock
+docker run --name ais_bench_container -it -d \
+    --net=host \
+    --ipc=host \
+    --privileged \
+    -w /benchmark \
+    -v /data/datasets:/datasets \
+    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+    bash
+```
+
+**步骤二：在容器内启动 dockerd**
+
+```bash
+docker exec -it --privileged ais_bench_container /bin/bash
+
+# DinD 场景推荐使用 vfs 存储驱动以获得最大兼容性（性能较差但通用）
+# 若宿主内核支持，改用 overlay2 性能更好
+nohup dockerd --storage-driver=vfs > /tmp/dockerd.log 2>&1 &
+
+# 等待 daemon socket 就绪
+for i in $(seq 1 30); do
+    [ -S /var/run/docker.sock ] && break
+    sleep 1
+done
+
+# 验证
+docker info
+docker --version
+docker compose version
+```
+
+**步骤三：运行嵌套容器工作负载**
+
+```bash
+# 在 dockerd 已启动的容器内执行
+docker pull alpine:latest
+docker run --rm alpine:latest echo "Hello from a nested container"
+
+# 或运行 docker compose v2 工作负载
+cat > /tmp/docker-compose.yml <<'EOF'
+services:
+  hello:
+    image: alpine:latest
+    command: echo "compose v2 works"
+EOF
+docker compose -f /tmp/docker-compose.yml up
+```
+
+**注意事项**
+
+- `--privileged` 是必需的，否则 `dockerd` 启动会失败。
+- `vfs` 是 DinD 通用性最高的存储驱动；若宿主内核与容器根文件系统支持，使用 `overlay2`（`--storage-driver=overlay2`）性能更好，但仍需 `--privileged`。
+- 如果只想让容器内的 `docker` 命令与**宿主机** daemon 通信（而不是真正的嵌套容器），挂载宿主机 socket 即可，无需启动 dockerd：
+  ```bash
+  docker run --name ais_bench_container -it -d \
+      --net=host \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+      bash
+  ```
+- 对于长时间运行的 DinD 场景，建议通过 `/etc/docker/daemon.json` 调优 `storage-driver`、`log-driver`、`data-root` 等参数。
 
 ### 本地构建
 

@@ -22,7 +22,7 @@
 
 ### AISBench Benchmark
 AISBench Benchmark is a model evaluation tool built on [OpenCompass](https://github.com/open-compass/opencompass). It is compatible with OpenCompass's configuration system, dataset structure, and model backend implementation, and extends support for service-based models.
-> ⚠️Note: AISBench Benchmark images only support evaluation of service-based models, not offline inference models. Evaluation scenarios that require launching independent sandbox environments (such as SWE-Bench, terminal-bench 2, etc.) are also not currently supported.
+> ⚠️Note: AISBench Benchmark images focus on service-based model evaluation and do not support offline inference models. Built-in pipelines for sandbox-isolated benchmarks (SWE-Bench, terminal-bench 2, etc.) are NOT provided — but the image ships with Docker Engine (>= 20.0) and Docker Compose v2 (>= 2.0.0), so these benchmarks can be run manually inside the container. See [Using the Pre-installed Docker Engine](#using-the-pre-installed-docker-engine-for-sandbox-benchmarks).
 
 ## Image Tag Convention & Dockerfile Archive Paths
 
@@ -119,6 +119,77 @@ Navigate to `/benchmark` and run the following command to verify the AISBench ev
 ```
 ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_string --search
 ```
+
+#### Using the Pre-installed Docker Engine (for sandbox benchmarks)
+
+The image bundles Docker Engine (>= 20.0) and Docker Compose v2 (>= 2.0.0) under `/usr/local/bin/`, enabling nested-container benchmarks such as terminal-bench 2 and SWE-Bench. The Docker daemon is **NOT** started automatically; you must launch the container with appropriate privileges and start `dockerd` inside.
+
+**Step 1 — Start the container with Docker-in-Docker support:**
+
+```bash
+# --privileged is REQUIRED so dockerd can create network namespaces, mount cgroups, etc.
+# Do NOT mount /var/run/docker.sock from the host if you need fully isolated nested containers.
+docker run --name ais_bench_container -it -d \
+    --net=host \
+    --ipc=host \
+    --privileged \
+    -w /benchmark \
+    -v /data/datasets:/datasets \
+    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+    bash
+```
+
+**Step 2 — Start dockerd inside the container:**
+
+```bash
+docker exec -it --privileged ais_bench_container /bin/bash
+
+# Use vfs storage driver for maximum DinD compatibility (slow but works everywhere).
+# Replace with overlay2 for better performance if the host kernel supports it.
+nohup dockerd --storage-driver=vfs > /tmp/dockerd.log 2>&1 &
+
+# Wait for the daemon socket to be ready
+for i in $(seq 1 30); do
+    [ -S /var/run/docker.sock ] && break
+    sleep 1
+done
+
+# Verify
+docker info
+docker --version
+docker compose version
+```
+
+**Step 3 — Run a nested-container workload:**
+
+```bash
+# Inside the container, with dockerd running
+docker pull alpine:latest
+docker run --rm alpine:latest echo "Hello from a nested container"
+
+# Or use docker compose v2
+cat > /tmp/docker-compose.yml <<'EOF'
+services:
+  hello:
+    image: alpine:latest
+    command: echo "compose v2 works"
+EOF
+docker compose -f /tmp/docker-compose.yml up
+```
+
+**Notes:**
+
+- `--privileged` is mandatory; without it `dockerd` will fail to start.
+- `vfs` is the safest storage driver for DinD. Use `overlay2` (`--storage-driver=overlay2`) only when the host kernel and the container's rootfs support it (still requires `--privileged`).
+- If you only want commands inside the container to drive the **host's** Docker daemon (not true nested containers), mount the host socket and skip starting dockerd:
+  ```bash
+  docker run --name ais_bench_container -it -d \
+      --net=host \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+      bash
+  ```
+- For very long-running DinD workloads, consider passing `--default-runtime=runc` and tuning `/etc/docker/daemon.json` (e.g., `storage-driver`, `log-driver`, `data-root`).
 
 ### Local Build
 
