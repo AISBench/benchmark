@@ -106,33 +106,79 @@ for dir in /datasets/*; do name=$(basename "$dir"); ln -s "$dir" "/benchmark/ais
 ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_string --search
 ```
 
-#### 使用预装 Docker（适用于沙箱类测评）
+#### 在容器内使用 Docker
 
-镜像内置 Docker Engine（>= 20.0）与 Docker Compose v2（>= 2.0.0），二进制位于 `/usr/local/bin/`，可用于 terminal-bench 2、SWE-Bench 等需要嵌套容器的测评场景。Docker daemon **不会自动启动**，需以特权模式启动容器并在容器内手动启动 `dockerd`。
+镜像预装了 Docker CLI 与 `dockerd` 二进制。在容器内运行 Docker 命令有两种模式，请根据宿主 Docker 版本与隔离需求二选一。
 
-**步骤一：以 Docker-in-Docker 模式启动容器**
+##### 模式 A：Socket 代理（推荐，兼容任意 Docker 版本 ≥ 1.0）
+
+挂载宿主的 Docker socket，使容器内的 `docker run` 实际上在**宿主机** daemon 上创建容器。
 
 ```bash
-# 必须使用 --privileged，否则 dockerd 无法创建网络命名空间、挂载 cgroup 等
-# 若需要完全隔离的嵌套容器，不要挂载宿主机的 /var/run/docker.sock
+docker run --name ais_bench_container -it -d \
+    --net=host \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /data/datasets:/datasets \
+    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+    bash
+```
+
+无需启动 `dockerd`，也无需写 `daemon.json`，容器内的 Docker CLI 直接与宿主 daemon 通信。
+
+**优势**
+- 兼容**任意 Docker 版本（1.0+）**，对宿主无版本要求
+- 无需 `--privileged`、`--cgroupns=host`，不检查内核版本
+- 配置最简单；与 GitHub Actions、Buildkite、GitLab CI 等 CI 平台的实现一致
+
+**代价**
+- 容器内启动的子容器会出现在宿主的 `docker ps` 列表中
+- 无隔离——子容器共享宿主的内核、网络、PID 命名空间
+- 镜像拉取必须由宿主可达（pull 通过宿主 daemon 完成）
+
+##### 模式 B：Docker-in-Docker（真嵌套容器，要求宿主 Docker ≥ 20.10 + cgroup v2）
+
+仅在需要测评容器与子容器之间完全隔离时使用。
+
+**前置检查（在宿主机执行）**
+
+```bash
+docker version --format '{{.Server.Version}}'    # 必须 >= 20.10
+uname -r                                          # 建议 >= 5.10
+stat -fc %T /sys/fs/cgroup                        # 必须输出 cgroup2fs
+```
+
+**步骤一：启动容器**
+
+```bash
+# cgroup v2 宿主机上 --privileged + --cgroupns=host 必须同时使用
+# 缺少 --cgroupns=host 时嵌套容器会报：
+#   "cannot enter cgroupv2 /sys/fs/cgroup/docker with domain controllers -- it is in an invalid state"
 docker run --name ais_bench_container -it -d \
     --net=host \
     --ipc=host \
     --privileged \
+    --cgroupns=host \
     -w /benchmark \
     -v /data/datasets:/datasets \
     ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
     bash
 ```
 
-**步骤二：在容器内启动 dockerd**
+**步骤二：配置并启动 dockerd**
 
 ```bash
 docker exec -it --privileged ais_bench_container /bin/bash
 
-# DinD 场景推荐使用 vfs 存储驱动以获得最大兼容性（性能较差但通用）
-# 若宿主内核支持，改用 overlay2 性能更好
-nohup dockerd --storage-driver=vfs > /tmp/dockerd.log 2>&1 &
+# 强制使用 cgroupfs driver —— DinD 在 cgroup v2 宿主机上的必需配置
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json <<'EOF'
+{
+  "exec-opts": ["native.cgroupdriver=cgroupfs"],
+  "storage-driver": "vfs"
+}
+EOF
+
+nohup dockerd > /tmp/dockerd.log 2>&1 &
 
 # 等待 daemon socket 就绪
 for i in $(seq 1 30); do
@@ -146,14 +192,22 @@ docker --version
 docker compose version
 ```
 
-**步骤三：运行嵌套容器工作负载**
+**模式 B 注意事项**
+
+- `--privileged` 是必需的，否则 `dockerd` 启动会失败。
+- `--cgroupns=host` 在 cgroup v2 宿主机上是必需的。
+- `cgroupfs` cgroup driver（通过 `daemon.json` 设置）是 DinD 必需的。Docker 27.x 默认是 `systemd`，容器内无 systemd 可用。
+- `vfs` 是 DinD 通用性最高的存储驱动；若宿主内核与容器根文件系统支持，使用 `overlay2` 性能更好，但仍需 `--privileged`。
+- 对于长时间运行的 DinD 场景，建议在 `/etc/docker/daemon.json` 中加入 `"default-runtime": "runc"`、`"log-driver": "json-file"`、`"data-root"` 等调优项。
+
+##### 运行容器工作负载（两种模式通用）
 
 ```bash
-# 在 dockerd 已启动的容器内执行
+# 在容器内执行
 docker pull alpine:latest
 docker run --rm alpine:latest echo "Hello from a nested container"
 
-# 或运行 docker compose v2 工作负载
+# 或运行 docker compose v2
 cat > /tmp/docker-compose.yml <<'EOF'
 services:
   hello:
@@ -163,19 +217,10 @@ EOF
 docker compose -f /tmp/docker-compose.yml up
 ```
 
-**注意事项**
+##### 如何选择
 
-- `--privileged` 是必需的，否则 `dockerd` 启动会失败。
-- `vfs` 是 DinD 通用性最高的存储驱动；若宿主内核与容器根文件系统支持，使用 `overlay2`（`--storage-driver=overlay2`）性能更好，但仍需 `--privileged`。
-- 如果只想让容器内的 `docker` 命令与**宿主机** daemon 通信（而不是真正的嵌套容器），挂载宿主机 socket 即可，无需启动 dockerd：
-  ```bash
-  docker run --name ais_bench_container -it -d \
-      --net=host \
-      -v /var/run/docker.sock:/var/run/docker.sock \
-      ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
-      bash
-  ```
-- 对于长时间运行的 DinD 场景，建议通过 `/etc/docker/daemon.json` 调优 `storage-driver`、`log-driver`、`data-root` 等参数。
+- **模式 A** 适用于宿主 Docker 版本低于 20.10、或无需测评容器与子容器强隔离的场景。覆盖 terminal-bench 2、SWE-Bench 及绝大多数 agent 测评。
+- **模式 B** 仅在明确需要子容器与宿主机隔离时使用（例如运行不可信 workload，或每个测评 run 需要独立的 cgroup 层级）。
 
 ### 本地构建
 

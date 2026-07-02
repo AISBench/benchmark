@@ -120,33 +120,79 @@ Navigate to `/benchmark` and run the following command to verify the AISBench ev
 ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_string --search
 ```
 
-#### Using the Pre-installed Docker Engine (for sandbox benchmarks)
+#### Using Docker Inside the Container
 
-The image bundles Docker Engine (>= 20.0) and Docker Compose v2 (>= 2.0.0) under `/usr/local/bin/`, enabling nested-container benchmarks such as terminal-bench 2 and SWE-Bench. The Docker daemon is **NOT** started automatically; you must launch the container with appropriate privileges and start `dockerd` inside.
+The image ships with the Docker CLI and the `dockerd` binary. There are **two modes** for running Docker commands inside the container — pick one based on your host Docker version and isolation needs.
 
-**Step 1 — Start the container with Docker-in-Docker support:**
+##### Mode A — Socket Passthrough (recommended, works with any Docker version ≥ 1.0)
+
+Mount the host's Docker socket so that `docker run` inside the container actually creates containers on the **host** daemon.
 
 ```bash
-# --privileged is REQUIRED so dockerd can create network namespaces, mount cgroups, etc.
-# Do NOT mount /var/run/docker.sock from the host if you need fully isolated nested containers.
+docker run --name ais_bench_container -it -d \
+    --net=host \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /data/datasets:/datasets \
+    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+    bash
+```
+
+That's it — no `dockerd` to start, no `daemon.json` to write. The Docker CLI inside the container talks to the host daemon.
+
+Pros:
+- Works with **any Docker version (1.0+)** — no version requirement on the host
+- No `--privileged`, no `--cgroupns=host`, no kernel version check
+- Simplest setup; this is how most CI platforms (GitHub Actions, Buildkite, GitLab CI) run Docker
+
+Cons:
+- Containers spawned inside the benchmark container appear on the host's `docker ps`
+- No isolation — child containers share the host kernel, network, and PID namespace
+- Image pulls must be reachable from the host
+
+##### Mode B — Docker-in-Docker (true nested containers, requires host Docker ≥ 20.10 + cgroup v2)
+
+Use this when you need full isolation between the benchmark container and the spawned child containers.
+
+**Prerequisites (verify on the host before proceeding):**
+
+```bash
+docker version --format '{{.Server.Version}}'    # must be >= 20.10
+uname -r                                          # recommended >= 5.10
+stat -fc %T /sys/fs/cgroup                        # must print "cgroup2fs"
+```
+
+**Step 1 — Start the container:**
+
+```bash
+# --privileged + --cgroupns=host are BOTH required on cgroup v2 hosts.
+# Without --cgroupns=host, nested containers fail with:
+#   "cannot enter cgroupv2 /sys/fs/cgroup/docker with domain controllers -- it is in an invalid state"
 docker run --name ais_bench_container -it -d \
     --net=host \
     --ipc=host \
     --privileged \
+    --cgroupns=host \
     -w /benchmark \
     -v /data/datasets:/datasets \
     ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
     bash
 ```
 
-**Step 2 — Start dockerd inside the container:**
+**Step 2 — Configure and start dockerd inside the container:**
 
 ```bash
 docker exec -it --privileged ais_bench_container /bin/bash
 
-# Use vfs storage driver for maximum DinD compatibility (slow but works everywhere).
-# Replace with overlay2 for better performance if the host kernel supports it.
-nohup dockerd --storage-driver=vfs > /tmp/dockerd.log 2>&1 &
+# Force cgroupfs driver — required for DinD on cgroup v2 hosts.
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json <<'EOF'
+{
+  "exec-opts": ["native.cgroupdriver=cgroupfs"],
+  "storage-driver": "vfs"
+}
+EOF
+
+nohup dockerd > /tmp/dockerd.log 2>&1 &
 
 # Wait for the daemon socket to be ready
 for i in $(seq 1 30); do
@@ -160,14 +206,22 @@ docker --version
 docker compose version
 ```
 
-**Step 3 — Run a nested-container workload:**
+**Notes (Mode B):**
+
+- `--privileged` is mandatory; without it `dockerd` will fail to start.
+- `--cgroupns=host` is mandatory on cgroup v2 hosts.
+- `cgroupfs` cgroup driver (set via `daemon.json`) is mandatory for DinD. Docker 27.x defaults to `systemd`, which is unavailable inside a container.
+- `vfs` is the safest storage driver for DinD. Use `overlay2` only when the host kernel and the container's rootfs support it (still requires `--privileged`).
+- For very long-running DinD workloads, consider adding `"default-runtime": "runc"`, `"log-driver": "json-file"`, and `"data-root"` overrides to `/etc/docker/daemon.json`.
+
+##### Run a container workload (works in both modes)
 
 ```bash
-# Inside the container, with dockerd running
+# Inside the container
 docker pull alpine:latest
 docker run --rm alpine:latest echo "Hello from a nested container"
 
-# Or use docker compose v2
+# Or with docker compose v2
 cat > /tmp/docker-compose.yml <<'EOF'
 services:
   hello:
@@ -177,19 +231,10 @@ EOF
 docker compose -f /tmp/docker-compose.yml up
 ```
 
-**Notes:**
+**Which mode should I choose?**
 
-- `--privileged` is mandatory; without it `dockerd` will fail to start.
-- `vfs` is the safest storage driver for DinD. Use `overlay2` (`--storage-driver=overlay2`) only when the host kernel and the container's rootfs support it (still requires `--privileged`).
-- If you only want commands inside the container to drive the **host's** Docker daemon (not true nested containers), mount the host socket and skip starting dockerd:
-  ```bash
-  docker run --name ais_bench_container -it -d \
-      --net=host \
-      -v /var/run/docker.sock:/var/run/docker.sock \
-      ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
-      bash
-  ```
-- For very long-running DinD workloads, consider passing `--default-runtime=runc` and tuning `/etc/docker/daemon.json` (e.g., `storage-driver`, `log-driver`, `data-root`).
+- Use **Mode A** if your host Docker is older than 20.10, or if you don't need isolation between the benchmark container and the child containers. This covers terminal-bench 2, SWE-Bench, and most agent benchmarks.
+- Use **Mode B** only when you specifically need the child containers to be isolated from the host (e.g., running untrusted workloads, or when you need a clean cgroup hierarchy per benchmark run).
 
 ### Local Build
 
