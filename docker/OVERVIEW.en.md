@@ -22,7 +22,7 @@
 
 ### AISBench Benchmark
 AISBench Benchmark is a model evaluation tool built on [OpenCompass](https://github.com/open-compass/opencompass). It is compatible with OpenCompass's configuration system, dataset structure, and model backend implementation, and extends support for service-based models.
-> ⚠️Note: AISBench Benchmark images focus on service-based model evaluation and do not support offline inference models. Built-in pipelines for sandbox-isolated benchmarks (SWE-Bench, terminal-bench 2, etc.) are NOT provided — but the image ships with Docker Engine (>= 20.0) and Docker Compose v2 (>= 2.0.0), so these benchmarks can be run manually inside the container. See [Using the Pre-installed Docker Engine](#using-the-pre-installed-docker-engine-for-sandbox-benchmarks).
+> ⚠️Note: AISBench Benchmark images focus on service-based model evaluation and do not support offline inference models. Built-in pipelines for sandbox-isolated benchmarks (SWE-Bench, terminal-bench 2, etc.) are NOT provided — but the image ships with Docker Engine (>= 20.0) and Docker Compose v2 (>= 2.0.0), so these benchmarks can be run manually inside the container. See [Running Agent / Sandbox Benchmarks](#running-agent--sandbox-benchmarks-docker-inside-the-container).
 
 ## Image Tag Convention & Dockerfile Archive Paths
 
@@ -120,28 +120,112 @@ Navigate to `/benchmark` and run the following command to verify the AISBench ev
 ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_string --search
 ```
 
-#### Using Docker Inside the Container
+### Local Build
 
-The image ships with the Docker CLI and the `dockerd` binary. There are **two modes** for running Docker commands inside the container — pick one based on your host Docker version and isolation needs.
+Use the `build_image.sh` script to build:
 
-##### Mode A — Socket Passthrough (recommended, works with any Docker version ≥ 1.0)
+```bash
+# Basic build
+bash docker/build_image.sh --tag v3.1-20260522-master
+
+# Specify OS and Python version
+bash docker/build_image.sh --tag v3.1-20260522-master --os ubuntu22.04 --py-version py310
+
+# Build and push to remote registry
+bash docker/build_image.sh --tag v3.1-20260522-master --push 1
+
+# Build, push, and upload offline package to OBS
+bash docker/build_image.sh --tag v3.1-20260522-master --push 1 --upload 1
+
+# Build with cache (faster rebuilds)
+bash docker/build_image.sh --tag v3.1-20260522-master --use-cache 1
+
+# Specify a custom image registry
+bash docker/build_image.sh --tag v3.1-20260522-master --hub-repo docker.io/myuser/myimage
+```
+
+### Build Script Parameter Reference
+
+| Parameter | Required | Default | Description |
+| --- | --- | --- | --- |
+| `--tag` | Yes | - | Image tag name |
+| `--os` | No | `ubuntu22.04` | Operating system type |
+| `--py-version` | No | `py310` | Python version |
+| `--hub-repo` | No | `ghcr.io/aisbench/aisbench_benchmark` | Image registry URL |
+| `--image-output-dir` | No | `/home/ais_bench_ci/release_images` | Offline package output directory |
+| `--obs-path` | No | `/home/ais_bench_ci/obsutil_linux_arm64_5.7.9/` | OBS tool path |
+| `--push` | No | `0` | Push to remote registry (1=yes) |
+| `--upload` | No | `0` | Upload to OBS bucket (1=yes) |
+| `--use-cache` | No | `0` | Use build cache (1=yes) |
+
+### Custom Development
+
+To customize a Dockerfile, follow these steps:
+
+1. Create or modify a Dockerfile under `docker/ubuntu/` or `docker/openeuler/`, following the naming convention `Dockerfile.{py_version}.{os}`
+2. All Dockerfiles use a multi-stage build pattern:
+   - **builder stage**: clone the repository, install dependencies, compile and install
+   - **runtime stage**: copy artifacts from builder, producing a slim runtime image
+3. Pass the target version tag via `--build-arg GIT_TAG=${TAG}` during build
+4. Build using `build_image.sh` or directly with `docker build`:
+
+```bash
+docker build \
+    --network host \
+    --build-arg GIT_TAG=v1.0.0 \
+    -f docker/ubuntu/Dockerfile.py310.ubuntu22.04 \
+    -t myimage:latest \
+    docker/
+```
+
+## Running Agent / Sandbox Benchmarks (Docker Inside the Container)
+
+> ⚠️ This section only applies when running agent benchmarks that require isolated sandboxes (SWE-Bench, terminal-bench 2, etc.). It is **not** required for regular service-based model evaluation.
+
+The image ships with Docker Engine (≥ 20.0) and Docker Compose v2 (≥ 2.0.0). There are two modes for running Docker inside the container — pick one based on your host Docker version and isolation needs.
+
+### Mode A — Socket Passthrough (recommended, works with any Docker version ≥ 1.0)
 
 Mount the host's Docker socket so that `docker run` inside the container actually creates containers on the **host** daemon.
 
+**Step 1 — Start the container**
+
 ```bash
+HOST_PATH=/path/to/benchmark_wkp
+
+# 1. Create the working directory on the host and populate it with the image's /benchmark contents
+mkdir -p $HOST_PATH
+docker run -d --name tmp_extract ${image_id} bash
+docker cp tmp_extract:/benchmark/. $HOST_PATH/
+docker rm -f tmp_extract
+
 docker run --name ais_bench_container -it -d \
     --net=host \
+    --privileged \
+    -w ${HOST_PATH} \
     -v /var/run/docker.sock:/var/run/docker.sock \
+    -v ${HOST_PATH}:${HOST_PATH} \
     -v /data/datasets:/datasets \
     ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
     bash
 ```
 
 That's it — no `dockerd` to start, no `daemon.json` to write. The Docker CLI inside the container talks to the host daemon.
+Note: `HOST_PATH` is a working directory that must be created on the **host**. Please make sure the working directory contains no other files or sub-directories.
+
+**Step 2 — Enter the container and re-link ais_bench**
+
+```bash
+# Enter the container; you are now in $HOST_PATH
+docker exec -it ais_bench_container /bin/bash
+# Re-install ais_bench in editable mode inside $HOST_PATH
+# (only changes the link target, does not pull dependencies)
+pip3 install -e ./ --use-pep517 --no-deps --no-build-isolation --break-system-packages
+```
 
 Pros:
 - Works with **any Docker version (1.0+)** — no version requirement on the host
-- No `--privileged`, no `--cgroupns=host`, no kernel version check
+- No `--cgroupns=host`, no kernel version check
 - Simplest setup; this is how most CI platforms (GitHub Actions, Buildkite, GitLab CI) run Docker
 
 Cons:
@@ -149,7 +233,7 @@ Cons:
 - No isolation — child containers share the host kernel, network, and PID namespace
 - Image pulls must be reachable from the host
 
-##### Mode B — Docker-in-Docker (true nested containers, requires host Docker ≥ 20.10 + cgroup v2)
+### Mode B — Docker-in-Docker (true nested containers, requires host Docker ≥ 20.10 + cgroup v2)
 
 Use this when you need full isolation between the benchmark container and the spawned child containers.
 
@@ -214,7 +298,7 @@ docker compose version
 - `vfs` is the safest storage driver for DinD. Use `overlay2` only when the host kernel and the container's rootfs support it (still requires `--privileged`).
 - For very long-running DinD workloads, consider adding `"default-runtime": "runc"`, `"log-driver": "json-file"`, and `"data-root"` overrides to `/etc/docker/daemon.json`.
 
-##### Run a container workload (works in both modes)
+### Run a container workload (works in both modes)
 
 ```bash
 # Inside the container
@@ -231,68 +315,35 @@ EOF
 docker compose -f /tmp/docker-compose.yml up
 ```
 
-**Which mode should I choose?**
+### Which mode should I choose?
 
 - Use **Mode A** if your host Docker is older than 20.10, or if you don't need isolation between the benchmark container and the child containers. This covers terminal-bench 2, SWE-Bench, and most agent benchmarks.
 - Use **Mode B** only when you specifically need the child containers to be isolated from the host (e.g., running untrusted workloads, or when you need a clean cgroup hierarchy per benchmark run).
 
-### Local Build
+### Security Implications of `--privileged`
 
-Use the `build_image.sh` script to build:
+`--privileged` is a heavy flag that removes most container isolation. Use it only when needed (i.e., for Mode B / DinD).
 
-```bash
-# Basic build
-bash docker/build_image.sh --tag v3.1-20260522-master
+**Risks**
 
-# Specify OS and Python version
-bash docker/build_image.sh --tag v3.1-20260522-master --os ubuntu22.04 --py-version py310
+- **Disables all Linux capability restrictions** — the container gets nearly all root capabilities (`CAP_SYS_ADMIN`, `CAP_NET_ADMIN`, `CAP_SYS_PTRACE`, `CAP_SYS_MODULE`, …).
+- **Bypasses seccomp and AppArmor** — any syscall filter is removed, so rules like the ones that broke Python threading no longer apply.
+- **Full device access** — `/dev/sda`, `/dev/mem`, `/dev/kvm`, etc. become accessible; a process inside the container can mount, read, or wipe host disks.
+- **Writes to the host cgroup tree** — a privileged container can modify other containers' resource limits and freeze/kill them.
+- **Kernel-module load/unload** — the container can load or unload host kernel modules (when `CAP_SYS_MODULE` is retained on the host).
 
-# Build and push to remote registry
-bash docker/build_image.sh --tag v3.1-20260522-master --push 1
+**Mitigations when `--privileged` is unavoidable**
 
-# Build, push, and upload offline package to OBS
-bash docker/build_image.sh --tag v3.1-20260522-master --push 1 --upload 1
+- Run the benchmark inside a dedicated VM (or a dedicated bare-metal machine) that holds no production data.
+- Use a separate Docker daemon (a dedicated `dockerd` on a non-default socket) so the privileged container cannot reach production workloads.
+- Audit any code that will run inside the container before granting the flag.
+- If you only need to relax the seccomp filter (e.g., for `pip install` threading), prefer `--security-opt seccomp=unconfined` instead — it is a much smaller blast radius.
 
-# Build with cache (faster rebuilds)
-bash docker/build_image.sh --tag v3.1-20260522-master --use-cache 1
+**Alternatives to `--privileged` for DinD**
 
-# Specify a custom image registry
-bash docker/build_image.sh --tag v3.1-20260522-master --hub-repo docker.io/myuser/myimage
-```
-
-### Build Script Parameter Reference
-
-| Parameter | Required | Default | Description |
-| --- | --- | --- | --- |
-| `--tag` | Yes | - | Image tag name |
-| `--os` | No | `ubuntu22.04` | Operating system type |
-| `--py-version` | No | `py310` | Python version |
-| `--hub-repo` | No | `ghcr.io/aisbench/aisbench_benchmark` | Image registry URL |
-| `--image-output-dir` | No | `/home/ais_bench_ci/release_images` | Offline package output directory |
-| `--obs-path` | No | `/home/ais_bench_ci/obsutil_linux_arm64_5.7.9/` | OBS tool path |
-| `--push` | No | `0` | Push to remote registry (1=yes) |
-| `--upload` | No | `0` | Upload to OBS bucket (1=yes) |
-| `--use-cache` | No | `0` | Use build cache (1=yes) |
-
-### Custom Development
-
-To customize a Dockerfile, follow these steps:
-
-1. Create or modify a Dockerfile under `docker/ubuntu/` or `docker/openeuler/`, following the naming convention `Dockerfile.{py_version}.{os}`
-2. All Dockerfiles use a multi-stage build pattern:
-   - **builder stage**: clone the repository, install dependencies, compile and install
-   - **runtime stage**: copy artifacts from builder, producing a slim runtime image
-3. Pass the target version tag via `--build-arg GIT_TAG=${TAG}` during build
-4. Build using `build_image.sh` or directly with `docker build`:
-
-```bash
-docker build \
-    --network host \
-    --build-arg GIT_TAG=v1.0.0 \
-    -f docker/ubuntu/Dockerfile.py310.ubuntu22.04 \
-    -t myimage:latest \
-    docker/
-```
+- `--security-opt seccomp=unconfined` alone is **not** enough for DinD — dockerd still needs cgroup and device access, which only `--privileged` (or a custom runtime) provides.
+- [Sysbox](https://github.com/nestybox/sysbox) — a container runtime that supports nested containers without `--privileged`, at the cost of installing a custom runtime on the host.
+- Rootless Docker — runs `dockerd` as a non-root user; has its own limitations (no `overlay2` on most distros, network restrictions, etc.).
 
 ## License / Disclaimer
 
