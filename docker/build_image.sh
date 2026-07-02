@@ -246,19 +246,20 @@ if ! echo "${dockerd_version_output}" | grep -F "Docker version" > /dev/null 2>&
     echo "实际输出：${dockerd_version_output}"
     exit 1
 fi
-# 进一步校验：dockerd 与 docker 版本号应一致，确保不是同一二进制被误调用两次
-dockerd_ver=$(echo "${dockerd_version_output}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-if [ "${docker_ver}" != "${dockerd_ver}" ]; then
-    echo "错误：docker 与 dockerd 版本不一致（${docker_ver} vs ${dockerd_ver}），可能 dockerd 安装异常"
-    exit 1
-fi
 
 # 版本号校验：Docker >= 20.0，Docker Compose >= 2.0.0
 docker_ver=$(echo "${docker_version_output}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 compose_ver=$(echo "${compose_version_output}" | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//')
+dockerd_ver=$(echo "${dockerd_version_output}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 
 docker_major=$(echo "${docker_ver}" | cut -d. -f1)
 compose_major=$(echo "${compose_ver}" | cut -d. -f1)
+
+# 进一步校验：dockerd 与 docker 版本号应一致，确保不是同一二进制被误调用两次
+if [ "${docker_ver}" != "${dockerd_ver}" ]; then
+    echo "错误：docker 与 dockerd 版本不一致（${docker_ver} vs ${dockerd_ver}），可能 dockerd 安装异常"
+    exit 1
+fi
 
 if [ -z "${docker_ver}" ] || [ "${docker_major}" -lt 20 ]; then
     echo "错误：Docker 版本 ${docker_ver} 低于要求的 20.0"
