@@ -51,10 +51,10 @@ def test_instruction_following_strict(inp: InputExample, response: str) -> Outpu
         instruction = instruction_cls(instruction_id)
         logger.info(f"[ifbench][strict] instruction: {instruction}")
 
-        inp.kwargs[index] = {key: value for key, value in inp.kwargs[index].items() if value is not None}
-        logger.info(f"[ifbench][strict] kwargs[{index}] cleaned: {inp.kwargs[index]}")
+        kwargs = inp.kwargs[index]
+        logger.info(f"[ifbench][strict] kwargs[{index}]: {kwargs}")
 
-        instruction.build_description(**inp.kwargs[index])
+        instruction.build_description(**kwargs)
         args = instruction.get_instruction_args()
         logger.info(f"[ifbench][strict] args: {args}")
 
@@ -246,16 +246,13 @@ class IFBenchEvaluator(BaseEvaluator):
                 key=refer['key'],
                 instruction_id_list=refer['instruction_id_list'],
                 prompt=refer['prompt'],
-                kwargs=refer['kwargs'])
+                kwargs=[
+                    {k: v for k, v in kwarg.items() if v is not None}
+                    for kwarg in refer.get('kwargs', [])
+                ])
             logger.info(f"[ifbench][score] Sample[{index}] InputExample.key: {inp.key}")
             logger.info(f"[ifbench][score] Sample[{index}] InputExample.instruction_id_list: {inp.instruction_id_list}")
             logger.info(f"[ifbench][score] Sample[{index}] InputExample.prompt: {inp.prompt}")
-            logger.info(f"[ifbench][score] Sample[{index}] InputExample.kwargs (raw): {inp.kwargs}")
-
-            for kwarg in inp.kwargs:
-                for k in list(kwarg.keys()):
-                    if kwarg[k] is None:
-                        kwarg.pop(k, None)
             logger.info(f"[ifbench][score] Sample[{index}] InputExample.kwargs (cleaned): {inp.kwargs}")
 
             prompt_text = refer.get('prompt', '')
@@ -264,7 +261,7 @@ class IFBenchEvaluator(BaseEvaluator):
             logger.info(f"[ifbench][score] Sample[{index}] pred_text: {pred_text}")
 
             # strict evaluation
-            example_strict = test_instruction_following_strict(inp, pred)
+            example_strict = test_instruction_following_strict(inp, pred_text)
             logger.info(f"[ifbench][score] Sample[{index}] strict OutputExample.instruction_id_list: {example_strict.instruction_id_list}")
             logger.info(f"[ifbench][score] Sample[{index}] strict OutputExample.prompt: {example_strict.prompt}")
             logger.info(f"[ifbench][score] Sample[{index}] strict OutputExample.response: {example_strict.response}")
@@ -285,7 +282,7 @@ class IFBenchEvaluator(BaseEvaluator):
             logger.info(f"[ifbench][score] Sample[{index}] strict sum/count: {sum(follow_instruction_list_strict)}/{len(follow_instruction_list_strict)}")
 
             # loose evaluation
-            example_loose = test_instruction_following_loose(inp, pred)
+            example_loose = test_instruction_following_loose(inp, pred_text)
             logger.info(f"[ifbench][score] Sample[{index}] loose OutputExample.instruction_id_list: {example_loose.instruction_id_list}")
             logger.info(f"[ifbench][score] Sample[{index}] loose OutputExample.prompt: {example_loose.prompt}")
             logger.info(f"[ifbench][score] Sample[{index}] loose OutputExample.response: {example_loose.response}")

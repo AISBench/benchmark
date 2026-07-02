@@ -156,7 +156,15 @@ def _get_context(text_dir: Path, record: dict) -> str:
         Formatted string with all documents for this record, or an empty
         string if the document folder cannot be found / read.
     """
-    doc_folder = text_dir / record['document_category'] / record['document_set_id']
+    doc_category = record.get('document_category')
+    doc_set_id = record.get('document_set_id')
+    if not doc_category or not doc_set_id:
+        logger.warning(
+            f"Missing document_category or document_set_id in record: {record}. "
+            "Returning empty context."
+        )
+        return ''
+    doc_folder = text_dir / doc_category / doc_set_id
 
     if not doc_folder.exists() or not doc_folder.is_dir():
         logger.warning(
@@ -416,6 +424,8 @@ class AALCRJudgeEvaluator(BaseEvaluator):
         """
         if len(predictions) != len(references):
             return {
+                'accuracy': 0.0,
+                'details': {},
                 'error': (
                     'predictions and references have different length. '
                     f'len(predictions): {len(predictions)}, '

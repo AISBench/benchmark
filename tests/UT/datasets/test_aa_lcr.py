@@ -100,6 +100,10 @@ else:
     sys.modules["datasets"] = _hf
 
 # -- mock registries so the module-level decorators are no-ops ----------------
+# Import the REAL registry module first so other test files can still import
+# TEXT_POSTPROCESSORS (and any other real registry attributes) from it.
+import ais_bench.benchmark.registry as _real_registry
+
 def _make_register(id_str):
     """Return a register_module method that stores classes in a dict."""
     _registry = {}
@@ -119,13 +123,29 @@ _LOAD_DATASET.register_module = _make_register("LOAD_DATASET")
 _ICL_EVALUATORS = MagicMock()
 _ICL_EVALUATORS.register_module = _make_register("ICL_EVALUATORS")
 
-class _MockRegistryModule:
-    LOAD_DATASET = _LOAD_DATASET
-    ICL_EVALUATORS = _ICL_EVALUATORS
-
-sys.modules["ais_bench.benchmark.registry"] = _MockRegistryModule
+# Use patch.object on the real registry module instead of replacing
+# sys.modules entirely — this way TEXT_POSTPROCESSORS (and all other
+# real registry attributes) remain available for other test modules.
+_load_patcher = patch.object(_real_registry, "LOAD_DATASET", _LOAD_DATASET)
+_icl_patcher = patch.object(_real_registry, "ICL_EVALUATORS", _ICL_EVALUATORS)
+_load_patcher.start()
+_icl_patcher.start()
 
 # -- mock base classes --------------------------------------------------------
+# Save original sys.modules entries so they can be restored after the
+# module-under-test is loaded — prevents mock leakage to other test files.
+_MODULE_NAMES = [
+    "ais_bench.benchmark.datasets.base",
+    "ais_bench.benchmark.datasets.utils.llm_judge",
+    "ais_bench.benchmark.openicl.icl_evaluator",
+    "ais_bench.benchmark.datasets.utils.datasets",
+    "ais_bench.benchmark.utils.logging.logger",
+    "ais_bench.benchmark.utils.logging.error_codes",
+]
+_SAVED_MODULES = {}
+for _name in _MODULE_NAMES:
+    _SAVED_MODULES[_name] = sys.modules.get(_name)
+
 _mock_base = MagicMock()
 _mock_base.BaseDataset = type("BaseDataset", (), {})
 _mock_base.BaseDataset.load = staticmethod(lambda **kw: None)
@@ -171,6 +191,18 @@ _aa_lcr_path = os.path.join(_BENCHMARK_DIR, "datasets", "aa_lcr.py")
 _spec = _iu.spec_from_file_location("aa_lcr", _aa_lcr_path)
 _aa_lcr = _iu.module_from_spec(_spec)
 _spec.loader.exec_module(_aa_lcr)
+
+# Stop registry patchers — real module attributes restored.
+_load_patcher.stop()
+_icl_patcher.stop()
+
+# Restore original sys.modules entries to prevent mock leakage.
+for _name in _MODULE_NAMES:
+    _original = _SAVED_MODULES.get(_name)
+    if _original is not None:
+        sys.modules[_name] = _original
+    elif _name in sys.modules:
+        del sys.modules[_name]
 
 # Extract the symbols under test.
 AALCRDataset = _aa_lcr.AALCRDataset
