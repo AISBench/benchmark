@@ -221,6 +221,14 @@ if [ ${dockerd_version_status} -ne 0 ]; then
     exit 1
 fi
 
+# dockerd 二进制存在性二次校验（Docker 27.x 输出与 docker --version 同格式，需确保调用的是 dockerd 而非 docker）
+dockerd_which_output=$(docker run --rm ${image_name} which dockerd 2>&1)
+if [ $? -ne 0 ] || [ -z "${dockerd_which_output}" ]; then
+    echo "错误：镜像中未找到 dockerd 可执行文件"
+    echo "输出：${dockerd_which_output}"
+    exit 1
+fi
+
 # 关键字符串校验
 if ! echo "${docker_version_output}" | grep -F "Docker version" > /dev/null 2>&1; then
     echo "错误：Docker 验证失败，未找到预期内容：Docker version"
@@ -232,9 +240,16 @@ if ! echo "${compose_version_output}" | grep -F "Docker Compose version" > /dev/
     echo "实际输出：${compose_version_output}"
     exit 1
 fi
-if ! echo "${dockerd_version_output}" | grep -F "Docker daemon" > /dev/null 2>&1; then
-    echo "错误：dockerd 验证失败，未找到预期内容：Docker daemon"
+# Docker 27.x 的 dockerd --version 输出格式为 "Docker version X.Y.Z, build ..."，与 docker --version 相同
+if ! echo "${dockerd_version_output}" | grep -F "Docker version" > /dev/null 2>&1; then
+    echo "错误：dockerd 验证失败，未找到预期内容：Docker version"
     echo "实际输出：${dockerd_version_output}"
+    exit 1
+fi
+# 进一步校验：dockerd 与 docker 版本号应一致，确保不是同一二进制被误调用两次
+dockerd_ver=$(echo "${dockerd_version_output}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ "${docker_ver}" != "${dockerd_ver}" ]; then
+    echo "错误：docker 与 dockerd 版本不一致（${docker_ver} vs ${dockerd_ver}），可能 dockerd 安装异常"
     exit 1
 fi
 
