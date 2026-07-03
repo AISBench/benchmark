@@ -39,8 +39,6 @@ hle_infer_cfg = dict(
 )
 
 
-
-
 # Judge model prompt template. Instructs the judge to extract answer and evaluate correctness - aligned with official HLE format
 JUDGE_PROMPT = """
     Judge whether the following [response] to [question] is correct or not based on the precise and unambiguous [correct_answer] below.
@@ -61,6 +59,7 @@ JUDGE_PROMPT = """
 
     confidence: The extracted confidence score between 0|\%| and 100|\%| from [response]. Put 100 if there is no confidence score available.
 """.strip()
+
 
 
 # JSON schema for structured judge model output
