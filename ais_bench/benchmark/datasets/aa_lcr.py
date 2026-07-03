@@ -43,7 +43,9 @@ DEFAULT_CACHE_SUBDIR: str = 'aa_lcr'
 DEFAULT_EXTRACTED_DIR_NAME: str = 'lcr'
 
 # Default cache root – user-level so the corpus survives package updates.
-DEFAULT_CACHE_ROOT = os.path.expanduser('~/.cache/ais_bench')
+DEFAULT_CACHE_ROOT = os.path.abspath(os.path.join(
+    _THIS_DIR, '..', '..', 'datasets'
+))
 
 # ---------------------------------------------------------------------------
 # Prompt templates (matching evalscope format exactly)
