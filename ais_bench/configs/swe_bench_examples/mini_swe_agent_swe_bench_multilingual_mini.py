@@ -15,7 +15,14 @@ models = [
         api_key="EMPTY",
         url="http://127.0.0.1:8080/v1",  # API base, e.g. http://127.0.0.1:8000/v1
         batch_size=1,
-        generation_kwargs=dict(),
+        generation_kwargs=dict(
+            # Supports arbitrary generation parameters, consistent with regular model tasks.
+            # Common parameters include temperature, top_p, top_k, timeout, etc.
+            # temperature=0.0,   # Set 0 for deterministic output; omit or set >0 for diversity
+            # top_p=1.0,
+            # top_k=-1,
+            # timeout=200,       # Inference timeout in seconds
+        ),
     )
 ]
 
@@ -24,11 +31,7 @@ datasets = [
         type=SWEBenchDataset,
         abbr="swebench_multilingual_mini",
         # Relative to AIS_BENCH_DATASETS_CACHE (default: project root); missing -> HF download
-<<<<<<< HEAD
-        path="", # necessary for mini datasets, get dataset from https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini
-=======
         path="",  # Set local path to the mini dataset. Download from https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini
->>>>>>> master_center
         name="multilingual",
         split="test",
         step_limit=STEP_LIMIT,

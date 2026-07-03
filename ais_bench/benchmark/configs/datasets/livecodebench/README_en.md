@@ -30,6 +30,8 @@ git clone https://huggingface.co/datasets/livecodebench/code_generation_lite
     └── test.jsonl
     ```
 
+> ⚠️ **Important**: `code_generation_lite.py` is a loading script shipped with the dataset repository. It contains the dataset's **version information** and **data loading logic** (the dataset is versioned, and the version info comes from this file). **Missing this file will cause dataset loading to fail**. The file is automatically included by cloning the repository with `git lfs install && git clone https://huggingface.co/datasets/livecodebench/code_generation_lite`—do not delete or omit it.
+
 ## Available Dataset Tasks
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
 | --- | --- | --- | --- | --- | --- |

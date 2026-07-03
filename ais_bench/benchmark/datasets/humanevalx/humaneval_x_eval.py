@@ -45,7 +45,7 @@ class EvalConfig:
     tmp_dir: str = "./"
     n_workers: int = 32
     timeout: float = 500.0
-    problem_file: str = "./benchmark/ais_bench//datasets/humanevalx/humanevalx_python.jsonl.gz"
+    problem_file: str = "./ais_bench/datasets/humanevalx/humanevalx_python.jsonl.gz"
     out_dir: str = None
     k: Tuple[int, int, int] = (1, 10, 100)
     test_groundtruth: bool = False
