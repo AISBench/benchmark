@@ -75,7 +75,7 @@
 - **Tag2Text 场景描述模型**
   - **路径**：`caption_model/tag2text_swin_14m.pth`
   - **用途**：`scene`
-  - **来源**：`https://huggingface.co/spaces/xinyu1205/recognize-anything/resolve/main/tag2text_swin_14m.pth`
+  - **来源**：`https://huggingface.co/xinyu1205/recognize_anything_model/resolve/main/tag2text_swin_14m.pth`
 
 - **ViCLIP 视频-文本模型 + BPE 词表**
   - **路径**：
@@ -356,7 +356,7 @@ wget -O "$CACHE_DIR/grit_model/grit_b_densecap_objectdet.pth" \
 - **用途**：`scene`
 - **目标路径**：`caption_model/tag2text_swin_14m.pth`
 - **官方下载链接**：
-  - 原始：`https://huggingface.co/spaces/xinyu1205/recognize-anything/resolve/main/tag2text_swin_14m.pth`
+  - 原始：`https://huggingface.co/xinyu1205/recognize_anything_model/resolve/main/tag2text_swin_14m.pth`
 - **命令行示例**：
 
 ```bash
@@ -364,7 +364,7 @@ export CACHE_DIR=${VBENCH_CACHE_DIR:-$HOME/.cache/vbench}
 mkdir -p "$CACHE_DIR/caption_model"
 
 wget -O "$CACHE_DIR/caption_model/tag2text_swin_14m.pth" \
-  "https://huggingface.co/spaces/xinyu1205/recognize-anything/resolve/main/tag2text_swin_14m.pth"
+  "https://huggingface.co/xinyu1205/recognize_anything_model/resolve/main/tag2text_swin_14m.pth"
 ```
 
 - **浏览器方式**：下载后移动为 `$CACHE_DIR/caption_model/tag2text_swin_14m.pth`。

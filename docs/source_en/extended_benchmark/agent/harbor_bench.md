@@ -91,6 +91,12 @@ models = [
                 "input_cost_per_token": 0.0,
                 "output_cost_per_token": 0.0,
             },
+            "llm_call_kwargs": { # LLM call parameters
+                "max_tokens": 4096, # Maximum output token number
+                # "temperature": 0.7,
+                # "top_p": 0.9,
+                # "top_k": 50,
+            },
         },
         agent_env=None,  # --ae/--agent-env: Environment variables passed to agent
     )

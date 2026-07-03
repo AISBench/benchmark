@@ -640,7 +640,10 @@ class TokenProducer:
         if not self.token_bucket:
             return
         interval_index = 0
-        theta = 1.0 / (self.request_rate * self.burstiness) if self.request_rate > 0 else 0
+        if self.request_rate > 0 and self.burstiness > 0:
+            theta = 1.0 / (self.request_rate * self.burstiness)
+        else:
+            theta = 0
 
         start_time = time.perf_counter()
         if len(self.interval_lists) > 0:
