@@ -75,7 +75,7 @@ models = [
 | `host_ip` | String | 服务端 IP 地址，支持合法 IPv4 或 IPv6，例如：`127.0.0.1`、`::1`。当使用 IPv6 字面量时，访问 URL 中会自动转换为带方括号的形式，例如：`http://[::1]:8080/` |
 | `host_port` | Int | 服务端端口号，应与服务化部署指定的端口一致 |
 | `url` | String | 自定义访问推理服务的URL路径(当base url不是http/https://host_ip:host_port的组合时需要配置，配置后host_ip和host_port将被忽略) ，例如当`models`的`type`为`VLLMCustomAPI`时，配置`url`为`https://xxxxxxx/yyyy/`，实际请求访问的URL为`https://xxxxxxx/yyyy/v1/completions`|
-| `max_out_len` | Int | 推理响应的最大输出长度，实际长度可能受服务端限制。合法范围：(0, 131072] |
+| `max_out_len` | Int | 推理响应的最大输出长度，实际长度可能受服务端限制。 |
 | `batch_size` | Int | 请求的并发批处理大小。合法范围：(0, 64000] |
 | `trust_remote_code` | Boolean | tokenizer是否信任远程代码，默认False; |
 | `generation_kwargs` | Dict | 推理生成参数配置，依赖具体的服务化后端和接口类型。注意：当前不支持 `best_of` 和 `n` 等多次采样参数，但支持通过`num_return_sequences`参数进行多次独立推理(具体请参考🔗[Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences)中`num_return_sequences`的作用) |
@@ -139,9 +139,9 @@ models = [
 | `model_kwargs` | Dict | 模型加载参数，参考 🔗 [AutoModel 配置](https://huggingface.co/docs/transformers/v4.50.0/en/model_doc/auto#transformers.AutoConfig.from_pretrained) |
 | `generation_kwargs` | Dict | 推理生成参数，参考 🔗 [Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation) |
 | `run_cfg` | Dict | 运行配置，包含 `num_gpus`（使用的 GPU 数量）与 `num_procs`（使用的机器进程数） |
-| `max_out_len` | Int | 推理生成的最大输出 Token 数量，合法范围：(0, 131072] |
+| `max_out_len` | Int | 推理生成的最大输出 Token 数量|
 | `batch_size` | Int | 推理请求的批处理大小，合法范围：(0, 64000] |
-| `max_seq_len` | Int | 最大输入序列长度，合法范围：(0, 131072] |
+| `max_seq_len` | Int | 最大输入序列长度|
 | `batch_padding` | Bool | 是否启用批量 padding。设置为 `True` 或 `False` |
 
 ### 本地vllm离线推理模型后端配置参数说明
@@ -186,5 +186,5 @@ models = [
 | `model_kwargs` | Dict | 模型加载参数，参考 🔗 [LLM 模型配置](https://docs.vllm.com.cn/en/latest/serving/engine_args.html#) |
 | `sample_kwargs` | Dict | 模型推理采样参数，参考 🔗 [sample parameter配置](https://docs.vllm.ai/en/v0.6.5/dev/sampling_params.html) |
 | `vision_kwargs` | Dict | 多模态输入参数，参考 🔗 [多模态推理举例](https://docs.vllm.ai/en/v0.7.3/getting_started/examples/vision_language.html) |
-| `max_out_len` | Int | 推理生成的最大输出 Token 数量，合法范围：(0, 131072] |
+| `max_out_len` | Int | 推理生成的最大输出 Token 数量 |
 | `batch_size` | Int | 推理请求的批处理大小，合法范围：(0, 64000] |
