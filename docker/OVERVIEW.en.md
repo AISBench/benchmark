@@ -232,6 +232,7 @@ Cons:
 - Containers spawned inside the benchmark container appear on the host's `docker ps`
 - No isolation — child containers share the host kernel, network, and PID namespace
 - Image pulls must be reachable from the host
+- ⚠️ **The container's socket handle goes stale whenever the host's `dockerd` restarts.** When the host daemon restarts (machine reboot, daemon upgrade, `systemctl restart docker`, etc.), the bind-mounted `/var/run/docker.sock` inside the container still points to the old (unlinked) inode, so subsequent `docker` commands fail with `Cannot connect to the Docker daemon`. In that case, run `docker restart <container>` to re-establish the bind mount. In CI pipelines, **start a fresh container for every task** to avoid state carried over from previous runs.
 
 ### Mode B — Docker-in-Docker (true nested containers, requires host Docker ≥ 20.10 + cgroup v2)
 

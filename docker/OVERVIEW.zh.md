@@ -217,6 +217,7 @@ pip3 install -e ./ --use-pep517 --no-deps --no-build-isolation --break-system-pa
 - 容器内启动的子容器会出现在宿主的 `docker ps` 列表中
 - 无隔离——子容器共享宿主的内核、网络、PID 命名空间
 - 镜像拉取必须由宿主可达（pull 通过宿主 daemon 完成）
+- ⚠️ **宿主机 dockerd 重启后容器内的 socket 句柄会失效**。宿主机 dockerd 一旦重启（机器重启、daemon 升级、`systemctl restart docker` 等），容器内 bind mount 的 `/var/run/docker.sock` 仍指向已被 unlink 的旧 inode，再次执行 `docker` 命令会报 `Cannot connect to the Docker daemon`。遇到这种情况执行 `docker restart <container>` 重新建立 bind mount 即可恢复。CI 流水线场景下**推荐每个任务都重新起一个新容器**，避免复用带来的状态问题。
 
 ### 模式 B：Docker-in-Docker（真嵌套容器，要求宿主 Docker ≥ 20.10 + cgroup v2）
 
