@@ -184,59 +184,9 @@ docker build \
 
 The image ships with Docker Engine (≥ 20.0) and Docker Compose v2 (≥ 2.0.0). There are two modes for running Docker inside the container — pick one based on your host Docker version and isolation needs.
 
-### Mode A — Socket Passthrough (recommended, works with any Docker version ≥ 1.0)
+### Mode A — Docker-in-Docker (recommended, true nested containers, requires host Docker ≥ 20.10 + cgroup v2)
 
-Mount the host's Docker socket so that `docker run` inside the container actually creates containers on the **host** daemon.
-
-**Step 1 — Start the container**
-
-```bash
-HOST_PATH=/path/to/benchmark_wkp
-
-# 1. Create the working directory on the host and populate it with the image's /benchmark contents
-mkdir -p $HOST_PATH
-docker run -d --name tmp_extract ${image_id} bash
-docker cp tmp_extract:/benchmark/. $HOST_PATH/
-docker rm -f tmp_extract
-
-docker run --name ais_bench_container -it -d \
-    --net=host \
-    --privileged \
-    -w ${HOST_PATH} \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v ${HOST_PATH}:${HOST_PATH} \
-    -v /data/datasets:/datasets \
-    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
-    bash
-```
-
-That's it — no `dockerd` to start, no `daemon.json` to write. The Docker CLI inside the container talks to the host daemon.
-Note: `HOST_PATH` is a working directory that must be created on the **host**. Please make sure the working directory contains no other files or sub-directories.
-
-**Step 2 — Enter the container and re-link ais_bench**
-
-```bash
-# Enter the container; you are now in $HOST_PATH
-docker exec -it ais_bench_container /bin/bash
-# Re-install ais_bench in editable mode inside $HOST_PATH
-# (only changes the link target, does not pull dependencies)
-pip3 install -e ./ --use-pep517 --no-deps --no-build-isolation --break-system-packages
-```
-
-Pros:
-- Works with **any Docker version (1.0+)** — no version requirement on the host
-- No `--cgroupns=host`, no kernel version check
-- Simplest setup; this is how most CI platforms (GitHub Actions, Buildkite, GitLab CI) run Docker
-
-Cons:
-- Containers spawned inside the benchmark container appear on the host's `docker ps`
-- No isolation — child containers share the host kernel, network, and PID namespace
-- Image pulls must be reachable from the host
-- ⚠️ **The container's socket handle goes stale whenever the host's `dockerd` restarts.** When the host daemon restarts (machine reboot, daemon upgrade, `systemctl restart docker`, etc.), the bind-mounted `/var/run/docker.sock` inside the container still points to the old (unlinked) inode, so subsequent `docker` commands fail with `Cannot connect to the Docker daemon`. In that case, run `docker restart <container>` to re-establish the bind mount. In CI pipelines, **start a fresh container for every task** to avoid state carried over from previous runs.
-
-### Mode B — Docker-in-Docker (true nested containers, requires host Docker ≥ 20.10 + cgroup v2)
-
-Use this when you need full isolation between the benchmark container and the spawned child containers.
+A standalone `dockerd` is started inside the container, so child containers are fully isolated from the host. This is the **preferred mode** for agent benchmarks: child containers inherit Docker's official default seccomp profile, so the `pthread_create` / `clone3` block triggered by openEuler / RHEL hardened profiles does not occur; and there is no stale-socket issue when the host's `dockerd` restarts.
 
 **Prerequisites (verify on the host before proceeding):**
 
@@ -291,13 +241,86 @@ docker --version
 docker compose version
 ```
 
-**Notes (Mode B):**
+**Notes (Mode A):**
 
 - `--privileged` is mandatory; without it `dockerd` will fail to start.
 - `--cgroupns=host` is mandatory on cgroup v2 hosts.
 - `cgroupfs` cgroup driver (set via `daemon.json`) is mandatory for DinD. Docker 27.x defaults to `systemd`, which is unavailable inside a container.
 - `vfs` is the safest storage driver for DinD. Use `overlay2` only when the host kernel and the container's rootfs support it (still requires `--privileged`).
 - For very long-running DinD workloads, consider adding `"default-runtime": "runc"`, `"log-driver": "json-file"`, and `"data-root"` overrides to `/etc/docker/daemon.json`.
+
+### Mode B — Socket Passthrough (works with any Docker version ≥ 1.0)
+
+Mount the host's Docker socket so that `docker run` inside the container actually creates containers on the **host** daemon. Use this mode only when the host Docker is older than 20.10, or when cgroup v2 is unavailable and Mode A cannot be used.
+
+**Step 1 — Start the container**
+
+```bash
+HOST_PATH=/path/to/benchmark_wkp
+
+# 1. Create the working directory on the host and populate it with the image's /benchmark contents
+mkdir -p $HOST_PATH
+docker run -d --name tmp_extract ${image_id} bash
+docker cp tmp_extract:/benchmark/. $HOST_PATH/
+docker rm -f tmp_extract
+
+docker run --name ais_bench_container -it -d \
+    --net=host \
+    --privileged \
+    -w ${HOST_PATH} \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v ${HOST_PATH}:${HOST_PATH} \
+    -v /data/datasets:/datasets \
+    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+    bash
+```
+
+That's it — no `dockerd` to start, no `daemon.json` to write. The Docker CLI inside the container talks to the host daemon.
+Note: `HOST_PATH` is a working directory that must be created on the **host**. Please make sure the working directory contains no other files or sub-directories.
+
+**Step 2 — Enter the container and re-link ais_bench**
+
+```bash
+# Enter the container; you are now in $HOST_PATH
+docker exec -it ais_bench_container /bin/bash
+# Re-install ais_bench in editable mode inside $HOST_PATH
+# (only changes the link target, does not pull dependencies)
+pip3 install -e ./ --use-pep517 --no-deps --no-build-isolation --break-system-packages
+```
+
+Pros:
+- Works with **any Docker version (1.0+)** — no version requirement on the host
+- No `--cgroupns=host`, no kernel version check
+- Simplest setup; this is how most CI platforms (GitHub Actions, Buildkite, GitLab CI) run Docker
+
+Cons:
+- Containers spawned inside the benchmark container appear on the host's `docker ps`
+- No isolation — child containers share the host kernel, network, and PID namespace
+- Image pulls must be reachable from the host
+- ⚠️ **The container's socket handle goes stale whenever the host's `dockerd` restarts.** When the host daemon restarts (machine reboot, daemon upgrade, `systemctl restart docker`, etc.), the bind-mounted `/var/run/docker.sock` inside the container still points to the old (unlinked) inode, so subsequent `docker` commands fail with `Cannot connect to the Docker daemon`. In that case, run `docker restart <container>` to re-establish the bind mount. In CI pipelines, **start a fresh container for every task** to avoid state carried over from previous runs.
+
+**Common issue: child container reports `pthread_create failed: Operation not permitted`**
+
+Under Mode B, child containers are created by the **host dockerd** and inherit the **host daemon's default seccomp profile**. Distributions such as openEuler / RHEL ship a stricter default profile than Docker's upstream one, which blocks the `clone3` syscall used by OpenBLAS / NumPy when spawning worker threads. The symptom looks like:
+
+```
+OpenBLAS blas_thread_init: pthread_create failed for thread 52 of 64: Operation not permitted
+OpenBLAS blas_thread_init: RLIMIT_NPROC 1048576 current, 1048576 max
+```
+
+Note that `RLIMIT_NPROC` is not exhausted (the call returns `EPERM`, not `EAGAIN`), which confirms a seccomp block rather than a resource limit. Mode A is unaffected because the inner dockerd uses Docker's official default profile.
+
+**Fix**: explicitly relax seccomp in the `docker-compose.yml` that launches the child container:
+
+```yaml
+services:
+  main:
+    security_opt:
+      - seccomp=unconfined
+    # ... rest of the config unchanged
+```
+
+This only applies to that service; it does not affect the outer AISBench container or the host daemon. If Agent further spawns grandchild containers from `main`, those still inherit the host profile by default — add the same `security_opt` at that layer as well.
 
 ### Run a container workload (works in both modes)
 
@@ -318,12 +341,12 @@ docker compose -f /tmp/docker-compose.yml up
 
 ### Which mode should I choose?
 
-- Use **Mode A** if your host Docker is older than 20.10, or if you don't need isolation between the benchmark container and the child containers. This covers terminal-bench 2, SWE-Bench, and most agent benchmarks.
-- Use **Mode B** only when you specifically need the child containers to be isolated from the host (e.g., running untrusted workloads, or when you need a clean cgroup hierarchy per benchmark run).
+- **Mode A (Docker-in-Docker)** is the recommended mode, covering terminal-bench 2, SWE-Bench, and most agent benchmarks. Child containers are isolated from the host and are not affected by the host's seccomp profile — the fewest pitfalls. Requires host Docker ≥ 20.10 + cgroup v2.
+- **Mode B (Socket Passthrough)** is used only when the host Docker is older than 20.10, or when cgroup v2 is unavailable. It is the simplest to set up, but child containers inherit the host's seccomp profile (which may block `clone3`), and the container must be manually `docker restart`-ed after the host's `dockerd` restarts.
 
 ### Security Implications of `--privileged`
 
-`--privileged` is a heavy flag that removes most container isolation. Use it only when needed (i.e., for Mode B / DinD).
+`--privileged` is a heavy flag that removes most container isolation. Use it only when needed (i.e., for Mode A / DinD).
 
 **Risks**
 

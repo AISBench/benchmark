@@ -170,58 +170,9 @@ docker build \
 
 镜像预装了 Docker Engine（≥ 20.0）与 Docker Compose v2（≥ 2.0.0）。在容器内启动 Docker 有两种模式，请根据宿主 Docker 版本与隔离需求二选一。
 
-### 模式 A：Socket 代理（推荐，兼容任意 Docker 版本 ≥ 1.0）
+### 模式 A：Docker-in-Docker（推荐，真嵌套容器，要求宿主 Docker ≥ 20.10 + cgroup v2）
 
-挂载宿主的 Docker socket，使容器内的 `docker run` 实际上在**宿主机** daemon 上创建容器。
-
-**步骤一：启动容器**
-
-```bash
-HOST_PATH=/path/to/benchmark_wkp
-
-# 1. 创建承载目录并填充容器内容
-mkdir -p $HOST_PATH
-docker run -d --name tmp_extract ${image_id}  bash
-docker cp tmp_extract:/benchmark/. $HOST_PATH/
-docker rm -f tmp_extract
-
-docker run --name ais_bench_container -it -d \
-    --net=host \
-    --privileged \
-    -w ${HOST_PATH} \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v ${HOST_PATH}:${HOST_PATH} \
-    -v /data/datasets:/datasets \
-    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
-    bash
-```
-
-无需启动 `dockerd`，也无需写 `daemon.json`，容器内的 Docker CLI 直接与宿主 daemon 通信。
-注：`HOST_PATH`是一个需要在物理机创建的工作路径, 请确保工作路径内没有其他文件或目录。
-
-**步骤二：进入容器并重新链接ais_bench**
-
-```bash
-# 进入容器，处于HOST_PATH
-docker exec -it ais_bench_container /bin/bash
-# 在HOST_PATH内重新编辑模式安装ais_bench（只是链接变更，不会装依赖）
-pip3 install -e ./ --use-pep517 --no-deps --no-build-isolation --break-system-packages
-```
-
-**优势**
-- 兼容**任意 Docker 版本（1.0+）**，对宿主无版本要求
-- 无需`--cgroupns=host`，不检查内核版本
-- 配置最简单；与 GitHub Actions、Buildkite、GitLab CI 等 CI 平台的实现一致
-
-**代价**
-- 容器内启动的子容器会出现在宿主的 `docker ps` 列表中
-- 无隔离——子容器共享宿主的内核、网络、PID 命名空间
-- 镜像拉取必须由宿主可达（pull 通过宿主 daemon 完成）
-- ⚠️ **宿主机 dockerd 重启后容器内的 socket 句柄会失效**。宿主机 dockerd 一旦重启（机器重启、daemon 升级、`systemctl restart docker` 等），容器内 bind mount 的 `/var/run/docker.sock` 仍指向已被 unlink 的旧 inode，再次执行 `docker` 命令会报 `Cannot connect to the Docker daemon`。遇到这种情况执行 `docker restart <container>` 重新建立 bind mount 即可恢复。CI 流水线场景下**推荐每个任务都重新起一个新容器**，避免复用带来的状态问题。
-
-### 模式 B：Docker-in-Docker（真嵌套容器，要求宿主 Docker ≥ 20.10 + cgroup v2）
-
-仅在需要测评容器与子容器之间完全隔离时使用。
+容器内自起一个独立的 `dockerd`，子容器与宿主机完全隔离。这是 agent 测评的**首选模式**：子容器继承的是 Docker 官方默认 seccomp profile，不会触发 openEuler / RHEL 加固 profile 导致的 `pthread_create` / `clone3` 拦截问题；也不存在宿主 dockerd 重启后 socket 句柄失效的问题。
 
 **前置检查（在宿主机执行）**
 
@@ -276,13 +227,85 @@ docker --version
 docker compose version
 ```
 
-**模式 B 注意事项**
+**模式 A 注意事项**
 
 - `--privileged` 是必需的，否则 `dockerd` 启动会失败。
 - `--cgroupns=host` 在 cgroup v2 宿主机上是必需的。
 - `cgroupfs` cgroup driver（通过 `daemon.json` 设置）是 DinD 必需的。Docker 27.x 默认是 `systemd`，容器内无 systemd 可用。
 - `vfs` 是 DinD 通用性最高的存储驱动；若宿主内核与容器根文件系统支持，使用 `overlay2` 性能更好，但仍需 `--privileged`。
 - 对于长时间运行的 DinD 场景，建议在 `/etc/docker/daemon.json` 中加入 `"default-runtime": "runc"`、`"log-driver": "json-file"`、`"data-root"` 等调优项。
+
+### 模式 B：Socket 代理（兼容任意 Docker 版本 ≥ 1.0）
+
+挂载宿主的 Docker socket，使容器内的 `docker run` 实际上在**宿主机** daemon 上创建容器。仅当宿主 Docker 版本低于 20.10、或不支持 cgroup v2 无法使用模式 A 时再选用本模式。
+
+**步骤一：启动容器**
+
+```bash
+HOST_PATH=/path/to/benchmark_wkp
+
+# 1. 创建承载目录并填充容器内容
+mkdir -p $HOST_PATH
+docker run -d --name tmp_extract ${image_id}  bash
+docker cp tmp_extract:/benchmark/. $HOST_PATH/
+docker rm -f tmp_extract
+
+docker run --name ais_bench_container -it -d \
+    --net=host \
+    --privileged \
+    -w ${HOST_PATH} \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v ${HOST_PATH}:${HOST_PATH} \
+    -v /data/datasets:/datasets \
+    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+    bash
+```
+
+无需启动 `dockerd`，也无需写 `daemon.json`，容器内的 Docker CLI 直接与宿主 daemon 通信。
+注：`HOST_PATH`是一个需要在物理机创建的工作路径, 请确保工作路径内没有其他文件或目录。
+
+**步骤二：进入容器并重新链接ais_bench**
+
+```bash
+# 进入容器，处于HOST_PATH
+docker exec -it ais_bench_container /bin/bash
+# 在HOST_PATH内重新编辑模式安装ais_bench（只是链接变更，不会装依赖）
+pip3 install -e ./ --use-pep517 --no-deps --no-build-isolation --break-system-packages
+```
+
+**优势**
+- 兼容**任意 Docker 版本（1.0+）**，对宿主无版本要求
+- 无需`--cgroupns=host`，不检查内核版本
+- 配置最简单；与 GitHub Actions、Buildkite、GitLab CI 等 CI 平台的实现一致
+
+**代价**
+- 容器内启动的子容器会出现在宿主的 `docker ps` 列表中
+- 无隔离——子容器共享宿主的内核、网络、PID 命名空间
+- 镜像拉取必须由宿主可达（pull 通过宿主 daemon 完成）
+- ⚠️ **宿主机 dockerd 重启后容器内的 socket 句柄会失效**。宿主机 dockerd 一旦重启（机器重启、daemon 升级、`systemctl restart docker` 等），容器内 bind mount 的 `/var/run/docker.sock` 仍指向已被 unlink 的旧 inode，再次执行 `docker` 命令会报 `Cannot connect to the Docker daemon`。遇到这种情况执行 `docker restart <container>` 重新建立 bind mount 即可恢复。CI 流水线场景下**推荐每个任务都重新起一个新容器**，避免复用带来的状态问题。
+
+**常见问题：子容器报 `pthread_create failed: Operation not permitted`**
+
+Mode B 下子容器由**宿主机 dockerd** 创建，会继承**宿主 daemon 的 default seccomp profile**。openEuler / RHEL 等发行版的默认 profile 比 Docker 官方更严格，会拦截 OpenBLAS / NumPy 初始化线程时使用的 `clone3` 调用，表现为：
+
+```
+OpenBLAS blas_thread_init: pthread_create failed for thread 52 of 64: Operation not permitted
+OpenBLAS blas_thread_init: RLIMIT_NPROC 1048576 current, 1048576 max
+```
+
+注意 `RLIMIT_NPROC` 并未触顶（返回 EPERM 而非 EAGAIN），说明是 seccomp 拦截而非资源限制。模式 A 不会触发，因为内层 dockerd 用的是 Docker 官方默认 profile。
+
+**解决方案**：在拉起子容器的 `docker-compose.yml` 中显式放宽 seccomp：
+
+```yaml
+services:
+  main:
+    security_opt:
+      - seccomp=unconfined
+    # ... 其余配置不变
+```
+
+只作用于该 service，不影响外层 AISBench 容器和宿主 daemon。如果 Agent 还会从 `main` 里再起孙容器，孙容器默认仍套宿主 profile，需在那一层 compose 里同样加一次。
 
 ### 运行容器工作负载（两种模式通用）
 
@@ -303,12 +326,12 @@ docker compose -f /tmp/docker-compose.yml up
 
 ### 如何选择
 
-- **模式 A** 适用于宿主 Docker 版本低于 20.10、或无需测评容器与子容器强隔离的场景。覆盖 terminal-bench 2、SWE-Bench 及绝大多数 agent 测评。
-- **模式 B** 仅在明确需要子容器与宿主机隔离时使用（例如运行不可信 workload，或每个测评 run 需要独立的 cgroup 层级）。
+- **模式 A（Docker-in-Docker）** 为推荐模式，覆盖 terminal-bench 2、SWE-Bench 及绝大多数 agent 测评。子容器与宿主隔离，且不受宿主 seccomp profile 影响，坑最少。要求宿主 Docker ≥ 20.10 + cgroup v2。
+- **模式 B（Socket 代理）** 仅在宿主 Docker 版本低于 20.10、或不支持 cgroup v2 时使用。配置最简单，但子容器会继承宿主 seccomp profile（可能拦截 `clone3`），且宿主 dockerd 重启后需要手动 `docker restart` 恢复。
 
 ### 关于 `--privileged` 的安全说明
 
-`--privileged` 是一个非常「重」的 flag，开启后会移除几乎所有容器隔离机制。仅在确实必要时使用（即模式 B / DinD 场景）。
+`--privileged` 是一个非常「重」的 flag，开启后会移除几乎所有容器隔离机制。仅在确实必要时使用（即模式 A / DinD 场景）。
 
 **风险**
 
