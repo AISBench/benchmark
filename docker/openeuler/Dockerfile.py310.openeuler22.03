@@ -103,7 +103,7 @@ ENV PYTHONUNBUFFERED=1
 ENV NLTK_DATA=/usr/share/nltk_data
 ENV PATH=/usr/local/bin:$PATH
 
-RUN dnf install -y gcc openssl-devel bzip2-devel libffi-devel zlib-devel wget make findutils unzip sqlite-devel xz-devel && dnf clean all
+RUN dnf install -y git vim curl gcc openssl-devel bzip2-devel libffi-devel zlib-devel wget make findutils unzip sqlite-devel xz-devel && dnf clean all
 
 RUN ln -s /usr/local/bin/python3.10 /usr/local/bin/python3 && \
     ln -s /usr/local/bin/pip3.10 /usr/local/bin/pip3
