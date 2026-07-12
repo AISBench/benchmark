@@ -23,8 +23,14 @@ def _ensure_nltk_data(data_name):
     """Ensure NLTK data is available, downloading if necessary."""
     try:
         nltk.data.find(f'tokenizers/{data_name}')
-    except LookupError:
-        nltk.download(data_name, quiet=True)
+    except (LookupError, OSError):
+        try:
+            nltk.download(data_name, quiet=True)
+        except (LookupError, OSError):
+            # Fall back to downloading the full 'punkt' package if the
+            # specific resource (e.g. 'punkt_tab') is not available as a
+            # standalone download in the installed NLTK version.
+            nltk.download('punkt', quiet=True)
 
 
 WORD_LIST = [
