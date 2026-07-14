@@ -1,6 +1,6 @@
 import sys
+import os
 import json
-import urllib.parse
 import warnings
 import asyncio
 import os.path as osp
@@ -15,19 +15,12 @@ import aiohttp
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import MODEL_CODES
 from ais_bench.benchmark.utils.logging.exceptions import (
-    AISBenchNotImplementedError,
-    AISBenchValueError,
-    AISBenchKeyError,
-    AISBenchTypeError,
-    AISBenchRuntimeError,
-    AISBenchImplementationError,
-)
+    AISBenchNotImplementedError, AISBenchValueError, AISBenchKeyError,
+    AISBenchTypeError, AISBenchRuntimeError, AISBenchImplementationError)
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models import BaseModel
 from ais_bench.benchmark.models.output import Output
-from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import (
-    PPLRequestOutput,
-)
+from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import PPLRequestOutput
 from ais_bench.benchmark.utils.logging.error_codes import ICLI_CODES
 from ais_bench.benchmark.global_consts import REQUEST_TIME_OUT
 
@@ -36,12 +29,67 @@ AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=REQUEST_TIME_OUT)
 
 PromptType = Union[PromptList, str]
 
+# ---------------------------------------------------------------------------
+# Prefill 流水线信号量（自定义功能，对齐 benchmark_req.py 的测试方法）
+# 目的：当某个请求完成 prefill（流式收到第一个 token，进入 decode）时，
+# 立即释放槽位，让下一个请求的 prefill 马上开始，从而让前一个请求的 decode
+# 与后一个请求的 prefill 在服务端重叠。
+# 通过环境变量开启，默认关闭，不影响 ais_bench 原有行为：
+#   AISBENCH_PREFILL_PIPELINE=1        开启该功能
+#   AISBENCH_PREFILL_CONCURRENCY=1     同时处于 prefill 阶段的最大请求数（默认 1）
+#   AISBENCH_PREFILL_OBSERVE=1         在 stderr 打印实时 prefill/decode 并发数
+# ---------------------------------------------------------------------------
+_prefill_semaphore: Optional[asyncio.Semaphore] = None
+_prefill_sem_lock: Optional[asyncio.Lock] = None
+_prefill_inflight: int = 0
+_decode_inflight: int = 0
+
+
+def _prefill_pipeline_enabled() -> bool:
+    return os.environ.get("AISBENCH_PREFILL_PIPELINE", "0") in ("1", "true", "True")
+
+
+def _prefill_observe_enabled() -> bool:
+    return os.environ.get("AISBENCH_PREFILL_OBSERVE", "0") in ("1", "true", "True")
+
+
+def _prefill_log(tag: str) -> None:
+    """打印当前 prefill / decode 并发数到 stderr（带前缀便于 grep）。"""
+    if _prefill_observe_enabled():
+        try:
+            conc = os.environ.get("AISBENCH_PREFILL_CONCURRENCY", "1")
+            sys.stderr.write(
+                f"[PREFILL_PIPE] {tag} | prefill_inflight={_prefill_inflight} "
+                f"decode_inflight={_decode_inflight} (prefill_cap={conc})\n"
+            )
+            sys.stderr.flush()
+        except Exception:
+            pass
+
+
+async def _get_prefill_semaphore() -> Optional[asyncio.Semaphore]:
+    """惰性创建全局 prefill 信号量（绑定到当前事件循环）。"""
+    global _prefill_semaphore, _prefill_sem_lock
+    if not _prefill_pipeline_enabled():
+        return None
+    if _prefill_sem_lock is None:
+        _prefill_sem_lock = asyncio.Lock()
+    async with _prefill_sem_lock:
+        if _prefill_semaphore is None:
+            try:
+                conc = int(os.environ.get("AISBENCH_PREFILL_CONCURRENCY", "1"))
+            except ValueError:
+                conc = 1
+            if conc < 1:
+                conc = 1
+            _prefill_semaphore = asyncio.Semaphore(conc)
+    return _prefill_semaphore
+
 
 class MockAISLogger(AISLogger):
     """Mock logger for API model. Because model will init in task for warmup and init in infer process,
     so we mock the logger to avoid the print each log in init process twice
     """
-
     def info(self, msg, *args, **kwargs):
         pass
 
@@ -50,7 +98,6 @@ class MockAISLogger(AISLogger):
 
     def warning(self, msg, *args, **kwargs):
         pass
-
 
 class BaseAPIModel(BaseModel):
     """Base class for API model wrapper.
@@ -114,27 +161,17 @@ class BaseAPIModel(BaseModel):
         raise AISBenchNotImplementedError(
             MODEL_CODES.UNKNOWN_ERROR,
             f"{self.__class__.__name__} does not supported"
-            " to be called in base classes",
+            " to be called in base classes"
         )
 
     def _get_base_url(self) -> str:
         protocol = "https" if self.enable_ssl else "http"
-        clean_url = self.url.strip() if isinstance(self.url, str) else ""
-        if clean_url:
-            self.logger.info(
-                f"Using custom URL: [{clean_url}], [host_ip: {self.host_ip}] and [host_port: {self.host_port}] will be ignored"
-            )
+        if self.url:
+            self.logger.info(f"Using custom URL: [{self.url}], [host_ip: {self.host_ip}] and [host_port: {self.host_port}] will be ignored")
             # Check if URL already contains protocol
-            if clean_url.startswith("http://") or clean_url.startswith("https://"):
-                url = clean_url
-            else:
-                url = f"{protocol}://{clean_url}"
-            # Ensure trailing slash on path to avoid urljoin dropping the last path segment.
-            # Use urlparse/urlunparse to safely handle URLs with query strings or fragments.
-            parsed = urllib.parse.urlparse(url)
-            if not parsed.path or parsed.path.endswith("/"):
-                return url
-            return urllib.parse.urlunparse(parsed._replace(path=parsed.path + "/"))
+            if self.url.startswith("http://") or self.url.startswith("https://"):
+                return self.url
+            return f"{protocol}://{self.url}"
 
         # For IPv6 literals, wrap in brackets when constructing the URL.
         host = self.host_ip
@@ -156,7 +193,7 @@ class BaseAPIModel(BaseModel):
 
             if response.status_code == 200:
                 data = response.json()
-                model_id = data["data"][0]["id"]
+                model_id = data['data'][0]['id']
                 self.logger.debug(f"Service Model ID: {model_id}")
                 return model_id
             else:
@@ -165,7 +202,7 @@ class BaseAPIModel(BaseModel):
         except requests.exceptions.RequestException as e:
             raise AISBenchRuntimeError(
                 MODEL_CODES.GET_SERVICE_MODEL_PATH_FAILED,
-                f"Failed to get service model path from {self.base_url}. Error: {e}",
+                f"Failed to get service model path from {self.base_url}. Error: {e}"
             )
 
     async def iter_lines(self, stream):
@@ -211,19 +248,19 @@ class BaseAPIModel(BaseModel):
         raise AISBenchNotImplementedError(
             MODEL_CODES.UNKNOWN_ERROR,
             f"{self.__class__.__name__} does not supported"
-            " to be called in base classes",
+            " to be called in base classes"
         )
 
     async def parse_text_response(self, data, output):
         raise AISBenchNotImplementedError(
             MODEL_CODES.PARSE_TEXT_RSP_NOT_IMPLEMENTED,
-            f"{self.__class__.__name__} should be implemented if stream is False",
+            f"{self.__class__.__name__} should be implemented if stream is False"
         )
 
     async def parse_stream_response(self, data, output):
         raise AISBenchNotImplementedError(
             MODEL_CODES.PARSE_STREAM_RSP_NOT_IMPLEMENTED,
-            f"{self.__class__.__name__} should be implemented if stream is True",
+            f"{self.__class__.__name__} should be implemented if stream is True"
         )
 
     async def generate(
@@ -280,36 +317,63 @@ class BaseAPIModel(BaseModel):
         return output
 
     async def stream_infer(self, request_body: dict, output: Output):
+        global _prefill_inflight, _decode_inflight
+        prefill_sem = await _get_prefill_semaphore()
+        prefill_released = False
+        if prefill_sem is not None:
+            await prefill_sem.acquire()
+            _prefill_inflight += 1
+            _prefill_log("acquire")
+        # 计时起点放在 acquire() 之后：TTFT 只反映“真正发出请求 -> 收到首 token”
+        # 的服务端耗时，不包含客户端等待 prefill 槽位的排队时间（与 benchmark_req.py 口径一致）。
         await output.record_time_point()
-        async with self.session.post(
-            url=self.url, json=request_body, headers=self.headers
-        ) as response:
-            if response.status == 200:
-                async for raw_chunk in self.iter_lines(response.content):
-                    chunk = raw_chunk.strip()
-                    if not chunk:
-                        continue
-                    chunk = chunk.decode("utf-8")
-                    if chunk.startswith(":"):
-                        continue
-                    chunk = chunk.removeprefix("data:").strip()
-                    if chunk == "[DONE]":
-                        break
-                    await output.record_time_point()
-                    try:
-                        data = json.loads(chunk)
-                    except json.JSONDecodeError as e:
-                        output.success = False
-                        output.error_info = f"Unexpected response format: {raw_chunk}. Please check if server is working correctly."
-                        raise AISBenchValueError(
-                            MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                            f"Unexpected response format. Please check 'error_info' in ***_failed.jsonl for more information.",
-                        )
-                    await self.parse_stream_response(data, output)
-                output.success = True
-            else:
-                output.error_info = response.reason
-                output.success = False
+        try:
+            async with self.session.post(
+                url=self.url, json=request_body, headers=self.headers
+            ) as response:
+                if response.status == 200:
+                    async for raw_chunk in self.iter_lines(response.content):
+                        chunk = raw_chunk.strip()
+                        if not chunk:
+                            continue
+                        chunk = chunk.decode("utf-8")
+                        if chunk.startswith(":"):
+                            continue
+                        chunk = chunk.removeprefix("data:").strip()
+                        if chunk == "[DONE]":
+                            break
+                        await output.record_time_point()
+                        try:
+                            data = json.loads(chunk)
+                        except json.JSONDecodeError as e:
+                            output.success = False
+                            output.error_info = f"Unexpected response format: {raw_chunk}. Please check if server is working correctly."
+                            raise AISBenchValueError(
+                                MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
+                                f"Unexpected response format. Please check 'error_info' in ***_failed.jsonl for more information."
+                            )
+                        await self.parse_stream_response(data, output)
+                        # prefill 完成（收到第一个数据块，进入 decode）：立即释放槽位，
+                        # 让下一个请求的 prefill 马上开始。
+                        if prefill_sem is not None and not prefill_released:
+                            prefill_sem.release()
+                            prefill_released = True
+                            _prefill_inflight -= 1
+                            _decode_inflight += 1
+                            _prefill_log("release(first_token)")
+                    output.success = True
+                else:
+                    output.error_info = response.reason
+                    output.success = False
+        finally:
+            # 兜底：若请求无 token 返回 / 出错 / 被取消，确保槽位被释放，避免死锁。
+            if prefill_sem is not None and not prefill_released:
+                prefill_sem.release()
+                prefill_released = True
+                _prefill_inflight -= 1
+                _prefill_log("release(finally)")
+            elif prefill_sem is not None:
+                _decode_inflight -= 1
 
     async def text_infer(self, request_body, output: Output):
         await output.record_time_point()
@@ -326,7 +390,7 @@ class BaseAPIModel(BaseModel):
                     output.error_info = f"Unexpected response format: {raw_data}. Please check if server is working correctly."
                     raise AISBenchValueError(
                         MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                        f"Unexpected response format. Please check ***_details.jsonl for more information.",
+                        f"Unexpected response format. Please check ***_details.jsonl for more information."
                     )
                 await self.parse_text_response(data, output)
                 output.success = True
@@ -334,14 +398,13 @@ class BaseAPIModel(BaseModel):
                 output.error_info = response.reason
                 output.success = False
 
-    async def get_ppl(
-        self,
+    async def get_ppl(self,
         input_data: PromptType,
         max_out_len: int,
         output: PPLRequestOutput,
         session: aiohttp.ClientSession = None,
-        **args,
-    ):
+        **args
+        ):
         """Compute perplexity for a given prompt via the remote API.
         Args:
             input_data: Prompt text or list structure the backend expects.
@@ -356,16 +419,12 @@ class BaseAPIModel(BaseModel):
             • Respect session lifecycle: only close if they created it.
         """
         if session is None:
-            self.session = aiohttp.ClientSession(
-                trust_env=True, timeout=AIOHTTP_TIMEOUT
-            )
+            self.session = aiohttp.ClientSession(trust_env=True, timeout=AIOHTTP_TIMEOUT)
             close_session = True
         else:
             self.session = session
             close_session = False
-        request_body = await self.get_ppl_request_body(
-            input_data, max_out_len, output, **args
-        )
+        request_body = await self.get_ppl_request_body(input_data, max_out_len, output, **args)
         retry_count = 0
         for _ in range(self.retry):
             try:
@@ -408,37 +467,22 @@ class BaseAPIModel(BaseModel):
         if close_session:
             await self.session.close()
 
-    async def get_ppl_request_body(
-        self, input_data: PromptType, max_out_len: int, output: PPLRequestOutput, **args
-    ):
-        raise AISBenchNotImplementedError(
-            ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED,
-            f"PPL is not supported for this model.",
-        )
+    async def get_ppl_request_body(self, input_data:PromptType, max_out_len: int, output: PPLRequestOutput, **args):
+        raise AISBenchNotImplementedError(ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED, f"PPL is not supported for this model.")
 
     def get_prompt_logprobs(self, data: dict):
-        raise AISBenchNotImplementedError(
-            ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED,
-            f"PPL is not supported for this model.",
-        )
+        raise AISBenchNotImplementedError(ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED, f"PPL is not supported for this model.")
 
     def _calc_ppl(self, prompt_logprobs: list):
-        logprobs = [
-            list(item.values())[0]["logprob"]
-            for item in prompt_logprobs
-            if item is not None
-        ]
-        tokenids = [
-            list(item.keys())[0] for item in prompt_logprobs if item is not None
-        ]
+        logprobs = [list(item.values())[0]['logprob'] for item in prompt_logprobs if item is not None]
+        tokenids = [list(item.keys())[0] for item in prompt_logprobs if item is not None]
         if len(tokenids) == 0:
             raise AISBenchImplementationError(
                 ICLI_CODES.PPL_COMPUTE_ERROR_NO_VALID_TOKENS,
-                "No valid tokens with log probabilities found for PPL computation.",
+                "No valid tokens with log probabilities found for PPL computation."
             )
         loss = -sum(logprobs) / len(tokenids)
         return loss
-
 
 class APITemplateParser:
     """Intermidate prompt template parser, specifically for API models.
@@ -455,12 +499,12 @@ class APITemplateParser:
             if "round" not in meta_template:
                 raise AISBenchTypeError(
                     MODEL_CODES.MISS_REQUIRED_PARAM_IN_META_TEMPLATE,
-                    "round is required in meta template",
+                    "round is required in meta template"
                 )
             if not isinstance(meta_template["round"], list):
                 raise AISBenchTypeError(
                     MODEL_CODES.INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE,
-                    "round must be a list in meta template",
+                    "round must be a list in meta template"
                 )
             keys_to_check = ["round"]
 
@@ -468,7 +512,7 @@ class APITemplateParser:
                 if not isinstance(meta_template["reserved_roles"], list):
                     raise AISBenchTypeError(
                         MODEL_CODES.INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE,
-                        "reserved_roles must be a list in meta template",
+                        "reserved_roles must be a list in meta template"
                     )
                 keys_to_check.append("reserved_roles")
 
@@ -478,13 +522,13 @@ class APITemplateParser:
                     if not isinstance(item, (str, dict)):
                         raise AISBenchTypeError(
                             MODEL_CODES.INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE,
-                            f"each item in {meta_key} must be a string or a dict in meta template",
+                            f"each item in {meta_key} must be a string or a dict in meta template"
                         )
                     if isinstance(item, dict):
                         if item["role"] in self.roles:
                             raise AISBenchTypeError(
                                 MODEL_CODES.ROLE_IN_META_TEMPLATE_IS_NOT_UNIQUE,
-                                f"role {item['role']} in meta prompt must be unique!",
+                                f"role {item['role']} in meta prompt must be unique!"
                             )
                         self.roles[item["role"]] = item.copy()
 
@@ -509,7 +553,7 @@ class APITemplateParser:
         if not isinstance(prompt_template, (str, list, PromptList, tuple)):
             raise AISBenchTypeError(
                 MODEL_CODES.PARSE_TEMPLATE_INVALID_TYPE,
-                f"prompt_template must be a string, list of strings, PromptList, or tuple of strings, but got {type(prompt_template)}",
+                f"prompt_template must be a string, list of strings, PromptList, or tuple of strings, but got {type(prompt_template)}"
             )
 
         if not isinstance(prompt_template, (str, PromptList)):
@@ -518,13 +562,15 @@ class APITemplateParser:
         if not mode in ["ppl", "gen"]:
             raise AISBenchTypeError(
                 MODEL_CODES.PARSE_TEMPLATE_INVALID_MODE,
-                f"Parsing mode must be 'ppl' or 'gen', but got {mode}",
+                f"Parsing mode must be 'ppl' or 'gen', but got {mode}"
             )
+
 
         if isinstance(prompt_template, str):
             return prompt_template
 
         if self.meta_template:
+
             prompt = PromptList()
             # Whether to keep generating the prompt
             generate = True
@@ -547,7 +593,7 @@ class APITemplateParser:
                         if not section_name == item["section"]:
                             raise AISBenchValueError(
                                 MODEL_CODES.UNKNOWN_ERROR,
-                                f"section {item['section']} in prompt template must match the last section {section_name}",
+                                f"section {item['section']} in prompt template must match the last section {section_name}"
                             )
                         if section_name in ["round", "ice"]:
                             dialogue = prompt_template[start_idx:i]
@@ -577,13 +623,13 @@ class APITemplateParser:
                             raise AISBenchValueError(
                                 MODEL_CODES.UNKNOWN_ERROR,
                                 f"section {item['section']} in prompt template is not valid, "
-                                "it must be 'begin', 'round', 'end', or 'ice'",
+                                "it must be 'begin', 'round', 'end', or 'ice'"
                             )
                         section_stack.append((item["section"], i + 1))
                     else:
                         raise AISBenchValueError(
                             MODEL_CODES.UNKNOWN_ERROR,
-                            f"Invalid prompt template item pos {item['pos']}, legal item pos are 'begin' or 'end'.",
+                            f"Invalid prompt template item pos {item['pos']}, legal item pos are 'begin' or 'end'."
                         )
                 elif section_stack[-1][0] in ["begin", "end"]:
                     role_dict = self._update_role_dict(item)
@@ -676,7 +722,7 @@ class APITemplateParser:
                     raise AISBenchKeyError(
                         MODEL_CODES.INVALID_ROLE_IN_PROMPT_TEMPLATE,
                         f"prompt template item {template} neither has an appropriate "
-                        "role nor a fallback_role.",
+                        "role nor a fallback_role."
                     )
             if role_idx <= last_role_idx:
                 cutoff_idxs.append(idx)
@@ -716,7 +762,7 @@ class APITemplateParser:
             if isinstance(prompt, str):
                 raise AISBenchTypeError(
                     MODEL_CODES.MIX_STR_WITHOUT_EXPLICIT_ROLE,
-                    "Mixing str without explicit role is not allowed in API models!",
+                    "Mixing str without explicit role is not allowed in API models!"
                 )
             else:
                 api_role, cont = self._role2api_role(prompt, role_dict, for_gen)
@@ -759,6 +805,6 @@ class APITemplateParser:
         else:
             raise AISBenchValueError(
                 MODEL_CODES.INVALID_PROMPT_CONTENT,
-                "Invalid prompt content: without 'prompt' or 'prompt_mm' param!",
+                "Invalid prompt content: without 'prompt' or 'prompt_mm' param!"
             )
         return res, True
