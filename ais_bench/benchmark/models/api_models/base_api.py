@@ -193,7 +193,7 @@ class BaseAPIModel(BaseModel):
 
             if response.status_code == 200:
                 data = response.json()
-                model_id = data['data'][0]['id']
+                model_id = data["data"][0]["id"]
                 self.logger.debug(f"Service Model ID: {model_id}")
                 return model_id
             else:
@@ -202,7 +202,7 @@ class BaseAPIModel(BaseModel):
         except requests.exceptions.RequestException as e:
             raise AISBenchRuntimeError(
                 MODEL_CODES.GET_SERVICE_MODEL_PATH_FAILED,
-                f"Failed to get service model path from {self.base_url}. Error: {e}"
+                f"Failed to get service model path from {self.base_url}. Error: {e}",
             )
 
     async def iter_lines(self, stream):
@@ -248,19 +248,19 @@ class BaseAPIModel(BaseModel):
         raise AISBenchNotImplementedError(
             MODEL_CODES.UNKNOWN_ERROR,
             f"{self.__class__.__name__} does not supported"
-            " to be called in base classes"
+            " to be called in base classes",
         )
 
     async def parse_text_response(self, data, output):
         raise AISBenchNotImplementedError(
             MODEL_CODES.PARSE_TEXT_RSP_NOT_IMPLEMENTED,
-            f"{self.__class__.__name__} should be implemented if stream is False"
+            f"{self.__class__.__name__} should be implemented if stream is False",
         )
 
     async def parse_stream_response(self, data, output):
         raise AISBenchNotImplementedError(
             MODEL_CODES.PARSE_STREAM_RSP_NOT_IMPLEMENTED,
-            f"{self.__class__.__name__} should be implemented if stream is True"
+            f"{self.__class__.__name__} should be implemented if stream is True",
         )
 
     async def generate(
@@ -398,7 +398,8 @@ class BaseAPIModel(BaseModel):
                 output.error_info = response.reason
                 output.success = False
 
-    async def get_ppl(self,
+    async def get_ppl(
+        self,
         input_data: PromptType,
         max_out_len: int,
         output: PPLRequestOutput,
@@ -419,12 +420,16 @@ class BaseAPIModel(BaseModel):
             • Respect session lifecycle: only close if they created it.
         """
         if session is None:
-            self.session = aiohttp.ClientSession(trust_env=True, timeout=AIOHTTP_TIMEOUT)
+            self.session = aiohttp.ClientSession(
+                trust_env=True, timeout=AIOHTTP_TIMEOUT
+            )
             close_session = True
         else:
             self.session = session
             close_session = False
-        request_body = await self.get_ppl_request_body(input_data, max_out_len, output, **args)
+        request_body = await self.get_ppl_request_body(
+            input_data, max_out_len, output, **args
+        )
         retry_count = 0
         for _ in range(self.retry):
             try:
@@ -479,7 +484,7 @@ class BaseAPIModel(BaseModel):
         if len(tokenids) == 0:
             raise AISBenchImplementationError(
                 ICLI_CODES.PPL_COMPUTE_ERROR_NO_VALID_TOKENS,
-                "No valid tokens with log probabilities found for PPL computation."
+                "No valid tokens with log probabilities found for PPL computation.",
             )
         loss = -sum(logprobs) / len(tokenids)
         return loss
@@ -499,12 +504,12 @@ class APITemplateParser:
             if "round" not in meta_template:
                 raise AISBenchTypeError(
                     MODEL_CODES.MISS_REQUIRED_PARAM_IN_META_TEMPLATE,
-                    "round is required in meta template"
+                    "round is required in meta template",
                 )
             if not isinstance(meta_template["round"], list):
                 raise AISBenchTypeError(
                     MODEL_CODES.INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE,
-                    "round must be a list in meta template"
+                    "round must be a list in meta template",
                 )
             keys_to_check = ["round"]
 
@@ -512,7 +517,7 @@ class APITemplateParser:
                 if not isinstance(meta_template["reserved_roles"], list):
                     raise AISBenchTypeError(
                         MODEL_CODES.INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE,
-                        "reserved_roles must be a list in meta template"
+                        "reserved_roles must be a list in meta template",
                     )
                 keys_to_check.append("reserved_roles")
 
@@ -522,13 +527,13 @@ class APITemplateParser:
                     if not isinstance(item, (str, dict)):
                         raise AISBenchTypeError(
                             MODEL_CODES.INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE,
-                            f"each item in {meta_key} must be a string or a dict in meta template"
+                            f"each item in {meta_key} must be a string or a dict in meta template",
                         )
                     if isinstance(item, dict):
                         if item["role"] in self.roles:
                             raise AISBenchTypeError(
                                 MODEL_CODES.ROLE_IN_META_TEMPLATE_IS_NOT_UNIQUE,
-                                f"role {item['role']} in meta prompt must be unique!"
+                                f"role {item['role']} in meta prompt must be unique!",
                             )
                         self.roles[item["role"]] = item.copy()
 
@@ -553,7 +558,7 @@ class APITemplateParser:
         if not isinstance(prompt_template, (str, list, PromptList, tuple)):
             raise AISBenchTypeError(
                 MODEL_CODES.PARSE_TEMPLATE_INVALID_TYPE,
-                f"prompt_template must be a string, list of strings, PromptList, or tuple of strings, but got {type(prompt_template)}"
+                f"prompt_template must be a string, list of strings, PromptList, or tuple of strings, but got {type(prompt_template)}",
             )
 
         if not isinstance(prompt_template, (str, PromptList)):
@@ -562,7 +567,7 @@ class APITemplateParser:
         if not mode in ["ppl", "gen"]:
             raise AISBenchTypeError(
                 MODEL_CODES.PARSE_TEMPLATE_INVALID_MODE,
-                f"Parsing mode must be 'ppl' or 'gen', but got {mode}"
+                f"Parsing mode must be 'ppl' or 'gen', but got {mode}",
             )
 
 
@@ -593,7 +598,7 @@ class APITemplateParser:
                         if not section_name == item["section"]:
                             raise AISBenchValueError(
                                 MODEL_CODES.UNKNOWN_ERROR,
-                                f"section {item['section']} in prompt template must match the last section {section_name}"
+                                f"section {item['section']} in prompt template must match the last section {section_name}",
                             )
                         if section_name in ["round", "ice"]:
                             dialogue = prompt_template[start_idx:i]
@@ -623,13 +628,13 @@ class APITemplateParser:
                             raise AISBenchValueError(
                                 MODEL_CODES.UNKNOWN_ERROR,
                                 f"section {item['section']} in prompt template is not valid, "
-                                "it must be 'begin', 'round', 'end', or 'ice'"
+                                "it must be 'begin', 'round', 'end', or 'ice'",
                             )
                         section_stack.append((item["section"], i + 1))
                     else:
                         raise AISBenchValueError(
                             MODEL_CODES.UNKNOWN_ERROR,
-                            f"Invalid prompt template item pos {item['pos']}, legal item pos are 'begin' or 'end'."
+                            f"Invalid prompt template item pos {item['pos']}, legal item pos are 'begin' or 'end'.",
                         )
                 elif section_stack[-1][0] in ["begin", "end"]:
                     role_dict = self._update_role_dict(item)
@@ -722,7 +727,7 @@ class APITemplateParser:
                     raise AISBenchKeyError(
                         MODEL_CODES.INVALID_ROLE_IN_PROMPT_TEMPLATE,
                         f"prompt template item {template} neither has an appropriate "
-                        "role nor a fallback_role."
+                        "role nor a fallback_role.",
                     )
             if role_idx <= last_role_idx:
                 cutoff_idxs.append(idx)
@@ -762,7 +767,7 @@ class APITemplateParser:
             if isinstance(prompt, str):
                 raise AISBenchTypeError(
                     MODEL_CODES.MIX_STR_WITHOUT_EXPLICIT_ROLE,
-                    "Mixing str without explicit role is not allowed in API models!"
+                    "Mixing str without explicit role is not allowed in API models!",
                 )
             else:
                 api_role, cont = self._role2api_role(prompt, role_dict, for_gen)
