@@ -1,6 +1,8 @@
 """Direct Generation Inferencer."""
 
 import copy
+import json
+import os
 import uuid
 from multiprocessing import BoundedSemaphore
 from typing import List, Optional
@@ -79,6 +81,13 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
         await self.status_counter.post()
         await self.model.generate(input, max_out_len, output, session=session, **data)
         if output.success:
+            prediction = output.get_prediction()
+            rid = getattr(output, "response_id", "") or "-"
+            if isinstance(prediction, str) and len(prediction) > 400:
+                display = prediction[:200] + "..." + prediction[-200:]
+            else:
+                display = prediction
+            print(f"  [{data_abbr}:{index}] [{rid}] => {display}")
             await self.status_counter.rev()
         else:
             await self.status_counter.failed()
@@ -86,6 +95,22 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
         await self.status_counter.case_finish()
 
         await self.output_handler.report_cache_info(index, input, output, data_abbr, gold)
+
+        # Append raw result to live JSONL
+        live_dir = self.output_json_filepath
+        os.makedirs(live_dir, exist_ok=True)
+        live_record = {
+            "data_abbr": data_abbr,
+            "id": index,
+            "success": output.success,
+            "response_id": getattr(output, "response_id", ""),
+            "prediction": output.get_prediction(),
+            "input_tokens": getattr(output, "input_tokens", 0),
+            "output_tokens": getattr(output, "output_tokens", 0),
+            "uuid": getattr(output, "uuid", ""),
+        }
+        with open(os.path.join(live_dir, "live_infer.jsonl"), "a") as f:
+            f.write(json.dumps(live_record, ensure_ascii=False) + "\n")
 
     def batch_inference(
         self,

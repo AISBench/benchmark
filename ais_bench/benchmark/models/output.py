@@ -21,6 +21,8 @@ class Output:
         self.extra_perf_data: dict = {}
         self.extra_details_data: dict = {}
         self.input: list | str = None
+        self.response_id: str = ""
+        # Response ID from the API response (e.g., chatcmpl-xxx from OpenAI-compatible APIs)
         self.uuid: str = ""
         # A unique identifier for each case:
         # In multi-turn dialogue scenarios, all turns of the same sample share the same uuid.

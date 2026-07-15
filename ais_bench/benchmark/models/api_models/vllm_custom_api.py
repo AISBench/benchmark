@@ -99,12 +99,15 @@ class VLLMCustomAPI(BaseAPIModel):
             output.output_tokens = json_content["usage"].get("completion_tokens", 0)
 
     async def parse_text_response(self, api_response: dict, output: Output):
+        output.response_id = api_response.get("id", "")
         generated_text = api_response.get("choices", [{}])[0].get("text", "")
         output.content = generated_text
         await self._parse_usage(api_response, output)
         self.logger.debug(f"Output content: {output.content}")
 
     async def parse_stream_response(self, api_response: dict, output: Output):
+        if not output.response_id:
+            output.response_id = api_response.get("id", "")
         generated_text = ""
         if len(api_response.get("choices", [])) > 0:
             generated_text = api_response["choices"][0]["text"]

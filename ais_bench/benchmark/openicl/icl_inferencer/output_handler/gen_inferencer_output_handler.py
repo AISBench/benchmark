@@ -61,6 +61,7 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
                 output.success if isinstance(output, Output) else True
             ),
             "uuid": output.uuid if isinstance(output, Output) else str(uuid.uuid4()).replace("-", ""),
+            "response_id": getattr(output, "response_id", ""),
             "origin_prompt": input if input is not None else "",
             "prediction": (
                 output.get_prediction()
