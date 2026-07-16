@@ -1261,7 +1261,7 @@ class IndentStairsChecker(Instruction):
         """Checks if the response incrementally indents each new line."""
         lines = [line for line in value.split('\n') if line.strip()]
         for i in range(len(lines) - 1):
-            if len(lines[i + 1]) - len(lines[i + 1]).lstrip(' ') <= len(lines[i]) - len(lines[i].lstrip(' ')):
+            if len(str(lines[i + 1])) - len(str(lines[i + 1]).lstrip(' ')) <= len(str(lines[i])) - len(str(lines[i]).lstrip(' ')):
                 return False
         return True
 
