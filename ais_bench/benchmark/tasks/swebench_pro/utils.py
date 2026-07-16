@@ -1,7 +1,7 @@
 import os
 import subprocess
 import re
-from typing import Callable, Iterable, TypeVar
+from typing import Callable, Iterable, Optional, Set, TypeVar
 import json
 
 import copy
@@ -9,6 +9,17 @@ import copy
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import SWEBP_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchRuntimeError, AISBenchImportError
+
+from ais_bench.benchmark.tasks.swebench.utils import (
+    add_swebench_session_label_to_docker_client as _add_session_label_to_docker_client,
+    add_swebench_session_label_to_run_args as _add_session_label_to_run_args,
+    cleanup_swebench_containers as _cleanup_session_containers,
+    list_swebench_container_ids as _list_session_container_ids,
+    make_swebench_session_id as _make_session_id,
+)
+
+
+SWEBENCH_PRO_SESSION_LABEL = "ais_bench.swebench_pro.session"
 
 
 def sanitize_config_for_logging(config: dict) -> dict:
@@ -28,28 +39,37 @@ def sanitize_config_for_logging(config: dict) -> dict:
     return _mask(copy.deepcopy(config))
 
 
-def cleanup_swebench_pro_containers():
-    name_filters = ["minisweagent-", "sweb.eval"]
-    for name_filter in name_filters:
-        try:
-            r = subprocess.run(
-                ["docker", "ps", "-aq", "--filter", f"name={name_filter}"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if r.returncode != 0 or not (r.stdout or "").strip():
-                continue
-            ids = [x.strip() for x in r.stdout.strip().splitlines() if x.strip()]
-            if not ids:
-                continue
-            subprocess.run(
-                ["docker", "rm", "-f"] + ids,
-                capture_output=True,
-                timeout=30,
-            )
-        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-            pass
+def make_swebench_pro_session_id() -> str:
+    """Generate a unique session id for one SWE-bench Pro task run."""
+    return _make_session_id()
+
+
+def add_swebench_pro_session_label_to_docker_client(client, session_id: str):
+    """Return a Docker client wrapper that labels containers it creates."""
+    return _add_session_label_to_docker_client(client, session_id, SWEBENCH_PRO_SESSION_LABEL)
+
+
+def list_swebench_pro_container_ids(session_id: Optional[str] = None) -> Set[str]:
+    """Return Docker container IDs tagged for one SWE-bench Pro task session."""
+    return _list_session_container_ids(session_id, SWEBENCH_PRO_SESSION_LABEL)
+
+
+def cleanup_swebench_pro_containers(
+    *,
+    container_ids: Optional[Iterable[str]] = None,
+    session_id: Optional[str] = None,
+):
+    """Stop and remove containers created by the current SWE-bench Pro task."""
+    _cleanup_session_containers(
+        container_ids=container_ids,
+        session_id=session_id,
+        label_key=SWEBENCH_PRO_SESSION_LABEL,
+    )
+
+
+def add_swebench_pro_session_label_to_run_args(config: dict, session_id: str) -> None:
+    """Add this task's Docker label to mini-swe-agent Docker run args."""
+    _add_session_label_to_run_args(config, session_id, SWEBENCH_PRO_SESSION_LABEL)
 
 
 def list_swebench_pro_images(client) -> set[str]:
