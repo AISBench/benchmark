@@ -272,7 +272,7 @@ class SWEBenchProInferTask(BaseTask):
             raise AISBenchValueError(
                 SWEBP_CODES.MODEL_NOT_SET,
                 "No model set for SWEBenchPro infer in your config "
-                "Example for local vLLM: model='hosted_vllm/qwen3', url='http://127.0.0.1:2998/v1', api_key='EMPTY'.",
+                "Example for local vLLM: model='qwen3', url='http://127.0.0.1:2998/v1', api_key='EMPTY'.",
             )
         our_config.setdefault("environment", {})["environment_class"] = "docker"
         # SWE-bench Pro images have hardcoded entrypoint=bin/bash which prevents sleep command execution, need to override to empty for default bin/sh
