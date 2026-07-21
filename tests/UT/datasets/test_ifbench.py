@@ -191,11 +191,17 @@ class _KeywordSpecificPositionChecker(_MockInstructionChecker):
         import nltk
 
         # Use NLTK sentence tokenizer (same logic as real instructions_util).
+        # Double fallback: try punkt_tab first, then punkt (matching
+        # _ensure_nltk_data in instructions_util.py).
         try:
             sentences = nltk.sent_tokenize(response)
         except LookupError:
-            nltk.download("punkt_tab", quiet=True)
-            sentences = nltk.sent_tokenize(response)
+            try:
+                nltk.download("punkt_tab", quiet=True)
+                sentences = nltk.sent_tokenize(response)
+            except (LookupError, Exception):
+                nltk.download("punkt", quiet=True)
+                sentences = nltk.sent_tokenize(response)
 
         if len(sentences) < self._n:
             return False
