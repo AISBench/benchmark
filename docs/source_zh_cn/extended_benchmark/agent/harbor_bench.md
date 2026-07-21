@@ -54,92 +54,37 @@
    ```
 > ⚠️注意：安装harbor会将datasets库的版本升级到4.0.0以上的版本，这会导致安装后报datasets库的依赖冲突，对于执行harbor测试terminal-bench相关数据集没有影响，但是如果你需要测试其他数据集，需要降低datasets库的版本。
 
-#### 2.2 一键准备方案（推荐）
-
-如果不想手动处理依赖冲突 / DinD 配置，推荐使用 **AISBench Agent Runtime 一键准备方案**。同一脚本同时覆盖**快速入门（在线）**与**离线场景（内网/隔离环境）**，通过 `--runtime-tar` / `--case-tar` / `--datasets` 自由组合，无需切换不同流程。
-
-```bash
-# 1. 物理机上准备数据集（已有可跳过）
-#    mini-* 数据集从 modelers 的 terminal-bench-2-offline-mini 仓库
-#    用 sparse-checkout 取 terminal-bench-2-offline-selected_<X.XX>/ 子目录
-mkdir -p /data/datasets/harbor/mini-0.10
-git clone --depth 1 --filter=blob:none --sparse \
-    https://modelers.cn/AISBench/terminal-bench-2-offline-mini.git /tmp/tb2m
-cd /tmp/tb2m
-git sparse-checkout set terminal-bench-2-offline-selected_0.10
-mkdir -p /data/datasets/harbor/mini-0.10/dataset
-mv terminal-bench-2-offline-selected_0.10 /data/datasets/harbor/mini-0.10/dataset
-# 此时 /data/datasets/harbor/mini-0.10/dataset/ 才是真正的数据集目录
-
-# 2. 准备 case 镜像 tar 包
-#    在线场景：从 obs://aisbench/terminal-bench-2-images/ 下载对应 tier 的 tar
-#    离线场景：由维护者 build + upload 后，从 OBS / 内部代理服务器下载，或 U 盘 / scp 拷贝
-#      - tar 包获取方式：
-#        - 让维护者跑 build_image_agent_runtime.sh --upload 1 上传到 OBS 后从 OBS 下载
-#        - 在能访问外网的机器上 docker save ghcr.io/aisbench/agent-runtime:<tag> -o agent-runtime.tar.gz 后拷贝
-curl -fsSL <OBS>/terminal-bench-2-offline-prepared-images-selected-0.10_x86_64.tar.gz \
-    -o /data/cases/case-tb2-mini-0.10.tar.gz
-# 离线场景放置路径示例：
-#   /opt/aisbench/agent-runtime.tar.gz
-#   /opt/aisbench/case-tb2-mini-0.10.tar.gz
-#   /data/datasets/harbor/mini-0.10/terminal-bench-2-offline-selected_0.10/
-
-# 3. 物理机上一键起 runtime 容器
-#    快速入门（在线）：省略 --runtime-tar / --case-tar 时，runtime 镜像从 ghcr.io 拉取，case 镜像需自行 docker load
-#    离线场景：通过 --runtime-tar 跳过外网拉取，--case-tar 在 bootstrap 时一次性加载到容器内
-#    --datasets  挂载数据集 + 注入 env var
-#    --case-tar  加载 case 镜像到容器内 docker daemon（可多次，可传目录）
-#    --runtime-tar / --runtime-image 可选
-#    快速入门（在线）示例：
-curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
-    | bash -s -- \
-        --datasets /data/datasets/harbor/mini-0.10/dataset \
-        --case-tar  /data/cases/case-tb2-mini-0.10.tar.gz
-
-#    离线场景示例（runtime + case 镜像都在本地）：
-bash ais_bench_agent_bootstrap.sh \
-    --datasets /data/datasets/harbor/mini-0.10/terminal-bench-2-offline-selected_0.10 \
-    --runtime-tar /opt/aisbench/agent-runtime.tar.gz \
-    --case-tar /opt/aisbench/case-tb2-mini-0.10.tar.gz
-
-#    离线场景：也可一次加载多个 case 镜像（可多次 --case-tar 或传目录）
-bash ais_bench_agent_bootstrap.sh \
-    --datasets /data/datasets/harbor/mini-0.10/terminal-bench-2-offline-selected_0.10 \
-    --runtime-tar /opt/aisbench/agent-runtime.tar.gz \
-    --case-tar /opt/aisbench/case-tb2-mini-0.10.tar.gz \
-    --case-tar /opt/aisbench/case-tb2-mini-0.14.tar.gz \
-    --case-tar /opt/aisbench/case-tars/      # 目录下所有 tar 自动加载
-
-# 4. 进入容器（case 镜像已在内部，直接可用）
-docker exec -it ais_bench_agent bash
-
-# 5. （无需改 path）原生配置 path 已自动从 AISBENCH_AGENT_DATASET_PATH 读
-#    仅 vim 改 model_names / api_base
-vim ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py
-
-# 6. 验证 runtime 就绪
-ais_bench_agent_doctor.sh harbor
-
-# 7. 用原生 ais_bench 命令跑测评
-agent_env harbor
-ais_bench ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py --debug
+#### 2.2 在docker容器中安装
+1. 参考[镜像概览](https://github.com/AISBench/benchmark/blob/master/docker/OVERVIEW.zh.md)的“运行 Agent / 沙箱类测评（在容器内使用 Docker）”章节启动基于**python3.12及以上版本镜像（2026.7.1之后发布的镜像才支持）**的容器。
+2. 在容器内执行以下命令安装 Harbor：
+   ```bash
+   pip install harbor==0.6.1 --break-system-packages
+   ```
+3. 编辑harbor中的docker compose配置文件`/usr/local/lib/python3.12/dist-packages/harbor/environments/docker/docker-compose-base.yaml`
+```yaml
+services:
+  main:
+    network_mode: host # 共享主机网络，必须配置
+    security_opt: # 模式 B 启动的容器需要配置
+      - seccomp=unconfined
+    volumes:
+      - type: bind
+        source: ${HOST_VERIFIER_LOGS_PATH}
+        target: ${ENV_VERIFIER_LOGS_PATH}
+      - type: bind
+        source: ${HOST_AGENT_LOGS_PATH}
+        target: ${ENV_AGENT_LOGS_PATH}
+      - type: bind
+        source: ${HOST_ARTIFACTS_PATH}
+        target: ${ENV_ARTIFACTS_PATH}
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY}
 ```
+> ⚠️注意：安装harbor会将datasets库的版本升级到4.0.0以上的版本，这会导致安装后报datasets库的依赖冲突，对于执行harbor测试terminal-bench相关数据集没有影响，但是如果你需要测试其他数据集，需要降低datasets库的版本。
 
-切到其它数据集（mini-0.14 / mini-0.20 / full）：销毁旧容器 → 重新 `bash ... --datasets <新路径> --case-tar <新tar>` 起容器。
-
-`--runtime-tar` / `--case-tar` / `--datasets` 三者完全独立，可任意组合。三个都不会触发任何 `docker pull` 或 `curl` 到外网的操作；在快速入门（在线）场景中省略 `--runtime-tar`，脚本会自动从网络拉取 runtime 镜像。
-
-`--case-tar` 在 A/B 两种模式下都生效：脚本会 `docker cp` 把 tar 拷进 runtime 容器，再在容器内 `docker load` 加载到该容器的 docker daemon。
-
-该方案解决了以下痛点：
-- **依赖冲突**：harbor==0.6.1 强制升级 datasets 到 4.0+ 会污染主环境，runtime 镜像用独立 venv 隔离
-- **容器配置易错**：DinD 模式 A/B、`--cgroupns=host`、`daemon.json`、seccomp 自动处理
-- **数据集版本频繁**：数据集与 case 镜像均不烤入 runtime 镜像，由用户在物理机准备后通过 `--datasets` 挂载 / `--case-tar` 加载，避免镜像频繁过期
-- **case 镜像管理**：通过 `--case-tar` 在 bootstrap 时一次性加载到容器内，容器内无需手动 `docker pull` / `docker load`
-- **环境无验证**：`doctor.sh` 在跑测评前验证 runtime 就绪，失败时给精确修复指引
-- **离线部署**：支持 `--runtime-tar <PATH>` 跳过 runtime 镜像的网络获取；支持 `--case-tar <PATH>` 加载 case 镜像到容器内（可多次，可传目录）。内网隔离环境可全程零外网请求
-
-方案原理与脚本实现见 [`docker/agent_runtime/`](../../../docker/agent_runtime/README.md)。
 
 ### 3. 准备AISBench修改过的Terminal-Bench-2数据集和对应镜像
 AISBench修改的数据集获取链接：https://github.com/AISBench/terminal-bench-2
