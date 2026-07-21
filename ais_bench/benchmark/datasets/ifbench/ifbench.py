@@ -40,7 +40,7 @@ def test_instruction_following_strict(inp: InputExample, response: str) -> Outpu
         instruction_cls = instructions_registry.INSTRUCTION_DICT[instruction_id]
         instruction = instruction_cls(instruction_id)
 
-        kwargs = inp.kwargs[index]
+        kwargs = inp.kwargs[index] if index < len(inp.kwargs) else {}
 
         instruction.build_description(**kwargs)
         args = instruction.get_instruction_args()
@@ -94,7 +94,8 @@ def test_instruction_following_loose(inp: InputExample, response: str) -> Output
         instruction_cls = instructions_registry.INSTRUCTION_DICT[instruction_id]
         instruction = instruction_cls(instruction_id)
 
-        instruction.build_description(**inp.kwargs[index])
+        kwargs = inp.kwargs[index] if index < len(inp.kwargs) else {}
+        instruction.build_description(**kwargs)
         args = instruction.get_instruction_args()
 
         if args and 'prompt' in args:
