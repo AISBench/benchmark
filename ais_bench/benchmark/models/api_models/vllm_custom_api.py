@@ -1,3 +1,5 @@
+import json
+import os
 import urllib
 from typing import Dict, Optional, Union
 from ais_bench.benchmark.registry import MODELS
@@ -70,6 +72,8 @@ class VLLMCustomAPI(BaseAPIModel):
         self.url = self._get_url()
         self.template_parser = LMTemplateParser(meta_template)
         # For non-chat APIs, the actual prompt is passed as a plain string (just like with offline models), so LMTemplateParser is used.
+        # Multi-LoRA: load data_id -> lora adapter name map from generation_kwargs (optional).
+        self.lora_data_map = self._load_lora_data_map(generation_kwargs)
 
     def _get_url(self) -> str:
         endpoint = "v1/completions"
@@ -77,13 +81,45 @@ class VLLMCustomAPI(BaseAPIModel):
         self.logger.debug(f"Request url: {url}")
         return url
 
+    @staticmethod
+    def _load_lora_data_map(generation_kwargs):
+        """Load data_id -> LoRA adapter name mapping JSON file.
+
+        Returns None when ``lora_data_map_file`` is absent/invalid; the caller
+        then falls back to the base model without error.
+        """
+        if not generation_kwargs:
+            return None
+        lora_data_map_file = generation_kwargs.get("lora_data_map_file")
+        if not (isinstance(lora_data_map_file, str) and lora_data_map_file):
+            return None
+        file_path = os.path.abspath(lora_data_map_file)
+        if not os.path.exists(file_path):
+            return None
+        try:
+            with open(file_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    def _resolve_lora_model_name(self, output: Output):
+        """Look up LoRA adapter name for the current sample's data_id."""
+        if not self.lora_data_map:
+            return None
+        data_id = getattr(output, "data_id", None)
+        if data_id is None:
+            return None
+        return self.lora_data_map.get(f"{data_id}")
+
     async def get_request_body(
         self, input_data: PromptType, max_out_len: int, output: Output, **args
     ):
         output.input = input_data
         generation_kwargs = self.generation_kwargs.copy()
         generation_kwargs.update({"max_tokens": max_out_len})
-        generation_kwargs.update({"model": self.model})
+        # Multi-LoRA: override model field with the resolved LoRA adapter name.
+        lora_model_name = self._resolve_lora_model_name(output)
+        generation_kwargs.update({"model": lora_model_name if lora_model_name else self.model})
         request_body = dict(
             prompt=input_data,
             stream=self.stream,
