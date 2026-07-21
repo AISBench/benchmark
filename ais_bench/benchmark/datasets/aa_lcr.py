@@ -105,7 +105,6 @@ def _ensure_text_dir_downloaded() -> Path:
     extracted_dir = cache_root / DEFAULT_EXTRACTED_DIR_NAME
 
     if extracted_dir.exists():
-        logger.info(f'AA-LCR documents found in cache: {extracted_dir}')
         return extracted_dir
 
     local_zip = Path(_DOC_ZIP_PATH)
@@ -120,7 +119,6 @@ def _ensure_text_dir_downloaded() -> Path:
     cache_root.mkdir(parents=True, exist_ok=True)
 
     try:
-        logger.info(f'Extracting {local_zip} to {cache_root} ...')
         with zipfile.ZipFile(local_zip, 'r') as zf:
             zf.extractall(cache_root)
 
@@ -130,7 +128,6 @@ def _ensure_text_dir_downloaded() -> Path:
                 f'{extracted_dir}'
             )
 
-        logger.info(f'AA-LCR documents ready at {extracted_dir}')
         return extracted_dir
     except Exception as exc:
         raise ValueError(
@@ -321,8 +318,6 @@ class AALCRDataset(BaseDataset):
             for row in reader:
                 records.append(row)
 
-        logger.info(f'Loaded {len(records)} records from AA-LCR CSV')
-
         raw_data: List[Dict[str, Any]] = []
         for record in records:
             context = _get_context(text_dir, record)
@@ -330,21 +325,6 @@ class AALCRDataset(BaseDataset):
                 documents_text=context,
                 question=record['question'],
             )
-
-            # ====== log constructed prompt ======
-            logger.info(
-                '========== CONSTRUCTED PROMPT '
-                f'(question_id={record.get("question_id", "?")}) =========='
-            )
-            logger.info(f'QUESTION: {record["question"]}')
-            logger.info(f'ANSWER:   {record["answer"]}')
-            logger.info(
-                f'DOC_CATEGORY: {record.get("document_category", "?")}  '
-                f'DOC_SET: {record.get("document_set_id", "?")}'
-            )
-            logger.info(f'PROMPT ({len(prompt)} chars):\n{prompt}')
-            logger.info('========== CONSTRUCTED PROMPT END ==========')
-            # =======================================
 
             raw_data.append({
                 'input': prompt,
@@ -374,25 +354,6 @@ class AALCRJGDataset(LLMJudgeDataset):
     def _modify_dataset_item(self, dataset_item, pred_item):
         """Merge prediction into the dataset item and log the judge prompt."""
         super()._modify_dataset_item(dataset_item, pred_item)
-
-        # ====== log LLM Judge prompt ======
-        logger.info(
-            '========== JUDGE ITEM '
-            f'(pred_uuid={pred_item.get("uuid", "?")}) =========='
-        )
-        logger.info(f'QUESTION:      {dataset_item.get("question", "N/A")}')
-        logger.info(f'ANSWERS:       {dataset_item.get("answers", "N/A")}')
-        logger.info(
-            f'MODEL_ANSWER:  {dataset_item.get("model_answer", "N/A")}'
-        )
-        judge_prompt = JUDGE_PROMPT.format(
-            question=dataset_item.get('question', ''),
-            answers=dataset_item.get('answers', ''),
-            model_answer=dataset_item.get('model_answer', ''),
-        )
-        logger.info(f'JUDGE_PROMPT ({len(judge_prompt)} chars):\n{judge_prompt}')
-        logger.info('========== JUDGE ITEM END ==========')
-        # ===================================
 
 
 # ---------------------------------------------------------------------------
@@ -459,26 +420,12 @@ class AALCRJudgeEvaluator(BaseEvaluator):
                 'correct': is_correct,
             }
 
-            # ====== log eval result ======
-            logger.info(
-                f'========== EVAL RESULT (index={index}) =========='
-            )
-            logger.info(f'JUDGE_OUTPUT: {judge_output}')
-            logger.info(f'REFERENCE:    {ref}')
-            logger.info(
-                f'IS_CORRECT:   {is_correct}'
-            )
-            logger.info('========== EVAL RESULT END ==========')
-            # ==============================
-
         accuracy = correct / total * 100 if total > 0 else 0
 
-        # ====== log final accuracy summary ======
         logger.info(
             '========== EVAL SUMMARY '
             f'(correct={correct}/{total}, accuracy={accuracy:.2f}%) =========='
         )
-        # =========================================
         return {
             'accuracy': accuracy,
             'details': details,
