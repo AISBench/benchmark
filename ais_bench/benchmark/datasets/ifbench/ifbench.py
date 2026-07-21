@@ -167,9 +167,9 @@ class IFBenchEvaluator(BaseEvaluator):
 
         for index, (pred, refer) in enumerate(zip(predictions, references)):
             inp = InputExample(
-                key=refer['key'],
-                instruction_id_list=refer['instruction_id_list'],
-                prompt=refer['prompt'],
+                key=refer.get('key', 0),
+                instruction_id_list=refer.get('instruction_id_list', []),
+                prompt=refer.get('prompt', ''),
                 kwargs=[
                     {k: v for k, v in kwarg.items() if v is not None}
                     for kwarg in refer.get('kwargs', [])
