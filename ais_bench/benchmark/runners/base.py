@@ -58,10 +58,6 @@ class TasksMonitor:
         self.run_in_background = self.is_running_in_background() if not self.is_debug else True
         self.last_table = None
 
-        # Progress log file and thread control
-        self.progress_log_file = os.path.join(self.output_path, "progress.log")
-        self._progress_lock = threading.Lock()
-        self._stop_event = threading.Event()
         self._progress_thread = None
 
         self.logger.info(f"Launch TasksMonitor, "
@@ -119,18 +115,6 @@ class TasksMonitor:
 
         self.logger.debug("All tasks are finished")
         return True
-
-    def _write_progress_log(self, table_str: str):
-        """Write progress table to progress log file (thread-safe)."""
-        try:
-            with self._progress_lock:
-                with open(self.progress_log_file, 'w', encoding='utf-8') as f:
-                    current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(f"Base path of result&log : {self.output_path}\n")
-                    f.write(f"Task Progress Table (Updated at: {current_time_str})\n")
-                    f.write(table_str)
-        except Exception as e:
-            self.logger.debug(f"Failed to write progress log: {e}")
 
     def _refresh_task_state(self):
         start_time = time.time()
@@ -204,9 +188,8 @@ class TasksMonitor:
                 if state.get("status") == "finish" or state.get("status") == "error":
                     cur_count += 1
 
-            # Write progress table to log file
+            # Format progress table
             full_table = tabulate(data, headers=headers, tablefmt="grid")
-            self._write_progress_log(full_table)
 
             if cur_count > pbar.n:
                 pbar.update(cur_count - pbar.n)
@@ -270,9 +253,6 @@ class TasksMonitor:
                 # format table
                 full_table = tabulate(data, headers=headers, tablefmt="grid")
 
-                # Write progress table to log file
-                self._write_progress_log(full_table)
-
                 # split table to lines
                 table_lines = full_table.splitlines()
                 total_pages = max(0, (len(table_lines) - 1) // page_size) + 1
@@ -314,7 +294,6 @@ class TasksMonitor:
             self._refresh_task_state()
             data = self._get_task_states()
             full_table = tabulate(data, headers=headers, tablefmt="grid")
-            self._write_progress_log(full_table)
             self.last_table = full_table
 
 
