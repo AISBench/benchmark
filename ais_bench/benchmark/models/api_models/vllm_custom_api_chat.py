@@ -160,7 +160,15 @@ class VLLMCustomAPIChat(BaseAPIModel):
         generation_kwargs.update({"max_tokens": max_out_len})
         # Multi-LoRA: override model field with the resolved LoRA adapter name.
         lora_model_name = self._resolve_lora_model_name(output)
-        generation_kwargs.update({"model": lora_model_name if lora_model_name else self.model})
+        lora_active = lora_model_name is not None
+        actual_model_in_body = lora_model_name if lora_active else self.model
+        generation_kwargs.update({"model": actual_model_in_body})
+        # Debug: log LoRA routing decision for observability.
+        self.logger.debug(
+            f"[Multi-LoRA] data_id={getattr(output, 'data_id', None)} "
+            f"lora_model_name={lora_model_name} "
+            f"model_in_request_body={actual_model_in_body}"
+        )
         if args.get("tools"):
             generation_kwargs.update({"tools": args["tools"]})
 

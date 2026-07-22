@@ -113,6 +113,12 @@ class TGICustomAPI(BaseAPIModel):
         lora_model_name = self._resolve_lora_model_name(output)
         if lora_model_name:
             generation_kwargs["adapter_id"] = lora_model_name
+        # Debug: log LoRA routing decision for observability.
+        self.logger.debug(
+            f"[Multi-LoRA] data_id={getattr(output, 'data_id', None)} "
+            f"lora_model_name={lora_model_name} "
+            f"adapter_id_in_request_body={lora_model_name}"
+        )
         request_body = dict(inputs=input_data, parameters=generation_kwargs)
         return request_body
 
