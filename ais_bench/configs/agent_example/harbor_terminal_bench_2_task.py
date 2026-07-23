@@ -6,6 +6,27 @@ from ais_bench.benchmark.summarizers.harbor import HarborSummarizer
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
 
+# 数据集路径：用 mmengine 的 {{$VAR:default}} 占位符从环境变量读取。
+# mmengine 在执行本文件前，会先用 os.environ['VAR'] 的值替换整个 {{$VAR:default}}
+# 占位符；如果环境变量未设置，则替换为 default 部分。
+#
+# 这里 AISBENCH_AGENT_DATASET_PATH 的值就是 bootstrap.sh --datasets 传入的完整路径，
+# 由 bootstrap.sh 自动注入到容器环境变量中，无需 import sys / import os 任何库。
+#
+# 使用流程：
+#   1. 物理机: bash bootstrap.sh --datasets /data/datasets/harbor/mini-0.10/terminal-bench-2-offline-selected_0.10
+#   2. 容器内: ais_bench <此配置> --debug     # path 自动从 env var 读
+#
+# 切到其它 tier 时只改 bootstrap.sh --datasets 参数即可（4 套常用路径）：
+#   full:      /data/datasets/harbor/full/terminal-bench-2                              (89 case)
+#   mini-0.10: /data/datasets/harbor/mini-0.10/terminal-bench-2-offline-selected_0.10   (7 case, 默认)
+#   mini-0.14: /data/datasets/harbor/mini-0.14/terminal-bench-2-offline-selected_0.14   (10 case)
+#   mini-0.20: /data/datasets/harbor/mini-0.20/terminal-bench-2-offline-selected_0.20   (14 case)
+#
+# 不使用 agent_runtime 容器方案时：直接 export AISBENCH_AGENT_DATASET_PATH=<path> 即可；
+# 不 export 时使用下方 DEFAULT_DATASET_FALLBACK 兜底。
+DEFAULT_DATASET_PATH = '{{$AISBENCH_AGENT_DATASET_PATH:/data/datasets/harbor/mini-0.10/terminal-bench-2-offline-selected_0.10}}'
+
 models = [
     dict(
         abbr="terminus-2",
@@ -59,7 +80,8 @@ for task in sub_tasks:
                 environment_type="docker",  # -e/--env: 环境类型 (docker, daytona, e2b, modal)
                 environment_force_build=False,  # --force-build/--no-force-build: 是否强制重建环境
                 environment_delete=False,  # --delete/--no-delete: 完成后是否删除环境
-                path="/path/to/terminal-bench-2/",  # -p/--path: 本地数据集路径
+                path=DEFAULT_DATASET_PATH,  # -p/--path: 本地数据集路径（需与 bootstrap.sh --datasets 传入路径对齐）
+                # 切换 tier：把上面 DEFAULT_DATASET_PATH 改成 full / mini-0.14 / mini-0.20 对应路径
                 dataset_name_version=None,  # -d/--dataset: 远程数据集名称@版本
                 task_names=None,  # --include-task-name: 包含的任务名称（支持glob模式）例如 ["task_name1", "task_name2"]
                 exclude_task_names=None,  # --exclude-task-name: 排除的任务名称
