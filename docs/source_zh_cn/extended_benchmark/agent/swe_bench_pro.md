@@ -4,6 +4,62 @@ SWE-Bench Pro 是一个用于评估大语言模型在长时域软件工程任务
 
 > **注意**：由于官方提供的 Docker 镜像均为 x86 架构，SWE-bench Pro 目前仅支持在 x86 环境上评测，暂不支持 ARM 环境。
 
+## 快速上手（推荐）
+
+如果你是第一次跑 Agent 测评，或不想手动处理依赖冲突 / DinD 配置 / mini-swe-agent fork 选择，推荐使用 **AISBench Agent Runtime 一键准备方案**：
+
+```bash
+# 1. 物理机上准备 mini 数据集（已有可跳过）
+#    SWE-bench Pro 的 mini 数据集**必须**本地准备，无在线版
+#    从 modelers 下载到任意目录，目录结构由用户自行规划
+mkdir -p /data/datasets/swebench_pro
+# 下载地址：https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini
+# 优先 parquet 格式；下载后解压到 /data/datasets/swebench_pro/ 即可
+
+# 2. 物理机上一键起 runtime 容器
+#    --datasets 挂载数据集 + 注入 env var（原生配置 path 自动从此 env var 读）
+#    运行时已 clone 好 /opt/src/SWE-bench_Pro-os，swebp_scripts_dir / swebp_docker_dir 直接指向它
+curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
+    | bash -s -- --datasets /data/datasets/swebench_pro
+
+# 3. 进入容器
+docker exec -it ais_bench_agent bash
+
+# 4. 验证 runtime 就绪
+ais_bench_agent_doctor.sh swebench_pro
+
+# 5. 改原生配置：
+#    - model_names / api_base
+#    - path 自动从 AISBENCH_AGENT_DATASET_PATH 读（mini 数据集本地路径）
+#    - SWEBP_SCRIPT_PATH_ABS / SWEBP_DOCKER_PATH_ABS 指向运行时已 clone 的 SWE-bench_Pro-os
+vim ais_bench/configs/swe_bench_pro_examples/mini_swe_agent_swe_bench_pro_mini.py
+
+# 6. 激活 swebench_pro venv（scaleapi fork 的 mini-swe-agent）
+agent_env swebench_pro
+
+# 7. 跑测评
+ais_bench ais_bench/configs/swe_bench_pro_examples/mini_swe_agent_swe_bench_pro_mini.py --debug
+```
+
+切到 full 数据集：先确认 HF 可达，然后改原生配置文件中 `SWEBP_SCRIPT_PATH_ABS` / `SWEBP_DOCKER_PATH_ABS` / `path` / `name='mini'` → `name='full'`，重新跑。
+
+**SWE-bench Pro 与 SWE-bench 的差异**（影响快速上手的几处）：
+
+- **mini-swe-agent fork**：SWE-bench Pro 必须用 scaleapi fork，不能用 AISBench fork；runtime 用独立 `swebench_pro` venv 隔离两个 fork
+- **mini 数据集**：SWE-bench Pro 的 mini 数据集没有在线版，必须从 modelers 下载本地 parquet；full 数据集可 HF 在线
+- **评测参数**：`SWEBP_SCRIPT_PATH_ABS` 和 `SWEBP_DOCKER_PATH_ABS` 必须指向 SWE-Bench_Pro-os 仓库的 `run_scripts/` 和 `dockerfiles/`；runtime 镜像已 clone 到 `/opt/src/SWE-bench_Pro-os/`，直接填这个路径即可
+- **case 镜像**：scaleapi 官方 x86 docker 镜像，按 instance 拉取；具体 tag 与拉取方式详见 [SWE-bench Pro 官方仓库](https://github.com/scaleapi/SWE-bench_Pro-os) 与 [scaleapi/mini-swe-agent](https://github.com/scaleapi/mini-swe-agent)
+
+该方案解决了以下痛点：
+
+- **mini-swe-agent fork 冲突**：AISBench fork 与 scaleapi fork 同包名互相覆盖，runtime 用独立 venv 隔离两个 fork
+- **容器配置易错**：DinD 模式 A/B、`--cgroupns=host`、`daemon.json`、seccomp 自动处理
+- **离线部署**：`--runtime-tar` 跳过 runtime 镜像的网络获取；`--case-tar` 加载 case 镜像到容器内（可多次，可传目录）
+
+方案原理与脚本实现见 [`docker/agent_runtime/`](../../../docker/agent_runtime/README.md)。
+
+> 下文为完整的 SWE-bench Pro 测评原理与手动配置方式，适用于不使用一键方案、或需要深入定制的场景。
+
 ## 1. 功能概览
 
 当前在 `ais_bench` 已接入以下 SWE-Bench Pro 能力：
