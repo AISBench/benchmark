@@ -2,6 +2,7 @@ import os
 import time
 import psutil
 import shutil
+import threading
 from tqdm import tqdm
 from abc import abstractmethod
 from typing import Any, Dict, List, Tuple
@@ -56,6 +57,9 @@ class TasksMonitor:
         self.refresh_interval = refresh_interval
         self.run_in_background = self.is_running_in_background() if not self.is_debug else True
         self.last_table = None
+
+        self._progress_thread = None
+
         self.logger.info(f"Launch TasksMonitor, "
                     f"PID: {os.getpid()}, "
                     f"Refresh interval: {self.refresh_interval}, "
@@ -90,7 +94,14 @@ class TasksMonitor:
             print(self.last_table)
         else:
             self.logger.debug("Running task progress monitor in background mode")
-            self._update_tasks_progress()
+            self._progress_thread = threading.Thread(
+                target=self._update_tasks_progress,
+                name="ProgressMonitor",
+                daemon=True
+            )
+            self._progress_thread.start()
+            # Wait for the progress thread to finish (all tasks done)
+            self._progress_thread.join()
 
     def _is_all_task_done(self):
         unfinished_tasks = []
@@ -168,13 +179,17 @@ class TasksMonitor:
 
     def _update_tasks_progress(self):
         pbar = tqdm(total=len(self.tasks_state_map), desc="Monitoring tasks progress")
+        headers = ["Task Name", "Process", "Progress", "Time Cost", "Status", "Log Path", "Extend Parameters"]
         while True:
             self._refresh_task_state()
-            _ = self._get_task_states()
+            data = self._get_task_states()
             cur_count = 0
             for _, state in self.tasks_state_map.items():
                 if state.get("status") == "finish" or state.get("status") == "error":
                     cur_count += 1
+
+            # Format progress table
+            full_table = tabulate(data, headers=headers, tablefmt="grid")
 
             if cur_count > pbar.n:
                 pbar.update(cur_count - pbar.n)

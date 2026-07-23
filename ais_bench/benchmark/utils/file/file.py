@@ -1,3 +1,4 @@
+import sys
 from typing import List, Tuple, Union
 import os
 import json
@@ -20,8 +21,45 @@ __all__ = [
 
 logger = AISLogger()
 
+
+# ---------------------------------------------------------------------------
+# Cross-platform file locking
+# ---------------------------------------------------------------------------
+
+if sys.platform == 'win32':
+    import msvcrt
+
+    def _lock_file(f):
+        """Blocking exclusive lock on an open file (Windows)."""
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+
+    def _unlock_file(f):
+        """Release lock on an open file (Windows)."""
+        try:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        except IOError:
+            pass
+else:
+    import fcntl
+
+    def _lock_file(f):
+        """Blocking exclusive lock on an open file (Unix)."""
+        fcntl.lockf(f.fileno(), fcntl.LOCK_EX)
+
+    def _unlock_file(f):
+        """Release lock on an open file (Unix)."""
+        try:
+            fcntl.lockf(f.fileno(), fcntl.LOCK_UN)
+        except IOError:
+            pass
+
 def write_status(file_path, status):
     """Write status to a JSON file, appending to existing content.
+
+    Uses file locking to safely handle concurrent writes from multiple
+    processes to the same file (read-modify-write is atomic).
 
     Args:
         file_path: Path to the status file
@@ -30,32 +68,38 @@ def write_status(file_path, status):
     Returns:
         bool: True if successful, False otherwise
     """
-    # read existing content
-    existing_data = []
-    if os.path.exists(file_path):
+    # Ensure the file exists before opening in r+ mode
+    if not os.path.exists(file_path):
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                existing_data = json.load(f)
-        except json.JSONDecodeError as e:
-            logger.warning(
-                f"Failed to parse JSON from status file '{file_path}': {e}. "
-                f"Starting with empty status list."
-            )
-            existing_data = []
-        except IOError as e:
-            logger.warning(
-                f"Failed to read status file '{file_path}': {e}. "
-                f"Starting with empty status list."
-            )
-            existing_data = []
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump([], f)
+        except IOError:
+            pass
 
-    # add new status
-    existing_data.append(status)
-
-    # write to file
     try:
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(existing_data, f)
+        with open(file_path, 'r+', encoding='utf-8') as f:
+            _lock_file(f)
+            try:
+                # read existing content
+                content = f.read()
+                if content.strip():
+                    try:
+                        existing_data = json.loads(content)
+                    except json.JSONDecodeError:
+                        existing_data = []
+                else:
+                    existing_data = []
+
+                # add new status
+                existing_data.append(status)
+
+                # write back
+                f.seek(0)
+                f.truncate()
+                json.dump(existing_data, f)
+                f.flush()
+            finally:
+                _unlock_file(f)
         return True
     except IOError as e:
         logger.warning(f"Failed to write status to '{file_path}': {e}")
@@ -82,17 +126,29 @@ def read_and_clear_statuses(tmp_file_dir, tmp_file_name_list):
     logger.debug(f"Reading and clearing {len(abs_path_list)} status files from '{tmp_file_dir}'")
 
     for tmp_file in abs_path_list:
+        if not os.path.exists(tmp_file):
+            continue
+
         try:
-            # read existing content
-            with open(tmp_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            with open(tmp_file, 'r+', encoding='utf-8') as f:
+                _lock_file(f)
+                try:
+                    content = f.read()
+                    if content.strip():
+                        data = json.loads(content)
+                    else:
+                        data = []
 
-            status_count = len(data)
-            all_status.extend(data)
+                    status_count = len(data)
+                    all_status.extend(data)
 
-            # clear file content
-            with open(tmp_file, 'w', encoding='utf-8') as f:
-                json.dump([], f)
+                    # clear file content
+                    f.seek(0)
+                    f.truncate()
+                    json.dump([], f)
+                    f.flush()
+                finally:
+                    _unlock_file(f)
 
             logger.debug(f"Read {status_count} statuses from '{tmp_file}' and cleared file")
 
