@@ -1,0 +1,15 @@
+# SWE-bench Pro pack 元数据
+# 供 ais_bench_agent_doctor.sh 读取，验证该 pack 的 runtime 是否就绪
+#
+# 字段用途：
+#   name          pack 唯一标识
+#   runtime_venv  doctor L1 验证 /opt/venvs/<name> 存在 + python 可执行
+#   native_config doctor L1 验证原生 ais_bench 配置文件存在
+#   native_doc    跑完 doctor 后指引用户看哪份文档
+#
+# 注意：SWE-bench Pro 官方 docker 镜像均为 x86 架构，ARM 环境只能装 runtime，
+#       跑测评时报 case 镜像架构不兼容。
+name: swebench_pro
+runtime_venv: swebench_pro
+native_config: ais_bench/configs/swe_bench_pro_examples/mini_swe_agent_swe_bench_pro_mini.py
+native_doc: docs/source_zh_cn/extended_benchmark/agent/swe_bench_pro.md
