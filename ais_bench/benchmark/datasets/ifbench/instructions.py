@@ -441,8 +441,6 @@ class AlphabetLoopChecker(Instruction):
         """Checks if each word of the response starts with the next letter of the alphabet."""
         value = value.translate(str.maketrans('', '', string.punctuation))
         words = value.strip(''.join(string.punctuation) + ' ').split()
-        if not words:
-            return False
         alphabet = string.ascii_lowercase
         correct_letter = words[0][0].lower()
         if correct_letter not in alphabet:  # numbers are fails
@@ -1125,12 +1123,8 @@ class LastWordFirstNextChecker(Instruction):
         """Checks if the last word of each sentence in the response is the first word of the next sentence."""
         sentences = instructions_util.split_into_sentences(value)
         for i in range(len(sentences) - 1):
-            words_current = sentences[i].rstrip(''.join(string.punctuation) + ' ').split()
-            words_next = sentences[i + 1].lstrip(''.join(string.punctuation) + ' ').split()
-            if not words_current or not words_next:
-                return False
-            last_word = words_current[-1]
-            first_word = words_next[0]
+            last_word = sentences[i].rstrip(''.join(string.punctuation) + ' ').split()[-1]
+            first_word = sentences[i + 1].lstrip(''.join(string.punctuation) + ' ').split()[0]
             if last_word.lower() != first_word.lower():
                 return False
         return True
@@ -1259,9 +1253,12 @@ class IndentStairsChecker(Instruction):
 
     def check_following(self, value):
         """Checks if the response incrementally indents each new line."""
-        lines = [line for line in value.split('\n') if line.strip()]
+        lines = value.split('\n')
+        for line in lines:
+            if not line.strip():
+                lines.remove(line)
         for i in range(len(lines) - 1):
-            if len(str(lines[i + 1])) - len(str(lines[i + 1]).lstrip(' ')) <= len(str(lines[i])) - len(str(lines[i]).lstrip(' ')):
+            if len(lines[i + 1]) - len(lines[i + 1].lstrip(' ')) <= len(lines[i]) - len(lines[i].lstrip(' ')):
                 return False
         return True
 
@@ -1285,15 +1282,12 @@ class QuoteExplanationChecker(Instruction):
     def check_following(self, value):
         """Checks if there are no quotes next to each other
 		and the passage does not end with a quote."""
-        value = value.replace('\u201c', '"').replace('\u201d', '"')
+        value = value.replace('“', '"').replace('”', '"')
         value = value.replace("'\"'", '')  # remove references to the character '"'
         value = ''.join(value.split())  # remove all whitespace
         if '""' in value:
             return False
-        stripped = value.strip(string.digits + string.punctuation.replace('"', ''))
-        if not stripped:
-            return False
-        if stripped[-1] == '"':
+        if value.strip(string.digits + string.punctuation.replace('"', ''))[-1] == '"':
             return False
         return True
 
@@ -1349,23 +1343,21 @@ class ItalicsThesisChecker(Instruction):
     def check_following(self, value):
         """Checks if there is at least one line in italics as indicated
 		by HTML that is followed by unitalicized text."""
-        start_tag = '<i>'
-        end_tag = '</i>'
-        index = value.find(start_tag)
+        index = value.find('<i>')
         if index == -1:
-            start_tag = '<em>'
-            end_tag = '</em>'
-            index = value.find(start_tag)
+            index = value.find('<em>')
             if index == -1:
                 return False
         value = value[index:]
-        end_thesis = value.find(end_tag)
+        end_thesis = value.find('</i>')
         if end_thesis == -1:
-            return False
-        thesis = value[len(start_tag):end_thesis]
+            end_thesis = value.find('</em>')
+            if end_thesis == -1:
+                return False
+        thesis = value[3:end_thesis]
         if thesis.strip() == '':
             return False
-        text = value[end_thesis + len(end_tag):]
+        text = value[end_thesis + 4:]
         return text.strip() != ''
 
 
