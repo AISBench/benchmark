@@ -70,12 +70,12 @@ Terminal-Bench-2 预制打包镜像信息：
 
 #### 3.2 一键准备方案（推荐）
 
-如果不想手动处理依赖冲突 / DinD 配置，推荐使用 **AISBench Agent Runtime 一键准备方案**。同一脚本同时覆盖**快速入门（在线）**与**离线场景（内网/隔离环境）**，通过 `--runtime-tar` / `--case-tar` / `--datasets` 自由组合，无需切换不同流程。
+如果不想手动准备环境，推荐使用 **AISBench Agent Runtime 一键准备方案**。同一脚本同时覆盖**快速入门（在线）**与**离线场景（内网/隔离环境）**，通过 `--runtime-tar` / `--case-tar` / `--datasets` 自由组合，无需切换不同流程。
 
 ```bash
 # 1. 物理机上一键起 runtime 容器（自动选 DinD/Socket 模式，自动挂载数据集，自动把 case 镜像 tar 拷进容器内部 docker load 完）
-#    在线场景：省略 --runtime-tar，runtime 镜像自动从 ghcr.io 拉取
-#    离线场景：通过 --runtime-tar 跳过外网拉取
+#    在线场景：在线场景：省略 --runtime-tar，runtime 镜像自动从 ghcr.io 拉取最新的
+#    离线场景：通过 --runtime-tar 跳过外网拉取，可以从最新的release信息中提前获取
 curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
     | bash -s -- \
         --datasets /path/to/terminal-bench-2-offline-mini/terminal-bench-2-offline-selected_0.10/ \
@@ -99,9 +99,8 @@ vim ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py
 # 4. 验证 runtime 就绪
 ais_bench_agent_doctor.sh harbor
 
-# 5. 跑测评
+# 5. 进入测评环境
 agent_env harbor
-ais_bench ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py --debug
 ```
 
 切到其它数据集（mini-0.14 / mini-0.20 / full）：销毁旧容器 → 重新 `bash ... --datasets <新路径> --case-tar <新tar>` 起容器。

@@ -42,8 +42,8 @@ models = [
     )
 ]
 
-SWEBP_SCRIPT_PATH_ABS = ""
-SWEBP_DOCKER_PATH_ABS = ""
+SWEBP_SCRIPT_PATH_ABS = "/opt/src/SWE-bench_Pro-os/run_scripts"
+SWEBP_DOCKER_PATH_ABS = "/opt/src/SWE-bench_Pro-os/dockerfiles"
 
 datasets = [
     dict(

@@ -2,48 +2,6 @@
 
 SWE-bench是一个基准测试，用于评估大语言模型在从GitHub收集的现实世界软件问题上的表现。给定一个代码库和一个问题，语言模型的任务是生成一个补丁来解决所描述的问题。
 
-## 快速上手（推荐）
-
-如果你是第一次跑 Agent 测评，或不想手动处理依赖冲突 / DinD 配置 / mini-swe-agent fork 选择，推荐使用 **AISBench Agent Runtime 一键准备方案**：
-
-```bash
-# 1. 物理机上一键起 runtime 容器
-#    --datasets 挂载数据集 + 注入 env var（原生配置 path 自动从此 env var 读，无需 vim 改）
-curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
-    | bash -s -- --datasets /data/datasets/swebench
-
-# 2. 进入容器
-docker exec -it ais_bench_agent bash
-
-# 3. 准备 case 镜像（HF 上 princeton-nlp/SWE-Bench_* 的 docker 镜像，或 docker load tar）
-#    数据集由原生配置自动从 HF 下载，无需用户准备
-docker pull swebench/sweb.eval.x86_64.<repo>:<instance_id>
-# 详见各实例对应的 docker image tag
-
-# 4. 验证 runtime 就绪
-ais_bench_agent_doctor.sh swebench
-
-# 5. 改原生配置中的 model_names / api_base（path 由 env var 自动给）
-vim ais_bench/configs/swe_bench_examples/mini_swe_agent_swe_bench_lite.py
-
-# 6. 激活 swebench venv（AISBench fork 的 mini-swe-agent）
-agent_env swebench
-
-# 7. 跑测评
-ais_bench ais_bench/configs/swe_bench_examples/mini_swe_agent_swe_bench_lite.py --debug
-```
-
-切到其它数据集（verified / full / multilingual 等）：改原生配置文件的 `datasets[0].name` 字段，重新跑。
-
-该方案解决了以下痛点：
-- **mini-swe-agent fork 冲突**：AISBench fork 与 scaleapi fork 同包名互相覆盖，runtime 用独立 venv 隔离两个 fork
-- **容器配置易错**：DinD 模式 A/B、`--cgroupns=host`、`daemon.json`、seccomp 自动处理
-- **离线部署**：`--runtime-tar` 跳过 runtime 镜像的网络获取；`--case-tar` 加载 case 镜像到容器内（可多次，可传目录）
-
-方案原理与脚本实现见 [`docker/agent_runtime/`](../../../docker/agent_runtime/README.md)。
-
-> 下文为完整的 SWE-bench 测评原理与手动配置方式，适用于不使用一键方案、或需要深入定制的场景。
-
 ## 1. 功能概览
 
 当前在 `ais_bench` 已接入以下 SWEbench 能力：
@@ -64,13 +22,11 @@ ais_bench ais_bench/configs/swe_bench_examples/mini_swe_agent_swe_bench_lite.py 
 - `mini_swe_agent_swe_bench_multilingual_mini.py`：SWE-bench Multilingual Mini（**15**/**30**/**60** 条），AISBench官方构造的 Multilingual 子集，用于显著降低评测成本；子集筛选/构造方式见数据集卡与构造仓库：`https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini`、`https://github.com/AISBench/datasets/tree/main/mini_datasets/swe_bench_multiligual_mini`。
 
 
-
-## 2. 前置依赖
-
-运行前请确保以下依赖可用：
-
-1) 安装 `mini-swe-agent`（infer 依赖）
-
+## 2. 运行环境安装
+### 3.1 源码安装
+1. 确认docker版本满足要求，执行`docker version`，确保docker版本为20.10.0及以上， docker API版本为 1.42及以上
+2. 参考[工具安装&卸载](../../get_started/install.html)源码安装AISBench测评工具
+3. 安装 `mini-swe-agent`（infer 依赖）
 ```bash
 git clone https://github.com/AISBench/mini-swe-agent.git
 cd mini-swe-agent
@@ -78,7 +34,7 @@ pip install -e .
 cd -
 ```
 
-2) 安装 SWE-bench harness（eval 依赖）
+4. 安装 SWE-bench harness（eval 依赖）
 
 ```bash
 git clone https://github.com/SWE-bench/SWE-bench.git
@@ -87,17 +43,39 @@ pip install -e .
 cd -
 ```
 
-3) Docker 可用（infer/eval 都依赖容器环境）
-
-```bash
-docker --version
-docker ps
-```
-4) ARM 环境下需要开启 docker 的 x86 支持，执行以下命令：
+5. ARM 环境下需要开启 docker 的 x86 支持，执行以下命令：
 
 ```bash
 docker run --rm --privileged tonistiigi/binfmt --install all
 ```
+
+### 3.2 一键准备方案（推荐）
+如果你不想源码安装依赖，或者docker版本较低（docker version < 20.10.0），推荐使用 **AISBench Agent Runtime 一键准备方案**：
+
+```bash
+# 1. 物理机上一键起 runtime 容器（自动选 DinD/Socket 模式，自动挂载数据集，自动把 case 镜像 tar 拷进容器内部 docker load 完）
+#    在线场景：省略 --runtime-tar，runtime 镜像自动从 ghcr.io 拉取最新
+#    离线场景：通过 --runtime-tar 跳过外网拉取，可以从最新的release信息中手动获取
+curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
+    | bash -s -- \
+        --runtime-tar /path/to/agent_runtime_image_v3.1-20260701-master-ubuntu24.04-py312-<arch>.tar.gz \
+        --host-path /path/to/test_wkp/ \
+        --container-name test_agent_run
+# --runtime-tar （可选）提前准备的测评镜像，不传则自动拉取最新
+# --host-path 指向的目录需为空目录，容器内会自动创建同名目录挂载数据集和 case 镜像
+# --container-name 指向的容器名需唯一，否则会覆盖旧容器
+
+# 2. 进入容器
+docker exec -it test_agent_run bash
+
+# 3. 验证 runtime 就绪
+ais_bench_agent_doctor.sh swebench
+
+# 4. 激活 swebench venv（AISBench fork 的 mini-swe-agent）
+agent_env swebench
+
+```
+> 该一键准备方案的方案原理与脚本实现和更详细的介绍见 [`docker/agent_runtime/`](https://github.com/AISBench/benchmark/tree/master/docker/agent_runtime/README.md)。
 
 ## 3. 最小配置（先跑通再调优）
 
