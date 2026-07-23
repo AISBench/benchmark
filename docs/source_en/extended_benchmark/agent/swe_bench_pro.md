@@ -19,50 +19,80 @@ Directory `ais_bench/configs/swe_bench_pro_examples/` provides the following exa
 - `mini_swe_agent_swe_bench_pro_mini.py`: SWE-bench Pro Mini — commonly used for quick iterations.
 - `mini_swe_agent_swe_bench_pro_full.py`: SWE-bench Pro Full — the full test set.
 
-## 2. Prerequisites
+## 2. Runtime Environment Installation
 
-Before running, make sure the following dependencies are available:
-
-1) Install `mini-swe-agent` (required for infer)
+### 2.1 Install from Source
+1. Verify Docker version meets requirements: run `docker version` and ensure Docker version is 20.10.0 or above, Docker API version is 1.42 or above
+2. Refer to [Tool Installation & Uninstallation](../../get_started/install.html) to install AISBench evaluation tool from source
+3. Install `mini-swe-agent` (required for infer)
 
 > **Note**: SWE-Bench Pro official organization scaleapi has adapted mini-swe-agent. You need to download the adapted version from scaleapi's repository.
 
 ```bash
-# Clone mini-swe-agent repository
 git clone https://github.com/scaleapi/mini-swe-agent.git
-
-# Enter the project directory
-cd mini-swe-agent/
-
-# Install dependencies
+cd mini-swe-agent
 pip install -e .
-
-# Return to parent directory
 cd -
 ```
 
-2) Install `SWE-Bench_Pro` (required for infer and eval)
+4. Install `SWE-Bench_Pro` (required for infer and eval)
 
 ```bash
-# Clone SWE-Bench_Pro repository
 git clone https://github.com/scaleapi/SWE-bench_Pro-os.git
-
-# Enter the project directory
-cd SWE-bench_Pro-os/
-
-# Install dependencies
+cd SWE-bench_Pro-os
 pip install -r requirements.txt
-
-# Return to parent directory
 cd -
 ```
 
-3) Docker is available (both infer and eval depend on containerized environments)
+5. SWEBP Scripts and Docker Directory Configuration
+
+SWE-Bench Pro evaluation **must** specify the following two paths. There is no default behavior:
+
+- `swebp_scripts_dir`: Absolute path to the `run_scripts` directory of the SWE-bench Pro official repository
+- `swebp_docker_dir`: Absolute path to the `dockerfiles` directory of the SWE-bench Pro official repository
+
+```python
+SWEBP_SCRIPT_PATH_ABS = "{your_work_dir}/SWE-bench_Pro-os/run_scripts"  # Must be specified
+SWEBP_DOCKER_PATH_ABS = "{your_work_dir}/SWE-bench_Pro-os/dockerfiles"  # Must be specified
+```
+
+> **Note**: You need to clone the SWE-bench Pro official repository first: `git clone https://github.com/scaleapi/SWE-bench_Pro-os.git`
+
+
+
+### 2.2 One-Click Preparation (Recommended)
+If you don't want to install dependencies from source, or if Docker version is low (docker version < 20.10.0), it is recommended to use the **AISBench Agent Runtime one-click preparation solution**:
 
 ```bash
-docker --version
-docker ps
+# 1. Prepare the mini dataset on the host (skip if already done)
+#    SWE-bench Pro mini dataset **must** be prepared locally, no online version available
+mkdir -p /data/datasets/swebench_pro
+# Download URL: https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini
+# Recommended format: parquet; after download, extract to /data/datasets/swebench_pro/
+
+# 2. Start the runtime container on the host with one click (automatically select DinD/Socket mode, auto-mount datasets, and auto copy case image tar into the container for docker load)
+#    Online scenario: omit --runtime-tar, runtime image will be automatically pulled from ghcr.io
+#    Offline scenario: skip external network pull via --runtime-tar, which can be obtained from the latest release information in advance
+curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
+    | bash -s -- \
+        --runtime-tar /path/to/agent_runtime_image_v3.1-20260701-master-ubuntu24.04-py312-<arch>.tar.gz \
+        --datasets /data/datasets/swebench_pro \
+        --container-name ais_bench_agent
+# --runtime-tar (optional) pre-downloaded runtime image; if omitted, the latest is pulled automatically
+# --datasets points to the local dataset directory; a same-named directory will be created inside the container to mount the dataset
+# --container-name must be unique; otherwise the old container will be overwritten
+
+# 3. Enter the container
+docker exec -it ais_bench_agent bash
+
+# 4. Verify runtime is ready
+ais_bench_agent_doctor.sh swebench_pro
+
+# 5. Activate the swebench_pro venv (scaleapi fork of mini-swe-agent)
+agent_env swebench_pro
+
 ```
+> For the solution principles and script implementation, see [`docker/agent_runtime/`](https://github.com/AISBench/benchmark/tree/master/docker/agent_runtime/README.md).
 
 ## 3. Minimal Configuration (Run First, Tune Later)
 
@@ -101,20 +131,6 @@ Different datasets have different loading methods:
   - Download URL: `https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini`
   - Recommended format: parquet
   - Set `path` to the locally downloaded parquet file or directory
-
-### SWEBP Scripts and Docker Directory Configuration
-
-SWE-Bench Pro evaluation **must** specify the following two paths. There is no default behavior:
-
-- `swebp_scripts_dir`: Absolute path to the `run_scripts` directory of the SWE-bench Pro official repository
-- `swebp_docker_dir`: Absolute path to the `dockerfiles` directory of the SWE-bench Pro official repository
-
-```python
-SWEBP_SCRIPT_PATH_ABS = "{your_work_dir}/SWE-bench_Pro-os/run_scripts"  # Must be specified
-SWEBP_DOCKER_PATH_ABS = "{your_work_dir}/SWE-bench_Pro-os/dockerfiles"  # Must be specified
-```
-
-> **Note**: You need to clone the SWE-bench Pro official repository first: `git clone https://github.com/scaleapi/SWE-bench_Pro-os.git`
 
 ### First-Run Recommendations
 
