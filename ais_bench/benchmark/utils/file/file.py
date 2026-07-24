@@ -22,38 +22,20 @@ __all__ = [
 logger = AISLogger()
 
 
-# ---------------------------------------------------------------------------
-# Cross-platform file locking
-# ---------------------------------------------------------------------------
+import fcntl
 
-if sys.platform == 'win32':
-    import msvcrt
 
-    def _lock_file(f):
-        """Blocking exclusive lock on an open file (Windows)."""
-        f.seek(0)
-        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+def _lock_file(f):
+    """Blocking exclusive lock on an open file."""
+    fcntl.lockf(f.fileno(), fcntl.LOCK_EX)
 
-    def _unlock_file(f):
-        """Release lock on an open file (Windows)."""
-        try:
-            f.seek(0)
-            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
-        except IOError:
-            pass
-else:
-    import fcntl
 
-    def _lock_file(f):
-        """Blocking exclusive lock on an open file (Unix)."""
-        fcntl.lockf(f.fileno(), fcntl.LOCK_EX)
-
-    def _unlock_file(f):
-        """Release lock on an open file (Unix)."""
-        try:
-            fcntl.lockf(f.fileno(), fcntl.LOCK_UN)
-        except IOError:
-            pass
+def _unlock_file(f):
+    """Release lock on an open file."""
+    try:
+        fcntl.lockf(f.fileno(), fcntl.LOCK_UN)
+    except IOError:
+        pass
 
 def write_status(file_path, status):
     """Write status to a JSON file, appending to existing content.
