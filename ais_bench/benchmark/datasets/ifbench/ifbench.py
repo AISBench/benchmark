@@ -33,44 +33,43 @@ class OutputExample:
 
 def test_instruction_following_strict(inp: InputExample, response: str) -> OutputExample:
     """Tests response to see if instructions are followed (strict mode)."""
-    logger.debug(f"[ifbench][strict] ========== strict check start ==========")
-    logger.debug(f"[ifbench][strict] inp.key: {inp.key}")
-    logger.debug(f"[ifbench][strict] inp.instruction_id_list: {inp.instruction_id_list}")
-    logger.debug(f"[ifbench][strict] inp.prompt: {inp.prompt}")
-    logger.debug(f"[ifbench][strict] inp.kwargs: {inp.kwargs}")
-    logger.debug(f"[ifbench][strict] response: {response}")
-
     instruction_list = inp.instruction_id_list
     is_following_list = []
-    logger.debug(f"[ifbench][strict] instruction_list: {instruction_list}")
+    logger.debug(
+        f"[ifbench][strict] ========== strict check start ==========\n"
+        f"  inp.key: {inp.key}  instruction_id_list: {inp.instruction_id_list}\n"
+        f"  inp.prompt: {inp.prompt}\n"
+        f"  inp.kwargs: {inp.kwargs}\n"
+        f"  response: {response}\n"
+        f"  instruction_list: {instruction_list}"
+    )
 
     for index, instruction_id in enumerate(instruction_list):
-        logger.debug(f"[ifbench][strict] --- instruction[{index}] '{instruction_id}' ---")
         instruction_cls = instructions_registry.INSTRUCTION_DICT[instruction_id]
-        logger.debug(f"[ifbench][strict] instruction_cls: {instruction_cls}")
         instruction = instruction_cls(instruction_id)
-        logger.debug(f"[ifbench][strict] instruction: {instruction}")
 
         kwargs = inp.kwargs[index]
-        logger.debug(f"[ifbench][strict] kwargs[{index}]: {kwargs}")
 
         instruction.build_description(**kwargs)
         args = instruction.get_instruction_args()
-        logger.debug(f"[ifbench][strict] args: {args}")
 
         if args and 'prompt' in args:
-            logger.debug(f"[ifbench][strict] building description with prompt: {inp.prompt}")
             instruction.build_description(prompt=inp.prompt)
 
         check_result = instruction.check_following(response)
-        logger.debug(f"[ifbench][strict] response.strip(): '{response.strip()}'")
-        logger.debug(f"[ifbench][strict] check_following result: {check_result}")
 
         if response.strip() and check_result:
             is_following_list.append(True)
         else:
             is_following_list.append(False)
-        logger.debug(f"[ifbench][strict] instruction[{index}] passed: {is_following_list[-1]}")
+
+        logger.debug(
+            f"[ifbench][strict] --- instruction[{index}] '{instruction_id}' ---\n"
+            f"  instruction_cls: {instruction_cls}  instruction: {instruction}\n"
+            f"  kwargs[{index}]: {kwargs}  args: {args}\n"
+            f"  response.strip(): '{response.strip()}'  check_result: {check_result}\n"
+            f"  passed: {is_following_list[-1]}"
+        )
 
     result = OutputExample(
         instruction_id_list=inp.instruction_id_list,
@@ -79,24 +78,19 @@ def test_instruction_following_strict(inp: InputExample, response: str) -> Outpu
         follow_all_instructions=all(is_following_list),
         follow_instruction_list=is_following_list,
     )
-    logger.debug(f"[ifbench][strict] result.instruction_id_list: {result.instruction_id_list}")
-    logger.debug(f"[ifbench][strict] result.prompt: {result.prompt}")
-    logger.debug(f"[ifbench][strict] result.response: {result.response}")
-    logger.debug(f"[ifbench][strict] result.follow_all_instructions: {result.follow_all_instructions}")
-    logger.debug(f"[ifbench][strict] result.follow_instruction_list: {result.follow_instruction_list}")
-    logger.debug(f"[ifbench][strict] ========== strict check end ==========")
+    logger.debug(
+        f"[ifbench][strict] ========== strict check end ==========\n"
+        f"  result.instruction_id_list: {result.instruction_id_list}\n"
+        f"  result.prompt: {result.prompt}\n"
+        f"  result.response: {result.response}\n"
+        f"  result.follow_all_instructions: {result.follow_all_instructions}\n"
+        f"  result.follow_instruction_list: {result.follow_instruction_list}"
+    )
     return result
 
 
 def test_instruction_following_loose(inp: InputExample, response: str) -> OutputExample:
     """Tests response for an upper bound for following instructions (loose mode)."""
-    logger.debug(f"[ifbench][loose] ========== loose check start ==========")
-    logger.debug(f"[ifbench][loose] inp.key: {inp.key}")
-    logger.debug(f"[ifbench][loose] inp.instruction_id_list: {inp.instruction_id_list}")
-    logger.debug(f"[ifbench][loose] inp.prompt: {inp.prompt}")
-    logger.debug(f"[ifbench][loose] inp.kwargs: {inp.kwargs}")
-    logger.debug(f"[ifbench][loose] response: {response}")
-
     r = response.split('\n')
     response_remove_first = '\n'.join(r[1:]).strip()
     response_remove_last = '\n'.join(r[:-1]).strip()
@@ -105,15 +99,6 @@ def test_instruction_following_loose(inp: InputExample, response: str) -> Output
     revised_response_remove_first = response_remove_first.replace('*', '')
     revised_response_remove_last = response_remove_last.replace('*', '')
     revised_response_remove_both = response_remove_both.replace('*', '')
-
-    logger.debug(f"[ifbench][loose] r (split lines): {r}")
-    logger.debug(f"[ifbench][loose] response_remove_first: '{response_remove_first}'")
-    logger.debug(f"[ifbench][loose] response_remove_last: '{response_remove_last}'")
-    logger.debug(f"[ifbench][loose] response_remove_both: '{response_remove_both}'")
-    logger.debug(f"[ifbench][loose] revised_response: '{revised_response}'")
-    logger.debug(f"[ifbench][loose] revised_response_remove_first: '{revised_response_remove_first}'")
-    logger.debug(f"[ifbench][loose] revised_response_remove_last: '{revised_response_remove_last}'")
-    logger.debug(f"[ifbench][loose] revised_response_remove_both: '{revised_response_remove_both}'")
 
     all_responses = [
         response,
@@ -125,39 +110,59 @@ def test_instruction_following_loose(inp: InputExample, response: str) -> Output
         revised_response_remove_last,
         revised_response_remove_both,
     ]
-    logger.debug(f"[ifbench][loose] all_responses (8 variants):")
-    for i, ar in enumerate(all_responses):
-        logger.debug(f"[ifbench][loose]   all_responses[{i}]: '{ar}'")
 
     instruction_list = inp.instruction_id_list
     is_following_list = []
-    logger.debug(f"[ifbench][loose] instruction_list: {instruction_list}")
+
+    all_responses_str = '\n'.join(f"    all_responses[{i}]: '{ar}'" for i, ar in enumerate(all_responses))
+    logger.debug(
+        f"[ifbench][loose] ========== loose check start ==========\n"
+        f"  inp.key: {inp.key}  instruction_id_list: {inp.instruction_id_list}\n"
+        f"  inp.prompt: {inp.prompt}\n"
+        f"  inp.kwargs: {inp.kwargs}\n"
+        f"  response: {response}\n"
+        f"  r (split lines): {r}\n"
+        f"  response_remove_first: '{response_remove_first}'\n"
+        f"  response_remove_last: '{response_remove_last}'\n"
+        f"  response_remove_both: '{response_remove_both}'\n"
+        f"  revised_response: '{revised_response}'\n"
+        f"  revised_response_remove_first: '{revised_response_remove_first}'\n"
+        f"  revised_response_remove_last: '{revised_response_remove_last}'\n"
+        f"  revised_response_remove_both: '{revised_response_remove_both}'\n"
+        f"  all_responses (8 variants):\n{all_responses_str}\n"
+        f"  instruction_list: {instruction_list}"
+    )
 
     for index, instruction_id in enumerate(instruction_list):
-        logger.debug(f"[ifbench][loose] --- instruction[{index}] '{instruction_id}' ---")
         instruction_cls = instructions_registry.INSTRUCTION_DICT[instruction_id]
-        logger.debug(f"[ifbench][loose] instruction_cls: {instruction_cls}")
         instruction = instruction_cls(instruction_id)
-        logger.debug(f"[ifbench][loose] instruction: {instruction}")
 
         instruction.build_description(**inp.kwargs[index])
         args = instruction.get_instruction_args()
-        logger.debug(f"[ifbench][loose] kwargs[{index}]: {inp.kwargs[index]}")
-        logger.debug(f"[ifbench][loose] args: {args}")
 
         if args and 'prompt' in args:
-            logger.debug(f"[ifbench][loose] building description with prompt: {inp.prompt}")
             instruction.build_description(prompt=inp.prompt)
 
         is_following = False
+        matched_vi = None
+        matched_ar = None
         for vi, ar in enumerate(all_responses):
             if ar.strip() and instruction.check_following(ar):
-                logger.debug(f"[ifbench][loose] instruction[{index}] matched at all_responses[{vi}]: '{ar}'")
+                matched_vi = vi
+                matched_ar = ar
                 is_following = True
                 break
 
         is_following_list.append(is_following)
-        logger.debug(f"[ifbench][loose] instruction[{index}] passed: {is_following}")
+
+        match_info = f"  matched at all_responses[{matched_vi}]: '{matched_ar}'\n" if is_following else ""
+        logger.debug(
+            f"[ifbench][loose] --- instruction[{index}] '{instruction_id}' ---\n"
+            f"  instruction_cls: {instruction_cls}  instruction: {instruction}\n"
+            f"  kwargs[{index}]: {inp.kwargs[index]}  args: {args}\n"
+            f"{match_info}"
+            f"  passed: {is_following}"
+        )
 
     result = OutputExample(
         instruction_id_list=inp.instruction_id_list,
@@ -166,12 +171,14 @@ def test_instruction_following_loose(inp: InputExample, response: str) -> Output
         follow_all_instructions=all(is_following_list),
         follow_instruction_list=is_following_list,
     )
-    logger.debug(f"[ifbench][loose] result.instruction_id_list: {result.instruction_id_list}")
-    logger.debug(f"[ifbench][loose] result.prompt: {result.prompt}")
-    logger.debug(f"[ifbench][loose] result.response: {result.response}")
-    logger.debug(f"[ifbench][loose] result.follow_all_instructions: {result.follow_all_instructions}")
-    logger.debug(f"[ifbench][loose] result.follow_instruction_list: {result.follow_instruction_list}")
-    logger.debug(f"[ifbench][loose] ========== loose check end ==========")
+    logger.debug(
+        f"[ifbench][loose] ========== loose check end ==========\n"
+        f"  result.instruction_id_list: {result.instruction_id_list}\n"
+        f"  result.prompt: {result.prompt}\n"
+        f"  result.response: {result.response}\n"
+        f"  result.follow_all_instructions: {result.follow_all_instructions}\n"
+        f"  result.follow_instruction_list: {result.follow_instruction_list}"
+    )
     return result
 
 
@@ -194,8 +201,10 @@ class IFBenchDataset(BaseDataset):
         for i in range(len(dataset)):
             item = dataset[i]
             prompt = item['prompt']
-            logger.debug(f"[ifbench][load] Sample[{i}] prompt: {prompt}")
-            logger.debug(f"[ifbench][load] Sample[{i}] item: {item}")
+            logger.debug(
+                f"[ifbench][load] Sample[{i}] prompt: {prompt}\n"
+                f"  item: {item}"
+            )
             raw_data.append({
                 'prompt': prompt,
                 'reference': item,
@@ -229,14 +238,6 @@ class IFBenchEvaluator(BaseEvaluator):
         details = {}
 
         for index, (pred, refer) in enumerate(zip(predictions, references)):
-            logger.debug(f"[ifbench][score] --- Sample[{index}] ---")
-            logger.debug(f"[ifbench][score] Sample[{index}] pred: {pred}")
-            logger.debug(f"[ifbench][score] Sample[{index}] refer keys: {list(refer.keys())}")
-            logger.debug(f"[ifbench][score] Sample[{index}] refer['key']: {refer.get('key')}")
-            logger.debug(f"[ifbench][score] Sample[{index}] refer['instruction_id_list']: {refer.get('instruction_id_list')}")
-            logger.debug(f"[ifbench][score] Sample[{index}] refer['prompt']: {refer.get('prompt')}")
-            logger.debug(f"[ifbench][score] Sample[{index}] refer['kwargs']: {refer.get('kwargs')}")
-
             inp = InputExample(
                 key=refer['key'],
                 instruction_id_list=refer['instruction_id_list'],
@@ -245,23 +246,28 @@ class IFBenchEvaluator(BaseEvaluator):
                     {k: v for k, v in kwarg.items() if v is not None}
                     for kwarg in refer.get('kwargs', [])
                 ])
-            logger.debug(f"[ifbench][score] Sample[{index}] InputExample.key: {inp.key}")
-            logger.debug(f"[ifbench][score] Sample[{index}] InputExample.instruction_id_list: {inp.instruction_id_list}")
-            logger.debug(f"[ifbench][score] Sample[{index}] InputExample.prompt: {inp.prompt}")
-            logger.debug(f"[ifbench][score] Sample[{index}] InputExample.kwargs (cleaned): {inp.kwargs}")
 
             prompt_text = refer.get('prompt', '')
             pred_text = pred or ''
-            logger.debug(f"[ifbench][score] Sample[{index}] prompt_text: {prompt_text}")
-            logger.debug(f"[ifbench][score] Sample[{index}] pred_text: {pred_text}")
+
+            logger.debug(
+                f"[ifbench][score] --- Sample[{index}] ---\n"
+                f"  pred: {pred}\n"
+                f"  refer keys: {list(refer.keys())}\n"
+                f"  refer['key']: {refer.get('key')}\n"
+                f"  refer['instruction_id_list']: {refer.get('instruction_id_list')}\n"
+                f"  refer['prompt']: {refer.get('prompt')}\n"
+                f"  refer['kwargs']: {refer.get('kwargs')}\n"
+                f"  InputExample.key: {inp.key}\n"
+                f"  InputExample.instruction_id_list: {inp.instruction_id_list}\n"
+                f"  InputExample.prompt: {inp.prompt}\n"
+                f"  InputExample.kwargs (cleaned): {inp.kwargs}\n"
+                f"  prompt_text: {prompt_text}\n"
+                f"  pred_text: {pred_text}"
+            )
 
             # strict evaluation
             example_strict = test_instruction_following_strict(inp, pred_text)
-            logger.debug(f"[ifbench][score] Sample[{index}] strict OutputExample.instruction_id_list: {example_strict.instruction_id_list}")
-            logger.debug(f"[ifbench][score] Sample[{index}] strict OutputExample.prompt: {example_strict.prompt}")
-            logger.debug(f"[ifbench][score] Sample[{index}] strict OutputExample.response: {example_strict.response}")
-            logger.debug(f"[ifbench][score] Sample[{index}] strict OutputExample.follow_all_instructions: {example_strict.follow_all_instructions}")
-            logger.debug(f"[ifbench][score] Sample[{index}] strict OutputExample.follow_instruction_list: {example_strict.follow_instruction_list}")
 
             follow_instruction_list_strict = example_strict.follow_instruction_list
             instruction_id_list_strict = example_strict.instruction_id_list
@@ -273,18 +279,8 @@ class IFBenchEvaluator(BaseEvaluator):
                 if instruction_id_list_strict else 0.0
             )
 
-            logger.debug(f"[ifbench][score] Sample[{index}] follow_instruction_list_strict: {follow_instruction_list_strict}")
-            logger.debug(f"[ifbench][score] Sample[{index}] instruction_id_list_strict: {instruction_id_list_strict}")
-            logger.debug(f"[ifbench][score] Sample[{index}] is_strict_correct: {is_strict_correct}")
-            logger.debug(f"[ifbench][score] Sample[{index}] strict sum/count: {sum(follow_instruction_list_strict)}/{len(follow_instruction_list_strict)}")
-
             # loose evaluation
             example_loose = test_instruction_following_loose(inp, pred_text)
-            logger.debug(f"[ifbench][score] Sample[{index}] loose OutputExample.instruction_id_list: {example_loose.instruction_id_list}")
-            logger.debug(f"[ifbench][score] Sample[{index}] loose OutputExample.prompt: {example_loose.prompt}")
-            logger.debug(f"[ifbench][score] Sample[{index}] loose OutputExample.response: {example_loose.response}")
-            logger.debug(f"[ifbench][score] Sample[{index}] loose OutputExample.follow_all_instructions: {example_loose.follow_all_instructions}")
-            logger.debug(f"[ifbench][score] Sample[{index}] loose OutputExample.follow_instruction_list: {example_loose.follow_instruction_list}")
 
             follow_instruction_list_loose = example_loose.follow_instruction_list
             instruction_id_list_loose = example_loose.instruction_id_list
@@ -296,18 +292,12 @@ class IFBenchEvaluator(BaseEvaluator):
                 if instruction_id_list_loose else 0.0
             )
 
-            logger.debug(f"[ifbench][score] Sample[{index}] follow_instruction_list_loose: {follow_instruction_list_loose}")
-            logger.debug(f"[ifbench][score] Sample[{index}] instruction_id_list_loose: {instruction_id_list_loose}")
-            logger.debug(f"[ifbench][score] Sample[{index}] is_loose_correct: {is_loose_correct}")
-            logger.debug(f"[ifbench][score] Sample[{index}] loose sum/count: {sum(follow_instruction_list_loose)}/{len(follow_instruction_list_loose)}")
-
             if is_strict_correct:
                 grade = 'strict'
             elif is_loose_correct:
                 grade = 'loose'
             else:
                 grade = 'none'
-            logger.debug(f"[ifbench][score] Sample[{index}] grade: {grade}")
 
             details[str(index)] = {
                 'prompt': origin_prompt[index] if origin_prompt else refer.get('prompt', ''),
@@ -318,16 +308,27 @@ class IFBenchEvaluator(BaseEvaluator):
                 'is_correct': is_strict_correct,
                 'grade': grade,
             }
-            logger.debug(f"[ifbench][score] Sample[{index}] details: {details[str(index)]}")
 
-            # Phase-level progress: 1-line summary per sample
-            logger.info(
+            logger.debug(
                 f"[ifbench][score] Sample[{index}] grade={grade} "
                 f"strict={is_strict_correct} loose={is_loose_correct} "
                 f"accum: prompt_s={prompt_strict_correct}/{prompt_strict_total} "
                 f"inst_s={inst_strict_ratios[-1]:.2f} "
                 f"prompt_l={prompt_loose_correct}/{prompt_loose_total} "
-                f"inst_l={inst_loose_ratios[-1]:.2f}"
+                f"inst_l={inst_loose_ratios[-1]:.2f}\n"
+                f"  strict OutputExample: instruction_id_list={example_strict.instruction_id_list}\n"
+                f"    prompt={example_strict.prompt}\n"
+                f"    response={example_strict.response}\n"
+                f"    follow_all_instructions={example_strict.follow_all_instructions}\n"
+                f"    follow_instruction_list={example_strict.follow_instruction_list}\n"
+                f"  strict: sum/count={sum(follow_instruction_list_strict)}/{len(follow_instruction_list_strict)}\n"
+                f"  loose OutputExample: instruction_id_list={example_loose.instruction_id_list}\n"
+                f"    prompt={example_loose.prompt}\n"
+                f"    response={example_loose.response}\n"
+                f"    follow_all_instructions={example_loose.follow_all_instructions}\n"
+                f"    follow_instruction_list={example_loose.follow_instruction_list}\n"
+                f"  loose: sum/count={sum(follow_instruction_list_loose)}/{len(follow_instruction_list_loose)}\n"
+                f"  details: {details[str(index)]}"
             )
 
         results = {
