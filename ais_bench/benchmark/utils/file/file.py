@@ -85,7 +85,11 @@ def write_status(file_path, status):
                 if content.strip():
                     try:
                         existing_data = json.loads(content)
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        logger.warning(
+                            f"Failed to parse JSON from status file '{file_path}': {e}. "
+                            f"Starting with empty status list."
+                        )
                         existing_data = []
                 else:
                     existing_data = []
