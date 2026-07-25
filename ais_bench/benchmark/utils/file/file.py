@@ -1,4 +1,3 @@
-import sys
 from typing import List, Tuple, Union
 import os
 import json
@@ -34,8 +33,8 @@ def _unlock_file(f):
     """Release lock on an open file."""
     try:
         fcntl.lockf(f.fileno(), fcntl.LOCK_UN)
-    except IOError:
-        pass
+    except IOError as e:
+        logger.warning(f"Failed to release file lock: {e}")
 
 def write_status(file_path, status):
     """Write status to a JSON file, appending to existing content.
