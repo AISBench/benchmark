@@ -59,6 +59,7 @@ AISBench Benchmark当前支持的数据集类型如下：
 | FewCLUE_tnews   | 新闻分类                 | [详细介绍](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_tnews/README.md)   |
 | dapo-math-17k   | 数学推理（RL评估）       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/dapo_math/README.md)       |
 | ifbench         | 指令遵循评估             | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ifbench/README.md)         |
+| aa_lcr          | 长上下文检索与推理       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aa_lcr/README.md)          |
 
 ### 多模态类数据集
 
