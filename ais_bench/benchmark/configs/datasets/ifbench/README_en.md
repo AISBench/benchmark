@@ -28,3 +28,19 @@ IFBench is a benchmark for evaluating the reliability of AI models in following 
 | --- | --- | --- | --- | --- | --- |
 | ifbench_0_shot_gen_str | IFBench dataset | prompt_level_strict, inst_level_strict, prompt_level_loose, inst_level_loose | 0-shot | String format | ifbench_0_shot_gen_str.py |
 
+---
+
+## ⚠️ Model Configuration Notes
+
+When using this dataset, the `pred_postprocessor` in `vllm_api_general_chat.py` must be changed to `extract_non_reasoning_content_raw`:
+
+```python
+# Before
+pred_postprocessor=dict(type=extract_non_reasoning_content),
+
+# After
+pred_postprocessor=dict(type=extract_non_reasoning_content_raw),
+```
+
+This change ensures that IFBench evaluates the model's raw output correctly, preventing the removal of reasoning content from affecting evaluation results.
+

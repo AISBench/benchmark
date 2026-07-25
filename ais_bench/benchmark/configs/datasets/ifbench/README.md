@@ -28,3 +28,19 @@ IFBench 是一个用于评估 AI 模型在遵循新颖、具有挑战性且多�
 | --- | --- | --- | --- | --- | --- |
 | ifbench_0_shot_gen_str | IFBench 数据集 | prompt_level_strict, inst_level_strict, prompt_level_loose, inst_level_loose | 0-shot | 字符串格式 | ifbench_0_shot_gen_str.py |
 
+---
+
+## ⚠️ 模型配置注意事项
+
+若使用此数据集，需要在 `vllm_api_general_chat.py` 中将 `pred_postprocessor` 后处理函数修改为 `extract_non_reasoning_content_raw`：
+
+```python
+# 修改前
+pred_postprocessor=dict(type=extract_non_reasoning_content),
+
+# 修改后
+pred_postprocessor=dict(type=extract_non_reasoning_content_raw),
+```
+
+此修改是为了在 IFBench 评测中正确处理模型的原始输出，避免误移除推理过程（reasoning）内容影响评估结果。
+
