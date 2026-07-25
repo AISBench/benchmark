@@ -1,5 +1,5 @@
 from ais_bench.benchmark.models import VLLMCustomAPIChat
-from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content
+from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content, extract_non_reasoning_content_raw
 
 models = [
     dict(

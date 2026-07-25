@@ -32,13 +32,17 @@ IFBench is a benchmark for evaluating the reliability of AI models in following 
 
 ## ⚠️ Model Configuration Notes
 
-When using this dataset, the `pred_postprocessor` in `vllm_api_general_chat.py` must be changed to `extract_non_reasoning_content_raw`:
+When using this dataset, both the import statement and `pred_postprocessor` in `vllm_api_general_chat.py` must be changed to `extract_non_reasoning_content_raw`:
 
 ```python
 # Before
+from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content
+...
 pred_postprocessor=dict(type=extract_non_reasoning_content),
 
 # After
+from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content_raw
+...
 pred_postprocessor=dict(type=extract_non_reasoning_content_raw),
 ```
 

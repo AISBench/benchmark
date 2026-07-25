@@ -32,13 +32,17 @@ IFBench 是一个用于评估 AI 模型在遵循新颖、具有挑战性且多�
 
 ## ⚠️ 模型配置注意事项
 
-若使用此数据集，需要在 `vllm_api_general_chat.py` 中将 `pred_postprocessor` 后处理函数修改为 `extract_non_reasoning_content_raw`：
+若使用此数据集，需要在 `vllm_api_general_chat.py` 中同时修改引入语句和 `pred_postprocessor` 后处理函数：
 
 ```python
 # 修改前
+from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content
+...
 pred_postprocessor=dict(type=extract_non_reasoning_content),
 
 # 修改后
+from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content_raw
+...
 pred_postprocessor=dict(type=extract_non_reasoning_content_raw),
 ```
 
