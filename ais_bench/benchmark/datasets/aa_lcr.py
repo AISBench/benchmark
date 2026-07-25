@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from datasets import Dataset
 
 from ais_bench.benchmark.datasets.base import BaseDataset
-from ais_bench.benchmark.datasets.utils.datasets import get_cache_dir
+from ais_bench.benchmark.datasets.utils.datasets import get_cache_dir, get_data_path
 from ais_bench.benchmark.datasets.utils.llm_judge import LLMJudgeDataset
 from ais_bench.benchmark.openicl.icl_evaluator import BaseEvaluator
 from ais_bench.benchmark.registry import ICL_EVALUATORS, LOAD_DATASET
@@ -23,20 +23,13 @@ logger = AISLogger()
 # Directory containing this file (benchmark/datasets/).
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Data root: <repo>/ais_bench/datasets/aa_lcr/
-#   _THIS_DIR  = ais_bench/benchmark/datasets/
-#   _DATA_DIR  = ais_bench/datasets/aa_lcr/   (../../datasets/aa_lcr)
-_DATA_DIR = os.path.abspath(os.path.join(
-    _THIS_DIR, '..', '..', 'datasets', 'aa_lcr'
-))
+# Data directory relative to repository root (resolved via get_data_path).
+_DATA_REL_PATH: str = 'ais_bench/datasets/aa_lcr'
 
-# Document corpus ZIP (benchmark/ais_bench/datasets/aa_lcr/extracted_text/).
-_DOC_ZIP_PATH = os.path.join(
-    _DATA_DIR, 'extracted_text', 'AA-LCR_extracted-text.zip'
+# Document corpus ZIP filename within the data directory.
+_DOC_ZIP_REL_PATH: str = os.path.join(
+    _DATA_REL_PATH, 'extracted_text', 'AA-LCR_extracted-text.zip'
 )
-
-# CSV metadata file (benchmark/ais_bench/datasets/aa_lcr/AA-LCR_Dataset.csv).
-_CSV_PATH = os.path.join(_DATA_DIR, 'AA-LCR_Dataset.csv')
 
 # Cache subdirectory where the ZIP is extracted.
 DEFAULT_CACHE_SUBDIR: str = 'aa_lcr'
@@ -85,8 +78,8 @@ def _ensure_text_dir_downloaded() -> Path:
     """Ensure AA-LCR extracted texts are available locally.
 
     Looks for the document corpus ZIP at the relative path
-    ``benchmark/ais_bench/datasets/aa_lcr/extracted_text/AA-LCR_extracted-text.zip``
-    (sibling to this file in the repository), extracts it into the cache
+    ``ais_bench/datasets/aa_lcr/extracted_text/AA-LCR_extracted-text.zip``
+    (resolved via :func:`get_data_path`), extracts it into the cache
     directory on first use, and returns the path to the ``lcr/`` directory
     containing the ``.txt`` files.  Subsequent calls return the cached path
     immediately.
@@ -107,12 +100,12 @@ def _ensure_text_dir_downloaded() -> Path:
     if extracted_dir.exists():
         return extracted_dir
 
-    local_zip = Path(_DOC_ZIP_PATH)
+    local_zip = Path(get_data_path(_DOC_ZIP_REL_PATH))
     if not local_zip.exists():
         raise FileNotFoundError(
             f'AA-LCR document corpus ZIP not found at: {local_zip}\n'
             'Please ensure the file is placed at '
-            'benchmark/ais_bench/datasets/aa_lcr/extracted_text/'
+            'ais_bench/datasets/aa_lcr/extracted_text/'
             'AA-LCR_extracted-text.zip relative to the repository root.'
         )
 
@@ -282,7 +275,7 @@ class AALCRDataset(BaseDataset):
 
         Args:
             path: Local path to the dataset metadata directory
-                (e.g. ``benchmark/ais_bench/datasets/aa_lcr``).
+                (e.g. ``ais_bench/datasets/aa_lcr``).
             name: Dataset configuration / subset name.
 
         Returns:
@@ -290,21 +283,23 @@ class AALCRDataset(BaseDataset):
             ``answers``, ``question``, ``document_category``,
             ``document_set_id``, ``data_source_urls``.
         """
-        # Resolve CSV path: prefer the local CSV file over HuggingFace
-        # load_dataset to avoid requiring network access.
-        csv_path = _CSV_PATH
+        # Resolve CSV path via get_data_path: uses the config-supplied
+        # ``path`` as the dataset directory when provided, otherwise falls
+        # back to the default location relative to the repository root.
         if path and os.path.isabs(path):
-            candidate = os.path.join(path, 'AA-LCR_Dataset.csv')
-            if os.path.exists(candidate):
-                csv_path = candidate
+            data_dir = path
+        else:
+            rel_path = path if path else _DATA_REL_PATH
+            data_dir = get_data_path(rel_path)
 
+        csv_path = os.path.join(data_dir, 'AA-LCR_Dataset.csv')
         logger.debug(f'Loading AA-LCR dataset metadata from: {csv_path}')
 
         if not os.path.exists(csv_path):
             raise FileNotFoundError(
                 f'AA-LCR CSV metadata file not found at: {csv_path}\n'
                 'Please ensure the file is placed at '
-                'benchmark/ais_bench/datasets/aa_lcr/AA-LCR_Dataset.csv '
+                'ais_bench/datasets/aa_lcr/AA-LCR_Dataset.csv '
                 'relative to the repository root.'
             )
 
