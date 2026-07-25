@@ -35,6 +35,7 @@ def _unlock_file(f):
         fcntl.lockf(f.fileno(), fcntl.LOCK_UN)
     except IOError as e:
         logger.warning(f"Failed to release file lock: {e}")
+        
 
 def write_status(file_path, status):
     """Write status to a JSON file, appending to existing content.
