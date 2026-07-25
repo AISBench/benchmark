@@ -41,7 +41,7 @@ DEFAULT_CACHE_ROOT = os.path.abspath(os.path.join(
 ))
 
 # ---------------------------------------------------------------------------
-# Prompt templates (matching evalscope format exactly)
+# Prompt templates
 # ---------------------------------------------------------------------------
 
 PROMPT_TEMPLATE = """\
@@ -83,9 +83,6 @@ def _ensure_text_dir_downloaded() -> Path:
     directory on first use, and returns the path to the ``lcr/`` directory
     containing the ``.txt`` files.  Subsequent calls return the cached path
     immediately.
-
-    This mirrors evalscope's ``_ensure_text_dir_downloaded()`` but reads
-    from a local ZIP instead of downloading from ModelScope.
 
     Returns:
         Path to the ``lcr/`` directory containing extracted ``.txt`` files.
@@ -135,8 +132,6 @@ def _get_context(text_dir: Path, record: dict) -> str:
     Documents are loaded in the order specified by ``data_source_filenames``,
     matching the original AA-LCR reference implementation.  Each document is
     wrapped in ``BEGIN DOCUMENT … / END DOCUMENT …`` markers.
-
-    This mirrors evalscope's ``AALCRAdapter._get_context()``.
 
     Args:
         text_dir: Root directory of the extracted document corpus
@@ -249,8 +244,7 @@ class AALCRDataset(BaseDataset):
     The document corpus is read from a local ZIP and cached after first
     extraction.  Question metadata is loaded from a local CSV file.
     The two are linked via ``document_category`` and
-    ``document_set_id`` fields — the same data-separation design used
-    by the evalscope adapter.
+    ``document_set_id`` fields.
 
     .. note::
 
@@ -270,8 +264,7 @@ class AALCRDataset(BaseDataset):
 
         Loads question metadata from the local CSV file, then for each
         record reads the associated documents from the extracted corpus
-        and builds the full prompt.  This mirrors evalscope's
-        ``AALCRAdapter.record_to_sample()`` flow.
+        and builds the full prompt.
 
         Args:
             path: Local path to the dataset metadata directory
@@ -305,8 +298,7 @@ class AALCRDataset(BaseDataset):
 
         text_dir = _ensure_text_dir_downloaded()
 
-        # Load records directly from local CSV (adapted from evalscope's
-        # load_questions() in the AA-LCR README).
+        # Load records directly from local CSV.
         records: List[Dict[str, Any]] = []
         with open(csv_path, encoding='utf-8') as f:
             reader = csv.DictReader(f)
@@ -362,10 +354,6 @@ class AALCRJudgeEvaluator(BaseEvaluator):
     Parses judge model outputs looking for ``CORRECT`` / ``INCORRECT``
     and computes accuracy.  Uses word-boundary matching so that
     "INCORRECT" is not falsely matched as "CORRECT".
-
-    This mirrors evalscope's ``AALCRAdapter.llm_match_score()`` scoring
-    logic: a single regex pass with ``\\bCORRECT\\b`` to determine
-    correctness.
     """
 
     def score(self, predictions: List, references: List) -> Dict[str, Any]:
@@ -400,8 +388,7 @@ class AALCRJudgeEvaluator(BaseEvaluator):
         ):
             total += 1
             # Use word-boundary matching to avoid matching "CORRECT"
-            # inside "INCORRECT".  Same approach as evalscope's
-            # AALCRAdapter.llm_match_score().
+            # inside "INCORRECT".
             is_correct = bool(
                 re.search(r'\bCORRECT\b', judge_output, re.IGNORECASE)
             )
