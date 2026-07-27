@@ -76,6 +76,7 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
         uid = str(uuid.uuid4()).replace("-", "")
         output = RequestOutput(self.perf_mode)
         output.uuid = uid
+        output.data_id = index
         await self.status_counter.post()
         await self.model.generate(input, max_out_len, output, session=session, **data)
         if output.success:
