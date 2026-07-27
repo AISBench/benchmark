@@ -30,7 +30,35 @@ IFBench 是一个用于评估 AI 模型在遵循新颖、具有挑战性且多�
 
 ---
 
-## ⚠️ 模型配置注意事项
+## ⚠️ 数据集评测准备事项
+
+### 1. 安装依赖
+
+下载 pyarrow 依赖：
+
+```shell
+pip install pyarrow==15.0.0
+```
+
+### 2. 下载 NLTK 数据包
+
+从 [NLTK Data](https://github.com/nltk/nltk_data/archive/refs/heads/gh-pages.zip) 下载压缩包，放置到 ais_bench 启动的容器内（建议放在 workspace 目录下），然后执行以下命令：
+
+```shell
+unzip nltk_data-gh-pages.zip
+mkdir nltk_data
+mv nltk_data-gh-pages/packages/* nltk_data/
+cd nltk_data
+find . -name "*.zip" -exec sh -c 'unzip -o "$1" -d "$(dirname "$1")"' _ {} \;
+```
+
+解压完成后，设置环境变量 `NLTK_DATA` 指向 nltk_data 目录。例如 nltk_data 在容器内的路径为 `/workspace/nltk_data`，则在终端中执行：
+
+```shell
+export NLTK_DATA=/workspace/nltk_data
+```
+
+### 3. 模型配置修改
 
 若使用此数据集，需要在 `vllm_api_general_chat.py` 中同时修改引入语句和 `pred_postprocessor` 后处理函数：
 

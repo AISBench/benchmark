@@ -30,7 +30,35 @@ IFBench is a benchmark for evaluating the reliability of AI models in following 
 
 ---
 
-## ⚠️ Model Configuration Notes
+## ⚠️ Dataset Evaluation Preparation
+
+### 1. Install Dependencies
+
+Download pyarrow dependency:
+
+```shell
+pip install pyarrow==15.0.0
+```
+
+### 2. Download NLTK Data Package
+
+Download the compressed package from [NLTK Data](https://github.com/nltk/nltk_data/archive/refs/heads/gh-pages.zip), place it in the container where ais_bench is running (recommended under the workspace directory), then execute the following commands:
+
+```shell
+unzip nltk_data-gh-pages.zip
+mkdir nltk_data
+mv nltk_data-gh-pages/packages/* nltk_data/
+cd nltk_data
+find . -name "*.zip" -exec sh -c 'unzip -o "$1" -d "$(dirname "$1")"' _ {} \;
+```
+
+After decompression, set the `NLTK_DATA` environment variable to point to the nltk_data directory. For example, if nltk_data is located at `/workspace/nltk_data` in the container, execute in the terminal:
+
+```shell
+export NLTK_DATA=/workspace/nltk_data
+```
+
+### 3. Model Configuration Modification
 
 When using this dataset, both the import statement and `pred_postprocessor` in `vllm_api_general_chat.py` must be changed to `extract_non_reasoning_content_raw`:
 
