@@ -9,6 +9,7 @@
 + TPOT（Time Per Output Token）：输出阶段每个 Token 的平均生成时延（不含首个 Token）。
 + ITL（Inter-token Latency）：相邻 Token 间的平均间隔时延（不含首个 Token）。
 + InputTokens：请求的输入 Token 数量。
++ PrefillTokenThroughput：Prefill 阶段的 Token 吞吐率（Token/s），按每个请求统计。
 + OutputTokens：请求生成的输出 Token 数量。
 + OutputTokenThroughput：输出 Token 的吞吐率（Token/s）。
 + Tokenizer：Tokenizer 编码耗时。
@@ -21,6 +22,7 @@
 |TPOT|统计此参数的阶段|Decode阶段平均时延|最大Decode阶段时延|最小Decode阶段时延|Decode阶段中位数时延|75分位Decode阶段时延|90分位每条请求Decode阶段平均时延|99分位Decode阶段时延|测试数据量，来源于输入参数|
 |ITL|统计此参数的阶段|token间平均时延|token间最大时延|token间最小时延|token间中位数时延|token间75分位时延|token间90分位时延|token间99分位时延|测试数据量，来源于输入参数|
 |InputTokens|统计此参数的阶段|输入token平均长度|最大输入token长度|最小输入token长度|输入token中位数长度|75分位输入token长度|90分位输入token长度|99分位输入token长度|测试数据量，来源于输入参数|
+|PrefillTokenThroughput|统计此参数的阶段|Prefill阶段平均吞吐率|Prefill阶段最大吞吐率|Prefill阶段最小吞吐率|Prefill阶段中位数吞吐率|75分位Prefill阶段吞吐率|90分位Prefill阶段吞吐率|99分位Prefill阶段吞吐率|测试数据量，来源于输入参数|
 |OutputTokens|统计此参数的阶段|输出token平均长度|最大输出token长度|最小输出token长度|输出token中位数长度|75分位输出token长度|90分位输出token长度|99分位输出token长度|测试数据量，来源于输入参数|
 |OutputTokenThroughput|统计此参数的阶段|平均输出吞吐|最大输出吞吐|最小输出吞吐|中位数输出吞吐|输出吞吐75分位|输出吞吐90分位|输出吞吐99分位|测试数据量，来源于输入参数|
 
@@ -35,7 +37,6 @@
 | **Max Concurrency**          | 配置的最大并发数              |
 | **Request Throughput**       | 请求级吞吐率（请求数/秒）         |
 | **Total Input Tokens**       | 所有请求的总输入 Token 数      |
-| **Prefill Token Throughput** | Prefill 阶段的 Token 吞吐率 |
 | **Total Output Tokens**      | 所有请求生成的总输出 Token 数    |
 | **Input Token Throughput**   | 输入 Token 吞吐率          |
 | **Output Token Throughput**  | 输出 Token 吞吐率          |
