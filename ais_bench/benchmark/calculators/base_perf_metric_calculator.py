@@ -206,8 +206,8 @@ class BasePerfMetricCalculator(ABC):
             "ITL": ms,
             "InputTokens": None,
             "OutputTokens": None,
-            "PrefillTokenThroughput": unit_token,
             "OutputTokenThroughput": unit_token,
+            "PrefillTokenThroughput": unit_token,
         }
 
         for metric, values in metrics.items():
