@@ -3,7 +3,7 @@ from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.datasets import Geometry3KDataset, Geometry3KEvaluator
 
-# ── Read the instruction text from the dataset module to keep parity ──
+# ── Read the instruction text from the dataset module ──────────────────
 from ais_bench.benchmark.datasets.geometry3k import GEOMETRY3K_INSTRUCTION
 
 
@@ -42,7 +42,7 @@ geometry3k_datasets = [
     dict(
         abbr="geometry3k",
         type=Geometry3KDataset,
-        path="hiyouga/geometry3k",
+        path="ais_bench/datasets/geometry3k/data/test-00000-of-00001.parquet",
         split="test",
         reader_cfg=geometry3k_reader_cfg,
         infer_cfg=geometry3k_infer_cfg,
