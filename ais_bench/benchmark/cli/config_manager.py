@@ -108,14 +108,15 @@ class ConfigManager:
     def _init_response_anomaly_config(self):
         """Normalize the optional response anomaly detection configuration."""
         raw_anomaly_cfg = self.cfg.get('response_anomaly') or {}
-        anomaly_cfg = dict(raw_anomaly_cfg) if isinstance(raw_anomaly_cfg, dict) else {}
+        global_cfg = dict(raw_anomaly_cfg) if isinstance(raw_anomaly_cfg, dict) else {}
         cli_enabled = getattr(self.args, 'response_anomaly', None)
         if isinstance(cli_enabled, bool):
-            anomaly_cfg['enabled'] = cli_enabled
-        anomaly_cfg.setdefault('enabled', False)
-        anomaly_cfg.setdefault('top_logprobs', 20)
-        self.cfg['response_anomaly'] = anomaly_cfg
-        if not anomaly_cfg['enabled']:
+            global_cfg['enabled'] = cli_enabled
+        global_cfg.setdefault('enabled', False)
+        global_cfg.setdefault('top_logprobs', 20)
+        global_cfg.setdefault('msprobe_config_path', None)
+        self.cfg['response_anomaly'] = global_cfg
+        if not global_cfg['enabled']:
             return
 
         self._validate_response_anomaly_support()
@@ -133,10 +134,45 @@ class ConfigManager:
                 "response_anomaly is enabled but no service model is configured. "
                 "Response anomaly detection requires service models (attr='service').",
             )
+
+        if (
+            len(service_models) > 1
+            and global_cfg.get('model_name')
+            and any(
+                'model_name' not in (model_cfg.get('response_anomaly') or {})
+                for model_cfg in service_models
+            )
+        ):
+            self.logger.warning(
+                "response_anomaly.model_name is configured globally while multiple "
+                "service models are present; prefer setting model_name inside each "
+                "model's response_anomaly config."
+            )
+
         for model_cfg in service_models:
+            model_anomaly_cfg = dict(model_cfg.get('response_anomaly') or {})
+            model_anomaly_cfg.setdefault(
+                'model_name',
+                global_cfg.get('model_name') or model_cfg.get('abbr'),
+            )
+            model_anomaly_cfg.setdefault(
+                'top_logprobs', global_cfg['top_logprobs']
+            )
+            for key in (
+                'model_path',
+                'msprobe_config_path',
+                'msprobe_mtype_path',
+                'msprobe_token2category_dir',
+            ):
+                if key not in model_anomaly_cfg:
+                    model_anomaly_cfg[key] = global_cfg.get(key)
+            model_cfg['response_anomaly'] = model_anomaly_cfg
+
             generation_kwargs = model_cfg.setdefault('generation_kwargs', {})
             generation_kwargs.setdefault('logprobs', True)
-            generation_kwargs.setdefault('top_logprobs', anomaly_cfg['top_logprobs'])
+            generation_kwargs.setdefault(
+                'top_logprobs', model_anomaly_cfg['top_logprobs']
+            )
             # Consumed by BaseAPIModel and never sent to the service.
             generation_kwargs['response_anomaly_enabled'] = True
 

@@ -739,5 +739,39 @@ class TestConfigManager(unittest.TestCase):
         self.assertTrue(generation_kwargs['response_anomaly_enabled'])
         self.assertTrue(config_manager.cfg['response_anomaly']['enabled'])
 
+    def test_response_anomaly_merges_model_level_config(self):
+        """模型级 response_anomaly 配置覆盖全局配置。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'response_anomaly': {'top_logprobs': 10},
+            'models': [
+                {
+                    'abbr': 'model',
+                    'attr': 'service',
+                    'generation_kwargs': {},
+                    'response_anomaly': {
+                        'model_name': 'Custom-Name',
+                        'model_path': '/models/custom',
+                        'top_logprobs': 30,
+                    },
+                }
+            ],
+            'datasets': [{'abbr': 'dataset'}],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
+        self.assertEqual(model_anomaly_cfg['model_name'], 'Custom-Name')
+        self.assertEqual(model_anomaly_cfg['model_path'], '/models/custom')
+        self.assertEqual(model_anomaly_cfg['top_logprobs'], 30)
+        self.assertEqual(
+            config_manager.cfg['models'][0]['generation_kwargs']['top_logprobs'],
+            30,
+        )
+
 if __name__ == '__main__':
     unittest.main()

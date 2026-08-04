@@ -6,7 +6,7 @@
 
 大模型推理服务可能出现生僻字、乱码、重复输出以及 logprob 为 `NaN` 或 `Inf` 等输出异常。AISBench 在完成服务模型推理后，基于推理响应中的 token id 与 top-k logprobs 调用 msProbe 的 Response Anomaly 能力，对每个 Case 进行异常检测。
 
-本模块不实现或改写检测算法；异常判定统一由已安装的官方 `mindstudio-probe` 包提供的 `msprobe.response_anomaly.analyze_output_anomaly()` 完成。
+本模块不实现或改写检测算法；异常判定统一由已安装的官方 `mindstudio-probe` 包提供的 `msprobe.response_anomaly.detector.ILLDetector` 完成。
 
 ### 1.2 目标
 
@@ -20,7 +20,7 @@
 ### 1.3 非目标
 
 - 不在 AISBench 内部复制、修改或维护 msProbe 的异常检测算法。
-- 不生成模型 token 到字符类别映射；该映射及模型元数据由 msProbe 管理。
+- 不在 AISBench 内部复制或维护 token 分类生成算法；AISBench 仅提供包装工具调用 msProbe 官方生成器，并将产物输出到用户指定目录。
 - 不将异常 Case 自动改写为推理失败，也不改变原有评测指标；异常信息是独立审计结果。
 - 当前仅覆盖通过 `BaseAPIModel` 的服务模型生成链路。
 - 不支持性能模式（`perf`）与 Agent 测评链路（SWE-bench / SWE-bench Pro / BFCL / agent_example 等）；在这些场景启用会直接报错，避免静默空转或改变 Agent 请求参数。
@@ -55,7 +55,35 @@ top_logprobs=20
 
 ### 2.3 msProbe 模型配置要求
 
-`response_anomaly.model_name` 必须与 msProbe 的 `mtype_config.json` 中模型名匹配。msProbe 依靠其模型元数据和 token 分类映射完成生僻字、乱码等检测。
+msProbe 检测依赖三个文件：
+
+| 文件 | 作用 |
+| --- | --- |
+| `config.yaml` | 检测算法阈值配置。 |
+| `mtype_config.json` | 模型名与 BOS/EOS token id 映射，用于交叉验证模型。 |
+| `token2category/<模型名>_<词表大小>.json` | token id 到字符类别映射，用于生僻字和乱码检测。 |
+
+三个文件均可通过 AISBench 配置指定路径；未指定时回退到 msProbe 安装包内默认文件。对于 msProbe 未内置的模型，可使用 AISBench 提供的包装工具调用 msProbe 官方 `gen_model_config.py` 生成：
+
+```bash
+ais_bench-gen-response-anomaly-config \
+  --model-path /home/Qwen3-30B-A3B \
+  --model-name Qwen3-30B-A3B \
+  --output-dir ./msprobe_configs
+```
+
+产物布局：
+
+```text
+./msprobe_configs/
+├── configs/
+│   ├── config.yaml
+│   └── mtype_config.json
+└── token2category/
+    └── qwen3-30b-a3b_151643.json
+```
+
+`mtype_config.json` 支持多模型合并，多次运行不会互相覆盖；`config.yaml` 已存在时不会被覆盖，便于用户手工调阈值。
 
 ## 3. 总体设计
 
@@ -67,7 +95,7 @@ flowchart LR
     CM --> API[BaseAPIModel]
     API --> PRED[预测 JSONL]
     PRED --> COORD[ResponseAnomalyCoordinator]
-    COORD --> MSP[msprobe.analyze_output_anomaly]
+    COORD --> MSP[msprobe.ILLDetector]
     MSP --> RESULT[异常结果 JSONL]
     COORD --> STATUS[状态文件]
     STATUS --> BOARD[任务状态面板]
@@ -89,7 +117,7 @@ sequenceDiagram
     I->>P: 写入推理 Case 与 token/logprobs 载荷
     I->>C: 推理阶段结束后启动后台线程
     par 异常检测
-        C->>M: analyze_output_anomaly(topk_logprobs, tokens, model_configs)
+        C->>M: ILLDetector.run(topk_logprobs, tokens, model_configs)
         M-->>C: [is_ill, ill_type]
         C->>R: 写入 Case 检测结果
     and 正常评测
@@ -107,26 +135,48 @@ sequenceDiagram
 | 工作流协调 | [ais_bench/benchmark/cli/workers.py](../../../ais_bench/benchmark/cli/workers.py) | 推理结束后启动检测线程；工作流结束前等待线程完成。 |
 | 响应采集 | [ais_bench/benchmark/models/api_models/base_api.py](../../../ais_bench/benchmark/models/api_models/base_api.py) | 从流式或非流式服务响应中提取 token 与 top-k logprobs。 |
 | Case 透传 | [ais_bench/benchmark/openicl/icl_inferencer/output_handler/gen_inferencer_output_handler.py](../../../ais_bench/benchmark/openicl/icl_inferencer/output_handler/gen_inferencer_output_handler.py) | 将 `response_anomaly_payload` 保留在预测 JSONL。 |
-| 检测协调器 | [ais_bench/benchmark/utils/response_anomaly.py](../../../ais_bench/benchmark/utils/response_anomaly.py) | 读预测、惰性导入 msProbe、调用接口、落盘、恢复与状态上报。 |
+| 检测协调器 | [ais_bench/benchmark/utils/response_anomaly.py](../../../ais_bench/benchmark/utils/response_anomaly.py) | 读预测、合并模型级配置、按需生成 msProbe 配置、初始化检测器、落盘、恢复与状态上报。 |
+| 配置生成工具 | [ais_bench/tools/response_anomaly/gen_model_config.py](../../../ais_bench/tools/response_anomaly/gen_model_config.py) | 包装 msProbe 官方生成器，输出到用户目录并合并 mtype 配置。 |
 | 面板展示 | [ais_bench/benchmark/runners/base.py](../../../ais_bench/benchmark/runners/base.py) | 动态读取 `ResponseAnomaly` 状态并展示。 |
 
 ## 4. 配置设计
 
-### 4.1 总配置
+### 4.1 总配置与模型级配置
+
+运行级开关与公共参数放在全局 `response_anomaly`，模型相关配置放在各模型的 `response_anomaly` 中：
 
 ```python
 response_anomaly = dict(
     enabled=True,
-    model_name='Qwen3-30B-A3B',
     top_logprobs=20,
+    msprobe_config_path='/path/to/config.yaml',  # 可选，算法阈值配置
 )
+
+models = [
+    dict(
+        abbr='qwen3-30b',
+        attr='service',
+        response_anomaly=dict(
+            model_name='Qwen3-30B-A3B',
+            model_path='/home/Qwen3-30B-A3B',          # 本地模型目录，用于自动生成配置
+            msprobe_mtype_path='/path/to/mtype_config.json',
+            msprobe_token2category_dir='/path/to/token2category/',
+        ),
+    ),
+]
 ```
 
-| 配置项 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `enabled` | bool | `False` | 是否启动异常检测。 |
-| `model_name` | str | 模型 `abbr` | msProbe 模型名称，应与其模型配置一致。 |
-| `top_logprobs` | int | `20` | 请求服务返回的每个 token 的 top-k logprobs 数量。 |
+| 配置项 | 层级 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `enabled` | 全局 | bool | `False` | 是否启动异常检测。 |
+| `top_logprobs` | 全局/模型 | int | `20` | 请求服务返回的每个 token 的 top-k logprobs 数量，模型级可覆盖。 |
+| `model_name` | 模型 | str | 模型 `abbr` | msProbe 模型名称，应与其 `mtype_config.json` 及 token 分类映射一致。 |
+| `model_path` | 模型 | str | 无 | 本地模型目录；配置后且未指定 mtype/token2category 时自动生成。 |
+| `msprobe_config_path` | 全局/模型 | str | msProbe 包内默认 | 算法阈值 `config.yaml` 路径。 |
+| `msprobe_mtype_path` | 模型 | str | msProbe 包内默认 | `mtype_config.json` 路径。 |
+| `msprobe_token2category_dir` | 模型 | str | msProbe 包内默认 | `token2category/` 目录路径。 |
+
+当 `model_path` 已配置且未提供 `msprobe_mtype_path` / `msprobe_token2category_dir` 时，AISBench 在检测启动前自动调用配置生成工具，输出到 `<work_dir>/response_anomaly_config/<模型 abbr>/`。
 
 ### 4.2 命令行优先级
 
@@ -141,16 +191,17 @@ response_anomaly = dict(
 ### 5.1 msProbe 调用接口
 
 ```python
-from msprobe.response_anomaly import analyze_output_anomaly
+from msprobe.response_anomaly.detector import ILLDetector
 
-result = analyze_output_anomaly(
-    topk_logprobs=[topk_logprobs],
-    tokens=[tokens],
-    model_configs=[model_name],
+detector = ILLDetector(
+    config_path,
+    mtype_path,
+    tk2cat_path,
 )
+result = detector.run([topk_logprobs], [tokens], [model_name])
 ```
 
-输入、输出与 msProbe 保持一致：
+AISBench 直接使用 `ILLDetector`，以便传入用户配置的三个文件路径；每个模型组只初始化一次检测器，避免逐 Case 重复加载配置。输入、输出与 msProbe 保持一致：
 
 | 参数 | 类型 | 说明 |
 | --- | --- | --- |
@@ -273,7 +324,7 @@ result = analyze_output_anomaly(
 
 [tests/UT/utils/test_response_anomaly.py](../../../tests/UT/utils/test_response_anomaly.py) 覆盖：
 
-- `msprobe.response_anomaly.analyze_output_anomaly` 的导入与调用参数。
+- `msprobe.response_anomaly.detector.ILLDetector` 的初始化与调用参数，以及自定义三个配置文件路径的传递。
 - 官方接口返回的异常标志及类型向 Case 结果的映射。
 - 缺少 `response_anomaly_payload` 时的 `skipped` 分支。
 

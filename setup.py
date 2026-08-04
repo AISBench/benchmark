@@ -208,6 +208,8 @@ def do_setup():
         entry_points={
             'console_scripts': [
                 'ais_bench = ais_bench.benchmark.cli.main:main',
+                'ais_bench-gen-response-anomaly-config = '
+                'ais_bench.tools.response_anomaly.gen_model_config:main',
             ],
         },
     )

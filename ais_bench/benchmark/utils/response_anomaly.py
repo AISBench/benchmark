@@ -88,6 +88,26 @@ class ResponseAnomalyCoordinator:
 
             model_name_warned = False
             for model_abbr, dataset_abbr, model_cfg, prediction_file, predictions in task_groups:
+                anomaly_cfg = self._merge_model_anomaly_config(
+                    model_cfg, cfg["response_anomaly"]
+                )
+                try:
+                    anomaly_cfg = self._prepare_model_config(
+                        model_abbr, anomaly_cfg, work_dir
+                    )
+                    detector, init_error = self._build_detector(anomaly_cfg)
+                except Exception as exc:
+                    self.logger.error(
+                        "Failed to prepare response anomaly detection for model "
+                        "%s: %s",
+                        model_abbr,
+                        exc,
+                    )
+                    detector = None
+                    init_error = (
+                        "failed",
+                        f"Failed to prepare msProbe configuration: {exc}",
+                    )
                 result_file = (
                     Path(work_dir)
                     / "response_anomaly"
@@ -102,7 +122,7 @@ class ResponseAnomalyCoordinator:
                     for item in inherited.values()
                 )
 
-                if not model_name_warned and not cfg["response_anomaly"].get("model_name"):
+                if not model_name_warned and not anomaly_cfg.get("model_name"):
                     self.logger.warning(
                         "response_anomaly.model_name is not set; falling back to model "
                         "abbr '%s'. msProbe model matching may be degraded.",
@@ -115,7 +135,7 @@ class ResponseAnomalyCoordinator:
                     if case_id in inherited:
                         continue
                     result = self._detect_case(
-                        prediction, model_cfg, cfg["response_anomaly"]
+                        prediction, anomaly_cfg, detector, init_error
                     )
                     result_file.parent.mkdir(parents=True, exist_ok=True)
                     safe_write({case_id: result}, result_file)
@@ -167,11 +187,96 @@ class ResponseAnomalyCoordinator:
             if case_id in prediction_ids and item.get("detection_status") == "completed"
         }
 
+    @staticmethod
+    def _merge_model_anomaly_config(
+        model_cfg: Dict[str, Any], global_cfg: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Merge global response_anomaly config with the model-level overrides."""
+        merged = dict(global_cfg)
+        model_cfg_anomaly = dict(model_cfg.get("response_anomaly") or {})
+        for key, value in model_cfg_anomaly.items():
+            if value is not None:
+                merged[key] = value
+        return merged
+
+    def _prepare_model_config(
+        self,
+        model_abbr: str,
+        anomaly_cfg: Dict[str, Any],
+        work_dir: str,
+    ) -> Dict[str, Any]:
+        """Auto-generate msProbe model files when a local model path is given."""
+        model_path = anomaly_cfg.get("model_path")
+        if not model_path:
+            return anomaly_cfg
+
+        has_mtype = bool(anomaly_cfg.get("msprobe_mtype_path"))
+        has_tk2cat = bool(anomaly_cfg.get("msprobe_token2category_dir"))
+        if has_mtype and has_tk2cat:
+            return anomaly_cfg
+        if has_mtype != has_tk2cat:
+            raise RuntimeError(
+                "response_anomaly.msprobe_mtype_path and "
+                "response_anomaly.msprobe_token2category_dir must be configured "
+                "together; either provide both or rely on model_path "
+                "auto-generation."
+            )
+
+        from ais_bench.tools.response_anomaly.gen_model_config import (
+            generate_model_config,
+        )
+
+        output_dir = Path(work_dir) / "response_anomaly_config" / model_abbr
+        generated = generate_model_config(
+            model_path=str(model_path),
+            model_name=anomaly_cfg.get("model_name"),
+            output_dir=str(output_dir),
+        )
+        merged = dict(anomaly_cfg)
+        for key, value in generated.items():
+            merged.setdefault(key, value)
+        if not merged.get("model_name") and generated.get("model_name"):
+            merged["model_name"] = generated["model_name"]
+        return merged
+
+    @staticmethod
+    def _build_detector(anomaly_cfg: Dict[str, Any]):
+        """Create one msProbe ILLDetector with the configured file paths."""
+        try:
+            import msprobe.response_anomaly as response_anomaly_pkg
+            from msprobe.response_anomaly.detector import ILLDetector
+        except ImportError:
+            return None, (
+                "unavailable",
+                "mindstudio-probe is required for response anomaly detection. "
+                "Install the AISBench response_anomaly extra.",
+            )
+
+        base = Path(response_anomaly_pkg.__file__).resolve().parent
+        config_path = anomaly_cfg.get("msprobe_config_path") or str(
+            base / "configs" / "config.yaml"
+        )
+        mtype_path = anomaly_cfg.get("msprobe_mtype_path") or str(
+            base / "configs" / "mtype_config.json"
+        )
+        tk2cat_path = anomaly_cfg.get("msprobe_token2category_dir") or str(
+            base / "token2category"
+        )
+        try:
+            detector = ILLDetector(config_path, mtype_path, tk2cat_path)
+        except Exception as exc:
+            return None, (
+                "failed",
+                f"Failed to initialize msProbe detector: {exc}",
+            )
+        return detector, None
+
     def _detect_case(
         self,
         prediction: Dict[str, Any],
-        model_cfg: Dict[str, Any],
-        config: Dict[str, Any],
+        anomaly_cfg: Dict[str, Any],
+        detector=None,
+        init_error=None,
     ) -> Dict[str, Any]:
         result = {
             "id": prediction.get("id"),
@@ -204,22 +309,20 @@ class ResponseAnomalyCoordinator:
             result["anomaly_type_name"] = "skipped"
             return result
 
-        try:
-            from msprobe.response_anomaly import analyze_output_anomaly
-        except ImportError:
-            result["detection_status"] = "unavailable"
-            result["reason"] = (
-                "mindstudio-probe is required for response anomaly detection. "
-                "Install the AISBench response_anomaly extra."
+        if init_error is not None:
+            status, reason = init_error
+            result.update(
+                detection_status=status,
+                reason=reason,
+                anomaly_type_name=status,
             )
-            result["anomaly_type_name"] = "unavailable"
             return result
 
         try:
             topk_logprobs = self._normalize_logprobs(topk_logprobs)
             tokens = [int(token) for token in tokens]
-            model_name = config.get("model_name", model_cfg.get("abbr"))
-            is_anomaly, anomaly_type = analyze_output_anomaly(
+            model_name = anomaly_cfg.get("model_name")
+            is_anomaly, anomaly_type = detector.run(
                 [topk_logprobs], [tokens], [model_name]
             )[0]
             anomaly_type = int(anomaly_type)
