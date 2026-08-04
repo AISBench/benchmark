@@ -42,6 +42,7 @@ class TestGenerateModelConfig(unittest.TestCase):
     def test_generate_model_config_merges_and_copies_defaults(self):
         def fake_run(command, cwd, **kwargs):
             output_root = Path(cwd).parent
+            (output_root / "configs").mkdir(parents=True, exist_ok=True)
             (output_root / "configs" / "mtype_config.json").write_text(
                 json.dumps({"new-model": {"eos": 2}}), encoding="utf-8"
             )
@@ -78,7 +79,7 @@ class TestGenerateModelConfig(unittest.TestCase):
             str(self.output_dir / "configs" / "config.yaml"),
         )
         self.assertEqual(generated["model_name"], "new-model")
-        self.assertFalse((self.output_dir / "tools").exists())
+        self.assertFalse((self.output_dir / "_gen_tmp_new-model").exists())
 
     def test_generate_model_config_failure_raises(self):
         failed = subprocess.CompletedProcess(
@@ -95,7 +96,14 @@ class TestGenerateModelConfig(unittest.TestCase):
                     output_dir=str(self.output_dir),
                 )
         self.assertIn("boom", str(cm.exception))
-        self.assertTrue((self.output_dir / "tools").exists())
+        self.assertTrue((self.output_dir / "_gen_tmp_new-model").exists())
+        # Old mtype_config.json must not have been clobbered.
+        mtype = json.loads(
+            (self.output_dir / "configs" / "mtype_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(set(mtype), {"old-model"})
 
     def test_generate_model_config_keeps_tools_dir_when_run_raises(self):
         with self._patch_msprobe_dir(), mock.patch(
@@ -110,7 +118,13 @@ class TestGenerateModelConfig(unittest.TestCase):
                 )
 
         self.assertIn("cannot run", str(cm.exception))
-        self.assertTrue((self.output_dir / "tools").exists())
+        self.assertTrue((self.output_dir / "_gen_tmp_new-model").exists())
+        mtype = json.loads(
+            (self.output_dir / "configs" / "mtype_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(set(mtype), {"old-model"})
 
 
 if __name__ == "__main__":

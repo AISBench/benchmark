@@ -114,8 +114,10 @@ class ResponseAnomalyCoordinator:
                     / model_abbr
                     / f"{dataset_abbr}.jsonl"
                 )
-                prediction_ids = {str(item.get("id")) for item in predictions}
-                inherited = self._load_inherited_results(result_file, prediction_ids)
+                prediction_keys = {
+                    f"{item.get('id')}:{item.get('uuid')}" for item in predictions
+                }
+                inherited = self._load_inherited_results(result_file, prediction_keys)
                 completed += len(inherited)
                 counts.update(
                     item.get("anomaly_type_name", "unknown")
@@ -132,7 +134,8 @@ class ResponseAnomalyCoordinator:
 
                 for prediction in predictions:
                     case_id = str(prediction.get("id"))
-                    if case_id in inherited:
+                    case_key = f"{prediction.get('id')}:{prediction.get('uuid')}"
+                    if case_key in inherited:
                         continue
                     result = self._detect_case(
                         prediction, anomaly_cfg, detector, init_error
@@ -171,20 +174,23 @@ class ResponseAnomalyCoordinator:
             )
 
     def _load_inherited_results(
-        self, result_file: Path, prediction_ids: Iterable[str]
+        self, result_file: Path, prediction_keys: Iterable[str]
     ) -> Dict[str, Dict[str, Any]]:
-        """Return previously completed results whose ids still exist in predictions.
+        """Return previously completed results whose id+uuid still exist in predictions.
 
+        Matching on id+uuid ensures that a re-inferred response (different
+        uuid) is not incorrectly assigned a stale anomaly result.
         Non-final statuses (skipped/unavailable/failed) are intentionally not
         inherited so they can be retried on resume.
         """
-        existing_by_id: Dict[str, Dict[str, Any]] = {}
+        existing_by_key: Dict[str, Dict[str, Any]] = {}
         for item in self._read_jsonl(result_file):
-            existing_by_id[str(item.get("id"))] = item
+            key = f"{item.get('id')}:{item.get('uuid')}"
+            existing_by_key[key] = item
         return {
-            case_id: item
-            for case_id, item in existing_by_id.items()
-            if case_id in prediction_ids and item.get("detection_status") == "completed"
+            key: item
+            for key, item in existing_by_key.items()
+            if key in prediction_keys and item.get("detection_status") == "completed"
         }
 
     @staticmethod
@@ -234,7 +240,10 @@ class ResponseAnomalyCoordinator:
         )
         merged = dict(anomaly_cfg)
         for key, value in generated.items():
-            merged.setdefault(key, value)
+            # Overwrite None/empty values (e.g. msprobe_config_path set to
+            # None by ConfigManager) so auto-generated paths take effect.
+            if not merged.get(key):
+                merged[key] = value
         return merged
 
     @staticmethod

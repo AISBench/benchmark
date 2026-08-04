@@ -167,6 +167,31 @@ def test_prepare_model_config_auto_generates_when_paths_missing(
     assert cfg["model_name"] == "Qwen3-30B-A3B"
 
 
+def test_prepare_model_config_overwrites_none_config_path(tmp_path, monkeypatch):
+    """自动生成的 config.yaml 路径应覆盖 anomaly_cfg 中的 None 值。"""
+    generated = {
+        "msprobe_config_path": str(tmp_path / "config.yaml"),
+        "msprobe_mtype_path": str(tmp_path / "mtype.json"),
+        "msprobe_token2category_dir": str(tmp_path / "tk2cat"),
+    }
+    monkeypatch.setattr(
+        "ais_bench.tools.response_anomaly.gen_model_config.generate_model_config",
+        lambda **kwargs: generated,
+    )
+
+    cfg = ResponseAnomalyCoordinator()._prepare_model_config(
+        "qwen",
+        {
+            "model_path": "/models/qwen",
+            "model_name": "Qwen3-30B-A3B",
+            "msprobe_config_path": None,
+        },
+        str(tmp_path),
+    )
+
+    assert cfg["msprobe_config_path"] == str(tmp_path / "config.yaml")
+
+
 def test_prepare_model_config_requires_both_custom_paths(tmp_path):
     with pytest.raises(RuntimeError):
         ResponseAnomalyCoordinator()._prepare_model_config(
@@ -211,15 +236,31 @@ def test_read_jsonl_skips_broken_lines(tmp_path):
 def test_load_inherited_results_only_keeps_completed(tmp_path):
     result_file = tmp_path / "result.jsonl"
     result_file.write_text(
-        json.dumps({"id": 1, "detection_status": "completed", "anomaly_type_name": "normal"})
+        json.dumps({"id": 1, "uuid": "abc", "detection_status": "completed", "anomaly_type_name": "normal"})
         + "\n"
-        + json.dumps({"id": 2, "detection_status": "skipped", "anomaly_type_name": "skipped"})
+        + json.dumps({"id": 2, "uuid": "def", "detection_status": "skipped", "anomaly_type_name": "skipped"})
         + "\n",
         encoding="utf-8",
     )
 
     inherited = ResponseAnomalyCoordinator()._load_inherited_results(
-        result_file, {"1"}
+        result_file, {"1:abc"}
     )
 
-    assert set(inherited) == {"1"}
+    assert set(inherited) == {"1:abc"}
+
+
+def test_load_inherited_results_rejects_different_uuid(tmp_path):
+    """同 id 不同 uuid 的旧结果不应被继承。"""
+    result_file = tmp_path / "result.jsonl"
+    result_file.write_text(
+        json.dumps({"id": 1, "uuid": "old-uuid", "detection_status": "completed", "anomaly_type_name": "normal"})
+        + "\n",
+        encoding="utf-8",
+    )
+
+    inherited = ResponseAnomalyCoordinator()._load_inherited_results(
+        result_file, {"1:new-uuid"}
+    )
+
+    assert len(inherited) == 0

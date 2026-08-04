@@ -81,43 +81,58 @@ def generate_model_config(
     if mtype_path.exists():
         existing_mtype = json.loads(mtype_path.read_text(encoding="utf-8"))
 
-    # The official script derives its output paths from the current working
-    # directory (".."), so run it from <output_dir>/tools to redirect outputs.
-    tools_dir = output_dir / "tools"
-    tools_dir.mkdir(parents=True, exist_ok=True)
+    # Run the official script inside an isolated temp directory so a partial
+    # failure (e.g. mtype_config.json written but token2category generation
+    # fails) never clobbers the target files.  The script derives its output
+    # paths from the current working directory (".."), so cwd is set to
+    # <gen_dir>/tools and outputs land in <gen_dir>/configs and
+    # <gen_dir>/token2category.
+    gen_dir = output_dir / f"_gen_tmp_{effective_model_name}"
+    gen_tools_dir = gen_dir / "tools"
+    gen_tools_dir.mkdir(parents=True, exist_ok=True)
     command = [sys.executable, str(script), "--model-path", str(model_path)]
     if model_name:
         command += ["--model-name", model_name]
     try:
         proc = subprocess.run(
             command,
-            cwd=str(tools_dir),
+            cwd=str(gen_tools_dir),
             text=True,
             capture_output=True,
         )
     except Exception as exc:
-        # Keep the subprocess workspace so failures can be inspected.
         raise RuntimeError(
             f"msProbe gen_model_config failed to start: {exc}. "
-            f"Inspection files are kept at {tools_dir}."
+            f"Inspection files are kept at {gen_dir}."
         ) from exc
 
     if proc.returncode != 0:
         raise RuntimeError(
             "msProbe gen_model_config failed "
             f"(return code {proc.returncode}): {proc.stderr or proc.stdout}. "
-            f"Inspection files are kept at {tools_dir}."
+            f"Inspection files are kept at {gen_dir}."
         )
-    shutil.rmtree(tools_dir, ignore_errors=True)
 
+    # Success: merge generated files from the temp directory into the target.
+    # The target mtype_config.json is written with a merge of old and new
+    # entries so existing models are preserved.
+    gen_mtype_path = gen_dir / "configs" / "mtype_config.json"
     generated_mtype = {}
-    if mtype_path.exists():
-        generated_mtype = json.loads(mtype_path.read_text(encoding="utf-8"))
+    if gen_mtype_path.exists():
+        generated_mtype = json.loads(gen_mtype_path.read_text(encoding="utf-8"))
     merged_mtype = {**existing_mtype, **generated_mtype}
     mtype_path.write_text(
         json.dumps(merged_mtype, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    gen_token2cat_dir = gen_dir / "token2category"
+    if gen_token2cat_dir.exists():
+        for item in gen_token2cat_dir.iterdir():
+            if item.is_file():
+                shutil.copy2(item, token2category_dir / item.name)
+
+    shutil.rmtree(gen_dir, ignore_errors=True)
 
     config_yaml = configs_dir / "config.yaml"
     if not config_yaml.exists():
