@@ -95,6 +95,22 @@ class TestGenerateModelConfig(unittest.TestCase):
                     output_dir=str(self.output_dir),
                 )
         self.assertIn("boom", str(cm.exception))
+        self.assertTrue((self.output_dir / "tools").exists())
+
+    def test_generate_model_config_keeps_tools_dir_when_run_raises(self):
+        with self._patch_msprobe_dir(), mock.patch(
+            "ais_bench.tools.response_anomaly.gen_model_config.subprocess.run",
+            side_effect=OSError("cannot run"),
+        ):
+            with self.assertRaises(RuntimeError) as cm:
+                generate_model_config(
+                    model_path="/models/new",
+                    model_name="New-Model",
+                    output_dir=str(self.output_dir),
+                )
+
+        self.assertIn("cannot run", str(cm.exception))
+        self.assertTrue((self.output_dir / "tools").exists())
 
 
 if __name__ == "__main__":

@@ -1,4 +1,6 @@
 import json
+import sys
+import types
 from collections import Counter
 
 import pytest
@@ -81,6 +83,44 @@ def test_detect_case_reports_detector_init_error():
     assert result["anomaly_type_name"] == "unavailable"
 
 
+def test_build_detector_reports_missing_msprobe(monkeypatch):
+    monkeypatch.setitem(sys.modules, "msprobe", None)
+
+    detector, init_error = ResponseAnomalyCoordinator._build_detector({})
+
+    assert detector is None
+    assert init_error[0] == "unavailable"
+    assert "mindstudio-probe" in init_error[1]
+
+
+def test_build_detector_reports_ill_detector_init_failure(monkeypatch):
+    msprobe_pkg = types.ModuleType("msprobe")
+    response_anomaly_pkg = types.ModuleType("msprobe.response_anomaly")
+    response_anomaly_pkg.__file__ = (
+        "/fake/msprobe/response_anomaly/__init__.py"
+    )
+    detector_module = types.ModuleType("msprobe.response_anomaly.detector")
+
+    class FailingILLDetector:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    detector_module.ILLDetector = FailingILLDetector
+    monkeypatch.setitem(sys.modules, "msprobe", msprobe_pkg)
+    monkeypatch.setitem(
+        sys.modules, "msprobe.response_anomaly", response_anomaly_pkg
+    )
+    monkeypatch.setitem(
+        sys.modules, "msprobe.response_anomaly.detector", detector_module
+    )
+
+    detector, init_error = ResponseAnomalyCoordinator._build_detector({})
+
+    assert detector is None
+    assert init_error[0] == "failed"
+    assert "boom" in init_error[1]
+
+
 def test_merge_model_anomaly_config_prefers_model_level():
     merged = ResponseAnomalyCoordinator._merge_model_anomaly_config(
         {
@@ -141,7 +181,7 @@ def test_prepare_model_config_requires_both_custom_paths(tmp_path):
 
 def test_post_status_is_atomic(tmp_path):
     coordinator = ResponseAnomalyCoordinator()
-    status_file = tmp_path / "tmp_ResponseAnomaly.json"
+    status_file = tmp_path / ResponseAnomalyCoordinator.STATUS_FILE_NAME
 
     coordinator._post_status(
         status_file,

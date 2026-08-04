@@ -8,6 +8,7 @@ from ais_bench.benchmark.runners.base import (
     TasksMonitor,
     BaseRunner
 )
+from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
 
 
 class TestCreateProgressBar(unittest.TestCase):
@@ -112,8 +113,8 @@ class TestTasksMonitor(unittest.TestCase):
     @patch(
         'ais_bench.benchmark.runners.base.os.listdir',
         side_effect=[
-            ['tmp_task1.json', 'tmp_ResponseAnomaly.json'],
-            ['tmp_ResponseAnomaly.json'],
+            ['tmp_task1.json', ResponseAnomalyCoordinator.STATUS_FILE_NAME],
+            [ResponseAnomalyCoordinator.STATUS_FILE_NAME],
         ],
     )
     @patch('ais_bench.benchmark.runners.base.shutil.rmtree')
@@ -122,7 +123,8 @@ class TestTasksMonitor(unittest.TestCase):
     ):
         """Test rm_tmp_files preserves the response anomaly status file."""
         TasksMonitor.rm_tmp_files(
-            "/tmp/test", preserve=("tmp_ResponseAnomaly.json",)
+            "/tmp/test",
+            preserve=(ResponseAnomalyCoordinator.STATUS_FILE_NAME,),
         )
 
         mock_remove.assert_called_once_with('/tmp/test/status_tmp/tmp_task1.json')

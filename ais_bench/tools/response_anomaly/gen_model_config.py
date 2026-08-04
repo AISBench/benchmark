@@ -95,14 +95,20 @@ def generate_model_config(
             text=True,
             capture_output=True,
         )
-    finally:
-        shutil.rmtree(tools_dir, ignore_errors=True)
+    except Exception as exc:
+        # Keep the subprocess workspace so failures can be inspected.
+        raise RuntimeError(
+            f"msProbe gen_model_config failed to start: {exc}. "
+            f"Inspection files are kept at {tools_dir}."
+        ) from exc
 
     if proc.returncode != 0:
         raise RuntimeError(
             "msProbe gen_model_config failed "
-            f"(return code {proc.returncode}): {proc.stderr or proc.stdout}"
+            f"(return code {proc.returncode}): {proc.stderr or proc.stdout}. "
+            f"Inspection files are kept at {tools_dir}."
         )
+    shutil.rmtree(tools_dir, ignore_errors=True)
 
     generated_mtype = {}
     if mtype_path.exists():

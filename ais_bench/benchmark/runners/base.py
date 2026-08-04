@@ -14,6 +14,7 @@ from mmengine.config import Config, ConfigDict
 
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.file import read_and_clear_statuses
+from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
 
 
 def create_progress_bar(finished_count=0, total_count=1000, description="", length=30):
@@ -135,24 +136,24 @@ class TasksMonitor:
         # The response anomaly status file is read without clearing it: the
         # coordinator replaces it atomically, and the final status must remain
         # visible to later monitors (including the dedicated wait monitor).
+        anomaly_status_file_name = ResponseAnomalyCoordinator.STATUS_FILE_NAME
         anomaly_status_file = os.path.join(
-            self.tmp_file_path, "tmp_ResponseAnomaly.json"
+            self.tmp_file_path, anomaly_status_file_name
         )
         anomaly_statuses = []
-        if os.path.exists(anomaly_status_file):
-            try:
-                with open(anomaly_status_file, "r", encoding="utf-8") as file:
-                    anomaly_statuses = json.load(file)
-            except (json.JSONDecodeError, OSError) as exc:
-                self.logger.debug(
-                    "Failed to read response anomaly status: %s", exc
-                )
+        try:
+            with open(anomaly_status_file, "r", encoding="utf-8") as file:
+                anomaly_statuses = json.load(file)
+        except (json.JSONDecodeError, OSError) as exc:
+            self.logger.debug(
+                "Failed to read response anomaly status: %s", exc
+            )
         statuses = read_and_clear_statuses(
             self.tmp_file_path,
             [
                 name
                 for name in self.tmp_file_name_list
-                if name != "tmp_ResponseAnomaly.json"
+                if name != anomaly_status_file_name
             ],
         )
         statuses.extend(anomaly_statuses)

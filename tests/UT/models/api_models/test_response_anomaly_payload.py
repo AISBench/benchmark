@@ -65,6 +65,32 @@ class TestResponseAnomalyPayload(unittest.TestCase):
         self.assertEqual(payload["tokens"], [10, 11])
         self.assertEqual(payload["topk_logprobs"], [{"10": -0.1}, {"11": -0.2}])
 
+    def test_stream_same_length_snapshot_with_different_prefix_replaces_previous_state(self):
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        model._accumulate_response_anomaly_payload(
+            {
+                "token_ids": [10, 11],
+                "topk_logprobs": [{"10": -0.1}, {"11": -0.2}],
+            },
+            output,
+        )
+        model._accumulate_response_anomaly_payload(
+            {
+                "token_ids": [20, 21],
+                "topk_logprobs": [{"20": -0.3}, {"21": -0.4}],
+            },
+            output,
+        )
+        model._accumulate_response_anomaly_payload(
+            {"token_ids": [22], "topk_logprobs": [{"22": -0.5}]},
+            output,
+        )
+
+        payload = output.extra_details_data["response_anomaly_payload"]
+        self.assertEqual(payload["tokens"], [20, 21, 22])
+
     def test_stream_snapshot_chunk_replaces_previous_state(self):
         model = self._make_model(enabled=True)
         output = Output()

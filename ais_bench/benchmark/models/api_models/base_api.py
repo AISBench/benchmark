@@ -293,8 +293,9 @@ class BaseAPIModel(BaseModel):
         elif len(tokens) == 1 and cur_tokens:
             current['tokens'].append(tokens[0])
             current['topk_logprobs'].append(topk_logprobs[0])
-        # Full snapshot whose prefix differs (e.g. service restarted the list).
-        elif len(tokens) > len(cur_tokens):
+        # Full snapshot whose prefix differs or whose length matches (e.g. the
+        # service restarted and re-sent a complete list of the same length).
+        elif len(tokens) >= len(cur_tokens):
             current['tokens'] = list(tokens)
             current['topk_logprobs'] = list(topk_logprobs)
 

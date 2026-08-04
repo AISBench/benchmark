@@ -10,6 +10,7 @@ from ais_bench.benchmark.utils.file import match_cfg_file
 from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
 from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
+from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
 
 class CustomConfigChecker:
     MODEL_REQUIRED_FIELDS = ['abbr']
@@ -471,7 +472,9 @@ class ConfigManager:
         # Remove a response anomaly status left by a previous interrupted run so
         # stale state never blocks or misleads a new run's task board.
         stale_anomaly_status = osp.join(
-            self.cfg.work_dir, 'status_tmp', 'tmp_ResponseAnomaly.json'
+            self.cfg.work_dir,
+            'status_tmp',
+            ResponseAnomalyCoordinator.STATUS_FILE_NAME,
         )
         try:
             if os.path.isfile(stale_anomaly_status):

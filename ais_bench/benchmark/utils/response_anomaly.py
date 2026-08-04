@@ -235,8 +235,6 @@ class ResponseAnomalyCoordinator:
         merged = dict(anomaly_cfg)
         for key, value in generated.items():
             merged.setdefault(key, value)
-        if not merged.get("model_name") and generated.get("model_name"):
-            merged["model_name"] = generated["model_name"]
         return merged
 
     @staticmethod
