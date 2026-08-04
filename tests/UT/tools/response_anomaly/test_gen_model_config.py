@@ -6,11 +6,26 @@ from pathlib import Path
 from unittest import mock
 
 from ais_bench.tools.response_anomaly.gen_model_config import (
+    _normalize_name,
     generate_model_config,
 )
 
 
 class TestGenerateModelConfig(unittest.TestCase):
+    def test_normalize_name_matches_msprobe_official(self):
+        """锁定与 msProbe 官方 _normalize_name 完全一致的行为。
+
+        msProbe 官方 gen_model_config.py 使用相同的 split+join 算法，保留
+        连续分隔符产生的空段（foo__bar -> foo--bar）。AISBench 必须逐字符
+        一致，否则生成的 key 与 msProbe 侧查找 key 不匹配。
+        """
+        self.assertEqual(_normalize_name("foo__bar"), "foo--bar")
+        self.assertEqual(_normalize_name("foo..bar"), "foo--bar")
+        self.assertEqual(_normalize_name("foo_-bar"), "foo--bar")
+        self.assertEqual(_normalize_name("deepseek--v3"), "deepseek--v3")
+        self.assertEqual(_normalize_name("Qwen2.5-72B"), "qwen2-5-72b")
+        self.assertEqual(_normalize_name("MyModel"), "mymodel")
+
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
