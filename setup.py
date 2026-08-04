@@ -173,11 +173,15 @@ def do_setup():
             'ocrbench_v2':
             parse_requirements('requirements/datasets/ocrbench_v2.txt') +
             parse_requirements('requirements/runtime.txt'),
+            'response_anomaly':
+            parse_requirements('requirements/response_anomaly.txt') +
+            parse_requirements('requirements/runtime.txt'),
             'full':
             parse_requirements('requirements/extra.txt') +
             parse_requirements('requirements/api.txt') +
             parse_requirements('requirements/hf_vl_dependency.txt') +
             parse_requirements('requirements/datasets/bfcl_dependencies.txt') +
+            parse_requirements('requirements/response_anomaly.txt') +
             parse_requirements('requirements/runtime.txt'),
         },
         license='Apache License 2.0',

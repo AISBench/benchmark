@@ -100,11 +100,33 @@ class TestTasksMonitor(unittest.TestCase):
         mock_makedirs.assert_called_once()
 
     @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=True)
+    @patch('ais_bench.benchmark.runners.base.os.listdir', return_value=[])
     @patch('ais_bench.benchmark.runners.base.shutil.rmtree')
-    def test_rm_tmp_files(self, mock_rmtree, mock_exists):
+    def test_rm_tmp_files(self, mock_rmtree, mock_listdir, mock_exists):
         """Test rm_tmp_files static method."""
         TasksMonitor.rm_tmp_files("/tmp/test")
         mock_rmtree.assert_called_once()
+
+    @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=True)
+    @patch('ais_bench.benchmark.runners.base.os.remove')
+    @patch(
+        'ais_bench.benchmark.runners.base.os.listdir',
+        side_effect=[
+            ['tmp_task1.json', 'tmp_ResponseAnomaly.json'],
+            ['tmp_ResponseAnomaly.json'],
+        ],
+    )
+    @patch('ais_bench.benchmark.runners.base.shutil.rmtree')
+    def test_rm_tmp_files_preserves_anomaly_status(
+        self, mock_rmtree, mock_listdir, mock_remove, mock_exists
+    ):
+        """Test rm_tmp_files preserves the response anomaly status file."""
+        TasksMonitor.rm_tmp_files(
+            "/tmp/test", preserve=("tmp_ResponseAnomaly.json",)
+        )
+
+        mock_remove.assert_called_once_with('/tmp/test/status_tmp/tmp_task1.json')
+        mock_rmtree.assert_not_called()
 
     @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
     @patch('ais_bench.benchmark.runners.base.os.makedirs')
@@ -289,4 +311,3 @@ class TestBaseRunner(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

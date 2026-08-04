@@ -35,6 +35,7 @@ ais_bench [OPTIONS]
 | `--num-prompts` | 指定数据集测评条数（按照数据集顺序选取），需传入正整数，超过数据集条数或默认情况下表示对全量数据集进行测评。 | `--num-prompts 500` |
 | `--max-num-workers`   | 并行任务数，范围 `[1, CPU 核数]`，默认 `1`。在指定`--debug`时配置无效，所有任务串行执行。注意：性能测评场景下，并发数过高可能会导致不同进程出现资源抢占，导致测试结果失真。  | `--max-num-workers 2` |
 |`--num-warmups`|发送请求前预热次数，按照数据集顺序选取数据进行测试，大概num-warmups大于数据集条数时，会循环发送数据集中数据。默认 `1`；若设为0，则不预热。如果warmup阶段所有请求失败，后续推理任务将不会执行。| `--num-warmups 10` |
+| `--response-anomaly` / `--no-response-anomaly` | 开启或关闭 msProbe 推理响应异常检测。命令行配置优先于配置文件中的 `response_anomaly.enabled`。检测在线程中与 Eval 并行运行；需服务返回 token id 与 top-k logprobs。仅支持 `all`、`infer`、`infer_judge` 普通生成链路，不支持性能模式与 Agent 测评模式。 | `--response-anomaly` |
 
 ### 精度测评参数
 仅在模式为 `all、infer、eval` 或 `viz` 时有效。
@@ -52,6 +53,22 @@ ais_bench [OPTIONS]
 |`--spec-decode`|启用投机推理（Speculative Decoding）指标采集，从推理服务的 Prometheus `/metrics` 端点拉取指标。仅在 `--mode perf` 时有效。详细用法见 📚 [投机推理指标采集](../../advanced_tutorials/spec_decode.md)。| `--spec-decode` |
 
 ## 配置常量文件参数
+
+## 推理响应异常检测配置
+
+在总配置文件中增加 `response_anomaly` 可启用检测，也可通过 `--response-anomaly` 覆盖：
+
+```python
+response_anomaly = dict(
+	enabled=True,
+	model_name='Qwen3-30B-A3B',  # 与 msProbe 的 mtype_config.json 中名称一致
+	top_logprobs=20,
+)
+```
+
+启用后，AISBench 会在服务推理请求中补充 `logprobs=True` 与 `top_logprobs`。推理结束即启动后台检测，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；每个 Case 包含 `is_anomaly`、`anomaly_type`（0：正常，1：生僻字，2：乱码，3：重复，4：NaN Value）和 `detection_status`。状态面板会显示 `ResponseAnomaly` 进度及各类型数量，检测未完成时面板保持刷新；`infer`/`infer_judge` 等无后续评测面板的模式会在收尾阶段启动独立监控展示检测进度。
+
+检测调用官方 msProbe 的 `analyze_output_anomaly(topk_logprobs, tokens, model_configs)` 接口。请先安装 AISBench 的可选依赖：`pip install 'ais-bench-benchmark[response_anomaly]'`。安装过程中 pip 会从 GitCode 下载并构建已固定提交的 msProbe 源码，因此安装环境需要 Git 和网络访问。服务响应必须包含 `token_ids`（或 `tokens`）和 `topk_logprobs`；缺少这些字段的 Case 会以 `skipped` 状态落盘。`model_name` 需与 msProbe 的 `mtype_config.json` 配置以及 token 分类映射保持一致。使用 `--reuse` 时，已有检测结果按 Case id 继承，已完成 Case 不会重复检测。
 
 部分全局常量不区分任务类型，推荐保持默认；如需自定义，可编辑常量文件：[`global_consts.py`](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/global_consts.py)配置。
 当前支持的参数配置如下：

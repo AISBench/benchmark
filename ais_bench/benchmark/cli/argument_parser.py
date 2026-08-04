@@ -122,6 +122,14 @@ class ArgumentParser():
             type=validate_num_warmups,
             default=1
         )
+        parser.add_argument(
+            '--response-anomaly',
+            action=argparse.BooleanOptionalAction,
+            default=None,
+            help='Enable or disable msProbe response anomaly detection. '
+            'The command-line value overrides response_anomaly.enabled in the config file. '
+            'Only supported in all/infer/infer_judge modes; perf and Agent modes are unsupported.'
+        )
 
     def _accuracy_parser(self):
         """These args are all for the accuracy evaluation."""
@@ -175,6 +183,5 @@ class ArgumentParser():
         parser.add_argument('--custom-dataset-infer-method',
                             type=str,
                             choices=['gen'])
-
 
 

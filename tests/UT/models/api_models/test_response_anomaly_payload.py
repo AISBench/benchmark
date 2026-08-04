@@ -1,0 +1,84 @@
+import unittest
+from unittest.mock import patch
+
+from ais_bench.benchmark.models import VLLMCustomAPI
+from ais_bench.benchmark.models.api_models import base_api
+from ais_bench.benchmark.models.output import Output
+
+
+class TestResponseAnomalyPayload(unittest.TestCase):
+    def setUp(self):
+        self._get_service_model_path_patcher = patch.object(
+            base_api.BaseAPIModel, "_get_service_model_path"
+        )
+        self.mock_get_model_path = self._get_service_model_path_patcher.start()
+        self.mock_get_model_path.return_value = "mocked-model-path"
+        self._get_url_patcher = patch.object(
+            VLLMCustomAPI,
+            "_get_url",
+            return_value="http://localhost:8080/v1/completions",
+        )
+        self._get_url_patcher.start()
+
+    def tearDown(self):
+        self._get_url_patcher.stop()
+        self._get_service_model_path_patcher.stop()
+
+    def _make_model(self, enabled=True):
+        generation_kwargs = {"temperature": 0.7}
+        if enabled:
+            generation_kwargs["response_anomaly_enabled"] = True
+        return VLLMCustomAPI(
+            path="test-model",
+            model="test-model-name",
+            generation_kwargs=generation_kwargs,
+        )
+
+    def test_enable_flag_is_consumed_and_not_forwarded(self):
+        model = self._make_model(enabled=True)
+
+        self.assertTrue(model.response_anomaly_enabled)
+        self.assertNotIn("response_anomaly_enabled", model.generation_kwargs)
+
+    def test_disabled_does_not_capture_payload(self):
+        model = self._make_model(enabled=False)
+        output = Output()
+
+        model._record_response_anomaly_payload(
+            {"token_ids": [1], "topk_logprobs": [{"1": -0.1}]}, output
+        )
+
+        self.assertNotIn("response_anomaly_payload", output.extra_details_data)
+
+    def test_stream_accumulates_incremental_chunks(self):
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        model._accumulate_response_anomaly_payload(
+            {"token_ids": [10], "topk_logprobs": [{"10": -0.1}]}, output
+        )
+        model._accumulate_response_anomaly_payload(
+            {"token_ids": [11], "topk_logprobs": [{"11": -0.2}]}, output
+        )
+
+        payload = output.extra_details_data["response_anomaly_payload"]
+        self.assertEqual(payload["tokens"], [10, 11])
+        self.assertEqual(payload["topk_logprobs"], [{"10": -0.1}, {"11": -0.2}])
+
+    def test_stream_snapshot_chunk_replaces_previous_state(self):
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        model._accumulate_response_anomaly_payload(
+            {"token_ids": [10], "topk_logprobs": [{"10": -0.1}]}, output
+        )
+        model._accumulate_response_anomaly_payload(
+            {
+                "token_ids": [10, 11],
+                "topk_logprobs": [{"10": -0.1}, {"11": -0.2}],
+            },
+            output,
+        )
+
+        payload = output.extra_details_data["response_anomaly_payload"]
+        self.assertEqual(payload["tokens"], [10, 11])

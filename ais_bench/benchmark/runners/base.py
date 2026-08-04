@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import psutil
 import shutil
 from tqdm import tqdm
@@ -44,6 +45,7 @@ class TasksMonitor:
     ):
         self.logger = AISLogger()
         self.output_path = output_path
+        self.task_names = list(task_names)
         self.tmp_file_path = os.path.join(self.output_path, "status_tmp")
         self.tmp_file_name_list = [f"tmp_{task_name.replace('/', '_')}.json" for task_name in task_names]
         if not os.path.exists(self.tmp_file_path):
@@ -52,6 +54,10 @@ class TasksMonitor:
 
         self.tasks_state_map = {task_name: {"status": "not start"} for task_name in task_names}
         self.task_end_status_list = {task_name: [] for task_name in task_names}
+        # Status producers discovered at runtime (e.g. ResponseAnomaly) are shown
+        # on the board and keep it alive until they finish, but they are not part
+        # of the runner's original task list.
+        self.auxiliary_task_names = set()
         self.is_debug = is_debug
         self.refresh_interval = refresh_interval
         self.run_in_background = self.is_running_in_background() if not self.is_debug else True
@@ -73,12 +79,24 @@ class TasksMonitor:
         return False
 
     @staticmethod
-    def rm_tmp_files(work_dir: str):
+    def rm_tmp_files(work_dir: str, preserve: tuple = ()):
         """
-        Remove temporary files
+        Remove temporary files, optionally preserving files that are still
+        produced by auxiliary status writers (e.g. response anomaly detection).
         """
-        if os.path.exists(os.path.join(work_dir, "status_tmp")):
-            shutil.rmtree(os.path.join(work_dir, "status_tmp"))
+        tmp_path = os.path.join(work_dir, "status_tmp")
+        if not os.path.exists(tmp_path):
+            return
+        for name in os.listdir(tmp_path):
+            if name in preserve:
+                continue
+            path = os.path.join(tmp_path, name)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+        if not os.listdir(tmp_path):
+            shutil.rmtree(tmp_path)
 
     def launch_state_board(self):
         if self.is_debug:
@@ -94,10 +112,17 @@ class TasksMonitor:
 
     def _is_all_task_done(self):
         unfinished_tasks = []
-        for task_name, state in self.tasks_state_map.items():
+        for task_name in self.task_names:
+            state = self.tasks_state_map[task_name]
             status = state.get("status")
             if status not in ("finish", "error", "killed"):
                 unfinished_tasks.append((task_name, status))
+        # Auxiliary statuses (e.g. ResponseAnomaly) must also finish before the
+        # board exits, so the real-time status can be observed to completion.
+        for task_name in self.auxiliary_task_names:
+            state = self.tasks_state_map.get(task_name)
+            if state and state.get("status") not in ("finish", "error", "killed"):
+                unfinished_tasks.append((task_name, state.get("status")))
 
         if unfinished_tasks:
             return False
@@ -107,7 +132,30 @@ class TasksMonitor:
 
     def _refresh_task_state(self):
         start_time = time.time()
-        statuses = read_and_clear_statuses(self.tmp_file_path, self.tmp_file_name_list)
+        # The response anomaly status file is read without clearing it: the
+        # coordinator replaces it atomically, and the final status must remain
+        # visible to later monitors (including the dedicated wait monitor).
+        anomaly_status_file = os.path.join(
+            self.tmp_file_path, "tmp_ResponseAnomaly.json"
+        )
+        anomaly_statuses = []
+        if os.path.exists(anomaly_status_file):
+            try:
+                with open(anomaly_status_file, "r", encoding="utf-8") as file:
+                    anomaly_statuses = json.load(file)
+            except (json.JSONDecodeError, OSError) as exc:
+                self.logger.debug(
+                    "Failed to read response anomaly status: %s", exc
+                )
+        statuses = read_and_clear_statuses(
+            self.tmp_file_path,
+            [
+                name
+                for name in self.tmp_file_name_list
+                if name != "tmp_ResponseAnomaly.json"
+            ],
+        )
+        statuses.extend(anomaly_statuses)
 
         if len(statuses) == 0:
             # check whether process exist
@@ -127,6 +175,10 @@ class TasksMonitor:
         for status in statuses:
             # get status information from queue
             task_name = status['task_name']
+            if task_name not in self.tasks_state_map:
+                self.tasks_state_map[task_name] = {"status": "not start"}
+                self.task_end_status_list[task_name] = []
+                self.auxiliary_task_names.add(task_name)
             if not self.tasks_state_map[task_name].get('start_time'):
                 self.tasks_state_map[task_name]['start_time'] = time.time()
                 self.tasks_state_map[task_name]['status'] = "start"

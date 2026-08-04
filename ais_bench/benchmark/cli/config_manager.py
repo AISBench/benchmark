@@ -98,11 +98,123 @@ class ConfigManager:
 
     def load_config(self, workflow):
         self.cfg = self._get_config_from_arg()
+        self._init_response_anomaly_config()
         self._update_and_init_work_dir()
         self._fill_dataset_configs()
         self._update_cfg_of_workflow(workflow)
         self._dump_and_reload_config()
         return self.cfg
+
+    def _init_response_anomaly_config(self):
+        """Normalize the optional response anomaly detection configuration."""
+        raw_anomaly_cfg = self.cfg.get('response_anomaly') or {}
+        anomaly_cfg = dict(raw_anomaly_cfg) if isinstance(raw_anomaly_cfg, dict) else {}
+        cli_enabled = getattr(self.args, 'response_anomaly', None)
+        if isinstance(cli_enabled, bool):
+            anomaly_cfg['enabled'] = cli_enabled
+        anomaly_cfg.setdefault('enabled', False)
+        anomaly_cfg.setdefault('top_logprobs', 20)
+        self.cfg['response_anomaly'] = anomaly_cfg
+        if not anomaly_cfg['enabled']:
+            return
+
+        self._validate_response_anomaly_support()
+        models = self.cfg.get('models')
+        if not isinstance(models, list):
+            return
+        service_models = [
+            model_cfg
+            for model_cfg in models
+            if model_cfg.get('attr', 'service') == 'service'
+        ]
+        if not service_models:
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                "response_anomaly is enabled but no service model is configured. "
+                "Response anomaly detection requires service models (attr='service').",
+            )
+        for model_cfg in service_models:
+            generation_kwargs = model_cfg.setdefault('generation_kwargs', {})
+            generation_kwargs.setdefault('logprobs', True)
+            generation_kwargs.setdefault('top_logprobs', anomaly_cfg['top_logprobs'])
+            # Consumed by BaseAPIModel and never sent to the service.
+            generation_kwargs['response_anomaly_enabled'] = True
+
+    def _validate_response_anomaly_support(self):
+        """Reject modes/links that are intentionally unsupported."""
+        mode = getattr(self.args, 'mode', 'all')
+        if isinstance(mode, str) and mode not in ('all', 'infer', 'infer_judge'):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                f"response anomaly detection is not supported in mode "
+                f"'{mode}'; supported modes are 'all', 'infer' and "
+                "'infer_judge'.",
+            )
+
+        infer_cfg = self.cfg.get('infer')
+        if isinstance(infer_cfg, dict):
+            task_type = (infer_cfg.get('runner') or {}).get('task', {}).get('type')
+            task_name = self._cfg_type_name(task_type)
+            if task_name and task_name not in ('OpenICLInferTask', 'OpenICLApiInferTask'):
+                raise AISBenchConfigError(
+                    TMAN_CODES.UNKNOWN_ERROR,
+                    f"response anomaly detection is not supported for infer task "
+                    f"'{task_name}' (Agent/custom tasks are not supported).",
+                )
+
+        models = self.cfg.get('models')
+        if isinstance(models, list):
+            for model_cfg in models:
+                if not isinstance(model_cfg, dict):
+                    continue
+                if any(
+                    key in model_cfg
+                    for key in ('agent', 'agent_name', 'llm_agent', 'llm_user')
+                ):
+                    raise AISBenchConfigError(
+                        TMAN_CODES.UNKNOWN_ERROR,
+                        f"response anomaly detection is not supported for Agent "
+                        f"models (model abbr='{model_cfg.get('abbr', '')}').",
+                    )
+
+        datasets = self.cfg.get('datasets')
+        if not isinstance(datasets, list):
+            return
+        for dataset_cfg in datasets:
+            if not isinstance(dataset_cfg, dict):
+                continue
+            infer_cfg = dataset_cfg.get('infer_cfg') or {}
+            inferencer = infer_cfg.get('inferencer') or {}
+            inferencer_name = self._cfg_type_name(inferencer.get('type'))
+            dataset_name = self._cfg_type_name(dataset_cfg.get('type'))
+            haystack = f"{inferencer_name} {dataset_name}".lower()
+            if any(
+                marker in haystack
+                for marker in (
+                    'swebench',
+                    'bfcl',
+                    'agent',
+                    'function_call',
+                    'tool_call',
+                    'harbor',
+                    'tau2',
+                )
+            ):
+                raise AISBenchConfigError(
+                    TMAN_CODES.UNKNOWN_ERROR,
+                    f"response anomaly detection is not supported for Agent/custom "
+                    f"evaluation (inferencer='{inferencer_name}', "
+                    f"dataset='{dataset_name}').",
+                )
+
+    @staticmethod
+    def _cfg_type_name(value) -> str:
+        """Return the short class name of a config type value."""
+        if value is None:
+            return ''
+        if isinstance(value, type):
+            return value.__name__
+        return str(value).rsplit('.', 1)[-1]
 
     def _fill_dataset_configs(self):
         for dataset_cfg in self.cfg["datasets"]:
@@ -320,6 +432,17 @@ class ConfigManager:
         self.logger.info(f'Current exp folder: {current_workdir}')
 
         os.makedirs(osp.join(self.cfg.work_dir, 'configs'), exist_ok=True)
+        # Remove a response anomaly status left by a previous interrupted run so
+        # stale state never blocks or misleads a new run's task board.
+        stale_anomaly_status = osp.join(
+            self.cfg.work_dir, 'status_tmp', 'tmp_ResponseAnomaly.json'
+        )
+        try:
+            if os.path.isfile(stale_anomaly_status):
+                os.remove(stale_anomaly_status)
+        except OSError:
+            # Best-effort cleanup; a concurrent process may have removed it.
+            pass
 
     def _update_cfg_of_workflow(self, workflow):
         for work in workflow:

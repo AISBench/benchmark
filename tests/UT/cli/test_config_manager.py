@@ -686,5 +686,58 @@ class TestConfigManager(unittest.TestCase):
         mock_dump_reload.assert_called_once()
         self.assertEqual(result, config_manager.cfg)
 
+    def test_response_anomaly_rejected_in_perf_mode(self):
+        """响应异常检测不支持性能模式。"""
+        self.args.mode = 'perf'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [{'abbr': 'model', 'attr': 'service'}],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        with self.assertRaises(AISBenchConfigError):
+            config_manager._init_response_anomaly_config()
+
+    def test_response_anomaly_rejected_for_agent_model(self):
+        """响应异常检测不支持 Agent 模型。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [{'abbr': 'agent-model', 'agent_name': 'x', 'attr': 'service'}],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        with self.assertRaises(AISBenchConfigError):
+            config_manager._init_response_anomaly_config()
+
+    def test_response_anomaly_injects_request_kwargs(self):
+        """启用响应异常检测时为 service 模型注入 logprobs 与内部开关。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [
+                {
+                    'abbr': 'model',
+                    'attr': 'service',
+                    'generation_kwargs': {},
+                }
+            ],
+            'datasets': [{'abbr': 'dataset'}],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        generation_kwargs = config_manager.cfg['models'][0]['generation_kwargs']
+        self.assertTrue(generation_kwargs['logprobs'])
+        self.assertEqual(generation_kwargs['top_logprobs'], 20)
+        self.assertTrue(generation_kwargs['response_anomaly_enabled'])
+        self.assertTrue(config_manager.cfg['response_anomaly']['enabled'])
+
 if __name__ == '__main__':
     unittest.main()

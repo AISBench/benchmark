@@ -111,7 +111,10 @@ class LocalRunner(BaseRunner):
         else:
             status = self._run_normal(tasks, all_gpu_ids, monitor_p)
         monitor_p.join()
-        TasksMonitor.rm_tmp_files(tasks[0]['work_dir'])
+        TasksMonitor.rm_tmp_files(
+            tasks[0]['work_dir'],
+            preserve=("tmp_ResponseAnomaly.json",),
+        )
         self.logger.debug(f"LocalRunner.launch completed, {len(status)} task(s) finished")
         return status
 

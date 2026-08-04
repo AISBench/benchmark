@@ -104,7 +104,12 @@ class BaseAPIModel(BaseModel):
         self.url = url
         self.enable_ssl = enable_ssl
         self.template_parser = APITemplateParser(self.meta_template)
-        self.generation_kwargs = generation_kwargs
+        self.generation_kwargs = dict(generation_kwargs or {})
+        # Injected by ConfigManager when response anomaly detection is enabled.
+        # Popped here so it never reaches the service request body.
+        self.response_anomaly_enabled = bool(
+            self.generation_kwargs.pop('response_anomaly_enabled', False)
+        )
         self.verbose = verbose
         self.session = None
         self.base_url = self._get_base_url()
@@ -226,6 +231,73 @@ class BaseAPIModel(BaseModel):
             f"{self.__class__.__name__} should be implemented if stream is True",
         )
 
+    @staticmethod
+    def _extract_response_anomaly_payload(data: dict):
+        """Extract service-provided token ids and top-k logprobs."""
+        candidate = data
+        choices = data.get('choices') if isinstance(data, dict) else None
+        if isinstance(choices, list) and choices:
+            candidate = choices[0]
+        if not isinstance(candidate, dict):
+            return None, None
+        tokens = candidate.get('token_ids', candidate.get('tokens'))
+        topk_logprobs = candidate.get('topk_logprobs')
+        if tokens is None and isinstance(data, dict):
+            tokens = data.get('token_ids', data.get('tokens'))
+        if topk_logprobs is None and isinstance(data, dict):
+            topk_logprobs = data.get('topk_logprobs')
+        return tokens, topk_logprobs
+
+    def _record_response_anomaly_payload(self, data: dict, output: Output) -> None:
+        """Preserve service-provided token ids and top-k logprobs for msProbe.
+
+        Compatible services expose these fields either at the response root or
+        in the first choice. Responses without token ids are intentionally not
+        synthesized: msProbe requires the model vocabulary ids.
+        """
+        if not self.response_anomaly_enabled:
+            return
+        tokens, topk_logprobs = self._extract_response_anomaly_payload(data)
+        if isinstance(tokens, list) and isinstance(topk_logprobs, list):
+            output.extra_details_data['response_anomaly_payload'] = {
+                'tokens': tokens,
+                'topk_logprobs': topk_logprobs,
+            }
+
+    def _accumulate_response_anomaly_payload(
+        self, data: dict, output: Output
+    ) -> None:
+        """Accumulate per-chunk token ids/logprobs for streaming responses.
+
+        Supports both incremental chunks (one new token per chunk) and
+        full-snapshot chunks (the service resends the complete list).
+        """
+        if not self.response_anomaly_enabled:
+            return
+        tokens, topk_logprobs = self._extract_response_anomaly_payload(data)
+        if not isinstance(tokens, list) or not isinstance(topk_logprobs, list):
+            return
+
+        current = output.extra_details_data.get('response_anomaly_payload')
+        if current is None:
+            current = {'tokens': [], 'topk_logprobs': []}
+            output.extra_details_data['response_anomaly_payload'] = current
+        cur_tokens = current.get('tokens') or []
+        cur_topk = current.get('topk_logprobs') or []
+
+        # Full snapshot: the incoming list is a superset of what we have.
+        if len(tokens) >= len(cur_tokens) and list(tokens[:len(cur_tokens)]) == list(cur_tokens):
+            current['tokens'] = list(tokens)
+            current['topk_logprobs'] = list(topk_logprobs)
+        # Incremental stream: one new token per chunk.
+        elif len(tokens) == 1 and cur_tokens:
+            current['tokens'].append(tokens[0])
+            current['topk_logprobs'].append(topk_logprobs[0])
+        # Full snapshot whose prefix differs (e.g. service restarted the list).
+        elif len(tokens) > len(cur_tokens):
+            current['tokens'] = list(tokens)
+            current['topk_logprobs'] = list(topk_logprobs)
+
     async def generate(
         self,
         input_data: PromptType,
@@ -306,6 +378,7 @@ class BaseAPIModel(BaseModel):
                             f"Unexpected response format. Please check 'error_info' in ***_failed.jsonl for more information.",
                         )
                     await self.parse_stream_response(data, output)
+                    self._accumulate_response_anomaly_payload(data, output)
                 output.success = True
             else:
                 output.error_info = response.reason
@@ -329,6 +402,7 @@ class BaseAPIModel(BaseModel):
                         f"Unexpected response format. Please check ***_details.jsonl for more information.",
                     )
                 await self.parse_text_response(data, output)
+                self._record_response_anomaly_payload(data, output)
                 output.success = True
             else:
                 output.error_info = response.reason
