@@ -739,6 +739,49 @@ class TestConfigManager(unittest.TestCase):
         self.assertTrue(generation_kwargs['response_anomaly_enabled'])
         self.assertTrue(config_manager.cfg['response_anomaly']['enabled'])
 
+    def test_response_anomaly_overrides_explicit_logprobs_config(self):
+        """启用异常检测时强制覆盖模型里显式的 logprobs/top_logprobs。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'response_anomaly': {'top_logprobs': 30},
+            'models': [
+                {
+                    'abbr': 'model',
+                    'attr': 'service',
+                    'generation_kwargs': {
+                        'logprobs': False,
+                        'top_logprobs': 5,
+                    },
+                }
+            ],
+            'datasets': [{'abbr': 'dataset'}],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        generation_kwargs = config_manager.cfg['models'][0]['generation_kwargs']
+        self.assertIs(generation_kwargs['logprobs'], True)
+        self.assertEqual(generation_kwargs['top_logprobs'], 30)
+        self.assertTrue(generation_kwargs['response_anomaly_enabled'])
+
+    def test_response_anomaly_rejects_non_positive_top_logprobs(self):
+        """top_logprobs 必须为正整数。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'response_anomaly': {'top_logprobs': 0},
+            'models': [{'abbr': 'model', 'attr': 'service'}],
+            'datasets': [{'abbr': 'dataset'}],
+            'cli_args': {},
+        }
+
+        with self.assertRaises(AISBenchConfigError):
+            config_manager._init_response_anomaly_config()
+
     def test_response_anomaly_merges_model_level_config(self):
         """模型级 response_anomaly 配置覆盖全局配置。"""
         self.args.mode = 'all'

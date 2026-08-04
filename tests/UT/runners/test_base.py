@@ -252,6 +252,44 @@ class TestTasksMonitor(unittest.TestCase):
 
         mock_pbar.close.assert_called_once()
 
+    @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
+    @patch('ais_bench.benchmark.runners.base.os.makedirs')
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    @patch('ais_bench.benchmark.runners.base.tqdm')
+    @patch('ais_bench.benchmark.runners.base.time.sleep')
+    def test_tasks_monitor_update_tasks_progress_waits_for_auxiliary(
+        self, mock_sleep, mock_tqdm, mock_logger_class, mock_makedirs, mock_exists
+    ):
+        """Auxiliary task 出现后应扩展进度条 total 并等待其完成。"""
+        monitor = TasksMonitor(
+            task_names=self.task_names,
+            output_path=self.output_path,
+            is_debug=True
+        )
+        monitor.tasks_state_map["task1"]["status"] = "finish"
+        monitor.tasks_state_map["task2"]["status"] = "finish"
+
+        def refresh():
+            if "ResponseAnomaly" not in monitor.tasks_state_map:
+                monitor.tasks_state_map["ResponseAnomaly"] = {"status": "start"}
+                monitor.auxiliary_task_names.add("ResponseAnomaly")
+            else:
+                monitor.tasks_state_map["ResponseAnomaly"]["status"] = "finish"
+
+        monitor._refresh_task_state = MagicMock(side_effect=refresh)
+        monitor._get_task_states = MagicMock(return_value=[])
+        monitor._is_all_task_done = MagicMock(side_effect=[False, True])
+
+        mock_pbar = MagicMock()
+        mock_pbar.n = 0
+        mock_pbar.total = 2
+        mock_tqdm.return_value = mock_pbar
+
+        monitor._update_tasks_progress()
+
+        self.assertEqual(mock_pbar.total, 3)
+        mock_pbar.close.assert_called_once()
+
 
 class TestBaseRunner(unittest.TestCase):
     """Tests for BaseRunner class."""

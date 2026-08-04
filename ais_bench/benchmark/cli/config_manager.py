@@ -170,10 +170,29 @@ class ConfigManager:
             model_cfg['response_anomaly'] = model_anomaly_cfg
 
             generation_kwargs = model_cfg.setdefault('generation_kwargs', {})
-            generation_kwargs.setdefault('logprobs', True)
-            generation_kwargs.setdefault(
-                'top_logprobs', model_anomaly_cfg['top_logprobs']
-            )
+            if not isinstance(generation_kwargs, dict):
+                raise AISBenchConfigError(
+                    TMAN_CODES.UNKNOWN_ERROR,
+                    "response_anomaly is enabled but "
+                    f"model '{model_cfg.get('abbr', '')}' has invalid "
+                    "generation_kwargs; expected a dict.",
+                )
+            top_logprobs = model_anomaly_cfg['top_logprobs']
+            if (
+                not isinstance(top_logprobs, int)
+                or isinstance(top_logprobs, bool)
+                or top_logprobs <= 0
+            ):
+                raise AISBenchConfigError(
+                    TMAN_CODES.UNKNOWN_ERROR,
+                    "response_anomaly.top_logprobs must be a positive "
+                    f"integer, got {top_logprobs!r}.",
+                )
+            # Response anomaly detection requires the service to return token
+            # ids and top-k logprobs, so these request fields must override
+            # model-level generation defaults.
+            generation_kwargs['logprobs'] = True
+            generation_kwargs['top_logprobs'] = top_logprobs
             # Consumed by BaseAPIModel and never sent to the service.
             generation_kwargs['response_anomaly_enabled'] = True
 

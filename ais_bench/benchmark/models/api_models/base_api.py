@@ -270,7 +270,9 @@ class BaseAPIModel(BaseModel):
         """Accumulate per-chunk token ids/logprobs for streaming responses.
 
         Supports both incremental chunks (one new token per chunk) and
-        full-snapshot chunks (the service resends the complete list).
+        full-snapshot chunks (the service resends the complete list). Some
+        services send the full token list but only the current token's top-k
+        logprobs; those are handled as incremental appends.
         """
         if not self.response_anomaly_enabled:
             return
@@ -279,11 +281,24 @@ class BaseAPIModel(BaseModel):
             return
 
         current = output.extra_details_data.get('response_anomaly_payload')
+        cur_tokens = (current or {}).get('tokens') or []
+
+        # Mixed format: full token list so far + topk logprobs for the newly
+        # generated token. Treat it as an incremental append of the last token
+        # so the accumulated payload stays aligned.
+        if (
+            len(topk_logprobs) == 1
+            and len(tokens) > 1
+            and len(tokens) == len(cur_tokens) + 1
+            and list(tokens[:-1]) == list(cur_tokens)
+        ):
+            tokens = tokens[-1:]
+        elif len(tokens) != len(topk_logprobs):
+            return
+
         if current is None:
             current = {'tokens': [], 'topk_logprobs': []}
             output.extra_details_data['response_anomaly_payload'] = current
-        cur_tokens = current.get('tokens') or []
-        cur_topk = current.get('topk_logprobs') or []
 
         # Full snapshot: the incoming list is a superset of what we have.
         if len(tokens) >= len(cur_tokens) and list(tokens[:len(cur_tokens)]) == list(cur_tokens):

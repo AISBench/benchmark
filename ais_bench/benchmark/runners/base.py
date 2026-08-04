@@ -223,6 +223,11 @@ class TasksMonitor:
         pbar = tqdm(total=len(self.tasks_state_map), desc="Monitoring tasks progress")
         while True:
             self._refresh_task_state()
+            # Auxiliary status producers (e.g. ResponseAnomaly) may appear
+            # after the bar was created; keep the total in sync so the board
+            # does not exit before they finish.
+            if len(self.tasks_state_map) > pbar.total:
+                pbar.total = len(self.tasks_state_map)
             _ = self._get_task_states()
             cur_count = 0
             for _, state in self.tasks_state_map.items():

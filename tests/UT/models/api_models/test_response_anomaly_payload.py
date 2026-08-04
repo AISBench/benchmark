@@ -65,6 +65,65 @@ class TestResponseAnomalyPayload(unittest.TestCase):
         self.assertEqual(payload["tokens"], [10, 11])
         self.assertEqual(payload["topk_logprobs"], [{"10": -0.1}, {"11": -0.2}])
 
+    def test_stream_full_token_ids_with_single_current_topk_appends_incrementally(self):
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        model._accumulate_response_anomaly_payload(
+            {"token_ids": [10], "topk_logprobs": [{"10": -0.1}]}, output
+        )
+        model._accumulate_response_anomaly_payload(
+            {
+                "token_ids": [10, 11],
+                "topk_logprobs": [{"11": -0.2}],
+            },
+            output,
+        )
+        model._accumulate_response_anomaly_payload(
+            {
+                "token_ids": [10, 11, 12],
+                "topk_logprobs": [{"12": -0.3}],
+            },
+            output,
+        )
+
+        payload = output.extra_details_data["response_anomaly_payload"]
+        self.assertEqual(payload["tokens"], [10, 11, 12])
+        self.assertEqual(
+            payload["topk_logprobs"],
+            [{"10": -0.1}, {"11": -0.2}, {"12": -0.3}],
+        )
+
+    def test_stream_mismatched_snapshot_does_not_corrupt_payload(self):
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        model._accumulate_response_anomaly_payload(
+            {
+                "token_ids": [10, 11],
+                "topk_logprobs": [{"10": -0.1}, {"11": -0.2}],
+            },
+            output,
+        )
+        model._accumulate_response_anomaly_payload(
+            {
+                "token_ids": [10, 11, 12],
+                "topk_logprobs": [],
+            },
+            output,
+        )
+        model._accumulate_response_anomaly_payload(
+            {"token_ids": [12], "topk_logprobs": [{"12": -0.3}]},
+            output,
+        )
+
+        payload = output.extra_details_data["response_anomaly_payload"]
+        self.assertEqual(payload["tokens"], [10, 11, 12])
+        self.assertEqual(
+            payload["topk_logprobs"],
+            [{"10": -0.1}, {"11": -0.2}, {"12": -0.3}],
+        )
+
     def test_stream_same_length_snapshot_with_different_prefix_replaces_previous_state(self):
         model = self._make_model(enabled=True)
         output = Output()
