@@ -87,27 +87,35 @@ class ResponseAnomalyCoordinator:
             )
 
             model_name_warned = False
+            # Cache per-model config and detector so that a model with multiple
+            # datasets only generates its msProbe config and initializes the
+            # ILLDetector once (token2category loading is expensive).
+            detector_cache: Dict[str, tuple] = {}
             for model_abbr, dataset_abbr, model_cfg, prediction_file, predictions in task_groups:
-                anomaly_cfg = self._merge_model_anomaly_config(
-                    model_cfg, cfg["response_anomaly"]
-                )
-                try:
-                    anomaly_cfg = self._prepare_model_config(
-                        model_abbr, anomaly_cfg, work_dir
+                if model_abbr in detector_cache:
+                    anomaly_cfg, detector, init_error = detector_cache[model_abbr]
+                else:
+                    anomaly_cfg = self._merge_model_anomaly_config(
+                        model_cfg, cfg["response_anomaly"]
                     )
-                    detector, init_error = self._build_detector(anomaly_cfg)
-                except Exception as exc:
-                    self.logger.error(
-                        "Failed to prepare response anomaly detection for model "
-                        "%s: %s",
-                        model_abbr,
-                        exc,
-                    )
-                    detector = None
-                    init_error = (
-                        "failed",
-                        f"Failed to prepare msProbe configuration: {exc}",
-                    )
+                    try:
+                        anomaly_cfg = self._prepare_model_config(
+                            model_abbr, anomaly_cfg, work_dir
+                        )
+                        detector, init_error = self._build_detector(anomaly_cfg)
+                    except Exception as exc:
+                        self.logger.error(
+                            "Failed to prepare response anomaly detection for model "
+                            "%s: %s",
+                            model_abbr,
+                            exc,
+                        )
+                        detector = None
+                        init_error = (
+                            "failed",
+                            f"Failed to prepare msProbe configuration: {exc}",
+                        )
+                    detector_cache[model_abbr] = (anomaly_cfg, detector, init_error)
                 result_file = (
                     Path(work_dir)
                     / "response_anomaly"

@@ -300,8 +300,13 @@ class BaseAPIModel(BaseModel):
             current = {'tokens': [], 'topk_logprobs': []}
             output.extra_details_data['response_anomaly_payload'] = current
 
-        # Full snapshot: the incoming list is a superset of what we have.
-        if len(tokens) >= len(cur_tokens) and list(tokens[:len(cur_tokens)]) == list(cur_tokens):
+        # Full snapshot: the incoming list is strictly longer than what we
+        # have and its prefix matches.  Using ">" (not ">=") ensures that a
+        # single-token chunk equal to the current state (e.g. two consecutive
+        # identical tokens in an incremental stream) falls through to the
+        # incremental-append branch instead of being treated as a no-op
+        # snapshot that drops the duplicate token.
+        if len(tokens) > len(cur_tokens) and list(tokens[:len(cur_tokens)]) == list(cur_tokens):
             current['tokens'] = list(tokens)
             current['topk_logprobs'] = list(topk_logprobs)
         # Incremental stream: one new token per chunk.

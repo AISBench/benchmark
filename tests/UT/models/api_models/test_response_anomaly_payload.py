@@ -94,6 +94,22 @@ class TestResponseAnomalyPayload(unittest.TestCase):
             [{"10": -0.1}, {"11": -0.2}, {"12": -0.3}],
         )
 
+    def test_stream_consecutive_identical_tokens_are_not_dropped(self):
+        """两个连续相同 token 不应被全量快照覆盖。"""
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        model._accumulate_response_anomaly_payload(
+            {"token_ids": [7], "topk_logprobs": [{"7": -0.1}]}, output
+        )
+        model._accumulate_response_anomaly_payload(
+            {"token_ids": [7], "topk_logprobs": [{"7": -0.2}]}, output
+        )
+
+        payload = output.extra_details_data["response_anomaly_payload"]
+        self.assertEqual(payload["tokens"], [7, 7])
+        self.assertEqual(payload["topk_logprobs"], [{"7": -0.1}, {"7": -0.2}])
+
     def test_stream_mismatched_snapshot_does_not_corrupt_payload(self):
         model = self._make_model(enabled=True)
         output = Output()
