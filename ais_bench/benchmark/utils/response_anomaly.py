@@ -82,6 +82,27 @@ class ResponseAnomalyCoordinator:
                 )
                 total += len(predictions)
 
+            # Predictions are produced by the inference stage; an empty set
+            # means that stage produced nothing (or its output moved), so warn
+            # instead of silently "finishing" with zero analyzed cases.
+            for model_abbr, dataset_abbr, _, _, predictions in task_groups:
+                if not predictions:
+                    self.logger.warning(
+                        "No predictions found for model '%s' dataset '%s'; "
+                        "response anomaly detection will skip this group.",
+                        model_abbr,
+                        dataset_abbr,
+                    )
+            # With at least one configured group, the per-group warnings above
+            # already cover every empty group; only warn here when no group
+            # was configured at all, so the run does not silently "finish".
+            if not task_groups:
+                self.logger.warning(
+                    "Response anomaly detection has no service model/dataset "
+                    "groups to analyze under %s.",
+                    Path(work_dir) / "predictions",
+                )
+
             self._post_status(
                 status_file, completed, total, counts, "response anomaly detecting"
             )
@@ -140,6 +161,9 @@ class ResponseAnomalyCoordinator:
                     )
                     model_name_warned = True
 
+                # Ensure the result directory exists once per group instead of
+                # once per prediction (mkdir with exist_ok=True is idempotent).
+                result_file.parent.mkdir(parents=True, exist_ok=True)
                 for prediction in predictions:
                     case_id = str(prediction.get("id"))
                     case_key = f"{prediction.get('id')}:{prediction.get('uuid')}"
@@ -148,7 +172,6 @@ class ResponseAnomalyCoordinator:
                     result = self._detect_case(
                         prediction, anomaly_cfg, detector, init_error
                     )
-                    result_file.parent.mkdir(parents=True, exist_ok=True)
                     safe_write({case_id: result}, result_file)
                     completed += 1
                     counts[result["anomaly_type_name"]] += 1

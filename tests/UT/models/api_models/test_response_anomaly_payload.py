@@ -140,6 +140,23 @@ class TestResponseAnomalyPayload(unittest.TestCase):
             [{"10": -0.1}, {"11": -0.2}, {"12": -0.3}],
         )
 
+    def test_stream_misaligned_chunk_logs_debug(self):
+        """长度不匹配的 chunk 应丢弃并留下 debug 日志。"""
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        with patch.object(model.logger, "debug") as mock_debug:
+            model._accumulate_response_anomaly_payload(
+                {
+                    "token_ids": [10, 11],
+                    "topk_logprobs": [{"10": -0.1}],
+                },
+                output,
+            )
+
+        mock_debug.assert_called_once()
+        self.assertNotIn("response_anomaly_payload", output.extra_details_data)
+
     def test_stream_same_length_snapshot_with_different_prefix_replaces_previous_state(self):
         model = self._make_model(enabled=True)
         output = Output()

@@ -294,6 +294,14 @@ class BaseAPIModel(BaseModel):
         ):
             tokens = tokens[-1:]
         elif len(tokens) != len(topk_logprobs):
+            # A misaligned chunk cannot be merged without corrupting the
+            # accumulated payload; drop it but leave a trace for debugging.
+            self.logger.debug(
+                "Dropping misaligned response anomaly chunk: "
+                "%d token ids vs %d topk logprobs",
+                len(tokens),
+                len(topk_logprobs),
+            )
             return
 
         if current is None:

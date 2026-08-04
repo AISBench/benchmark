@@ -264,3 +264,100 @@ def test_load_inherited_results_rejects_different_uuid(tmp_path):
     )
 
     assert len(inherited) == 0
+
+
+def test_detect_runs_full_workflow(tmp_path, monkeypatch):
+    """端到端驱动 _detect 主循环：读预测、逐条检测、写结果、收尾状态。"""
+    work_dir = tmp_path
+    prediction_file = work_dir / "predictions" / "modelA" / "ds.jsonl"
+    prediction_file.parent.mkdir(parents=True)
+    prediction_file.write_text(
+        json.dumps(
+            {
+                "id": 1,
+                "uuid": "u1",
+                "response_anomaly_payload": {
+                    "tokens": [1],
+                    "topk_logprobs": [{"1": -0.1}],
+                },
+            }
+        )
+        + "\n"
+        + json.dumps(
+            {
+                "id": 2,
+                "uuid": "u2",
+                "response_anomaly_payload": {
+                    "tokens": [1, 2],
+                    "topk_logprobs": [{"1": -0.1}, {"2": -0.2}],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cfg = {
+        "work_dir": str(work_dir),
+        "models": [{"abbr": "modelA", "attr": "service"}],
+        "datasets": [{"abbr": "ds"}],
+        "response_anomaly": {},
+    }
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator,
+        "_build_detector",
+        lambda cfg: (FakeDetector([False, 0]), None),
+    )
+    coordinator._detect(cfg)
+
+    result_lines = (
+        work_dir / "response_anomaly" / "modelA" / "ds.jsonl"
+    ).read_text(encoding="utf-8").strip().splitlines()
+    assert len(result_lines) == 2
+    results = [json.loads(line) for line in result_lines]
+    assert all(item["detection_status"] == "completed" for item in results)
+    assert coordinator.summary == {"normal": 2}
+
+    status = json.loads(
+        (
+            work_dir / "status_tmp" / ResponseAnomalyCoordinator.STATUS_FILE_NAME
+        ).read_text(encoding="utf-8")
+    )[0]
+    assert status["status"] == "finish"
+    assert status["finish_count"] == 2
+    assert status["total_count"] == 2
+
+
+def test_detect_warns_when_no_predictions_found(tmp_path, monkeypatch):
+    """没有任何预测样本时应告警而不是静默完成。"""
+    warnings = []
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator,
+        "_build_detector",
+        lambda cfg: (FakeDetector([False, 0]), None),
+    )
+    monkeypatch.setattr(
+        coordinator.logger,
+        "warning",
+        lambda msg, *args: warnings.append(msg),
+    )
+    cfg = {
+        "work_dir": str(tmp_path),
+        "models": [{"abbr": "modelA", "attr": "service"}],
+        "datasets": [{"abbr": "ds"}],
+        "response_anomaly": {},
+    }
+
+    coordinator._detect(cfg)
+
+    assert coordinator.summary == {}
+    status = json.loads(
+        (
+            tmp_path / "status_tmp" / ResponseAnomalyCoordinator.STATUS_FILE_NAME
+        ).read_text(encoding="utf-8")
+    )[0]
+    assert status["status"] == "finish"
+    assert status["total_count"] == 0
+    assert any("No predictions" in message for message in warnings)
