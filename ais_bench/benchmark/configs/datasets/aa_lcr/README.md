@@ -11,12 +11,13 @@ AA-LCR（Artificial Analysis Long Context Retrieval）是一个用于评估语�
 ## 数据集部署
 
 - 可以从 ModelScope 的数据集链接 🔗 [https://modelscope.cn/datasets/evalscope/AA-LCR](https://modelscope.cn/datasets/evalscope/AA-LCR) 中获取数据集。
-- AA-LCR 数据集为压缩包格式，建议部署在 `{tool_root_path}/ais_bench/datasets/aa_lcr/` 目录下。
+- AA-LCR 数据集为压缩包格式，建议部署在 `{tool_root_path}/ais_bench/datasets/AA-LCR/` 目录下。
 
-- 在 `{tool_root_path}/ais_bench/datasets/aa_lcr/` 目录下执行 `ls -la` 检查目录结构。如果目录结构如下所示，则数据集部署成功：
+- 在 `{tool_root_path}/ais_bench/datasets/` 目录下执行 `tree AA-LCR/` 检查目录结构。如果目录结构如下所示，则数据集部署成功：
     ```
-    {tool_root_path}/ais_bench/datasets/aa_lcr/
-    └── extracted_text/AA-LCR_extracted-text.zip
+    AA-LCR/
+    └── extracted_text/
+        └── AA-LCR_extracted-text.zip
     ```
 
 
