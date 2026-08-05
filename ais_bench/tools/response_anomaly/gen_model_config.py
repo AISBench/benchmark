@@ -89,7 +89,11 @@ def generate_model_config(
     # <gen_dir>/token2category.
     gen_dir = output_dir / f"_gen_tmp_{effective_model_name}"
     gen_tools_dir = gen_dir / "tools"
+    gen_configs_dir = gen_dir / "configs"
+    gen_token2category_dir = gen_dir / "token2category"
     gen_tools_dir.mkdir(parents=True, exist_ok=True)
+    gen_configs_dir.mkdir(parents=True, exist_ok=True)
+    gen_token2category_dir.mkdir(parents=True, exist_ok=True)
     command = [sys.executable, str(script), "--model-path", str(model_path)]
     if model_name:
         command += ["--model-name", model_name]

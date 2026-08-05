@@ -57,11 +57,11 @@ class TestGenerateModelConfig(unittest.TestCase):
     def test_generate_model_config_merges_and_copies_defaults(self):
         def fake_run(command, cwd, **kwargs):
             output_root = Path(cwd).parent
-            (output_root / "configs").mkdir(parents=True, exist_ok=True)
+            self.assertTrue((output_root / "configs").is_dir())
+            self.assertTrue((output_root / "token2category").is_dir())
             (output_root / "configs" / "mtype_config.json").write_text(
                 json.dumps({"new-model": {"eos": 2}}), encoding="utf-8"
             )
-            (output_root / "token2category").mkdir(parents=True, exist_ok=True)
             (output_root / "token2category" / "new-model_10.json").write_text(
                 json.dumps({"0": "other"}), encoding="utf-8"
             )
