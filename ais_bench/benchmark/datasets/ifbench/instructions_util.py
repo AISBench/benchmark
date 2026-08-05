@@ -5,18 +5,33 @@ import random
 import re
 
 
+_NLTK_RESOURCE_PATHS = {
+    'punkt_tab': 'tokenizers/punkt_tab',
+    'averaged_perceptron_tagger_eng':
+        'taggers/averaged_perceptron_tagger_eng',
+    'stopwords': 'corpora/stopwords',
+}
+
+
 def _ensure_nltk_data(data_name):
-    """Ensure NLTK data is available, downloading if necessary."""
+    """Ensure the requested NLTK resource is available."""
+    resource_path = _NLTK_RESOURCE_PATHS.get(
+        data_name, f'tokenizers/{data_name}'
+    )
+
     try:
-        nltk.data.find(f'tokenizers/{data_name}')
+        nltk.data.find(resource_path)
     except (LookupError, OSError):
-        try:
-            nltk.download(data_name, quiet=True)
-        except (LookupError, OSError):
-            # Fall back to downloading the full 'punkt' package if the
-            # specific resource (e.g. 'punkt_tab') is not available as a
-            # standalone download in the installed NLTK version.
-            nltk.download('punkt', quiet=True)
+        # 在线环境下仍可自动下载；离线环境预装正确后不会进入这里
+        downloaded = nltk.download(data_name, quiet=True)
+        if not downloaded:
+            raise LookupError(
+                f"Missing NLTK resource: {resource_path}. "
+                f"Please install it under an NLTK_DATA directory."
+            )
+
+        # 下载后再检查，避免静默失败
+        nltk.data.find(resource_path)
 
 
 WORD_LIST = [
@@ -247,8 +262,6 @@ WORD_LIST = [
     'finding', 'transportation', 'stand', 'criticism', 'flow', 'door',
     'injury', 'insect', 'surprise', 'apartment',
 ]  # pylint: disable=line-too-long
-
-_ensure_nltk_data('punkt_tab')
 
 _ALPHABETS = '([A-Za-z])'
 _PREFIXES = '(Mr|St|Mrs|Ms|Dr)[.]'

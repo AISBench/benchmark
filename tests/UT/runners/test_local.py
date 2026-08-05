@@ -6,6 +6,14 @@ from unittest.mock import patch, MagicMock
 from mmengine.config import ConfigDict
 
 from ais_bench.benchmark.runners.local import LocalRunner, get_command_template
+from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+
+
+def _task_with_datasets(*datasets):
+    task = MagicMock()
+    task.name = 'test_task'
+    task.dataset_cfgs = [ConfigDict(dataset) for dataset in datasets]
+    return task
 
 
 class TestGetCommandTemplate(unittest.TestCase):
@@ -63,6 +71,104 @@ class TestLocalRunner(unittest.TestCase):
         self.debug = False
         self.max_num_workers = 4
         self.max_workers_per_gpu = 1
+
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    def test_get_subprocess_env_sets_nltk_data_without_mutating_parent(
+            self, mock_logger_class):
+        """A valid dataset path is private to the child environment."""
+        runner = LocalRunner(task=self.task_cfg)
+        with tempfile.TemporaryDirectory() as nltk_dir:
+            parent_before = os.environ.get('NLTK_DATA')
+            env = runner._get_subprocess_env(
+                _task_with_datasets({'nltk_path': nltk_dir}))
+
+        self.assertEqual(env['NLTK_DATA'], os.path.abspath(nltk_dir))
+        self.assertEqual(os.environ.get('NLTK_DATA'), parent_before)
+        mock_logger_class.return_value.info.assert_called_once()
+        mock_logger_class.return_value.error.assert_not_called()
+
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    def test_get_subprocess_env_preserves_inherited_value_when_unconfigured(
+            self, mock_logger_class):
+        """Tasks without the setting retain the parent process value."""
+        runner = LocalRunner(task=self.task_cfg)
+        with patch.dict(os.environ, {'NLTK_DATA': 'inherited-value'}):
+            env = runner._get_subprocess_env(_task_with_datasets({}))
+            self.assertEqual(os.environ.get('NLTK_DATA'), 'inherited-value')
+
+        self.assertEqual(env['NLTK_DATA'], 'inherited-value')
+        mock_logger_class.return_value.info.assert_not_called()
+        mock_logger_class.return_value.error.assert_not_called()
+
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    def test_get_subprocess_env_rejects_conflicting_paths(
+            self, mock_logger_class):
+        """Distinct dataset paths cannot be selected for one child task."""
+        runner = LocalRunner(task=self.task_cfg)
+        with tempfile.TemporaryDirectory() as first, \
+                tempfile.TemporaryDirectory() as second:
+            with self.assertRaises(ParameterValueError) as context:
+                runner._get_subprocess_env(_task_with_datasets(
+                    {'nltk_path': first}, {'nltk_path': second}))
+
+        self.assertEqual(context.exception.error_code_str, 'RUNNER-PARAM-001')
+        mock_logger_class.return_value.error.assert_called_once()
+        mock_logger_class.return_value.info.assert_not_called()
+
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    def test_get_subprocess_env_expands_environment_path(self,
+                                                         mock_logger_class):
+        """Configured paths support environment-variable expansion."""
+        runner = LocalRunner(task=self.task_cfg)
+        with tempfile.TemporaryDirectory() as nltk_dir:
+            with patch.dict(
+                    os.environ,
+                    {'AISBENCH_NLTK_TEST_PATH': nltk_dir}):
+                env = runner._get_subprocess_env(_task_with_datasets(
+                    {'nltk_path': '%AISBENCH_NLTK_TEST_PATH%'}))
+
+        self.assertEqual(env['NLTK_DATA'], os.path.abspath(nltk_dir))
+        mock_logger_class.return_value.info.assert_called_once()
+        mock_logger_class.return_value.error.assert_not_called()
+
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    def test_get_subprocess_env_rejects_invalid_configured_path(
+            self, mock_logger_class):
+        """Malformed and unusable configured paths are rejected and logged."""
+        runner = LocalRunner(task=self.task_cfg)
+        missing = os.path.join(
+            tempfile.gettempdir(), 'aisbench-missing-nltk-data')
+        invalid_values = [None, '', 123, missing]
+
+        for value in invalid_values:
+            with self.subTest(value=value):
+                with self.assertRaises(ParameterValueError) as context:
+                    runner._get_subprocess_env(
+                        _task_with_datasets({'nltk_path': value}))
+                self.assertEqual(
+                    context.exception.error_code_str, 'RUNNER-PARAM-001')
+
+        with tempfile.NamedTemporaryFile() as regular_file:
+            with self.assertRaises(ParameterValueError) as context:
+                runner._get_subprocess_env(
+                    _task_with_datasets({'nltk_path': regular_file.name}))
+            self.assertEqual(context.exception.error_code_str, 'RUNNER-PARAM-001')
+
+        with tempfile.TemporaryDirectory() as unreadable:
+            with patch(
+                    'ais_bench.benchmark.runners.local.os.access',
+                    return_value=False):
+                with self.assertRaises(ParameterValueError) as context:
+                    runner._get_subprocess_env(
+                        _task_with_datasets({'nltk_path': unreadable}))
+                self.assertEqual(
+                    context.exception.error_code_str, 'RUNNER-PARAM-001')
+
+        self.assertEqual(
+            mock_logger_class.return_value.error.call_count,
+            len(invalid_values) + 2,
+        )
+        mock_logger_class.return_value.info.assert_not_called()
 
     @patch('ais_bench.benchmark.runners.base.AISLogger')
     def test_init(self, mock_logger_class):
@@ -214,6 +320,36 @@ class TestLocalRunner(unittest.TestCase):
 
     @patch('ais_bench.benchmark.runners.base.AISLogger')
     @patch('ais_bench.benchmark.runners.local.TASKS')
+    def test_run_debug_passes_nltk_environment(self, mock_tasks,
+                                               mock_logger_class):
+        """Debug subprocess receives the configured NLTK data path."""
+        runner = LocalRunner(task=self.task_cfg, debug=True)
+        mock_task = MagicMock()
+        mock_task.name = 'test_task'
+        mock_task.num_gpus = 0
+        mock_task.get_command.return_value = 'python test.py'
+        mock_task.cfg.dump = MagicMock()
+        mock_tasks.build.return_value = mock_task
+
+        with tempfile.TemporaryDirectory() as nltk_dir:
+            mock_task.dataset_cfgs = [ConfigDict({'nltk_path': nltk_dir})]
+            with patch(
+                    'ais_bench.benchmark.runners.local.subprocess.Popen'
+            ) as subprocess_mock, patch(
+                    'ais_bench.benchmark.runners.local.os.remove'
+            ), patch(
+                    'ais_bench.benchmark.runners.local.mmengine.mkdir_or_exist'
+            ), patch('uuid.uuid4', return_value=MagicMock(hex='test')):
+                subprocess_mock.return_value.wait.return_value = None
+                runner._run_debug([{'work_dir': '/tmp/test', 'cli_args': {}}],
+                                  [], MagicMock())
+
+            self.assertEqual(
+                subprocess_mock.call_args.kwargs['env']['NLTK_DATA'],
+                os.path.abspath(nltk_dir))
+
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    @patch('ais_bench.benchmark.runners.local.TASKS')
     def test_run_debug(self, mock_tasks, mock_logger_class):
         """测试_run_debug方法"""
         mock_logger = MagicMock()
@@ -256,6 +392,33 @@ class TestLocalRunner(unittest.TestCase):
                             self.assertEqual(len(status), 1)
                             self.assertEqual(status[0][0], "test_task")
                             self.assertEqual(status[0][1], 0)
+
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    def test_launch_passes_nltk_environment(self, mock_logger_class):
+        """Normal subprocess receives the configured NLTK data path."""
+        runner = LocalRunner(task=self.task_cfg, debug=False)
+        mock_task = MagicMock()
+        mock_task.name = 'test_task'
+        mock_task.get_command.return_value = 'python test.py'
+        mock_task.get_log_path.return_value = '/tmp/test.out'
+        mock_task.cfg.dump = MagicMock()
+
+        with tempfile.TemporaryDirectory() as nltk_dir:
+            mock_task.dataset_cfgs = [ConfigDict({'nltk_path': nltk_dir})]
+            with patch(
+                    'ais_bench.benchmark.runners.local.subprocess.run'
+            ) as subprocess_mock, patch(
+                    'ais_bench.benchmark.runners.local.os.remove'
+            ), patch(
+                    'ais_bench.benchmark.runners.local.mmengine.mkdir_or_exist'
+            ), patch('uuid.uuid4', return_value=MagicMock(hex='test')), patch(
+                    'builtins.open', create=True):
+                subprocess_mock.return_value.returncode = 0
+                runner._launch(mock_task, [0], 0)
+
+            self.assertEqual(
+                subprocess_mock.call_args.kwargs['env']['NLTK_DATA'],
+                os.path.abspath(nltk_dir))
 
     @patch('ais_bench.benchmark.runners.base.AISLogger')
     def test_launch_method(self, mock_logger_class):

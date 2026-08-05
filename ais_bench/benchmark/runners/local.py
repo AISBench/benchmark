@@ -66,6 +66,46 @@ class LocalRunner(BaseRunner):
         for k, v in kwargs.items():
             self.logger.warning(f'Ignored argument in {self.__module__}: {k}={v}')
 
+    def _get_subprocess_env(self, task) -> Dict[str, str]:
+        env = os.environ.copy()
+        configured_paths = []
+        for dataset_cfg in getattr(task, 'dataset_cfgs', []):
+            if 'nltk_path' not in dataset_cfg:
+                continue
+            raw_path = dataset_cfg['nltk_path']
+            if not isinstance(raw_path, str) or not raw_path.strip():
+                message = (
+                    f"Task {task.name} has invalid nltk_path: {raw_path!r}; "
+                    "expected a non-empty string")
+                self.logger.error(message)
+                raise ParameterValueError(
+                    RUNNER_CODES.INVALID_NLTK_PATH, message)
+            path = osp.abspath(osp.expandvars(osp.expanduser(raw_path.strip())))
+            configured_paths.append(path)
+
+        distinct_paths = {osp.normcase(path) for path in configured_paths}
+        if len(distinct_paths) > 1:
+            message = (
+                f"Task {task.name} has conflicting nltk_path values: "
+                f"{configured_paths}")
+            self.logger.error(message)
+            raise ParameterValueError(RUNNER_CODES.INVALID_NLTK_PATH, message)
+        if not configured_paths:
+            return env
+
+        nltk_path = configured_paths[0]
+        if not osp.isdir(nltk_path) or not os.access(nltk_path, os.R_OK):
+            message = (
+                f"Task {task.name} has unusable nltk_path: {nltk_path}; "
+                "the path must be an existing readable directory")
+            self.logger.error(message)
+            raise ParameterValueError(RUNNER_CODES.INVALID_NLTK_PATH, message)
+
+        env['NLTK_DATA'] = nltk_path
+        self.logger.info(
+            f"Task {task.name} sets NLTK_DATA={nltk_path} for its subprocess")
+        return env
+
     def launch(self, tasks: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
         """Launch multiple tasks.
 
@@ -151,7 +191,8 @@ class LocalRunner(BaseRunner):
                 tmpl = get_command_template(all_gpu_ids[:num_gpus])
                 cmd = task.get_command(cfg_path=param_file, template=tmpl)
 
-                proc = subprocess.Popen(cmd, shell=True, text=True)
+                env = self._get_subprocess_env(task)
+                proc = subprocess.Popen(cmd, shell=True, text=True, env=env)
                 try:
                     proc.wait()
                 except KeyboardInterrupt:
@@ -253,12 +294,14 @@ class LocalRunner(BaseRunner):
             # Run command
             out_path = task.get_log_path(file_extension='out')
             mmengine.mkdir_or_exist(osp.split(out_path)[0])
+            env = self._get_subprocess_env(task)
             with open(out_path, 'w', encoding='utf-8') as stdout:
                 result = subprocess.run(cmd,
                                         shell=True,
                                         text=True,
                                         stdout=stdout,
-                                        stderr=stdout)
+                                        stderr=stdout,
+                                        env=env)
             if result.returncode != 0:
                 self.logger.error(RUNNER_CODES.TASK_FAILED, f"{task_name} failed with code {result.returncode}, see\n{out_path}")
         finally:
