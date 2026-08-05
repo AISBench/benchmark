@@ -46,7 +46,7 @@ fi
 WORK_DIR_INFO=$(cat ${CUR_DIR}/tmplog.txt | grep 'Current exp folder: ')
 TIMESTAMP="${WORK_DIR_INFO##*/}"
 
-process_info=$(cat ${CUR_DIR}/tmplog.txt | grep "Max Concurrency          │ total   │ 800")
+process_info=$(grep -E "Max Concurrency[[:space:]]*│[[:space:]]*total[[:space:]]*│[[:space:]]*800[[:space:]]*│" ${CUR_DIR}/tmplog.txt)
 if [ "${process_info}" == "" ];then
     echo "Max concurrency info not found!"
     exit $ret_failed
