@@ -50,6 +50,111 @@ class TestResponseAnomalyPayload(unittest.TestCase):
 
         self.assertNotIn("response_anomaly_payload", output.extra_details_data)
 
+    def test_records_vllm_openai_logprobs_payload(self):
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        model._record_response_anomaly_payload(
+            {
+                "choices": [
+                    {
+                        "token_ids": [10, 11],
+                        "logprobs": {
+                            "content": [
+                                {
+                                    "token": "token_id:10",
+                                    "logprob": -0.1,
+                                    "top_logprobs": [
+                                        {"token": "token_id:10", "logprob": -0.1},
+                                        {"token": "token_id:12", "logprob": -1.2},
+                                    ],
+                                },
+                                {
+                                    "token": "token_id:11",
+                                    "logprob": -0.2,
+                                    "top_logprobs": [
+                                        {"token": "token_id:11", "logprob": -0.2},
+                                        {"token": "token_id:13", "logprob": -1.3},
+                                    ],
+                                },
+                            ]
+                        },
+                    }
+                ]
+            },
+            output,
+        )
+
+        payload = output.extra_details_data["response_anomaly_payload"]
+        self.assertEqual(payload["tokens"], [10, 11])
+        self.assertEqual(
+            payload["topk_logprobs"],
+            [{10: -0.1, 12: -1.2}, {11: -0.2, 13: -1.3}],
+        )
+
+    def test_vllm_openai_logprobs_can_supply_sampled_token_ids(self):
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        model._record_response_anomaly_payload(
+            {
+                "choices": [
+                    {
+                        "logprobs": {
+                            "content": [
+                                {
+                                    "token": "token_id:21",
+                                    "logprob": -0.1,
+                                    "top_logprobs": [
+                                        {"token": "token_id:21", "logprob": -0.1}
+                                    ],
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            output,
+        )
+
+        payload = output.extra_details_data["response_anomaly_payload"]
+        self.assertEqual(payload["tokens"], [21])
+        self.assertEqual(payload["topk_logprobs"], [{21: -0.1}])
+
+    def test_stream_accumulates_vllm_openai_logprobs_chunks(self):
+        model = self._make_model(enabled=True)
+        output = Output()
+
+        for token_id, logprob in ((31, -0.1), (32, -0.2)):
+            model._accumulate_response_anomaly_payload(
+                {
+                    "choices": [
+                        {
+                            "token_ids": [token_id],
+                            "logprobs": {
+                                "content": [
+                                    {
+                                        "token": f"token_id:{token_id}",
+                                        "logprob": logprob,
+                                        "top_logprobs": [
+                                            {
+                                                "token": f"token_id:{token_id}",
+                                                "logprob": logprob,
+                                            }
+                                        ],
+                                    }
+                                ]
+                            },
+                        }
+                    ]
+                },
+                output,
+            )
+
+        payload = output.extra_details_data["response_anomaly_payload"]
+        self.assertEqual(payload["tokens"], [31, 32])
+        self.assertEqual(payload["topk_logprobs"], [{31: -0.1}, {32: -0.2}])
+
     def test_stream_accumulates_incremental_chunks(self):
         model = self._make_model(enabled=True)
         output = Output()

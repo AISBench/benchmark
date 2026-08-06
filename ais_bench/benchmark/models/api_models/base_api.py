@@ -232,7 +232,72 @@ class BaseAPIModel(BaseModel):
         )
 
     @staticmethod
-    def _extract_response_anomaly_payload(data: dict):
+    def _extract_vllm_token_id(item):
+        """Extract a token id from a vLLM OpenAI-style logprob item."""
+        if not isinstance(item, dict):
+            return None
+        if 'token_id' in item:
+            value = item['token_id']
+            try:
+                return int(value) if not isinstance(value, bool) else None
+            except (TypeError, ValueError):
+                return None
+
+        value = item.get('token')
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value.startswith('token_id:'):
+            try:
+                return int(value.removeprefix('token_id:'))
+            except ValueError:
+                return None
+        return None
+
+    @classmethod
+    def _extract_vllm_openai_logprobs(cls, candidate: dict, tokens):
+        """Convert choices[0].logprobs.content into msProbe's top-k maps."""
+        logprobs = candidate.get('logprobs')
+        content = logprobs.get('content') if isinstance(logprobs, dict) else None
+        if not isinstance(content, list) or not content:
+            return tokens, None
+
+        sampled_token_ids = []
+        topk_logprobs = []
+        for token_item in content:
+            if not isinstance(token_item, dict):
+                return tokens, None
+            sampled_token_id = cls._extract_vllm_token_id(token_item)
+            sampled_token_ids.append(sampled_token_id)
+
+            topk_items = token_item.get('top_logprobs')
+            if not isinstance(topk_items, list):
+                return tokens, None
+            token_logprobs = {}
+            for topk_item in topk_items:
+                token_id = cls._extract_vllm_token_id(topk_item)
+                if token_id is None or 'logprob' not in topk_item:
+                    return tokens, None
+                token_logprobs[token_id] = topk_item['logprob']
+
+            # Keep the sampled token even when the server omits it from top-k.
+            if (
+                sampled_token_id is not None
+                and 'logprob' in token_item
+                and sampled_token_id not in token_logprobs
+            ):
+                token_logprobs[sampled_token_id] = token_item['logprob']
+            if not token_logprobs:
+                return tokens, None
+            topk_logprobs.append(token_logprobs)
+
+        if not isinstance(tokens, list) or len(tokens) != len(topk_logprobs):
+            if any(token_id is None for token_id in sampled_token_ids):
+                return tokens, None
+            tokens = sampled_token_ids
+        return tokens, topk_logprobs
+
+    @classmethod
+    def _extract_response_anomaly_payload(cls, data: dict):
         """Extract service-provided token ids and top-k logprobs."""
         candidate = data
         choices = data.get('choices') if isinstance(data, dict) else None
@@ -246,6 +311,10 @@ class BaseAPIModel(BaseModel):
             tokens = data.get('token_ids', data.get('tokens'))
         if topk_logprobs is None and isinstance(data, dict):
             topk_logprobs = data.get('topk_logprobs')
+        if topk_logprobs is None:
+            tokens, topk_logprobs = cls._extract_vllm_openai_logprobs(
+                candidate, tokens
+            )
         return tokens, topk_logprobs
 
     def _record_response_anomaly_payload(self, data: dict, output: Output) -> None:
