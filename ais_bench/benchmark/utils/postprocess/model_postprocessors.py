@@ -5,6 +5,31 @@ from ais_bench.benchmark.utils.logging import AISLogger
 
 logger = AISLogger()
 
+
+@TEXT_POSTPROCESSORS.register_module('keep-reasoning-content')
+def keep_reasoning_content(
+    text: str | list,
+) -> str:
+    """Same processing as ``extract_non_reasoning_content`` but preserves
+    ``<think>`` / ``</think>`` tags so downstream format-checking (e.g.
+    ``format_reward`` in geometry3k) can still verify tag presence.
+
+    This is a pass-through function — it returns the text unchanged.
+    Use it in model configs where the evaluator needs to see the full
+    model output including reasoning tags.
+    """
+    if isinstance(text, list):
+        return [_keep_single(item) for item in text]
+    return _keep_single(text)
+
+
+def _keep_single(item: str) -> str:
+    """Return item unchanged (pass-through)."""
+    if not isinstance(item, str):
+        return item
+    return item
+
+
 @TEXT_POSTPROCESSORS.register_module('extract-non-reasoning-content')
 def extract_non_reasoning_content(
     text: str | list,

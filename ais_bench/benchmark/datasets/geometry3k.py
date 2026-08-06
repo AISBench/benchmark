@@ -148,7 +148,8 @@ def format_reward(predict_str: str) -> float:
     pattern = re.compile(r"<think>.*</think>.*\\boxed\{.*\}.*", re.DOTALL)
     result = 1.0 if re.fullmatch(pattern, predict_str) else 0.0
     logger.info(f"[format_reward] has_think_tags={'<think>' in predict_str and '</think>' in predict_str}")
-    logger.info(f"[format_reward] has_boxed={'\\boxed{' in predict_str}")
+    _boxed_marker = '\\boxed{'
+    logger.info(f"[format_reward] has_boxed={_boxed_marker in predict_str}")
     logger.info(f"[format_reward] format_score={result}")
     return result
 
