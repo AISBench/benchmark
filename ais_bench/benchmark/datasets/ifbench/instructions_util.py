@@ -262,6 +262,8 @@ WORD_LIST = [
     'injury', 'insect', 'surprise', 'apartment',
 ]  # pylint: disable=line-too-long
 
+_ensure_nltk_data('punkt_tab')
+
 _ALPHABETS = '([A-Za-z])'
 _PREFIXES = '(Mr|St|Mrs|Ms|Dr)[.]'
 _SUFFIXES = '(Inc|Ltd|Jr|Sr|Co)'
