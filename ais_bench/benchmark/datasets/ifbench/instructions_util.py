@@ -7,8 +7,7 @@ import re
 
 _NLTK_RESOURCE_PATHS = {
     'punkt_tab': 'tokenizers/punkt_tab',
-    'averaged_perceptron_tagger_eng':
-        'taggers/averaged_perceptron_tagger_eng',
+    'averaged_perceptron_tagger_eng': 'taggers/averaged_perceptron_tagger_eng',
     'stopwords': 'corpora/stopwords',
 }
 

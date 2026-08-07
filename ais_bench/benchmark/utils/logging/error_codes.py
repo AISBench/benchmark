@@ -116,9 +116,6 @@ class SUMM_CODES:
 class RUNNER_CODES:
     UNKNOWN_ERROR = BaseErrorCode("RUNNER-UNK-001", ErrorModule.RUNNER, ErrorType.UNKNOWN, 1, "unknown error of runner")
     TASK_FAILED = BaseErrorCode("RUNNER-TASK-001", ErrorModule.RUNNER, ErrorType.TASK, 1, "task failed")  # docs coverd
-    INVALID_NLTK_PATH = BaseErrorCode(
-        'RUNNER-PARAM-001', ErrorModule.RUNNER, ErrorType.PARAM, 1,
-        'invalid NLTK data path')
 
 
 class TMON_CODES:

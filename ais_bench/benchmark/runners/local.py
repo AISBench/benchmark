@@ -67,44 +67,7 @@ class LocalRunner(BaseRunner):
             self.logger.warning(f'Ignored argument in {self.__module__}: {k}={v}')
 
     def _get_subprocess_env(self, task) -> Dict[str, str]:
-        env = os.environ.copy()
-        configured_paths = []
-        for dataset_cfg in getattr(task, 'dataset_cfgs', []):
-            if 'nltk_path' not in dataset_cfg:
-                continue
-            raw_path = dataset_cfg['nltk_path']
-            if not isinstance(raw_path, str) or not raw_path.strip():
-                message = (
-                    f"Task {task.name} has invalid nltk_path: {raw_path!r}; "
-                    "expected a non-empty string")
-                self.logger.error(message)
-                raise ParameterValueError(
-                    RUNNER_CODES.INVALID_NLTK_PATH, message)
-            path = osp.abspath(osp.expandvars(osp.expanduser(raw_path.strip())))
-            configured_paths.append(path)
-
-        distinct_paths = {osp.normcase(path) for path in configured_paths}
-        if len(distinct_paths) > 1:
-            message = (
-                f"Task {task.name} has conflicting nltk_path values: "
-                f"{configured_paths}")
-            self.logger.error(message)
-            raise ParameterValueError(RUNNER_CODES.INVALID_NLTK_PATH, message)
-        if not configured_paths:
-            return env
-
-        nltk_path = configured_paths[0]
-        if not osp.isdir(nltk_path) or not os.access(nltk_path, os.R_OK):
-            message = (
-                f"Task {task.name} has unusable nltk_path: {nltk_path}; "
-                "the path must be an existing readable directory")
-            self.logger.error(message)
-            raise ParameterValueError(RUNNER_CODES.INVALID_NLTK_PATH, message)
-
-        env['NLTK_DATA'] = nltk_path
-        self.logger.info(
-            f"Task {task.name} sets NLTK_DATA={nltk_path} for its subprocess")
-        return env
+        return os.environ.copy()
 
     def launch(self, tasks: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
         """Launch multiple tasks.
