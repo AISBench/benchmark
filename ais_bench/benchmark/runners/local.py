@@ -66,9 +66,6 @@ class LocalRunner(BaseRunner):
         for k, v in kwargs.items():
             self.logger.warning(f'Ignored argument in {self.__module__}: {k}={v}')
 
-    def _get_subprocess_env(self, task) -> Dict[str, str]:
-        return os.environ.copy()
-
     def launch(self, tasks: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
         """Launch multiple tasks.
 
@@ -154,8 +151,7 @@ class LocalRunner(BaseRunner):
                 tmpl = get_command_template(all_gpu_ids[:num_gpus])
                 cmd = task.get_command(cfg_path=param_file, template=tmpl)
 
-                env = self._get_subprocess_env(task)
-                proc = subprocess.Popen(cmd, shell=True, text=True, env=env)
+                proc = subprocess.Popen(cmd, shell=True, text=True)
                 try:
                     proc.wait()
                 except KeyboardInterrupt:
@@ -257,14 +253,12 @@ class LocalRunner(BaseRunner):
             # Run command
             out_path = task.get_log_path(file_extension='out')
             mmengine.mkdir_or_exist(osp.split(out_path)[0])
-            env = self._get_subprocess_env(task)
             with open(out_path, 'w', encoding='utf-8') as stdout:
                 result = subprocess.run(cmd,
                                         shell=True,
                                         text=True,
                                         stdout=stdout,
-                                        stderr=stdout,
-                                        env=env)
+                                        stderr=stdout)
             if result.returncode != 0:
                 self.logger.error(RUNNER_CODES.TASK_FAILED, f"{task_name} failed with code {result.returncode}, see\n{out_path}")
         finally:
