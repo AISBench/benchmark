@@ -3,7 +3,6 @@ import os
 import os.path as osp
 import copy
 import shutil
-import asyncio
 import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -29,8 +28,8 @@ from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
 logger = AISLogger()
 
 
-class _URLEntry(NamedTuple):
-    """A single URL's before/after snapshot state."""
+class _URLSnapshotEntry(NamedTuple):
+    """A single URL's before-snapshot state."""
     before: Any = None   # SpecDecodeSnapshot | None
     error: str | None = None
 
@@ -43,7 +42,7 @@ class _SpecDecodeContext:
     from different servers are collected and reported independently.
     """
     enabled: bool = False
-    entries: dict[str, _URLEntry] = field(default_factory=dict)
+    entries: dict[str, _URLSnapshotEntry] = field(default_factory=dict)
 
 
 class BaseWorker(ABC):
@@ -129,7 +128,7 @@ class Infer(BaseWorker):
         runner = RUNNERS.build(cfg.infer.runner)
         runner(tasks)
 
-        self._spec_decode_after_snapshot(cfg, spec_ctx)
+        self._spec_decode_finalize(cfg, spec_ctx)
 
         logger.info("Inference tasks completed.")
 
@@ -196,10 +195,8 @@ class Infer(BaseWorker):
             fetch_spec_decode_metrics_with_error,
         )
         for url in urls:
-            snapshot, error = asyncio.run(
-                fetch_spec_decode_metrics_with_error(url)
-            )
-            ctx.entries[url] = _URLEntry(before=snapshot, error=error)
+            snapshot, error = fetch_spec_decode_metrics_with_error(url)
+            ctx.entries[url] = _URLSnapshotEntry(before=snapshot, error=error)
             if error:
                 logger.info(
                     "Spec decode [%s] before-snapshot failed: %s", url, error
@@ -210,10 +207,10 @@ class Infer(BaseWorker):
                 )
         return ctx
 
-    def _spec_decode_after_snapshot(
+    def _spec_decode_finalize(
         self, cfg: ConfigDict, ctx: _SpecDecodeContext
     ) -> None:
-        """Fetch after-snapshots, compute deltas, save per-URL results."""
+        """Finalize: collect after-snapshots, compute deltas, save results."""
         if not ctx.enabled:
             return
 
@@ -227,7 +224,7 @@ class Infer(BaseWorker):
                 )
 
     def _process_spec_decode_url(
-        self, cfg: ConfigDict, url: str, entry: _URLEntry
+        self, cfg: ConfigDict, url: str, entry: _URLSnapshotEntry
     ) -> None:
         """After-snapshot → compute delta → save for a single URL."""
         from ais_bench.benchmark.spec_decode.fetcher import (
@@ -240,9 +237,7 @@ class Infer(BaseWorker):
             save_spec_decode_result,
         )
 
-        after_snapshot, after_error = asyncio.run(
-            fetch_spec_decode_metrics_with_error(url)
-        )
+        after_snapshot, after_error = fetch_spec_decode_metrics_with_error(url)
         error = self._merge_spec_decode_errors(entry.error, after_error)
 
         spec_stats = None

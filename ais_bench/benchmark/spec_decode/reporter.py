@@ -33,7 +33,7 @@ def format_spec_decode_console(stats: dict, url: str = "") -> str:
         _fmt_line("Accepted tokens", str(stats["accepted_tokens"])),
         _fmt_line(
             "Per-position acceptance rates",
-            _format_per_pos_rates(stats.get("per_position_acceptance_rates", [])),
+            _format_per_pos_rates(stats.get("per_position_acceptance_rates", {})),
         ),
     ]
     return "\n".join(lines)

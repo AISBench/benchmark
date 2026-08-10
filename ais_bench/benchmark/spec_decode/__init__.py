@@ -5,7 +5,7 @@
 #
 # Architecture:
 #   snapshot.py  - Data model + Prometheus text format parsing
-#   fetcher.py   - Async HTTP fetching of /metrics
+#   fetcher.py   - HTTP fetching of /metrics
 #   calculator.py - Before/after delta computation + derived metrics
 #   reporter.py  - Console and file output formatting
 
