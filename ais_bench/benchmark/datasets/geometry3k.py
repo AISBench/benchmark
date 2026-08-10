@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 from datasets import Dataset, load_dataset
+from mathruler.grader import extract_boxed_content, grade_answer
 
 from ais_bench.benchmark.openicl import BaseEvaluator
 from ais_bench.benchmark.registry import LOAD_DATASET
@@ -24,122 +25,31 @@ GEOMETRY3K_INSTRUCTION = (
 )
 
 
-# ── Answer extraction ───────────────────────────────────────────────────
-def last_boxed_only_string(string):
-    """Find the last \\boxed{...} in the string."""
-    idx = string.rfind("\\boxed")
-    if idx < 0:
-        idx = string.rfind("\\fbox")
-        if idx < 0:
-            return None
+# ── Scoring functions (wrapping mathruler.grader, same as verl) ──────
+def _extract_boxed_content(pred_str: str) -> str:
+    """Wrapper around mathruler.grader.extract_boxed_content with logging.
 
-    i = idx
-    right_brace_idx = None
-    num_left_braces_open = 0
-    while i < len(string):
-        if string[i] == "{":
-            num_left_braces_open += 1
-        if string[i] == "}":
-            num_left_braces_open -= 1
-            if num_left_braces_open == 0:
-                right_brace_idx = i
-                break
-        i += 1
-
-    if right_brace_idx is None:
-        return None
-    return string[idx : right_brace_idx + 1]
-
-
-def remove_boxed(s):
-    """Strip '\\boxed{' and trailing '}'."""
-    left = "\\boxed{"
-    try:
-        if not (s.startswith(left) and s.endswith("}")):
-            return None
-        return s[len(left) : -1]
-    except (IndexError, TypeError):
-        return None
-
-
-def extract_boxed_content(pred_str):
-    """Extract the content inside the last \\boxed{...}."""
-    boxed_str = last_boxed_only_string(pred_str)
-    if boxed_str is None:
-        logger.info(f"[extract_boxed_content] no \\boxed{{}} found, returning full pred_str")
-        return pred_str
-    answer = remove_boxed(boxed_str)
-    if answer is None:
-        logger.info(f"[extract_boxed_content] failed to remove boxed wrapper, returning full pred_str")
-        return pred_str
-    logger.info(f"[extract_boxed_content] extracted: {answer!r}")
-    return answer
-
-
-# ── Answer normalisation ────────────────────────────────────────────────
-def normalize_answer(ans: str) -> str:
-    """Normalize an answer string for comparison."""
-    ans = str(ans).strip()
-    ans = re.sub(r"^\$+|\$+$", "", ans)
-    ans = ans.replace("\\ ", " ")
-    ans = re.sub(r"\s+", " ", ans)
-    ans = ans.strip(". ,;:")
-    ans = ans.replace("°", "")
-    ans = ans.replace("^{\\circ}", "")
-    ans = ans.replace("^\\circ", "")
-    ans = re.sub(r"\\text\{(.*?)\}", r"\1", ans)
-    ans = re.sub(r"\\mathrm\{(.*?)\}", r"\1", ans)
-    ans = re.sub(r"\s+", " ", ans).strip()
-    return ans
-
-
-def grade_answer(given_answer: str, ground_truth: str) -> bool:
-    """Compare a model answer against the ground truth.
-
-    1. Exact match after normalisation.
-    2. LaTeX-marker-stripped comparison.
-    3. Numeric comparison with 1e-4 tolerance.
-    4. Case-insensitive comparison.
+    RETURNS "None" (string) when no \\boxed{} is found, consistent with verl.
     """
-    given = normalize_answer(given_answer)
-    gt = normalize_answer(ground_truth)
+    result = extract_boxed_content(pred_str)
+    if result == "None":
+        logger.info(f"[extract_boxed_content] no \\boxed{{}} found, returning \"None\"")
+    else:
+        logger.info(f"[extract_boxed_content] extracted: {result!r}")
+    return result
 
+
+def _grade_answer(given_answer: str, ground_truth: str) -> bool:
+    """Wrapper around mathruler.grader.grade_answer with logging.
+
+    Uses sympy-based mathematical equivalence checking, strict integer matching,
+    fraction comparison, and tuple/interval handling.
+    """
     logger.info(f"[grade_answer] given (raw)      : {given_answer!r}")
     logger.info(f"[grade_answer] ground_truth (raw): {ground_truth!r}")
-    logger.info(f"[grade_answer] given (normalized) : {given!r}")
-    logger.info(f"[grade_answer] ground_truth (norm): {gt!r}")
-
-    # 1. Exact match after normalisation
-    if given == gt:
-        logger.info(f"[grade_answer] result=True (exact match after normalization)")
-        return True
-
-    # 2. Strip LaTeX markers and try again
-    given_stripped = given.replace("\\", "").replace("{", "").replace("}", "")
-    gt_stripped = gt.replace("\\", "").replace("{", "").replace("}", "")
-    logger.info(f"[grade_answer] given_stripped: {given_stripped!r}")
-    logger.info(f"[grade_answer] gt_stripped: {gt_stripped!r}")
-    if given_stripped.strip() == gt_stripped.strip():
-        logger.info(f"[grade_answer] result=True (stripped LaTeX match)")
-        return True
-
-    # 3. Numeric comparison with tolerance
-    try:
-        given_num = float(given_stripped)
-        gt_num = float(gt_stripped)
-        result = abs(given_num - gt_num) < 1e-4
-        logger.info(f"[grade_answer] numeric: given_num={given_num}, gt_num={gt_num}, diff={abs(given_num - gt_num):.6f}, result={result}")
-        return result
-    except (ValueError, TypeError):
-        logger.info(f"[grade_answer] numeric conversion failed, continuing...")
-
-    # 4. Case-insensitive comparison
-    if given.lower() == gt.lower():
-        logger.info(f"[grade_answer] result=True (case-insensitive match)")
-        return True
-
-    logger.info(f"[grade_answer] result=False (all methods failed)")
-    return False
+    result = grade_answer(given_answer, ground_truth)
+    logger.info(f"[grade_answer] result={result}")
+    return result
 
 
 # ── Format reward ───────────────────────────────────────────────────────
@@ -361,19 +271,55 @@ class Geometry3KDataset(BaseDataset):
 
 # ── Evaluator ────────────────────────────────────────────────────────────
 class Geometry3KEvaluator(BaseEvaluator):
-    """Evaluator for geometry3k.
+    """Evaluator for geometry3k, matching verl's scoring logic.
 
     For each prediction:
-    1. Extracts the content inside ``\\boxed{...}``.
-    2. Compares with ground truth via ``grade_answer``.
+    1. Extracts the content inside ``\\boxed{...}`` via mathruler.
+    2. Compares with ground truth via mathruler ``grade_answer`` (sympy-based).
     3. Checks format compliance (``<think>...</think>`` + ``\\boxed{...}``).
-    4. Computes weighted score: ``0.9 * accuracy + 0.1 * format``.
+    4. Computes weighted score: ``(1-w) * accuracy + w * format`` (same as verl).
+
+    Args:
+        format_weight: Weight of format reward in combined score.  Default 0.1.
     """
+
+    def __init__(self, format_weight: float = 0.0):
+        super().__init__()
+        self.format_weight = format_weight
+        logger.info(f"[Geometry3KEvaluator] format_weight={format_weight}")
+
+    def _compute_score(self, pred_str: str, ground_truth: str) -> dict:
+        """Compute per-sample scores using verl's formula:
+            combined = (1-w) * acc + w * fmt
+        """
+        # Clean special tokens
+        for char in ["<|im_end|>", "<|endoftext|>"]:
+            pred_str = pred_str.replace(char, "")
+
+        # Extract boxed answer via mathruler
+        extracted = _extract_boxed_content(pred_str)
+
+        # Accuracy: compare extracted answer with ground truth
+        acc = 1.0 if _grade_answer(extracted, ground_truth) else 0.0
+
+        # Format: check for <think> + \boxed{}
+        fmt = format_reward(pred_str)
+
+        # Combined score: same formula as verl's compute_score
+        combined = (1.0 - self.format_weight) * acc + self.format_weight * fmt
+
+        return {
+            "extracted_answer": extracted,
+            "accuracy": acc,
+            "format_score": fmt,
+            "combined_score": combined,
+        }
 
     def score(self, predictions, references):
         logger.info(f"[Geometry3KEvaluator.score] ===== START =====")
         logger.info(f"[Geometry3KEvaluator.score] num_predictions: {len(predictions)}")
         logger.info(f"[Geometry3KEvaluator.score] num_references: {len(references)}")
+        logger.info(f"[Geometry3KEvaluator.score] format_weight: {self.format_weight}")
 
         if len(predictions) != len(references):
             return {"error": "predictions and references have different length"}
@@ -388,22 +334,16 @@ class Geometry3KEvaluator(BaseEvaluator):
             logger.info(f"[Geometry3KEvaluator.score] --- sample {i}/{total} ---")
             logger.info(f"[Geometry3KEvaluator.score] raw_pred (len={len(pred)}): {pred[:500]!r}")
 
-            # Clean special tokens
-            for char in ["<|im_end|>", "<|endoftext|>"]:
-                pred = pred.replace(char, "")
-            logger.info(f"[Geometry3KEvaluator.score] cleaned_pred (len={len(pred)}): {pred[:500]!r}")
-
             gt = ref if isinstance(ref, str) else ref.get("answer", str(ref))
             logger.info(f"[Geometry3KEvaluator.score] ground_truth: {gt!r}")
 
-            # Extract boxed answer and grade
-            extracted = extract_boxed_content(pred)
+            sample_result = self._compute_score(pred, gt)
+            acc = sample_result["accuracy"]
+            fmt = sample_result["format_score"]
+            combined = sample_result["combined_score"]
+            extracted = sample_result["extracted_answer"]
+
             logger.info(f"[Geometry3KEvaluator.score] extracted_answer: {extracted!r}")
-
-            acc = 1.0 if grade_answer(extracted, gt) else 0.0
-            fmt = format_reward(pred)
-            combined = 0.9 * acc + 0.1 * fmt
-
             logger.info(f"[Geometry3KEvaluator.score] sample[{i}] accuracy={acc}, format_score={fmt}, combined_score={combined}")
 
             if acc == 1.0:
