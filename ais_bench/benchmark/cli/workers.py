@@ -1,9 +1,13 @@
+import glob
 import os
 import os.path as osp
 import copy
 import shutil
+import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any, NamedTuple
 
 from mmengine.config import ConfigDict
 
@@ -22,6 +26,23 @@ from ais_bench.benchmark.cli.utils import clear_repeat_tasks
 from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
 
 logger = AISLogger()
+
+
+class _URLSnapshotEntry(NamedTuple):
+    """A single URL's before-snapshot state."""
+    before: Any = None   # SpecDecodeSnapshot | None
+    error: str | None = None
+
+
+@dataclass
+class _SpecDecodeContext:
+    """Carries state between before/after spec decode Prometheus snapshots.
+
+    Each unique metrics URL gets its own entry so that spec decode metrics
+    from different servers are collected and reported independently.
+    """
+    enabled: bool = False
+    entries: dict[str, _URLSnapshotEntry] = field(default_factory=dict)
 
 
 class BaseWorker(ABC):
@@ -102,8 +123,13 @@ class Infer(BaseWorker):
             logger.info("Merging datasets with the same model and inferencer...")
             tasks = self._merge_datasets(tasks)
 
+        spec_ctx = self._spec_decode_before_snapshot(cfg)
+
         runner = RUNNERS.build(cfg.infer.runner)
         runner(tasks)
+
+        self._spec_decode_finalize(cfg, spec_ctx)
+
         logger.info("Inference tasks completed.")
 
     def _merge_datasets(self, tasks):
@@ -133,6 +159,127 @@ class Infer(BaseWorker):
             for task in tasks:
                 cfg.attack.dataset = task.datasets[0][0].abbr
                 task.attack = cfg.attack
+
+    # ------------------------------------------------------------------
+    #  Speculative Decoding — per-URL before/after snapshot methods
+    # ------------------------------------------------------------------
+
+    def _spec_decode_before_snapshot(self, cfg: ConfigDict) -> _SpecDecodeContext:
+        """Fetch before-snapshots for every unique metrics URL."""
+        cli_args = cfg.get("cli_args", {})
+        ctx = _SpecDecodeContext()
+
+        ctx.enabled = (
+            cli_args.get("spec_decode", False)
+            and cli_args.get("mode") == "perf"
+        )
+        if cli_args.get("spec_decode") and cli_args.get("mode") != "perf":
+            logger.warning(
+                "--spec-decode is only effective in --mode perf. "
+                "Ignoring spec decode for current mode '%s'.",
+                cli_args.get("mode"),
+            )
+
+        if not ctx.enabled:
+            return ctx
+
+        from ais_bench.benchmark.spec_decode.urls import resolve_metrics_urls
+
+        urls = resolve_metrics_urls(cfg.get("models", []))
+        if not urls:
+            ctx.enabled = False
+            logger.info("Spec decode before-snapshot failed: no metrics URLs found.")
+            return ctx
+
+        from ais_bench.benchmark.spec_decode.fetcher import (
+            fetch_spec_decode_metrics_with_error,
+        )
+        for url in urls:
+            snapshot, error = fetch_spec_decode_metrics_with_error(url)
+            ctx.entries[url] = _URLSnapshotEntry(before=snapshot, error=error)
+            if error:
+                logger.info(
+                    "Spec decode [%s] before-snapshot failed: %s", url, error
+                )
+            else:
+                logger.info(
+                    "Spec decode [%s] before-snapshot captured successfully.", url
+                )
+        return ctx
+
+    def _spec_decode_finalize(
+        self, cfg: ConfigDict, ctx: _SpecDecodeContext
+    ) -> None:
+        """Finalize: collect after-snapshots, compute deltas, save results."""
+        if not ctx.enabled:
+            return
+
+        for url, entry in ctx.entries.items():
+            try:
+                self._process_spec_decode_url(cfg, url, entry)
+            except Exception:
+                logger.warning(
+                    "Spec decode [%s] after-snapshot failed unexpectedly, skipping",
+                    url, exc_info=True,
+                )
+
+    def _process_spec_decode_url(
+        self, cfg: ConfigDict, url: str, entry: _URLSnapshotEntry
+    ) -> None:
+        """After-snapshot → compute delta → save for a single URL."""
+        from ais_bench.benchmark.spec_decode.fetcher import (
+            fetch_spec_decode_metrics_with_error,
+        )
+        from ais_bench.benchmark.spec_decode.calculator import (
+            compute_spec_decode_stats,
+        )
+        from ais_bench.benchmark.spec_decode.reporter import (
+            save_spec_decode_result,
+        )
+
+        after_snapshot, after_error = fetch_spec_decode_metrics_with_error(url)
+        error = self._merge_spec_decode_errors(entry.error, after_error)
+
+        spec_stats = None
+        if entry.before is not None and after_snapshot is not None:
+            spec_stats = compute_spec_decode_stats(entry.before, after_snapshot)
+            if spec_stats is None:
+                error = "No spec decode activity detected during benchmark window"
+
+        self._log_spec_decode_result(url, spec_stats, error)
+
+        save_spec_decode_result(
+            spec_stats, error, cfg["work_dir"], url,
+            before_snapshot=entry.before,
+            after_snapshot=after_snapshot,
+        )
+
+    @staticmethod
+    def _merge_spec_decode_errors(before_error: str | None, after_error: str | None) -> str | None:
+        """Merge before/after error messages, preserving both when possible."""
+        if not after_error:
+            return before_error
+        if before_error:
+            return f"{before_error}; {after_error}"
+        return after_error
+
+    @staticmethod
+    def _log_spec_decode_result(url: str, spec_stats: dict | None, error: str | None) -> None:
+        """Log the outcome of spec decode collection for a single URL."""
+        if spec_stats:
+            logger.info(
+                "Spec decode [%s] collected: acceptance_rate=%.2f%%, "
+                "acceptance_length=%.2f",
+                url,
+                spec_stats["acceptance_rate"],
+                spec_stats["acceptance_length"],
+            )
+        else:
+            logger.info(
+                "Spec decode [%s] unavailable: %s",
+                url, error or "unknown reason",
+            )
+
 
 
 class JudgeInfer(BaseWorker):
@@ -467,6 +614,45 @@ class PerfViz(BaseWorker):
         summarizer = build_from_cfg(summarizer_cfg)
         logger.info("Summarizing performance results...")
         summarizer.summarize()
+
+        # ========== Speculative Decoding Results ==========
+        if cfg.get("cli_args", {}).get("spec_decode", False):
+            self._output_spec_decode_results(cfg)
+
+    @staticmethod
+    def _output_spec_decode_results(cfg: ConfigDict) -> None:
+        """Read all per-URL spec_decode_*.json files and print results."""
+        from ais_bench.benchmark.spec_decode.reporter import (
+            format_spec_decode_console,
+            format_spec_decode_na,
+        )
+
+        pattern = osp.join(cfg["work_dir"], "performances", "spec_decode_*.json")
+        spec_files = sorted(glob.glob(pattern))
+
+        if not spec_files:
+            logger.warning(
+                "Spec decode enabled but no result files found matching %s",
+                pattern,
+            )
+            return
+
+        for spec_file in spec_files:
+            try:
+                with open(spec_file, "r", encoding="utf-8") as f:
+                    result = json.load(f)
+            except Exception:
+                logger.warning(
+                    "Failed to read spec decode result file %s, skipping",
+                    spec_file, exc_info=True,
+                )
+                continue
+
+            url = result.get("url", "")
+            if result.get("status") == "ok" and result.get("data"):
+                print(format_spec_decode_console(result["data"], url))
+            else:
+                print(format_spec_decode_na(url, result.get("error")))
 
 
 WORK_FLOW = dict(
