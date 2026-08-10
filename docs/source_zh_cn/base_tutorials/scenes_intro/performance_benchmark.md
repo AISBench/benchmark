@@ -80,6 +80,7 @@ models = [
     )
 ]
 ```
+
 ### 执行命令
 修改好配置文件后，执行命令启动服务化性能评测：
 ```bash
@@ -404,6 +405,16 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 
 
 ## 其他功能场景
+### 投机推理指标采集
+
+在对开启了投机推理（Speculative Decoding）的 vLLM 推理服务进行性能评测时，可以在命令后追加 `--spec-decode`，从推理服务的 Prometheus `/metrics` 端点采集投机推理性能指标（采纳率、采纳长度等）。指标会与标准性能结果一同在控制台展示，并保存到 `performances/` 目录下的 `spec_decode_*.json` 文件中。
+
+```shell
+ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --mode perf --spec-decode
+```
+
+前置条件、配置说明和指标含义详见 📚 [投机推理指标采集](../../advanced_tutorials/spec_decode.md)。
+
 ### 性能结果重计算
 性能测试的主要功能场景评测工具会执行完整的性能采样 → 计算 → 汇总流程
 ```mermaid
