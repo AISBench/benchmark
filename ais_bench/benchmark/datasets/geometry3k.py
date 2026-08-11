@@ -32,11 +32,11 @@ def _extract_boxed_content(pred_str: str) -> str:
     RETURNS "None" (string) when no \\boxed{} is found, consistent with verl.
     """
     result = extract_boxed_content(pred_str)
-    if result == "None":
-        logger.debug(f"[extract_boxed_content] no \\boxed{{}} found, returning \"None\"")
+    if result == "None" or result == "":
+        logger.debug(f"[extract_boxed_content] no \\boxed{{}} content, returning \"None\"")
     else:
         logger.debug(f"[extract_boxed_content] extracted: {result!r}")
-    return result
+    return result if result not in ("None", "") else "None"
 
 
 def _grade_answer(given_answer: str, ground_truth: str) -> bool:
@@ -58,7 +58,7 @@ def _grade_answer(given_answer: str, ground_truth: str) -> bool:
 # ── Format reward ───────────────────────────────────────────────────────
 def format_reward(predict_str: str) -> float:
     """Check whether the output has <think>...</think> and \\boxed{...}."""
-    pattern = re.compile(r"<think>.*</think>.*\\boxed\{.*\}.*", re.DOTALL)
+    pattern = re.compile(r"<think>.*</think>.*\\boxed\{.*\}", re.DOTALL)
     result = 1.0 if re.fullmatch(pattern, predict_str) else 0.0
     boxed_marker = '\\boxed{'
     logger.debug(

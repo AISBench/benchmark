@@ -273,7 +273,7 @@ class TestGeometry3KEvaluator(unittest.TestCase):
         ]
         references = ["2", "4"]
         result = self.evaluator.score(predictions, references)
-        self.assertAlmostEqual(result["combined_score"], 100.0)
+        self.assertAlmostEqual(result["accuracy"], 100.0)
 
     def test_score_all_wrong(self):
         predictions = [
@@ -282,7 +282,7 @@ class TestGeometry3KEvaluator(unittest.TestCase):
         ]
         references = ["2", "4"]
         result = self.evaluator.score(predictions, references)
-        self.assertLess(result["combined_score"], 50.0)
+        self.assertLess(result["accuracy"], 50.0)
 
     def test_score_mixed(self):
         predictions = [
@@ -293,22 +293,22 @@ class TestGeometry3KEvaluator(unittest.TestCase):
         result = self.evaluator.score(predictions, references)
         # combined scores: 1st = 1.0, 2nd = 0.9*1.0 + 0.1*0 = 0.9
         expected = 100.0 * (1.0 + 0.9) / 2  # = 95.0
-        self.assertAlmostEqual(result["combined_score"], expected)
+        self.assertAlmostEqual(result["accuracy"], expected)
 
     def test_score_returns_details(self):
         predictions = ["<think>x</think> \\boxed{5}"]
         references = ["5"]
         result = self.evaluator.score(predictions, references)
         self.assertIn("details", result)
-        self.assertIn("combined_score", result)
-        self.assertNotIn("accuracy", result)
+        self.assertIn("accuracy", result)
+        self.assertNotIn("combined_score", result)
         self.assertNotIn("format_score", result)
 
     def test_score_reference_is_dict(self):
         predictions = ["<think>x</think> \\boxed{7}"]
         references = [{"answer": "7"}]
         result = self.evaluator.score(predictions, references)
-        self.assertAlmostEqual(result["combined_score"], 100.0)
+        self.assertAlmostEqual(result["accuracy"], 100.0)
 
 
 if __name__ == "__main__":
