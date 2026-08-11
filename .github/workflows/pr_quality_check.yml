@@ -1,8 +1,9 @@
 name: PR Quality Check (PR 合入质量看护)
 
-# 触发时机（仅两项）：
+# 触发时机：
 # - pull_request_target.opened        ：PR 新建时触发
 # - pull_request_target.synchronize   ：PR 中代码内容出现变更（新 commit 推送）时触发
+# - issue_comment.created             ：在 PR 评论中输入 /pr_check（可附说明）手动触发重检
 # - workflow_dispatch                 ：管理员可手动触发以便回溯校验（非自动触发）
 #
 # 阻断合入的原理（请管理员在仓库 Settings -> Branches 中配置）：
@@ -15,6 +16,8 @@ on:
     types:
       - opened       # PR 创建
       - synchronize  # PR 中代码内容出现变更（push 新 commit）
+  issue_comment:
+    types: [created]  # 在 PR 评论中输入 /pr_check 触发手动重检
   workflow_dispatch:
 
 permissions:
@@ -26,11 +29,22 @@ jobs:
   pr-quality-gate:
     name: PR Quality Gate
     runs-on: ubuntu-latest
-    # 仅处理来自本仓库的 PR（避免 fork PR 在受限 token 下写入失败带来的噪声）；
-    # pull_request_review / pull_request_review_comment 事件中 context.payload.pull_request 同样存在 head.repo。
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+    # 注意：本工作流的主要目的就是拦截"从 fork 仓库往主仓提的 PR"，
+    # 因此不要用 if 把 fork PR 过滤掉；无论 PR 来自哪，都要执行检查。
+    # 阻断原理：检查不通过时调用 core.setFailed()，配合分支保护中的 Required status check 实现拦截。
+    #
+    # 仅 issue_comment 触发时按下面规则过滤（其它事件不受此 if 影响）：
+    #   1) 评论必须挂在 PR 下（不是普通 Issue）
+    #   2) 评论正文必须为 /pr_check 或以 "/pr_check " 开头（允许附加参数/说明）
+    if: |
+      github.event_name != 'issue_comment' ||
+      (
+        github.event.issue.pull_request &&
+        (
+          github.event.comment.body == '/pr_check' ||
+          startsWith(github.event.comment.body, '/pr_check ')
+        )
+      )
     steps:
       - name: 确保失败标签存在（红色）
         uses: actions/github-script@v7
@@ -68,12 +82,21 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const pr = context.payload.pull_request;
-            const prNumber = pr.number;
+            // 兼容三种事件来源：pull_request_target / issue_comment / workflow_dispatch
+            // - pull_request_target：payload 含 pull_request
+            // - issue_comment       ：payload 含 issue（PR 评论时 issue.number 即为 PR 号）
+            // - workflow_dispatch   ：payload 含 pull_request（GitHub 自动注入）
+            const prNumber = context.eventName === 'issue_comment'
+              ? context.payload.issue.number
+              : context.payload.pull_request.number;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const triggerSource = context.eventName === 'issue_comment'
+              ? 'PR 评论 /pr_check'
+              : (context.eventName === 'workflow_dispatch' ? '手动 workflow_dispatch' : context.eventName);
 
             console.log(`开始对 PR #${prNumber} 进行合入质量检查...`);
+            console.log(`触发来源: ${triggerSource}`);
 
             // 使用 GraphQL 一次性获取全部所需数据
             const query = `
@@ -226,16 +249,29 @@ jobs:
                 });
                 console.log(`已移除标签: ${label}`);
               } catch (e) {
-                if (e.status !== 404) throw e;
-                console.log(`标签 ${label} 不存在，跳过移除`);
+                // 404 = 标签本来就不存在，可忽略；403 = fork PR 写权限受限，也可忽略；
+                // 这两种情况都不应让 Job 失败（status check 是否失败只取决于检查项本身）。
+                if (e.status === 404) {
+                  console.log(`标签 ${label} 不存在，跳过移除`);
+                } else if (e.status === 403) {
+                  console.log(`移除标签 ${label} 失败（fork PR 权限受限，可忽略）: ${e.message}`);
+                } else {
+                  throw e;
+                }
               }
             }
 
             if (labelsToAdd.length > 0) {
-              await github.rest.issues.addLabels({
-                owner, repo, issue_number: prNumber, labels: labelsToAdd
-              });
-              console.log(`已添加标签: ${labelsToAdd.join(', ')}`);
+              try {
+                await github.rest.issues.addLabels({
+                  owner, repo, issue_number: prNumber, labels: labelsToAdd
+                });
+                console.log(`已添加标签: ${labelsToAdd.join(', ')}`);
+              } catch (e) {
+                // fork PR 的 GITHUB_TOKEN 通常为只读，写标签会 403；
+                // 这种情况下静默失败即可——status check 本身仍会按规则失败，照样能阻断合入。
+                console.log(`添加标签失败（可能为 fork PR 权限受限，可忽略）: ${e.message}`);
+              }
             }
 
             // ===== 输出汇总 + 决定是否失败 =====
