@@ -167,9 +167,9 @@ class DefaultPerfSummarizer:
             perf_data["start_time"] = time_points[0]
             perf_data["end_time"] = time_points[-1]
             perf_data["latency"] = time_points[-1] - time_points[0]
-            # Non-streaming: only 2 time points (before request & after full response),
-            # TTFT/TPOT are meaningless — set to 0 so the calculator removes them.
-            if len(time_points) <= 2:
+            # Non-streaming: TTFT/TPOT are meaningless — set to 0 so the
+            # calculator removes them, and Prefill Token Throughput is skipped.
+            if not model_cfg.get("stream", True):
                 perf_data["ttft"] = 0
                 perf_data["tpot"] = 0
             else:
