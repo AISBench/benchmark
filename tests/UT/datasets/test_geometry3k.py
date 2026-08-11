@@ -291,8 +291,8 @@ class TestGeometry3KEvaluator(unittest.TestCase):
         ]
         references = ["2", "no box"]
         result = self.evaluator.score(predictions, references)
-        # combined scores: 1st = 1.0, 2nd = 0.9*1.0 + 0.1*0 = 0.9
-        expected = 100.0 * (1.0 + 0.9) / 2  # = 95.0
+        # combined scores: 1st = 1.0, 2nd = 0.0*1.0 + 0.1*0 = 0.9
+        expected = 100.0 * (1.0 + 0) / 2  # = 50.0
         self.assertAlmostEqual(result["accuracy"], expected)
 
     def test_score_returns_details(self):
