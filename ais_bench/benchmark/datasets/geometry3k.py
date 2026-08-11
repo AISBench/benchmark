@@ -216,6 +216,11 @@ class Geometry3KDataset(BaseDataset):
             answer = example.get("answer", "")
             images = example.get("images", [])
 
+            if isinstance(problem, list) and len(problem) > 0:
+                problem = problem[0]
+            if isinstance(problem, str):
+                problem = problem.replace("<image>", "", 1).lstrip()
+
             logger.info(f"[Geometry3KDataset.load] --- record[{i}] ---")
             logger.info(f"[Geometry3KDataset.load] record[{i}] problem: {problem!r}")
             logger.info(f"[Geometry3KDataset.load] record[{i}] answer: {answer!r}")
