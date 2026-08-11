@@ -50,3 +50,5 @@ tree_sitter_languages>=1.10.2
 typer
 Pillow==11.2.1
 janus
+emoji
+syllapy
