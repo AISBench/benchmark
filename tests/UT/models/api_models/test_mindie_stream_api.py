@@ -1,6 +1,8 @@
 import sys
 import json
 import asyncio
+import os
+import tempfile
 import unittest
 from unittest import mock
 from copy import deepcopy
@@ -233,6 +235,141 @@ class TestMindieStreamApi(unittest.TestCase):
         """测试is_api属性"""
         model = MindieStreamApi(**self.default_kwargs)
         self.assertTrue(model.is_api)
+
+
+class TestMindieStreamApiLora(unittest.TestCase):
+    """针对 Multi-LoRA 兼容性扩展的 UT（MindIE 通过 parameters.adapter_id 路由 LoRA）。"""
+
+    LORA_MAP = {"0": "LoraA", "1": "LoraB"}
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmp_root = self._tmpdir.name
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def _write_lora_map(self, content=None):
+        path = os.path.join(self.tmp_root, "lora_data_map.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(content if content is not None else self.LORA_MAP, f)
+        return path
+
+    def _make_model(self, **overrides):
+        kwargs = {
+            "path": "test-model",
+            "stream": True,
+            "max_out_len": 4096,
+            "retry": 2,
+            "host_ip": "localhost",
+            "host_port": 8080,
+            "generation_kwargs": {"temperature": 0.7, "top_p": 0.9},
+        }
+        kwargs.update(overrides)
+        return MindieStreamApi(**kwargs)
+
+    # ---------- _load_lora_data_map ----------
+
+    def test_load_lora_data_map_with_valid_file(self):
+        path = self._write_lora_map()
+        model = self._make_model(generation_kwargs={"lora_data_map_file": path})
+        self.assertEqual(model.lora_data_map, self.LORA_MAP)
+
+    def test_load_lora_data_map_no_config_returns_none(self):
+        model = self._make_model()
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_none_value_returns_none(self):
+        model = self._make_model(generation_kwargs={"lora_data_map_file": None})
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_file_not_exists(self):
+        model = self._make_model(
+            generation_kwargs={"lora_data_map_file": os.path.join(self.tmp_root, "absent.json")}
+        )
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_invalid_json(self):
+        path = os.path.join(self.tmp_root, "bad.json")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("definitely not json")
+        model = self._make_model(generation_kwargs={"lora_data_map_file": path})
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_empty_dict(self):
+        path = self._write_lora_map(content={})
+        model = self._make_model(generation_kwargs={"lora_data_map_file": path})
+        self.assertEqual(model.lora_data_map, {})
+
+    # ---------- _resolve_lora_model_name ----------
+
+    def test_resolve_hit(self):
+        path = self._write_lora_map()
+        model = self._make_model(generation_kwargs={"lora_data_map_file": path})
+        out = Output()
+        out.data_id = 0
+        self.assertEqual(model._resolve_lora_model_name(out), "LoraA")
+
+    def test_resolve_miss_returns_none(self):
+        path = self._write_lora_map()
+        model = self._make_model(generation_kwargs={"lora_data_map_file": path})
+        out = Output()
+        out.data_id = 999
+        self.assertIsNone(model._resolve_lora_model_name(out))
+
+    def test_resolve_no_map_returns_none(self):
+        model = self._make_model()
+        out = Output()
+        out.data_id = 0
+        self.assertIsNone(model._resolve_lora_model_name(out))
+
+    def test_resolve_output_without_data_id_returns_none(self):
+        path = self._write_lora_map()
+        model = self._make_model(generation_kwargs={"lora_data_map_file": path})
+        out = Output()
+        self.assertIsNone(model._resolve_lora_model_name(out))
+
+    # ---------- get_request_body LoRA injection ----------
+
+    def _run_get_request_body(self, model, output, input_data="test prompt", max_out_len=100):
+        return asyncio.run(model.get_request_body(input_data, max_out_len, output))
+
+    def test_request_body_lora_hit_writes_adapter_id(self):
+        path = self._write_lora_map()
+        model = self._make_model(generation_kwargs={"lora_data_map_file": path})
+        out = Output()
+        out.data_id = 1
+        body = self._run_get_request_body(model, out)
+        self.assertEqual(body["parameters"]["adapter_id"], "LoraB")
+        self.assertTrue(body["stream"])
+        self.assertEqual(body["parameters"]["max_new_tokens"], 100)
+
+    def test_request_body_lora_miss_no_adapter_id(self):
+        path = self._write_lora_map()
+        model = self._make_model(generation_kwargs={"lora_data_map_file": path})
+        out = Output()
+        out.data_id = 99
+        body = self._run_get_request_body(model, out)
+        self.assertNotIn("adapter_id", body["parameters"])
+
+    def test_request_body_no_lora_config_preserves_existing_kwargs(self):
+        model = self._make_model()
+        out = Output()
+        out.data_id = 0
+        body = self._run_get_request_body(model, out)
+        self.assertEqual(body["parameters"]["temperature"], 0.7)
+        self.assertEqual(body["parameters"]["top_p"], 0.9)
+        self.assertNotIn("adapter_id", body["parameters"])
+
+    def test_request_body_lora_hit_with_promptlist(self):
+        path = self._write_lora_map()
+        model = self._make_model(generation_kwargs={"lora_data_map_file": path})
+        out = Output()
+        out.data_id = 0
+        prompt_list = PromptList(["p0", "p1"])
+        body = self._run_get_request_body(model, out, input_data=prompt_list)
+        self.assertEqual(body["parameters"]["adapter_id"], "LoraA")
+        self.assertEqual(body["inputs"], prompt_list)
 
 
 if __name__ == '__main__':

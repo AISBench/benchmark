@@ -97,6 +97,45 @@ The description of configurable parameters for the service-oriented inference ba
 - When using an IPv6 literal (such as `::1` or `2001:db8::1`) as `host_ip`, the tool will automatically wrap it in brackets in the generated URL (for example, `http://[2001:db8::1]:8080/`), so you do not need to manually add brackets in the configuration.
 
 
+### Multi-LoRA Routing
+
+Route each sample to the correct LoRA adapter by `data_id` (dataset row index). Supported backends: `VLLMCustomAPIChat`, `VLLMCustomAPI`, `TGICustomAPI`, `MindieStreamApi`. No new model class is required; just add `lora_data_map_file` under `generation_kwargs`.
+
+```python
+from ais_bench.benchmark.models import VLLMCustomAPIChat
+
+models = [
+    dict(
+        type=VLLMCustomAPIChat,
+        abbr='vllm-chat-lora',
+        host_ip='127.0.0.1', host_port=8080,
+        generation_kwargs=dict(
+            temperature=0,
+            lora_data_map_file='./lora_data_map.json',
+        ),
+    ),
+]
+```
+
+`lora_data_map.json` (key = stringified `data_id`, value = LoRA adapter name registered on the server):
+
+```json
+{"0": "LoraAdapter1", "1": "LoraAdapter2", "6": "LoraAdapter1"}
+```
+
+> ⚠️ **Recommendation**: Use an **absolute path** for `lora_data_map_file` to avoid resolution failures caused by different working directories.
+
+| Backend class | Where LoRA is set in the request body | Corresponding preset configs |
+| --- | --- | --- |
+| `VLLMCustomAPIChat` | Overwrites `model` field with the adapter name | `vllm_api_general_chat`, `vllm_api_stream_chat`, `vllm_api_stream_chat_multiturn`, `vllm_api_function_call_chat` |
+| `VLLMCustomAPI` | Overwrites `model` field with the adapter name | `vllm_api_general`, `vllm_api_general_stream` |
+| `TGICustomAPI` | Sets `parameters.adapter_id` to the adapter name | `tgi_api_general` |
+| `MindieStreamApi` | Sets `parameters.adapter_id` to the adapter name | `mindie_stream_api_general` |
+
+- If the `data_id` is not in the mapping, the JSON file is missing/invalid, or `data_id` is absent → the request silently falls back to the base model (no error).
+- Run with `--debug` (or set `verbose=True` in the model config) to log each routing decision as `[Multi-LoRA] data_id=... lora_model_name=...`.
+
+
 ## Local Model Backend
 
 | Model Configuration Name | Description | Prerequisites for Use | Supported Prompt Formats (String Format or Dialogue Format) | Corresponding Source Code Configuration File Path |

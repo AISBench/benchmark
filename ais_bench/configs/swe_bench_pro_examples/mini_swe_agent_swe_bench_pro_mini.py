@@ -42,8 +42,13 @@ models = [
     )
 ]
 
+<<<<<<< HEAD
 SWEBP_SCRIPT_PATH_ABS = "/opt/src/SWE-bench_Pro-os/run_scripts"
 SWEBP_DOCKER_PATH_ABS = "/opt/src/SWE-bench_Pro-os/dockerfiles"
+=======
+SWEBP_SCRIPT_PATH_ABS = "/opt/src/SWE-bench_Pro-os/run_scripts"  # 必须指定, agent runtime容器中 "/opt/src/SWE-bench_Pro-os/run_scripts"为默认路径
+SWEBP_DOCKER_PATH_ABS = "/opt/src/SWE-bench_Pro-os/dockerfiles"  # 必须指定，agent runtime容器中 "/opt/src/SWE-bench_Pro-os/dockerfiles"为默认路径
+>>>>>>> master_center
 
 datasets = [
     dict(

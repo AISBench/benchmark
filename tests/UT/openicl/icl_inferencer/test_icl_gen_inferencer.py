@@ -64,6 +64,23 @@ class DummyStatusCounter:
         pass
 
 
+class CapturingModel:
+    """Captures the ``output`` object passed into ``generate`` so tests can
+    inspect ``output.data_id`` after ``do_request`` runs.
+    """
+    def __init__(self):
+        self.captured_output = None
+
+    def parse_template(self, p, mode="gen"):
+        return p
+
+    async def generate(self, inputs, max_out_len, output=None, session=None, **kwargs):
+        self.captured_output = output
+        if output is not None:
+            output.success = True
+            output.content = "ok"
+
+
 class TestGenInferencer(unittest.TestCase):
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
@@ -301,6 +318,36 @@ class TestGenInferencer(unittest.TestCase):
         self.assertEqual(data_list[0]["timestamp"], 0.5)   # 500ms = 0.5s
         self.assertEqual(data_list[1]["timestamp"], 1.5)  # 1500ms = 1.5s
         self.assertEqual(data_list[2]["timestamp"], 3.0)  # 3000ms = 3.0s
+
+    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
+    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
+    def test_do_request_writes_data_id_to_output(self, m_abbr, m_build):
+        """测试GenInferencer.do_request把pop出来的 index 写到 output.data_id
+        （供 Multi-LoRA 模型通过 ``output.data_id`` 查表使用）"""
+        cap = CapturingModel()
+        m_build.return_value = cap
+        inf = GenInferencer(model_cfg={}, batch_size=1)
+        inf.status_counter = DummyStatusCounter()
+        inf.output_handler.report_cache_info = mock.AsyncMock(return_value=True)
+
+        data = {
+            "index": 42,
+            "prompt": "test_input",
+            "data_abbr": "test_abbr",
+            "max_out_len": 10,
+            "gold": "test_gold",
+        }
+
+        async def run_test():
+            await inf.do_request(data, mock.Mock(), mock.Mock())
+
+        asyncio.run(run_test())
+
+        self.assertIsNotNone(cap.captured_output)
+        # The new contract: data_id is set on the output object so the model
+        # can look up the correct LoRA adapter.
+        self.assertTrue(hasattr(cap.captured_output, "data_id"))
+        self.assertEqual(cap.captured_output.data_id, 42)
 
 
 if __name__ == '__main__':

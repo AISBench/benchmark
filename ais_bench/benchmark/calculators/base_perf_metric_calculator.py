@@ -206,8 +206,8 @@ class BasePerfMetricCalculator(ABC):
             "ITL": ms,
             "InputTokens": None,
             "OutputTokens": None,
-            "PrefillTokenThroughput": unit_token,
             "OutputTokenThroughput": unit_token,
+            "PrefillTokenThroughput": unit_token,
         }
 
         for metric, values in metrics.items():
@@ -249,7 +249,6 @@ class BasePerfMetricCalculator(ABC):
             "Max Concurrency": None,
             "Request Throughput": " req/s",
             "Total Input Tokens": None,
-            "Prefill Token Throughput": unit_token,
             "Input Token Throughput": unit_token,
             "Total Output Tokens": None,
             "Output Token Throughput": unit_token,
@@ -362,6 +361,20 @@ class BasePerfMetricCalculator(ABC):
                 else:
                     ans[mapping_value].append(value)
 
+        # Calculate per-request Prefill Token Throughput from input_tokens and ttft
+        raw_input_tokens = result.get("input_tokens", [])
+        raw_ttft = result.get("ttft", [])
+        if raw_input_tokens and raw_ttft:
+            prefill_throughputs = []
+            for inp, ttft in zip(raw_input_tokens, raw_ttft):
+                if isinstance(inp, list):
+                    inp = sum(inp)
+                if ttft and ttft > 0:
+                    prefill_throughputs.append(inp / ttft)
+                else:
+                    prefill_throughputs.append(0.0)
+            ans["PrefillTokenThroughput"] = prefill_throughputs
+
         for key in ["ITL"]:
             if not ans[key] or (isinstance(ans[key][0], np.ndarray) and not ans[key][0].any()):
                 ans.pop(key)
@@ -369,6 +382,8 @@ class BasePerfMetricCalculator(ABC):
         for key in ["TTFT", "TPOT"]:
             if math.isclose(sum(ans[key]), 0):
                 ans.pop(key)
+                if key == "TTFT":
+                    ans.pop("PrefillTokenThroughput", None)
 
         return ans
 
@@ -428,7 +443,6 @@ class BasePerfMetricCalculator(ABC):
             "Max Concurrency",
             "Request Throughput",
             "Total Input Tokens",
-            "Prefill Token Throughput",
             "Total Generated Tokens",
             "Input Token Throughput",
             "Output Token Throughput",
@@ -477,20 +491,6 @@ class BasePerfMetricCalculator(ABC):
                 self.result[stage_name]["InputTokens"]
             )
             self.logger.debug(f"Stage {stage_name} - Total Input Tokens: {self.common_metrics['Total Input Tokens'][stage_name]}")
-
-            if (
-                self.common_metrics["Total Input Tokens"][stage_name] != 0
-                and self.result[stage_name].get("TTFT") is not None
-            ):
-                self.common_metrics["Prefill Token Throughput"][stage_name] = round(
-                    self.common_metrics["Total Input Tokens"][stage_name]
-                    / sum(self.result[stage_name]["TTFT"]),
-                    4,
-                )
-                self.logger.debug(f"Stage {stage_name} - Prefill Token Throughput: {self.common_metrics['Prefill Token Throughput'][stage_name]} token/s")
-            else:
-                self.common_metrics.pop("Prefill Token Throughput", None)
-                self.logger.debug(f"Stage {stage_name} - Prefill Token Throughput: Not calculated (insufficient data)")
 
             self.common_metrics["Total Generated Tokens"][stage_name] = sum(
                 self.result[stage_name]["OutputTokens"]

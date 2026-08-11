@@ -90,6 +90,44 @@ models = [
 - 服务化推理评测 API 默认使用的服务地址为 `localhost:8080`。实际使用时需根据实际部署修改为服务化后端的 IP 和端口。
 - 当使用 IPv6 字面量（如 `::1`、`2001:db8::1`）作为 `host_ip` 时，工具会在生成的访问 URL 中自动为其添加方括号（例如 `http://[2001:db8::1]:8080/`），无需在配置中手动编写方括号。
 
+### Multi-LoRA 路由
+
+按数据样本的 `data_id`（数据集行号）自动路由到对应的 LoRA 适配器。支持的模型类：`VLLMCustomAPIChat`、`VLLMCustomAPI`、`TGICustomAPI`、`MindieStreamApi`。无需新增模型类，只需要在 `generation_kwargs` 下增加 `lora_data_map_file` 参数即可启用。
+
+```python
+from ais_bench.benchmark.models import VLLMCustomAPIChat
+
+models = [
+    dict(
+        type=VLLMCustomAPIChat,
+        abbr='vllm-chat-lora',
+        host_ip='127.0.0.1', host_port=8080,
+        generation_kwargs=dict(
+            temperature=0,
+            lora_data_map_file='./lora_data_map.json',
+        ),
+    ),
+]
+```
+
+`lora_data_map.json`（key 为字符串化的 `data_id`，value 为服务端已注册的 LoRA 适配器名）：
+
+```json
+{"0": "LoraAdapter1", "1": "LoraAdapter2", "6": "LoraAdapter1"}
+```
+
+> ⚠️ **建议**：`lora_data_map_file` 路径**最好使用绝对路径**，避免不同工作目录导致的相对路径解析失败或路径错位。
+
+| 后端类 | 请求体中 LoRA 字段位置 | 对应预设配置 |
+| --- | --- | --- |
+| `VLLMCustomAPIChat` | 覆写 `model` 字段为适配器名 | `vllm_api_general_chat`、`vllm_api_stream_chat`、`vllm_api_stream_chat_multiturn`、`vllm_api_function_call_chat` |
+| `VLLMCustomAPI` | 覆写 `model` 字段为适配器名 | `vllm_api_general`、`vllm_api_general_stream` |
+| `TGICustomAPI` | 设置 `parameters.adapter_id` 为适配器名 | `tgi_api_general` |
+| `MindieStreamApi` | 设置 `parameters.adapter_id` 为适配器名 | `mindie_stream_api_general` |
+
+- `data_id` 不在映射中、JSON 文件缺失 / 损坏、或 `data_id` 缺失时，请求静默回退到 base 模型，不抛异常。
+- 启动时加 `--debug`（或在模型配置设 `verbose=True`）即可按 case 打印 `[Multi-LoRA] data_id=... lora_model_name=...` 日志，便于观测路由命中情况。
+
 ## 本地模型后端
 |模型配置名称|简介|使用前提|支持的prompt格式(字符串格式或对话格式)|对应源码配置文件路径|
 | --- | --- | --- | --- | --- |
