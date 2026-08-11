@@ -33,9 +33,9 @@ def _extract_boxed_content(pred_str: str) -> str:
     """
     result = extract_boxed_content(pred_str)
     if result == "None":
-        logger.info(f"[extract_boxed_content] no \\boxed{{}} found, returning \"None\"")
+        logger.debug(f"[extract_boxed_content] no \\boxed{{}} found, returning \"None\"")
     else:
-        logger.info(f"[extract_boxed_content] extracted: {result!r}")
+        logger.debug(f"[extract_boxed_content] extracted: {result!r}")
     return result
 
 
@@ -45,10 +45,13 @@ def _grade_answer(given_answer: str, ground_truth: str) -> bool:
     Uses sympy-based mathematical equivalence checking, strict integer matching,
     fraction comparison, and tuple/interval handling.
     """
-    logger.info(f"[grade_answer] given (raw)      : {given_answer!r}")
-    logger.info(f"[grade_answer] ground_truth (raw): {ground_truth!r}")
+    logger.debug(
+        f"[grade_answer]\n"
+        f"  given (raw)      : {given_answer!r}\n"
+        f"  ground_truth (raw): {ground_truth!r}"
+    )
     result = grade_answer(given_answer, ground_truth)
-    logger.info(f"[grade_answer] result={result}")
+    logger.debug(f"[grade_answer] result={result}")
     return result
 
 
@@ -57,10 +60,12 @@ def format_reward(predict_str: str) -> float:
     """Check whether the output has <think>...</think> and \\boxed{...}."""
     pattern = re.compile(r"<think>.*</think>.*\\boxed\{.*\}.*", re.DOTALL)
     result = 1.0 if re.fullmatch(pattern, predict_str) else 0.0
-    logger.info(f"[format_reward] has_think_tags={'<think>' in predict_str and '</think>' in predict_str}")
-    _boxed_marker = '\\boxed{'
-    logger.info(f"[format_reward] has_boxed={_boxed_marker in predict_str}")
-    logger.info(f"[format_reward] format_score={result}")
+    logger.debug(
+        f"[format_reward]\n"
+        f"  has_think_tags={'<think>' in predict_str and '</think>' in predict_str}\n"
+        f"  has_boxed={'\\boxed{' in predict_str}\n"
+        f"  format_score={result}"
+    )
     return result
 
 
@@ -76,13 +81,16 @@ def _save_image(image_obj, image_dir, index):
     from PIL import Image as PILImage
 
     os.makedirs(image_dir, exist_ok=True)
-    logger.info(f"[_save_image] index={index}, image_obj type={type(image_obj)}")
+    logger.debug(f"[_save_image] index={index}, image_obj type={type(image_obj)}")
 
     if isinstance(image_obj, PILImage.Image):
         img_path = os.path.join(image_dir, f"{index}.png")
-        logger.info(f"[_save_image] PIL Image: size={image_obj.size}, mode={image_obj.mode}")
+        logger.debug(
+            f"[_save_image]\n"
+            f"  type=PIL Image  size={image_obj.size}  mode={image_obj.mode}\n"
+            f"  saved -> {img_path}"
+        )
         image_obj.convert("RGB").save(img_path)
-        logger.info(f"[_save_image] saved PIL Image -> {img_path}")
         return img_path
 
     elif isinstance(image_obj, dict) and "bytes" in image_obj:
@@ -90,13 +98,16 @@ def _save_image(image_obj, image_dir, index):
 
         img_path = os.path.join(image_dir, f"{index}.png")
         img_bytes = image_obj["bytes"]
-        logger.info(f"[_save_image] dict with 'bytes' key, bytes_len={len(img_bytes)}, path={image_obj.get('path', 'N/A')}")
+        logger.debug(
+            f"[_save_image]\n"
+            f"  type=dict with 'bytes'  bytes_len={len(img_bytes)}  path={image_obj.get('path', 'N/A')}\n"
+            f"  saved -> {img_path}"
+        )
         PILImage.open(BytesIO(img_bytes)).convert("RGB").save(img_path)
-        logger.info(f"[_save_image] saved bytes-dict image -> {img_path}")
         return img_path
 
     elif isinstance(image_obj, str):
-        logger.info(f"[_save_image] already a path string: {image_obj}")
+        logger.debug(f"[_save_image] already a path string: {image_obj}")
         return image_obj
 
     logger.warning(f"[_save_image] unknown image type={type(image_obj)}, returning ''")
@@ -115,7 +126,7 @@ def _resolve_parquet_path(path, split):
     """
     # Absolute file path
     if path and os.path.isabs(path) and os.path.isfile(path):
-        logger.info(f"[_resolve_parquet_path] absolute file path: {path}")
+        logger.debug(f"[_resolve_parquet_path] absolute file path: {path}")
         return path
 
     # Absolute directory path
@@ -128,11 +139,11 @@ def _resolve_parquet_path(path, split):
             try:
                 resolved = get_data_path(path, local_mode=True)
             except Exception:
-                logger.info(f"[_resolve_parquet_path] get_data_path failed for {path!r}")
+                logger.debug(f"[_resolve_parquet_path] get_data_path failed for {path!r}")
 
         if resolved and os.path.exists(resolved):
             if os.path.isfile(resolved):
-                logger.info(f"[_resolve_parquet_path] resolved via get_data_path (file): {resolved}")
+                logger.debug(f"[_resolve_parquet_path] resolved via get_data_path (file): {resolved}")
                 return resolved
             data_dir = Path(resolved)
         else:
@@ -141,7 +152,7 @@ def _resolve_parquet_path(path, split):
             data_dir = source_dir / ".." / ".." / "datasets" / "geometry3k"
             data_dir = data_dir.resolve()
 
-    logger.info(f"[_resolve_parquet_path] data_dir: {data_dir}")
+    logger.debug(f"[_resolve_parquet_path] data_dir: {data_dir}")
 
     # Look for parquet files in data_dir/data/
     data_subdir = data_dir / "data"
@@ -150,13 +161,13 @@ def _resolve_parquet_path(path, split):
         if not parquet_files:
             # Try any parquet files
             parquet_files = sorted(data_subdir.glob("*.parquet"))
-        logger.info(f"[_resolve_parquet_path] parquet files in data/: {[p.name for p in parquet_files]}")
+        logger.debug(f"[_resolve_parquet_path] parquet files in data/: {[p.name for p in parquet_files]}")
     else:
         # Look directly in data_dir
         parquet_files = sorted(data_dir.glob(f"{split}-*.parquet"))
         if not parquet_files:
             parquet_files = sorted(data_dir.glob("*.parquet"))
-        logger.info(f"[_resolve_parquet_path] parquet files in data_dir: {[p.name for p in parquet_files]}")
+        logger.debug(f"[_resolve_parquet_path] parquet files in data_dir: {[p.name for p in parquet_files]}")
 
     if not parquet_files:
         raise FileNotFoundError(
@@ -165,7 +176,7 @@ def _resolve_parquet_path(path, split):
         )
 
     chosen = str(parquet_files[0])
-    logger.info(f"[_resolve_parquet_path] chosen file: {chosen}")
+    logger.debug(f"[_resolve_parquet_path] chosen file: {chosen}")
     return chosen
 
 
@@ -187,28 +198,30 @@ class Geometry3KDataset(BaseDataset):
             A HuggingFace ``Dataset`` with fields:
             ``content``, ``question``, ``image``, ``answer``, ``index``.
         """
-        logger.info(f"[Geometry3KDataset.load] ===== START =====")
-        logger.info(f"[Geometry3KDataset.load] input path={path!r}")
-        logger.info(f"[Geometry3KDataset.load] input split={split!r}")
-        logger.info(f"[Geometry3KDataset.load] input instruction={instruction!r}")
+        logger.debug(
+            f"[Geometry3KDataset.load] ===== START =====\n"
+            f"  input path={path!r}\n"
+            f"  input split={split!r}\n"
+            f"  input instruction={instruction!r}"
+        )
 
         # Resolve the parquet file
         parquet_file = _resolve_parquet_path(path, split)
-        logger.info(f"[Geometry3KDataset.load] resolved parquet_file: {parquet_file}")
+        logger.debug(f"[Geometry3KDataset.load] resolved parquet_file: {parquet_file}")
 
         # Load from local parquet
         dataset = load_dataset("parquet", data_files={split: parquet_file}, split=split)
-        logger.info(f"[Geometry3KDataset.load] dataset loaded: num_rows={len(dataset)}, columns={dataset.column_names}")
+        logger.debug(f"[Geometry3KDataset.load] dataset loaded: num_rows={len(dataset)}, columns={dataset.column_names}")
 
         # Build instruction string
         inst = instruction if instruction is not None else GEOMETRY3K_INSTRUCTION
-        logger.info(f"[Geometry3KDataset.load] instruction_text: {inst!r}")
+        logger.debug(f"[Geometry3KDataset.load] instruction_text: {inst!r}")
 
         # Determine image output directory
         parquet_dir = Path(parquet_file).parent.parent  # geometry3k/
         image_root_path = str(parquet_dir / "geometry3k_images")
         os.makedirs(image_root_path, exist_ok=True)
-        logger.info(f"[Geometry3KDataset.load] image_root_path: {image_root_path}")
+        logger.debug(f"[Geometry3KDataset.load] image_root_path: {image_root_path}")
 
         records = []
         for i, example in enumerate(dataset):
@@ -221,36 +234,44 @@ class Geometry3KDataset(BaseDataset):
             if isinstance(problem, str):
                 problem = problem.replace("<image>", "", 1).lstrip()
 
-            logger.info(f"[Geometry3KDataset.load] --- record[{i}] ---")
-            logger.info(f"[Geometry3KDataset.load] record[{i}] problem: {problem!r}")
-            logger.info(f"[Geometry3KDataset.load] record[{i}] answer: {answer!r}")
-            logger.info(f"[Geometry3KDataset.load] record[{i}] images type: {type(images)}")
-            logger.info(f"[Geometry3KDataset.load] record[{i}] images len: {len(images) if hasattr(images, '__len__') else 'N/A'}")
+            logger.debug(
+                f"[Geometry3KDataset.load] --- record[{i}] ---\n"
+                f"  problem: {problem!r}\n"
+                f"  answer: {answer!r}\n"
+                f"  images type: {type(images)}\n"
+                f"  images len: {len(images) if hasattr(images, '__len__') else 'N/A'}"
+            )
 
             # Save the first image
             image_path = ""
             if images is not None and hasattr(images, '__len__') and len(images) > 0:
                 img_obj = images[0]
-                logger.info(f"[Geometry3KDataset.load] record[{i}] image[0] type: {type(img_obj)}")
                 if isinstance(img_obj, dict):
-                    logger.info(f"[Geometry3KDataset.load] record[{i}] image[0] keys: {list(img_obj.keys())}")
-                    if "bytes" in img_obj:
-                        logger.info(f"[Geometry3KDataset.load] record[{i}] image[0]['bytes'] len: {len(img_obj['bytes'])}")
-                    if "path" in img_obj:
-                        logger.info(f"[Geometry3KDataset.load] record[{i}] image[0]['path']: {img_obj['path']}")
+                    logger.debug(
+                        f"[Geometry3KDataset.load] record[{i}] image[0]:\n"
+                        f"  type=dict  keys={list(img_obj.keys())}\n"
+                        + (f"  'bytes' len: {len(img_obj['bytes'])}\n" if "bytes" in img_obj else "")
+                        + (f"  'path': {img_obj['path']}" if "path" in img_obj else "")
+                    )
                 elif hasattr(img_obj, 'size'):
                     # PIL Image (datasets auto-decodes parquet image bytes)
-                    logger.info(f"[Geometry3KDataset.load] record[{i}] image[0] PIL Image: size={img_obj.size}, mode={img_obj.mode}")
+                    logger.debug(
+                        f"[Geometry3KDataset.load] record[{i}] image[0]: PIL Image  size={img_obj.size}  mode={img_obj.mode}"
+                    )
+                else:
+                    logger.debug(f"[Geometry3KDataset.load] record[{i}] image[0] type={type(img_obj)}")
                 image_path = _save_image(img_obj, image_root_path, i)
             else:
-                logger.info(f"[Geometry3KDataset.load] record[{i}] no images found")
-
-            logger.info(f"[Geometry3KDataset.load] record[{i}] final image_path: {image_path!r}")
+                logger.debug(f"[Geometry3KDataset.load] record[{i}] no images found")
 
             # Construct the full prompt
             full_prompt = f"{problem} {inst}"
-            logger.info(f"[Geometry3KDataset.load] record[{i}] problem: {problem!r}")
-            logger.info(f"[Geometry3KDataset.load] record[{i}] full_prompt: {full_prompt!r}")
+            logger.debug(
+                f"[Geometry3KDataset.load] record[{i}] prompt:\n"
+                f"  problem: {problem!r}\n"
+                f"  full_prompt: {full_prompt!r}\n"
+                f"  image_path: {image_path!r}"
+            )
 
             # Build message list for get_content_str
             msgs = [
@@ -258,7 +279,7 @@ class Geometry3KDataset(BaseDataset):
                 {"type": "text", "text": full_prompt},
             ]
             content = get_content_str(msgs)
-            logger.info(f"[Geometry3KDataset.load] record[{i}] content: {content!r}")
+            logger.debug(f"[Geometry3KDataset.load] record[{i}] content: {content!r}")
 
             records.append(
                 {
@@ -270,7 +291,7 @@ class Geometry3KDataset(BaseDataset):
                 }
             )
 
-        logger.info(f"[Geometry3KDataset.load] ===== END: {len(records)} records built =====")
+        logger.debug(f"[Geometry3KDataset.load] ===== END: {len(records)} records built =====")
         return Dataset.from_list(records)
 
 
@@ -291,7 +312,7 @@ class Geometry3KEvaluator(BaseEvaluator):
     def __init__(self, format_weight: float = 0.0):
         super().__init__()
         self.format_weight = format_weight
-        logger.info(f"[Geometry3KEvaluator] format_weight={format_weight}")
+        logger.debug(f"[Geometry3KEvaluator] format_weight={format_weight}")
 
     def _compute_score(self, pred_str: str, ground_truth: str) -> dict:
         """Compute per-sample scores using verl's formula:
@@ -321,10 +342,12 @@ class Geometry3KEvaluator(BaseEvaluator):
         }
 
     def score(self, predictions, references):
-        logger.info(f"[Geometry3KEvaluator.score] ===== START =====")
-        logger.info(f"[Geometry3KEvaluator.score] num_predictions: {len(predictions)}")
-        logger.info(f"[Geometry3KEvaluator.score] num_references: {len(references)}")
-        logger.info(f"[Geometry3KEvaluator.score] format_weight: {self.format_weight}")
+        logger.debug(
+            f"[Geometry3KEvaluator.score] ===== START =====\n"
+            f"  num_predictions: {len(predictions)}\n"
+            f"  num_references: {len(references)}\n"
+            f"  format_weight: {self.format_weight}"
+        )
 
         if len(predictions) != len(references):
             return {"error": "predictions and references have different length"}
@@ -336,11 +359,12 @@ class Geometry3KEvaluator(BaseEvaluator):
         details = []
 
         for i, (pred, ref) in enumerate(zip(predictions, references)):
-            logger.info(f"[Geometry3KEvaluator.score] --- sample {i}/{total} ---")
-            logger.info(f"[Geometry3KEvaluator.score] raw_pred (len={len(pred)}): {pred[:500]!r}")
-
             gt = ref if isinstance(ref, str) else ref.get("answer", str(ref))
-            logger.info(f"[Geometry3KEvaluator.score] ground_truth: {gt!r}")
+            logger.debug(
+                f"[Geometry3KEvaluator.score] --- sample {i}/{total} ---\n"
+                f"  raw_pred (len={len(pred)}): {pred[:500]!r}\n"
+                f"  ground_truth: {gt!r}"
+            )
 
             sample_result = self._compute_score(pred, gt)
             acc = sample_result["accuracy"]
@@ -348,8 +372,11 @@ class Geometry3KEvaluator(BaseEvaluator):
             combined = sample_result["combined_score"]
             extracted = sample_result["extracted_answer"]
 
-            logger.info(f"[Geometry3KEvaluator.score] extracted_answer: {extracted!r}")
-            logger.info(f"[Geometry3KEvaluator.score] sample[{i}] accuracy={acc}, format_score={fmt}, combined_score={combined}")
+            logger.debug(
+                f"[Geometry3KEvaluator.score] sample[{i}]\n"
+                f"  extracted_answer: {extracted!r}\n"
+                f"  accuracy={acc}, format_score={fmt}, combined_score={combined}"
+            )
 
             if acc == 1.0:
                 accuracy_correct += 1
@@ -372,18 +399,18 @@ class Geometry3KEvaluator(BaseEvaluator):
         final_format = 100.0 * format_correct / total
         final_combined = 100.0 * sum(combined_scores) / total
 
-        logger.info(f"[Geometry3KEvaluator.score] ===== FINAL RESULTS =====")
-        logger.info(f"[Geometry3KEvaluator.score] total_samples: {total}")
-        logger.info(f"[Geometry3KEvaluator.score] accuracy_correct: {accuracy_correct}/{total}")
-        logger.info(f"[Geometry3KEvaluator.score] format_correct: {format_correct}/{total}")
-        logger.info(f"[Geometry3KEvaluator.score] final_accuracy: {final_accuracy:.2f}%")
-        logger.info(f"[Geometry3KEvaluator.score] final_format_score: {final_format:.2f}%")
-        logger.info(f"[Geometry3KEvaluator.score] final_combined_score: {final_combined:.2f}%")
+        logger.debug(
+            f"[Geometry3KEvaluator.score] ===== FINAL RESULTS =====\n"
+            f"  total_samples: {total}\n"
+            f"  accuracy_correct: {accuracy_correct}/{total}\n"
+            f"  format_correct: {format_correct}/{total}\n"
+            f"  final_accuracy: {final_accuracy:.2f}%\n"
+            f"  final_format_score: {final_format:.2f}%\n"
+            f"  final_combined_score: {final_combined:.2f}%"
+        )
 
         result = {
-            "accuracy": final_accuracy,
-            "format_score": final_format,
-            "combined_score": final_combined,
+            "accuracy": final_combined,
             "details": details,
         }
         return result
