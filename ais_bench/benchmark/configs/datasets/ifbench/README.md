@@ -35,10 +35,10 @@ IFBench 是一个用于评估 AI 模型在遵循新颖、具有挑战性且多�
 
 ### 1. 安装依赖
 
-下载 pyarrow 依赖：
+读取 `requirements/datasets/IFBench_test.txt` 文件中的依赖列表，安装所需依赖：
 
 ```shell
-pip install pyarrow==15.0.0
+pip install -r requirements/datasets/IFBench_test.txt
 ```
 
 ### 2. 下载 NLTK 数据包
