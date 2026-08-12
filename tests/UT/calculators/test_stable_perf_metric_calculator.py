@@ -300,11 +300,12 @@ class TestStablePerfMetricCalculator(unittest.TestCase):
     
     def test_edge_case_empty_stable_stage(self):
         # 测试边缘情况 - 稳定阶段只有少量请求
+        # 新算法：单个请求达到 max_concurrency=1 时也是有效的稳定阶段
         calculator = StablePerfMetricCalculator()
         calculator.max_concurrency = 1
         calculator.logger = self.mock_logger
         calculator.stage_section = [0, 0]  # 初始化必要的属性
-        
+
         # 准备测试数据 - 只有一个请求
         perf_details = {
             "id": [0],
@@ -312,10 +313,10 @@ class TestStablePerfMetricCalculator(unittest.TestCase):
             "end_time": [2.0],
             "success": [True]
         }
-        
-        # 验证抛出异常
-        with self.assertRaises(AISBenchDataContentError):
-            calculator._get_requests_id(perf_details)
+
+        result = calculator._get_requests_id(perf_details)
+        self.assertEqual(result, [0])
+        self.assertEqual(calculator.stage_section, [1.0, 1.0])
 
 
 if __name__ == "__main__":
