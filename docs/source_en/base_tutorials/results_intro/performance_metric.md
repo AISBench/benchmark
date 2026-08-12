@@ -43,3 +43,17 @@ Explanations of key statistical indicators are as follows:
 | **Input Token Throughput**    | Input token throughput (Token/s)                                            |
 | **Output Token Throughput**   | Output token throughput (Token/s)                                           |
 | **Total Token Throughput**    | Total token throughput (input + output) (Token/s)                           |
+
+
+## 3. Speculative Decoding Metrics
+
+When `--spec-decode` is enabled (only effective in `--mode perf`), AISBench additionally collects speculative decoding performance metrics from the inference server's Prometheus `/metrics` endpoint. For a complete guide, see 📚 [Speculative Decoding Metrics Collection](../../advanced_tutorials/spec_decode.md).
+
+| Parameter                         | Description                                                    |
+| --------------------------------- | -------------------------------------------------------------- |
+| **Acceptance rate (%)**           | Percentage of draft tokens accepted by the target model        |
+| **Acceptance length**             | Average number of accepted tokens per forward pass             |
+| **Drafts**                        | Number of draft-and-verify cycles during the benchmark window  |
+| **Draft tokens**                  | Total candidate tokens proposed during the benchmark window    |
+| **Accepted tokens**               | Total tokens accepted during the benchmark window              |
+| **Per-position acceptance rates** | Acceptance rate at each draft position (`{position: rate}`)    |

@@ -54,6 +54,7 @@ Valid only when the mode is `perf` or `perf_viz`.
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
 | `--pressure` | Switch to enable performance pressure testing mode. Effective only when `--mode perf` is set. Enabled if this parameter is configured, disabled if not; disabled by default. For details on pressure testing, refer to 📚 [Enabling Steady-State Testing with Stress Testing](../../advanced_tutorials/stable_stage.md#enabling-steady-state-testing-with-stress-testing). | `--pressure`|
 | `--pressure-time`       | Duration of pressure testing. Only takes effect when `--pressure` mode is specified. Unit: seconds; default value: 15 seconds; value range: `[1, 86400]` (i.e., 1 second to 24 hours).                     | `--pressure-time 30` |
+| `--spec-decode`         | Enable speculative decoding metrics collection from the inference server's Prometheus `/metrics` endpoint. Only effective in `--mode perf`. For detailed usage, see 📚 [Speculative Decoding Metrics Collection](../../advanced_tutorials/spec_decode.md). | `--spec-decode` |
 
 
 ## Configuration Constant File Parameters

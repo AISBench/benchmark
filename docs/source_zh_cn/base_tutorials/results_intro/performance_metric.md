@@ -41,3 +41,17 @@
 | **Input Token Throughput**   | 输入 Token 吞吐率          |
 | **Output Token Throughput**  | 输出 Token 吞吐率          |
 | **Total Token Throughput**   | 总 Token 吞吐率（输入 + 输出）  |
+
+
+## 投机推理指标
+
+当启用 `--spec-decode` 时（仅在 `--mode perf` 下有效），AISBench 会额外从推理服务的 Prometheus `/metrics` 端点采集投机推理性能指标。完整说明见 📚 [投机推理指标采集](../../advanced_tutorials/spec_decode.md)。
+
+| 参数                               | 说明                                              |
+| ---------------------------------- | ------------------------------------------------- |
+| **Acceptance rate (%)**            | 草稿 Token 被目标模型采纳的百分比                   |
+| **Acceptance length**              | 每次前向推理平均采纳的 Token 数                     |
+| **Drafts**                         | 评测窗口内的草稿-验证循环次数                        |
+| **Draft tokens**                   | 评测窗口内生成的候选 Token 总数                      |
+| **Accepted tokens**                | 评测窗口内被采纳的 Token 总数                        |
+| **Per-position acceptance rates**  | 每个草稿位置的采纳率（`{位置: 比率}`）               |

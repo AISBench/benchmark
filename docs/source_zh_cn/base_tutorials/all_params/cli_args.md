@@ -49,6 +49,7 @@ ais_bench [OPTIONS]
 | ---- | ---- | ---- |
 | `--pressure`   | 	是否开启性能压测方式的开关，仅当 `--mode perf` 时有效，配置该参数表示开启，未配置表示关闭，默认未配置。压力测试详情可参考:📚 [压力测试使能稳态测试](../../advanced_tutorials/stable_stage.md#压力测试使能稳态测试)。| `--pressure`|
 |`--pressure-time`|压测持续时间，仅在指定 `--pressure` 模式时生效。单位为秒，默认15秒，取值范围为 `[1, 86400]`（即 1 秒 至 24 小时）。| `--pressure-time 30`|
+|`--spec-decode`|启用投机推理（Speculative Decoding）指标采集，从推理服务的 Prometheus `/metrics` 端点拉取指标。仅在 `--mode perf` 时有效。详细用法见 📚 [投机推理指标采集](../../advanced_tutorials/spec_decode.md)。| `--spec-decode` |
 
 ## 配置常量文件参数
 
