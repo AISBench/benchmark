@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Thin shell wrapper around `python -m swebench_dind`.
+# After `pip install -e .` you can also call `swebench-dind` directly.
+set -euo pipefail
+exec python -m swebench_dind "$@"
