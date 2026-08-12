@@ -4,7 +4,7 @@
 
 AISBench Benchmark当前支持的数据集类型如下：
 
-1. [开源数据集](#开源数据集)，涵盖通用语言理解（如 ARC、SuperGLUE_BoolQ、MMLU）、数学推理（如 GSM8K、AIME2024、Math）、代码生成（如 HumanEval、MBPP、LiveCodeBench）、文本摘要（如 XSum、LCSTS）以及多模态任务（如 TextVQA、VideoBench、VocalSound）等多个方向，满足对语言模型在多任务、多模态、多语言等能力的全面评估需求。
+1. [开源数据集](#开源数据集)，涵盖通用语言理解（如 ARC、SuperGLUE_BoolQ、MMLU）、数学推理（如 GSM8K、AIME2024、Math）、代码生成（如 HumanEval、MBPP、LiveCodeBench）、文本摘要（如 XSum、LCSTS）、多模态任务（如 TextVQA、VideoBench、VocalSound）以及 Agent 任务（如 SWE-bench、τ²-Bench、Terminal-Bench）等多个方向，满足对语言模型在多任务、多模态、多语言、Agent 等能力的全面评估需求。
 2. [随机合成数据集](#随机合成数据集)，支持指定输入输出序列长度和请求数目，适用于对于序列分布场景和数据规模存在要求的性能测试场景。
 3. [自定义数据集](#自定义数据集)，支持将用户自定义的数据内容转换成固定格式的数据进行测评，适用于定制化精度和性能测试场景。
 
@@ -91,6 +91,15 @@ AISBench Benchmark当前支持的数据集类型如下：
 | mtbench    | 多轮对话 | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mtbench/README.md)  |
 
 **提示：** 用户可以将获取的数据集文件夹统一放置在`ais_bench/datasets/`目录下，AISBench Benchmark 会根据数据集配置文件自动检索该目录下的数据集文件进行测试
+
+### Agent类数据集
+
+| 数据集名称         | 分类                       | 详细介绍&获取方式                                                                                                                 |
+| ------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| SWE-bench          | 软件工程任务（开源）        | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/swe_bench.md)             |
+| SWE-bench Pro      | 软件工程任务（闭源/长时域） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/swe_bench_pro.md)         |
+| τ²-Bench           | 双控环境对话与工具调用      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/tau2_bench.md)            |
+| Terminal-Bench 2.0 | 终端任务执行               | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/harbor_bench.md)          |
 
 ### 配置开源数据集
 

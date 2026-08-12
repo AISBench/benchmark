@@ -11,12 +11,13 @@ AA-LCR (Artificial Analysis Long Context Retrieval) is a benchmark for evaluatin
 ## Dataset Deployment
 
 - The dataset can be obtained from the ModelScope dataset link: 🔗 [https://modelscope.cn/datasets/evalscope/AA-LCR](https://modelscope.cn/datasets/evalscope/AA-LCR).
-- The AA-LCR dataset is in compressed archive format and is recommended to be deployed in the `{tool_root_path}/ais_bench/datasets/aa_lcr/` directory.
+- The AA-LCR dataset is in compressed archive format and is recommended to be deployed in the `{tool_root_path}/ais_bench/datasets/AA-LCR/` directory.
 
-- Execute `ls -la` in the `{tool_root_path}/ais_bench/datasets/aa_lcr/` directory to check the directory structure. If the directory structure is as shown below, the dataset has been deployed successfully:
+- Execute `tree AA-LCR/` in the `{tool_root_path}/ais_bench/datasets/` directory to check the directory structure. If the directory structure is as shown below, the dataset has been deployed successfully:
     ```
-    {tool_root_path}/ais_bench/datasets/aa_lcr/
-    └── extracted_text/AA-LCR_extracted-text.zip
+    AA-LCR/
+    └── extracted_text/
+        └── AA-LCR_extracted-text.zip
     ```
 
 

@@ -157,6 +157,12 @@ class ArgumentParser():
             type=validate_pressure_time,
             default=DEFAULT_PRESSURE_TIME
         )
+        parser.add_argument(
+            '--spec-decode',
+            help='Enable speculative decoding metrics collection. Only effective in --mode perf.',
+            action='store_true',
+            default=False,
+        )
 
     def _custom_dataset_parser(self):
         """These args are all for the quick construction of custom datasets."""
