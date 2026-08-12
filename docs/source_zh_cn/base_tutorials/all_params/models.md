@@ -75,7 +75,7 @@ models = [
 | `host_ip` | String | 服务端 IP 地址，支持合法 IPv4 或 IPv6，例如：`127.0.0.1`、`::1`。当使用 IPv6 字面量时，访问 URL 中会自动转换为带方括号的形式，例如：`http://[::1]:8080/` |
 | `host_port` | Int | 服务端端口号，应与服务化部署指定的端口一致 |
 | `url` | String | 自定义访问推理服务的URL路径(当base url不是http/https://host_ip:host_port的组合时需要配置，配置后host_ip和host_port将被忽略) ，例如当`models`的`type`为`VLLMCustomAPI`时，配置`url`为`https://xxxxxxx/yyyy/`，实际请求访问的URL为`https://xxxxxxx/yyyy/v1/completions`|
-| `max_out_len` | Int | 推理响应的最大输出长度，实际长度可能受服务端限制。合法范围：(0, 131072] |
+| `max_out_len` | Int | 推理响应的最大输出长度，实际长度可能受服务端限制。 |
 | `batch_size` | Int | 请求的并发批处理大小。合法范围：(0, 64000] |
 | `trust_remote_code` | Boolean | tokenizer是否信任远程代码，默认False; |
 | `generation_kwargs` | Dict | 推理生成参数配置，依赖具体的服务化后端和接口类型。注意：当前不支持 `best_of` 和 `n` 等多次采样参数，但支持通过`num_return_sequences`参数进行多次独立推理(具体请参考🔗[Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences)中`num_return_sequences`的作用) |
@@ -89,6 +89,44 @@ models = [
 - `batch_size` 设置过大可能导致 CPU 占用过高，请根据硬件条件合理配置。
 - 服务化推理评测 API 默认使用的服务地址为 `localhost:8080`。实际使用时需根据实际部署修改为服务化后端的 IP 和端口。
 - 当使用 IPv6 字面量（如 `::1`、`2001:db8::1`）作为 `host_ip` 时，工具会在生成的访问 URL 中自动为其添加方括号（例如 `http://[2001:db8::1]:8080/`），无需在配置中手动编写方括号。
+
+### Multi-LoRA 路由
+
+按数据样本的 `data_id`（数据集行号）自动路由到对应的 LoRA 适配器。支持的模型类：`VLLMCustomAPIChat`、`VLLMCustomAPI`、`TGICustomAPI`、`MindieStreamApi`。无需新增模型类，只需要在 `generation_kwargs` 下增加 `lora_data_map_file` 参数即可启用。
+
+```python
+from ais_bench.benchmark.models import VLLMCustomAPIChat
+
+models = [
+    dict(
+        type=VLLMCustomAPIChat,
+        abbr='vllm-chat-lora',
+        host_ip='127.0.0.1', host_port=8080,
+        generation_kwargs=dict(
+            temperature=0,
+            lora_data_map_file='./lora_data_map.json',
+        ),
+    ),
+]
+```
+
+`lora_data_map.json`（key 为字符串化的 `data_id`，value 为服务端已注册的 LoRA 适配器名）：
+
+```json
+{"0": "LoraAdapter1", "1": "LoraAdapter2", "6": "LoraAdapter1"}
+```
+
+> ⚠️ **建议**：`lora_data_map_file` 路径**最好使用绝对路径**，避免不同工作目录导致的相对路径解析失败或路径错位。
+
+| 后端类 | 请求体中 LoRA 字段位置 | 对应预设配置 |
+| --- | --- | --- |
+| `VLLMCustomAPIChat` | 覆写 `model` 字段为适配器名 | `vllm_api_general_chat`、`vllm_api_stream_chat`、`vllm_api_stream_chat_multiturn`、`vllm_api_function_call_chat` |
+| `VLLMCustomAPI` | 覆写 `model` 字段为适配器名 | `vllm_api_general`、`vllm_api_general_stream` |
+| `TGICustomAPI` | 设置 `parameters.adapter_id` 为适配器名 | `tgi_api_general` |
+| `MindieStreamApi` | 设置 `parameters.adapter_id` 为适配器名 | `mindie_stream_api_general` |
+
+- `data_id` 不在映射中、JSON 文件缺失 / 损坏、或 `data_id` 缺失时，请求静默回退到 base 模型，不抛异常。
+- 启动时加 `--debug`（或在模型配置设 `verbose=True`）即可按 case 打印 `[Multi-LoRA] data_id=... lora_model_name=...` 日志，便于观测路由命中情况。
 
 ## 本地模型后端
 |模型配置名称|简介|使用前提|支持的prompt格式(字符串格式或对话格式)|对应源码配置文件路径|
@@ -139,9 +177,9 @@ models = [
 | `model_kwargs` | Dict | 模型加载参数，参考 🔗 [AutoModel 配置](https://huggingface.co/docs/transformers/v4.50.0/en/model_doc/auto#transformers.AutoConfig.from_pretrained) |
 | `generation_kwargs` | Dict | 推理生成参数，参考 🔗 [Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation) |
 | `run_cfg` | Dict | 运行配置，包含 `num_gpus`（使用的 GPU 数量）与 `num_procs`（使用的机器进程数） |
-| `max_out_len` | Int | 推理生成的最大输出 Token 数量，合法范围：(0, 131072] |
+| `max_out_len` | Int | 推理生成的最大输出 Token 数量|
 | `batch_size` | Int | 推理请求的批处理大小，合法范围：(0, 64000] |
-| `max_seq_len` | Int | 最大输入序列长度，合法范围：(0, 131072] |
+| `max_seq_len` | Int | 最大输入序列长度|
 | `batch_padding` | Bool | 是否启用批量 padding。设置为 `True` 或 `False` |
 
 ### 本地vllm离线推理模型后端配置参数说明
@@ -186,5 +224,5 @@ models = [
 | `model_kwargs` | Dict | 模型加载参数，参考 🔗 [LLM 模型配置](https://docs.vllm.com.cn/en/latest/serving/engine_args.html#) |
 | `sample_kwargs` | Dict | 模型推理采样参数，参考 🔗 [sample parameter配置](https://docs.vllm.ai/en/v0.6.5/dev/sampling_params.html) |
 | `vision_kwargs` | Dict | 多模态输入参数，参考 🔗 [多模态推理举例](https://docs.vllm.ai/en/v0.7.3/getting_started/examples/vision_language.html) |
-| `max_out_len` | Int | 推理生成的最大输出 Token 数量，合法范围：(0, 131072] |
+| `max_out_len` | Int | 推理生成的最大输出 Token 数量 |
 | `batch_size` | Int | 推理请求的批处理大小，合法范围：(0, 64000] |

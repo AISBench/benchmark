@@ -4,7 +4,7 @@
 
 The dataset types currently supported by AISBench Benchmark are as follows:
 
-1. [Open-Source Datasets](#open-source-datasets)：Cover multiple domains including general language understanding (e.g., ARC, SuperGLUE_BoolQ, MMLU), mathematical reasoning (e.g., GSM8K, AIME2024, Math), code generation (e.g., HumanEval, MBPP, LiveCodeBench), text summarization (e.g., XSum, LCSTS), and multimodal tasks (e.g., TextVQA, VideoBench, VocalSound). They meet the needs of comprehensive evaluation of language models in terms of multi-task, multimodal, and multilingual capabilities.
+1. [Open-Source Datasets](#open-source-datasets)：Cover multiple domains including general language understanding (e.g., ARC, SuperGLUE_BoolQ, MMLU), mathematical reasoning (e.g., GSM8K, AIME2024, Math), code generation (e.g., HumanEval, MBPP, LiveCodeBench), text summarization (e.g., XSum, LCSTS), multimodal tasks (e.g., TextVQA, VideoBench, VocalSound), and Agent tasks (e.g., SWE-bench, τ²-Bench, Terminal-Bench). They meet the needs of comprehensive evaluation of language models in terms of multi-task, multimodal, multilingual, and Agent capabilities.
 2. [Randomly Synthesized Datasets](#randomly-synthesized-datasets)：Support specifying the length of input/output sequences and the number of requests. They are suitable for performance testing scenarios that have requirements for sequence distribution and data scale.
 3. [Custom Datasets](#custom-datasets)：Support converting user-defined data content into data in a fixed format for evaluation. They are applicable to customized accuracy and performance testing scenarios.
 
@@ -58,6 +58,8 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | FewCLUE_eprstmt | Sentiment Analysis                                     | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_eprstmt/README_en.md) |
 | FewCLUE_tnews   | News Classification                                    | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_tnews/README_en.md)   |
 | dapo-math-17k   | Mathematical Reasoning (RL Evaluation)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/dapo_math/README_en.md)       |
+| ifbench         | Instruction Following Evaluation                       | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ifbench/README_en.md)         |
+| aa_lcr          | Long Context Retrieval & Reasoning                     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aa_lcr/README_en.md)          |
 
 ### Multimodal Datasets
 
@@ -89,6 +91,15 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | mtbench      | Multi-Turn Dialogue | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mtbench/README_en.md)  |
 
 **Tip**: Users can uniformly place the acquired dataset folders in the `ais_bench/datasets/` directory. AISBench Benchmark will automatically retrieve the dataset files in this directory based on the dataset configuration file for testing.
+
+### Agent Datasets
+
+| Dataset Name       | Category                                       | Detailed Introduction & Acquisition Method                                                                                             |
+| ------------------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| SWE-bench          | Software Engineering Tasks (Open-Source)       | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/swe_bench.md)        |
+| SWE-bench Pro      | Software Engineering Tasks (Closed/Long-Horizon) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/swe_bench_pro.md)    |
+| τ²-Bench           | Dual-Control Dialogue & Tool Calling           | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/tau2_bench.md)       |
+| Terminal-Bench 2.0 | Terminal Task Execution                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/harbor_bench.md)     |
 
 ### Configuring Open-Source Datasets
 

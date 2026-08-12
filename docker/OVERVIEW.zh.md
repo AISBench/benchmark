@@ -22,7 +22,7 @@
 
 ### AISBench Benchmark
 AISBench Benchmark 是基于 [OpenCompass](https://github.com/open-compass/opencompass) 构建的模型评测工具，兼容 OpenCompass 的配置体系、数据集结构与模型后端实现，并在此基础上扩展了对服务化模型的支持能力。
-> ⚠️注意：AISBench Benchmark的镜像只支持服务化模型的评测，不支持离线推理模型的评测。当前也不支持SWE-Bench、terminal-bench 2等测评过程中需要启动独立沙箱环境的测评常见
+> ⚠️注意：AISBench Benchmark 镜像主要用于服务化模型评测，不支持离线推理模型评测。镜像内未内置 SWE-Bench、terminal-bench 2 等需要独立沙箱环境的测评流程，但已预装 Docker Engine（>= 20.0）与 Docker Compose v2（>= 2.0.0），用户可手动启动嵌套容器运行这些测评。详见[运行 Agent / 沙箱类测评](#运行-agent--沙箱类测评在容器内使用-docker)。
 
 ## 镜像 Tag 说明及 Dockerfile 归档路径
 
@@ -163,6 +163,196 @@ docker build \
     -t myimage:latest \
     docker/
 ```
+
+## 运行 Agent / 沙箱类测评（在容器内使用 Docker）
+
+> ⚠️ 本节内容仅在需要运行 SWE-Bench、terminal-bench 2 等需要在独立沙箱中执行任务的 agent 测评时使用。常规服务化模型评测无需阅读本节。
+
+镜像预装了 Docker Engine（≥ 20.0）与 Docker Compose v2（≥ 2.0.0）。在容器内启动 Docker 有两种模式，请根据宿主 Docker 版本与隔离需求二选一。
+
+### 模式 A：Docker-in-Docker（推荐，真嵌套容器，要求宿主 Docker ≥ 20.10 + cgroup v2）
+
+容器内自起一个独立的 `dockerd`，子容器与宿主机完全隔离。这是 agent 测评的**首选模式**：子容器继承的是 Docker 官方默认 seccomp profile，不会触发 openEuler / RHEL 加固 profile 导致的 `pthread_create` / `clone3` 拦截问题；也不存在宿主 dockerd 重启后 socket 句柄失效的问题。
+
+**前置检查（在宿主机执行）**
+
+```bash
+docker version --format '{{.Server.Version}}'    # 必须 >= 20.10
+uname -r                                          # 建议 >= 5.10
+stat -fc %T /sys/fs/cgroup                        # 必须输出 cgroup2fs
+```
+
+**步骤一：启动容器**
+
+```bash
+# cgroup v2 宿主机上 --privileged + --cgroupns=host 必须同时使用
+# 缺少 --cgroupns=host 时嵌套容器会报：
+#   "cannot enter cgroupv2 /sys/fs/cgroup/docker with domain controllers -- it is in an invalid state"
+docker run --name ais_bench_container -it -d \
+    --net=host \
+    --ipc=host \
+    --privileged \
+    --cgroupns=host \
+    -w /benchmark \
+    -v /data/datasets:/datasets \
+    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+    bash
+```
+
+**步骤二：配置并启动 dockerd**
+
+```bash
+docker exec -it --privileged ais_bench_container /bin/bash
+
+# 强制使用 cgroupfs driver —— DinD 在 cgroup v2 宿主机上的必需配置
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json <<'EOF'
+{
+  "exec-opts": ["native.cgroupdriver=cgroupfs"],
+  "storage-driver": "vfs"
+}
+EOF
+
+nohup dockerd > /tmp/dockerd.log 2>&1 &
+
+# 等待 daemon socket 就绪
+for i in $(seq 1 30); do
+    [ -S /var/run/docker.sock ] && break
+    sleep 1
+done
+
+# 验证
+docker info
+docker --version
+docker compose version
+```
+
+**模式 A 注意事项**
+
+- `--privileged` 是必需的，否则 `dockerd` 启动会失败。
+- `--cgroupns=host` 在 cgroup v2 宿主机上是必需的。
+- `cgroupfs` cgroup driver（通过 `daemon.json` 设置）是 DinD 必需的。Docker 27.x 默认是 `systemd`，容器内无 systemd 可用。
+- `vfs` 是 DinD 通用性最高的存储驱动；若宿主内核与容器根文件系统支持，使用 `overlay2` 性能更好，但仍需 `--privileged`。
+- 对于长时间运行的 DinD 场景，建议在 `/etc/docker/daemon.json` 中加入 `"default-runtime": "runc"`、`"log-driver": "json-file"`、`"data-root"` 等调优项。
+
+### 模式 B：Socket 代理（兼容任意 Docker 版本 ≥ 1.0）
+
+挂载宿主的 Docker socket，使容器内的 `docker run` 实际上在**宿主机** daemon 上创建容器。仅当宿主 Docker 版本低于 20.10、或不支持 cgroup v2 无法使用模式 A 时再选用本模式。
+
+**步骤一：启动容器**
+
+```bash
+HOST_PATH=/path/to/benchmark_wkp
+
+# 1. 创建承载目录并填充容器内容
+mkdir -p $HOST_PATH
+docker run -d --name tmp_extract ${image_id}  bash
+docker cp tmp_extract:/benchmark/. $HOST_PATH/
+docker rm -f tmp_extract
+
+docker run --name ais_bench_container -it -d \
+    --net=host \
+    --privileged \
+    -w ${HOST_PATH} \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v ${HOST_PATH}:${HOST_PATH} \
+    -v /data/datasets:/datasets \
+    ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-openeuler24.03-py311-aarch64 \
+    bash
+```
+
+无需启动 `dockerd`，也无需写 `daemon.json`，容器内的 Docker CLI 直接与宿主 daemon 通信。
+注：`HOST_PATH`是一个需要在物理机创建的工作路径, 请确保工作路径内没有其他文件或目录。
+
+**步骤二：进入容器并重新链接ais_bench**
+
+```bash
+# 进入容器，处于HOST_PATH
+docker exec -it ais_bench_container /bin/bash
+# 在HOST_PATH内重新编辑模式安装ais_bench（只是链接变更，不会装依赖）
+pip3 install -e ./ --use-pep517 --no-deps --no-build-isolation --break-system-packages
+```
+
+**优势**
+- 兼容**任意 Docker 版本（1.0+）**，对宿主无版本要求
+- 无需`--cgroupns=host`，不检查内核版本
+- 配置最简单；与 GitHub Actions、Buildkite、GitLab CI 等 CI 平台的实现一致
+
+**代价**
+- 容器内启动的子容器会出现在宿主的 `docker ps` 列表中
+- 无隔离——子容器共享宿主的内核、网络、PID 命名空间
+- 镜像拉取必须由宿主可达（pull 通过宿主 daemon 完成）
+- ⚠️ **宿主机 dockerd 重启后容器内的 socket 句柄会失效**。宿主机 dockerd 一旦重启（机器重启、daemon 升级、`systemctl restart docker` 等），容器内 bind mount 的 `/var/run/docker.sock` 仍指向已被 unlink 的旧 inode，再次执行 `docker` 命令会报 `Cannot connect to the Docker daemon`。遇到这种情况执行 `docker restart <container>` 重新建立 bind mount 即可恢复。CI 流水线场景下**推荐每个任务都重新起一个新容器**，避免复用带来的状态问题。
+
+**常见问题：子容器报 `pthread_create failed: Operation not permitted`**
+
+Mode B 下子容器由**宿主机 dockerd** 创建，会继承**宿主 daemon 的 default seccomp profile**。openEuler / RHEL 等发行版的默认 profile 比 Docker 官方更严格，会拦截 OpenBLAS / NumPy 初始化线程时使用的 `clone3` 调用，表现为：
+
+```
+OpenBLAS blas_thread_init: pthread_create failed for thread 52 of 64: Operation not permitted
+OpenBLAS blas_thread_init: RLIMIT_NPROC 1048576 current, 1048576 max
+```
+
+注意 `RLIMIT_NPROC` 并未触顶（返回 EPERM 而非 EAGAIN），说明是 seccomp 拦截而非资源限制。模式 A 不会触发，因为内层 dockerd 用的是 Docker 官方默认 profile。
+
+**解决方案**：在拉起子容器的 `docker-compose.yml` 中显式放宽 seccomp：
+
+```yaml
+services:
+  main:
+    security_opt:
+      - seccomp=unconfined
+    # ... 其余配置不变
+```
+
+只作用于该 service，不影响外层 AISBench 容器和宿主 daemon。如果 Agent 还会从 `main` 里再起孙容器，孙容器默认仍套宿主 profile，需在那一层 compose 里同样加一次。
+
+### 运行容器工作负载（两种模式通用）
+
+```bash
+# 在容器内执行
+docker pull alpine:latest
+docker run --rm alpine:latest echo "Hello from a nested container"
+
+# 或运行 docker compose v2
+cat > /tmp/docker-compose.yml <<'EOF'
+services:
+  hello:
+    image: alpine:latest
+    command: echo "compose v2 works"
+EOF
+docker compose -f /tmp/docker-compose.yml up
+```
+
+### 如何选择
+
+- **模式 A（Docker-in-Docker）** 为推荐模式，覆盖 terminal-bench 2、SWE-Bench 及绝大多数 agent 测评。子容器与宿主隔离，且不受宿主 seccomp profile 影响，坑最少。要求宿主 Docker ≥ 20.10 + cgroup v2。
+- **模式 B（Socket 代理）** 仅在宿主 Docker 版本低于 20.10、或不支持 cgroup v2 时使用。配置最简单，但子容器会继承宿主 seccomp profile（可能拦截 `clone3`），且宿主 dockerd 重启后需要手动 `docker restart` 恢复。
+
+### 关于 `--privileged` 的安全说明
+
+`--privileged` 是一个非常「重」的 flag，开启后会移除几乎所有容器隔离机制。仅在确实必要时使用（即模式 A / DinD 场景）。
+
+**风险**
+
+- **关闭所有 Linux capability 限制**——容器获得几乎全部 root capability（`CAP_SYS_ADMIN`、`CAP_NET_ADMIN`、`CAP_SYS_PTRACE`、`CAP_SYS_MODULE` 等）。
+- **绕过 seccomp 与 AppArmor**——所有系统调用过滤器失效，前面卡住 Python 线程的那种规则就不再起作用。
+- **设备完全开放**——`/dev/sda`、`/dev/mem`、`/dev/kvm` 等宿主机设备可直接访问，容器内进程可挂载、读取甚至擦写宿主机磁盘。
+- **可写宿主 cgroup 树**——特权容器能修改其他容器的资源限制，甚至冻结/杀掉其他容器。
+- **可加载/卸载内核模块**——若宿主机保留了 `CAP_SYS_MODULE`，容器能加载或卸载宿主机内核模块。
+
+**必须使用 `--privileged` 时的缓解措施**
+
+- 在专用虚拟机（或专用物理机）内运行测评容器，机器里不放任何生产数据。
+- 使用独立的 Docker daemon（在非默认 socket 上跑一个专用 `dockerd`），让特权容器无法触达生产负载。
+- 给任何要跑在容器里的代码做审计后再授予该 flag。
+- 如果只是要放宽 seccomp（例如解决 `pip install` 线程问题），优先用 `--security-opt seccomp=unconfined`，影响面小很多。
+
+**DinD 场景下 `--privileged` 的替代方案**
+
+- `--security-opt seccomp=unconfined` 单用**不够**——dockerd 还需要 cgroup 与设备访问能力，这只有 `--privileged`（或自定义运行时）能提供。
+- [Sysbox](https://github.com/nestybox/sysbox)——支持嵌套容器而无需 `--privileged`，代价是要在宿主机装自定义运行时。
+- Rootless Docker——以非 root 用户运行 `dockerd`，但有限制（多数发行版不支持 `overlay2`、网络限制等）。
 
 ## 许可证 / 免责声明
 

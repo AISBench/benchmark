@@ -44,22 +44,50 @@ Official repository: [https://github.com/harbor-framework/harbor](https://github
 
 Ensure deployment of tested inference services following OpenAI chat/completions API specification with tool call support.
 
-### 2. Environment Preparation
+### 2. Install AISBench Evaluation Tool & Harbor Dependencies
 
-Ensure Docker version >= 20.10.0 and Docker Compose version >= 2.0.0. Also prepare a Python 3.12 runtime environment.
-
-### 3. Install AISBench Evaluation Tool & Harbor Dependencies
-
-1. In Python 3.12 environment, refer to [AISBench Installation Documentation](../../get_started/install.md) to install AISBench evaluation tool.
-2. In Python 3.12 environment, install Harbor:
+#### 2.1 Install from Source
+> ⚠️ Environment requirements: Ensure Docker version >= 20.10.0 and Docker Compose version >= 2.0.0 (docker compose may need to be installed separately). Also prepare a Python 3.12 runtime environment.
+1. In the Python 3.12 environment, refer to [AISBench Installation Documentation](../../get_started/install.md) to install AISBench evaluation tool.
+2. In the Python 3.12 environment, install Harbor:
    ```bash
    pip install harbor==0.6.1
    ```
+> ⚠️ Note: Installing Harbor will upgrade the datasets library to version 4.0.0 or higher, which will cause dependency conflicts for the datasets library after installation. This does not affect tests for Terminal-Bench datasets using Harbor. However, if you need to test other datasets, you will need to downgrade the datasets library.
 
+#### 2.2 Install Inside a Docker Container
+1. Refer to the "Running Agent / Sandbox Benchmarks (Docker Inside the Container)" section in the [Image Overview](https://github.com/AISBench/benchmark/blob/master/docker/OVERVIEW.en.md) to start a container based on a **Python 3.12 or above image (only images published after 2026.7.1 are supported)**.
+2. Inside the container, run the following command to install Harbor:
+   ```bash
+   pip install harbor==0.6.1 --break-system-packages
+   ```
+3. Edit Harbor's docker compose configuration file `/usr/local/lib/python3.12/dist-packages/harbor/environments/docker/docker-compose-base.yaml`:
+```yaml
+services:
+  main:
+    network_mode: host # Share host network, required
+    security_opt: # Required when starting the container with Mode B (Socket Passthrough)
+      - seccomp=unconfined
+    volumes:
+      - type: bind
+        source: ${HOST_VERIFIER_LOGS_PATH}
+        target: ${ENV_VERIFIER_LOGS_PATH}
+      - type: bind
+        source: ${HOST_AGENT_LOGS_PATH}
+        target: ${ENV_AGENT_LOGS_PATH}
+      - type: bind
+        source: ${HOST_ARTIFACTS_PATH}
+        target: ${ENV_ARTIFACTS_PATH}
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY}
+```
 > ⚠️ Note: Installing Harbor will upgrade the datasets library to version 4.0.0 or higher, which will cause dependency conflicts for the datasets library after installation. This does not affect tests for Terminal-Bench datasets using Harbor. However, if you need to test other datasets, you will need to downgrade the datasets library.
 
 
-### 4. Prepare AISBench-modified Terminal-Bench-2 Dataset and Images
+### 3. Prepare AISBench-modified Terminal-Bench-2 Dataset and Images
 
 AISBench modified dataset repository: [https://github.com/AISBench/terminal-bench-2](https://github.com/AISBench/terminal-bench-2)
 
@@ -71,9 +99,14 @@ Terminal-Bench-2 pre-packaged images:
 | `terminal-bench-2-prepared-images_aarch64.tar` | [Link](https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_aarch64.tar) | aarch64 | 48.50 GB |
 | `terminal-bench-2-prepared-images_x86_64.tar` | [Link](https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_x86_64.tar) | x86_64 | 71.43 GB |
 
-> Note: If you don't want to prepare images for all cases, you can get the terminal-bench-2-offline-mini sampled dataset from [terminal-bench-2-offline-mini](https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini).
+> Tip: If you don't want to prepare images for all cases, you can get the terminal-bench-2-offline-mini sampled dataset from [terminal-bench-2-offline-mini](https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini).
 
-### 5. Configure Custom Configuration File for Harbor Tasks
+> ⚠️ Note:
+> If you installed AISBench & Harbor dependencies from source, deploy the Terminal-Bench-2 images on the **host machine** by running `docker load -i xxxxxxx.tar`.
+> If you started the AISBench container using Mode A (true Docker-in-Docker), deploy the Terminal-Bench-2 images **inside the container** by running `docker load -i xxxxxxx.tar`.
+> If you started the AISBench container using Mode B (Socket Passthrough), deploy the Terminal-Bench-2 images on the **host machine** by running `docker load -i xxxxxxx.tar`.
+
+### 4. Configure Custom Configuration File for Harbor Tasks
 
 Modify `ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py` under AISBench tool root directory:
 
@@ -122,7 +155,7 @@ datasets.append(
 # ......
 ```
 
-### 6. Execute Harbor Tasks
+### 5. Execute Harbor Tasks
 
 1. Execute the following command in AISBench tool root directory:
    ```bash
