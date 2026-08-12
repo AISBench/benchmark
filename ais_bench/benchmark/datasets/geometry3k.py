@@ -72,113 +72,31 @@ def format_reward(predict_str: str) -> float:
 
 # ── Image helpers ───────────────────────────────────────────────────────
 def _save_image(image_obj, image_dir, index):
-    """Save an image object to disk and return the file path.
+    """Save a PIL Image object to disk and return the file path.
 
-    Handles:
-        - PIL Image objects (datasets auto-decodes parquet image bytes)
-        - dicts with 'bytes' key (raw PNG/JPEG bytes, fallback)
-        - strings (already file paths)
+    ``load_dataset("parquet", ...)`` auto-decodes image columns to PIL Images,
+    so only the PIL Image path is needed.
     """
     from PIL import Image as PILImage
 
     os.makedirs(image_dir, exist_ok=True)
-    logger.debug(f"[_save_image] index={index}, image_obj type={type(image_obj)}")
 
-    if isinstance(image_obj, PILImage.Image):
-        img_path = os.path.join(image_dir, f"{index}.png")
-        logger.debug(
-            f"[_save_image]\n"
-            f"  type=PIL Image  size={image_obj.size}  mode={image_obj.mode}\n"
-            f"  saved -> {img_path}"
-        )
-        image_obj.convert("RGB").save(img_path)
-        return img_path
+    if not isinstance(image_obj, PILImage.Image):
+        logger.warning(f"[_save_image] expected PIL Image, got {type(image_obj)}, returning ''")
+        return ""
 
-    elif isinstance(image_obj, dict) and "bytes" in image_obj:
-        from io import BytesIO
-
-        img_path = os.path.join(image_dir, f"{index}.png")
-        img_bytes = image_obj["bytes"]
-        logger.debug(
-            f"[_save_image]\n"
-            f"  type=dict with 'bytes'  bytes_len={len(img_bytes)}  path={image_obj.get('path', 'N/A')}\n"
-            f"  saved -> {img_path}"
-        )
-        PILImage.open(BytesIO(img_bytes)).convert("RGB").save(img_path)
-        return img_path
-
-    elif isinstance(image_obj, str):
-        logger.debug(f"[_save_image] already a path string: {image_obj}")
-        return image_obj
-
-    logger.warning(f"[_save_image] unknown image type={type(image_obj)}, returning ''")
-    return ""
+    img_path = os.path.join(image_dir, f"{index}.png")
+    image_obj.convert("RGB").save(img_path)
+    return img_path
 
 
 # ── Resolve dataset path ────────────────────────────────────────────────
 def _resolve_parquet_path(path, split):
-    """Resolve the parquet file path for a given split.
-
-    Resolution order:
-        1. If ``path`` is an absolute path to a file → use directly.
-        2. If ``path`` is an absolute path to a directory → look for ``{split}-*.parquet`` inside.
-        3. If ``path`` is relative → try ``get_data_path``, then fall back to the
-           source-relative ``../../datasets/geometry3k`` directory.
-    """
-    # Absolute file path
-    if path and os.path.isabs(path) and os.path.isfile(path):
-        logger.debug(f"[_resolve_parquet_path] absolute file path: {path}")
-        return path
-
-    # Absolute directory path
-    if path and os.path.isabs(path) and os.path.isdir(path):
-        data_dir = Path(path)
-    else:
-        # Try get_data_path first
-        resolved = None
-        if path:
-            try:
-                resolved = get_data_path(path, local_mode=True)
-            except Exception:
-                logger.debug(f"[_resolve_parquet_path] get_data_path failed for {path!r}")
-
-        if resolved and os.path.exists(resolved):
-            if os.path.isfile(resolved):
-                logger.debug(f"[_resolve_parquet_path] resolved via get_data_path (file): {resolved}")
-                return resolved
-            data_dir = Path(resolved)
-        else:
-            # Fallback: resolve relative to this source file
-            source_dir = Path(os.path.dirname(os.path.abspath(__file__)))
-            data_dir = source_dir / ".." / ".." / "datasets" / "geometry3k"
-            data_dir = data_dir.resolve()
-
-    logger.debug(f"[_resolve_parquet_path] data_dir: {data_dir}")
-
-    # Look for parquet files in data_dir/data/
-    data_subdir = data_dir / "data"
-    if data_subdir.is_dir():
-        parquet_files = sorted(data_subdir.glob(f"{split}-*.parquet"))
-        if not parquet_files:
-            # Try any parquet files
-            parquet_files = sorted(data_subdir.glob("*.parquet"))
-        logger.debug(f"[_resolve_parquet_path] parquet files in data/: {[p.name for p in parquet_files]}")
-    else:
-        # Look directly in data_dir
-        parquet_files = sorted(data_dir.glob(f"{split}-*.parquet"))
-        if not parquet_files:
-            parquet_files = sorted(data_dir.glob("*.parquet"))
-        logger.debug(f"[_resolve_parquet_path] parquet files in data_dir: {[p.name for p in parquet_files]}")
-
-    if not parquet_files:
-        raise FileNotFoundError(
-            f"No parquet files found under {data_dir}. "
-            f"Expected pattern: {split}-*.parquet"
-        )
-
-    chosen = str(parquet_files[0])
-    logger.debug(f"[_resolve_parquet_path] chosen file: {chosen}")
-    return chosen
+    """Resolve the parquet file path via ``get_data_path``."""
+    resolved = get_data_path(path, local_mode=True)
+    if not os.path.isfile(resolved):
+        raise FileNotFoundError(f"Dataset file not found: {resolved}")
+    return resolved
 
 
 # ── Dataset ─────────────────────────────────────────────────────────────

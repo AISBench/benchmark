@@ -42,7 +42,7 @@ geometry3k_datasets = [
     dict(
         abbr="geometry3k",
         type=Geometry3KDataset,
-        path="ais_bench/datasets/geo3k/test-00000-of-00001.parquet",
+        path="ais_bench/datasets/geometry3k/data/test-00000-of-00001.parquet",
         split="test",
         reader_cfg=geometry3k_reader_cfg,
         infer_cfg=geometry3k_infer_cfg,
