@@ -194,12 +194,21 @@ class VLLMCustomAPIChat(BaseAPIModel):
                 output.reasoning_content += reasoning
         await self._parse_usage(json_content, output)
 
+    async def _parse_logprobs(self, choice: dict, output: Output) -> None:
+        # chat API 格式：choice.logprobs.content[]
+        # 直接透传 vLLM 原始结构，每个 item 含 {token, logprob, bytes, top_logprobs}
+        lp = choice.get("logprobs")
+        if not lp:
+            return
+        output.origin_logprobs = lp.get("content") or []
+
     async def parse_text_response(self, json_content, output):
         for item in json_content.get("choices", []):
             if content:=item["message"].get("content"):
                 output.content += content
             if reasoning_content:=item["message"].get("reasoning_content") or item["message"].get("reasoning"):
                 output.reasoning_content += reasoning_content
+            await self._parse_logprobs(item, output)
         await self._parse_usage(json_content, output)
         output.update_extra_details_data_from_text_response(json_content)
         self.logger.debug(f"Output content: {output.content}")

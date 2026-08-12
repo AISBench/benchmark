@@ -30,6 +30,7 @@ def test_output_initialization():
     assert output.input is None
     assert output.uuid == ""
     assert output.turn_id == 0
+    assert output.origin_logprobs == []
 
     output_perf = ConcreteOutput(perf_mode=True)
     assert output_perf.perf_mode is True

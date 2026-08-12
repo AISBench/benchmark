@@ -214,6 +214,13 @@ class BaseAPIModel(BaseModel):
             " to be called in base classes",
         )
 
+    async def _parse_logprobs(self, choice: dict, output: Output) -> None:
+        """
+        基类空实现，子类按需 override。vLLM 系列模型 override 此方法
+        以解析 OpenAI 兼容的 logprobs 响应。
+        """
+        pass
+
     async def parse_text_response(self, data, output):
         raise AISBenchNotImplementedError(
             MODEL_CODES.PARSE_TEXT_RSP_NOT_IMPLEMENTED,
