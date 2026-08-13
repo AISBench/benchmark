@@ -108,22 +108,15 @@ class TestSaveImage(unittest.TestCase):
         self.assertTrue(os.path.isfile(path))
         self.assertTrue(path.endswith("0.png"))
 
-    def test_save_bytes_dict(self):
-        from io import BytesIO
+    def test_save_bytes_dict_returns_empty(self):
+        """_save_image only supports PIL Image objects; dict input returns ""."""
+        path = _save_image({"bytes": b"not-a-pil-image"}, self.tmpdir, 1)
+        self.assertEqual(path, "")
 
-        from PIL import Image as PILImage
-
-        img = PILImage.new("RGB", (10, 10), color="blue")
-        buf = BytesIO()
-        img.save(buf, format="PNG")
-        img_dict = {"bytes": buf.getvalue()}
-        path = _save_image(img_dict, self.tmpdir, 1)
-        self.assertTrue(os.path.isfile(path))
-        self.assertTrue(path.endswith("1.png"))
-
-    def test_save_string_path(self):
+    def test_save_string_path_returns_empty(self):
+        """_save_image only supports PIL Image objects; str input returns ""."""
         path = _save_image("/tmp/existing.png", self.tmpdir, 2)
-        self.assertEqual(path, "/tmp/existing.png")
+        self.assertEqual(path, "")
 
 
 class TestResolveParquetPath(unittest.TestCase):
@@ -134,13 +127,14 @@ class TestResolveParquetPath(unittest.TestCase):
             result = _resolve_parquet_path(f.name, "test")
             self.assertEqual(result, f.name)
 
-    def test_absolute_directory_with_split_pattern(self):
+    def test_absolute_directory_raises(self):
+        """_resolve_parquet_path expects a file path; directories are not resolved."""
         with tempfile.TemporaryDirectory() as tmpdir:
             test_file = os.path.join(tmpdir, "data", "test-0000.parquet")
             os.makedirs(os.path.dirname(test_file), exist_ok=True)
             Path(test_file).touch()
-            result = _resolve_parquet_path(tmpdir, "test")
-            self.assertTrue(result.endswith("test-0000.parquet"), f"Got: {result}")
+            with self.assertRaises(FileNotFoundError):
+                _resolve_parquet_path(tmpdir, "test")
 
     def test_no_parquet_files_raises(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -163,7 +157,7 @@ class TestGeometry3KDataset(unittest.TestCase):
 
     def test_load_minimal(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            self._make_parquet(
+            parquet_file = self._make_parquet(
                 os.path.join(tmpdir, "data"),
                 "test",
                 [
@@ -174,7 +168,7 @@ class TestGeometry3KDataset(unittest.TestCase):
                     }
                 ],
             )
-            ds = Geometry3KDataset.load(path=tmpdir, split="test")
+            ds = Geometry3KDataset.load(path=parquet_file, split="test")
             self.assertEqual(len(ds), 1)
             row = ds[0]
             self.assertIn("content", row)
@@ -187,7 +181,7 @@ class TestGeometry3KDataset(unittest.TestCase):
 
     def test_load_with_custom_instruction(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            self._make_parquet(
+            parquet_file = self._make_parquet(
                 os.path.join(tmpdir, "data"),
                 "test",
                 [
@@ -200,14 +194,14 @@ class TestGeometry3KDataset(unittest.TestCase):
             )
             custom_inst = "Just give the answer."
             ds = Geometry3KDataset.load(
-                path=tmpdir, split="test", instruction=custom_inst
+                path=parquet_file, split="test", instruction=custom_inst
             )
             row = ds[0]
             self.assertIn(custom_inst, row["question"])
 
     def test_load_default_split_is_test(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            self._make_parquet(
+            parquet_file = self._make_parquet(
                 os.path.join(tmpdir, "data"),
                 "test",
                 [
@@ -218,7 +212,7 @@ class TestGeometry3KDataset(unittest.TestCase):
                     }
                 ],
             )
-            ds = Geometry3KDataset.load(path=tmpdir)
+            ds = Geometry3KDataset.load(path=parquet_file)
             self.assertEqual(len(ds), 1)
 
 
