@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 from datasets import Dataset, load_dataset
-from mathruler.grader import extract_boxed_content, grade_answer
+
 
 from ais_bench.benchmark.openicl import BaseEvaluator
 from ais_bench.benchmark.registry import LOAD_DATASET
@@ -31,6 +31,7 @@ def _extract_boxed_content(pred_str: str) -> str:
 
     RETURNS "None" (string) when no \\boxed{} is found, consistent with verl.
     """
+    from mathruler.grader import extract_boxed_content
     result = extract_boxed_content(pred_str)
     if result == "None" or result == "":
         logger.debug(f"[extract_boxed_content] no \\boxed{{}} content, returning \"None\"")
@@ -50,6 +51,7 @@ def _grade_answer(given_answer: str, ground_truth: str) -> bool:
         f"  given (raw)      : {given_answer!r}\n"
         f"  ground_truth (raw): {ground_truth!r}"
     )
+    from mathruler.grader import grade_answer
     result = grade_answer(given_answer, ground_truth)
     logger.debug(f"[grade_answer] result={result}")
     return result
