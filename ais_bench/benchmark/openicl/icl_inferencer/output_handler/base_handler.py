@@ -39,7 +39,12 @@ class BaseInferencerOutputHandler:
         all_success (bool): Flag indicating if all operations were successful
     """
 
-    def __init__(self, perf_mode: bool = False, save_every: int = 100) -> None:
+    def __init__(
+        self,
+        perf_mode: bool = False,
+        save_every: int = 100,
+        response_anomaly_payload_storage: Optional[dict] = None,
+    ) -> None:
         """
         Initialize the base inferencer output handler.
 
@@ -55,6 +60,9 @@ class BaseInferencerOutputHandler:
         self.perf_mode = perf_mode
         self.all_success = True
         self.save_every = save_every
+        self.response_anomaly_payload_storage = response_anomaly_payload_storage
+        self._response_anomaly_staging_writer = None
+        self._response_anomaly_staging_error = None
 
     @abstractmethod
     def get_prediction_result(
@@ -156,8 +164,15 @@ class BaseInferencerOutputHandler:
 
         file_path = Path(save_dir)
         try:
+            if self._response_anomaly_staging_error is not None:
+                raise self._response_anomaly_staging_error
             # Ensure directory exists
             Path(save_dir).mkdir(parents=True, exist_ok=True)
+
+            for results_dict in self.results_dict.values():
+                for result in results_dict.values():
+                    self._stage_response_anomaly_payload(result)
+            self._close_response_anomaly_staging_writer()
 
             for data_abbr, results_dict in self.results_dict.items():
                 if not results_dict:
@@ -382,6 +397,8 @@ class BaseInferencerOutputHandler:
                         }
 
                         json_data.update(result_data)
+                        if not perf_mode and result_data.get("success", True):
+                            self._stage_response_anomaly_payload(json_data)
                         if perf_mode:
                             json_data["db_name"] = db_name
                             self.results_dict[data_abbr][uid] = json_data
@@ -410,6 +427,8 @@ class BaseInferencerOutputHandler:
                             cache_data = []
 
                     except Exception as e:
+                        if self._response_anomaly_staging_error is not None:
+                            continue
                         # Continue processing other items
                         self.logger.debug(f"Failed to process item {item}: {str(e)}")
                         continue
@@ -418,6 +437,14 @@ class BaseInferencerOutputHandler:
                 if cache_data:
                     f.writelines(cache_data)
                     f.flush()
+
+        try:
+            self._close_response_anomaly_staging_writer()
+        except Exception as exc:
+            self._response_anomaly_staging_error = exc
+            self.logger.error(
+                "Failed to finalize response anomaly payload staging: %s", exc
+            )
 
         # Handle database file based on performance mode
         conn.commit()
@@ -465,3 +492,34 @@ class BaseInferencerOutputHandler:
             raise AISBenchRuntimeError(ICLI_CODES.UNKNOWN_ERROR, f"Failed to send stop signal to cache consumer: {str(e)}")
         self.logger.debug("Stop signal sent to cache consumer")
 
+    def _stage_response_anomaly_payload(self, json_data: dict) -> None:
+        runtime = self.response_anomaly_payload_storage
+        payload = json_data.get("response_anomaly_payload")
+        if not runtime or not isinstance(payload, dict):
+            return
+        from ais_bench.benchmark.utils.response_anomaly_jsonl import (
+            ResponseAnomalyStagingWriter,
+        )
+
+        if self._response_anomaly_staging_writer is None:
+            self._response_anomaly_staging_writer = (
+                ResponseAnomalyStagingWriter(runtime)
+            )
+        try:
+            self._response_anomaly_staging_writer.write(json_data)
+        except Exception as exc:
+            self._response_anomaly_staging_error = exc
+            raise
+        json_data.pop("response_anomaly_payload", None)
+
+    def _close_response_anomaly_staging_writer(self) -> None:
+        writer, self._response_anomaly_staging_writer = (
+            self._response_anomaly_staging_writer,
+            None,
+        )
+        if writer is not None:
+            try:
+                writer.close()
+            except Exception as exc:
+                self._response_anomaly_staging_error = exc
+                raise

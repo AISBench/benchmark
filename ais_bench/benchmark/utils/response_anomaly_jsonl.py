@@ -1,11 +1,12 @@
 """Zstandard-compressed JSONL storage for response anomaly payloads."""
 
 import hashlib
+import io
 import json
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, Optional
 
 
 def _load_zstandard():
@@ -62,7 +63,11 @@ class ResponseAnomalyJsonlWriter:
         if self.shard_rows >= self.rows_per_shard:
             self._close_shard()
 
-    def close(self, payload_retention: Optional[str] = None) -> Dict[str, Any]:
+    def close(
+        self,
+        payload_retention: Optional[str] = None,
+        write_manifest: bool = True,
+    ) -> Dict[str, Any]:
         if self._stream is not None:
             self._close_shard()
         manifest = {
@@ -74,13 +79,14 @@ class ResponseAnomalyJsonlWriter:
         }
         if payload_retention is not None:
             manifest["payload_retention"] = payload_retention
-        self.directory.mkdir(parents=True, exist_ok=True)
-        path = self.directory / "payload_manifest.json"
-        tmp_path = path.with_name(path.name + ".tmp")
-        tmp_path.write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        os.replace(str(tmp_path), str(path))
+        if write_manifest:
+            self.directory.mkdir(parents=True, exist_ok=True)
+            path = self.directory / "payload_manifest.json"
+            tmp_path = path.with_name(path.name + ".tmp")
+            tmp_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            os.replace(str(tmp_path), str(path))
         return manifest
 
     def _open_shard(self) -> None:
@@ -116,6 +122,111 @@ class ResponseAnomalyJsonlWriter:
         self._raw_file = None
         self._stream = None
         self._inprogress_path = None
+
+
+class ResponseAnomalyStagingWriter:
+    """Route inference payloads to per-dataset compressed staging shards."""
+
+    def __init__(self, runtime: Dict[str, Any]) -> None:
+        self.root = (
+            Path(runtime["work_dir"])
+            / "response_anomaly"
+            / str(runtime["model_abbr"])
+            / "payload_staging"
+        )
+        self.compression_level = int(runtime.get("compression_level", 3))
+        self.rows_per_shard = int(runtime.get("rows_per_shard", 2000))
+        self._writers: Dict[str, ResponseAnomalyJsonlWriter] = {}
+
+    def write(self, record: Dict[str, Any]) -> None:
+        data_abbr = str(record.get("data_abbr", ""))
+        writer = self._writers.get(data_abbr)
+        if writer is None:
+            writer = ResponseAnomalyJsonlWriter(
+                self.root / data_abbr,
+                self.compression_level,
+                self.rows_per_shard,
+            )
+            self._writers[data_abbr] = writer
+        writer.write(record)
+
+    def close(self) -> None:
+        for writer in self._writers.values():
+            writer.close(write_manifest=False)
+        self._writers.clear()
+
+
+def iter_jsonl_zstd_records(directory: Path) -> Iterator[Dict[str, Any]]:
+    """Stream records from all completed JSONL.ZST shards in a directory."""
+    zstandard = _load_zstandard()
+    for shard in sorted(Path(directory).glob("part-*.jsonl.zst")):
+        with shard.open("rb") as raw_file:
+            with zstandard.ZstdDecompressor().stream_reader(raw_file) as reader:
+                text_reader = io.TextIOWrapper(reader, encoding="utf-8")
+                for line_no, line in enumerate(text_reader, 1):
+                    if not line.strip():
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError as exc:
+                        raise RuntimeError(
+                            f"Malformed compressed payload {shard}:{line_no}: {exc}"
+                        ) from exc
+                    record["payload_shard"] = shard.name
+                    record["payload_row"] = line_no - 1
+                    yield record
+
+
+def build_jsonl_zstd_manifest(
+    directory: Path,
+    compression_level: int,
+    payload_retention: str,
+    shard_rows: Optional[Dict[str, int]] = None,
+) -> Dict[str, Any]:
+    """Build and atomically write a manifest for existing staging shards."""
+    shards = []
+    total_rows = 0
+    for shard in sorted(Path(directory).glob("part-*.jsonl.zst")):
+        rows = (
+            shard_rows[shard.name]
+            if shard_rows is not None and shard.name in shard_rows
+            else sum(1 for _ in iter_jsonl_zstd_records_for_shard(shard))
+        )
+        total_rows += rows
+        shards.append(
+            {
+                "file": shard.name,
+                "rows": rows,
+                "size_bytes": shard.stat().st_size,
+                "sha256": f"sha256:{_sha256_file(shard)}",
+            }
+        )
+    manifest = {
+        "format": "jsonl",
+        "compression": "zstd",
+        "compression_level": compression_level,
+        "payload_retention": payload_retention,
+        "total_rows": total_rows,
+        "shards": shards,
+    }
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "payload_manifest.json"
+    tmp_path = path.with_name(path.name + ".tmp")
+    tmp_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    os.replace(str(tmp_path), str(path))
+    return manifest
+
+
+def iter_jsonl_zstd_records_for_shard(path: Path) -> Iterator[Dict[str, Any]]:
+    zstandard = _load_zstandard()
+    with Path(path).open("rb") as raw_file:
+        with zstandard.ZstdDecompressor().stream_reader(raw_file) as reader:
+            text_reader = io.TextIOWrapper(reader, encoding="utf-8")
+            for line in text_reader:
+                if line.strip():
+                    yield json.loads(line)
 
 
 def _sha256_file(path: Path) -> str:

@@ -91,7 +91,7 @@ ais_bench-gen-response-anomaly-config \
   --output-dir ./msprobe_configs
 ```
 
-启用后，AISBench 会在服务推理请求中补充 `logprobs=True` 与 `top_logprobs`。推理结束即启动后台检测，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；每个 Case 包含 `is_anomaly`、`anomaly_type`（0：正常，1：生僻字，2：乱码，3：重复，4：NaN Value）和 `detection_status`。检测使用 prediction 中的原始 JSON payload；检测和归档成功后，payload 从 prediction 移除，并按 `payload_retention` 写入 `response_anomaly/<模型>/payload/<数据集>/*.jsonl.zst`。状态面板会显示 `ResponseAnomaly` 进度及各类型数量，检测未完成时面板保持刷新；`infer`/`infer_judge` 等无后续评测面板的模式会在收尾阶段启动独立监控展示检测进度。
+启用后，AISBench 会在服务推理请求中补充 `logprobs=True` 与 `top_logprobs`。推理阶段将完整 payload 直接写入 `response_anomaly/<模型>/payload_staging/<数据集>/*.jsonl.zst`，prediction 从一开始只保存轻量结果。推理结束后，检测线程流式解压 staging 数据并调用 msProbe，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；每个 Case 包含 `is_anomaly`、`anomaly_type`（0：正常，1：生僻字，2：乱码，3：重复，4：NaN Value）和 `detection_status`。检测完成后按 `payload_retention` 保留或清理 staging。状态面板会显示配置准备、检测器加载、流式检测和归档收尾阶段。
 
 ```python
 response_anomaly = dict(
@@ -106,7 +106,7 @@ response_anomaly = dict(
 )
 ```
 
-`all` 保存全部 payload；`anomalies` 只保存已检出异常以及检测失败/不可用 Case；`none` 不保存 payload。三种模式都保留独立检测结果。`--reuse` 必须沿用原工作目录的保留策略。
+`all` 保存全部 payload，检测后直接将 staging 原子转为正式归档，不会二次压缩；`anomalies` 只保存已检出异常以及检测失败/不可用 Case；`none` 不保存 payload。三种模式都保留独立检测结果。`--reuse` 必须沿用原工作目录的保留策略。检测结果按批写盘，状态最多每秒刷新一次；msProbe token 分类映射按模型和 EOS token 缓存，避免每个 Case 重复解析大 JSON 文件。
 
 检测通过 msProbe 的 `ILLDetector(config_path, mtype_path, tk2cat_path).run(...)` 完成，三个文件路径均可由 AISBench 配置。请先安装 AISBench 的可选依赖：`pip install 'ais-bench-benchmark[response_anomaly]'`。安装过程中 pip 会从 GitCode 下载并构建已固定提交的 msProbe 源码，因此安装环境需要 Git 和网络访问。服务响应必须包含 `token_ids`（或 `tokens`）和 `topk_logprobs`；缺少这些字段的 Case 会以 `skipped` 状态落盘。`model_name` 需与 msProbe 的 `mtype_config.json` 配置以及 token 分类映射保持一致。使用 `--reuse` 时，已有检测结果按 Case id 继承，已完成 Case 不会重复检测。
 

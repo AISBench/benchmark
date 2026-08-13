@@ -126,6 +126,27 @@ def test_build_detector_reports_ill_detector_init_failure(monkeypatch):
     assert "boom" in init_error[1]
 
 
+def test_cache_detector_token_categories_loads_each_key_once():
+    class Detector:
+        def __init__(self):
+            self.calls = 0
+
+        def get_tk2cat(self, eos_token, model_config=None):
+            self.calls += 1
+            return {"1": "latin"}, 100
+
+    detector = Detector()
+    ResponseAnomalyCoordinator._cache_detector_token_categories(detector)
+
+    first = detector.get_tk2cat(2, "model")
+    second = detector.get_tk2cat(2, "model")
+    third = detector.get_tk2cat(3, "model")
+
+    assert first == second
+    assert third == first
+    assert detector.calls == 2
+
+
 def test_merge_model_anomaly_config_prefers_model_level():
     merged = ResponseAnomalyCoordinator._merge_model_anomaly_config(
         {

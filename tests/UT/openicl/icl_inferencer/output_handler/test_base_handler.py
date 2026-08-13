@@ -7,6 +7,7 @@ import queue
 import numpy as np
 import functools
 import shutil
+import json
 
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.base_handler import BaseInferencerOutputHandler
 from ais_bench.benchmark.models.output import Output
@@ -51,6 +52,50 @@ class TestBaseInferencerOutputHandler(unittest.TestCase):
             handler.write_to_json(tmpdir, False)
             file_path = os.path.join(tmpdir, "test.jsonl")
             self.assertTrue(os.path.exists(file_path))
+
+    def test_write_to_json_stages_payload_separately(self):
+        with TempDirectory() as tmpdir:
+            handler = ConcreteOutputHandler(
+                response_anomaly_payload_storage={
+                    "work_dir": tmpdir,
+                    "model_abbr": "modelA",
+                    "compression_level": 3,
+                    "rows_per_shard": 10,
+                }
+            )
+            handler.results_dict["ds"] = {
+                "uid1": {
+                    "data_abbr": "ds",
+                    "id": 1,
+                    "uuid": "u1",
+                    "prediction": "ok",
+                    "response_anomaly_payload": {
+                        "tokens": [1],
+                        "topk_logprobs": [{"1": -0.1}],
+                    },
+                }
+            }
+
+            handler.write_to_json(os.path.join(tmpdir, "predictions"), False)
+
+            prediction = json.loads(
+                open(
+                    os.path.join(tmpdir, "predictions", "ds.jsonl"),
+                    encoding="utf-8",
+                ).read()
+            )
+            self.assertNotIn("response_anomaly_payload", prediction)
+            staging = os.path.join(
+                tmpdir,
+                "response_anomaly",
+                "modelA",
+                "payload_staging",
+                "ds",
+            )
+            self.assertEqual(
+                len([name for name in os.listdir(staging) if name.endswith(".zst")]),
+                1,
+            )
 
     def test_write_to_json_empty_results_dict(self):
         """测试write_to_json在results_dict为空时不创建文件"""
@@ -378,4 +423,3 @@ class TestBaseInferencerOutputHandler(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

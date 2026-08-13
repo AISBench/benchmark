@@ -51,7 +51,7 @@ logprobs=True
 top_logprobs=20
 ```
 
-服务适配器将上述字段提取为 `response_anomaly_payload` 并暂存在预测 Case 中。检测完成后 payload 从 prediction 移除，并根据保留策略写入 ZSTD 压缩 JSONL。服务未提供必要字段时，Case 仍正常评测，但检测结果记录为 `skipped`。
+服务适配器将上述字段提取为 `response_anomaly_payload`，输出处理器立即将其分流到独立的 ZSTD 压缩 JSONL staging，prediction 不保存完整 payload。检测线程流式解压 staging；服务未提供必要字段时，Case 仍正常评测，但检测结果记录为 `skipped`。
 
 ### 2.3 msProbe 模型配置要求
 
@@ -93,8 +93,9 @@ ais_bench-gen-response-anomaly-config \
 flowchart LR
     CLI[CLI / 总配置] --> CM[ConfigManager]
     CM --> API[BaseAPIModel]
-    API --> PRED[预测 JSONL]
-    PRED --> COORD[ResponseAnomalyCoordinator]
+    API --> PRED[轻量预测 JSONL]
+    API --> PAYLOAD[独立 JSONL.ZST staging]
+    PAYLOAD --> COORD[ResponseAnomalyCoordinator]
     COORD --> MSP[msprobe.ILLDetector]
     MSP --> RESULT[异常结果 JSONL]
     COORD --> STATUS[状态文件]
@@ -114,7 +115,8 @@ sequenceDiagram
     participant E as Eval / Summary
     participant R as Response Anomaly JSONL
 
-    I->>P: 写入推理 Case 与 token/logprobs 载荷
+    I->>P: 写入轻量推理 Case
+    I->>C: token/logprobs 写入独立 JSONL.ZST staging
     I->>C: 推理阶段结束后启动后台线程
     par 异常检测
         C->>M: ILLDetector.run(topk_logprobs, tokens, model_configs)
@@ -134,7 +136,7 @@ sequenceDiagram
 | 配置归一化 | [ais_bench/benchmark/cli/config_manager.py](../../../ais_bench/benchmark/cli/config_manager.py) | 合并 CLI / 总配置，注入服务端 logprobs 请求参数。 |
 | 工作流协调 | [ais_bench/benchmark/cli/workers.py](../../../ais_bench/benchmark/cli/workers.py) | 推理结束后启动检测线程；工作流结束前等待线程完成。 |
 | 响应采集 | [ais_bench/benchmark/models/api_models/base_api.py](../../../ais_bench/benchmark/models/api_models/base_api.py) | 从流式或非流式服务响应中提取 token 与 top-k logprobs。 |
-| Case 透传 | [ais_bench/benchmark/openicl/icl_inferencer/output_handler/gen_inferencer_output_handler.py](../../../ais_bench/benchmark/openicl/icl_inferencer/output_handler/gen_inferencer_output_handler.py) | 将 `response_anomaly_payload` 暂存到预测 JSONL，供离线检测和后续压缩归档。 |
+| Case 分流 | [ais_bench/benchmark/openicl/icl_inferencer/output_handler/base_handler.py](../../../ais_bench/benchmark/openicl/icl_inferencer/output_handler/base_handler.py) | 将 `response_anomaly_payload` 写入独立 JSONL.ZST staging，并从 prediction Case 移除。 |
 | 检测协调器 | [ais_bench/benchmark/utils/response_anomaly.py](../../../ais_bench/benchmark/utils/response_anomaly.py) | 读预测、合并模型级配置、按需生成 msProbe 配置、初始化检测器、落盘、恢复与状态上报。 |
 | 配置生成工具 | [ais_bench/tools/response_anomaly/gen_model_config.py](../../../ais_bench/tools/response_anomaly/gen_model_config.py) | 包装 msProbe 官方生成器，输出到用户目录并合并 mtype 配置。 |
 | 面板展示 | [ais_bench/benchmark/runners/base.py](../../../ais_bench/benchmark/runners/base.py) | 动态读取 `ResponseAnomaly` 状态并展示。 |
