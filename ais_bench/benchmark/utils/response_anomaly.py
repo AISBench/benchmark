@@ -2,7 +2,9 @@
 
 import json
 import os
+import shutil
 import threading
+import uuid
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
@@ -164,15 +166,76 @@ class ResponseAnomalyCoordinator:
                 # Ensure the result directory exists once per group instead of
                 # once per prediction (mkdir with exist_ok=True is idempotent).
                 result_file.parent.mkdir(parents=True, exist_ok=True)
+                retention = cfg["response_anomaly"].get(
+                    "payload_retention", "all"
+                )
+                storage_cfg = cfg["response_anomaly"].get(
+                    "payload_storage", {}
+                )
+                payload_dir = (
+                    Path(work_dir)
+                    / "response_anomaly"
+                    / model_abbr
+                    / "payload"
+                    / dataset_abbr
+                )
+                staging_dir = payload_dir.with_name(
+                    f".{dataset_abbr}.payload-build-{uuid.uuid4().hex[:8]}"
+                )
+                payload_writer = None
+                if payload_dir.exists():
+                    old_manifest_path = payload_dir / "payload_manifest.json"
+                    if not old_manifest_path.exists():
+                        raise RuntimeError(
+                            "Existing response anomaly payload archive has no "
+                            "manifest. Use a new work directory."
+                        )
+                    old_manifest = json.loads(
+                        old_manifest_path.read_text(encoding="utf-8")
+                    )
+                    old_retention = old_manifest.get(
+                        "payload_retention", "all"
+                    )
+                    if old_retention != retention:
+                        raise RuntimeError(
+                            "Cannot change response anomaly payload_retention "
+                            "while reusing an existing payload archive. Use a "
+                            "new work directory."
+                        )
+                if retention != "none":
+                    from ais_bench.benchmark.utils.response_anomaly_jsonl import (
+                        ResponseAnomalyJsonlWriter,
+                    )
+
+                    if payload_dir.exists():
+                        shutil.copytree(payload_dir, staging_dir)
+                    payload_writer = ResponseAnomalyJsonlWriter(
+                        staging_dir,
+                        compression_level=storage_cfg.get(
+                            "compression_level", 3
+                        ),
+                        rows_per_shard=storage_cfg.get(
+                            "rows_per_shard", 2000
+                        ),
+                    )
                 for prediction in predictions:
                     case_id = str(prediction.get("id"))
                     case_key = f"{prediction.get('id')}:{prediction.get('uuid')}"
                     if case_key in inherited:
+                        result = inherited[case_key]
+                        if payload_writer and self._should_retain_payload(
+                            retention, result
+                        ) and not payload_dir.exists():
+                            payload_writer.write(prediction)
                         continue
                     result = self._detect_case(
                         prediction, anomaly_cfg, detector, init_error
                     )
                     safe_write({case_id: result}, result_file)
+                    if payload_writer and self._should_retain_payload(
+                        retention, result
+                    ):
+                        payload_writer.write(prediction)
                     completed += 1
                     counts[result["anomaly_type_name"]] += 1
                     self._post_status(
@@ -182,6 +245,17 @@ class ResponseAnomalyCoordinator:
                         counts,
                         "response anomaly detecting",
                     )
+                if payload_writer is not None:
+                    manifest = payload_writer.close(retention)
+                    if manifest["total_rows"] or not payload_dir.exists():
+                        self._replace_payload_archive(staging_dir, payload_dir)
+                    else:
+                        shutil.rmtree(staging_dir)
+                elif payload_dir.exists():
+                    shutil.rmtree(payload_dir)
+                self._strip_payloads_from_predictions(
+                    prediction_file, predictions
+                )
 
             self._summary = dict(counts)
             self._post_status(
@@ -223,6 +297,48 @@ class ResponseAnomalyCoordinator:
             for key, item in existing_by_key.items()
             if key in prediction_keys and item.get("detection_status") == "completed"
         }
+
+    @staticmethod
+    def _should_retain_payload(
+        retention: str, result: Dict[str, Any]
+    ) -> bool:
+        if retention == "all":
+            return True
+        if retention == "none":
+            return False
+        return bool(result.get("is_anomaly")) or result.get(
+            "detection_status"
+        ) in ("failed", "unavailable")
+
+    @staticmethod
+    def _replace_payload_archive(staging_dir: Path, payload_dir: Path) -> None:
+        payload_dir.parent.mkdir(parents=True, exist_ok=True)
+        backup_dir = payload_dir.with_name(payload_dir.name + ".old")
+        if backup_dir.exists():
+            shutil.rmtree(backup_dir)
+        if payload_dir.exists():
+            os.replace(str(payload_dir), str(backup_dir))
+        try:
+            os.replace(str(staging_dir), str(payload_dir))
+        except Exception:
+            if backup_dir.exists() and not payload_dir.exists():
+                os.replace(str(backup_dir), str(payload_dir))
+            raise
+        if backup_dir.exists():
+            shutil.rmtree(backup_dir)
+
+    @staticmethod
+    def _strip_payloads_from_predictions(
+        prediction_file: Path, predictions: List[Dict[str, Any]]
+    ) -> None:
+        if not prediction_file.exists():
+            return
+        tmp_file = prediction_file.with_name(prediction_file.name + ".tmp")
+        with tmp_file.open("w", encoding="utf-8") as file:
+            for prediction in predictions:
+                prediction.pop("response_anomaly_payload", None)
+                file.write(json.dumps(prediction, ensure_ascii=False) + "\n")
+        os.replace(str(tmp_file), str(prediction_file))
 
     @staticmethod
     def _merge_model_anomaly_config(

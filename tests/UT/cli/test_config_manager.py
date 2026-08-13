@@ -738,6 +738,69 @@ class TestConfigManager(unittest.TestCase):
         self.assertEqual(generation_kwargs['top_logprobs'], 20)
         self.assertTrue(generation_kwargs['response_anomaly_enabled'])
         self.assertTrue(config_manager.cfg['response_anomaly']['enabled'])
+        self.assertEqual(
+            config_manager.cfg['response_anomaly']['payload_retention'], 'all'
+        )
+        self.assertEqual(
+            config_manager.cfg['response_anomaly']['payload_storage'],
+            {
+                'format': 'jsonl',
+                'compression': 'zstd',
+                'compression_level': 3,
+                'rows_per_shard': 2000,
+            },
+        )
+
+    def test_response_anomaly_rejects_invalid_payload_retention(self):
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'response_anomaly': {'payload_retention': 'sometimes'},
+            'models': [
+                {
+                    'abbr': 'service-model',
+                    'attr': 'service',
+                    'generation_kwargs': {},
+                }
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        with self.assertRaises(AISBenchConfigError):
+            config_manager._init_response_anomaly_config()
+
+    def test_response_anomaly_rejects_invalid_payload_storage(self):
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        for payload_storage in (
+            {'format': 'parquet'},
+            {'compression': 'gzip'},
+            {'compression_level': 0},
+            {'compression_level': True},
+            {'rows_per_shard': 0},
+            {'rows_per_shard': True},
+        ):
+            config_manager = ConfigManager(self.args)
+            config_manager.cfg = {
+                'response_anomaly': {
+                    'payload_storage': payload_storage,
+                },
+                'models': [
+                    {
+                        'abbr': 'service-model',
+                        'attr': 'service',
+                        'generation_kwargs': {},
+                    }
+                ],
+                'datasets': [],
+                'cli_args': {},
+            }
+
+            with self.subTest(payload_storage=payload_storage):
+                with self.assertRaises(AISBenchConfigError):
+                    config_manager._init_response_anomaly_config()
 
     def test_response_anomaly_overrides_explicit_logprobs_config(self):
         """启用异常检测时强制覆盖模型里显式的 logprobs/top_logprobs。"""

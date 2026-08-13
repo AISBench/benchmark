@@ -116,11 +116,56 @@ class ConfigManager:
         global_cfg.setdefault('enabled', False)
         global_cfg.setdefault('top_logprobs', 20)
         global_cfg.setdefault('msprobe_config_path', None)
+        global_cfg.setdefault('payload_retention', 'all')
+        payload_storage = dict(global_cfg.get('payload_storage') or {})
+        payload_storage.setdefault('format', 'jsonl')
+        payload_storage.setdefault('compression', 'zstd')
+        payload_storage.setdefault('compression_level', 3)
+        payload_storage.setdefault('rows_per_shard', 2000)
+        global_cfg['payload_storage'] = payload_storage
         self.cfg['response_anomaly'] = global_cfg
         if not global_cfg['enabled']:
             return
 
         self._validate_response_anomaly_support()
+        if global_cfg['payload_retention'] not in ('all', 'anomalies', 'none'):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                "response_anomaly.payload_retention must be one of "
+                "'all', 'anomalies' or 'none'.",
+            )
+        if payload_storage['format'] != 'jsonl':
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                "response_anomaly.payload_storage.format must be 'jsonl'.",
+            )
+        if payload_storage['compression'] != 'zstd':
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                "response_anomaly.payload_storage.compression must be 'zstd'.",
+            )
+        compression_level = payload_storage['compression_level']
+        rows_per_shard = payload_storage['rows_per_shard']
+        if (
+            not isinstance(compression_level, int)
+            or isinstance(compression_level, bool)
+            or not 1 <= compression_level <= 22
+        ):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                "response_anomaly.payload_storage.compression_level must be "
+                "an integer between 1 and 22.",
+            )
+        if (
+            not isinstance(rows_per_shard, int)
+            or isinstance(rows_per_shard, bool)
+            or rows_per_shard <= 0
+        ):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                "response_anomaly.payload_storage.rows_per_shard must be a "
+                "positive integer.",
+            )
         models = self.cfg.get('models')
         if not isinstance(models, list):
             return

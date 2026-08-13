@@ -16,6 +16,11 @@ class FakeDetector:
         return [self.result]
 
 
+class TokenDetector:
+    def run(self, topk_logprobs, tokens, model_configs):
+        return [[tokens[0][0] == 2, 1 if tokens[0][0] == 2 else 0]]
+
+
 def test_detect_case_calls_msprobe_detector():
     result = ResponseAnomalyCoordinator()._detect_case(
         {
@@ -266,6 +271,45 @@ def test_load_inherited_results_rejects_different_uuid(tmp_path):
     assert len(inherited) == 0
 
 
+@pytest.mark.parametrize(
+    ("retention", "result", "expected"),
+    [
+        ("all", {"is_anomaly": False, "detection_status": "completed"}, True),
+        ("anomalies", {"is_anomaly": True, "detection_status": "completed"}, True),
+        ("anomalies", {"is_anomaly": False, "detection_status": "failed"}, True),
+        ("anomalies", {"is_anomaly": False, "detection_status": "unavailable"}, True),
+        ("anomalies", {"is_anomaly": False, "detection_status": "completed"}, False),
+        ("anomalies", {"is_anomaly": False, "detection_status": "skipped"}, False),
+        ("none", {"is_anomaly": True, "detection_status": "completed"}, False),
+    ],
+)
+def test_should_retain_payload(retention, result, expected):
+    assert (
+        ResponseAnomalyCoordinator._should_retain_payload(retention, result)
+        is expected
+    )
+
+
+def test_strip_payloads_from_predictions_is_atomic(tmp_path):
+    prediction_file = tmp_path / "ds.jsonl"
+    predictions = [
+        {"id": 1, "response_anomaly_payload": {"tokens": [1]}},
+        {"id": 2, "prediction": "ok"},
+    ]
+    prediction_file.write_text("old", encoding="utf-8")
+
+    ResponseAnomalyCoordinator._strip_payloads_from_predictions(
+        prediction_file, predictions
+    )
+
+    restored = [
+        json.loads(line)
+        for line in prediction_file.read_text(encoding="utf-8").splitlines()
+    ]
+    assert restored == [{"id": 1}, {"id": 2, "prediction": "ok"}]
+    assert not prediction_file.with_name("ds.jsonl.tmp").exists()
+
+
 def test_detect_runs_full_workflow(tmp_path, monkeypatch):
     """端到端驱动 _detect 主循环：读预测、逐条检测、写结果、收尾状态。"""
     work_dir = tmp_path
@@ -327,6 +371,83 @@ def test_detect_runs_full_workflow(tmp_path, monkeypatch):
     assert status["status"] == "finish"
     assert status["finish_count"] == 2
     assert status["total_count"] == 2
+
+
+@pytest.mark.parametrize(
+    ("retention", "expected_ids"),
+    [("all", [1, 2]), ("anomalies", [2]), ("none", [])],
+)
+def test_detect_compresses_selected_payloads_and_strips_predictions(
+    tmp_path, monkeypatch, retention, expected_ids
+):
+    import zstandard
+
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    prediction_file.parent.mkdir(parents=True)
+    predictions = [
+        {
+            "data_abbr": "ds",
+            "id": case_id,
+            "uuid": f"u{case_id}",
+            "prediction": "ok",
+            "response_anomaly_payload": {
+                "tokens": [case_id],
+                "topk_logprobs": [{str(case_id): -0.1}],
+            },
+        }
+        for case_id in (1, 2)
+    ]
+    prediction_file.write_text(
+        "".join(json.dumps(item) + "\n" for item in predictions),
+        encoding="utf-8",
+    )
+    cfg = {
+        "work_dir": str(tmp_path),
+        "models": [{"abbr": "modelA", "attr": "service"}],
+        "datasets": [{"abbr": "ds"}],
+        "response_anomaly": {
+            "payload_retention": retention,
+            "payload_storage": {
+                "compression_level": 3,
+                "rows_per_shard": 1,
+            },
+        },
+    }
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+
+    coordinator._detect(cfg)
+
+    restored_predictions = [
+        json.loads(line)
+        for line in prediction_file.read_text(encoding="utf-8").splitlines()
+    ]
+    assert all(
+        "response_anomaly_payload" not in item
+        for item in restored_predictions
+    )
+    payload_dir = (
+        tmp_path / "response_anomaly" / "modelA" / "payload" / "ds"
+    )
+    if retention == "none":
+        assert not payload_dir.exists()
+        return
+    manifest = json.loads(
+        (payload_dir / "payload_manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["payload_retention"] == retention
+    assert manifest["total_rows"] == len(expected_ids)
+    archived_ids = []
+    for shard in sorted(payload_dir.glob("*.jsonl.zst")):
+        with shard.open("rb") as file:
+            reader = zstandard.ZstdDecompressor().stream_reader(file)
+            archived_ids.extend(
+                json.loads(line)["id"]
+                for line in reader.read().decode("utf-8").splitlines()
+            )
+    assert archived_ids == expected_ids
 
 
 def test_detect_warns_when_no_predictions_found(tmp_path, monkeypatch):
