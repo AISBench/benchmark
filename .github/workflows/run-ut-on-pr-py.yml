@@ -28,6 +28,7 @@ jobs:
           pip3 install -r requirements/api.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
           pip3 install -r requirements/extra.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
           pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
+          pip3 install -r requirements/datasets/geometry3k.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
       - name: Run Test
         run: |
           pip3 install pytest pytest-cov pytest-xdist -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
