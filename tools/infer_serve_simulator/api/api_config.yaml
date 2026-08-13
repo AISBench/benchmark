@@ -12,3 +12,22 @@ random_dataset:
   random_content: False # 字符是否随机，不随机默认用'A'构造
   min_tokens: 10 # 最小长度
   tokens_per_chunk: 2 # mtp场景
+
+# /metrics 端点配置（用于 spec-decode 异常场景测试）
+# mode 可选值:
+#   error_http       - 返回指定 HTTP 错误码（由 error_code 指定），模拟 /metrics 端点不可达或服务端错误
+#   no_spec          - 返回 200 但不含 vllm:spec_decode 计数器，模拟服务端未开启投机推理
+#   static_counters  - 返回 200 + spec_decode 计数器，但值固定不变（before==after → delta=0），模拟评测窗口内无投机活动
+metrics:
+  mode: static_counters  # error_http | no_spec | static_counters
+  error_code: 503        # mode=error_http 时返回的 HTTP 状态码
+  counters:              # mode=static_counters 时返回的固定计数器值
+    num_drafts: 100
+    num_draft_tokens: 500
+    num_accepted_tokens: 450
+    accepted_per_pos:    # 每个 draft position 的采纳 token 数
+      0: 450
+      1: 400
+      2: 350
+      3: 300
+      4: 250
