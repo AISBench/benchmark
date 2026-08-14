@@ -345,6 +345,21 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
 
         self.assertEqual(output.origin_logprobs, [])
 
+    async def test_parse_logprobs_enabled_but_missing_warns(self):
+        """测试开启logprobs但响应缺失时，写入logprobs_warning到extra_details_data"""
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"logprobs": True}
+        model = VLLMCustomAPIChat(**kwargs)
+        output = RequestOutput()
+
+        choice = {"message": {"content": "B"}}  # 无 logprobs 字段
+
+        await model._parse_logprobs(choice, output)
+
+        self.assertEqual(output.origin_logprobs, [])
+        self.assertIn("logprobs_warning", output.extra_details_data)
+        self.assertIn("logprobs is enabled", output.extra_details_data["logprobs_warning"])
+
     async def test_parse_logprobs_with_none_content(self):
         """测试_parse_logprobs保留None项（predefined token）"""
         model = VLLMCustomAPIChat(**self.default_kwargs)
@@ -392,6 +407,9 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
 
     def test_parse_logprobs_without_logprobs_field_wrapper(self):
         self.run_async_test(self.test_parse_logprobs_without_logprobs_field())
+
+    def test_parse_logprobs_enabled_but_missing_warns_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_enabled_but_missing_warns())
 
     def test_parse_logprobs_with_none_content_wrapper(self):
         self.run_async_test(self.test_parse_logprobs_with_none_content())

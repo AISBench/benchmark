@@ -186,6 +186,29 @@ def test_request_output_get_metrics():
     assert metrics["output_tokens"] == 20
 
 
+def test_request_output_get_metrics_empty_logprobs_removed():
+    """测试性能模式下空 origin_logprobs 被 clean_result 移除"""
+    output = RequestOutput()
+    output.success = True
+    output.time_points = [time.perf_counter() - 1, time.perf_counter()]
+    output.origin_logprobs = []
+
+    metrics = output.get_metrics()
+    assert "origin_logprobs" not in metrics
+
+
+def test_request_output_get_metrics_nonempty_logprobs_kept():
+    """测试性能模式下非空 origin_logprobs 被 clean_result 保留"""
+    output = RequestOutput()
+    output.success = True
+    output.time_points = [time.perf_counter() - 1, time.perf_counter()]
+    lp_data = [{"token": "B", "logprob": -0.5, "top_logprobs": []}]
+    output.origin_logprobs = lp_data
+
+    metrics = output.get_metrics()
+    assert metrics["origin_logprobs"] == lp_data
+
+
 def test_request_output_edge_cases():
     """测试RequestOutput类的边缘情况"""
     output = RequestOutput()
