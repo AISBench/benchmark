@@ -150,6 +150,8 @@ class RequestOutput(Output):
         def clean_result(res):
             for key in ["content", "reasoning_content", "perf_mode"]:
                 res.pop(key, None)
+            if not res.get("origin_logprobs"):
+                res.pop("origin_logprobs", None)
             return res
 
         self.prediction = self.get_prediction()

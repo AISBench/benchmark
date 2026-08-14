@@ -199,6 +199,10 @@ class VLLMCustomAPIChat(BaseAPIModel):
         # 直接透传 vLLM 原始结构，每个 item 含 {token, logprob, bytes, top_logprobs}
         lp = choice.get("logprobs")
         if not lp:
+            if self._logprobs_enabled():
+                output.extra_details_data["logprobs_warning"] = (
+                    "logprobs is enabled in generation_kwargs but missing in response"
+                )
             return
         output.origin_logprobs = lp.get("content") or []
 

@@ -147,6 +147,10 @@ class VLLMCustomAPI(BaseAPIModel):
         # 转换为与 chat API 一致的嵌套结构：[{token, logprob, top_logprobs}, ...]
         lp = choice.get("logprobs")
         if not lp:
+            if self._logprobs_enabled():
+                output.extra_details_data["logprobs_warning"] = (
+                    "logprobs is enabled in generation_kwargs but missing in response"
+                )
             return
         tokens = lp.get("tokens", []) or []
         token_logprobs = lp.get("token_logprobs", []) or []
