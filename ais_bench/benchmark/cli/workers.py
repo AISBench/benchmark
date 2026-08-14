@@ -47,9 +47,11 @@ class _SpecDecodeContext:
     entries: dict[str, _URLSnapshotEntry] = field(default_factory=dict)
 
 
-def _run_response_anomaly_monitor(work_dir: str, is_debug: bool) -> None:
+def _run_response_anomaly_monitor(
+    task_names: list, work_dir: str, is_debug: bool
+) -> None:
     """Run a dedicated status board for the response anomaly task."""
-    tasks_monitor = TasksMonitor(["ResponseAnomaly"], work_dir, is_debug)
+    tasks_monitor = TasksMonitor(task_names, work_dir, is_debug)
     tasks_monitor.launch_state_board()
 
 
@@ -709,7 +711,11 @@ class ResponseAnomalyWait(BaseWorker):
         if self.response_anomaly_coordinator.is_running:
             monitor_p = multiprocessing.Process(
                 target=_run_response_anomaly_monitor,
-                args=(work_dir, is_debug),
+                args=(
+                    self.response_anomaly_coordinator.task_names,
+                    work_dir,
+                    is_debug,
+                ),
             )
             monitor_p.start()
         self.response_anomaly_coordinator.join()

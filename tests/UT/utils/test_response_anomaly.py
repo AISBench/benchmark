@@ -1,5 +1,6 @@
 import json
 import sys
+import threading
 import types
 from collections import Counter
 
@@ -250,6 +251,55 @@ def test_post_status_is_atomic(tmp_path):
     assert not status_file.with_name(status_file.name + ".tmp").exists()
 
 
+def test_post_status_keeps_each_model_dataset_task(tmp_path):
+    coordinator = ResponseAnomalyCoordinator()
+    status_file = tmp_path / ResponseAnomalyCoordinator.STATUS_FILE_NAME
+
+    for dataset_abbr in ("ds1", "ds2"):
+        coordinator._post_status(
+            status_file,
+            completed=1,
+            total=2,
+            counts=Counter({"normal": 1}),
+            description="detecting",
+            task_name=coordinator.task_name("modelA", dataset_abbr),
+            task_log_path=coordinator.task_log_path("modelA", dataset_abbr),
+        )
+
+    data = json.loads(status_file.read_text(encoding="utf-8"))
+    assert [item["task_name"] for item in data] == [
+        "ResponseAnomaly/modelA/ds1",
+        "ResponseAnomaly/modelA/ds2",
+    ]
+    assert [item["task_log_path"] for item in data] == [
+        "logs/response_anomaly/modelA/ds1.out",
+        "logs/response_anomaly/modelA/ds2.out",
+    ]
+
+
+def test_task_log_only_captures_response_anomaly_thread(tmp_path):
+    coordinator = ResponseAnomalyCoordinator()
+    handler = coordinator._open_task_log(str(tmp_path), "modelA", "ds")
+    coordinator.logger.info("response anomaly message")
+    other_thread = threading.Thread(
+        target=coordinator.logger.info,
+        args=("unrelated workflow message",),
+    )
+    other_thread.start()
+    other_thread.join()
+    coordinator._close_task_log(handler)
+
+    content = (
+        tmp_path
+        / "logs"
+        / "response_anomaly"
+        / "modelA"
+        / "ds.out"
+    ).read_text(encoding="utf-8")
+    assert "response anomaly message" in content
+    assert "unrelated workflow message" not in content
+
+
 def test_read_jsonl_skips_broken_lines(tmp_path):
     path = tmp_path / "pred.jsonl"
     path.write_text('{"id": 1}\nnot-json\n{"id": 2}\n', encoding="utf-8")
@@ -389,9 +439,87 @@ def test_detect_runs_full_workflow(tmp_path, monkeypatch):
             work_dir / "status_tmp" / ResponseAnomalyCoordinator.STATUS_FILE_NAME
         ).read_text(encoding="utf-8")
     )[0]
+    assert status["task_name"] == "ResponseAnomaly/modelA/ds"
+    assert status["task_log_path"] == (
+        "logs/response_anomaly/modelA/ds.out"
+    )
     assert status["status"] == "finish"
     assert status["finish_count"] == 2
     assert status["total_count"] == 2
+    log_file = work_dir / status["task_log_path"]
+    assert log_file.exists()
+    log_content = log_file.read_text(encoding="utf-8")
+    assert "Task [ResponseAnomaly/modelA/ds]" in log_content
+    assert "Found 2 predictions" in log_content
+    assert "Response anomaly detection completed: {'normal': 2}" in log_content
+
+
+def test_detect_writes_separate_status_and_log_for_each_dataset(
+    tmp_path, monkeypatch
+):
+    for dataset_abbr in ("ds1", "ds2"):
+        prediction_file = (
+            tmp_path
+            / "predictions"
+            / "modelA"
+            / f"{dataset_abbr}.jsonl"
+        )
+        prediction_file.parent.mkdir(parents=True, exist_ok=True)
+        prediction_file.write_text(
+            json.dumps(
+                {
+                    "id": 1,
+                    "uuid": f"{dataset_abbr}-u1",
+                    "response_anomaly_payload": {
+                        "tokens": [1],
+                        "topk_logprobs": [{"1": -0.1}],
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    cfg = {
+        "work_dir": str(tmp_path),
+        "models": [{"abbr": "modelA", "attr": "service"}],
+        "datasets": [{"abbr": "ds1"}, {"abbr": "ds2"}],
+        "response_anomaly": {},
+    }
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator,
+        "_build_detector",
+        lambda cfg: (FakeDetector([False, 0]), None),
+    )
+
+    coordinator._detect(cfg)
+
+    statuses = json.loads(
+        (
+            tmp_path
+            / "status_tmp"
+            / ResponseAnomalyCoordinator.STATUS_FILE_NAME
+        ).read_text(encoding="utf-8")
+    )
+    assert [item["task_name"] for item in statuses] == [
+        "ResponseAnomaly/modelA/ds1",
+        "ResponseAnomaly/modelA/ds2",
+    ]
+    assert all(item["status"] == "finish" for item in statuses)
+    assert all(item["finish_count"] == 1 for item in statuses)
+    for dataset_abbr in ("ds1", "ds2"):
+        log_file = (
+            tmp_path
+            / "logs"
+            / "response_anomaly"
+            / "modelA"
+            / f"{dataset_abbr}.out"
+        )
+        assert log_file.exists()
+        assert (
+            f"Task [ResponseAnomaly/modelA/{dataset_abbr}]"
+            in log_file.read_text(encoding="utf-8")
+        )
 
 
 @pytest.mark.parametrize(

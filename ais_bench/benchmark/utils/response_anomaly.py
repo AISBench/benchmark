@@ -1,6 +1,7 @@
 """Background msProbe response anomaly detection for completed AISBench predictions."""
 
 import json
+import logging
 import os
 import shutil
 import threading
@@ -23,6 +24,15 @@ _ANOMALY_TYPE_NAMES = {
 }
 
 
+class _ThreadLogFilter(logging.Filter):
+    def __init__(self, thread_id: int) -> None:
+        super().__init__()
+        self.thread_id = thread_id
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.thread == self.thread_id
+
+
 class ResponseAnomalyCoordinator:
     """Run response anomaly detection independently from the evaluation stage."""
 
@@ -33,6 +43,8 @@ class ResponseAnomalyCoordinator:
         self.logger = AISLogger()
         self._thread: Optional[threading.Thread] = None
         self._summary: Dict[str, int] = {}
+        self._task_names: List[str] = []
+        self._task_statuses: Dict[str, Dict[str, Any]] = {}
 
     @property
     def is_running(self) -> bool:
@@ -42,10 +54,38 @@ class ResponseAnomalyCoordinator:
     def summary(self) -> Dict[str, int]:
         return dict(self._summary)
 
+    @property
+    def task_names(self) -> List[str]:
+        return list(self._task_names or [self.STATUS_TASK_NAME])
+
+    @classmethod
+    def task_name(cls, model_abbr: str, dataset_abbr: str) -> str:
+        return f"{cls.STATUS_TASK_NAME}/{model_abbr}/{dataset_abbr}"
+
+    @staticmethod
+    def task_log_path(model_abbr: str, dataset_abbr: str) -> str:
+        return (
+            Path("logs")
+            .joinpath("response_anomaly", model_abbr, f"{dataset_abbr}.out")
+            .as_posix()
+        )
+
+    @classmethod
+    def task_names_from_cfg(cls, cfg: Dict[str, Any]) -> List[str]:
+        names = [
+            cls.task_name(model["abbr"], dataset["abbr"])
+            for model in cfg.get("models", [])
+            if model.get("attr", "service") == "service"
+            for dataset in cfg.get("datasets", [])
+        ]
+        return names or [cls.STATUS_TASK_NAME]
+
     def start(self, cfg: Dict[str, Any]) -> None:
         if self.is_running:
             return
         self._summary = {}
+        self._task_names = self.task_names_from_cfg(cfg)
+        self._task_statuses = {}
         self._thread = threading.Thread(
             target=self._detect,
             args=(cfg,),
@@ -58,13 +98,31 @@ class ResponseAnomalyCoordinator:
         if self._thread:
             self._thread.join()
 
+    def _open_task_log(
+        self, work_dir: str, model_abbr: str, dataset_abbr: str
+    ) -> logging.FileHandler:
+        log_file = Path(work_dir) / self.task_log_path(model_abbr, dataset_abbr)
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
+        handler.setFormatter(self.logger.formatter)
+        handler.addFilter(_ThreadLogFilter(threading.get_ident()))
+        self.logger.logger.addHandler(handler)
+        return handler
+
+    def _close_task_log(self, handler: Optional[logging.FileHandler]) -> None:
+        if handler is None:
+            return
+        handler.flush()
+        self.logger.logger.removeHandler(handler)
+        handler.close()
+
     def _detect(self, cfg: Dict[str, Any]) -> None:
         work_dir = cfg["work_dir"]
         status_dir = Path(work_dir) / "status_tmp"
         status_file = status_dir / self.STATUS_FILE_NAME
-        total = 0
-        completed = 0
         counts: Counter[str] = Counter()
+        active_log_handler = None
+        current_task_name = self.STATUS_TASK_NAME
         try:
             # The feature only supports service-model generation chains.
             pairs = [
@@ -83,32 +141,39 @@ class ResponseAnomalyCoordinator:
                 task_groups.append(
                     (model_abbr, dataset_abbr, model_cfg, prediction_file, predictions)
                 )
-                total += len(predictions)
 
-            # Predictions are produced by the inference stage; an empty set
-            # means that stage produced nothing (or its output moved), so warn
-            # instead of silently "finishing" with zero analyzed cases.
-            for model_abbr, dataset_abbr, _, _, predictions in task_groups:
-                if not predictions:
-                    self.logger.warning(
-                        "No predictions found for model '%s' dataset '%s'; "
-                        "response anomaly detection will skip this group.",
-                        model_abbr,
-                        dataset_abbr,
-                    )
-            # With at least one configured group, the per-group warnings above
-            # already cover every empty group; only warn here when no group
-            # was configured at all, so the run does not silently "finish".
+            self._task_names = [
+                self.task_name(model_abbr, dataset_abbr)
+                for model_abbr, dataset_abbr, _, _, _ in task_groups
+            ] or [self.STATUS_TASK_NAME]
+            self._task_statuses = {}
             if not task_groups:
                 self.logger.warning(
                     "Response anomaly detection has no service model/dataset "
                     "groups to analyze under %s.",
                     Path(work_dir) / "predictions",
                 )
+                self._post_status(
+                    status_file,
+                    0,
+                    0,
+                    Counter(),
+                    "response anomaly finished",
+                    "finish",
+                )
+                return
 
-            self._post_status(
-                status_file, completed, total, counts, "response anomaly detecting"
-            )
+            for model_abbr, dataset_abbr, _, _, predictions in task_groups:
+                self._post_status(
+                    status_file,
+                    0,
+                    len(predictions),
+                    Counter(),
+                    "waiting for response anomaly detection",
+                    "start",
+                    self.task_name(model_abbr, dataset_abbr),
+                    self.task_log_path(model_abbr, dataset_abbr),
+                )
 
             model_name_warned = False
             # Cache per-model config and detector so that a model with multiple
@@ -116,35 +181,79 @@ class ResponseAnomalyCoordinator:
             # ILLDetector once (token2category loading is expensive).
             detector_cache: Dict[str, tuple] = {}
             for model_abbr, dataset_abbr, model_cfg, prediction_file, predictions in task_groups:
+                current_task_name = self.task_name(model_abbr, dataset_abbr)
+                task_log_path = self.task_log_path(model_abbr, dataset_abbr)
+                group_total = len(predictions)
+                group_completed = 0
+                group_counts: Counter[str] = Counter()
+                group_start_time = time.perf_counter()
+                active_log_handler = self._open_task_log(
+                    work_dir, model_abbr, dataset_abbr
+                )
+                self.logger.info("Task [%s]", current_task_name)
+                self.logger.info("Found %d predictions", group_total)
+                if not predictions:
+                    self.logger.warning(
+                        "No predictions found for model '%s' dataset '%s'; "
+                        "response anomaly detection will skip this group.",
+                        model_abbr,
+                        dataset_abbr,
+                    )
                 if model_abbr in detector_cache:
                     anomaly_cfg, detector, init_error = detector_cache[model_abbr]
+                    self.logger.info(
+                        "Reuse response anomaly detector for model [%s]",
+                        model_abbr,
+                    )
                 else:
                     anomaly_cfg = self._merge_model_anomaly_config(
                         model_cfg, cfg["response_anomaly"]
                     )
                     try:
+                        self.logger.info(
+                            "Preparing response anomaly config for model [%s]",
+                            model_abbr,
+                        )
                         self._post_status(
                             status_file,
-                            completed,
-                            total,
-                            counts,
+                            group_completed,
+                            group_total,
+                            group_counts,
                             f"preparing response anomaly config for {model_abbr}",
+                            task_name=current_task_name,
+                            task_log_path=task_log_path,
                         )
                         anomaly_cfg = self._prepare_model_config(
                             model_abbr, anomaly_cfg, work_dir
                         )
+                        self.logger.info(
+                            "Loading response anomaly detector for model [%s]",
+                            model_abbr,
+                        )
                         self._post_status(
                             status_file,
-                            completed,
-                            total,
-                            counts,
+                            group_completed,
+                            group_total,
+                            group_counts,
                             f"loading response anomaly detector for {model_abbr}",
+                            task_name=current_task_name,
+                            task_log_path=task_log_path,
                         )
                         detector, init_error = self._build_detector(anomaly_cfg)
                         if detector is not None:
                             self._cache_detector_token_categories(detector)
+                            self.logger.info(
+                                "Response anomaly detector initialized for model [%s]",
+                                model_abbr,
+                            )
+                        elif init_error:
+                            self.logger.warning(
+                                "Response anomaly detector is %s: %s",
+                                init_error[0],
+                                init_error[1],
+                            )
                     except Exception as exc:
-                        self.logger.error(
+                        self.logger.logger.error(
                             "Failed to prepare response anomaly detection for model "
                             "%s: %s",
                             model_abbr,
@@ -166,11 +275,18 @@ class ResponseAnomalyCoordinator:
                     f"{item.get('id')}:{item.get('uuid')}" for item in predictions
                 }
                 inherited = self._load_inherited_results(result_file, prediction_keys)
-                completed += len(inherited)
-                counts.update(
+                inherited_names = [
                     item.get("anomaly_type_name", "unknown")
                     for item in inherited.values()
-                )
+                ]
+                group_completed += len(inherited)
+                group_counts.update(inherited_names)
+                counts.update(inherited_names)
+                if inherited:
+                    self.logger.info(
+                        "Found %d completed response anomaly results in cache",
+                        len(inherited),
+                    )
 
                 if not model_name_warned and not anomaly_cfg.get("model_name"):
                     self.logger.warning(
@@ -265,12 +381,18 @@ class ResponseAnomalyCoordinator:
                     dataset_abbr,
                     source_dir,
                 )
+                self.logger.info(
+                    "Start detecting %d response anomaly payloads",
+                    max(0, group_total - group_completed),
+                )
                 self._post_status(
                     status_file,
-                    completed,
-                    total,
-                    counts,
+                    group_completed,
+                    group_total,
+                    group_counts,
                     f"streaming response anomaly payloads for {dataset_abbr}",
+                    task_name=current_task_name,
+                    task_log_path=task_log_path,
                 )
                 result_batch = {}
                 detected_keys = set(inherited)
@@ -295,7 +417,8 @@ class ResponseAnomalyCoordinator:
                     ):
                         payload_writer.write(payload_record)
                     detected_keys.add(case_key)
-                    completed += 1
+                    group_completed += 1
+                    group_counts[result["anomaly_type_name"]] += 1
                     counts[result["anomaly_type_name"]] += 1
                     now = time.monotonic()
                     if len(result_batch) >= 100:
@@ -304,10 +427,12 @@ class ResponseAnomalyCoordinator:
                     if now - last_status_time >= 1.0:
                         self._post_status(
                             status_file,
-                            completed,
-                            total,
-                            counts,
+                            group_completed,
+                            group_total,
+                            group_counts,
                             "response anomaly detecting",
+                            task_name=current_task_name,
+                            task_log_path=task_log_path,
                         )
                         last_status_time = now
                 if result_batch:
@@ -342,16 +467,19 @@ class ResponseAnomalyCoordinator:
                                 storage_cfg.get("rows_per_shard", 2000),
                             )
                         legacy_writer.write(prediction)
-                    completed += 1
+                    group_completed += 1
+                    group_counts[result["anomaly_type_name"]] += 1
                     counts[result["anomaly_type_name"]] += 1
                 if legacy_writer is not None:
                     legacy_writer.close(write_manifest=False)
                 self._post_status(
                     status_file,
-                    completed,
-                    total,
-                    counts,
+                    group_completed,
+                    group_total,
+                    group_counts,
                     f"finalizing response anomaly payloads for {dataset_abbr}",
+                    task_name=current_task_name,
+                    task_log_path=task_log_path,
                 )
                 if retention == "all":
                     from ais_bench.benchmark.utils.response_anomaly_jsonl import (
@@ -383,26 +511,48 @@ class ResponseAnomalyCoordinator:
                         prediction_file, predictions
                     )
 
+                elapsed = time.perf_counter() - group_start_time
+                self.logger.info(
+                    "Response anomaly detection completed: %s",
+                    dict(group_counts),
+                )
+                self.logger.info(
+                    "Response anomaly task time elapsed: %.2fs", elapsed
+                )
+                self.logger.info("Task state is finish, exit loop")
+                self._post_status(
+                    status_file,
+                    group_completed,
+                    group_total,
+                    group_counts,
+                    "response anomaly finished",
+                    "finish",
+                    current_task_name,
+                    task_log_path,
+                )
+                self._close_task_log(active_log_handler)
+                active_log_handler = None
+
             self._summary = dict(counts)
-            self._post_status(
-                status_file,
-                completed,
-                total,
-                counts,
-                "response anomaly finished",
-                "finish",
-            )
         except Exception as exc:
-            self.logger.error("Response anomaly detection failed: %s", exc)
+            self.logger.logger.error("Response anomaly detection failed: %s", exc)
             self._summary = dict(counts)
-            self._post_status(
-                status_file,
-                completed,
-                total,
-                counts,
-                f"response anomaly failed: {exc}",
-                "error",
-            )
+            for task_name in self.task_names:
+                state = self._task_statuses.get(task_name, {})
+                if state.get("status") in ("finish", "error"):
+                    continue
+                self._post_status(
+                    status_file,
+                    state.get("finish_count", 0),
+                    state.get("total_count", 0),
+                    Counter(state.get("other_kwargs", {})),
+                    f"response anomaly failed: {exc}",
+                    "error",
+                    task_name,
+                    state.get("task_log_path"),
+                )
+        finally:
+            self._close_task_log(active_log_handler)
 
     def _load_inherited_results(
         self, result_file: Path, prediction_keys: Iterable[str]
@@ -657,6 +807,8 @@ class ResponseAnomalyCoordinator:
         counts: Counter[str],
         description: str,
         status: str = "response anomaly",
+        task_name: Optional[str] = None,
+        task_log_path: Optional[str] = None,
     ) -> None:
         """Atomically write the latest status.
 
@@ -664,17 +816,20 @@ class ResponseAnomalyCoordinator:
         writer and TasksMonitor readers never observe partial JSON.
         """
         status_file.parent.mkdir(parents=True, exist_ok=True)
-        payload = [
-            {
-                "task_name": self.STATUS_TASK_NAME,
-                "process_id": os.getpid(),
-                "finish_count": completed,
-                "total_count": total,
-                "progress_description": description,
-                "status": status,
-                "other_kwargs": dict(counts),
-            }
-        ]
+        task_name = task_name or self.STATUS_TASK_NAME
+        state = {
+            "task_name": task_name,
+            "process_id": os.getpid(),
+            "finish_count": completed,
+            "total_count": total,
+            "progress_description": description,
+            "status": status,
+            "other_kwargs": dict(counts),
+        }
+        if task_log_path:
+            state["task_log_path"] = task_log_path
+        self._task_statuses[task_name] = state
+        payload = list(self._task_statuses.values())
         tmp_file = status_file.with_name(status_file.name + ".tmp")
         tmp_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         os.replace(str(tmp_file), str(status_file))
