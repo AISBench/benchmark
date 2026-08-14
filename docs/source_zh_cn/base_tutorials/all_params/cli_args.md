@@ -61,7 +61,6 @@ ais_bench [OPTIONS]
 ```python
 response_anomaly = dict(
 	enabled=True,
-	top_logprobs=20,
 )
 ```
 
@@ -91,7 +90,7 @@ ais_bench-gen-response-anomaly-config \
   --output-dir ./msprobe_configs
 ```
 
-启用后，AISBench 会在服务推理请求中补充 `logprobs=True` 与 `top_logprobs`。推理阶段将完整 payload 直接写入 `response_anomaly/<模型>/payload_staging/<数据集>/*.jsonl.zst`，prediction 从一开始只保存轻量结果。推理结束后，检测线程流式解压 staging 数据并调用 msProbe，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；每个 Case 包含 `is_anomaly`、`anomaly_type`（0：正常，1：生僻字，2：乱码，3：重复，4：NaN Value）和 `detection_status`。检测完成后按 `payload_retention` 保留或清理 staging。状态面板会显示配置准备、检测器加载、流式检测和归档收尾阶段。
+启用后，AISBench 会在服务推理请求中补充 `logprobs=True` 与固定的 `top_logprobs=20`；该值由检测算法约束，不支持外部配置。推理阶段将完整 payload 直接写入 `response_anomaly/<模型>/payload_staging/<数据集>/*.jsonl.zst`，prediction 从一开始只保存轻量结果。推理结束后，检测线程流式解压 staging 数据并调用 msProbe，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；每个 Case 包含 `is_anomaly`、`anomaly_type`（0：正常，1：生僻字，2：乱码，3：重复，4：NaN Value）和 `detection_status`。检测完成后按 `payload_retention` 保留或清理 staging。状态面板会显示配置准备、检测器加载、流式检测和归档收尾阶段。
 
 ```python
 response_anomaly = dict(

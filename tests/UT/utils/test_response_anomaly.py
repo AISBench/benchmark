@@ -160,14 +160,12 @@ def test_merge_model_anomaly_config_prefers_model_level():
         {
             "enabled": True,
             "model_name": "global-name",
-            "top_logprobs": 20,
             "msprobe_mtype_path": None,
         },
     )
 
     assert merged["model_name"] == "Qwen3-30B-A3B"
     assert merged["msprobe_mtype_path"] == "/custom/mtype.json"
-    assert merged["top_logprobs"] == 20
 
 
 def test_prepare_model_config_auto_generates_when_paths_missing(

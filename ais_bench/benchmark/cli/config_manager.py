@@ -12,6 +12,9 @@ from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchC
 from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
 from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
 
+RESPONSE_ANOMALY_TOP_LOGPROBS = 20
+
+
 class CustomConfigChecker:
     MODEL_REQUIRED_FIELDS = ['abbr']
     DATASET_REQUIRED_FIELDS = ['abbr']
@@ -114,7 +117,7 @@ class ConfigManager:
         if isinstance(cli_enabled, bool):
             global_cfg['enabled'] = cli_enabled
         global_cfg.setdefault('enabled', False)
-        global_cfg.setdefault('top_logprobs', 20)
+        configured_top_logprobs = global_cfg.pop('top_logprobs', None)
         global_cfg.setdefault('msprobe_config_path', None)
         global_cfg.setdefault('payload_retention', 'all')
         payload_storage = dict(global_cfg.get('payload_storage') or {})
@@ -126,6 +129,19 @@ class ConfigManager:
         self.cfg['response_anomaly'] = global_cfg
         if not global_cfg['enabled']:
             return
+        if (
+            configured_top_logprobs is not None
+            and (
+                not isinstance(configured_top_logprobs, int)
+                or isinstance(configured_top_logprobs, bool)
+                or configured_top_logprobs != RESPONSE_ANOMALY_TOP_LOGPROBS
+            )
+        ):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                "response_anomaly.top_logprobs is fixed at "
+                f"{RESPONSE_ANOMALY_TOP_LOGPROBS} and cannot be configured.",
+            )
 
         self._validate_response_anomaly_support()
         if global_cfg['payload_retention'] not in ('all', 'anomalies', 'none'):
@@ -197,12 +213,23 @@ class ConfigManager:
 
         for model_cfg in service_models:
             model_anomaly_cfg = dict(model_cfg.get('response_anomaly') or {})
+            configured_top_logprobs = model_anomaly_cfg.pop('top_logprobs', None)
+            if (
+                configured_top_logprobs is not None
+                and (
+                    not isinstance(configured_top_logprobs, int)
+                    or isinstance(configured_top_logprobs, bool)
+                    or configured_top_logprobs != RESPONSE_ANOMALY_TOP_LOGPROBS
+                )
+            ):
+                raise AISBenchConfigError(
+                    TMAN_CODES.UNKNOWN_ERROR,
+                    "response_anomaly.top_logprobs is fixed at "
+                    f"{RESPONSE_ANOMALY_TOP_LOGPROBS} and cannot be configured.",
+                )
             model_anomaly_cfg.setdefault(
                 'model_name',
                 global_cfg.get('model_name') or model_cfg.get('abbr'),
-            )
-            model_anomaly_cfg.setdefault(
-                'top_logprobs', global_cfg['top_logprobs']
             )
             for key in (
                 'model_path',
@@ -222,22 +249,11 @@ class ConfigManager:
                     f"model '{model_cfg.get('abbr', '')}' has invalid "
                     "generation_kwargs; expected a dict.",
                 )
-            top_logprobs = model_anomaly_cfg['top_logprobs']
-            if (
-                not isinstance(top_logprobs, int)
-                or isinstance(top_logprobs, bool)
-                or top_logprobs <= 0
-            ):
-                raise AISBenchConfigError(
-                    TMAN_CODES.UNKNOWN_ERROR,
-                    "response_anomaly.top_logprobs must be a positive "
-                    f"integer, got {top_logprobs!r}.",
-                )
             # Response anomaly detection requires the service to return token
             # ids and top-k logprobs, so these request fields must override
             # model-level generation defaults.
             generation_kwargs['logprobs'] = True
-            generation_kwargs['top_logprobs'] = top_logprobs
+            generation_kwargs['top_logprobs'] = RESPONSE_ANOMALY_TOP_LOGPROBS
             # Consumed by BaseAPIModel and never sent to the service.
             generation_kwargs['response_anomaly_enabled'] = True
 

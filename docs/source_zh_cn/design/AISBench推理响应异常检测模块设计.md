@@ -51,6 +51,8 @@ logprobs=True
 top_logprobs=20
 ```
 
+`top_logprobs` 由检测算法固定为 `20`，不作为外部配置项开放。
+
 服务适配器将上述字段提取为 `response_anomaly_payload`，输出处理器立即将其分流到独立的 ZSTD 压缩 JSONL staging，prediction 不保存完整 payload。检测线程流式解压 staging；服务未提供必要字段时，Case 仍正常评测，但检测结果记录为 `skipped`。
 
 ### 2.3 msProbe 模型配置要求
@@ -150,7 +152,6 @@ sequenceDiagram
 ```python
 response_anomaly = dict(
     enabled=True,
-    top_logprobs=20,
     payload_retention='all',  # all | anomalies | none
     payload_storage=dict(
         format='jsonl',
@@ -178,7 +179,6 @@ models = [
 | 配置项 | 层级 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `enabled` | 全局 | bool | `False` | 是否启动异常检测。 |
-| `top_logprobs` | 全局/模型 | int | `20` | 请求服务返回的每个 token 的 top-k logprobs 数量，模型级可覆盖。 |
 | `payload_retention` | 全局 | str | `all` | `all` 保存全部 payload；`anomalies` 仅保存异常及检测失败/不可用 payload；`none` 不保存 payload。 |
 | `payload_storage.compression_level` | 全局 | int | `3` | ZSTD 压缩级别，范围 1-22。 |
 | `payload_storage.rows_per_shard` | 全局 | int | `2000` | 每个 `.jsonl.zst` 分片的最大 Case 数。 |

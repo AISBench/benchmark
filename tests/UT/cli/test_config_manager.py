@@ -808,7 +808,6 @@ class TestConfigManager(unittest.TestCase):
         self.args.response_anomaly = True
         config_manager = ConfigManager(self.args)
         config_manager.cfg = {
-            'response_anomaly': {'top_logprobs': 30},
             'models': [
                 {
                     'abbr': 'model',
@@ -827,16 +826,16 @@ class TestConfigManager(unittest.TestCase):
 
         generation_kwargs = config_manager.cfg['models'][0]['generation_kwargs']
         self.assertIs(generation_kwargs['logprobs'], True)
-        self.assertEqual(generation_kwargs['top_logprobs'], 30)
+        self.assertEqual(generation_kwargs['top_logprobs'], 20)
         self.assertTrue(generation_kwargs['response_anomaly_enabled'])
 
-    def test_response_anomaly_rejects_non_positive_top_logprobs(self):
-        """top_logprobs 必须为正整数。"""
+    def test_response_anomaly_rejects_configurable_top_logprobs(self):
+        """异常检测使用固定 top_logprobs，不允许外部修改。"""
         self.args.mode = 'all'
         self.args.response_anomaly = True
         config_manager = ConfigManager(self.args)
         config_manager.cfg = {
-            'response_anomaly': {'top_logprobs': 0},
+            'response_anomaly': {'top_logprobs': 30},
             'models': [{'abbr': 'model', 'attr': 'service'}],
             'datasets': [{'abbr': 'dataset'}],
             'cli_args': {},
@@ -851,7 +850,6 @@ class TestConfigManager(unittest.TestCase):
         self.args.response_anomaly = True
         config_manager = ConfigManager(self.args)
         config_manager.cfg = {
-            'response_anomaly': {'top_logprobs': 10},
             'models': [
                 {
                     'abbr': 'model',
@@ -860,7 +858,7 @@ class TestConfigManager(unittest.TestCase):
                     'response_anomaly': {
                         'model_name': 'Custom-Name',
                         'model_path': '/models/custom',
-                        'top_logprobs': 30,
+                        'top_logprobs': 20,
                     },
                 }
             ],
@@ -873,10 +871,10 @@ class TestConfigManager(unittest.TestCase):
         model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
         self.assertEqual(model_anomaly_cfg['model_name'], 'Custom-Name')
         self.assertEqual(model_anomaly_cfg['model_path'], '/models/custom')
-        self.assertEqual(model_anomaly_cfg['top_logprobs'], 30)
+        self.assertNotIn('top_logprobs', model_anomaly_cfg)
         self.assertEqual(
             config_manager.cfg['models'][0]['generation_kwargs']['top_logprobs'],
-            30,
+            20,
         )
 
 if __name__ == '__main__':
