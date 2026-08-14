@@ -119,7 +119,12 @@ class ConfigManager:
         global_cfg.setdefault('enabled', False)
         configured_top_logprobs = global_cfg.pop('top_logprobs', None)
         global_cfg.setdefault('msprobe_config_path', None)
-        global_cfg.setdefault('payload_retention', 'all')
+        cli_payload_retention = getattr(
+            self.args, 'response_anomaly_payload_retention', None
+        )
+        if isinstance(cli_payload_retention, str):
+            global_cfg['payload_retention'] = cli_payload_retention
+        global_cfg.setdefault('payload_retention', 'anomalies')
         payload_storage = dict(global_cfg.get('payload_storage') or {})
         payload_storage.setdefault('format', 'jsonl')
         payload_storage.setdefault('compression', 'zstd')

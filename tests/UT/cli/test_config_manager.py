@@ -174,6 +174,7 @@ class TestConfigManager(unittest.TestCase):
         self.args.custom_dataset_infer_method = None
         self.args.custom_dataset_data_type = None
         self.args.custom_dataset_meta_path = None
+        self.args.response_anomaly_payload_retention = None
 
         # 创建配置目录结构
         os.makedirs(os.path.join(self.args.config_dir, 'models'), exist_ok=True)
@@ -739,7 +740,8 @@ class TestConfigManager(unittest.TestCase):
         self.assertTrue(generation_kwargs['response_anomaly_enabled'])
         self.assertTrue(config_manager.cfg['response_anomaly']['enabled'])
         self.assertEqual(
-            config_manager.cfg['response_anomaly']['payload_retention'], 'all'
+            config_manager.cfg['response_anomaly']['payload_retention'],
+            'anomalies',
         )
         self.assertEqual(
             config_manager.cfg['response_anomaly']['payload_storage'],
@@ -770,6 +772,31 @@ class TestConfigManager(unittest.TestCase):
 
         with self.assertRaises(AISBenchConfigError):
             config_manager._init_response_anomaly_config()
+
+    def test_response_anomaly_cli_payload_retention_overrides_config(self):
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        self.args.response_anomaly_payload_retention = 'none'
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'response_anomaly': {'payload_retention': 'all'},
+            'models': [
+                {
+                    'abbr': 'service-model',
+                    'attr': 'service',
+                    'generation_kwargs': {},
+                }
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        self.assertEqual(
+            config_manager.cfg['response_anomaly']['payload_retention'],
+            'none',
+        )
 
     def test_response_anomaly_rejects_invalid_payload_storage(self):
         self.args.mode = 'all'

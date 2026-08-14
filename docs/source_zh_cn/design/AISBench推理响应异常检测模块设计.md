@@ -152,7 +152,7 @@ sequenceDiagram
 ```python
 response_anomaly = dict(
     enabled=True,
-    payload_retention='all',  # all | anomalies | none
+    payload_retention='anomalies',  # all | anomalies | none
     payload_storage=dict(
         format='jsonl',
         compression='zstd',
@@ -179,7 +179,7 @@ models = [
 | 配置项 | 层级 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `enabled` | 全局 | bool | `False` | 是否启动异常检测。 |
-| `payload_retention` | 全局 | str | `all` | `all` 保存全部 payload；`anomalies` 仅保存异常及检测失败/不可用 payload；`none` 不保存 payload。 |
+| `payload_retention` | 全局 | str | `anomalies` | `all` 保存全部 payload；`anomalies` 仅保存异常及检测失败/不可用 payload；`none` 不保存 payload。 |
 | `payload_storage.compression_level` | 全局 | int | `3` | ZSTD 压缩级别，范围 1-22。 |
 | `payload_storage.rows_per_shard` | 全局 | int | `2000` | 每个 `.jsonl.zst` 分片的最大 Case 数。 |
 | `model_name` | 模型 | str | 模型 `abbr` | msProbe 模型名称，应与其 `mtype_config.json` 及 token 分类映射一致。 |
@@ -194,9 +194,10 @@ models = [
 
 - `--response-anomaly`：强制启用。
 - `--no-response-anomaly`：强制关闭。
+- `--response-anomaly-payload-retention {all,anomalies,none}`：覆盖 payload 保存模式，但不隐式开启异常检测。
 - 未传命令行参数：采用 `response_anomaly.enabled`。
 
-命令行优先级高于总配置。
+命令行优先级高于总配置；未指定 payload 保存模式时默认使用 `anomalies`。
 
 ## 5. 数据与接口设计
 

@@ -36,6 +36,7 @@ ais_bench [OPTIONS]
 | `--max-num-workers`   | 并行任务数，范围 `[1, CPU 核数]`，默认 `1`。在指定`--debug`时配置无效，所有任务串行执行。注意：性能测评场景下，并发数过高可能会导致不同进程出现资源抢占，导致测试结果失真。  | `--max-num-workers 2` |
 |`--num-warmups`|发送请求前预热次数，按照数据集顺序选取数据进行测试，大概num-warmups大于数据集条数时，会循环发送数据集中数据。默认 `1`；若设为0，则不预热。如果warmup阶段所有请求失败，后续推理任务将不会执行。| `--num-warmups 10` |
 | `--response-anomaly` / `--no-response-anomaly` | 开启或关闭 msProbe 推理响应异常检测。命令行配置优先于配置文件中的 `response_anomaly.enabled`。检测在线程中与 Eval 并行运行；需服务返回 token id 与 top-k logprobs。仅支持 `all`、`infer`、`infer_judge` 普通生成链路，不支持性能模式与 Agent 测评模式。 | `--response-anomaly` |
+| `--response-anomaly-payload-retention` | 异常检测完成后的 payload 保存模式：`all` 保存全部，`anomalies` 保存异常及检测失败/不可用 Case，`none` 不保存。命令行配置优先于配置文件，默认 `anomalies`。 | `--response-anomaly-payload-retention anomalies` |
 
 ### 精度测评参数
 仅在模式为 `all、infer、eval` 或 `viz` 时有效。
@@ -95,7 +96,7 @@ ais_bench-gen-response-anomaly-config \
 ```python
 response_anomaly = dict(
     enabled=True,
-    payload_retention='all',  # all | anomalies | none
+    payload_retention='anomalies',  # all | anomalies | none
     payload_storage=dict(
         format='jsonl',
         compression='zstd',

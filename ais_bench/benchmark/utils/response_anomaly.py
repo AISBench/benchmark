@@ -300,7 +300,7 @@ class ResponseAnomalyCoordinator:
                 # once per prediction (mkdir with exist_ok=True is idempotent).
                 result_file.parent.mkdir(parents=True, exist_ok=True)
                 retention = cfg["response_anomaly"].get(
-                    "payload_retention", "all"
+                    "payload_retention", "anomalies"
                 )
                 storage_cfg = cfg["response_anomaly"].get(
                     "payload_storage", {}
