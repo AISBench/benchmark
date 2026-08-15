@@ -78,7 +78,7 @@ models = [
 | `max_out_len` | Int | 推理响应的最大输出长度，实际长度可能受服务端限制。 |
 | `batch_size` | Int | 请求的并发批处理大小。合法范围：(0, 64000] |
 | `trust_remote_code` | Boolean | tokenizer是否信任远程代码，默认False; |
-| `generation_kwargs` | Dict | 推理生成参数配置，依赖具体的服务化后端和接口类型。注意：当前不支持 `best_of` 和 `n` 等多次采样参数，但支持通过`num_return_sequences`参数进行多次独立推理(具体请参考🔗[Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences)中`num_return_sequences`的作用) |
+| `generation_kwargs` | Dict | 推理生成参数配置，依赖具体的服务化后端和接口类型。注意：当前不支持 `best_of` 和 `n` 等多次采样参数，但支持通过`num_return_sequences`参数进行多次独立推理(具体请参考🔗[Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences)中`num_return_sequences`的作用)。支持配置 `logprobs` / `top_logprobs` 参数开启 token 概率信息采集，详见 🔗[Logprobs 采集与分析](../../advanced_tutorials/logprobs_collection.md) |
 | `returns_tool_calls` | Bool | 控制函数调用信息的提取方式。当设置为True时，系统从API响应的`tool_calls`字段中提取函数调用信息；当设置为False时，系统从`content`字段中解析函数调用信息 |
 | `pred_postprocessor` | Dict | 模型输出结果的后处理配置。用于对原始模型输出进行格式化、清理或转换，以满足特定评估任务的要求 |
 
