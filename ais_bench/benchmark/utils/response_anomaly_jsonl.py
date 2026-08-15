@@ -6,7 +6,7 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, Tuple
 
 
 def _load_zstandard():
@@ -158,23 +158,11 @@ class ResponseAnomalyStagingWriter:
 
 def iter_jsonl_zstd_records(directory: Path) -> Iterator[Dict[str, Any]]:
     """Stream records from all completed JSONL.ZST shards in a directory."""
-    zstandard = _load_zstandard()
     for shard in sorted(Path(directory).glob("part-*.jsonl.zst")):
-        with shard.open("rb") as raw_file:
-            with zstandard.ZstdDecompressor().stream_reader(raw_file) as reader:
-                text_reader = io.TextIOWrapper(reader, encoding="utf-8")
-                for line_no, line in enumerate(text_reader, 1):
-                    if not line.strip():
-                        continue
-                    try:
-                        record = json.loads(line)
-                    except json.JSONDecodeError as exc:
-                        raise RuntimeError(
-                            f"Malformed compressed payload {shard}:{line_no}: {exc}"
-                        ) from exc
-                    record["payload_shard"] = shard.name
-                    record["payload_row"] = line_no - 1
-                    yield record
+        for line_no, record in _iter_jsonl_zstd_shard(shard):
+            record["payload_shard"] = shard.name
+            record["payload_row"] = line_no - 1
+            yield record
 
 
 def build_jsonl_zstd_manifest(
@@ -190,7 +178,7 @@ def build_jsonl_zstd_manifest(
         rows = (
             shard_rows[shard.name]
             if shard_rows is not None and shard.name in shard_rows
-            else sum(1 for _ in iter_jsonl_zstd_records_for_shard(shard))
+            else sum(1 for _ in _iter_jsonl_zstd_shard(shard))
         )
         total_rows += rows
         shards.append(
@@ -219,14 +207,22 @@ def build_jsonl_zstd_manifest(
     return manifest
 
 
-def iter_jsonl_zstd_records_for_shard(path: Path) -> Iterator[Dict[str, Any]]:
+def _iter_jsonl_zstd_shard(path: Path) -> Iterator[Tuple[int, Dict[str, Any]]]:
+    """Yield parsed records with line numbers from one compressed shard."""
     zstandard = _load_zstandard()
     with Path(path).open("rb") as raw_file:
         with zstandard.ZstdDecompressor().stream_reader(raw_file) as reader:
             text_reader = io.TextIOWrapper(reader, encoding="utf-8")
-            for line in text_reader:
-                if line.strip():
-                    yield json.loads(line)
+            for line_no, line in enumerate(text_reader, 1):
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(
+                        f"Malformed compressed payload {path}:{line_no}: {exc}"
+                    ) from exc
+                yield line_no, record
 
 
 def _sha256_file(path: Path) -> str:

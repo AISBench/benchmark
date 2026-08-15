@@ -597,6 +597,245 @@ def test_detect_compresses_selected_payloads_and_strips_predictions(
     assert archived_ids == expected_ids
 
 
+def test_detect_noop_resume_keeps_payload_archive_unchanged(
+    tmp_path, monkeypatch
+):
+    import ais_bench.benchmark.utils.response_anomaly as anomaly_module
+    import ais_bench.benchmark.utils.response_anomaly_jsonl as jsonl_module
+
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    prediction_file.parent.mkdir(parents=True)
+    prediction_file.write_text(
+        json.dumps(
+            {
+                "data_abbr": "ds",
+                "id": 1,
+                "uuid": "u1",
+                "prediction": "ok",
+                "response_anomaly_payload": {
+                    "tokens": [1],
+                    "topk_logprobs": [{"1": -0.1}],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cfg = {
+        "work_dir": str(tmp_path),
+        "models": [{"abbr": "modelA", "attr": "service"}],
+        "datasets": [{"abbr": "ds"}],
+        "response_anomaly": {"payload_retention": "all"},
+    }
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    coordinator._detect(cfg)
+
+    payload_dir = tmp_path / "response_anomaly" / "modelA" / "payload" / "ds"
+    archive_before = {
+        path.name: path.read_bytes() for path in payload_dir.iterdir()
+    }
+
+    def unexpected_copy(*args, **kwargs):
+        raise AssertionError("no-op resume must not copy the payload archive")
+
+    def unexpected_decode(path):
+        raise AssertionError("no-op resume must not decode payload shards")
+
+    monkeypatch.setattr(anomaly_module.shutil, "copytree", unexpected_copy)
+    monkeypatch.setattr(anomaly_module.shutil, "copy2", unexpected_copy)
+    monkeypatch.setattr(
+        jsonl_module, "_iter_jsonl_zstd_shard", unexpected_decode
+    )
+
+    resumed = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        resumed, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    resumed._detect(cfg)
+
+    assert resumed.summary == {"normal": 1}
+    assert archive_before == {
+        path.name: path.read_bytes() for path in payload_dir.iterdir()
+    }
+
+
+def test_detect_legacy_payload_uses_writer_row_counts(tmp_path, monkeypatch):
+    import ais_bench.benchmark.utils.response_anomaly_jsonl as jsonl_module
+
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    prediction_file.parent.mkdir(parents=True)
+    prediction_file.write_text(
+        json.dumps(
+            {
+                "data_abbr": "ds",
+                "id": 1,
+                "uuid": "u1",
+                "response_anomaly_payload": {
+                    "tokens": [1],
+                    "topk_logprobs": [{"1": -0.1}],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cfg = {
+        "work_dir": str(tmp_path),
+        "models": [{"abbr": "modelA", "attr": "service"}],
+        "datasets": [{"abbr": "ds"}],
+        "response_anomaly": {"payload_retention": "all"},
+    }
+
+    def unexpected_decode(path):
+        raise AssertionError("new legacy shards already have writer row counts")
+
+    monkeypatch.setattr(
+        jsonl_module, "_iter_jsonl_zstd_shard", unexpected_decode
+    )
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+
+    coordinator._detect(cfg)
+
+    manifest = json.loads(
+        (
+            tmp_path
+            / "response_anomaly"
+            / "modelA"
+            / "payload"
+            / "ds"
+            / "payload_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["total_rows"] == 1
+
+
+def test_detect_cleans_payload_build_directory_after_failure(
+    tmp_path, monkeypatch
+):
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    prediction_file.parent.mkdir(parents=True)
+    prediction_file.write_text(
+        json.dumps(
+            {
+                "data_abbr": "ds",
+                "id": 2,
+                "uuid": "u2",
+                "response_anomaly_payload": {
+                    "tokens": [2],
+                    "topk_logprobs": [{"2": -0.1}],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cfg = {
+        "work_dir": str(tmp_path),
+        "models": [{"abbr": "modelA", "attr": "service"}],
+        "datasets": [{"abbr": "ds"}],
+        "response_anomaly": {"payload_retention": "anomalies"},
+    }
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    original_post_status = coordinator._post_status
+
+    def fail_during_finalization(*args, **kwargs):
+        if len(args) > 4 and str(args[4]).startswith("finalizing"):
+            raise RuntimeError("injected finalization failure")
+        return original_post_status(*args, **kwargs)
+
+    monkeypatch.setattr(coordinator, "_post_status", fail_during_finalization)
+
+    coordinator._detect(cfg)
+
+    payload_parent = tmp_path / "response_anomaly" / "modelA" / "payload"
+    assert not list(payload_parent.glob(".ds.payload-build-*"))
+
+
+def test_cleanup_stale_payload_build_directories(tmp_path):
+    payload_dir = tmp_path / "payload" / "ds"
+    payload_dir.parent.mkdir(parents=True)
+    stale = payload_dir.parent / ".ds.payload-build-deadbeef"
+    unrelated = payload_dir.parent / ".other.payload-build-deadbeef"
+    stale.mkdir()
+    unrelated.mkdir()
+
+    ResponseAnomalyCoordinator()._cleanup_stale_payload_build_dirs(payload_dir)
+
+    assert not stale.exists()
+    assert unrelated.exists()
+
+
+def test_cleanup_stale_payload_build_failure_warns_and_continues(
+    tmp_path, monkeypatch
+):
+    payload_dir = tmp_path / "payload" / "ds"
+    payload_dir.parent.mkdir(parents=True)
+    stale = payload_dir.parent / ".ds.payload-build-deadbeef"
+    stale.mkdir()
+    warnings = []
+    coordinator = ResponseAnomalyCoordinator()
+
+    def fail_rmtree(path, *args, **kwargs):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(
+        "ais_bench.benchmark.utils.response_anomaly.shutil.rmtree",
+        fail_rmtree,
+    )
+    monkeypatch.setattr(
+        coordinator.logger,
+        "warning",
+        lambda message, *args: warnings.append(message % args),
+    )
+
+    coordinator._cleanup_stale_payload_build_dirs(payload_dir)
+
+    assert stale.exists()
+    assert any(str(stale) in warning for warning in warnings)
+
+
+def test_seed_payload_directory_falls_back_to_copy(tmp_path, monkeypatch):
+    source_dir = tmp_path / "source"
+    destination_dir = tmp_path / "destination"
+    source_dir.mkdir()
+    shard = source_dir / "part-00000.jsonl.zst"
+    shard.write_bytes(b"payload")
+    (source_dir / "payload_manifest.json").write_text(
+        '{"total_rows": 1}', encoding="utf-8"
+    )
+
+    def fail_link(*args):
+        raise OSError("unsupported")
+
+    monkeypatch.setattr(
+        "ais_bench.benchmark.utils.response_anomaly.os.link",
+        fail_link,
+    )
+
+    ResponseAnomalyCoordinator._seed_payload_directory(
+        source_dir, destination_dir, include_manifest=True
+    )
+
+    assert (destination_dir / shard.name).read_bytes() == b"payload"
+    assert json.loads(
+        (destination_dir / "payload_manifest.json").read_text(encoding="utf-8")
+    ) == {"total_rows": 1}
+
+    ResponseAnomalyCoordinator._seed_payload_directory(
+        source_dir, destination_dir
+    )
+    assert not (destination_dir / "payload_manifest.json").exists()
+
+
 def test_detect_warns_when_no_predictions_found(tmp_path, monkeypatch):
     """没有任何预测样本时应告警而不是静默完成。"""
     warnings = []

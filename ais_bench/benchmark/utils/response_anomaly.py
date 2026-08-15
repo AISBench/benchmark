@@ -122,6 +122,8 @@ class ResponseAnomalyCoordinator:
         status_file = status_dir / self.STATUS_FILE_NAME
         counts: Counter[str] = Counter()
         active_log_handler = None
+        active_payload_build_dir: Optional[Path] = None
+        active_payload_writers = []
         current_task_name = self.STATUS_TASK_NAME
         try:
             # The feature only supports service-model generation chains.
@@ -322,6 +324,8 @@ class ResponseAnomalyCoordinator:
                 staging_dir = payload_dir.with_name(
                     f".{dataset_abbr}.payload-build-{uuid.uuid4().hex[:8]}"
                 )
+                self._cleanup_stale_payload_build_dirs(payload_dir)
+                active_payload_build_dir = staging_dir
                 payload_writer = None
                 if payload_dir.exists():
                     old_manifest_path = payload_dir / "payload_manifest.json"
@@ -342,26 +346,34 @@ class ResponseAnomalyCoordinator:
                             "while reusing an existing payload archive. Use a "
                             "new work directory."
                         )
-                    if retention == "all":
-                        source_dir.parent.mkdir(parents=True, exist_ok=True)
-                        if source_dir.exists():
-                            for item in payload_dir.glob("part-*.jsonl.zst"):
-                                shutil.copy2(
-                                    item,
-                                    source_dir / item.name,
-                                )
-                        else:
-                            shutil.copytree(payload_dir, source_dir)
-                        old_source_manifest = source_dir / "payload_manifest.json"
-                        if old_source_manifest.exists():
-                            old_source_manifest.unlink()
-                if retention == "anomalies":
+                pending_keys = prediction_keys.difference(inherited)
+                archive_is_current = (
+                    not pending_keys
+                    and not source_dir.exists()
+                    and (
+                        payload_dir.exists()
+                        if retention != "none"
+                        else not payload_dir.exists()
+                    )
+                )
+                if archive_is_current:
+                    self.logger.info(
+                        "No new response anomaly payloads for %s/%s; "
+                        "keeping the existing payload archive unchanged",
+                        model_abbr,
+                        dataset_abbr,
+                    )
+                elif payload_dir.exists() and retention == "all":
+                    self._seed_payload_directory(payload_dir, source_dir)
+                if retention == "anomalies" and not archive_is_current:
                     from ais_bench.benchmark.utils.response_anomaly_jsonl import (
                         ResponseAnomalyJsonlWriter,
                     )
 
                     if payload_dir.exists():
-                        shutil.copytree(payload_dir, staging_dir)
+                        self._seed_payload_directory(
+                            payload_dir, staging_dir, include_manifest=True
+                        )
                     payload_writer = ResponseAnomalyJsonlWriter(
                         staging_dir,
                         compression_level=storage_cfg.get(
@@ -371,6 +383,7 @@ class ResponseAnomalyCoordinator:
                             "rows_per_shard", 2000
                         ),
                     )
+                    active_payload_writers.append(payload_writer)
                 from ais_bench.benchmark.utils.response_anomaly_jsonl import (
                     iter_jsonl_zstd_records,
                 )
@@ -466,12 +479,20 @@ class ResponseAnomalyCoordinator:
                                 storage_cfg.get("compression_level", 3),
                                 storage_cfg.get("rows_per_shard", 2000),
                             )
+                            active_payload_writers.append(legacy_writer)
                         legacy_writer.write(prediction)
                     group_completed += 1
                     group_counts[result["anomaly_type_name"]] += 1
                     counts[result["anomaly_type_name"]] += 1
                 if legacy_writer is not None:
-                    legacy_writer.close(write_manifest=False)
+                    legacy_manifest = legacy_writer.close(write_manifest=False)
+                    active_payload_writers.remove(legacy_writer)
+                    shard_rows.update(
+                        {
+                            shard["file"]: shard["rows"]
+                            for shard in legacy_manifest["shards"]
+                        }
+                    )
                 self._post_status(
                     status_file,
                     group_completed,
@@ -481,7 +502,9 @@ class ResponseAnomalyCoordinator:
                     task_name=current_task_name,
                     task_log_path=task_log_path,
                 )
-                if retention == "all":
+                if archive_is_current:
+                    pass
+                elif retention == "all":
                     from ais_bench.benchmark.utils.response_anomaly_jsonl import (
                         build_jsonl_zstd_manifest,
                     )
@@ -495,6 +518,7 @@ class ResponseAnomalyCoordinator:
                     self._replace_payload_archive(source_dir, payload_dir)
                 elif payload_writer is not None:
                     manifest = payload_writer.close(retention)
+                    active_payload_writers.remove(payload_writer)
                     if manifest["total_rows"] or not payload_dir.exists():
                         self._replace_payload_archive(staging_dir, payload_dir)
                     else:
@@ -503,6 +527,7 @@ class ResponseAnomalyCoordinator:
                     shutil.rmtree(payload_dir)
                 if source_dir.exists():
                     shutil.rmtree(source_dir)
+                active_payload_build_dir = None
                 if any(
                     "response_anomaly_payload" in prediction
                     for prediction in predictions
@@ -552,6 +577,19 @@ class ResponseAnomalyCoordinator:
                     state.get("task_log_path"),
                 )
         finally:
+            for writer in active_payload_writers:
+                try:
+                    writer.close(write_manifest=False)
+                except Exception as exc:
+                    self.logger.warning(
+                        "Failed to close response anomaly payload writer: %s",
+                        exc,
+                    )
+            if (
+                active_payload_build_dir is not None
+                and active_payload_build_dir.exists()
+            ):
+                self._remove_payload_build_dir(active_payload_build_dir)
             self._close_task_log(active_log_handler)
 
     def _load_inherited_results(
@@ -602,6 +640,53 @@ class ResponseAnomalyCoordinator:
             raise
         if backup_dir.exists():
             shutil.rmtree(backup_dir)
+
+    def _cleanup_stale_payload_build_dirs(self, payload_dir: Path) -> None:
+        """Remove unpublished payload archives left by interrupted detection."""
+        parent = payload_dir.parent
+        if not parent.exists():
+            return
+        prefix = f".{payload_dir.name}.payload-build-"
+        for candidate in parent.iterdir():
+            if candidate.is_dir() and candidate.name.startswith(prefix):
+                self._remove_payload_build_dir(candidate)
+
+    def _remove_payload_build_dir(self, directory: Path) -> None:
+        try:
+            shutil.rmtree(directory)
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            self.logger.warning(
+                "Failed to clean response anomaly payload build directory %s: %s",
+                directory,
+                exc,
+            )
+
+    @staticmethod
+    def _seed_payload_directory(
+        source_dir: Path,
+        destination_dir: Path,
+        include_manifest: bool = False,
+    ) -> None:
+        """Seed a payload build with hard links, falling back to copies."""
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        for source in source_dir.glob("part-*.jsonl.zst"):
+            destination = destination_dir / source.name
+            if destination.exists():
+                destination.unlink()
+            try:
+                os.link(source, destination)
+            except OSError:
+                shutil.copy2(source, destination)
+        destination_manifest = destination_dir / "payload_manifest.json"
+        if include_manifest:
+            shutil.copy2(
+                source_dir / "payload_manifest.json",
+                destination_manifest,
+            )
+        elif destination_manifest.exists():
+            destination_manifest.unlink()
 
     @staticmethod
     def _strip_payloads_from_predictions(
