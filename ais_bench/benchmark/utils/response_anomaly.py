@@ -369,14 +369,14 @@ class ResponseAnomalyCoordinator:
                     iter_jsonl_zstd_records,
                 )
 
-                archived_payload_keys = set()
+                retained_payload_keys = set()
                 if retention == "anomalies" and not archive_is_current:
                     from ais_bench.benchmark.utils.response_anomaly_jsonl import (
                         ResponseAnomalyJsonlWriter,
                     )
 
                     if payload_dir.exists():
-                        archived_payload_keys = {
+                        retained_payload_keys = {
                             f"{record.get('id')}:{record.get('uuid')}"
                             for record in iter_jsonl_zstd_records(payload_dir)
                         }
@@ -423,6 +423,8 @@ class ResponseAnomalyCoordinator:
                         f"{payload_record.get('id')}:"
                         f"{payload_record.get('uuid')}"
                     )
+                    if retention == "all":
+                        retained_payload_keys.add(case_key)
                     if case_key not in prediction_keys:
                         continue
                     if case_key in inherited:
@@ -432,7 +434,7 @@ class ResponseAnomalyCoordinator:
                             inherited[case_key],
                             payload_record,
                             case_key,
-                            archived_payload_keys,
+                            retained_payload_keys,
                         )
                         continue
                     if case_key in detected_keys:
@@ -440,8 +442,6 @@ class ResponseAnomalyCoordinator:
                     result = self._detect_case(
                         payload_record, anomaly_cfg, detector, init_error
                     )
-                    result["payload_shard"] = payload_record["payload_shard"]
-                    result["payload_row"] = payload_record["payload_row"]
                     result_batch[case_key] = result
                     self._write_retained_payload(
                         payload_writer,
@@ -449,7 +449,7 @@ class ResponseAnomalyCoordinator:
                         result,
                         payload_record,
                         case_key,
-                        archived_payload_keys,
+                        retained_payload_keys,
                     )
                     detected_keys.add(case_key)
                     group_completed += 1
@@ -492,10 +492,12 @@ class ResponseAnomalyCoordinator:
                         result,
                         prediction,
                         case_key,
-                        archived_payload_keys,
+                        retained_payload_keys,
                     )
                     if (
                         retention == "all"
+                        and not archive_is_current
+                        and case_key not in retained_payload_keys
                         and isinstance(
                             prediction.get("response_anomaly_payload"), dict
                         )
@@ -512,6 +514,7 @@ class ResponseAnomalyCoordinator:
                             )
                             active_payload_writers.append(legacy_writer)
                         legacy_writer.write(prediction)
+                        retained_payload_keys.add(case_key)
                     if is_inherited:
                         continue
                     group_completed += 1
@@ -665,17 +668,17 @@ class ResponseAnomalyCoordinator:
         result: Dict[str, Any],
         record: Dict[str, Any],
         case_key: str,
-        archived_payload_keys: set,
+        retained_payload_keys: set,
     ) -> None:
         if (
             payload_writer is None
-            or case_key in archived_payload_keys
+            or case_key in retained_payload_keys
             or not isinstance(record.get("response_anomaly_payload"), dict)
             or not cls._should_retain_payload(retention, result)
         ):
             return
         payload_writer.write(record)
-        archived_payload_keys.add(case_key)
+        retained_payload_keys.add(case_key)
 
     @staticmethod
     def _replace_payload_archive(staging_dir: Path, payload_dir: Path) -> None:

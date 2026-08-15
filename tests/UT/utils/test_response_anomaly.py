@@ -789,6 +789,87 @@ def test_resume_preserves_inherited_legacy_payload_in_all_mode(
     ] == [2]
 
 
+def test_all_mode_deduplicates_seeded_and_inline_payloads(
+    tmp_path, monkeypatch
+):
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    inherited_prediction = _payload_record(1)
+    inherited_prediction["prediction"] = "old"
+    _write_jsonl(
+        prediction_file,
+        [
+            inherited_prediction,
+            {"data_abbr": "ds", "id": 2, "uuid": "u2", "prediction": "new"},
+        ],
+    )
+    result_file = tmp_path / "response_anomaly" / "modelA" / "ds.jsonl"
+    _write_jsonl(result_file, [_completed_anomaly_result(1)])
+    payload_dir = tmp_path / "response_anomaly" / "modelA" / "payload" / "ds"
+    archive_writer = ResponseAnomalyJsonlWriter(payload_dir, 3, 10)
+    archive_writer.write(_payload_record(1))
+    archive_writer.close("all")
+    source_dir = (
+        tmp_path
+        / "response_anomaly"
+        / "modelA"
+        / "payload_staging"
+        / "ds"
+    )
+    source_writer = ResponseAnomalyJsonlWriter(source_dir, 3, 10)
+    source_writer.write(_payload_record(2))
+    source_writer.close(write_manifest=False)
+    cfg = _anomaly_cfg(tmp_path)
+    cfg["response_anomaly"]["payload_retention"] = "all"
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+
+    coordinator._detect(cfg)
+
+    archived_ids = [
+        record["id"] for record in iter_jsonl_zstd_records(payload_dir)
+    ]
+    manifest = json.loads(
+        (payload_dir / "payload_manifest.json").read_text(encoding="utf-8")
+    )
+    assert sorted(archived_ids) == [1, 2]
+    assert len(archived_ids) == len(set(archived_ids))
+    assert manifest["total_rows"] == 2
+
+
+def test_detection_results_do_not_reference_transient_payload_locations(
+    tmp_path, monkeypatch
+):
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    _write_jsonl(
+        prediction_file,
+        [{"data_abbr": "ds", "id": 2, "uuid": "u2"}],
+    )
+    source_dir = (
+        tmp_path
+        / "response_anomaly"
+        / "modelA"
+        / "payload_staging"
+        / "ds"
+    )
+    source_writer = ResponseAnomalyJsonlWriter(source_dir, 3, 10)
+    source_writer.write(_payload_record(2))
+    source_writer.close(write_manifest=False)
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    coordinator._detect(_anomaly_cfg(tmp_path))
+
+    result_file = tmp_path / "response_anomaly" / "modelA" / "ds.jsonl"
+    result = json.loads(result_file.read_text(encoding="utf-8"))
+    assert "payload_shard" not in result
+    assert "payload_row" not in result
+
+
 def test_detect_noop_resume_keeps_payload_archive_unchanged(
     tmp_path, monkeypatch
 ):
