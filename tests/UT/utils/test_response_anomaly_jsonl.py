@@ -1,6 +1,8 @@
 import json
 
-import zstandard
+import pytest
+
+zstandard = pytest.importorskip("zstandard")
 
 from ais_bench.benchmark.utils.response_anomaly_jsonl import (
     ResponseAnomalyJsonlWriter,

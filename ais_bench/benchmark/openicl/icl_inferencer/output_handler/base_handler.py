@@ -164,8 +164,8 @@ class BaseInferencerOutputHandler:
 
         file_path = Path(save_dir)
         try:
-            if self._response_anomaly_staging_error is not None:
-                raise self._response_anomaly_staging_error
+            # Response anomaly payload staging is an auxiliary feature: a
+            # previous staging failure must not abort prediction writing.
             # Ensure directory exists
             Path(save_dir).mkdir(parents=True, exist_ok=True)
 
@@ -497,6 +497,11 @@ class BaseInferencerOutputHandler:
         payload = json_data.get("response_anomaly_payload")
         if not runtime or not isinstance(payload, dict):
             return
+        if self._response_anomaly_staging_error is not None:
+            # Staging already failed; keep the payload inline in predictions
+            # and stop retrying so the auxiliary feature never aborts the
+            # inference/eval pipeline.
+            return
         from ais_bench.benchmark.utils.response_anomaly_jsonl import (
             ResponseAnomalyStagingWriter,
         )
@@ -508,8 +513,13 @@ class BaseInferencerOutputHandler:
         try:
             self._response_anomaly_staging_writer.write(json_data)
         except Exception as exc:
+            self._response_anomaly_staging_writer = None
             self._response_anomaly_staging_error = exc
-            raise
+            self.logger.warning(
+                "Response anomaly payload staging failed and is disabled; "
+                "payloads will stay inline in predictions: %s", exc
+            )
+            return
         json_data.pop("response_anomaly_payload", None)
 
     def _close_response_anomaly_staging_writer(self) -> None:
@@ -522,4 +532,8 @@ class BaseInferencerOutputHandler:
                 writer.close()
             except Exception as exc:
                 self._response_anomaly_staging_error = exc
+                self.logger.warning(
+                    "Failed to finalize response anomaly payload staging: %s",
+                    exc,
+                )
                 raise

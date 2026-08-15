@@ -6,6 +6,8 @@ from collections import Counter
 
 import pytest
 
+pytest.importorskip("zstandard")
+
 from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
 from ais_bench.benchmark.utils.response_anomaly_jsonl import (
     ResponseAnomalyJsonlWriter,
