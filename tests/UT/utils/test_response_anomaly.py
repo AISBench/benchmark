@@ -7,6 +7,10 @@ from collections import Counter
 import pytest
 
 from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
+from ais_bench.benchmark.utils.response_anomaly_jsonl import (
+    ResponseAnomalyJsonlWriter,
+    iter_jsonl_zstd_records,
+)
 
 
 class FakeDetector:
@@ -20,6 +24,46 @@ class FakeDetector:
 class TokenDetector:
     def run(self, topk_logprobs, tokens, model_configs):
         return [[tokens[0][0] == 2, 1 if tokens[0][0] == 2 else 0]]
+
+
+def _payload_record(case_id):
+    return {
+        "data_abbr": "ds",
+        "id": case_id,
+        "uuid": f"u{case_id}",
+        "response_anomaly_payload": {
+            "tokens": [case_id],
+            "topk_logprobs": [{str(case_id): -0.1}],
+        },
+    }
+
+
+def _completed_anomaly_result(case_id):
+    return {
+        "id": case_id,
+        "uuid": f"u{case_id}",
+        "is_anomaly": True,
+        "anomaly_type": 2,
+        "anomaly_type_name": "garbled",
+        "detection_status": "completed",
+    }
+
+
+def _write_jsonl(path, records):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(record) + "\n" for record in records),
+        encoding="utf-8",
+    )
+
+
+def _anomaly_cfg(tmp_path):
+    return {
+        "work_dir": str(tmp_path),
+        "models": [{"abbr": "modelA", "attr": "service"}],
+        "datasets": [{"abbr": "ds"}],
+        "response_anomaly": {"payload_retention": "anomalies"},
+    }
 
 
 def test_detect_case_calls_msprobe_detector():
@@ -595,6 +639,154 @@ def test_detect_compresses_selected_payloads_and_strips_predictions(
                 for line in reader.read().decode("utf-8").splitlines()
             )
     assert archived_ids == expected_ids
+
+
+def test_resume_backfills_inherited_anomaly_without_published_archive(
+    tmp_path, monkeypatch
+):
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    _write_jsonl(
+        prediction_file,
+        [{"data_abbr": "ds", "id": 2, "uuid": "u2", "prediction": "ok"}],
+    )
+    result_file = tmp_path / "response_anomaly" / "modelA" / "ds.jsonl"
+    _write_jsonl(result_file, [_completed_anomaly_result(2)])
+    source_dir = (
+        tmp_path
+        / "response_anomaly"
+        / "modelA"
+        / "payload_staging"
+        / "ds"
+    )
+    source_writer = ResponseAnomalyJsonlWriter(source_dir, 3, 10)
+    source_writer.write(_payload_record(2))
+    source_writer.close(write_manifest=False)
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_detect_case",
+        lambda *args: pytest.fail("inherited cases must not be detected again"),
+    )
+
+    coordinator._detect(_anomaly_cfg(tmp_path))
+
+    payload_dir = tmp_path / "response_anomaly" / "modelA" / "payload" / "ds"
+    assert [
+        record["id"] for record in iter_jsonl_zstd_records(payload_dir)
+    ] == [2]
+
+
+def test_resume_backfills_only_inherited_payloads_missing_from_archive(
+    tmp_path, monkeypatch
+):
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    _write_jsonl(
+        prediction_file,
+        [
+            {"data_abbr": "ds", "id": 1, "uuid": "u1"},
+            {"data_abbr": "ds", "id": 2, "uuid": "u2"},
+        ],
+    )
+    result_file = tmp_path / "response_anomaly" / "modelA" / "ds.jsonl"
+    _write_jsonl(
+        result_file,
+        [_completed_anomaly_result(1), _completed_anomaly_result(2)],
+    )
+    payload_dir = tmp_path / "response_anomaly" / "modelA" / "payload" / "ds"
+    archive_writer = ResponseAnomalyJsonlWriter(payload_dir, 3, 10)
+    archive_writer.write(_payload_record(1))
+    archive_writer.close("anomalies")
+    source_dir = (
+        tmp_path
+        / "response_anomaly"
+        / "modelA"
+        / "payload_staging"
+        / "ds"
+    )
+    source_writer = ResponseAnomalyJsonlWriter(source_dir, 3, 10)
+    source_writer.write(_payload_record(1))
+    source_writer.write(_payload_record(2))
+    source_writer.close(write_manifest=False)
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_detect_case",
+        lambda *args: pytest.fail("inherited cases must not be detected again"),
+    )
+
+    coordinator._detect(_anomaly_cfg(tmp_path))
+
+    archived_ids = [
+        record["id"] for record in iter_jsonl_zstd_records(payload_dir)
+    ]
+    assert sorted(archived_ids) == [1, 2]
+    assert len(archived_ids) == len(set(archived_ids))
+
+
+def test_resume_backfills_inherited_legacy_prediction_payload(
+    tmp_path, monkeypatch
+):
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    prediction = _payload_record(2)
+    prediction["prediction"] = "ok"
+    _write_jsonl(prediction_file, [prediction])
+    result_file = tmp_path / "response_anomaly" / "modelA" / "ds.jsonl"
+    _write_jsonl(result_file, [_completed_anomaly_result(2)])
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_detect_case",
+        lambda *args: pytest.fail("inherited cases must not be detected again"),
+    )
+
+    coordinator._detect(_anomaly_cfg(tmp_path))
+
+    payload_dir = tmp_path / "response_anomaly" / "modelA" / "payload" / "ds"
+    assert [
+        record["id"] for record in iter_jsonl_zstd_records(payload_dir)
+    ] == [2]
+
+
+def test_resume_preserves_inherited_legacy_payload_in_all_mode(
+    tmp_path, monkeypatch
+):
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    prediction = _payload_record(2)
+    prediction["prediction"] = "ok"
+    _write_jsonl(prediction_file, [prediction])
+    result_file = tmp_path / "response_anomaly" / "modelA" / "ds.jsonl"
+    _write_jsonl(result_file, [_completed_anomaly_result(2)])
+    cfg = _anomaly_cfg(tmp_path)
+    cfg["response_anomaly"]["payload_retention"] = "all"
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_detect_case",
+        lambda *args: pytest.fail("inherited cases must not be detected again"),
+    )
+
+    coordinator._detect(cfg)
+
+    payload_dir = tmp_path / "response_anomaly" / "modelA" / "payload" / "ds"
+    assert [
+        record["id"] for record in iter_jsonl_zstd_records(payload_dir)
+    ] == [2]
 
 
 def test_detect_noop_resume_keeps_payload_archive_unchanged(
