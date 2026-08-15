@@ -51,6 +51,12 @@ models = [
         generation_kwargs = dict(   # 模型推理参数，参考VLLM文档配置，AISBench评测工具不做处理，在发送的请求中附带
             temperature = 0.01,
             ignore_eos=False,
+        ),
+        response_anomaly = dict(    # 可选，msProbe 推理响应异常检测的模型级配置
+            model_name='Qwen3-30B-A3B',       # 与 msProbe 的 mtype_config.json 中名称一致
+            model_path='/home/Qwen3-30B-A3B', # 本地模型目录，可选，用于自动生成配置
+            msprobe_mtype_path='/path/to/mtype_config.json',
+            msprobe_token2category_dir='/path/to/token2category/',
         )
     )
 ]
@@ -81,11 +87,13 @@ models = [
 | `generation_kwargs` | Dict | 推理生成参数配置，依赖具体的服务化后端和接口类型。注意：当前不支持 `best_of` 和 `n` 等多次采样参数，但支持通过`num_return_sequences`参数进行多次独立推理(具体请参考🔗[Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences)中`num_return_sequences`的作用) |
 | `returns_tool_calls` | Bool | 控制函数调用信息的提取方式。当设置为True时，系统从API响应的`tool_calls`字段中提取函数调用信息；当设置为False时，系统从`content`字段中解析函数调用信息 |
 | `pred_postprocessor` | Dict | 模型输出结果的后处理配置。用于对原始模型输出进行格式化、清理或转换，以满足特定评估任务的要求 |
+| `response_anomaly` | Dict | 可选，msProbe 推理响应异常检测的模型级配置，包含 `model_name`（与 msProbe 的 mtype_config.json 名称一致）、`model_path`（本地模型目录，用于自动生成配置，可选）、`msprobe_mtype_path`、`msprobe_token2category_dir`。未提供 mtype/token 分类路径时回退到 msProbe 包内默认文件 |
 
 **注意事项：**
 - `request_rate` 受硬件性能影响，可通过增加  📚 [WORKERS_NUM](./cli_args.md#配置常量文件参数) 提高并发能力。
 - `request_rate` 功能可能被`traffic_cfg`项覆盖，具体原因请参考 🔗 [请求速率(RPS)分布控制及可视化说明中的参数解读章节](../../advanced_tutorials/rps_distribution.md#参数解读)。
 - 当数据集含 timestamp 且模型配置中 **use_timestamp** 为 True 时，请求按 timestamp 发送，**request_rate** 与 **traffic_cfg** 将被忽略。
+- 使用响应异常检测（`response_anomaly`）时，服务端必须返回 token id 与 top-k logprobs；启用检测后 AISBench 会自动在推理请求中补充 `logprobs=True` 与固定的 `top_logprobs=20`，服务响应缺少这些字段的 Case 检测结果标记为 `skipped`。详细配置请参考 [推理响应异常检测配置](./cli_args.md#推理响应异常检测配置)。
 - `batch_size` 设置过大可能导致 CPU 占用过高，请根据硬件条件合理配置。
 - 服务化推理评测 API 默认使用的服务地址为 `localhost:8080`。实际使用时需根据实际部署修改为服务化后端的 IP 和端口。
 - 当使用 IPv6 字面量（如 `::1`、`2001:db8::1`）作为 `host_ip` 时，工具会在生成的访问 URL 中自动为其添加方括号（例如 `http://[2001:db8::1]:8080/`），无需在配置中手动编写方括号。
