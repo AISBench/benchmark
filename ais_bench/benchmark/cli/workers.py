@@ -133,7 +133,7 @@ class Infer(BaseWorker):
             logger.info("Merging datasets with the same model and inferencer...")
             tasks = self._merge_datasets(tasks)
 
-spec_ctx = self._spec_decode_before_snapshot(cfg)
+        spec_ctx = self._spec_decode_before_snapshot(cfg)
 
         if cfg.get('response_anomaly', {}).get('enabled', False):
             # Remove a stale status left by a previous interrupted run so the
