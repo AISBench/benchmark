@@ -16,11 +16,12 @@ class StablePerfMetricCalculator(BasePerfMetricCalculator):
     """
     Performance metric calculator for stable stage analysis.
 
-    This calculator identifies the stable phase as the interval from the first
-    time concurrency reaches max_concurrency to the last time it is at that level.
-    All requests starting within this interval are included regardless of
-    concurrency fluctuations, providing a robust steady-state performance measurement
-    without requiring manual parameter tuning.
+    This calculator identifies the stable phase as the interval from the second
+    request that reaches max_concurrency (the first is treated as a warm-up) to
+    the last time concurrency is at that level. All requests starting within this
+    interval are included regardless of concurrency fluctuations, providing a
+    robust steady-state performance measurement without requiring manual
+    parameter tuning.
 
     Args:
         stats_list (list, optional): List of statistics to calculate
@@ -62,10 +63,11 @@ class StablePerfMetricCalculator(BasePerfMetricCalculator):
         """
         Identify requests that belong to the stable stage.
 
-        The stable stage is defined as the interval from the first moment
-        concurrency reaches max_concurrency to the last moment concurrency
-        is at max_concurrency. All requests with start_time within this
-        closed interval are included, regardless of concurrency fluctuations.
+        The stable stage is defined as the interval from the second request
+        that reaches max_concurrency (the first is treated as a warm-up) to
+        the last moment concurrency is at max_concurrency. All requests with
+        start_time within this closed interval are included, regardless of
+        concurrency fluctuations.
 
         Args:
             perf_details (dict): Performance details dictionary
@@ -102,6 +104,7 @@ class StablePerfMetricCalculator(BasePerfMetricCalculator):
         first_max_time = None
         last_max_time = None
         concurrency = 0
+        max_start_count = 0
 
         progress_bar = tqdm(
             total=len(sorted_time_sections),
@@ -116,8 +119,11 @@ class StablePerfMetricCalculator(BasePerfMetricCalculator):
                 concurrency -= 1
 
             if concurrency == self.max_concurrency:
-                if first_max_time is None:
-                    first_max_time = section["time"]
+                if section["attr"] == "start":
+                    max_start_count += 1
+                    if max_start_count == 2:
+                        # 第 2 个达到 max 的请求才是稳定阶段起点，忽略首个达到 max 的请求
+                        first_max_time = section["time"]
                 last_max_time = section["time"]
 
             progress_bar.update(1)
