@@ -4,6 +4,21 @@ from ais_bench.benchmark.runners import LocalRunner
 from ais_bench.benchmark.tasks import SWEBenchProInferTask, SWEBenchProEvalTask
 from ais_bench.benchmark.summarizers import SWEBenchProSummarizer
 
+# 数据集路径：用 mmengine 的 {{$VAR:default}} 占位符从环境变量读取。
+# mmengine 在执行本文件前，会先用 os.environ['VAR'] 的值替换整个 {{$VAR:default}}
+# 占位符；如果环境变量未设置，则替换为 default 部分（此处为空 → 沿用 HF 在线下载）。
+#
+# 这里 AISBENCH_AGENT_DATASET_PATH 的值就是 bootstrap.sh --datasets 传入的完整路径，
+# 由 bootstrap.sh 自动注入到容器环境变量中，无需 import sys / import os 任何库。
+#
+# 使用流程：
+#   1. 物理机: bash bootstrap.sh --datasets /data/datasets/swebench_pro/<...>
+#   2. 容器内: ais_bench <此配置> --debug     # path 自动从 env var 读
+#
+# 不使用 agent_runtime 容器方案时：直接 export AISBENCH_AGENT_DATASET_PATH=<path> 即可；
+# 不 export 时回落到 HF 在线下载（默认行为）。
+DEFAULT_DATASET_PATH = '{{$AISBENCH_AGENT_DATASET_PATH:}}'
+
 STEP_LIMIT = 250
 
 models = [
@@ -26,14 +41,20 @@ models = [
     )
 ]
 
+<<<<<<< HEAD
+SWEBP_SCRIPT_PATH_ABS = "/opt/src/SWE-bench_Pro-os/run_scripts"
+SWEBP_DOCKER_PATH_ABS = "/opt/src/SWE-bench_Pro-os/dockerfiles"
+=======
 SWEBP_SCRIPT_PATH_ABS = "/opt/src/SWE-bench_Pro-os/run_scripts"  # 必须指定, agent runtime容器中 "/opt/src/SWE-bench_Pro-os/run_scripts"为默认路径
 SWEBP_DOCKER_PATH_ABS = "/opt/src/SWE-bench_Pro-os/dockerfiles"  # 必须指定，agent runtime容器中 "/opt/src/SWE-bench_Pro-os/dockerfiles"为默认路径
+>>>>>>> master_center
 
 datasets = [
     dict(
         type=SWEBenchProDataset,
         abbr="swebench_pro_full_data",
-        path="",
+        # 本字段通过环境变量 AISBENCH_AGENT_DATASET_PATH 注入；不设置时为空，沿用 HF 在线下载
+        path=DEFAULT_DATASET_PATH,
         name="full",
         split="test",
         step_limit=STEP_LIMIT,

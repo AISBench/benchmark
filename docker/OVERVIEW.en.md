@@ -185,6 +185,59 @@ docker build \
 The image ships with Docker Engine (≥ 20.0) and Docker Compose v2 (≥ 2.0.0). There are two modes for running Docker inside the container — pick one based on your host Docker version and isolation needs.
 
 ### Mode A — Docker-in-Docker (recommended, true nested containers, requires host Docker ≥ 20.10 + cgroup v2)
+```bash
+┌────────────────────────── Host ──────────────────────────┐
+│                                                                  │
+│  ┌──────────────────┐         ┌──────────────────────────┐       │
+│  │  Host Kernel     │         │  Host dockerd            │       │
+│  │  (cgroup v2)     │◀───────▶│  /var/run/docker.sock    │       │
+│  └──────────────────┘         │  manages host's own      │       │
+│                               │  containers              │       │
+│                               └──────────────────────────┘       │
+│                                                                  │
+│  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ │
+│  ┃  AISBench Container  (--privileged --cgroupns=host)         ┃ │
+│  ┃                                                             ┃ │
+│  ┃   ┌──────────────────────┐     ┌──────────────────────┐     ┃ │
+│  ┃   │   Docker CLI         │────▶│  Inner dockerd       │     ┃ │
+│  ┃   │   (user runs)        │     │  (independent proc    │     ┃ │
+│  ┃   └──────────────────────┘     │   inside container)  │     ┃ │
+│  ┃                                │  daemon.json:        │     ┃ │
+│  ┃                                │  native.cgroupdriver │     ┃ │
+│  ┃                                │    =cgroupfs          │     ┃ │
+│  ┃                                │  storage=vfs          │     ┃ │
+│  ┃                                └──────────┬───────────┘     ┃ │
+│  ┃                                           │ spawn           ┃ │
+│  ┃                                           ▼                ┃ │
+│  ┃                                ┌──────────────────────┐     ┃ │
+│  ┃                                │   containerd         │     ┃ │
+│  ┃                                │   (embedded in       │     ┃ │
+│  ┃                                │    inner dockerd)    │     ┃ │
+│  ┃                                └──────────┬───────────┘     ┃ │
+│  ┃                                           │                 ┃ │
+│  ┃                                           ▼                 ┃ │
+│  ┃                                ┌──────────────────────┐     ┃ │
+│  ┃                                │  Nested child         │     ┃ │
+│  ┃                                │  container            │     ┃ │
+│  ┃                                │  (truly isolated      │     ┃ │
+│  ┃                                │   namespaces)         │     ┃ │
+│  ┃                                │  ┌────────────────┐   │     ┃ │
+│  ┃                                │  │ Agent process  │   │     ┃ │
+│  ┃                                │  │ OpenBLAS       │   │     ┃ │
+│  ┃                                │  │ Python deps    │   │     ┃ │
+│  ┃                                │  └────────────────┘   │     ┃ │
+│  ┃                                └──────────────────────┘     ┃ │
+│  ┃                                                             ┃ │
+│  ┃   —— Isolation boundary: independent PID/IPC/Net/Mount/User ┃ │
+│  ┃      namespaces ——                                         ┃ │
+│  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ │
+│                                                                  │
+│  ✦ Nested child containers do NOT appear in host `docker ps`     │
+│  ✦ Child containers inherit Docker's official default seccomp    │
+│    profile (no clone3 blocking)                                  │
+│  ✦ Host dockerd restart does NOT affect inner dockerd            │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 A standalone `dockerd` is started inside the container, so child containers are fully isolated from the host. This is the **preferred mode** for agent benchmarks: child containers inherit Docker's official default seccomp profile, so the `pthread_create` / `clone3` block triggered by openEuler / RHEL hardened profiles does not occur; and there is no stale-socket issue when the host's `dockerd` restarts.
 
@@ -250,6 +303,47 @@ docker compose version
 - For very long-running DinD workloads, consider adding `"default-runtime": "runc"`, `"log-driver": "json-file"`, and `"data-root"` overrides to `/etc/docker/daemon.json`.
 
 ### Mode B — Socket Passthrough (works with any Docker version ≥ 1.0)
+```bash
+┌────────────────────────── Host ──────────────────────────┐
+│                                                                  │
+│  ┌──────────────────┐                                            │
+│  │  Host Kernel     │                                            │
+│  └──────────────────┘                                            │
+│                                                                  │
+│  ┌──────────────────────────────────────────┐  bind mount         │
+│  │  Host dockerd                            │  /var/run/docker    │
+│  │  /var/run/docker.sock ──────────────────────────┐             │
+│  │  (manages host's own containers)         │       │             │
+│  └────────────┬─────────────────────────────┘       │             │
+│               │                                     │             │
+│               │  actually creates/manages           │             │
+│               ▼                                     │             │
+│  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━┓ │
+│  ┃  AISBench Container  (--privileged, shares PID/IPC w/ host)┃ │
+│  ┃                                                            ┃ │
+│  ┃   ┌──────────────────────┐                                 ┃ │
+│  ┃   │   Docker CLI         │── HTTP/Unix socket call ──────┘ ┃ │
+│  ┃   │   (user runs)        │  no dockerd process inside       ┃ │
+│  ┃   └──────────────────────┘                                 ┃ │
+│  ┃                                                            ┃ │
+│  ┃   —— Shares kernel, PID, IPC namespaces with host ——       ┃ │
+│  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ │
+│                                                                  │
+│  ┌──────────────────────────────────────────┐                    │
+│  │  Child container (actually on the host)  │                    │
+│  │  ┌────────────────┐                      │                    │
+│  │  │ Agent process  │  ← created/collected  │                    │
+│  │  │ OpenBLAS       │    by host dockerd    │                    │
+│  │  │ Python deps    │                      │                    │
+│  │  └────────────────┘                      │                    │
+│  └──────────────────────────────────────────┘                    │
+│                                                                  │
+│  ✦ Child containers appear in host `docker ps`                  │
+│  ✦ Child containers inherit host dockerd's seccomp profile      │
+│    (openEuler/RHEL hardened profile → clone3 blocking)          │
+│  ✦ Host dockerd restart → socket inode stale → `docker restart`│
+└──────────────────────────────────────────────────────────────────┘
+```
 
 Mount the host's Docker socket so that `docker run` inside the container actually creates containers on the **host** daemon. Use this mode only when the host Docker is older than 20.10, or when cgroup v2 is unavailable and Mode A cannot be used.
 
@@ -368,6 +462,44 @@ docker compose -f /tmp/docker-compose.yml up
 - `--security-opt seccomp=unconfined` alone is **not** enough for DinD — dockerd still needs cgroup and device access, which only `--privileged` (or a custom runtime) provides.
 - [Sysbox](https://github.com/nestybox/sysbox) — a container runtime that supports nested containers without `--privileged`, at the cost of installing a custom runtime on the host.
 - Rootless Docker — runs `dockerd` as a non-root user; has its own limitations (no `overlay2` on most distros, network restrictions, etc.).
+
+## Agent Evaluation One-Click Environment Preparation
+
+For agent benchmarks such as Harbor Terminal-Bench, SWE-bench, and SWE-bench Pro, this repository provides a one-click environment preparation solution in [`docker/agent_runtime/`](agent_runtime/README.md). It consolidates the Mode A/B selection, `daemon.json` configuration, `--cgroupns=host`, and seccomp handling from the "Running Agent / Sandbox Benchmarks" section above into a single script, and additionally solves:
+
+- **Dependency conflicts**: Dependencies of multiple agent benchmarks conflict with each other (e.g., harbor forces upgrading `datasets` to 4.0+, and two `mini-swe-agent` forks override each other with the same package name). Solved via multi-venv isolation inside the runtime image.
+- **Huge case images**: SWE-bench full (~1TB) cannot be packaged as a whole, so it is **not** baked into the runtime image. Users `docker pull` / `docker load` themselves.
+- **Frequent dataset versions**: Agent dataset versions change quickly, so they are **not** baked into the runtime image. Users prepare them on the host and mount them into the container via `bootstrap.sh --datasets <PATH>` (container path = host path).
+- **No environment verification**: `doctor.sh` verifies the runtime configuration (L1 static) before running the benchmark + scans for case image presence (warning), and gives precise fix guidance on failure.
+
+**Usage** (all three packs use the same workflow; choose `--datasets` and `agent_env` per benchmark):
+
+```bash
+# Host: prepare the dataset directory + start the runtime container with one click
+#       (mounts the dataset directory into the container)
+# Harbor:
+mkdir -p /data/datasets/harbor/mini-0.10
+# Prepare dataset (see harbor_bench.md) + case image (can be loaded offline via bootstrap --case-tar)
+curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
+    | bash -s -- \
+        --datasets /data/datasets/harbor/mini-0.10/terminal-bench-2-offline-selected_0.10 \
+        --case-tar /data/cases/case-tb2-mini-0.10.tar.gz
+docker exec -it ais_bench_agent bash
+# Inside the container:
+ais_bench_agent_doctor.sh harbor
+agent_env harbor
+ais_bench ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py --debug
+
+# SWE-bench / SWE-bench Pro work the same way:
+#   --datasets <swebench dataset directory>
+#   agent_env swebench | swebench_pro
+#   ais_bench ais_bench/configs/swe_bench[_pro]_examples/... --debug
+# For dataset and case image acquisition, see each benchmark's documentation.
+```
+
+For the solution design and per-script parameters, see [`docker/agent_runtime/README.md`](agent_runtime/README.md). Each agent benchmark doc ([harbor_bench.md](../docs/source_en/extended_benchmark/agent/harbor_bench.md), [swe_bench.md](../docs/source_en/extended_benchmark/agent/swe_bench.md), [swe_bench_pro.md](../docs/source_en/extended_benchmark/agent/swe_bench_pro.md)) also has a "Quick Start" section at the top.
+
+> This section is the executable packaging of the "Running Agent / Sandbox Benchmarks" section. To understand the principles, still read the Mode A/B sections above; for quick start, just use the script in this section.
 
 ## License / Disclaimer
 

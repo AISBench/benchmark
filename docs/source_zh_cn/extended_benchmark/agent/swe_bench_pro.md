@@ -19,50 +19,80 @@ SWE-Bench Pro 是一个用于评估大语言模型在长时域软件工程任务
 - `mini_swe_agent_swe_bench_pro_mini.py`：SWE-bench Pro Mini，适合先跑通流程/快速迭代。
 - `mini_swe_agent_swe_bench_pro_full.py`：SWE-bench Pro Full，完整测试集。
 
-## 2. 前置依赖
+## 2. 运行环境安装
 
-运行前请确保以下依赖可用：
-
-1) 安装 `mini-swe-agent`（infer 依赖）
+### 2.1 源码安装
+1. 确认docker版本满足要求，执行`docker version`，确保docker版本为20.10.0及以上， docker API版本为 1.42及以上
+2. 参考[工具安装&卸载](../../get_started/install.html)源码安装AISBench测评工具
+3. 安装 `mini-swe-agent`（infer 依赖）
 
 > **注意**：SWE-Bench Pro 官方组织 scaleapi 对 mini-swe-agent 做了适配，需从 scaleapi 的仓库下载适配版本。
 
 ```bash
-# 克隆 mini-swe-agent 代码
 git clone https://github.com/scaleapi/mini-swe-agent.git
-
-# 进入项目目录
-cd mini-swe-agent/
-
-# 下载运行依赖
+cd mini-swe-agent
 pip install -e .
-
-# 返回上级目录
 cd -
 ```
 
-2) 安装 `SWE-Bench_Pro`（infer 和 eval 依赖）
+4. 安装 `SWE-Bench_Pro`（infer 和 eval 依赖）
 
 ```bash
-# 克隆 SWE-Bench_Pro 代码
 git clone https://github.com/scaleapi/SWE-bench_Pro-os.git
-
-# 进入项目目录
-cd SWE-bench_Pro-os/
-
-# 下载运行依赖
+cd SWE-bench_Pro-os
 pip install -r requirements.txt
-
-# 返回上级目录
 cd -
 ```
 
-3) Docker 可用（infer/eval 都依赖容器环境）
+5. SWEBP 脚本与 Docker 目录配置
+
+SWE-Bench Pro 评测**必须**指定以下两个路径，无默认处理动作：
+
+- `swebp_scripts_dir`：SWE-bench Pro 官方仓库的 `run_scripts` 目录绝对路径
+- `swebp_docker_dir`：SWE-bench Pro 官方仓库的 `dockerfiles` 目录绝对路径
+
+```python
+SWEBP_SCRIPT_PATH_ABS = "{your_work_dir}/SWE-bench_Pro-os/run_scripts"  # 必须指定
+SWEBP_DOCKER_PATH_ABS = "{your_work_dir}/SWE-bench_Pro-os/dockerfiles"  # 必须指定
+```
+
+> **注意**：需提前克隆 SWE-bench Pro 官方仓库：`git clone https://github.com/scaleapi/SWE-bench_Pro-os.git`
+
+
+
+### 2.2 一键准备方案（推荐）
+如果你不想源码安装依赖，或者docker版本较低（docker version < 20.10.0），推荐使用 **AISBench Agent Runtime 一键准备方案**：
 
 ```bash
-docker --version
-docker ps
+# 1. 物理机上准备 mini 数据集（已有可跳过）
+#    SWE-bench Pro 的 mini 数据集**必须**本地准备，无在线版
+mkdir -p /data/datasets/swebench_pro
+# 下载地址：https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini
+# 优先 parquet 格式；下载后解压到 /data/datasets/swebench_pro/ 即可
+
+# 2. 物理机上一键起 runtime 容器（自动选 DinD/Socket 模式，自动挂载数据集，自动把 case 镜像 tar 拷进容器内部 docker load 完）
+#    在线场景：省略 --runtime-tar，runtime 镜像自动从 ghcr.io 拉取最新
+#    离线场景：通过 --runtime-tar 跳过外网拉取，可以从最新的release信息中提前获取
+curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
+    | bash -s -- \
+        --runtime-tar /path/to/agent_runtime_image_v3.1-20260701-master-ubuntu24.04-py312-<arch>.tar.gz \
+        --datasets /data/datasets/swebench_pro \
+        --container-name ais_bench_agent
+# --runtime-tar （可选）提前准备的测评镜像，不传则自动拉取最新
+# --datasets 指向本地数据集目录，容器内会自动创建同名目录挂载数据集
+# --container-name 指向的容器名需唯一，否则会覆盖旧容器
+
+# 3. 进入容器
+docker exec -it ais_bench_agent bash
+
+# 4. 验证 runtime 就绪
+ais_bench_agent_doctor.sh swebench_pro
+
+# 5. 激活 swebench_pro venv（scaleapi fork 的 mini-swe-agent）
+agent_env swebench_pro
+
 ```
+> 该一键准备方案的方案原理与脚本实现和更详细的介绍见 [`docker/agent_runtime/`](https://github.com/AISBench/benchmark/tree/master/docker/agent_runtime/README.md)。
 
 ## 3. 最小配置（先跑通再调优）
 
@@ -101,20 +131,6 @@ models = [
   - 下载地址：`https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini`
   - 优先推荐的数据格式为 parquet
   - 将 `path` 指向本地下载的 parquet 文件或目录
-
-### SWEBP 脚本与 Docker 目录配置
-
-SWE-Bench Pro 评测**必须**指定以下两个路径，无默认处理动作：
-
-- `swebp_scripts_dir`：SWE-bench Pro 官方仓库的 `run_scripts` 目录绝对路径
-- `swebp_docker_dir`：SWE-bench Pro 官方仓库的 `dockerfiles` 目录绝对路径
-
-```python
-SWEBP_SCRIPT_PATH_ABS = "{your_work_dir}/SWE-bench_Pro-os/run_scripts"  # 必须指定
-SWEBP_DOCKER_PATH_ABS = "{your_work_dir}/SWE-bench_Pro-os/dockerfiles"  # 必须指定
-```
-
-> **注意**：需提前克隆 SWE-bench Pro 官方仓库：`git clone https://github.com/scaleapi/SWE-bench_Pro-os.git`
 
 ### 首跑建议
 

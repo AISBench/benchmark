@@ -21,12 +21,12 @@ Directory `ais_bench/configs/swe_bench_examples/` provides the following example
 - `mini_swe_agent_swe_bench_multilingual.py`: SWE-bench Multilingual (`SWE-bench/SWE-bench_Multilingual`) — multilingual issue statements.
 - `mini_swe_agent_swe_bench_multilingual_mini.py`: SWE-bench Multilingual Mini (**15**/**30**/**60** instances) — an AISBench-constructed Multilingual subset designed to significantly reduce evaluation cost; see the dataset card and construction repository: `https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini` and `https://github.com/AISBench/datasets/tree/main/mini_datasets/swe_bench_multiligual_mini`.
 
-## 2. Prerequisites
+## 2. Runtime Environment Installation
 
-Before running, make sure the following dependencies are available:
-
-1) Install `mini-swe-agent` (required for infer)
-
+### 2.1 Install from Source
+1. Verify Docker version meets requirements: run `docker version` and ensure Docker version is 20.10.0 or above, Docker API version is 1.42 or above
+2. Refer to [Tool Installation & Uninstallation](../../get_started/install.html) to install AISBench evaluation tool from source
+3. Install `mini-swe-agent` (required for infer)
 ```bash
 git clone https://github.com/AISBench/mini-swe-agent.git
 cd mini-swe-agent
@@ -34,7 +34,7 @@ pip install -e .
 cd -
 ```
 
-2) Install the SWE-bench harness (required for eval)
+4. Install SWE-bench harness (required for eval)
 
 ```bash
 git clone https://github.com/SWE-bench/SWE-bench.git
@@ -43,18 +43,39 @@ pip install -e .
 cd -
 ```
 
-3) Docker is available (both infer and eval depend on containerized environments)
-
-```bash
-docker --version
-docker ps
-```
-
-4) On ARM hosts, enable Docker x86 emulation (binfmt):
+5. On ARM hosts, enable Docker x86 emulation (binfmt):
 
 ```bash
 docker run --rm --privileged tonistiigi/binfmt --install all
 ```
+
+### 2.2 One-Click Preparation (Recommended)
+If you don't want to install dependencies from source, or if Docker version is low (docker version < 20.10.0), it is recommended to use the **AISBench Agent Runtime one-click preparation solution**:
+
+```bash
+# 1. Start the runtime container on the host with one click (automatically select DinD/Socket mode, auto-mount datasets, and auto copy case image tar into the container for docker load)
+#    Online scenario: omit --runtime-tar, runtime image will be automatically pulled from ghcr.io
+#    Offline scenario: skip external network pull via --runtime-tar, which can be obtained from the latest release information in advance
+curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
+    | bash -s -- \
+        --runtime-tar /path/to/agent_runtime_image_v3.1-20260701-master-ubuntu24.04-py312-<arch>.tar.gz \
+        --host-path /path/to/test_wkp/ \
+        --container-name test_agent_run
+# --runtime-tar (optional) pre-downloaded runtime image; if omitted, the latest is pulled automatically
+# --host-path must be an empty directory; a same-named directory will be created inside the container to mount datasets and case images
+# --container-name must be unique; otherwise the old container will be overwritten
+
+# 2. Enter the container
+docker exec -it test_agent_run bash
+
+# 3. Verify runtime is ready
+ais_bench_agent_doctor.sh swebench
+
+# 4. Activate the swebench venv (AISBench fork of mini-swe-agent)
+agent_env swebench
+
+```
+> For the solution principles and script implementation, see [`docker/agent_runtime/`](https://github.com/AISBench/benchmark/tree/master/docker/agent_runtime/README.md).
 
 ## 3. Minimal Configuration (Run First, Tune Later)
 

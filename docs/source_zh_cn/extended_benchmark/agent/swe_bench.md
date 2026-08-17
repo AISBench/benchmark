@@ -22,13 +22,11 @@ SWE-bench是一个基准测试，用于评估大语言模型在从GitHub收集�
 - `mini_swe_agent_swe_bench_multilingual_mini.py`：SWE-bench Multilingual Mini（**15**/**30**/**60** 条），AISBench官方构造的 Multilingual 子集，用于显著降低评测成本；子集筛选/构造方式见数据集卡与构造仓库：`https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini`、`https://github.com/AISBench/datasets/tree/main/mini_datasets/swe_bench_multiligual_mini`。
 
 
-
-## 2. 前置依赖
-
-运行前请确保以下依赖可用：
-
-1) 安装 `mini-swe-agent`（infer 依赖）
-
+## 2. 运行环境安装
+### 3.1 源码安装
+1. 确认docker版本满足要求，执行`docker version`，确保docker版本为20.10.0及以上， docker API版本为 1.42及以上
+2. 参考[工具安装&卸载](../../get_started/install.html)源码安装AISBench测评工具
+3. 安装 `mini-swe-agent`（infer 依赖）
 ```bash
 git clone https://github.com/AISBench/mini-swe-agent.git
 cd mini-swe-agent
@@ -36,7 +34,7 @@ pip install -e .
 cd -
 ```
 
-2) 安装 SWE-bench harness（eval 依赖）
+4. 安装 SWE-bench harness（eval 依赖）
 
 ```bash
 git clone https://github.com/SWE-bench/SWE-bench.git
@@ -45,17 +43,39 @@ pip install -e .
 cd -
 ```
 
-3) Docker 可用（infer/eval 都依赖容器环境）
-
-```bash
-docker --version
-docker ps
-```
-4) ARM 环境下需要开启 docker 的 x86 支持，执行以下命令：
+5. ARM 环境下需要开启 docker 的 x86 支持，执行以下命令：
 
 ```bash
 docker run --rm --privileged tonistiigi/binfmt --install all
 ```
+
+### 3.2 一键准备方案（推荐）
+如果你不想源码安装依赖，或者docker版本较低（docker version < 20.10.0），推荐使用 **AISBench Agent Runtime 一键准备方案**：
+
+```bash
+# 1. 物理机上一键起 runtime 容器（自动选 DinD/Socket 模式，自动挂载数据集，自动把 case 镜像 tar 拷进容器内部 docker load 完）
+#    在线场景：省略 --runtime-tar，runtime 镜像自动从 ghcr.io 拉取最新
+#    离线场景：通过 --runtime-tar 跳过外网拉取，可以从最新的release信息中手动获取
+curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
+    | bash -s -- \
+        --runtime-tar /path/to/agent_runtime_image_v3.1-20260701-master-ubuntu24.04-py312-<arch>.tar.gz \
+        --host-path /path/to/test_wkp/ \
+        --container-name test_agent_run
+# --runtime-tar （可选）提前准备的测评镜像，不传则自动拉取最新
+# --host-path 指向的目录需为空目录，容器内会自动创建同名目录挂载数据集和 case 镜像
+# --container-name 指向的容器名需唯一，否则会覆盖旧容器
+
+# 2. 进入容器
+docker exec -it test_agent_run bash
+
+# 3. 验证 runtime 就绪
+ais_bench_agent_doctor.sh swebench
+
+# 4. 激活 swebench venv（AISBench fork 的 mini-swe-agent）
+agent_env swebench
+
+```
+> 该一键准备方案的方案原理与脚本实现和更详细的介绍见 [`docker/agent_runtime/`](https://github.com/AISBench/benchmark/tree/master/docker/agent_runtime/README.md)。
 
 ## 3. 最小配置（先跑通再调优）
 

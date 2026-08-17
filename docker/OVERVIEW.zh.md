@@ -171,6 +171,55 @@ docker build \
 镜像预装了 Docker Engine（≥ 20.0）与 Docker Compose v2（≥ 2.0.0）。在容器内启动 Docker 有两种模式，请根据宿主 Docker 版本与隔离需求二选一。
 
 ### 模式 A：Docker-in-Docker（推荐，真嵌套容器，要求宿主 Docker ≥ 20.10 + cgroup v2）
+<<<<<<< HEAD
+```bash
+┌────────────────────────── 宿主机 (Host) ──────────────────────────┐
+│                                                                  │
+│  ┌──────────────────┐         ┌──────────────────────────┐       │
+│  │  Host Kernel     │         │  Host dockerd            │       │
+│  │  (cgroup v2)     │◀───────▶│  /var/run/docker.sock    │       │
+│  └──────────────────┘         │  管理宿主自身的容器       │       │
+│                               └──────────────────────────┘       │
+│                                                                  │
+│  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ │
+│  ┃  AISBench Container  (--privileged --cgroupns=host)         ┃ │
+│  ┃                                                             ┃ │
+│  ┃   ┌──────────────────────┐     ┌──────────────────────┐     ┃ │
+│  ┃   │   Docker CLI         │────▶│  Inner dockerd       │     ┃ │
+│  ┃   │   (用户执行)         │     │  (容器内独立进程)     │     ┃ │
+│  ┃   └──────────────────────┘     │  daemon.json:        │     ┃ │
+│  ┃                                │  native.cgroupdriver │     ┃ │
+│  ┃                                │    =cgroupfs         │     ┃ │
+│  ┃                                │  storage=vfs         │     ┃ │
+│  ┃                                └──────────┬───────────┘     ┃ │
+│  ┃                                           │ spawn           ┃ │
+│  ┃                                           ▼                ┃ │
+│  ┃                                ┌──────────────────────┐     ┃ │
+│  ┃                                │   containerd         │     ┃ │
+│  ┃                                │   (内嵌在 inner d)   │     ┃ │
+│  ┃                                └──────────┬───────────┘     ┃ │
+│  ┃                                           │                 ┃ │
+│  ┃                                           ▼                 ┃ │
+│  ┃                                ┌──────────────────────┐     ┃ │
+│  ┃                                │  嵌套子容器          │     ┃ │
+│  ┃                                │  (真隔离命名空间)    │     ┃ │
+│  ┃                                │  ┌────────────────┐  │     ┃ │
+│  ┃                                │  │ Agent 进程     │  │     ┃ │
+│  ┃                                │  │ OpenBLAS       │  │     ┃ │
+│  ┃                                │  │ Python deps    │  │     ┃ │
+│  ┃                                │  └────────────────┘  │     ┃ │
+│  ┃                                └──────────────────────┘     ┃ │
+│  ┃                                                             ┃ │
+│  ┃   —— 隔离边界：独立 PID/IPC/Net/Mount/User 命名空间 ——      ┃ │
+│  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ │
+│                                                                  │
+│  ✦ 嵌套子容器不出现在宿主 `docker ps` 中                          │
+│  ✦ 子容器继承 Docker 官方默认 seccomp profile（无 clone3 拦截）   │
+│  ✦ 宿主 dockerd 重启不会影响 inner dockerd                       │
+└──────────────────────────────────────────────────────────────────┘
+```
+=======
+>>>>>>> master_center
 
 容器内自起一个独立的 `dockerd`，子容器与宿主机完全隔离。这是 agent 测评的**首选模式**：子容器继承的是 Docker 官方默认 seccomp profile，不会触发 openEuler / RHEL 加固 profile 导致的 `pthread_create` / `clone3` 拦截问题；也不存在宿主 dockerd 重启后 socket 句柄失效的问题。
 
@@ -236,6 +285,50 @@ docker compose version
 - 对于长时间运行的 DinD 场景，建议在 `/etc/docker/daemon.json` 中加入 `"default-runtime": "runc"`、`"log-driver": "json-file"`、`"data-root"` 等调优项。
 
 ### 模式 B：Socket 代理（兼容任意 Docker 版本 ≥ 1.0）
+<<<<<<< HEAD
+```bash
+┌────────────────────────── 宿主机 (Host) ──────────────────────────┐
+│                                                                  │
+│  ┌──────────────────┐                                            │
+│  │  Host Kernel     │                                            │
+│  └──────────────────┘                                            │
+│                                                                  │
+│  ┌──────────────────────────────────────────┐  bind mount         │
+│  │  Host dockerd                            │  /var/run/docker    │
+│  │  /var/run/docker.sock ──────────────────────────┐             │
+│  │  (管理宿主自身的容器)                     │       │             │
+│  └────────────┬─────────────────────────────┘       │             │
+│               │                                     │             │
+│               │  实际创建/管理                       │             │
+│               ▼                                     │             │
+│  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┷━━━━━━━━━━━┓ │
+│  ┃  AISBench Container  (--privileged, 与宿主共享 PID/IPC)   ┃ │
+│  ┃                                                            ┃ │
+│  ┃   ┌──────────────────────┐                                 ┃ │
+│  ┃   │   Docker CLI         │──── HTTP/Unix socket 调用 ─────┘ ┃ │
+│  ┃   │   (用户执行)         │  容器内无 dockerd 进程            ┃ │
+│  ┃   └──────────────────────┘                                 ┃ │
+│  ┃                                                            ┃ │
+│  ┃   —— 与宿主共享内核、PID、IPC 命名空间 ——                    ┃ │
+│  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ │
+│                                                                  │
+│  ┌──────────────────────────────────────────┐                    │
+│  │  子容器 (实为宿主上的容器)                │                    │
+│  │  ┌────────────────┐                      │                    │
+│  │  │ Agent 进程     │  ← 由 Host dockerd   │                    │
+│  │  │ OpenBLAS       │    直接创建/回收     │                    │
+│  │  │ Python deps    │                      │                    │
+│  │  └────────────────┘                      │                    │
+│  └──────────────────────────────────────────┘                    │
+│                                                                  │
+│  ✦ 嵌套子容器出现在宿主 `docker ps` 中                            │
+│  ✦ 子容器继承宿主 dockerd 的 seccomp profile                      │
+│    (openEuler/RHEL 加固 profile → 触发 clone3 拦截)               │
+│  ✦ 宿主 dockerd 重启 → socket inode 失效 → 需 `docker restart`    │
+└──────────────────────────────────────────────────────────────────┘
+```
+=======
+>>>>>>> master_center
 
 挂载宿主的 Docker socket，使容器内的 `docker run` 实际上在**宿主机** daemon 上创建容器。仅当宿主 Docker 版本低于 20.10、或不支持 cgroup v2 无法使用模式 A 时再选用本模式。
 
@@ -354,6 +447,46 @@ docker compose -f /tmp/docker-compose.yml up
 - [Sysbox](https://github.com/nestybox/sysbox)——支持嵌套容器而无需 `--privileged`，代价是要在宿主机装自定义运行时。
 - Rootless Docker——以非 root 用户运行 `dockerd`，但有限制（多数发行版不支持 `overlay2`、网络限制等）。
 
+<<<<<<< HEAD
+## Agent 测评一键环境准备
+
+针对 Harbor Terminal-Bench、SWE-bench、SWE-bench Pro 等 agent 测评，本仓库在 [`docker/agent_runtime/`](agent_runtime/README.md) 提供了一键环境准备方案，将上文"运行 Agent / 沙箱类测评"章节的模式 A/B 选择、`daemon.json` 配置、`--cgroupns=host`、seccomp 处理等步骤收敛为一个脚本，并额外解决了：
+
+- **依赖冲突**：多个 agent 测评的依赖互相冲突（如 harbor 强制升级 datasets 到 4.0+、两个 `mini-swe-agent` fork 同包名互相覆盖），通过 runtime 镜像内的多 venv 隔离
+- **case 镜像庞大**：SWE-bench full ~1TB 不能整体打包，**不**预置到 runtime 镜像，由用户自行 docker pull / load
+- **数据集版本频繁**：agent 数据集版本变化快，**不**预置到 runtime 镜像，由用户在物理机准备好，通过 `bootstrap.sh --datasets <PATH>` 挂载进容器（容器内路径 = 宿主路径）
+- **环境无验证**：`doctor.sh` 在跑测评前验证 runtime 配置（L1 静态）+ case 镜像存在性扫描（warning），失败时给精确修复指引
+
+**用户使用**（三个 pack 都用同一条流程，按 benchmark 选 `--datasets` 和 `agent_env`）：
+
+```bash
+# 物理机：准备数据集目录 + 一键起 runtime 容器（把数据集目录挂载进容器）
+# Harbor:
+mkdir -p /data/datasets/harbor/mini-0.10
+# 准备数据集（见 harbor_bench.md）+ case 镜像（可用 bootstrap --case-tar 离线加载）
+curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
+    | bash -s -- \
+        --datasets /data/datasets/harbor/mini-0.10/terminal-bench-2-offline-selected_0.10 \
+        --case-tar /data/cases/case-tb2-mini-0.10.tar.gz
+docker exec -it ais_bench_agent bash
+# 容器内：
+ais_bench_agent_doctor.sh harbor
+agent_env harbor
+ais_bench ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py --debug
+
+# SWE-bench / SWE-bench Pro 同理：
+#   --datasets <swebench 数据集目录>
+#   agent_env swebench | swebench_pro
+#   ais_bench ais_bench/configs/swe_bench[_pro]_examples/... --debug
+# 数据集与 case 镜像获取详见各 benchmark 文档
+```
+
+方案设计与各脚本参数详见 [`docker/agent_runtime/README.md`](agent_runtime/README.md)。各 agent 测评文档（[harbor_bench.md](../docs/source_zh_cn/extended_benchmark/agent/harbor_bench.md)、[swe_bench.md](../docs/source_zh_cn/extended_benchmark/agent/swe_bench.md)、[swe_bench_pro.md](../docs/source_zh_cn/extended_benchmark/agent/swe_bench_pro.md)）开头也已加入"快速上手"引导段。
+
+> 本节是"运行 Agent / 沙箱类测评"章节的可执行化封装。理解原理仍建议阅读上文模式 A/B 章节；快速上手直接用本节脚本即可。
+
+=======
+>>>>>>> master_center
 ## 许可证 / 免责声明
 
 本项目镜像及其构建脚本按仓库根目录的 [LICENSE 文件](https://github.com/AISBench/benchmark/blob/master/LICENSE) 授权。
