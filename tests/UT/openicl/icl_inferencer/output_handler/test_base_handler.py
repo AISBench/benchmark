@@ -9,6 +9,8 @@ import functools
 import shutil
 import json
 
+import pytest
+
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.base_handler import BaseInferencerOutputHandler
 from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchImplementationError, ParameterValueError, FileOperationError
@@ -54,6 +56,7 @@ class TestBaseInferencerOutputHandler(unittest.TestCase):
             self.assertTrue(os.path.exists(file_path))
 
     def test_write_to_json_stages_payload_separately(self):
+        pytest.importorskip("zstandard")
         with TempDirectory() as tmpdir:
             handler = ConcreteOutputHandler(
                 response_anomaly_payload_storage={
