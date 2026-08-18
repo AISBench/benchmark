@@ -43,10 +43,15 @@ class TasksMonitor:
         output_path: str,
         is_debug: bool = False,
         refresh_interval:float = 0.3,
+        include_anomaly_status: bool = False,
     ):
         self.logger = AISLogger()
         self.output_path = output_path
         self.task_names = list(task_names)
+        # Only boards that explicitly opt in (the dedicated response anomaly
+        # board) render the auxiliary detection status; evaluation boards stay
+        # separate from the detection task.
+        self.include_anomaly_status = include_anomaly_status
         self.tmp_file_path = os.path.join(self.output_path, "status_tmp")
         self.tmp_file_name_list = [f"tmp_{task_name.replace('/', '_')}.json" for task_name in task_names]
         if not os.path.exists(self.tmp_file_path):
@@ -136,18 +141,20 @@ class TasksMonitor:
         # The response anomaly status file is read without clearing it: the
         # coordinator replaces it atomically, and the final status must remain
         # visible to later monitors (including the dedicated wait monitor).
+        # Only boards that opted in read it, so evaluation boards stay clean.
         anomaly_status_file_name = ResponseAnomalyCoordinator.STATUS_FILE_NAME
-        anomaly_status_file = os.path.join(
-            self.tmp_file_path, anomaly_status_file_name
-        )
         anomaly_statuses = []
-        try:
-            with open(anomaly_status_file, "r", encoding="utf-8") as file:
-                anomaly_statuses = json.load(file)
-        except (json.JSONDecodeError, OSError) as exc:
-            self.logger.debug(
-                "Failed to read response anomaly status: %s", exc
+        if self.include_anomaly_status:
+            anomaly_status_file = os.path.join(
+                self.tmp_file_path, anomaly_status_file_name
             )
+            try:
+                with open(anomaly_status_file, "r", encoding="utf-8") as file:
+                    anomaly_statuses = json.load(file)
+            except (json.JSONDecodeError, OSError) as exc:
+                self.logger.debug(
+                    "Failed to read response anomaly status: %s", exc
+                )
         statuses = read_and_clear_statuses(
             self.tmp_file_path,
             [

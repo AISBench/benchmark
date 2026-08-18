@@ -309,6 +309,50 @@ class ConfigManager:
                     "and set msprobe_mtype_path together with "
                     "msprobe_token2category_dir.",
                 )
+            # Explicitly configured msProbe resources must actually exist;
+            # otherwise detection would silently fail for every case at
+            # runtime.
+            invalid_paths = []
+            if model_anomaly_cfg.get('msprobe_config_path') and not osp.isfile(
+                model_anomaly_cfg['msprobe_config_path']
+            ):
+                invalid_paths.append(
+                    f"msprobe_config_path={model_anomaly_cfg['msprobe_config_path']} "
+                    "(file not found)"
+                )
+            if model_anomaly_cfg.get('msprobe_mtype_path') and not osp.isfile(
+                model_anomaly_cfg['msprobe_mtype_path']
+            ):
+                invalid_paths.append(
+                    f"msprobe_mtype_path={model_anomaly_cfg['msprobe_mtype_path']} "
+                    "(file not found)"
+                )
+            if model_anomaly_cfg.get('msprobe_token2category_dir') and not osp.isdir(
+                model_anomaly_cfg['msprobe_token2category_dir']
+            ):
+                invalid_paths.append(
+                    f"msprobe_token2category_dir="
+                    f"{model_anomaly_cfg['msprobe_token2category_dir']} "
+                    "(directory not found)"
+                )
+            if model_anomaly_cfg.get('model_path') and not osp.isdir(
+                model_anomaly_cfg['model_path']
+            ):
+                invalid_paths.append(
+                    f"model_path={model_anomaly_cfg['model_path']} "
+                    "(directory not found)"
+                )
+            if invalid_paths:
+                raise AISBenchConfigError(
+                    TMAN_CODES.UNKNOWN_ERROR,
+                    f"response_anomaly is enabled for model "
+                    f"'{model_cfg.get('abbr', '')}' but some configured msProbe "
+                    "resources do not exist:\n"
+                    + "\n".join(f"  - {item}" for item in invalid_paths)
+                    + "\nCheck that the paths are mounted/copied to this machine, "
+                    "or re-generate them with "
+                    "`ais_bench-gen-response-anomaly-config --model-path <dir>`.",
+                )
             model_cfg['response_anomaly'] = model_anomaly_cfg
 
             generation_kwargs = model_cfg.setdefault('generation_kwargs', {})

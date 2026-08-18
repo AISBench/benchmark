@@ -874,7 +874,7 @@ class TestConfigManager(unittest.TestCase):
                 self._service_model(
                     response_anomaly={
                         'model_name': 'Custom-Name',
-                        'model_path': '/models/custom',
+                        'model_path': self.tokenizer_dir,
                         'top_logprobs': 20,
                     },
                 )
@@ -887,7 +887,7 @@ class TestConfigManager(unittest.TestCase):
 
         model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
         self.assertEqual(model_anomaly_cfg['model_name'], 'Custom-Name')
-        self.assertEqual(model_anomaly_cfg['model_path'], '/models/custom')
+        self.assertEqual(model_anomaly_cfg['model_path'], self.tokenizer_dir)
         self.assertNotIn('top_logprobs', model_anomaly_cfg)
         self.assertEqual(
             config_manager.cfg['models'][0]['generation_kwargs']['top_logprobs'],
@@ -999,7 +999,14 @@ class TestConfigManager(unittest.TestCase):
         self.assertIn('ais_bench-gen-response-anomaly-config', message)
 
     def test_response_anomaly_accepts_explicit_msprobe_paths(self):
-        """显式配置 mtype + token2category 时无需 model_path。"""
+        """显式配置 mtype + token2category（真实存在）时无需 model_path。"""
+        import os as _os
+
+        mtype_path = _os.path.join(self.tokenizer_dir, 'mtype_config.json')
+        tk2cat_dir = _os.path.join(self.tokenizer_dir, 'token2category')
+        open(mtype_path, 'w').close()
+        _os.makedirs(tk2cat_dir, exist_ok=True)
+
         self.args.mode = 'all'
         self.args.response_anomaly = True
         config_manager = ConfigManager(self.args)
@@ -1008,8 +1015,8 @@ class TestConfigManager(unittest.TestCase):
                 self._service_model(
                     path='',
                     response_anomaly={
-                        'msprobe_mtype_path': '/x/mtype_config.json',
-                        'msprobe_token2category_dir': '/x/token2category',
+                        'msprobe_mtype_path': mtype_path,
+                        'msprobe_token2category_dir': tk2cat_dir,
                     },
                 )
             ],
@@ -1020,10 +1027,34 @@ class TestConfigManager(unittest.TestCase):
         config_manager._init_response_anomaly_config()
 
         model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
-        self.assertEqual(
-            model_anomaly_cfg['msprobe_mtype_path'], '/x/mtype_config.json'
-        )
+        self.assertEqual(model_anomaly_cfg['msprobe_mtype_path'], mtype_path)
         self.assertIsNone(model_anomaly_cfg['model_path'])
+
+    def test_response_anomaly_rejects_nonexistent_msprobe_paths(self):
+        """显式配置的 msProbe 路径不存在时启动即报错，而不是运行期全 failed。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [
+                self._service_model(
+                    path='',
+                    response_anomaly={
+                        'msprobe_mtype_path': '/workspace/missing/mtype_config.json',
+                        'msprobe_token2category_dir': '/workspace/missing/token2category',
+                    },
+                )
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        with self.assertRaises(AISBenchConfigError) as cm:
+            config_manager._init_response_anomaly_config()
+        message = str(cm.exception)
+        self.assertIn('do not exist', message)
+        self.assertIn('/workspace/missing/mtype_config.json', message)
+        self.assertIn('/workspace/missing/token2category', message)
 
 if __name__ == '__main__':
     unittest.main()

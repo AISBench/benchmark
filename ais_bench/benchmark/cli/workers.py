@@ -54,7 +54,12 @@ def _run_response_anomaly_monitor(
     task_names: list, work_dir: str, is_debug: bool
 ) -> None:
     """Run a dedicated status board for the response anomaly task."""
-    tasks_monitor = TasksMonitor(task_names, work_dir, is_debug)
+    tasks_monitor = TasksMonitor(
+        task_names,
+        work_dir,
+        is_debug,
+        include_anomaly_status=True,
+    )
     tasks_monitor.launch_state_board()
 
 
@@ -737,22 +742,35 @@ class ResponseAnomalyWait(BaseWorker):
         for task_name, info in (
             self.response_anomaly_coordinator.anomaly_report.items()
         ):
+            counts = info.get("counts", {})
             anomalies = {
                 name: count
-                for name, count in info.get("counts", {}).items()
+                for name, count in counts.items()
                 if name in ANOMALY_RESULT_NAMES and count
             }
-            if not anomalies:
-                continue
-            logger.warning(
-                "Response anomalies detected for %s: %s",
-                task_name,
-                anomalies,
-            )
-            logger.warning("  detection results: %s", info.get("result_file"))
-            if info.get("payload_dir"):
-                logger.warning("  payload archive:   %s", info["payload_dir"])
-            logger.warning("  task log:          %s", info.get("task_log"))
+            if anomalies:
+                logger.warning(
+                    "Response anomalies detected for %s: %s",
+                    task_name,
+                    anomalies,
+                )
+                logger.warning("  detection results: %s", info.get("result_file"))
+                if info.get("payload_dir"):
+                    logger.warning("  payload archive:   %s", info["payload_dir"])
+                logger.warning("  task log:          %s", info.get("task_log"))
+            undetected = {
+                name: count
+                for name, count in counts.items()
+                if name in ("failed", "unavailable") and count
+            }
+            if undetected:
+                logger.warning(
+                    "Response anomaly detection did not complete for %s: %s. "
+                    "Check the task log for the root cause.",
+                    task_name,
+                    undetected,
+                )
+                logger.warning("  task log:          %s", info.get("task_log"))
 
 
 WORK_FLOW = dict(

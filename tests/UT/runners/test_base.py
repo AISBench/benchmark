@@ -186,6 +186,50 @@ class TestTasksMonitor(unittest.TestCase):
     @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
     @patch('ais_bench.benchmark.runners.base.os.makedirs')
     @patch('ais_bench.benchmark.runners.base.AISLogger')
+    @patch('ais_bench.benchmark.runners.base.read_and_clear_statuses')
+    @patch('ais_bench.benchmark.runners.base.json.load')
+    @patch('ais_bench.benchmark.runners.base.open', create=True)
+    def test_tasks_monitor_anomaly_status_is_opt_in(
+        self, mock_open, mock_json_load, mock_read_statuses,
+        mock_logger_class, mock_makedirs, mock_exists
+    ):
+        """默认（eval/judge 面板）不读取检测状态；专属检测面板 opt-in 读取。"""
+        mock_read_statuses.return_value = []
+        monitor = TasksMonitor(
+            task_names=self.task_names,
+            output_path=self.output_path,
+            is_debug=True
+        )
+
+        monitor._refresh_task_state()
+
+        mock_open.assert_not_called()
+        self.assertEqual(monitor.auxiliary_task_names, set())
+
+        opt_in_monitor = TasksMonitor(
+            task_names=self.task_names,
+            output_path=self.output_path,
+            is_debug=True,
+            include_anomaly_status=True,
+        )
+        mock_json_load.return_value = [
+            {
+                'task_name': 'ResponseAnomaly/model/ds',
+                'process_id': 1,
+                'finish_count': 1,
+                'total_count': 2,
+                'status': 'response anomaly',
+            }
+        ]
+        opt_in_monitor._refresh_task_state()
+
+        self.assertIn(
+            'ResponseAnomaly/model/ds', opt_in_monitor.tasks_state_map
+        )
+
+    @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
+    @patch('ais_bench.benchmark.runners.base.os.makedirs')
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
     def test_tasks_monitor_get_task_states(self, mock_logger_class, mock_makedirs, mock_exists):
         """Test _get_task_states method."""
         monitor = TasksMonitor(
