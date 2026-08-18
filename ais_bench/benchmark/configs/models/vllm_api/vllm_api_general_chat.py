@@ -28,6 +28,9 @@ models = [
         # 手动生成后在此填写三个路径。
         response_anomaly=dict(
             model_name="",  # 填写模型名称，如 Qwen3.6-27B
+            msprobe_config_path="",
+            msprobe_mtype_path="",
+            msprobe_token2category_dir="",
         ),
         pred_postprocessor=dict(type=extract_non_reasoning_content),
     )
