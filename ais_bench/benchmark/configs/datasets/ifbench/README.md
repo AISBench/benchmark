@@ -13,12 +13,13 @@ IFBench 是一个用于评估 AI 模型在遵循新颖、具有挑战性且多�
 ## 数据集部署
 
 - 可以从 Hugging Face 的数据集链接 🔗 [https://huggingface.co/datasets/allenai/IFBench_test](https://huggingface.co/datasets/allenai/IFBench_test) 中获取数据集。
-- IFBench 数据集为 Parquet 格式，建议部署在 `{tool_root_path}/ais_bench/datasets/ifbench/data/` 目录下。
+- IFBench 数据集为 Parquet 格式，建议部署在 `{tool_root_path}/ais_bench/datasets/IFBench_test/data/` 目录下。
 
-- 在 `{tool_root_path}/ais_bench/datasets/ifbench/data/` 目录下执行 `ls -la` 检查目录结构。如果目录结构如下所示，则数据集部署成功：
+- 在 `{tool_root_path}/ais_bench/datasets/` 目录下执行 `tree IFBench_test/` 检查目录结构。如果目录结构如下所示，则数据集部署成功：
     ```
-    {tool_root_path}/ais_bench/datasets/ifbench/data/
-    └── train-00000-of-00001.parquet
+    IFBench_test/
+    └── data/
+        └── train-00000-of-00001.parquet
     ```
 
 

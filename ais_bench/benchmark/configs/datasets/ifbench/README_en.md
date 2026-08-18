@@ -13,12 +13,13 @@ IFBench is a benchmark for evaluating the reliability of AI models in following 
 ## Dataset Deployment
 
 - The dataset can be obtained from the Hugging Face dataset link: 🔗 [https://huggingface.co/datasets/allenai/IFBench_test](https://huggingface.co/datasets/allenai/IFBench_test).
-- The IFBench dataset is in Parquet format and is recommended to be deployed in the `{tool_root_path}/ais_bench/datasets/ifbench/data/` directory.
+- The IFBench dataset is in Parquet format and is recommended to be deployed in the `{tool_root_path}/ais_bench/datasets/IFBench_test/data/` directory.
 
-- Execute `ls -la` in the `{tool_root_path}/ais_bench/datasets/ifbench/data/` directory to check the directory structure. If the directory structure is as shown below, the dataset has been deployed successfully:
+- Execute `tree IFBench_test/` in the `{tool_root_path}/ais_bench/datasets/` directory to check the directory structure. If the directory structure is as shown below, the dataset has been deployed successfully:
     ```
-    {tool_root_path}/ais_bench/datasets/ifbench/data/
-    └── train-00000-of-00001.parquet
+    IFBench_test/
+    └── data/
+        └── train-00000-of-00001.parquet
     ```
 
 
