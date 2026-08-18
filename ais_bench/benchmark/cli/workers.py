@@ -25,7 +25,10 @@ from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummar
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.cli.utils import clear_repeat_tasks
 from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
-from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
+from ais_bench.benchmark.utils.response_anomaly import (
+    ANOMALY_RESULT_NAMES,
+    ResponseAnomalyCoordinator,
+)
 
 logger = AISLogger()
 
@@ -168,6 +171,10 @@ class Infer(BaseWorker):
         self._spec_decode_finalize(cfg, spec_ctx)
 
         if cfg.get('response_anomaly', {}).get('enabled', False):
+            logger.info(
+                "Inference finished; starting response anomaly detection "
+                "(bound to the inference stage)..."
+            )
             self.response_anomaly_coordinator.start(cfg)
         logger.info("Inference tasks completed.")
 
@@ -727,6 +734,25 @@ class ResponseAnomalyWait(BaseWorker):
                 "Response anomaly detection completed: %s",
                 self.response_anomaly_coordinator.summary,
             )
+        for task_name, info in (
+            self.response_anomaly_coordinator.anomaly_report.items()
+        ):
+            anomalies = {
+                name: count
+                for name, count in info.get("counts", {}).items()
+                if name in ANOMALY_RESULT_NAMES and count
+            }
+            if not anomalies:
+                continue
+            logger.warning(
+                "Response anomalies detected for %s: %s",
+                task_name,
+                anomalies,
+            )
+            logger.warning("  detection results: %s", info.get("result_file"))
+            if info.get("payload_dir"):
+                logger.warning("  payload archive:   %s", info["payload_dir"])
+            logger.warning("  task log:          %s", info.get("task_log"))
 
 
 WORK_FLOW = dict(

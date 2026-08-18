@@ -872,6 +872,48 @@ def test_detection_results_do_not_reference_transient_payload_locations(
     assert "payload_row" not in result
 
 
+def test_detect_exposes_anomaly_report_with_locations(tmp_path, monkeypatch):
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    _write_jsonl(
+        prediction_file,
+        [
+            {"data_abbr": "ds", "id": 1, "uuid": "u1", "prediction": "ok"},
+            {"data_abbr": "ds", "id": 2, "uuid": "u2", "prediction": "bad"},
+        ],
+    )
+    source_dir = (
+        tmp_path
+        / "response_anomaly"
+        / "modelA"
+        / "payload_staging"
+        / "ds"
+    )
+    source_writer = ResponseAnomalyJsonlWriter(source_dir, 3, 10)
+    source_writer.write(_payload_record(1))
+    source_writer.write(_payload_record(2))
+    source_writer.close(write_manifest=False)
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    coordinator._detect(_anomaly_cfg(tmp_path))
+
+    report = coordinator.anomaly_report
+    assert set(report) == {"ResponseAnomaly/modelA/ds"}
+    info = report["ResponseAnomaly/modelA/ds"]
+    assert info["counts"] == {"normal": 1, "rare_character": 1}
+    assert info["result_file"] == str(
+        tmp_path / "response_anomaly" / "modelA" / "ds.jsonl"
+    )
+    assert info["payload_dir"] == str(
+        tmp_path / "response_anomaly" / "modelA" / "payload" / "ds"
+    )
+    assert info["task_log"] == str(
+        tmp_path / "logs" / "response_anomaly" / "modelA" / "ds.out"
+    )
+
+
 def test_detect_noop_resume_keeps_payload_archive_unchanged(
     tmp_path, monkeypatch
 ):

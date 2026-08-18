@@ -23,6 +23,12 @@ _ANOMALY_TYPE_NAMES = {
     4: "nan_value",
 }
 
+# anomaly_type_name values that indicate a detected response anomaly
+# (as opposed to non-detection statuses such as skipped/failed/unavailable).
+ANOMALY_RESULT_NAMES = frozenset(
+    {"rare_character", "garbled", "repetition", "nan_value", "unknown"}
+)
+
 
 class _ThreadLogFilter(logging.Filter):
     def __init__(self, thread_id: int) -> None:
@@ -45,6 +51,7 @@ class ResponseAnomalyCoordinator:
         self._summary: Dict[str, int] = {}
         self._task_names: List[str] = []
         self._task_statuses: Dict[str, Dict[str, Any]] = {}
+        self._anomaly_report: Dict[str, Dict[str, Any]] = {}
 
     @property
     def is_running(self) -> bool:
@@ -53,6 +60,11 @@ class ResponseAnomalyCoordinator:
     @property
     def summary(self) -> Dict[str, int]:
         return dict(self._summary)
+
+    @property
+    def anomaly_report(self) -> Dict[str, Dict[str, Any]]:
+        """Per-task anomaly counts and on-disk locations for user guidance."""
+        return {name: dict(info) for name, info in self._anomaly_report.items()}
 
     @property
     def task_names(self) -> List[str]:
@@ -572,6 +584,14 @@ class ResponseAnomalyCoordinator:
                         prediction_file, predictions
                     )
 
+                self._anomaly_report[current_task_name] = {
+                    "counts": dict(group_counts),
+                    "result_file": str(result_file),
+                    "payload_dir": (
+                        str(payload_dir) if payload_dir.exists() else None
+                    ),
+                    "task_log": str(Path(work_dir) / task_log_path),
+                }
                 elapsed = time.perf_counter() - group_start_time
                 self.logger.info(
                     "Response anomaly detection completed: %s",
@@ -808,6 +828,16 @@ class ResponseAnomalyCoordinator:
             # None by ConfigManager) so auto-generated paths take effect.
             if not merged.get(key):
                 merged[key] = value
+        self.logger.info(
+            "Auto-generated msProbe model config for [%s]:\n"
+            "  config:         %s\n"
+            "  mtype_config:   %s\n"
+            "  token2category: %s",
+            model_abbr,
+            merged.get("msprobe_config_path"),
+            merged.get("msprobe_mtype_path"),
+            merged.get("msprobe_token2category_dir"),
+        )
         return merged
 
     @staticmethod

@@ -5,6 +5,7 @@ import tempfile
 import shutil
 
 from ais_bench.benchmark.cli.config_manager import CustomConfigChecker, ConfigManager
+from ais_bench.benchmark.models import VLLMCustomAPI, VLLMCustomAPIChat
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 
@@ -175,6 +176,11 @@ class TestConfigManager(unittest.TestCase):
         self.args.custom_dataset_data_type = None
         self.args.custom_dataset_meta_path = None
         self.args.response_anomaly_payload_retention = None
+
+        # Local tokenizer directory consumed by response anomaly model-path
+        # fallback tests.
+        self.tokenizer_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tokenizer_dir)
 
         # 创建配置目录结构
         os.makedirs(os.path.join(self.args.config_dir, 'models'), exist_ok=True)
@@ -687,6 +693,19 @@ class TestConfigManager(unittest.TestCase):
         mock_dump_reload.assert_called_once()
         self.assertEqual(result, config_manager.cfg)
 
+    def _service_model(self, **overrides):
+        """A service model that passes the response anomaly whitelist and
+        model-resource checks (chat backend + tokenizer path fallback)."""
+        model = {
+            'abbr': 'model',
+            'attr': 'service',
+            'type': VLLMCustomAPIChat,
+            'generation_kwargs': {},
+            'path': self.tokenizer_dir,
+        }
+        model.update(overrides)
+        return model
+
     def test_response_anomaly_rejected_in_perf_mode(self):
         """响应异常检测不支持性能模式。"""
         self.args.mode = 'perf'
@@ -721,13 +740,7 @@ class TestConfigManager(unittest.TestCase):
         self.args.response_anomaly = True
         config_manager = ConfigManager(self.args)
         config_manager.cfg = {
-            'models': [
-                {
-                    'abbr': 'model',
-                    'attr': 'service',
-                    'generation_kwargs': {},
-                }
-            ],
+            'models': [self._service_model()],
             'datasets': [{'abbr': 'dataset'}],
             'cli_args': {},
         }
@@ -759,13 +772,7 @@ class TestConfigManager(unittest.TestCase):
         config_manager = ConfigManager(self.args)
         config_manager.cfg = {
             'response_anomaly': {'payload_retention': 'sometimes'},
-            'models': [
-                {
-                    'abbr': 'service-model',
-                    'attr': 'service',
-                    'generation_kwargs': {},
-                }
-            ],
+            'models': [self._service_model()],
             'datasets': [],
             'cli_args': {},
         }
@@ -780,13 +787,7 @@ class TestConfigManager(unittest.TestCase):
         config_manager = ConfigManager(self.args)
         config_manager.cfg = {
             'response_anomaly': {'payload_retention': 'all'},
-            'models': [
-                {
-                    'abbr': 'service-model',
-                    'attr': 'service',
-                    'generation_kwargs': {},
-                }
-            ],
+            'models': [self._service_model()],
             'datasets': [],
             'cli_args': {},
         }
@@ -814,13 +815,7 @@ class TestConfigManager(unittest.TestCase):
                 'response_anomaly': {
                     'payload_storage': payload_storage,
                 },
-                'models': [
-                    {
-                        'abbr': 'service-model',
-                        'attr': 'service',
-                        'generation_kwargs': {},
-                    }
-                ],
+                'models': [self._service_model()],
                 'datasets': [],
                 'cli_args': {},
             }
@@ -836,14 +831,12 @@ class TestConfigManager(unittest.TestCase):
         config_manager = ConfigManager(self.args)
         config_manager.cfg = {
             'models': [
-                {
-                    'abbr': 'model',
-                    'attr': 'service',
-                    'generation_kwargs': {
+                self._service_model(
+                    generation_kwargs={
                         'logprobs': False,
                         'top_logprobs': 5,
                     },
-                }
+                )
             ],
             'datasets': [{'abbr': 'dataset'}],
             'cli_args': {},
@@ -863,7 +856,7 @@ class TestConfigManager(unittest.TestCase):
         config_manager = ConfigManager(self.args)
         config_manager.cfg = {
             'response_anomaly': {'top_logprobs': 30},
-            'models': [{'abbr': 'model', 'attr': 'service'}],
+            'models': [self._service_model()],
             'datasets': [{'abbr': 'dataset'}],
             'cli_args': {},
         }
@@ -878,16 +871,13 @@ class TestConfigManager(unittest.TestCase):
         config_manager = ConfigManager(self.args)
         config_manager.cfg = {
             'models': [
-                {
-                    'abbr': 'model',
-                    'attr': 'service',
-                    'generation_kwargs': {},
-                    'response_anomaly': {
+                self._service_model(
+                    response_anomaly={
                         'model_name': 'Custom-Name',
                         'model_path': '/models/custom',
                         'top_logprobs': 20,
                     },
-                }
+                )
             ],
             'datasets': [{'abbr': 'dataset'}],
             'cli_args': {},
@@ -903,6 +893,137 @@ class TestConfigManager(unittest.TestCase):
             config_manager.cfg['models'][0]['generation_kwargs']['top_logprobs'],
             20,
         )
+
+    def test_response_anomaly_rejected_in_eval_viz_judge_modes(self):
+        """单开 eval/viz/judge 模式不支持响应异常检测。"""
+        for mode in ('eval', 'viz', 'judge'):
+            self.args.mode = mode
+            self.args.response_anomaly = True
+            config_manager = ConfigManager(self.args)
+            config_manager.cfg = {
+                'models': [self._service_model()],
+                'datasets': [],
+                'cli_args': {},
+            }
+            with self.subTest(mode=mode):
+                with self.assertRaises(AISBenchConfigError) as cm:
+                    config_manager._init_response_anomaly_config()
+                self.assertIn('not supported in mode', str(cm.exception))
+
+    def test_response_anomaly_rejected_for_unsupported_model_class(self):
+        """completions 后端（VLLMCustomAPI）无法返回 token id，应被拦截。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [
+                self._service_model(type=VLLMCustomAPI),
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        with self.assertRaises(AISBenchConfigError) as cm:
+            config_manager._init_response_anomaly_config()
+        self.assertIn('VLLMCustomAPIChat', str(cm.exception))
+
+    def test_response_anomaly_rejected_for_local_models(self):
+        """本地模型不在检测范围，白名单检查应跳过（由 service 校验兜底）。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [
+                {
+                    'abbr': 'local-model',
+                    'attr': 'local',
+                    'path': self.tokenizer_dir,
+                }
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        # 无 service 模型时报错（白名单不应先对 local 模型误报）。
+        with self.assertRaises(AISBenchConfigError) as cm:
+            config_manager._init_response_anomaly_config()
+        self.assertIn('no service model', str(cm.exception))
+
+    def test_response_anomaly_model_path_falls_back_to_model_path_field(self):
+        """response_anomaly.model_path 未配置时回退模型 path 字段（tokenizer 目录）。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [self._service_model()],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
+        self.assertEqual(model_anomaly_cfg['model_path'], self.tokenizer_dir)
+
+    def test_response_anomaly_rejects_invalid_model_path_field(self):
+        """模型 path 指向不存在目录时应报错并说明原因。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [self._service_model(path='/nonexistent/tokenizer-dir')],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        with self.assertRaises(AISBenchConfigError) as cm:
+            config_manager._init_response_anomaly_config()
+        self.assertIn('non-existent directory', str(cm.exception))
+
+    def test_response_anomaly_rejects_missing_model_resources(self):
+        """无 model_path 也无 msprobe 三件套时直接报错，不回退 msProbe 默认。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [self._service_model(path='')],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        with self.assertRaises(AISBenchConfigError) as cm:
+            config_manager._init_response_anomaly_config()
+        message = str(cm.exception)
+        self.assertIn('msprobe_mtype_path', message)
+        self.assertIn('msprobe_token2category_dir', message)
+        self.assertIn('ais_bench-gen-response-anomaly-config', message)
+
+    def test_response_anomaly_accepts_explicit_msprobe_paths(self):
+        """显式配置 mtype + token2category 时无需 model_path。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [
+                self._service_model(
+                    path='',
+                    response_anomaly={
+                        'msprobe_mtype_path': '/x/mtype_config.json',
+                        'msprobe_token2category_dir': '/x/token2category',
+                    },
+                )
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
+        self.assertEqual(
+            model_anomaly_cfg['msprobe_mtype_path'], '/x/mtype_config.json'
+        )
+        self.assertIsNone(model_anomaly_cfg['model_path'])
 
 if __name__ == '__main__':
     unittest.main()

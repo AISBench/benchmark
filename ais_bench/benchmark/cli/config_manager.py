@@ -14,6 +14,16 @@ from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinato
 
 RESPONSE_ANOMALY_TOP_LOGPROBS = 20
 
+# Backends allowed to enable response anomaly detection. New backends that can
+# return token ids + top-k logprobs should subclass VLLMCustomAPIChat (then
+# this check passes automatically) or be added to the name tuple below when
+# configured by class-name string.
+RESPONSE_ANOMALY_SUPPORTED_MODEL_NAMES = (
+    'VLLMCustomAPIChat',
+    'VLLMCustomAPIChatStream',
+    'VllmMultiturnAPIChatStream',
+)
+
 
 class CustomConfigChecker:
     MODEL_REQUIRED_FIELDS = ['abbr']
@@ -244,6 +254,61 @@ class ConfigManager:
             ):
                 if key not in model_anomaly_cfg:
                     model_anomaly_cfg[key] = global_cfg.get(key)
+            # Fall back to the model's own 'path' (local tokenizer directory)
+            # so msProbe configs can be auto-generated from it.
+            if not model_anomaly_cfg.get('model_path'):
+                model_path = str(model_cfg.get('path') or '').strip()
+                if model_path:
+                    if not osp.isdir(model_path):
+                        raise AISBenchConfigError(
+                            TMAN_CODES.UNKNOWN_ERROR,
+                            f"response_anomaly is enabled for model "
+                            f"'{model_cfg.get('abbr', '')}' but its 'path' field "
+                            f"points to a non-existent directory: {model_path}. "
+                            "Fix the model 'path' or configure "
+                            "response_anomaly.model_path / msprobe paths.",
+                        )
+                    model_anomaly_cfg['model_path'] = model_path
+            if (
+                not model_anomaly_cfg.get('model_path')
+                and not (
+                    model_anomaly_cfg.get('msprobe_mtype_path')
+                    and model_anomaly_cfg.get('msprobe_token2category_dir')
+                )
+            ):
+                missing = []
+                if not model_anomaly_cfg.get('model_path'):
+                    missing.append(
+                        "response_anomaly.model_path is not set and the model "
+                        "'path' field (tokenizer directory) is empty"
+                    )
+                if not model_anomaly_cfg.get('msprobe_mtype_path'):
+                    missing.append(
+                        "response_anomaly.msprobe_mtype_path is not set"
+                    )
+                if not model_anomaly_cfg.get('msprobe_token2category_dir'):
+                    missing.append(
+                        "response_anomaly.msprobe_token2category_dir is not set"
+                    )
+                raise AISBenchConfigError(
+                    TMAN_CODES.UNKNOWN_ERROR,
+                    f"response_anomaly is enabled for model "
+                    f"'{model_cfg.get('abbr', '')}' but no msProbe model "
+                    "resources are available: the token2category vocabulary is "
+                    "model-specific and cannot fall back to msProbe built-in "
+                    "defaults. Missing:\n"
+                    + "\n".join(f"  - {item}" for item in missing)
+                    + "\nProvide one of the following:\n"
+                    "  1) set the model 'path' to the local tokenizer directory "
+                    "so the msProbe config files and token2category vocabulary "
+                    "are auto-generated;\n"
+                    "  2) set response_anomaly.model_path to the local "
+                    "model/tokenizer directory;\n"
+                    "  3) generate them manually with "
+                    "`ais_bench-gen-response-anomaly-config --model-path <dir>` "
+                    "and set msprobe_mtype_path together with "
+                    "msprobe_token2category_dir.",
+                )
             model_cfg['response_anomaly'] = model_anomaly_cfg
 
             generation_kwargs = model_cfg.setdefault('generation_kwargs', {})
@@ -261,6 +326,19 @@ class ConfigManager:
             generation_kwargs['top_logprobs'] = RESPONSE_ANOMALY_TOP_LOGPROBS
             # Consumed by BaseAPIModel and never sent to the service.
             generation_kwargs['response_anomaly_enabled'] = True
+
+    @staticmethod
+    def _is_supported_response_anomaly_model(model_cfg: dict) -> bool:
+        """Only chat backends returning token ids + top-k logprobs are allowed."""
+        model_type = model_cfg.get('type')
+        if isinstance(model_type, str):
+            return model_type in RESPONSE_ANOMALY_SUPPORTED_MODEL_NAMES
+        if not isinstance(model_type, type):
+            return False
+        from ais_bench.benchmark.models.api_models.vllm_custom_api_chat import (
+            VLLMCustomAPIChat,
+        )
+        return issubclass(model_type, VLLMCustomAPIChat)
 
     def _validate_response_anomaly_support(self):
         """Reject modes/links that are intentionally unsupported."""
@@ -297,6 +375,20 @@ class ConfigManager:
                         TMAN_CODES.UNKNOWN_ERROR,
                         f"response anomaly detection is not supported for Agent "
                         f"models (model abbr='{model_cfg.get('abbr', '')}').",
+                    )
+                if model_cfg.get('attr', 'service') != 'service':
+                    continue
+                if not self._is_supported_response_anomaly_model(model_cfg):
+                    model_type = model_cfg.get('type')
+                    raise AISBenchConfigError(
+                        TMAN_CODES.UNKNOWN_ERROR,
+                        f"response anomaly detection is not supported for model "
+                        f"type '{getattr(model_type, '__name__', model_type)}' "
+                        f"(model abbr='{model_cfg.get('abbr', '')}'): only "
+                        "VLLMCustomAPIChat backends return the required token "
+                        "ids and top-k logprobs. Use the vllm_api_general_chat / "
+                        "vllm_api_stream_chat / vllm_api_stream_chat_multiturn "
+                        "model configs instead.",
                     )
 
         datasets = self.cfg.get('datasets')

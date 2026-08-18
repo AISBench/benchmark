@@ -311,6 +311,66 @@ class TestInfer:
         # 执行测试 - 不应抛出异常
         self.infer_worker._update_tasks_cfg(tasks, cfg)
 
+    @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
+    @patch('ais_bench.benchmark.cli.workers.RUNNERS')
+    @patch('ais_bench.benchmark.cli.workers.logger')
+    def test_do_work_starts_anomaly_detection_after_runner(self, mock_logger, mock_runners, mock_partitioners):
+        """启用检测时，协调器在 runner 完成后立即启动（绑定 infer 阶段）"""
+        mock_partitioner = MagicMock()
+        mock_partitioners.build.return_value = mock_partitioner
+        mock_partitioner.return_value = []
+        mock_runner = MagicMock()
+        mock_runners.build.return_value = mock_runner
+
+        coordinator = MagicMock()
+        coordinator.is_running = False
+        self.infer_worker.response_anomaly_coordinator = coordinator
+
+        order = []
+        mock_runner.side_effect = lambda tasks: order.append('runner')
+        coordinator.start.side_effect = (
+            lambda cfg: order.append('coordinator.start')
+        )
+
+        cfg = MockConfigDict({
+            'infer': {'partitioner': {}, 'runner': {}},
+            'cli_args': MagicMock(merge_ds=False, mode='all'),
+            'work_dir': '/test/workdir',
+            'response_anomaly': {'enabled': True, 'payload_storage': {}},
+        })
+
+        with patch.object(self.infer_worker, '_update_tasks_cfg'):
+            self.infer_worker.do_work(cfg)
+
+        coordinator.start.assert_called_once_with(cfg)
+        assert order == ['runner', 'coordinator.start']
+
+    @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
+    @patch('ais_bench.benchmark.cli.workers.RUNNERS')
+    @patch('ais_bench.benchmark.cli.workers.logger')
+    def test_do_work_skips_anomaly_detection_when_disabled(self, mock_logger, mock_runners, mock_partitioners):
+        """未启用检测时不启动协调器"""
+        mock_partitioner = MagicMock()
+        mock_partitioners.build.return_value = mock_partitioner
+        mock_partitioner.return_value = []
+        mock_runner = MagicMock()
+        mock_runners.build.return_value = mock_runner
+
+        coordinator = MagicMock()
+        coordinator.is_running = False
+        self.infer_worker.response_anomaly_coordinator = coordinator
+
+        cfg = MockConfigDict({
+            'infer': {'partitioner': {}, 'runner': {}},
+            'cli_args': MagicMock(merge_ds=False, mode='all'),
+            'work_dir': '/test/workdir',
+        })
+
+        with patch.object(self.infer_worker, '_update_tasks_cfg'):
+            self.infer_worker.do_work(cfg)
+
+        coordinator.start.assert_not_called()
+
 
 class TestEval:
     def setup_method(self):
