@@ -309,32 +309,12 @@ class ConfigManager:
                     "and set msprobe_mtype_path together with "
                     "msprobe_token2category_dir.",
                 )
-            # Explicitly configured msProbe resources must actually exist;
-            # otherwise detection would silently fail for every case at
-            # runtime.
+            # Explicitly configured msProbe resources must actually exist —
+            # unless model_path provides a local tokenizer to auto-generate
+            # them into the configured locations at detection time. In that
+            # case the three paths are treated as generation outputs and only
+            # model_path itself is validated.
             invalid_paths = []
-            if model_anomaly_cfg.get('msprobe_config_path') and not osp.isfile(
-                model_anomaly_cfg['msprobe_config_path']
-            ):
-                invalid_paths.append(
-                    f"msprobe_config_path={model_anomaly_cfg['msprobe_config_path']} "
-                    "(file not found)"
-                )
-            if model_anomaly_cfg.get('msprobe_mtype_path') and not osp.isfile(
-                model_anomaly_cfg['msprobe_mtype_path']
-            ):
-                invalid_paths.append(
-                    f"msprobe_mtype_path={model_anomaly_cfg['msprobe_mtype_path']} "
-                    "(file not found)"
-                )
-            if model_anomaly_cfg.get('msprobe_token2category_dir') and not osp.isdir(
-                model_anomaly_cfg['msprobe_token2category_dir']
-            ):
-                invalid_paths.append(
-                    f"msprobe_token2category_dir="
-                    f"{model_anomaly_cfg['msprobe_token2category_dir']} "
-                    "(directory not found)"
-                )
             if model_anomaly_cfg.get('model_path') and not osp.isdir(
                 model_anomaly_cfg['model_path']
             ):
@@ -342,6 +322,29 @@ class ConfigManager:
                     f"model_path={model_anomaly_cfg['model_path']} "
                     "(directory not found)"
                 )
+            if not model_anomaly_cfg.get('model_path'):
+                if model_anomaly_cfg.get('msprobe_config_path') and not osp.isfile(
+                    model_anomaly_cfg['msprobe_config_path']
+                ):
+                    invalid_paths.append(
+                        f"msprobe_config_path={model_anomaly_cfg['msprobe_config_path']} "
+                        "(file not found)"
+                    )
+                if model_anomaly_cfg.get('msprobe_mtype_path') and not osp.isfile(
+                    model_anomaly_cfg['msprobe_mtype_path']
+                ):
+                    invalid_paths.append(
+                        f"msprobe_mtype_path={model_anomaly_cfg['msprobe_mtype_path']} "
+                        "(file not found)"
+                    )
+                if model_anomaly_cfg.get('msprobe_token2category_dir') and not osp.isdir(
+                    model_anomaly_cfg['msprobe_token2category_dir']
+                ):
+                    invalid_paths.append(
+                        f"msprobe_token2category_dir="
+                        f"{model_anomaly_cfg['msprobe_token2category_dir']} "
+                        "(directory not found)"
+                    )
             if invalid_paths:
                 raise AISBenchConfigError(
                     TMAN_CODES.UNKNOWN_ERROR,

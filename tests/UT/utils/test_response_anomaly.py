@@ -238,12 +238,14 @@ def test_prepare_model_config_auto_generates_when_paths_missing(
     assert cfg["model_name"] == "Qwen3-30B-A3B"
 
 
-def test_prepare_model_config_overwrites_none_config_path(tmp_path, monkeypatch):
-    """自动生成的 config.yaml 路径应覆盖 anomaly_cfg 中的 None 值。"""
+def test_prepare_model_config_empty_config_path_keeps_builtin_default(
+    tmp_path, monkeypatch
+):
+    """config.yaml 留空时保持内置默认，不填充生成路径。"""
     generated = {
-        "msprobe_config_path": str(tmp_path / "config.yaml"),
-        "msprobe_mtype_path": str(tmp_path / "mtype.json"),
-        "msprobe_token2category_dir": str(tmp_path / "tk2cat"),
+        "msprobe_config_path": str(tmp_path / "generated" / "config.yaml"),
+        "msprobe_mtype_path": str(tmp_path / "generated" / "mtype.json"),
+        "msprobe_token2category_dir": str(tmp_path / "generated" / "tk2cat"),
     }
     monkeypatch.setattr(
         "ais_bench.tools.response_anomaly.gen_model_config.generate_model_config",
@@ -260,7 +262,71 @@ def test_prepare_model_config_overwrites_none_config_path(tmp_path, monkeypatch)
         str(tmp_path),
     )
 
-    assert cfg["msprobe_config_path"] == str(tmp_path / "config.yaml")
+    assert cfg.get("msprobe_config_path") is None
+    assert cfg["msprobe_mtype_path"] == generated["msprobe_mtype_path"]
+    assert cfg["msprobe_token2category_dir"] == generated[
+        "msprobe_token2category_dir"
+    ]
+
+
+def test_prepare_model_config_places_generated_resources_at_targets(
+    tmp_path, monkeypatch
+):
+    """显式配置的输出位置缺失时，生成产物被放置到目标路径并复用已存在文件。"""
+    gen_root = tmp_path / "generated"
+    target_root = tmp_path / "data"
+
+    def fake_generate(**kwargs):
+        configs = gen_root / "configs"
+        tk2cat = gen_root / "token2category"
+        configs.mkdir(parents=True, exist_ok=True)
+        tk2cat.mkdir(parents=True, exist_ok=True)
+        (configs / "config.yaml").write_text("config", encoding="utf-8")
+        (configs / "mtype_config.json").write_text("mtype", encoding="utf-8")
+        (tk2cat / "qwen_vocab.json").write_text("vocab", encoding="utf-8")
+        return {
+            "msprobe_config_path": str(configs / "config.yaml"),
+            "msprobe_mtype_path": str(configs / "mtype_config.json"),
+            "msprobe_token2category_dir": str(tk2cat),
+        }
+
+    monkeypatch.setattr(
+        "ais_bench.tools.response_anomaly.gen_model_config.generate_model_config",
+        fake_generate,
+    )
+
+    # 已存在的目标文件不应被覆盖。
+    existing_mtype = target_root / "configs" / "mtype_config.json"
+    existing_mtype.parent.mkdir(parents=True, exist_ok=True)
+    existing_mtype.write_text("user-mtype", encoding="utf-8")
+
+    cfg = ResponseAnomalyCoordinator()._prepare_model_config(
+        "qwen",
+        {
+            "model_path": "/models/qwen",
+            "model_name": "Qwen3-30B-A3B",
+            "msprobe_config_path": str(target_root / "configs" / "config.yaml"),
+            "msprobe_mtype_path": str(existing_mtype),
+            "msprobe_token2category_dir": str(target_root / "token2category"),
+        },
+        str(tmp_path),
+    )
+
+    assert cfg["msprobe_config_path"] == str(
+        target_root / "configs" / "config.yaml"
+    )
+    assert (target_root / "configs" / "config.yaml").read_text(
+        encoding="utf-8"
+    ) == "config"
+    # 已存在文件未被覆盖。
+    assert cfg["msprobe_mtype_path"] == str(existing_mtype)
+    assert existing_mtype.read_text(encoding="utf-8") == "user-mtype"
+    assert cfg["msprobe_token2category_dir"] == str(
+        target_root / "token2category"
+    )
+    assert (target_root / "token2category" / "qwen_vocab.json").read_text(
+        encoding="utf-8"
+    ) == "vocab"
 
 
 def test_prepare_model_config_requires_both_custom_paths(tmp_path):

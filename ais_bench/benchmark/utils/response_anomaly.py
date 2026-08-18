@@ -802,7 +802,12 @@ class ResponseAnomalyCoordinator:
 
         has_mtype = bool(anomaly_cfg.get("msprobe_mtype_path"))
         has_tk2cat = bool(anomaly_cfg.get("msprobe_token2category_dir"))
-        if has_mtype and has_tk2cat:
+        if (
+            has_mtype
+            and has_tk2cat
+            and Path(anomaly_cfg["msprobe_mtype_path"]).is_file()
+            and Path(anomaly_cfg["msprobe_token2category_dir"]).is_dir()
+        ):
             return anomaly_cfg
         if has_mtype != has_tk2cat:
             raise RuntimeError(
@@ -828,6 +833,33 @@ class ResponseAnomalyCoordinator:
             # None by ConfigManager) so auto-generated paths take effect.
             if not merged.get(key):
                 merged[key] = value
+        # Explicitly configured locations act as generation outputs: place the
+        # generated resources there, reusing existing files untouched. An empty
+        # msprobe_config_path keeps the msProbe built-in default (config.yaml
+        # is model-agnostic and does not need to be generated).
+        if not anomaly_cfg.get("msprobe_config_path"):
+            merged.pop("msprobe_config_path", None)
+        elif merged.get("msprobe_config_path") != generated["msprobe_config_path"]:
+            merged["msprobe_config_path"] = self._place_generated_resource(
+                Path(generated["msprobe_config_path"]),
+                merged["msprobe_config_path"],
+                is_dir=False,
+            )
+        if merged.get("msprobe_mtype_path") != generated["msprobe_mtype_path"]:
+            merged["msprobe_mtype_path"] = self._place_generated_resource(
+                Path(generated["msprobe_mtype_path"]),
+                merged["msprobe_mtype_path"],
+                is_dir=False,
+            )
+        if (
+            merged.get("msprobe_token2category_dir")
+            != generated["msprobe_token2category_dir"]
+        ):
+            merged["msprobe_token2category_dir"] = self._place_generated_resource(
+                Path(generated["msprobe_token2category_dir"]),
+                merged["msprobe_token2category_dir"],
+                is_dir=True,
+            )
         self.logger.info(
             "Auto-generated msProbe model config for [%s]:\n"
             "  config:         %s\n"
@@ -839,6 +871,24 @@ class ResponseAnomalyCoordinator:
             merged.get("msprobe_token2category_dir"),
         )
         return merged
+
+    @staticmethod
+    def _place_generated_resource(
+        source: Path, target: str, is_dir: bool
+    ) -> str:
+        """Copy a generated msProbe resource to its configured location.
+
+        Existing targets are reused untouched; missing parent directories are
+        created as needed. Returns the configured target path.
+        """
+        target_path = Path(target)
+        if not target_path.exists():
+            if is_dir:
+                shutil.copytree(source, target_path)
+            else:
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target_path)
+        return str(target_path)
 
     @staticmethod
     def _build_detector(anomaly_cfg: Dict[str, Any]):
