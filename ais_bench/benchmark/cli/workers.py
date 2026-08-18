@@ -718,9 +718,19 @@ class ResponseAnomalyWait(BaseWorker):
         work_dir = cfg['work_dir']
         is_debug = cfg.get('cli_args', {}).get('debug', False)
         monitor_p = None
-        # If an earlier runner's board did not stay alive until detection
-        # finished (e.g. infer mode), start a dedicated board now.
-        if self.response_anomaly_coordinator.is_running:
+        # The dedicated board is the only place detection status is rendered
+        # now that evaluation boards stay separate. Start it whenever
+        # detection has produced a status (even if it already finished —
+        # detection usually completes before the workflow reaches this
+        # worker), so the final table is always printed.
+        anomaly_status_file = osp.join(
+            work_dir,
+            'status_tmp',
+            ResponseAnomalyCoordinator.STATUS_FILE_NAME,
+        )
+        if self.response_anomaly_coordinator.is_running or osp.isfile(
+            anomaly_status_file
+        ):
             monitor_p = multiprocessing.Process(
                 target=_run_response_anomaly_monitor,
                 args=(
