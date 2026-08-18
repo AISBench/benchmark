@@ -285,10 +285,9 @@ AISBench 直接使用 `ILLDetector`，以便传入用户配置的三个文件路
 
 1. Infer runner 全部任务完成后启动一个后台线程。
 2. 线程逐个读取预测 Case 并调用 msProbe。
-3. Eval、JudgeInfer、AccViz 继续在主工作流执行。
-4. `ResponseAnomalyWait` 位于相关工作流尾部，对线程执行 `join()`，防止进程退出导致检测结果不完整。
+3. Infer worker 在启动检测线程后串行等待其完成：专属检测状态面板在推理面板之后、评测面板之前渲染，检测结束并打屏最终状态后才进入 Eval / JudgeInfer / AccViz。
 
-检测不参与模型请求链路，不增加单 Case 推理请求的同步等待时间；但工作流最终退出前会等待未完成检测，保证结果完整可追溯。
+检测不参与模型请求链路，不增加单 Case 推理请求的同步等待时间；检测串行绑定在推理阶段内完成，保证 Infer 阶段退出时检测结果与 payload 归档均已落盘。
 
 同一个 `work_dir` 在任一时刻只允许一个 AISBench 任务读写。协调器的线程状态检查仅防止单进程内重复启动，不提供跨进程互斥；并行执行任务时必须使用不同的 `work_dir`，`--reuse` 也应在原任务退出后串行执行。
 
@@ -307,9 +306,7 @@ AISBench 直接使用 `ILLDetector`，以便传入用户配置的三个文件路
 - `progress_description`：检测中或检测完成。
 - `other_kwargs`：按 `anomaly_type_name` 聚合的数量。
 
-任务面板新增 `ResponseAnomaly` 行，并在状态文件出现后动态展示。该辅助状态不参与推理任务的调度，但 runner 面板会等待其结束后再退出，保证实时刷新到检测完成。
-
-为使状态展示可靠，`ResponseAnomaly` 状态文件使用原子替换写入，普通 runner 清理临时目录时会保留该文件；在 `infer` / `infer_judge` 等没有后续评测面板的模式中，`ResponseAnomalyWait` 会启动一个独立监控进程展示检测进度，并等待检测完成后统一清理状态目录。runner 面板会等待该辅助状态结束后再退出，保证实时刷新到检测完成。
+检测状态由独立的专属面板渲染（评测面板不再混入检测行，保证两类状态分开放置）：`ResponseAnomaly` 状态文件使用原子替换写入，普通 runner 清理临时目录时会保留该文件；检测启动后 Infer worker 会拉起一个独立监控进程展示检测进度，检测完成后打出最终状态表并统一清理状态目录。
 
 ### 6.3 中断续推
 

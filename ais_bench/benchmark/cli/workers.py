@@ -181,6 +181,14 @@ class Infer(BaseWorker):
                 "(bound to the inference stage)..."
             )
             self.response_anomaly_coordinator.start(cfg)
+            # Detection runs serially inside the inference stage: wait for
+            # it to finish (its status board prints between the inference
+            # board and any evaluation board) before the workflow continues.
+            _finalize_response_anomaly_detection(
+                self.response_anomaly_coordinator,
+                cfg['work_dir'],
+                cfg.get('cli_args', {}).get('debug', False),
+            )
         logger.info("Inference tasks completed.")
 
     def _merge_datasets(self, tasks):
@@ -706,88 +714,78 @@ class PerfViz(BaseWorker):
                 print(format_spec_decode_na(url, result.get("error")))
 
 
-class ResponseAnomalyWait(BaseWorker):
-    """Complete response detection after the normal evaluation workflow."""
+def _finalize_response_anomaly_detection(
+    coordinator, work_dir: str, is_debug: bool
+) -> None:
+    """Wait for detection to finish and print its status board and summary.
 
-    def update_cfg(self, cfg: ConfigDict) -> ConfigDict:
-        return cfg
-
-    def do_work(self, cfg: ConfigDict):
-        if not cfg.get('response_anomaly', {}).get('enabled', False):
-            return
-        work_dir = cfg['work_dir']
-        is_debug = cfg.get('cli_args', {}).get('debug', False)
-        monitor_p = None
-        # The dedicated board is the only place detection status is rendered
-        # now that evaluation boards stay separate. Start it whenever
-        # detection has produced a status (even if it already finished —
-        # detection usually completes before the workflow reaches this
-        # worker), so the final table is always printed.
-        anomaly_status_file = osp.join(
-            work_dir,
-            'status_tmp',
-            ResponseAnomalyCoordinator.STATUS_FILE_NAME,
+    Called from the Infer worker so detection is serially bound to the
+    inference stage: the dedicated board renders right after the inference
+    board and before evaluation starts.
+    """
+    monitor_p = None
+    # The dedicated board is the only place detection status is rendered now
+    # that evaluation boards stay separate. Start it whenever detection has
+    # produced a status (it may have already finished for tiny datasets), so
+    # the final table is always printed. Skip it when no status was ever
+    # written to avoid the board waiting forever on tasks that never started.
+    anomaly_status_file = osp.join(
+        work_dir,
+        'status_tmp',
+        ResponseAnomalyCoordinator.STATUS_FILE_NAME,
+    )
+    if coordinator.is_running or osp.isfile(anomaly_status_file):
+        monitor_p = multiprocessing.Process(
+            target=_run_response_anomaly_monitor,
+            args=(coordinator.task_names, work_dir, is_debug),
         )
-        if self.response_anomaly_coordinator.is_running or osp.isfile(
-            anomaly_status_file
-        ):
-            monitor_p = multiprocessing.Process(
-                target=_run_response_anomaly_monitor,
-                args=(
-                    self.response_anomaly_coordinator.task_names,
-                    work_dir,
-                    is_debug,
-                ),
+        monitor_p.start()
+    coordinator.join()
+    if monitor_p:
+        monitor_p.join()
+    TasksMonitor.rm_tmp_files(work_dir)
+    if coordinator.summary:
+        logger.info(
+            "Response anomaly detection completed: %s",
+            coordinator.summary,
+        )
+    for task_name, info in coordinator.anomaly_report.items():
+        counts = info.get("counts", {})
+        anomalies = {
+            name: count
+            for name, count in counts.items()
+            if name in ANOMALY_RESULT_NAMES and count
+        }
+        if anomalies:
+            logger.warning(
+                "Response anomalies detected for %s: %s",
+                task_name,
+                anomalies,
             )
-            monitor_p.start()
-        self.response_anomaly_coordinator.join()
-        if monitor_p:
-            monitor_p.join()
-        TasksMonitor.rm_tmp_files(work_dir)
-        if self.response_anomaly_coordinator.summary:
-            logger.info(
-                "Response anomaly detection completed: %s",
-                self.response_anomaly_coordinator.summary,
+            logger.warning("  detection results: %s", info.get("result_file"))
+            if info.get("payload_dir"):
+                logger.warning("  payload archive:   %s", info["payload_dir"])
+            logger.warning("  task log:          %s", info.get("task_log"))
+        undetected = {
+            name: count
+            for name, count in counts.items()
+            if name in ("failed", "unavailable") and count
+        }
+        if undetected:
+            logger.warning(
+                "Response anomaly detection did not complete for %s: %s. "
+                "Check the task log for the root cause.",
+                task_name,
+                undetected,
             )
-        for task_name, info in (
-            self.response_anomaly_coordinator.anomaly_report.items()
-        ):
-            counts = info.get("counts", {})
-            anomalies = {
-                name: count
-                for name, count in counts.items()
-                if name in ANOMALY_RESULT_NAMES and count
-            }
-            if anomalies:
-                logger.warning(
-                    "Response anomalies detected for %s: %s",
-                    task_name,
-                    anomalies,
-                )
-                logger.warning("  detection results: %s", info.get("result_file"))
-                if info.get("payload_dir"):
-                    logger.warning("  payload archive:   %s", info["payload_dir"])
-                logger.warning("  task log:          %s", info.get("task_log"))
-            undetected = {
-                name: count
-                for name, count in counts.items()
-                if name in ("failed", "unavailable") and count
-            }
-            if undetected:
-                logger.warning(
-                    "Response anomaly detection did not complete for %s: %s. "
-                    "Check the task log for the root cause.",
-                    task_name,
-                    undetected,
-                )
-                logger.warning("  task log:          %s", info.get("task_log"))
+            logger.warning("  task log:          %s", info.get("task_log"))
 
 
 WORK_FLOW = dict(
-    all=[Infer, JudgeInfer, Eval, AccViz, ResponseAnomalyWait],
-    infer=[Infer, ResponseAnomalyWait],
+    all=[Infer, JudgeInfer, Eval, AccViz],
+    infer=[Infer],
     judge=[JudgeInfer],
-    infer_judge=[Infer, JudgeInfer, ResponseAnomalyWait],
+    infer_judge=[Infer, JudgeInfer],
     eval=[JudgeInfer, Eval, AccViz],
     viz=[AccViz],
     perf=[Infer, PerfViz],

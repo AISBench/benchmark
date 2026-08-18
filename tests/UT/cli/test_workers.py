@@ -315,7 +315,7 @@ class TestInfer:
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')
     @patch('ais_bench.benchmark.cli.workers.logger')
     def test_do_work_starts_anomaly_detection_after_runner(self, mock_logger, mock_runners, mock_partitioners):
-        """启用检测时，协调器在 runner 完成后立即启动（绑定 infer 阶段）"""
+        """启用检测时，协调器在 runner 完成后启动并串行等待完成（绑定 infer 阶段）"""
         mock_partitioner = MagicMock()
         mock_partitioners.build.return_value = mock_partitioner
         mock_partitioner.return_value = []
@@ -324,6 +324,8 @@ class TestInfer:
 
         coordinator = MagicMock()
         coordinator.is_running = False
+        coordinator.anomaly_report = {}
+        coordinator.summary = {'normal': 1}
         self.infer_worker.response_anomaly_coordinator = coordinator
 
         order = []
@@ -331,6 +333,7 @@ class TestInfer:
         coordinator.start.side_effect = (
             lambda cfg: order.append('coordinator.start')
         )
+        coordinator.join.side_effect = lambda: order.append('coordinator.join')
 
         cfg = MockConfigDict({
             'infer': {'partitioner': {}, 'runner': {}},
@@ -343,7 +346,8 @@ class TestInfer:
             self.infer_worker.do_work(cfg)
 
         coordinator.start.assert_called_once_with(cfg)
-        assert order == ['runner', 'coordinator.start']
+        coordinator.join.assert_called_once()
+        assert order == ['runner', 'coordinator.start', 'coordinator.join']
 
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')
