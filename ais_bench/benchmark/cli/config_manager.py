@@ -121,6 +121,26 @@ class ConfigManager:
 
     def _init_response_anomaly_config(self):
         """Normalize the optional response anomaly detection configuration."""
+        global_cfg, configured_top_logprobs = (
+            self._normalize_response_anomaly_global_config()
+        )
+        self.cfg['response_anomaly'] = global_cfg
+        if not global_cfg['enabled']:
+            return
+
+        self._validate_response_anomaly_top_logprobs(configured_top_logprobs)
+        self._validate_response_anomaly_support()
+        self._validate_response_anomaly_payload_config(global_cfg)
+
+        service_models = self._get_response_anomaly_service_models()
+        if service_models is None:
+            return
+        self._warn_shared_response_anomaly_model_name(global_cfg, service_models)
+        for model_cfg in service_models:
+            self._init_response_anomaly_model(model_cfg, global_cfg)
+
+    def _normalize_response_anomaly_global_config(self):
+        """Apply CLI overrides and defaults to the global anomaly config."""
         raw_anomaly_cfg = self.cfg.get('response_anomaly') or {}
         global_cfg = dict(raw_anomaly_cfg) if isinstance(raw_anomaly_cfg, dict) else {}
         cli_enabled = getattr(self.args, 'response_anomaly', None)
@@ -141,9 +161,11 @@ class ConfigManager:
         payload_storage.setdefault('compression_level', 3)
         payload_storage.setdefault('rows_per_shard', 2000)
         global_cfg['payload_storage'] = payload_storage
-        self.cfg['response_anomaly'] = global_cfg
-        if not global_cfg['enabled']:
-            return
+        return global_cfg, configured_top_logprobs
+
+    @staticmethod
+    def _validate_response_anomaly_top_logprobs(configured_top_logprobs):
+        """Reject attempts to override the detector's fixed top-k value."""
         if (
             configured_top_logprobs is not None
             and (
@@ -158,13 +180,16 @@ class ConfigManager:
                 f"{RESPONSE_ANOMALY_TOP_LOGPROBS} and cannot be configured.",
             )
 
-        self._validate_response_anomaly_support()
+    @staticmethod
+    def _validate_response_anomaly_payload_config(global_cfg):
+        """Validate payload retention and compressed storage settings."""
         if global_cfg['payload_retention'] not in ('all', 'anomalies', 'none'):
             raise AISBenchConfigError(
                 TMAN_CODES.UNKNOWN_ERROR,
                 "response_anomaly.payload_retention must be one of "
                 "'all', 'anomalies' or 'none'.",
             )
+        payload_storage = global_cfg['payload_storage']
         if payload_storage['format'] != 'jsonl':
             raise AISBenchConfigError(
                 TMAN_CODES.UNKNOWN_ERROR,
@@ -197,9 +222,12 @@ class ConfigManager:
                 "response_anomaly.payload_storage.rows_per_shard must be a "
                 "positive integer.",
             )
+
+    def _get_response_anomaly_service_models(self):
+        """Return configured service models, preserving absent-model behavior."""
         models = self.cfg.get('models')
         if not isinstance(models, list):
-            return
+            return None
         service_models = [
             model_cfg
             for model_cfg in models
@@ -211,7 +239,12 @@ class ConfigManager:
                 "response_anomaly is enabled but no service model is configured. "
                 "Response anomaly detection requires service models (attr='service').",
             )
+        return service_models
 
+    def _warn_shared_response_anomaly_model_name(
+        self, global_cfg, service_models
+    ):
+        """Warn when one global model name may be applied to multiple models."""
         if (
             len(service_models) > 1
             and global_cfg.get('model_name')
@@ -226,153 +259,141 @@ class ConfigManager:
                 "model's response_anomaly config."
             )
 
-        for model_cfg in service_models:
-            model_anomaly_cfg = dict(model_cfg.get('response_anomaly') or {})
-            configured_top_logprobs = model_anomaly_cfg.pop('top_logprobs', None)
-            if (
-                configured_top_logprobs is not None
-                and (
-                    not isinstance(configured_top_logprobs, int)
-                    or isinstance(configured_top_logprobs, bool)
-                    or configured_top_logprobs != RESPONSE_ANOMALY_TOP_LOGPROBS
-                )
-            ):
-                raise AISBenchConfigError(
-                    TMAN_CODES.UNKNOWN_ERROR,
-                    "response_anomaly.top_logprobs is fixed at "
-                    f"{RESPONSE_ANOMALY_TOP_LOGPROBS} and cannot be configured.",
-                )
-            model_anomaly_cfg.setdefault(
-                'model_name',
-                global_cfg.get('model_name') or model_cfg.get('abbr'),
-            )
-            for key in (
-                'model_path',
-                'msprobe_config_path',
-                'msprobe_mtype_path',
-                'msprobe_token2category_dir',
-            ):
-                if key not in model_anomaly_cfg:
-                    model_anomaly_cfg[key] = global_cfg.get(key)
-            # Fall back to the model's own 'path' (local tokenizer directory)
-            # so msProbe configs can be auto-generated from it.
-            if not model_anomaly_cfg.get('model_path'):
-                model_path = str(model_cfg.get('path') or '').strip()
-                if model_path:
-                    if not osp.isdir(model_path):
-                        raise AISBenchConfigError(
-                            TMAN_CODES.UNKNOWN_ERROR,
-                            f"response_anomaly is enabled for model "
-                            f"'{model_cfg.get('abbr', '')}' but its 'path' field "
-                            f"points to a non-existent directory: {model_path}. "
-                            "Fix the model 'path' or configure "
-                            "response_anomaly.model_path / msprobe paths.",
-                        )
-                    model_anomaly_cfg['model_path'] = model_path
-            if (
-                not model_anomaly_cfg.get('model_path')
-                and not (
-                    model_anomaly_cfg.get('msprobe_mtype_path')
-                    and model_anomaly_cfg.get('msprobe_token2category_dir')
-                )
-            ):
-                missing = []
-                if not model_anomaly_cfg.get('model_path'):
-                    missing.append(
-                        "response_anomaly.model_path is not set and the model "
-                        "'path' field (tokenizer directory) is empty"
-                    )
-                if not model_anomaly_cfg.get('msprobe_mtype_path'):
-                    missing.append(
-                        "response_anomaly.msprobe_mtype_path is not set"
-                    )
-                if not model_anomaly_cfg.get('msprobe_token2category_dir'):
-                    missing.append(
-                        "response_anomaly.msprobe_token2category_dir is not set"
-                    )
-                raise AISBenchConfigError(
-                    TMAN_CODES.UNKNOWN_ERROR,
-                    f"response_anomaly is enabled for model "
-                    f"'{model_cfg.get('abbr', '')}' but no msProbe model "
-                    "resources are available: the token2category vocabulary is "
-                    "model-specific and cannot fall back to msProbe built-in "
-                    "defaults. Missing:\n"
-                    + "\n".join(f"  - {item}" for item in missing)
-                    + "\nProvide one of the following:\n"
-                    "  1) set the model 'path' to the local tokenizer directory "
-                    "so the msProbe config files and token2category vocabulary "
-                    "are auto-generated;\n"
-                    "  2) set response_anomaly.model_path to the local "
-                    "model/tokenizer directory;\n"
-                    "  3) generate them manually with "
-                    "`ais_bench-gen-response-anomaly-config --model-path <dir>` "
-                    "and set msprobe_mtype_path together with "
-                    "msprobe_token2category_dir.",
-                )
-            # Explicitly configured msProbe resources must actually exist —
-            # unless model_path provides a local tokenizer to auto-generate
-            # them into the configured locations at detection time. In that
-            # case the three paths are treated as generation outputs and only
-            # model_path itself is validated.
-            invalid_paths = []
-            if model_anomaly_cfg.get('model_path') and not osp.isdir(
-                model_anomaly_cfg['model_path']
-            ):
-                invalid_paths.append(
-                    f"model_path={model_anomaly_cfg['model_path']} "
-                    "(directory not found)"
-                )
-            if not model_anomaly_cfg.get('model_path'):
-                if model_anomaly_cfg.get('msprobe_config_path') and not osp.isfile(
-                    model_anomaly_cfg['msprobe_config_path']
-                ):
-                    invalid_paths.append(
-                        f"msprobe_config_path={model_anomaly_cfg['msprobe_config_path']} "
-                        "(file not found)"
-                    )
-                if model_anomaly_cfg.get('msprobe_mtype_path') and not osp.isfile(
-                    model_anomaly_cfg['msprobe_mtype_path']
-                ):
-                    invalid_paths.append(
-                        f"msprobe_mtype_path={model_anomaly_cfg['msprobe_mtype_path']} "
-                        "(file not found)"
-                    )
-                if model_anomaly_cfg.get('msprobe_token2category_dir') and not osp.isdir(
-                    model_anomaly_cfg['msprobe_token2category_dir']
-                ):
-                    invalid_paths.append(
-                        f"msprobe_token2category_dir="
-                        f"{model_anomaly_cfg['msprobe_token2category_dir']} "
-                        "(directory not found)"
-                    )
-            if invalid_paths:
-                raise AISBenchConfigError(
-                    TMAN_CODES.UNKNOWN_ERROR,
-                    f"response_anomaly is enabled for model "
-                    f"'{model_cfg.get('abbr', '')}' but some configured msProbe "
-                    "resources do not exist:\n"
-                    + "\n".join(f"  - {item}" for item in invalid_paths)
-                    + "\nCheck that the paths are mounted/copied to this machine, "
-                    "or re-generate them with "
-                    "`ais_bench-gen-response-anomaly-config --model-path <dir>`.",
-                )
-            model_cfg['response_anomaly'] = model_anomaly_cfg
+    def _init_response_anomaly_model(self, model_cfg, global_cfg):
+        """Build and validate one model's anomaly detection configuration."""
+        model_anomaly_cfg = self._merge_response_anomaly_model_config(
+            model_cfg, global_cfg
+        )
+        self._resolve_response_anomaly_model_path(model_cfg, model_anomaly_cfg)
+        self._validate_response_anomaly_model_resources(
+            model_cfg, model_anomaly_cfg
+        )
+        self._validate_response_anomaly_resource_paths(
+            model_cfg, model_anomaly_cfg
+        )
+        model_cfg['response_anomaly'] = model_anomaly_cfg
+        self._inject_response_anomaly_request_config(model_cfg)
 
-            generation_kwargs = model_cfg.setdefault('generation_kwargs', {})
-            if not isinstance(generation_kwargs, dict):
-                raise AISBenchConfigError(
-                    TMAN_CODES.UNKNOWN_ERROR,
-                    "response_anomaly is enabled but "
-                    f"model '{model_cfg.get('abbr', '')}' has invalid "
-                    "generation_kwargs; expected a dict.",
-                )
-            # Response anomaly detection requires the service to return token
-            # ids and top-k logprobs, so these request fields must override
-            # model-level generation defaults.
-            generation_kwargs['logprobs'] = True
-            generation_kwargs['top_logprobs'] = RESPONSE_ANOMALY_TOP_LOGPROBS
-            # Consumed by BaseAPIModel and never sent to the service.
-            generation_kwargs['response_anomaly_enabled'] = True
+    def _merge_response_anomaly_model_config(self, model_cfg, global_cfg):
+        """Merge global model resources with model-level overrides."""
+        model_anomaly_cfg = dict(model_cfg.get('response_anomaly') or {})
+        configured_top_logprobs = model_anomaly_cfg.pop('top_logprobs', None)
+        self._validate_response_anomaly_top_logprobs(configured_top_logprobs)
+        model_anomaly_cfg.setdefault(
+            'model_name',
+            global_cfg.get('model_name') or model_cfg.get('abbr'),
+        )
+        for key in (
+            'model_path',
+            'msprobe_config_path',
+            'msprobe_mtype_path',
+            'msprobe_token2category_dir',
+        ):
+            if key not in model_anomaly_cfg:
+                model_anomaly_cfg[key] = global_cfg.get(key)
+        return model_anomaly_cfg
+
+    @staticmethod
+    def _resolve_response_anomaly_model_path(model_cfg, model_anomaly_cfg):
+        """Use the model tokenizer path when no explicit model path is set."""
+        if model_anomaly_cfg.get('model_path'):
+            return
+        model_path = str(model_cfg.get('path') or '').strip()
+        if not model_path:
+            return
+        if not osp.isdir(model_path):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                f"response_anomaly is enabled for model "
+                f"'{model_cfg.get('abbr', '')}' but its 'path' field "
+                f"points to a non-existent directory: {model_path}. "
+                "Fix the model 'path' or configure "
+                "response_anomaly.model_path / msprobe paths.",
+            )
+        model_anomaly_cfg['model_path'] = model_path
+
+    @staticmethod
+    def _validate_response_anomaly_model_resources(model_cfg, model_anomaly_cfg):
+        """Require either a tokenizer path or explicit model resources."""
+        if model_anomaly_cfg.get('model_path') or (
+            model_anomaly_cfg.get('msprobe_mtype_path')
+            and model_anomaly_cfg.get('msprobe_token2category_dir')
+        ):
+            return
+        missing = [
+            "response_anomaly.model_path is not set and the model "
+            "'path' field (tokenizer directory) is empty"
+        ]
+        if not model_anomaly_cfg.get('msprobe_mtype_path'):
+            missing.append("response_anomaly.msprobe_mtype_path is not set")
+        if not model_anomaly_cfg.get('msprobe_token2category_dir'):
+            missing.append(
+                "response_anomaly.msprobe_token2category_dir is not set"
+            )
+        raise AISBenchConfigError(
+            TMAN_CODES.UNKNOWN_ERROR,
+            f"response_anomaly is enabled for model "
+            f"'{model_cfg.get('abbr', '')}' but no msProbe model "
+            "resources are available: the token2category vocabulary is "
+            "model-specific and cannot fall back to msProbe built-in "
+            "defaults. Missing:\n"
+            + "\n".join(f"  - {item}" for item in missing)
+            + "\nProvide one of the following:\n"
+            "  1) set the model 'path' to the local tokenizer directory "
+            "so the msProbe config files and token2category vocabulary "
+            "are auto-generated;\n"
+            "  2) set response_anomaly.model_path to the local "
+            "model/tokenizer directory;\n"
+            "  3) generate them manually with "
+            "`ais_bench-gen-response-anomaly-config --model-path <dir>` "
+            "and set msprobe_mtype_path together with "
+            "msprobe_token2category_dir.",
+        )
+
+    @staticmethod
+    def _validate_response_anomaly_resource_paths(model_cfg, model_anomaly_cfg):
+        """Validate paths that will not be generated from a local model."""
+        invalid_paths = []
+        model_path = model_anomaly_cfg.get('model_path')
+        if model_path and not osp.isdir(model_path):
+            invalid_paths.append(f"model_path={model_path} (directory not found)")
+        if not model_path:
+            path_checks = (
+                ('msprobe_config_path', osp.isfile, 'file'),
+                ('msprobe_mtype_path', osp.isfile, 'file'),
+                ('msprobe_token2category_dir', osp.isdir, 'directory'),
+            )
+            for key, exists, path_type in path_checks:
+                path = model_anomaly_cfg.get(key)
+                if path and not exists(path):
+                    invalid_paths.append(f"{key}={path} ({path_type} not found)")
+        if not invalid_paths:
+            return
+        raise AISBenchConfigError(
+            TMAN_CODES.UNKNOWN_ERROR,
+            f"response_anomaly is enabled for model "
+            f"'{model_cfg.get('abbr', '')}' but some configured msProbe "
+            "resources do not exist:\n"
+            + "\n".join(f"  - {item}" for item in invalid_paths)
+            + "\nCheck that the paths are mounted/copied to this machine, "
+            "or re-generate them with "
+            "`ais_bench-gen-response-anomaly-config --model-path <dir>`.",
+        )
+
+    @staticmethod
+    def _inject_response_anomaly_request_config(model_cfg):
+        """Force the service response fields required by anomaly detection."""
+        generation_kwargs = model_cfg.setdefault('generation_kwargs', {})
+        if not isinstance(generation_kwargs, dict):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                "response_anomaly is enabled but "
+                f"model '{model_cfg.get('abbr', '')}' has invalid "
+                "generation_kwargs; expected a dict.",
+            )
+        generation_kwargs['logprobs'] = True
+        generation_kwargs['top_logprobs'] = RESPONSE_ANOMALY_TOP_LOGPROBS
+        generation_kwargs['response_anomaly_enabled'] = True
 
     @staticmethod
     def _is_supported_response_anomaly_model(model_cfg: dict) -> bool:
