@@ -186,6 +186,9 @@ class VLLMCustomAPIChat(BaseAPIModel):
             output.input_tokens = json_content["usage"].get("prompt_tokens", 0)
             output.output_tokens = json_content["usage"].get("completion_tokens", 0)
 
+    def should_record_stream_time_point(self, data: dict) -> bool:
+        return bool(data.get("choices"))
+
     async def parse_stream_response(self, json_content, output):
         for item in json_content.get("choices", []):
             if item["delta"].get("content"):

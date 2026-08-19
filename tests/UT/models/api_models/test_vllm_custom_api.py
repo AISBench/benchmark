@@ -360,6 +360,40 @@ class TestVLLMCustomAPI(unittest.TestCase):
         expected_ppl = -(-0.5 - 0.7) / 2
         self.assertAlmostEqual(ppl, expected_ppl, places=5)
 
+    def test_stream_infer_excludes_usage_only_chunk_from_timing(self):
+        async def mock_content():
+            yield b'data: {"choices": [{"text": "Hello "}]}\n\n'
+            yield b'data: {"choices": [{"text": "world"}]}\n\n'
+            yield (
+                b'data: {"choices": [], "usage": '
+                b'{"prompt_tokens": 7, "completion_tokens": 2}}\n\n'
+            )
+            yield b"data: [DONE]\n\n"
+
+        class MockPostContext:
+            async def __aenter__(self):
+                response = MagicMock()
+                response.status = 200
+                response.content = mock_content()
+                return response
+
+            async def __aexit__(self, exc_type, exc_value, traceback):
+                return False
+
+        kwargs = self.default_kwargs.copy()
+        kwargs["stream"] = True
+        model = VLLMCustomAPI(**kwargs)
+        model.session = MagicMock()
+        model.session.post.return_value = MockPostContext()
+        output = Output(perf_mode=True)
+
+        asyncio.run(model.stream_infer({"prompt": "test"}, output))
+
+        self.assertEqual(output.content, "Hello world")
+        self.assertEqual(output.input_tokens, 7)
+        self.assertEqual(output.output_tokens, 2)
+        self.assertEqual(len(output.time_points), 3)
+
 
 class TestVLLMCustomAPILora(unittest.TestCase):
     """针对 Multi-LoRA 兼容性扩展的 UT（completions API）。"""
@@ -484,8 +518,6 @@ class TestVLLMCustomAPILora(unittest.TestCase):
         body = self._run_get_request_body(model, out)
         self.assertEqual(body["model"], "base-model-name")
         self.assertNotIn("adapter_id", body)
-
-
 
 if __name__ == "__main__":
     unittest.main()

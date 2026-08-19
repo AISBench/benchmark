@@ -284,6 +284,35 @@ class TestBaseAPIModel(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_stream_infer_default_records_each_json_chunk(self):
+        async def mock_content():
+            yield b'data: {"chunk": "hello"}\n\n'
+            yield b'data: {"chunk": " world"}\n\n'
+            yield b"data: [DONE]\n\n"
+
+        class MockPostContext:
+            async def __aenter__(self):
+                response = mock.MagicMock()
+                response.status = 200
+                response.content = mock_content()
+                return response
+
+            async def __aexit__(self, exc_type, exc_value, traceback):
+                return False
+
+        model = self.model_class(**self.default_kwargs)
+        model.stream = True
+        model.session = mock.MagicMock()
+        model.session.post.return_value = MockPostContext()
+        output = Output(perf_mode=True)
+        output.text = ""
+
+        asyncio.run(model.stream_infer({"prompt": "test"}, output))
+
+        self.assertTrue(output.success)
+        self.assertEqual(output.text, "hello world")
+        self.assertEqual(len(output.time_points), 3)
+
     @mock.patch("aiohttp.ClientSession.post")
     async def test_stream_infer_json_decode_error(self, mock_post):
         async def mock_content():

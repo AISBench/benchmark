@@ -148,6 +148,9 @@ class VLLMCustomAPI(BaseAPIModel):
         await self._parse_usage(api_response, output)
         self.logger.debug(f"Output content: {output.content}")
 
+    def should_record_stream_time_point(self, data: dict) -> bool:
+        return bool(data.get("choices"))
+
     async def parse_stream_response(self, api_response: dict, output: Output):
         generated_text = ""
         if len(api_response.get("choices", [])) > 0:

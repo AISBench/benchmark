@@ -226,6 +226,10 @@ class BaseAPIModel(BaseModel):
             f"{self.__class__.__name__} should be implemented if stream is True",
         )
 
+    def should_record_stream_time_point(self, data: dict) -> bool:
+        """Return whether a parsed stream response represents an output event."""
+        return True
+
     async def generate(
         self,
         input_data: PromptType,
@@ -295,7 +299,6 @@ class BaseAPIModel(BaseModel):
                     chunk = chunk.removeprefix("data:").strip()
                     if chunk == "[DONE]":
                         break
-                    await output.record_time_point()
                     try:
                         data = json.loads(chunk)
                     except json.JSONDecodeError as e:
@@ -305,6 +308,8 @@ class BaseAPIModel(BaseModel):
                             MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
                             f"Unexpected response format. Please check 'error_info' in ***_failed.jsonl for more information.",
                         )
+                    if self.should_record_stream_time_point(data):
+                        await output.record_time_point()
                     await self.parse_stream_response(data, output)
                 output.success = True
             else:
