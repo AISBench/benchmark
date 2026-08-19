@@ -1,0 +1,127 @@
+import json
+import itertools
+import tempfile
+import unittest
+from pathlib import Path
+
+from ais_bench_prefix_cache.errors import ScenarioValidationError
+from ais_bench_prefix_cache.generation import (
+    RequestPlan,
+    assign_cold_routes,
+    assign_groups,
+    build_input_lengths,
+    build_output_lengths,
+    build_unique_seed_tokens,
+    load_gsm8k,
+    order_indices,
+    select_gsm8k,
+    simulate_theory,
+    solve_prefix_lengths,
+)
+from ais_bench_prefix_cache.scenario import load_scenario
+
+
+def scenario_dict(root: Path, mode: str = "cold", dp_size: int = 2) -> dict:
+    return {
+        "schema_version": "1.0",
+        "run": {"run_id": "pc-test", "random_seed": 42, "output_dir": str(root / "out")},
+        "tokenizer": {"path": "fake", "block_size": 4},
+        "corpus": {"path": str(root / "gsm.jsonl"), "field": "question", "selection": {"mode": "random"}},
+        "requests": {"count": 8, "input_length": {"mode": "fixed", "value": 32}, "output_length": {"mode": "fixed", "value": 2}},
+        "prefix_cache": {"mode": mode, "target_hit_rate": 0.5, "seed_blocks": 1, "groups": {"count": 2, "assignment": {"mode": "uniform"}}, "order": {"strategy": "interleave"}},
+        "service": {"inference_url": "http://127.0.0.1:8000/v1/completions", "metrics_url": "http://127.0.0.1:8000/metrics", "reset_url": "http://127.0.0.1:8000/reset_prefix_cache", "model": "m", "dp_size": dp_size, "assume_empty_cache": False},
+        "validation": {"target_warning_pp": 1.0, "actual_warning_pp": 5.0},
+    }
+
+
+class CoreTest(unittest.TestCase):
+    def test_scenario_rejects_unknown_multi_instance_field(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data = scenario_dict(root)
+            data["service"]["instances"] = ["forbidden"]
+            path = root / "scenario.json"
+            path.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ScenarioValidationError, "service.instances"):
+                load_scenario(path)
+
+    def test_lengths_are_deterministic(self):
+        ranges = {"mode": "range", "ranges": [{"min": 10, "max": 12, "count": 5}]}
+        self.assertEqual(build_input_lengths(ranges, 5, 7), build_input_lengths(ranges, 5, 7))
+        normal = {"mode": "truncated_normal", "min": 2, "max": 8}
+        self.assertEqual(build_output_lengths(normal, 6, 9), build_output_lengths(normal, 6, 9))
+
+    def test_csv_lengths_and_specified_gsm_selection(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "lengths.csv").write_text(
+                "input_tokens,output_tokens\n16,2\n20,3\n", encoding="utf-8"
+            )
+            self.assertEqual(
+                build_input_lengths({"mode": "csv", "path": str(root / "lengths.csv")}, 2, 1),
+                [16, 20],
+            )
+            self.assertEqual(
+                build_output_lengths({"mode": "csv", "path": str(root / "lengths.csv")}, 2, 1),
+                [2, 3],
+            )
+            corpus = root / "gsm.jsonl"
+            corpus.write_text(
+                "".join(json.dumps({"question": value}) + "\n" for value in ("alpha", "beta", "gamma")),
+                encoding="utf-8",
+            )
+            records = load_gsm8k(corpus)
+            by_index = select_gsm8k(records, {"mode": "indices", "values": [2, 0]}, 3, 1)
+            self.assertEqual([row.line_index for row in by_index], [2, 0, 2])
+            by_hash = select_gsm8k(
+                records,
+                {"mode": "question_sha256", "values": [records[1].question_sha256]},
+                2,
+                1,
+            )
+            self.assertEqual([row.line_index for row in by_hash], [1, 1])
+
+    def test_groups_and_orders(self):
+        groups = assign_groups(10, {"count": 3, "assignment": {"mode": "weights", "weights": [0.5, 0.3, 0.2]}}, 42)
+        self.assertEqual([groups.count(f"group-{i}") for i in range(3)], [5, 3, 2])
+        for strategy in ("sequential", "within_group_shuffle", "interleave", "global_shuffle"):
+            self.assertEqual(sorted(order_indices(groups, strategy, 42)), list(range(10)))
+
+    def test_routes_and_dp_watermarks(self):
+        groups = ["g0", "g1", "g0", "g1", "g0", "g1", "g0", "g1"]
+        ranks, lanes = assign_cold_routes(groups, 2)
+        self.assertEqual(ranks, [0, 0, 1, 1, 0, 0, 1, 1])
+        plans = [RequestPlan(f"r{i}", i, group, i // 2, rank, lane, 32, 32, 1, 16, 4, 12) for i, (group, rank, lane) in enumerate(zip(groups, ranks, lanes))]
+        theory = simulate_theory(plans, "cold")
+        self.assertEqual([row.theoretical_hit_tokens for row in theory.rows], [0, 0, 0, 0, 16, 16, 16, 16])
+
+    def test_unique_seed_and_solver(self):
+        seeds = build_unique_seed_tokens(list(range(32, 96)), [f"r{i}" for i in range(20)], 4, 42)
+        self.assertEqual(len(set(seeds.values())), 20)
+        groups = ["g0"] * 4
+        ranks, lanes = assign_cold_routes(groups, 1)
+        result = solve_prefix_lengths([32] * 4, [1] * 4, groups, ranks, lanes, 4, 4, "cold", 0.5)
+        self.assertTrue(all(value % 4 == 0 for value in result.shared_prefix_tokens))
+        self.assertLessEqual(result.effective_hit_rate, result.max_reachable_rate)
+
+    def test_solver_matches_exhaustive_small_oracle(self):
+        lengths = [16, 20, 24]
+        outputs = [1, 1, 1]
+        groups = ["g0", "g0", "g0"]
+        ranks, lanes = assign_cold_routes(groups, 1)
+        for mode in ("cold", "warmup"):
+            for target in (0.2, 0.4, 0.6):
+                result = solve_prefix_lengths(lengths, outputs, groups, ranks if mode == "cold" else [None] * 3, lanes if mode == "cold" else [None] * 3, 4, 4, mode, target)
+                target_tokens = int(sum(lengths) * target + 0.5)
+                best_error = None
+                for prefixes in itertools.product(*(range(0, ((length - 4) // 4) * 4 + 1, 4) for length in lengths)):
+                    plans = [RequestPlan(f"r{i}", i, "g0", i, ranks[i] if mode == "cold" else None, lanes[i] if mode == "cold" else None, lengths[i], lengths[i], 1, prefixes[i], 4, lengths[i] - prefixes[i] - 4) for i in range(3)]
+                    warm = {"g0": max(prefixes)} if mode == "warmup" else None
+                    hit = simulate_theory(plans, mode, warm).total_hit_tokens
+                    error = abs(hit - target_tokens)
+                    best_error = error if best_error is None else min(best_error, error)
+                self.assertEqual(abs(result.effective_hit_tokens - target_tokens), best_error, (mode, target, result))
+
+
+if __name__ == "__main__":
+    unittest.main()

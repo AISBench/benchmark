@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "run": {
+    "run_id": "gsm8k-prefix-cache-60",
+    "random_seed": 42,
+    "output_dir": "./outputs/gsm8k-prefix-cache-60"
+  },
+  "tokenizer": {
+    "path": "/models/example",
+    "block_size": 16,
+    "trust_remote_code": false
+  },
+  "corpus": {
+    "path": "./GSM8K.jsonl",
+    "field": "question",
+    "selection": {"mode": "random"}
+  },
+  "requests": {
+    "count": 100,
+    "input_length": {"mode": "range", "ranges": [{"min": 512, "max": 1024, "count": 100}]},
+    "output_length": {"mode": "fixed", "value": 32}
+  },
+  "prefix_cache": {
+    "mode": "warmup",
+    "target_hit_rate": 0.6,
+    "seed_blocks": 1,
+    "groups": {"count": 4, "assignment": {"mode": "zipf", "exponent": 1.0}},
+    "order": {"strategy": "interleave"}
+  },
+  "service": {
+    "inference_url": "http://127.0.0.1:8000/v1/completions",
+    "metrics_url": "http://127.0.0.1:8000/metrics",
+    "reset_url": "http://127.0.0.1:8000/reset_prefix_cache",
+    "model": "model-name",
+    "dp_size": 2,
+    "assume_empty_cache": false
+  },
+  "validation": {"target_warning_pp": 1.0, "actual_warning_pp": 5.0},
+  "aisbench": {"config": "./prefix_cache_perf.py", "work_dir": "./outputs/aisbench", "extra_args": []}
+}
