@@ -31,6 +31,9 @@ The model configurations corresponding to different service-oriented backends ar
 
 ### Parameter Description for Service-Oriented Inference Backend Configuration
 The configuration file for the service-oriented inference backend is configured using Python syntax, as shown in the example below:
+
+The common model templates do not preconfigure `response_anomaly`. Add the `response_anomaly` block shown below only when response anomaly detection is needed: locate the target model in the `models` list of the model configuration file and add it inside that model's `dict`, at the same level as fields such as `generation_kwargs` and `pred_postprocessor`. It is not required when anomaly detection is disabled.
+
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPI
 
@@ -57,8 +60,8 @@ models = [
             ignore_eos=False,
         ),
         response_anomaly = dict(    # Optional; model-level config for msProbe response anomaly detection
-            model_name='Qwen3-30B-A3B',       # Must match the name in msProbe's mtype_config.json
-            model_path='/home/Qwen3-30B-A3B', # Local model directory, optional, used to auto-generate configs
+            model_name="",       # Model name, for example Qwen3-30B-A3B
+            model_path="",       # Local model directory, for example /home/Qwen3-30B-A3B; optional, used to auto-generate configs
             msprobe_mtype_path='/path/to/mtype_config.json',
             msprobe_token2category_dir='/path/to/token2category/',
         )
@@ -96,6 +99,7 @@ The description of configurable parameters for the service-oriented inference ba
 
 
 **Precautions**:
+- Response anomaly detection currently supports only the vLLM Chat API model configurations `vllm_api_general_chat`, `vllm_api_stream_chat`, and `vllm_api_stream_chat_multiturn`. Other model backends are not supported yet.
 - `request_rate` is affected by hardware performance. You can increase 📚 [WORKERS_NUM](./cli_args.md#configuration-constant-file-parameters) to improve concurrency capability.
 - The function of `request_rate` may be overwritten by the `traffic_cfg` item. For specific reasons, refer to 🔗 [Parameter Interpretation Section in the Description of Request Rate (RPS) Distribution Control and Visualization](../../advanced_tutorials/rps_distribution.md#parameter-interpretation).
 - When the dataset has timestamps and **use_timestamp** is True in the model config, requests are scheduled by timestamp and **request_rate** and **traffic_cfg** are ignored.

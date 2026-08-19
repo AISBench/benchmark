@@ -73,6 +73,8 @@ The currently supported parameter configurations are as follows:
 
 ## Response Anomaly Detection Configuration
 
+Response anomaly detection currently supports only the vLLM Chat API model configurations `vllm_api_general_chat`, `vllm_api_stream_chat`, and `vllm_api_stream_chat_multiturn`. Other model backends are not supported yet.
+
 Add a `response_anomaly` entry to the top-level config file to enable detection; it can also be overridden with `--response-anomaly`:
 
 ```python
@@ -89,8 +91,8 @@ models = [
         abbr='qwen3-30b',
         attr='service',
         response_anomaly=dict(
-            model_name='Qwen3-30B-A3B',   # Must match the name in msProbe's mtype_config.json
-            model_path='/home/Qwen3-30B-A3B',  # Local model directory, optional, used to auto-generate configs
+            model_name="",   # Model name, for example Qwen3-30B-A3B
+            model_path="",   # Local model directory, for example /home/Qwen3-30B-A3B; optional, used to auto-generate configs
             msprobe_mtype_path='/path/to/mtype_config.json',
             msprobe_token2category_dir='/path/to/token2category/',
         ),

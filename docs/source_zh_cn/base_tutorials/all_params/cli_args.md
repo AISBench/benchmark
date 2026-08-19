@@ -57,6 +57,8 @@ ais_bench [OPTIONS]
 
 ## 推理响应异常检测配置
 
+当前响应异常检测仅支持基于 vLLM Chat API 的 `vllm_api_general_chat`、`vllm_api_stream_chat` 和 `vllm_api_stream_chat_multiturn` 模型配置，其他模型后端暂不支持。
+
 在总配置文件中增加 `response_anomaly` 可启用检测，也可通过 `--response-anomaly` 覆盖：
 
 ```python
@@ -73,8 +75,8 @@ models = [
 		abbr='qwen3-30b',
 		attr='service',
 		response_anomaly=dict(
-			model_name='Qwen3-30B-A3B',   # 与 msProbe 的 mtype_config.json 中名称一致
-			model_path='/home/Qwen3-30B-A3B',  # 本地模型目录，可选，用于自动生成配置
+			model_name="",   # 填写模型名称，如 Qwen3-30B-A3B
+			model_path="",   # 填写本地模型目录，如 /home/Qwen3-30B-A3B；可选，用于自动生成配置
 			msprobe_mtype_path='/path/to/mtype_config.json',
 			msprobe_token2category_dir='/path/to/token2category/',
 		),

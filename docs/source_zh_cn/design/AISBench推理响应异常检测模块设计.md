@@ -39,6 +39,8 @@ pip install 'ais-bench-benchmark[response_anomaly]'
 
 ### 2.2 服务响应要求
 
+当前仅支持基于 vLLM Chat API 的 `vllm_api_general_chat`、`vllm_api_stream_chat` 和 `vllm_api_stream_chat_multiturn` 模型配置，其他模型后端暂不支持。
+
 服务端必须在响应中返回：
 
 - 生成 token 序列：`token_ids` 或 `tokens`
@@ -149,6 +151,8 @@ sequenceDiagram
 
 运行级开关与公共参数放在全局 `response_anomaly`，模型相关配置放在各模型的 `response_anomaly` 中：
 
+异常检测配置不会预置在通用模型配置模板中。需要启用该功能时，请在实际使用的模型配置文件中找到 `models` 列表里的目标模型，并在该模型的 `dict` 内添加 `response_anomaly`；它与 `generation_kwargs`、`pred_postprocessor` 等模型字段同级。未启用异常检测时无需添加。
+
 ```python
 response_anomaly = dict(
     enabled=True,
@@ -167,8 +171,8 @@ models = [
         abbr='qwen3-30b',
         attr='service',
         response_anomaly=dict(
-            model_name='Qwen3-30B-A3B',
-            model_path='/home/Qwen3-30B-A3B',          # 本地模型目录，用于自动生成配置
+            model_name="",                            # 填写模型名称，如 Qwen3-30B-A3B
+            model_path="",                            # 填写本地模型目录，如 /home/Qwen3-30B-A3B；可选，用于自动生成配置
             msprobe_mtype_path='/path/to/mtype_config.json',
             msprobe_token2category_dir='/path/to/token2category/',
         ),
@@ -360,6 +364,7 @@ AISBench 直接使用 `ILLDetector`，以便传入用户配置的三个文件路
 
 ## 9. 安全、兼容性与限制
 
+- 当前仅支持基于 vLLM Chat API 的 `vllm_api_general_chat`、`vllm_api_stream_chat` 和 `vllm_api_stream_chat_multiturn` 模型配置。
 - 预测 JSONL 中的 token/logprob 可能增加落盘体积，应只在开关启用时请求和保存。
 - 当前服务响应字段兼容根节点或首个 `choices` 节点；新的服务协议需要在 `BaseAPIModel` 扩展提取逻辑。
 - 仅支持 `all` / `infer` / `infer_judge` 普通生成链路；性能模式与 Agent 测评模式不支持。
