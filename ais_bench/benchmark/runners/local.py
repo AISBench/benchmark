@@ -20,7 +20,6 @@ from ais_bench.benchmark.registry import RUNNERS, TASKS
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg
 from ais_bench.benchmark.runners.base import TasksMonitor
 from ais_bench.benchmark.runners.base import BaseRunner
-from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
 from ais_bench.benchmark.utils.logging.error_codes import RUNNER_CODES
 from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
 
@@ -112,10 +111,7 @@ class LocalRunner(BaseRunner):
         else:
             status = self._run_normal(tasks, all_gpu_ids, monitor_p)
         monitor_p.join()
-        TasksMonitor.rm_tmp_files(
-            tasks[0]['work_dir'],
-            preserve=(ResponseAnomalyCoordinator.STATUS_FILE_NAME,),
-        )
+        TasksMonitor.rm_tmp_files(tasks[0]['work_dir'])
         self.logger.debug(f"LocalRunner.launch completed, {len(status)} task(s) finished")
         return status
 

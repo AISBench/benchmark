@@ -8,7 +8,6 @@ from ais_bench.benchmark.runners.base import (
     TasksMonitor,
     BaseRunner
 )
-from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
 
 
 class TestCreateProgressBar(unittest.TestCase):
@@ -109,26 +108,27 @@ class TestTasksMonitor(unittest.TestCase):
         mock_rmtree.assert_called_once()
 
     @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=True)
-    @patch('ais_bench.benchmark.runners.base.os.remove')
     @patch(
         'ais_bench.benchmark.runners.base.os.listdir',
-        side_effect=[
-            ['tmp_task1.json', ResponseAnomalyCoordinator.STATUS_FILE_NAME],
-            [ResponseAnomalyCoordinator.STATUS_FILE_NAME],
-        ],
+        side_effect=[['tmp_task1.json'], ['tmp_task1.json']],
     )
-    @patch('ais_bench.benchmark.runners.base.shutil.rmtree')
-    def test_rm_tmp_files_preserves_anomaly_status(
-        self, mock_rmtree, mock_listdir, mock_remove, mock_exists
+    @patch(
+        'ais_bench.benchmark.runners.base.os.remove',
+        side_effect=OSError('permission denied'),
+    )
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    def test_rm_tmp_files_warns_and_continues_on_remove_error(
+        self, mock_logger_class, mock_remove, mock_listdir, mock_exists
     ):
-        """Test rm_tmp_files preserves the response anomaly status file."""
-        TasksMonitor.rm_tmp_files(
-            "/tmp/test",
-            preserve=(ResponseAnomalyCoordinator.STATUS_FILE_NAME,),
-        )
+        """Status cleanup failures are visible but do not abort the workflow."""
+        TasksMonitor.rm_tmp_files("/tmp/test")
 
         mock_remove.assert_called_once_with('/tmp/test/status_tmp/tmp_task1.json')
-        mock_rmtree.assert_not_called()
+        mock_logger_class.return_value.warning.assert_called_once_with(
+            "Failed to remove task status path %s: %s",
+            '/tmp/test/status_tmp/tmp_task1.json',
+            mock_remove.side_effect,
+        )
 
     @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
     @patch('ais_bench.benchmark.runners.base.os.makedirs')
@@ -204,17 +204,17 @@ class TestTasksMonitor(unittest.TestCase):
         monitor._refresh_task_state()
 
         mock_open.assert_not_called()
-        self.assertEqual(monitor.auxiliary_task_names, set())
 
+        anomaly_task_name = 'ResponseAnomaly/model/ds'
         opt_in_monitor = TasksMonitor(
-            task_names=self.task_names,
+            task_names=[anomaly_task_name],
             output_path=self.output_path,
             is_debug=True,
             include_anomaly_status=True,
         )
         mock_json_load.return_value = [
             {
-                'task_name': 'ResponseAnomaly/model/ds',
+                'task_name': anomaly_task_name,
                 'process_id': 1,
                 'finish_count': 1,
                 'total_count': 2,
@@ -223,9 +223,7 @@ class TestTasksMonitor(unittest.TestCase):
         ]
         opt_in_monitor._refresh_task_state()
 
-        self.assertIn(
-            'ResponseAnomaly/model/ds', opt_in_monitor.tasks_state_map
-        )
+        self.assertIn(anomaly_task_name, opt_in_monitor.tasks_state_map)
 
     @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
     @patch('ais_bench.benchmark.runners.base.os.makedirs')
@@ -296,43 +294,6 @@ class TestTasksMonitor(unittest.TestCase):
 
         mock_pbar.close.assert_called_once()
 
-    @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
-    @patch('ais_bench.benchmark.runners.base.os.makedirs')
-    @patch('ais_bench.benchmark.runners.base.AISLogger')
-    @patch('ais_bench.benchmark.runners.base.tqdm')
-    @patch('ais_bench.benchmark.runners.base.time.sleep')
-    def test_tasks_monitor_update_tasks_progress_waits_for_auxiliary(
-        self, mock_sleep, mock_tqdm, mock_logger_class, mock_makedirs, mock_exists
-    ):
-        """Auxiliary task 出现后应扩展进度条 total 并等待其完成。"""
-        monitor = TasksMonitor(
-            task_names=self.task_names,
-            output_path=self.output_path,
-            is_debug=True
-        )
-        monitor.tasks_state_map["task1"]["status"] = "finish"
-        monitor.tasks_state_map["task2"]["status"] = "finish"
-
-        def refresh():
-            if "ResponseAnomaly" not in monitor.tasks_state_map:
-                monitor.tasks_state_map["ResponseAnomaly"] = {"status": "start"}
-                monitor.auxiliary_task_names.add("ResponseAnomaly")
-            else:
-                monitor.tasks_state_map["ResponseAnomaly"]["status"] = "finish"
-
-        monitor._refresh_task_state = MagicMock(side_effect=refresh)
-        monitor._get_task_states = MagicMock(return_value=[])
-        monitor._is_all_task_done = MagicMock(side_effect=[False, True])
-
-        mock_pbar = MagicMock()
-        mock_pbar.n = 0
-        mock_pbar.total = 2
-        mock_tqdm.return_value = mock_pbar
-
-        monitor._update_tasks_progress()
-
-        self.assertEqual(mock_pbar.total, 3)
-        mock_pbar.close.assert_called_once()
 
 
 class TestBaseRunner(unittest.TestCase):

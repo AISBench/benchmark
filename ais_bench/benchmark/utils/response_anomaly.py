@@ -1,4 +1,4 @@
-"""Background msProbe response anomaly detection for completed AISBench predictions."""
+"""msProbe response anomaly detection for completed AISBench predictions."""
 
 import json
 import logging
@@ -40,7 +40,7 @@ class _ThreadLogFilter(logging.Filter):
 
 
 class ResponseAnomalyCoordinator:
-    """Run response anomaly detection independently from the evaluation stage."""
+    """Run detection serially in Infer while a status board refreshes."""
 
     STATUS_TASK_NAME = "ResponseAnomaly"
     STATUS_FILE_NAME = "tmp_ResponseAnomaly.json"

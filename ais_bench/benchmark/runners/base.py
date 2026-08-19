@@ -60,10 +60,6 @@ class TasksMonitor:
 
         self.tasks_state_map = {task_name: {"status": "not start"} for task_name in task_names}
         self.task_end_status_list = {task_name: [] for task_name in task_names}
-        # Status producers discovered at runtime (e.g. ResponseAnomaly) are shown
-        # on the board and keep it alive until they finish, but they are not part
-        # of the runner's original task list.
-        self.auxiliary_task_names = set()
         self.is_debug = is_debug
         self.refresh_interval = refresh_interval
         self.run_in_background = self.is_running_in_background() if not self.is_debug else True
@@ -85,24 +81,28 @@ class TasksMonitor:
         return False
 
     @staticmethod
-    def rm_tmp_files(work_dir: str, preserve: tuple = ()):
-        """
-        Remove temporary files, optionally preserving files that are still
-        produced by auxiliary status writers (e.g. response anomaly detection).
-        """
+    def rm_tmp_files(work_dir: str):
+        """Remove task status files after the monitored stage finishes."""
         tmp_path = os.path.join(work_dir, "status_tmp")
         if not os.path.exists(tmp_path):
             return
+        logger = AISLogger()
         for name in os.listdir(tmp_path):
-            if name in preserve:
-                continue
             path = os.path.join(tmp_path, name)
-            if os.path.isdir(path):
-                shutil.rmtree(path)
-            else:
-                os.remove(path)
-        if not os.listdir(tmp_path):
-            shutil.rmtree(tmp_path)
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+            except OSError as exc:
+                logger.warning("Failed to remove task status path %s: %s", path, exc)
+        try:
+            if not os.listdir(tmp_path):
+                shutil.rmtree(tmp_path)
+        except OSError as exc:
+            logger.warning(
+                "Failed to remove task status directory %s: %s", tmp_path, exc
+            )
 
     def launch_state_board(self):
         if self.is_debug:
@@ -123,13 +123,6 @@ class TasksMonitor:
             status = state.get("status")
             if status not in ("finish", "error", "killed"):
                 unfinished_tasks.append((task_name, status))
-        # Auxiliary statuses (e.g. ResponseAnomaly) must also finish before the
-        # board exits, so the real-time status can be observed to completion.
-        for task_name in self.auxiliary_task_names:
-            state = self.tasks_state_map.get(task_name)
-            if state and state.get("status") not in ("finish", "error", "killed"):
-                unfinished_tasks.append((task_name, state.get("status")))
-
         if unfinished_tasks:
             return False
 
@@ -138,10 +131,8 @@ class TasksMonitor:
 
     def _refresh_task_state(self):
         start_time = time.time()
-        # The response anomaly status file is read without clearing it: the
-        # coordinator replaces it atomically, and the final status must remain
-        # visible to later monitors (including the dedicated wait monitor).
-        # Only boards that opted in read it, so evaluation boards stay clean.
+        # The dedicated anomaly board reads the atomically replaced status file
+        # without clearing it. Other stage boards do not opt in.
         anomaly_status_file_name = ResponseAnomalyCoordinator.STATUS_FILE_NAME
         anomaly_statuses = []
         if self.include_anomaly_status:
@@ -184,9 +175,10 @@ class TasksMonitor:
             # get status information from queue
             task_name = status['task_name']
             if task_name not in self.tasks_state_map:
-                self.tasks_state_map[task_name] = {"status": "not start"}
-                self.task_end_status_list[task_name] = []
-                self.auxiliary_task_names.add(task_name)
+                self.logger.debug(
+                    "Ignore status for unregistered task: %s", task_name
+                )
+                continue
             if not self.tasks_state_map[task_name].get('start_time'):
                 self.tasks_state_map[task_name]['start_time'] = time.time()
                 self.tasks_state_map[task_name]['status'] = "start"
@@ -230,11 +222,6 @@ class TasksMonitor:
         pbar = tqdm(total=len(self.tasks_state_map), desc="Monitoring tasks progress")
         while True:
             self._refresh_task_state()
-            # Auxiliary status producers (e.g. ResponseAnomaly) may appear
-            # after the bar was created; keep the total in sync so the board
-            # does not exit before they finish.
-            if len(self.tasks_state_map) > pbar.total:
-                pbar.total = len(self.tasks_state_map)
             _ = self._get_task_states()
             cur_count = 0
             for _, state in self.tasks_state_map.items():
