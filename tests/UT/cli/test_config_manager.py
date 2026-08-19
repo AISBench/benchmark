@@ -766,6 +766,50 @@ class TestConfigManager(unittest.TestCase):
             },
         )
 
+    def test_response_anomaly_injects_payload_storage_into_service_models(self):
+        """work_dir 初始化后，为 service 模型注入 payload 运行时配置。"""
+        config_manager = ConfigManager(self.args)
+        service_model = self._service_model(abbr='service-model')
+        local_model = {'abbr': 'local-model', 'attr': 'local'}
+        config_manager.cfg = {
+            'work_dir': '/test/workdir',
+            'response_anomaly': {
+                'enabled': True,
+                'payload_storage': {
+                    'format': 'jsonl',
+                    'compression': 'zstd',
+                },
+            },
+            'models': [service_model, local_model],
+        }
+
+        config_manager._inject_response_anomaly_payload_storage()
+
+        self.assertEqual(
+            service_model['response_anomaly_payload_storage'],
+            {
+                'work_dir': '/test/workdir',
+                'model_abbr': 'service-model',
+                'format': 'jsonl',
+                'compression': 'zstd',
+            },
+        )
+        self.assertNotIn('response_anomaly_payload_storage', local_model)
+
+    def test_response_anomaly_skips_payload_storage_when_disabled(self):
+        """异常检测关闭时不向模型配置添加运行时字段。"""
+        config_manager = ConfigManager(self.args)
+        model_cfg = self._service_model()
+        config_manager.cfg = {
+            'work_dir': '/test/workdir',
+            'response_anomaly': {'enabled': False},
+            'models': [model_cfg],
+        }
+
+        config_manager._inject_response_anomaly_payload_storage()
+
+        self.assertNotIn('response_anomaly_payload_storage', model_cfg)
+
     def test_response_anomaly_rejects_invalid_payload_retention(self):
         self.args.mode = 'all'
         self.args.response_anomaly = True

@@ -352,6 +352,50 @@ class TestInfer:
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')
     @patch('ais_bench.benchmark.cli.workers.logger')
+    @patch('os.path.isfile', return_value=True)
+    @patch('os.remove', side_effect=OSError('permission denied'))
+    def test_do_work_warns_when_stale_anomaly_status_cannot_be_removed(
+        self,
+        mock_remove,
+        mock_isfile,
+        mock_logger,
+        mock_runners,
+        mock_partitioners,
+    ):
+        """旧状态清理失败时告警，但不阻断推理和异常检测。"""
+        mock_partitioner = MagicMock()
+        mock_partitioners.build.return_value = mock_partitioner
+        mock_partitioner.return_value = []
+        mock_runner = MagicMock()
+        mock_runners.build.return_value = mock_runner
+
+        coordinator = MagicMock()
+        coordinator.anomaly_report = {}
+        coordinator.summary = {'normal': 1}
+        self.infer_worker.response_anomaly_coordinator = coordinator
+        cfg = MockConfigDict({
+            'infer': {'partitioner': {}, 'runner': {}},
+            'cli_args': MagicMock(merge_ds=False, mode='all'),
+            'work_dir': '/test/workdir',
+            'response_anomaly': {'enabled': True},
+        })
+
+        with patch.object(self.infer_worker, '_update_tasks_cfg'):
+            self.infer_worker.do_work(cfg)
+
+        mock_remove.assert_called_once()
+        mock_logger.warning.assert_any_call(
+            "Failed to remove stale response anomaly status file %s: %s",
+            '/test/workdir/status_tmp/tmp_ResponseAnomaly.json',
+            mock_remove.side_effect,
+        )
+        mock_runner.assert_called_once_with([])
+        coordinator.start.assert_called_once_with(cfg)
+        coordinator.join.assert_called_once()
+
+    @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
+    @patch('ais_bench.benchmark.cli.workers.RUNNERS')
+    @patch('ais_bench.benchmark.cli.workers.logger')
     def test_do_work_skips_anomaly_detection_when_disabled(self, mock_logger, mock_runners, mock_partitioners):
         """未启用检测时不启动协调器"""
         mock_partitioner = MagicMock()

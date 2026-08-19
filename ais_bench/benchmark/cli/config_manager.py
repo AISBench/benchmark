@@ -114,6 +114,7 @@ class ConfigManager:
         self.cfg = self._get_config_from_arg()
         self._init_response_anomaly_config()
         self._update_and_init_work_dir()
+        self._inject_response_anomaly_payload_storage()
         self._fill_dataset_configs()
         self._update_cfg_of_workflow(workflow)
         self._dump_and_reload_config()
@@ -138,6 +139,24 @@ class ConfigManager:
         self._warn_shared_response_anomaly_model_name(global_cfg, service_models)
         for model_cfg in service_models:
             self._init_response_anomaly_model(model_cfg, global_cfg)
+
+    def _inject_response_anomaly_payload_storage(self):
+        """Add runtime payload storage settings to supported model configs."""
+        anomaly_cfg = self.cfg.get('response_anomaly') or {}
+        if not anomaly_cfg.get('enabled', False):
+            return
+        models = self.cfg.get('models')
+        if not isinstance(models, list):
+            return
+        storage_cfg = dict(anomaly_cfg.get('payload_storage') or {})
+        for model_cfg in models:
+            if model_cfg.get('attr', 'service') != 'service':
+                continue
+            model_cfg['response_anomaly_payload_storage'] = {
+                'work_dir': self.cfg['work_dir'],
+                'model_abbr': model_cfg['abbr'],
+                **storage_cfg,
+            }
 
     def _normalize_response_anomaly_global_config(self):
         """Apply CLI overrides and defaults to the global anomaly config."""

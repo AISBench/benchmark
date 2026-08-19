@@ -154,21 +154,12 @@ class Infer(BaseWorker):
             try:
                 if os.path.isfile(stale_status):
                     os.remove(stale_status)
-            except OSError:
-                pass
-
-            storage_cfg = dict(
-                cfg['response_anomaly'].get('payload_storage') or {}
-            )
-            for task in tasks:
-                for model_cfg in task.get('models', []):
-                    if model_cfg.get('attr', 'service') != 'service':
-                        continue
-                    model_cfg['response_anomaly_payload_storage'] = {
-                        'work_dir': cfg['work_dir'],
-                        'model_abbr': model_cfg['abbr'],
-                        **storage_cfg,
-                    }
+            except OSError as exc:
+                logger.warning(
+                    "Failed to remove stale response anomaly status file %s: %s",
+                    stale_status,
+                    exc,
+                )
 
         runner = RUNNERS.build(cfg.infer.runner)
         runner(tasks)
