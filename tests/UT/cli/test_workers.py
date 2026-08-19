@@ -426,7 +426,15 @@ class TestInfer:
             'response_anomaly': {'enabled': True},
         })
 
-        with patch.object(self.infer_worker, '_update_tasks_cfg'):
+        with (
+            patch.object(self.infer_worker, '_update_tasks_cfg'),
+            patch(
+                'ais_bench.benchmark.cli.workers._run_response_anomaly_monitor'
+            ),
+            patch(
+                'ais_bench.benchmark.cli.workers.TasksMonitor.rm_tmp_files'
+            ),
+        ):
             self.infer_worker.do_work(cfg)
 
         mock_remove.assert_called_once()
