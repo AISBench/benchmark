@@ -17,7 +17,8 @@ from ais_bench.benchmark.cli.workers import (
     AccViz,
     PerfViz,
     WorkFlowExecutor,
-    WORK_FLOW
+    WORK_FLOW,
+    _finalize_response_anomaly_detection,
 )
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners import LocalRunner
@@ -348,6 +349,51 @@ class TestInfer:
         coordinator.start.assert_called_once_with(cfg)
         coordinator.join.assert_called_once()
         assert order == ['runner', 'coordinator.start', 'coordinator.join']
+
+    @patch('ais_bench.benchmark.cli.workers.TasksMonitor.rm_tmp_files')
+    @patch('ais_bench.benchmark.cli.workers._run_response_anomaly_monitor')
+    def test_finalize_anomaly_detection_runs_monitor_in_current_process(
+        self, mock_monitor, mock_rm_tmp_files
+    ):
+        """检测线程运行时，主线程同步展示专用状态看板。"""
+        coordinator = MagicMock()
+        coordinator.is_running = True
+        coordinator.task_names = ['ResponseAnomaly/model/dataset']
+        coordinator.summary = {}
+        coordinator.anomaly_report = {}
+        order = []
+        mock_monitor.side_effect = lambda *args: order.append('monitor')
+        coordinator.join.side_effect = lambda: order.append('join')
+
+        _finalize_response_anomaly_detection(
+            coordinator, '/test/workdir', False
+        )
+
+        mock_monitor.assert_called_once_with(
+            coordinator.task_names, '/test/workdir', False
+        )
+        assert order == ['monitor', 'join']
+        mock_rm_tmp_files.assert_called_once_with('/test/workdir')
+
+    @patch('ais_bench.benchmark.cli.workers.TasksMonitor.rm_tmp_files')
+    @patch('ais_bench.benchmark.cli.workers._run_response_anomaly_monitor')
+    @patch('ais_bench.benchmark.cli.workers.osp.isfile', return_value=False)
+    def test_finalize_anomaly_detection_without_status_only_joins(
+        self, mock_isfile, mock_monitor, mock_rm_tmp_files
+    ):
+        """检测未产生状态时不启动看板，仍等待线程并完成清理。"""
+        coordinator = MagicMock()
+        coordinator.is_running = False
+        coordinator.summary = {}
+        coordinator.anomaly_report = {}
+
+        _finalize_response_anomaly_detection(
+            coordinator, '/test/workdir', False
+        )
+
+        mock_monitor.assert_not_called()
+        coordinator.join.assert_called_once()
+        mock_rm_tmp_files.assert_called_once_with('/test/workdir')
 
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')

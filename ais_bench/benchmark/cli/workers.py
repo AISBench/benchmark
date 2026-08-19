@@ -4,7 +4,6 @@ import os.path as osp
 import copy
 import shutil
 import json
-import multiprocessing
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -714,7 +713,6 @@ def _finalize_response_anomaly_detection(
     inference stage: the dedicated board renders right after the inference
     board and before evaluation starts.
     """
-    monitor_p = None
     # The dedicated board is the only place detection status is rendered now
     # that evaluation boards stay separate. Start it whenever detection has
     # produced a status (it may have already finished for tiny datasets), so
@@ -726,14 +724,12 @@ def _finalize_response_anomaly_detection(
         ResponseAnomalyCoordinator.STATUS_FILE_NAME,
     )
     if coordinator.is_running or osp.isfile(anomaly_status_file):
-        monitor_p = multiprocessing.Process(
-            target=_run_response_anomaly_monitor,
-            args=(coordinator.task_names, work_dir, is_debug),
+        _run_response_anomaly_monitor(
+            coordinator.task_names,
+            work_dir,
+            is_debug,
         )
-        monitor_p.start()
     coordinator.join()
-    if monitor_p:
-        monitor_p.join()
     TasksMonitor.rm_tmp_files(work_dir)
     if coordinator.summary:
         logger.info(
