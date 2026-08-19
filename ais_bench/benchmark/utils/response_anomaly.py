@@ -8,6 +8,7 @@ import threading
 import time
 import uuid
 from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -37,6 +38,56 @@ class _ThreadLogFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         return record.thread == self.thread_id
+
+
+@dataclass
+class _DetectionTask:
+    model_abbr: str
+    dataset_abbr: str
+    model_cfg: Dict[str, Any]
+    prediction_file: Path
+    predictions: List[Dict[str, Any]]
+
+
+@dataclass
+class _GroupProgress:
+    total: int
+    completed: int = 0
+    counts: Counter[str] = field(default_factory=Counter)
+
+
+@dataclass
+class _PayloadState:
+    retention: str
+    storage_cfg: Dict[str, Any]
+    payload_dir: Path
+    source_dir: Path
+    staging_dir: Path
+    archive_is_current: bool
+    writer: Any = None
+    retained_keys: set[str] = field(default_factory=set)
+
+
+@dataclass
+class _DetectionContext:
+    task_name: str
+    task_log_path: str
+    progress: _GroupProgress
+    started_at: float
+    anomaly_cfg: Dict[str, Any]
+    detector: Any
+    init_error: Any
+    result_file: Path
+    prediction_keys: set[str]
+    inherited: Dict[str, Dict[str, Any]]
+    payload: _PayloadState
+
+
+@dataclass
+class _ActiveResources:
+    log_handler: Optional[logging.FileHandler] = None
+    payload_build_dir: Optional[Path] = None
+    payload_writers: List[Any] = field(default_factory=list)
 
 
 class ResponseAnomalyCoordinator:
@@ -133,520 +184,767 @@ class ResponseAnomalyCoordinator:
         status_dir = Path(work_dir) / "status_tmp"
         status_file = status_dir / self.STATUS_FILE_NAME
         counts: Counter[str] = Counter()
-        active_log_handler = None
-        active_payload_build_dir: Optional[Path] = None
-        active_payload_writers = []
-        current_task_name = self.STATUS_TASK_NAME
+        resources = _ActiveResources()
         try:
-            # The feature only supports service-model generation chains.
-            pairs = [
-                (model["abbr"], dataset["abbr"], model)
-                for model in cfg.get("models", [])
-                if model.get("attr", "service") == "service"
-                for dataset in cfg.get("datasets", [])
-            ]
-
-            task_groups = []
-            for model_abbr, dataset_abbr, model_cfg in pairs:
-                prediction_file = (
-                    Path(work_dir) / "predictions" / model_abbr / f"{dataset_abbr}.jsonl"
-                )
-                predictions = self._read_jsonl(prediction_file)
-                task_groups.append(
-                    (model_abbr, dataset_abbr, model_cfg, prediction_file, predictions)
-                )
-
-            self._task_names = [
-                self.task_name(model_abbr, dataset_abbr)
-                for model_abbr, dataset_abbr, _, _, _ in task_groups
-            ] or [self.STATUS_TASK_NAME]
-            self._task_statuses = {}
-            if not task_groups:
-                self.logger.warning(
-                    "Response anomaly detection has no service model/dataset "
-                    "groups to analyze under %s.",
-                    Path(work_dir) / "predictions",
-                )
-                self._post_status(
-                    status_file,
-                    0,
-                    0,
-                    Counter(),
-                    "response anomaly finished",
-                    "finish",
-                )
+            task_groups = self._build_detection_tasks(cfg, work_dir)
+            if not self._initialize_detection_tasks(
+                task_groups, status_file, work_dir
+            ):
                 return
-
-            for model_abbr, dataset_abbr, _, _, predictions in task_groups:
-                self._post_status(
-                    status_file,
-                    0,
-                    len(predictions),
-                    Counter(),
-                    "waiting for response anomaly detection",
-                    "start",
-                    self.task_name(model_abbr, dataset_abbr),
-                    self.task_log_path(model_abbr, dataset_abbr),
-                )
 
             model_name_warned = False
             # Cache per-model config and detector so that a model with multiple
             # datasets only generates its msProbe config and initializes the
             # ILLDetector once (token2category loading is expensive).
             detector_cache: Dict[str, tuple] = {}
-            for model_abbr, dataset_abbr, model_cfg, prediction_file, predictions in task_groups:
-                current_task_name = self.task_name(model_abbr, dataset_abbr)
-                task_log_path = self.task_log_path(model_abbr, dataset_abbr)
-                group_total = len(predictions)
-                group_completed = 0
-                group_counts: Counter[str] = Counter()
-                group_start_time = time.perf_counter()
-                active_log_handler = self._open_task_log(
-                    work_dir, model_abbr, dataset_abbr
-                )
-                self.logger.info("Task [%s]", current_task_name)
-                self.logger.info("Found %d predictions", group_total)
-                if not predictions:
-                    self.logger.warning(
-                        "No predictions found for model '%s' dataset '%s'; "
-                        "response anomaly detection will skip this group.",
-                        model_abbr,
-                        dataset_abbr,
-                    )
-                if model_abbr in detector_cache:
-                    anomaly_cfg, detector, init_error = detector_cache[model_abbr]
-                    self.logger.info(
-                        "Reuse response anomaly detector for model [%s]",
-                        model_abbr,
-                    )
-                else:
-                    anomaly_cfg = self._merge_model_anomaly_config(
-                        model_cfg, cfg["response_anomaly"]
-                    )
-                    try:
-                        self.logger.info(
-                            "Preparing response anomaly config for model [%s]",
-                            model_abbr,
-                        )
-                        self._post_status(
-                            status_file,
-                            group_completed,
-                            group_total,
-                            group_counts,
-                            f"preparing response anomaly config for {model_abbr}",
-                            task_name=current_task_name,
-                            task_log_path=task_log_path,
-                        )
-                        anomaly_cfg = self._prepare_model_config(
-                            model_abbr, anomaly_cfg, work_dir
-                        )
-                        self.logger.info(
-                            "Loading response anomaly detector for model [%s]",
-                            model_abbr,
-                        )
-                        self._post_status(
-                            status_file,
-                            group_completed,
-                            group_total,
-                            group_counts,
-                            f"loading response anomaly detector for {model_abbr}",
-                            task_name=current_task_name,
-                            task_log_path=task_log_path,
-                        )
-                        detector, init_error = self._build_detector(anomaly_cfg)
-                        if detector is not None:
-                            self._cache_detector_token_categories(detector)
-                            self.logger.info(
-                                "Response anomaly detector initialized for model [%s]",
-                                model_abbr,
-                            )
-                        elif init_error:
-                            self.logger.warning(
-                                "Response anomaly detector is %s: %s",
-                                init_error[0],
-                                init_error[1],
-                            )
-                    except Exception as exc:
-                        self.logger.logger.error(
-                            "Failed to prepare response anomaly detection for model "
-                            "%s: %s",
-                            model_abbr,
-                            exc,
-                        )
-                        detector = None
-                        init_error = (
-                            "failed",
-                            f"Failed to prepare msProbe configuration: {exc}",
-                        )
-                    detector_cache[model_abbr] = (anomaly_cfg, detector, init_error)
-                result_file = (
-                    Path(work_dir)
-                    / "response_anomaly"
-                    / model_abbr
-                    / f"{dataset_abbr}.jsonl"
-                )
-                prediction_keys = {
-                    f"{item.get('id')}:{item.get('uuid')}" for item in predictions
-                }
-                inherited = self._load_inherited_results(result_file, prediction_keys)
-                inherited_names = [
-                    item.get("anomaly_type_name", "unknown")
-                    for item in inherited.values()
-                ]
-                group_completed += len(inherited)
-                group_counts.update(inherited_names)
-                counts.update(inherited_names)
-                if inherited:
-                    self.logger.info(
-                        "Found %d completed response anomaly results in cache",
-                        len(inherited),
-                    )
-
-                if not model_name_warned and not anomaly_cfg.get("model_name"):
-                    self.logger.warning(
-                        "response_anomaly.model_name is not set; falling back to model "
-                        "abbr '%s'. msProbe model matching may be degraded.",
-                        model_cfg.get("abbr"),
-                    )
-                    model_name_warned = True
-
-                # Ensure the result directory exists once per group instead of
-                # once per prediction (mkdir with exist_ok=True is idempotent).
-                result_file.parent.mkdir(parents=True, exist_ok=True)
-                retention = cfg["response_anomaly"].get(
-                    "payload_retention", "anomalies"
-                )
-                storage_cfg = cfg["response_anomaly"].get(
-                    "payload_storage", {}
-                )
-                payload_dir = (
-                    Path(work_dir)
-                    / "response_anomaly"
-                    / model_abbr
-                    / "payload"
-                    / dataset_abbr
-                )
-                source_dir = (
-                    Path(work_dir)
-                    / "response_anomaly"
-                    / model_abbr
-                    / "payload_staging"
-                    / dataset_abbr
-                )
-                staging_dir = payload_dir.with_name(
-                    f".{dataset_abbr}.payload-build-{uuid.uuid4().hex[:8]}"
-                )
-                self._cleanup_stale_payload_build_dirs(payload_dir)
-                active_payload_build_dir = staging_dir
-                payload_writer = None
-                if payload_dir.exists():
-                    old_manifest_path = payload_dir / "payload_manifest.json"
-                    if not old_manifest_path.exists():
-                        raise RuntimeError(
-                            "Existing response anomaly payload archive has no "
-                            "manifest. Use a new work directory."
-                        )
-                    old_manifest = json.loads(
-                        old_manifest_path.read_text(encoding="utf-8")
-                    )
-                    old_retention = old_manifest.get(
-                        "payload_retention", "all"
-                    )
-                    if old_retention != retention:
-                        raise RuntimeError(
-                            "Cannot change response anomaly payload_retention "
-                            "while reusing an existing payload archive. Use a "
-                            "new work directory."
-                        )
-                pending_keys = prediction_keys.difference(inherited)
-                archive_is_current = (
-                    not pending_keys
-                    and not source_dir.exists()
-                    and (
-                        payload_dir.exists()
-                        if retention != "none"
-                        else not payload_dir.exists()
-                    )
-                )
-                if archive_is_current:
-                    self.logger.info(
-                        "No new response anomaly payloads for %s/%s; "
-                        "keeping the existing payload archive unchanged",
-                        model_abbr,
-                        dataset_abbr,
-                    )
-                elif payload_dir.exists() and retention == "all":
-                    self._seed_payload_directory(payload_dir, source_dir)
-                from ais_bench.benchmark.utils.response_anomaly_jsonl import (
-                    iter_jsonl_zstd_records,
-                )
-
-                retained_payload_keys = set()
-                if retention == "anomalies" and not archive_is_current:
-                    from ais_bench.benchmark.utils.response_anomaly_jsonl import (
-                        ResponseAnomalyJsonlWriter,
-                    )
-
-                    if payload_dir.exists():
-                        retained_payload_keys = {
-                            f"{record.get('id')}:{record.get('uuid')}"
-                            for record in iter_jsonl_zstd_records(payload_dir)
-                        }
-                        self._seed_payload_directory(
-                            payload_dir, staging_dir, include_manifest=True
-                        )
-                    payload_writer = ResponseAnomalyJsonlWriter(
-                        staging_dir,
-                        compression_level=storage_cfg.get(
-                            "compression_level", 3
-                        ),
-                        rows_per_shard=storage_cfg.get(
-                            "rows_per_shard", 2000
-                        ),
-                    )
-                    active_payload_writers.append(payload_writer)
-
-                self.logger.info(
-                    "Response anomaly detecting %s/%s from %s",
-                    model_abbr,
-                    dataset_abbr,
-                    source_dir,
-                )
-                self.logger.info(
-                    "Start detecting %d response anomaly payloads",
-                    max(0, group_total - group_completed),
-                )
-                self._post_status(
+            for task in task_groups:
+                model_name_warned = self._detect_task(
+                    task,
+                    cfg,
+                    work_dir,
                     status_file,
-                    group_completed,
-                    group_total,
-                    group_counts,
-                    f"streaming response anomaly payloads for {dataset_abbr}",
-                    task_name=current_task_name,
-                    task_log_path=task_log_path,
+                    counts,
+                    detector_cache,
+                    resources,
+                    model_name_warned,
                 )
-                result_batch = {}
-                detected_keys = set(inherited)
-                last_status_time = time.monotonic()
-                shard_rows: Counter[str] = Counter()
-                for payload_record in iter_jsonl_zstd_records(source_dir):
-                    shard_rows[payload_record["payload_shard"]] += 1
-                    case_key = (
-                        f"{payload_record.get('id')}:"
-                        f"{payload_record.get('uuid')}"
-                    )
-                    if retention == "all":
-                        retained_payload_keys.add(case_key)
-                    if case_key not in prediction_keys:
-                        continue
-                    if case_key in inherited:
-                        self._write_retained_payload(
-                            payload_writer,
-                            retention,
-                            inherited[case_key],
-                            payload_record,
-                            case_key,
-                            retained_payload_keys,
-                        )
-                        continue
-                    if case_key in detected_keys:
-                        continue
-                    result = self._detect_case(
-                        payload_record, anomaly_cfg, detector, init_error
-                    )
-                    result_batch[case_key] = result
-                    self._write_retained_payload(
-                        payload_writer,
-                        retention,
-                        result,
-                        payload_record,
-                        case_key,
-                        retained_payload_keys,
-                    )
-                    detected_keys.add(case_key)
-                    group_completed += 1
-                    group_counts[result["anomaly_type_name"]] += 1
-                    counts[result["anomaly_type_name"]] += 1
-                    now = time.monotonic()
-                    if len(result_batch) >= 100:
-                        safe_write(result_batch, result_file)
-                        result_batch = {}
-                    if now - last_status_time >= 1.0:
-                        self._post_status(
-                            status_file,
-                            group_completed,
-                            group_total,
-                            group_counts,
-                            "response anomaly detecting",
-                            task_name=current_task_name,
-                            task_log_path=task_log_path,
-                        )
-                        last_status_time = now
-                if result_batch:
-                    safe_write(result_batch, result_file)
-                legacy_writer = None
-                for prediction in predictions:
-                    case_key = f"{prediction.get('id')}:{prediction.get('uuid')}"
-                    if case_key in inherited:
-                        result = inherited[case_key]
-                        is_inherited = True
-                    else:
-                        if case_key in detected_keys:
-                            continue
-                        result = self._detect_case(
-                            prediction, anomaly_cfg, detector, init_error
-                        )
-                        safe_write({case_key: result}, result_file)
-                        is_inherited = False
-                    self._write_retained_payload(
-                        payload_writer,
-                        retention,
-                        result,
-                        prediction,
-                        case_key,
-                        retained_payload_keys,
-                    )
-                    if (
-                        retention == "all"
-                        and not archive_is_current
-                        and case_key not in retained_payload_keys
-                        and isinstance(
-                            prediction.get("response_anomaly_payload"), dict
-                        )
-                    ):
-                        from ais_bench.benchmark.utils.response_anomaly_jsonl import (
-                            ResponseAnomalyJsonlWriter,
-                        )
-
-                        if legacy_writer is None:
-                            legacy_writer = ResponseAnomalyJsonlWriter(
-                                source_dir,
-                                storage_cfg.get("compression_level", 3),
-                                storage_cfg.get("rows_per_shard", 2000),
-                            )
-                            active_payload_writers.append(legacy_writer)
-                        legacy_writer.write(prediction)
-                        retained_payload_keys.add(case_key)
-                    if is_inherited:
-                        continue
-                    group_completed += 1
-                    group_counts[result["anomaly_type_name"]] += 1
-                    counts[result["anomaly_type_name"]] += 1
-                if legacy_writer is not None:
-                    legacy_manifest = legacy_writer.close(write_manifest=False)
-                    active_payload_writers.remove(legacy_writer)
-                    shard_rows.update(
-                        {
-                            shard["file"]: shard["rows"]
-                            for shard in legacy_manifest["shards"]
-                        }
-                    )
-                self._post_status(
-                    status_file,
-                    group_completed,
-                    group_total,
-                    group_counts,
-                    f"finalizing response anomaly payloads for {dataset_abbr}",
-                    task_name=current_task_name,
-                    task_log_path=task_log_path,
-                )
-                if archive_is_current:
-                    pass
-                elif retention == "all":
-                    from ais_bench.benchmark.utils.response_anomaly_jsonl import (
-                        build_jsonl_zstd_manifest,
-                    )
-
-                    build_jsonl_zstd_manifest(
-                        source_dir,
-                        storage_cfg.get("compression_level", 3),
-                        retention,
-                        dict(shard_rows),
-                    )
-                    self._replace_payload_archive(source_dir, payload_dir)
-                elif payload_writer is not None:
-                    manifest = payload_writer.close(retention)
-                    active_payload_writers.remove(payload_writer)
-                    if manifest["total_rows"] or not payload_dir.exists():
-                        self._replace_payload_archive(staging_dir, payload_dir)
-                    else:
-                        shutil.rmtree(staging_dir)
-                elif payload_dir.exists():
-                    shutil.rmtree(payload_dir)
-                if source_dir.exists():
-                    shutil.rmtree(source_dir)
-                active_payload_build_dir = None
-                if any(
-                    "response_anomaly_payload" in prediction
-                    for prediction in predictions
-                ):
-                    self._strip_payloads_from_predictions(
-                        prediction_file, predictions
-                    )
-
-                self._anomaly_report[current_task_name] = {
-                    "counts": dict(group_counts),
-                    "result_file": str(result_file),
-                    "payload_dir": (
-                        str(payload_dir) if payload_dir.exists() else None
-                    ),
-                    "task_log": str(Path(work_dir) / task_log_path),
-                }
-                elapsed = time.perf_counter() - group_start_time
-                self.logger.info(
-                    "Response anomaly detection completed: %s",
-                    dict(group_counts),
-                )
-                self.logger.info(
-                    "Response anomaly task time elapsed: %.2fs", elapsed
-                )
-                self.logger.info("Task state is finish, exit loop")
-                self._post_status(
-                    status_file,
-                    group_completed,
-                    group_total,
-                    group_counts,
-                    "response anomaly finished",
-                    "finish",
-                    current_task_name,
-                    task_log_path,
-                )
-                self._close_task_log(active_log_handler)
-                active_log_handler = None
 
             self._summary = dict(counts)
         except Exception as exc:
-            self.logger.logger.error("Response anomaly detection failed: %s", exc)
-            self._summary = dict(counts)
-            for task_name in self.task_names:
-                state = self._task_statuses.get(task_name, {})
-                if state.get("status") in ("finish", "error"):
-                    continue
+            self._handle_detection_failure(status_file, counts, exc)
+        finally:
+            self._cleanup_detection_resources(
+                resources.log_handler,
+                resources.payload_build_dir,
+                resources.payload_writers,
+            )
+
+    def _build_detection_tasks(
+        self, cfg: Dict[str, Any], work_dir: str
+    ) -> List[_DetectionTask]:
+        """Build model/dataset tasks and load their prediction records."""
+        tasks = []
+        for model in cfg.get("models", []):
+            if model.get("attr", "service") != "service":
+                continue
+            for dataset in cfg.get("datasets", []):
+                model_abbr = model["abbr"]
+                dataset_abbr = dataset["abbr"]
+                prediction_file = (
+                    Path(work_dir)
+                    / "predictions"
+                    / model_abbr
+                    / f"{dataset_abbr}.jsonl"
+                )
+                tasks.append(
+                    _DetectionTask(
+                        model_abbr=model_abbr,
+                        dataset_abbr=dataset_abbr,
+                        model_cfg=model,
+                        prediction_file=prediction_file,
+                        predictions=self._read_jsonl(prediction_file),
+                    )
+                )
+        return tasks
+
+    def _initialize_detection_tasks(
+        self,
+        tasks: List[_DetectionTask],
+        status_file: Path,
+        work_dir: str,
+    ) -> bool:
+        """Initialize status entries and report whether work is available."""
+        self._task_names = [
+            self.task_name(task.model_abbr, task.dataset_abbr) for task in tasks
+        ] or [self.STATUS_TASK_NAME]
+        self._task_statuses = {}
+        if not tasks:
+            self.logger.warning(
+                "Response anomaly detection has no service model/dataset "
+                "groups to analyze under %s.",
+                Path(work_dir) / "predictions",
+            )
+            self._post_status(
+                status_file,
+                0,
+                0,
+                Counter(),
+                "response anomaly finished",
+                "finish",
+            )
+            return False
+        for task in tasks:
+            self._post_status(
+                status_file,
+                0,
+                len(task.predictions),
+                Counter(),
+                "waiting for response anomaly detection",
+                "start",
+                self.task_name(task.model_abbr, task.dataset_abbr),
+                self.task_log_path(task.model_abbr, task.dataset_abbr),
+            )
+        return True
+
+    def _detect_task(
+        self,
+        task: _DetectionTask,
+        cfg: Dict[str, Any],
+        work_dir: str,
+        status_file: Path,
+        counts: Counter[str],
+        detector_cache: Dict[str, tuple],
+        resources: _ActiveResources,
+        model_name_warned: bool,
+    ) -> bool:
+        """Detect anomalies and publish results for one model/dataset pair."""
+        context, model_name_warned = self._prepare_detection_context(
+            task,
+            cfg,
+            work_dir,
+            status_file,
+            counts,
+            detector_cache,
+            resources,
+            model_name_warned,
+        )
+        self.logger.info(
+            "Response anomaly detecting %s/%s from %s",
+            task.model_abbr,
+            task.dataset_abbr,
+            context.payload.source_dir,
+        )
+        self.logger.info(
+            "Start detecting %d response anomaly payloads",
+            max(0, context.progress.total - context.progress.completed),
+        )
+        self._post_status(
+            status_file,
+            context.progress.completed,
+            context.progress.total,
+            context.progress.counts,
+            f"streaming response anomaly payloads for {task.dataset_abbr}",
+            task_name=context.task_name,
+            task_log_path=context.task_log_path,
+        )
+        detected_keys, shard_rows, context.progress.completed = (
+            self._process_staged_payloads(
+                context.payload,
+                context.prediction_keys,
+                context.inherited,
+                context.anomaly_cfg,
+                context.detector,
+                context.init_error,
+                context.result_file,
+                status_file,
+                context.task_name,
+                context.task_log_path,
+                context.progress.total,
+                context.progress.completed,
+                context.progress.counts,
+                counts,
+            )
+        )
+        context.progress.completed = self._process_prediction_payloads(
+            task,
+            context.payload,
+            context.inherited,
+            detected_keys,
+            context.anomaly_cfg,
+            context.detector,
+            context.init_error,
+            context.result_file,
+            context.progress.completed,
+            context.progress.counts,
+            counts,
+            shard_rows,
+            resources.payload_writers,
+        )
+        self._finalize_group_payloads(
+            task,
+            context.payload,
+            shard_rows,
+            status_file,
+            context.task_name,
+            context.task_log_path,
+            context.progress.total,
+            context.progress.completed,
+            context.progress.counts,
+            resources.payload_writers,
+        )
+        resources.payload_build_dir = None
+        self._finish_detection_task(
+            context.task_name,
+            context.task_log_path,
+            work_dir,
+            context.result_file,
+            context.payload.payload_dir,
+            context.progress.counts,
+            context.progress.completed,
+            context.progress.total,
+            status_file,
+            context.started_at,
+        )
+        self._close_task_log(resources.log_handler)
+        resources.log_handler = None
+        return model_name_warned
+
+    def _prepare_detection_context(
+        self,
+        task: _DetectionTask,
+        cfg: Dict[str, Any],
+        work_dir: str,
+        status_file: Path,
+        counts: Counter[str],
+        detector_cache: Dict[str, tuple],
+        resources: _ActiveResources,
+        model_name_warned: bool,
+    ) -> tuple[_DetectionContext, bool]:
+        """Prepare detector, resume state, and payload storage for one task."""
+        task_name = self.task_name(task.model_abbr, task.dataset_abbr)
+        task_log_path = self.task_log_path(task.model_abbr, task.dataset_abbr)
+        progress = _GroupProgress(total=len(task.predictions))
+        started_at = time.perf_counter()
+        resources.log_handler = self._open_task_log(
+            work_dir, task.model_abbr, task.dataset_abbr
+        )
+        self.logger.info("Task [%s]", task_name)
+        self.logger.info("Found %d predictions", progress.total)
+        if not task.predictions:
+            self.logger.warning(
+                "No predictions found for model '%s' dataset '%s'; "
+                "response anomaly detection will skip this group.",
+                task.model_abbr,
+                task.dataset_abbr,
+            )
+
+        anomaly_cfg, detector, init_error = self._get_model_detector(
+            task,
+            cfg["response_anomaly"],
+            work_dir,
+            status_file,
+            progress.completed,
+            progress.total,
+            progress.counts,
+            task_name,
+            task_log_path,
+            detector_cache,
+        )
+        result_file = (
+            Path(work_dir)
+            / "response_anomaly"
+            / task.model_abbr
+            / f"{task.dataset_abbr}.jsonl"
+        )
+        prediction_keys = {
+            f"{item.get('id')}:{item.get('uuid')}" for item in task.predictions
+        }
+        inherited = self._load_inherited_results(result_file, prediction_keys)
+        inherited_names = [
+            item.get("anomaly_type_name", "unknown")
+            for item in inherited.values()
+        ]
+        progress.completed += len(inherited)
+        progress.counts.update(inherited_names)
+        counts.update(inherited_names)
+        if inherited:
+            self.logger.info(
+                "Found %d completed response anomaly results in cache",
+                len(inherited),
+            )
+        if not model_name_warned and not anomaly_cfg.get("model_name"):
+            self.logger.warning(
+                "response_anomaly.model_name is not set; falling back to model "
+                "abbr '%s'. msProbe model matching may be degraded.",
+                task.model_cfg.get("abbr"),
+            )
+            model_name_warned = True
+
+        result_file.parent.mkdir(parents=True, exist_ok=True)
+        payload = self._prepare_payload_state(
+            task,
+            cfg["response_anomaly"],
+            work_dir,
+            prediction_keys,
+            inherited,
+            resources.payload_writers,
+        )
+        resources.payload_build_dir = payload.staging_dir
+        context = _DetectionContext(
+            task_name=task_name,
+            task_log_path=task_log_path,
+            progress=progress,
+            started_at=started_at,
+            anomaly_cfg=anomaly_cfg,
+            detector=detector,
+            init_error=init_error,
+            result_file=result_file,
+            prediction_keys=prediction_keys,
+            inherited=inherited,
+            payload=payload,
+        )
+        return context, model_name_warned
+
+    def _get_model_detector(
+        self,
+        task: _DetectionTask,
+        global_cfg: Dict[str, Any],
+        work_dir: str,
+        status_file: Path,
+        completed: int,
+        total: int,
+        counts: Counter[str],
+        task_name: str,
+        task_log_path: str,
+        detector_cache: Dict[str, tuple],
+    ) -> tuple:
+        """Return a cached detector or prepare one for the task model."""
+        if task.model_abbr in detector_cache:
+            self.logger.info(
+                "Reuse response anomaly detector for model [%s]",
+                task.model_abbr,
+            )
+            return detector_cache[task.model_abbr]
+
+        anomaly_cfg = self._merge_model_anomaly_config(task.model_cfg, global_cfg)
+        try:
+            self.logger.info(
+                "Preparing response anomaly config for model [%s]",
+                task.model_abbr,
+            )
+            self._post_status(
+                status_file,
+                completed,
+                total,
+                counts,
+                f"preparing response anomaly config for {task.model_abbr}",
+                task_name=task_name,
+                task_log_path=task_log_path,
+            )
+            anomaly_cfg = self._prepare_model_config(
+                task.model_abbr, anomaly_cfg, work_dir
+            )
+            self.logger.info(
+                "Loading response anomaly detector for model [%s]",
+                task.model_abbr,
+            )
+            self._post_status(
+                status_file,
+                completed,
+                total,
+                counts,
+                f"loading response anomaly detector for {task.model_abbr}",
+                task_name=task_name,
+                task_log_path=task_log_path,
+            )
+            detector, init_error = self._build_detector(anomaly_cfg)
+            if detector is not None:
+                self._cache_detector_token_categories(detector)
+                self.logger.info(
+                    "Response anomaly detector initialized for model [%s]",
+                    task.model_abbr,
+                )
+            elif init_error:
+                self.logger.warning(
+                    "Response anomaly detector is %s: %s",
+                    init_error[0],
+                    init_error[1],
+                )
+        except Exception as exc:
+            self.logger.logger.error(
+                "Failed to prepare response anomaly detection for model %s: %s",
+                task.model_abbr,
+                exc,
+            )
+            detector = None
+            init_error = (
+                "failed",
+                f"Failed to prepare msProbe configuration: {exc}",
+            )
+        detector_cache[task.model_abbr] = (anomaly_cfg, detector, init_error)
+        return detector_cache[task.model_abbr]
+
+    def _prepare_payload_state(
+        self,
+        task: _DetectionTask,
+        anomaly_cfg: Dict[str, Any],
+        work_dir: str,
+        prediction_keys: set[str],
+        inherited: Dict[str, Dict[str, Any]],
+        active_writers: List[Any],
+    ) -> _PayloadState:
+        """Validate the existing archive and prepare the next payload build."""
+        retention = anomaly_cfg.get("payload_retention", "anomalies")
+        storage_cfg = anomaly_cfg.get("payload_storage", {})
+        payload_dir = (
+            Path(work_dir)
+            / "response_anomaly"
+            / task.model_abbr
+            / "payload"
+            / task.dataset_abbr
+        )
+        source_dir = (
+            Path(work_dir)
+            / "response_anomaly"
+            / task.model_abbr
+            / "payload_staging"
+            / task.dataset_abbr
+        )
+        staging_dir = payload_dir.with_name(
+            f".{task.dataset_abbr}.payload-build-{uuid.uuid4().hex[:8]}"
+        )
+        self._cleanup_stale_payload_build_dirs(payload_dir)
+        if payload_dir.exists():
+            manifest_path = payload_dir / "payload_manifest.json"
+            if not manifest_path.exists():
+                raise RuntimeError(
+                    "Existing response anomaly payload archive has no "
+                    "manifest. Use a new work directory."
+                )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if manifest.get("payload_retention", "all") != retention:
+                raise RuntimeError(
+                    "Cannot change response anomaly payload_retention while "
+                    "reusing an existing payload archive. Use a new work directory."
+                )
+        pending_keys = prediction_keys.difference(inherited)
+        archive_is_current = (
+            not pending_keys
+            and not source_dir.exists()
+            and (
+                payload_dir.exists()
+                if retention != "none"
+                else not payload_dir.exists()
+            )
+        )
+        if archive_is_current:
+            self.logger.info(
+                "No new response anomaly payloads for %s/%s; "
+                "keeping the existing payload archive unchanged",
+                task.model_abbr,
+                task.dataset_abbr,
+            )
+        elif payload_dir.exists() and retention == "all":
+            self._seed_payload_directory(payload_dir, source_dir)
+
+        state = _PayloadState(
+            retention=retention,
+            storage_cfg=storage_cfg,
+            payload_dir=payload_dir,
+            source_dir=source_dir,
+            staging_dir=staging_dir,
+            archive_is_current=archive_is_current,
+        )
+        if retention != "anomalies" or archive_is_current:
+            return state
+
+        from ais_bench.benchmark.utils.response_anomaly_jsonl import (
+            ResponseAnomalyJsonlWriter,
+            iter_jsonl_zstd_records,
+        )
+
+        if payload_dir.exists():
+            state.retained_keys = {
+                f"{record.get('id')}:{record.get('uuid')}"
+                for record in iter_jsonl_zstd_records(payload_dir)
+            }
+            self._seed_payload_directory(
+                payload_dir, staging_dir, include_manifest=True
+            )
+        state.writer = ResponseAnomalyJsonlWriter(
+            staging_dir,
+            compression_level=storage_cfg.get("compression_level", 3),
+            rows_per_shard=storage_cfg.get("rows_per_shard", 2000),
+        )
+        active_writers.append(state.writer)
+        return state
+
+    def _process_staged_payloads(
+        self,
+        payload: _PayloadState,
+        prediction_keys: set[str],
+        inherited: Dict[str, Dict[str, Any]],
+        anomaly_cfg: Dict[str, Any],
+        detector,
+        init_error,
+        result_file: Path,
+        status_file: Path,
+        task_name: str,
+        task_log_path: str,
+        total: int,
+        completed: int,
+        group_counts: Counter[str],
+        counts: Counter[str],
+    ) -> tuple:
+        """Detect payloads from compressed staging shards."""
+        from ais_bench.benchmark.utils.response_anomaly_jsonl import (
+            iter_jsonl_zstd_records,
+        )
+
+        result_batch = {}
+        detected_keys = set(inherited)
+        last_status_time = time.monotonic()
+        shard_rows: Counter[str] = Counter()
+        for record in iter_jsonl_zstd_records(payload.source_dir):
+            shard_rows[record["payload_shard"]] += 1
+            case_key = f"{record.get('id')}:{record.get('uuid')}"
+            if payload.retention == "all":
+                payload.retained_keys.add(case_key)
+            if case_key not in prediction_keys:
+                continue
+            if case_key in inherited:
+                self._write_retained_payload(
+                    payload.writer,
+                    payload.retention,
+                    inherited[case_key],
+                    record,
+                    case_key,
+                    payload.retained_keys,
+                )
+                continue
+            if case_key in detected_keys:
+                continue
+            result = self._detect_case(record, anomaly_cfg, detector, init_error)
+            result_batch[case_key] = result
+            self._write_retained_payload(
+                payload.writer,
+                payload.retention,
+                result,
+                record,
+                case_key,
+                payload.retained_keys,
+            )
+            detected_keys.add(case_key)
+            completed += 1
+            result_name = result["anomaly_type_name"]
+            group_counts[result_name] += 1
+            counts[result_name] += 1
+            now = time.monotonic()
+            if len(result_batch) >= 100:
+                safe_write(result_batch, result_file)
+                result_batch = {}
+            if now - last_status_time >= 1.0:
                 self._post_status(
                     status_file,
-                    state.get("finish_count", 0),
-                    state.get("total_count", 0),
-                    Counter(state.get("other_kwargs", {})),
-                    f"response anomaly failed: {exc}",
-                    "error",
-                    task_name,
-                    state.get("task_log_path"),
+                    completed,
+                    total,
+                    group_counts,
+                    "response anomaly detecting",
+                    task_name=task_name,
+                    task_log_path=task_log_path,
                 )
-        finally:
-            for writer in active_payload_writers:
-                try:
-                    writer.close(write_manifest=False)
-                except Exception as exc:
-                    self.logger.warning(
-                        "Failed to close response anomaly payload writer: %s",
-                        exc,
-                    )
+                last_status_time = now
+        if result_batch:
+            safe_write(result_batch, result_file)
+        return detected_keys, shard_rows, completed
+
+    def _process_prediction_payloads(
+        self,
+        task: _DetectionTask,
+        payload: _PayloadState,
+        inherited: Dict[str, Dict[str, Any]],
+        detected_keys: set[str],
+        anomaly_cfg: Dict[str, Any],
+        detector,
+        init_error,
+        result_file: Path,
+        completed: int,
+        group_counts: Counter[str],
+        counts: Counter[str],
+        shard_rows: Counter[str],
+        active_writers: List[Any],
+    ) -> int:
+        """Process legacy payloads still embedded in prediction records."""
+        legacy_writer = None
+        for prediction in task.predictions:
+            case_key = f"{prediction.get('id')}:{prediction.get('uuid')}"
+            if case_key in inherited:
+                result = inherited[case_key]
+                is_inherited = True
+            else:
+                if case_key in detected_keys:
+                    continue
+                result = self._detect_case(
+                    prediction, anomaly_cfg, detector, init_error
+                )
+                safe_write({case_key: result}, result_file)
+                is_inherited = False
+            self._write_retained_payload(
+                payload.writer,
+                payload.retention,
+                result,
+                prediction,
+                case_key,
+                payload.retained_keys,
+            )
             if (
-                active_payload_build_dir is not None
-                and active_payload_build_dir.exists()
+                payload.retention == "all"
+                and not payload.archive_is_current
+                and case_key not in payload.retained_keys
+                and isinstance(prediction.get("response_anomaly_payload"), dict)
             ):
-                self._remove_payload_build_dir(active_payload_build_dir)
-            self._close_task_log(active_log_handler)
+                from ais_bench.benchmark.utils.response_anomaly_jsonl import (
+                    ResponseAnomalyJsonlWriter,
+                )
+
+                if legacy_writer is None:
+                    legacy_writer = ResponseAnomalyJsonlWriter(
+                        payload.source_dir,
+                        payload.storage_cfg.get("compression_level", 3),
+                        payload.storage_cfg.get("rows_per_shard", 2000),
+                    )
+                    active_writers.append(legacy_writer)
+                legacy_writer.write(prediction)
+                payload.retained_keys.add(case_key)
+            if is_inherited:
+                continue
+            completed += 1
+            result_name = result["anomaly_type_name"]
+            group_counts[result_name] += 1
+            counts[result_name] += 1
+        if legacy_writer is not None:
+            manifest = legacy_writer.close(write_manifest=False)
+            active_writers.remove(legacy_writer)
+            shard_rows.update(
+                {shard["file"]: shard["rows"] for shard in manifest["shards"]}
+            )
+        return completed
+
+    def _finalize_group_payloads(
+        self,
+        task: _DetectionTask,
+        payload: _PayloadState,
+        shard_rows: Counter[str],
+        status_file: Path,
+        task_name: str,
+        task_log_path: str,
+        total: int,
+        completed: int,
+        counts: Counter[str],
+        active_writers: List[Any],
+    ) -> None:
+        """Publish the retained archive and remove temporary payloads."""
+        self._post_status(
+            status_file,
+            completed,
+            total,
+            counts,
+            f"finalizing response anomaly payloads for {task.dataset_abbr}",
+            task_name=task_name,
+            task_log_path=task_log_path,
+        )
+        if payload.archive_is_current:
+            pass
+        elif payload.retention == "all":
+            from ais_bench.benchmark.utils.response_anomaly_jsonl import (
+                build_jsonl_zstd_manifest,
+            )
+
+            build_jsonl_zstd_manifest(
+                payload.source_dir,
+                payload.storage_cfg.get("compression_level", 3),
+                payload.retention,
+                dict(shard_rows),
+            )
+            self._replace_payload_archive(
+                payload.source_dir, payload.payload_dir
+            )
+        elif payload.writer is not None:
+            manifest = payload.writer.close(payload.retention)
+            active_writers.remove(payload.writer)
+            if manifest["total_rows"] or not payload.payload_dir.exists():
+                self._replace_payload_archive(
+                    payload.staging_dir, payload.payload_dir
+                )
+            else:
+                shutil.rmtree(payload.staging_dir)
+        elif payload.payload_dir.exists():
+            shutil.rmtree(payload.payload_dir)
+        if payload.source_dir.exists():
+            shutil.rmtree(payload.source_dir)
+        if any(
+            "response_anomaly_payload" in prediction
+            for prediction in task.predictions
+        ):
+            self._strip_payloads_from_predictions(
+                task.prediction_file, task.predictions
+            )
+
+    def _finish_detection_task(
+        self,
+        task_name: str,
+        task_log_path: str,
+        work_dir: str,
+        result_file: Path,
+        payload_dir: Path,
+        counts: Counter[str],
+        completed: int,
+        total: int,
+        status_file: Path,
+        started_at: float,
+    ) -> None:
+        """Record task outputs, timing, and the final monitor state."""
+        self._anomaly_report[task_name] = {
+            "counts": dict(counts),
+            "result_file": str(result_file),
+            "payload_dir": str(payload_dir) if payload_dir.exists() else None,
+            "task_log": str(Path(work_dir) / task_log_path),
+        }
+        self.logger.info("Response anomaly detection completed: %s", dict(counts))
+        self.logger.info(
+            "Response anomaly task time elapsed: %.2fs",
+            time.perf_counter() - started_at,
+        )
+        self.logger.info("Task state is finish, exit loop")
+        self._post_status(
+            status_file,
+            completed,
+            total,
+            counts,
+            "response anomaly finished",
+            "finish",
+            task_name,
+            task_log_path,
+        )
+
+    def _handle_detection_failure(
+        self, status_file: Path, counts: Counter[str], exc: Exception
+    ) -> None:
+        """Mark every unfinished task as failed without masking the cause."""
+        self.logger.logger.error("Response anomaly detection failed: %s", exc)
+        self._summary = dict(counts)
+        for task_name in self.task_names:
+            state = self._task_statuses.get(task_name, {})
+            if state.get("status") in ("finish", "error"):
+                continue
+            self._post_status(
+                status_file,
+                state.get("finish_count", 0),
+                state.get("total_count", 0),
+                Counter(state.get("other_kwargs", {})),
+                f"response anomaly failed: {exc}",
+                "error",
+                task_name,
+                state.get("task_log_path"),
+            )
+
+    def _cleanup_detection_resources(
+        self,
+        log_handler: Optional[logging.FileHandler],
+        payload_build_dir: Optional[Path],
+        payload_writers: List[Any],
+    ) -> None:
+        """Best-effort cleanup for resources left by an interrupted task."""
+        for writer in payload_writers:
+            try:
+                writer.close(write_manifest=False)
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to close response anomaly payload writer: %s", exc
+                )
+        if payload_build_dir is not None and payload_build_dir.exists():
+            self._remove_payload_build_dir(payload_build_dir)
+        self._close_task_log(log_handler)
 
     def _load_inherited_results(
         self, result_file: Path, prediction_keys: Iterable[str]
