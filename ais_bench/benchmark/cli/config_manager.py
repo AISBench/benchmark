@@ -410,6 +410,13 @@ class ConfigManager:
 
     def _validate_response_anomaly_support(self):
         """Reject modes/links that are intentionally unsupported."""
+        self._validate_response_anomaly_mode()
+        self._validate_response_anomaly_infer_task()
+        self._validate_response_anomaly_models()
+        self._validate_response_anomaly_datasets()
+
+    def _validate_response_anomaly_mode(self):
+        """Allow response anomaly detection only in inference workflows."""
         mode = getattr(self.args, 'mode', 'all')
         if isinstance(mode, str) and mode not in ('all', 'infer', 'infer_judge'):
             raise AISBenchConfigError(
@@ -419,75 +426,86 @@ class ConfigManager:
                 "'infer_judge'.",
             )
 
+    def _validate_response_anomaly_infer_task(self):
+        """Reject custom inference tasks that bypass the supported pipeline."""
         infer_cfg = self.cfg.get('infer')
-        if isinstance(infer_cfg, dict):
-            task_type = (infer_cfg.get('runner') or {}).get('task', {}).get('type')
-            task_name = self._cfg_type_name(task_type)
-            if task_name and task_name not in ('OpenICLInferTask', 'OpenICLApiInferTask'):
-                raise AISBenchConfigError(
-                    TMAN_CODES.UNKNOWN_ERROR,
-                    f"response anomaly detection is not supported for infer task "
-                    f"'{task_name}' (Agent/custom tasks are not supported).",
-                )
+        if not isinstance(infer_cfg, dict):
+            return
+        task_type = (infer_cfg.get('runner') or {}).get('task', {}).get('type')
+        task_name = self._cfg_type_name(task_type)
+        if task_name and task_name not in ('OpenICLInferTask', 'OpenICLApiInferTask'):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                f"response anomaly detection is not supported for infer task "
+                f"'{task_name}' (Agent/custom tasks are not supported).",
+            )
 
+    def _validate_response_anomaly_models(self):
+        """Validate every configured model against the supported backends."""
         models = self.cfg.get('models')
-        if isinstance(models, list):
-            for model_cfg in models:
-                if not isinstance(model_cfg, dict):
-                    continue
-                if any(
-                    key in model_cfg
-                    for key in ('agent', 'agent_name', 'llm_agent', 'llm_user')
-                ):
-                    raise AISBenchConfigError(
-                        TMAN_CODES.UNKNOWN_ERROR,
-                        f"response anomaly detection is not supported for Agent "
-                        f"models (model abbr='{model_cfg.get('abbr', '')}').",
-                    )
-                if model_cfg.get('attr', 'service') != 'service':
-                    continue
-                if not self._is_supported_response_anomaly_model(model_cfg):
-                    model_type = model_cfg.get('type')
-                    raise AISBenchConfigError(
-                        TMAN_CODES.UNKNOWN_ERROR,
-                        f"response anomaly detection is not supported for model "
-                        f"type '{getattr(model_type, '__name__', model_type)}' "
-                        f"(model abbr='{model_cfg.get('abbr', '')}'): only "
-                        "VLLMCustomAPIChat backends return the required token "
-                        "ids and top-k logprobs. Use the vllm_api_general_chat / "
-                        "vllm_api_stream_chat / vllm_api_stream_chat_multiturn "
-                        "model configs instead.",
-                    )
+        if not isinstance(models, list):
+            return
+        for model_cfg in models:
+            if isinstance(model_cfg, dict):
+                self._validate_response_anomaly_model_support(model_cfg)
 
+    def _validate_response_anomaly_model_support(self, model_cfg):
+        """Reject Agent and service backends without anomaly payload support."""
+        agent_keys = ('agent', 'agent_name', 'llm_agent', 'llm_user')
+        if any(key in model_cfg for key in agent_keys):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                f"response anomaly detection is not supported for Agent "
+                f"models (model abbr='{model_cfg.get('abbr', '')}').",
+            )
+        if model_cfg.get('attr', 'service') != 'service':
+            return
+        if self._is_supported_response_anomaly_model(model_cfg):
+            return
+        model_type = model_cfg.get('type')
+        raise AISBenchConfigError(
+            TMAN_CODES.UNKNOWN_ERROR,
+            f"response anomaly detection is not supported for model "
+            f"type '{getattr(model_type, '__name__', model_type)}' "
+            f"(model abbr='{model_cfg.get('abbr', '')}'): only "
+            "VLLMCustomAPIChat backends return the required token "
+            "ids and top-k logprobs. Use the vllm_api_general_chat / "
+            "vllm_api_stream_chat / vllm_api_stream_chat_multiturn "
+            "model configs instead.",
+        )
+
+    def _validate_response_anomaly_datasets(self):
+        """Validate every dataset against unsupported Agent-style links."""
         datasets = self.cfg.get('datasets')
         if not isinstance(datasets, list):
             return
         for dataset_cfg in datasets:
-            if not isinstance(dataset_cfg, dict):
-                continue
-            infer_cfg = dataset_cfg.get('infer_cfg') or {}
-            inferencer = infer_cfg.get('inferencer') or {}
-            inferencer_name = self._cfg_type_name(inferencer.get('type'))
-            dataset_name = self._cfg_type_name(dataset_cfg.get('type'))
-            haystack = f"{inferencer_name} {dataset_name}".lower()
-            if any(
-                marker in haystack
-                for marker in (
-                    'swebench',
-                    'bfcl',
-                    'agent',
-                    'function_call',
-                    'tool_call',
-                    'harbor',
-                    'tau2',
-                )
-            ):
-                raise AISBenchConfigError(
-                    TMAN_CODES.UNKNOWN_ERROR,
-                    f"response anomaly detection is not supported for Agent/custom "
-                    f"evaluation (inferencer='{inferencer_name}', "
-                    f"dataset='{dataset_name}').",
-                )
+            if isinstance(dataset_cfg, dict):
+                self._validate_response_anomaly_dataset_support(dataset_cfg)
+
+    def _validate_response_anomaly_dataset_support(self, dataset_cfg):
+        """Reject datasets whose inferencer uses an Agent-style protocol."""
+        infer_cfg = dataset_cfg.get('infer_cfg') or {}
+        inferencer = infer_cfg.get('inferencer') or {}
+        inferencer_name = self._cfg_type_name(inferencer.get('type'))
+        dataset_name = self._cfg_type_name(dataset_cfg.get('type'))
+        haystack = f"{inferencer_name} {dataset_name}".lower()
+        unsupported_markers = (
+            'swebench',
+            'bfcl',
+            'agent',
+            'function_call',
+            'tool_call',
+            'harbor',
+            'tau2',
+        )
+        if any(marker in haystack for marker in unsupported_markers):
+            raise AISBenchConfigError(
+                TMAN_CODES.UNKNOWN_ERROR,
+                f"response anomaly detection is not supported for Agent/custom "
+                f"evaluation (inferencer='{inferencer_name}', "
+                f"dataset='{dataset_name}').",
+            )
 
     @staticmethod
     def _cfg_type_name(value) -> str:
