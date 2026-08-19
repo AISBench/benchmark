@@ -7,6 +7,7 @@ from typing import List, Optional, Dict
 from collections import defaultdict
 
 import json
+import copy
 from mmengine.dist import is_main_process
 
 
@@ -43,7 +44,10 @@ class BaseInferencer:
     ) -> None:
         # basic parameters normalization
         self.logger = AISLogger()
-        self.model_cfg = model_cfg
+        self.model_cfg = copy.deepcopy(model_cfg)
+        self.response_anomaly_payload_storage = self.model_cfg.pop(
+            "response_anomaly_payload_storage", None
+        )
         self.batch_size = int(batch_size) if batch_size else 1
 
         if self.batch_size < 1 or self.batch_size > MAX_BATCH_SIZE:
@@ -57,7 +61,7 @@ class BaseInferencer:
         self.logger.debug(f"Output JSON file path: {self.output_json_filepath}")
 
         # construct model and output handler (if needed, can be changed to lazy build)
-        self.model: BaseModel = build_model_from_cfg(model_cfg) # type: ignore
+        self.model: BaseModel = build_model_from_cfg(self.model_cfg) # type: ignore
         self.output_handler = BaseInferencerOutputHandler()
 
         # identify whether the current process is the main process (avoid covering the method with boolean)

@@ -68,6 +68,8 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
                 else output
             ),
         }
+        if isinstance(output, Output) and output.extra_details_data.get('response_anomaly_payload'):
+            result_data['response_anomaly_payload'] = output.extra_details_data['response_anomaly_payload']
 
         if gold:
             result_data["gold"] = gold

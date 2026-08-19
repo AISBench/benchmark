@@ -106,6 +106,9 @@ outputs/default/
 └── ...
 ```
 
+### Response Anomaly Detection Mode Support (Optional)
+
+msProbe response anomaly detection (`--response-anomaly`) is only supported in the `all`, `infer`, and `infer_judge` generation chains: the detection thread starts after inference finishes and runs in parallel with the Judge / Eval / Summary workflow, and the workflow waits for detection to complete before exiting. The `perf` and `perf_viz` performance modes, as well as Agent / function-call and other custom chains, do **not** support this feature; enabling it raises an explicit error during config initialization. This feature requires the service model to return token ids and top-k logprobs; see [Response Anomaly Detection Configuration](./cli_args.md#response-anomaly-detection-configuration) for details.
 
 ## Performance Evaluation Scenarios
 ### Perf Mode

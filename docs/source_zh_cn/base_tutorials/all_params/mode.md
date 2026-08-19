@@ -104,6 +104,11 @@ outputs/default/
 │   └── summary/            # 新增汇总报告（viz 输出）
 └── ...
 ```
+
+### 响应异常检测模式支持（可选）
+
+msProbe 推理响应异常检测（`--response-anomaly`）仅支持 `all`、`infer`、`infer_judge` 普通生成链路：检测线程在推理完成后启动，与 Judge / Eval / 汇总流程并行执行，工作流退出前会等待检测完成。`perf` 与 `perf_viz` 性能评测模式以及 Agent / 函数调用等自定义链路**不支持**该功能，启用时会在配置初始化阶段显式报错。使用该功能要求服务化模型返回 token id 与 top-k logprobs，具体配置请参考 [推理响应异常检测配置](./cli_args.md#推理响应异常检测配置)。
+
 ## 性能评测场景
 ### perf模式
 

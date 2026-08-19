@@ -158,6 +158,23 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
         self.assertTrue(request_body["stream"])
         self.assertIn("stream_options", request_body)
         self.assertEqual(request_body["stream_options"]["include_usage"], True)
+
+    def test_response_anomaly_requests_vllm_token_ids(self):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {
+            "response_anomaly_enabled": True,
+            "return_token_ids": False,
+            "return_tokens_as_token_ids": False,
+        }
+        model = VLLMCustomAPIChat(**kwargs)
+
+        request_body = asyncio.run(
+            model.get_request_body("test prompt", 100, RequestOutput())
+        )
+
+        self.assertTrue(request_body["return_token_ids"])
+        self.assertTrue(request_body["return_tokens_as_token_ids"])
+        self.assertNotIn("response_anomaly_enabled", request_body)
     
     async def test_parse_stream_response(self):
         """测试parse_stream_response方法"""

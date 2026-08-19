@@ -157,6 +157,11 @@ class VLLMCustomAPIChat(BaseAPIModel):
                 messages.append(msg)
         output.input = messages
         generation_kwargs = self.generation_kwargs.copy()
+        if self.response_anomaly_enabled:
+            # vLLM returns OpenAI-style logprobs with token text by default.
+            # Token ids are required to convert them into msProbe input.
+            generation_kwargs['return_token_ids'] = True
+            generation_kwargs['return_tokens_as_token_ids'] = True
         generation_kwargs.update({"max_tokens": max_out_len})
         # Multi-LoRA: override model field with the resolved LoRA adapter name.
         lora_model_name = self._resolve_lora_model_name(output)

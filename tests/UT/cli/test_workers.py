@@ -17,7 +17,8 @@ from ais_bench.benchmark.cli.workers import (
     AccViz,
     PerfViz,
     WorkFlowExecutor,
-    WORK_FLOW
+    WORK_FLOW,
+    _finalize_response_anomaly_detection,
 )
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners import LocalRunner
@@ -310,6 +311,167 @@ class TestInfer:
 
         # 执行测试 - 不应抛出异常
         self.infer_worker._update_tasks_cfg(tasks, cfg)
+
+    @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
+    @patch('ais_bench.benchmark.cli.workers.RUNNERS')
+    @patch('ais_bench.benchmark.cli.workers.logger')
+    def test_do_work_starts_anomaly_detection_after_runner(self, mock_logger, mock_runners, mock_partitioners):
+        """启用检测时，协调器在 runner 完成后启动并串行等待完成（绑定 infer 阶段）"""
+        mock_partitioner = MagicMock()
+        mock_partitioners.build.return_value = mock_partitioner
+        mock_partitioner.return_value = []
+        mock_runner = MagicMock()
+        mock_runners.build.return_value = mock_runner
+
+        coordinator = MagicMock()
+        coordinator.is_running = False
+        coordinator.anomaly_report = {}
+        coordinator.summary = {'normal': 1}
+        self.infer_worker.response_anomaly_coordinator = coordinator
+
+        order = []
+        mock_runner.side_effect = lambda tasks: order.append('runner')
+        coordinator.start.side_effect = (
+            lambda cfg: order.append('coordinator.start')
+        )
+        coordinator.join.side_effect = lambda: order.append('coordinator.join')
+
+        cfg = MockConfigDict({
+            'infer': {'partitioner': {}, 'runner': {}},
+            'cli_args': MagicMock(merge_ds=False, mode='all'),
+            'work_dir': '/test/workdir',
+            'response_anomaly': {'enabled': True, 'payload_storage': {}},
+        })
+
+        with patch.object(self.infer_worker, '_update_tasks_cfg'):
+            self.infer_worker.do_work(cfg)
+
+        coordinator.start.assert_called_once_with(cfg)
+        coordinator.join.assert_called_once()
+        assert order == ['runner', 'coordinator.start', 'coordinator.join']
+
+    @patch('ais_bench.benchmark.cli.workers.TasksMonitor.rm_tmp_files')
+    @patch('ais_bench.benchmark.cli.workers._run_response_anomaly_monitor')
+    def test_finalize_anomaly_detection_runs_monitor_in_current_process(
+        self, mock_monitor, mock_rm_tmp_files
+    ):
+        """检测线程运行时，主线程同步展示专用状态看板。"""
+        coordinator = MagicMock()
+        coordinator.is_running = True
+        coordinator.task_names = ['ResponseAnomaly/model/dataset']
+        coordinator.summary = {}
+        coordinator.anomaly_report = {}
+        order = []
+        mock_monitor.side_effect = lambda *args: order.append('monitor')
+        coordinator.join.side_effect = lambda: order.append('join')
+
+        _finalize_response_anomaly_detection(
+            coordinator, '/test/workdir', False
+        )
+
+        mock_monitor.assert_called_once_with(
+            coordinator.task_names, '/test/workdir', False
+        )
+        assert order == ['monitor', 'join']
+        mock_rm_tmp_files.assert_called_once_with('/test/workdir')
+
+    @patch('ais_bench.benchmark.cli.workers.TasksMonitor.rm_tmp_files')
+    @patch('ais_bench.benchmark.cli.workers._run_response_anomaly_monitor')
+    @patch('ais_bench.benchmark.cli.workers.osp.isfile', return_value=False)
+    def test_finalize_anomaly_detection_without_status_only_joins(
+        self, mock_isfile, mock_monitor, mock_rm_tmp_files
+    ):
+        """检测未产生状态时不启动看板，仍等待线程并完成清理。"""
+        coordinator = MagicMock()
+        coordinator.is_running = False
+        coordinator.summary = {}
+        coordinator.anomaly_report = {}
+
+        _finalize_response_anomaly_detection(
+            coordinator, '/test/workdir', False
+        )
+
+        mock_monitor.assert_not_called()
+        coordinator.join.assert_called_once()
+        mock_rm_tmp_files.assert_called_once_with('/test/workdir')
+
+    @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
+    @patch('ais_bench.benchmark.cli.workers.RUNNERS')
+    @patch('ais_bench.benchmark.cli.workers.logger')
+    @patch('os.path.isfile', return_value=True)
+    @patch('os.remove', side_effect=OSError('permission denied'))
+    def test_do_work_warns_when_stale_anomaly_status_cannot_be_removed(
+        self,
+        mock_remove,
+        mock_isfile,
+        mock_logger,
+        mock_runners,
+        mock_partitioners,
+    ):
+        """旧状态清理失败时告警，但不阻断推理和异常检测。"""
+        mock_partitioner = MagicMock()
+        mock_partitioners.build.return_value = mock_partitioner
+        mock_partitioner.return_value = []
+        mock_runner = MagicMock()
+        mock_runners.build.return_value = mock_runner
+
+        coordinator = MagicMock()
+        coordinator.anomaly_report = {}
+        coordinator.summary = {'normal': 1}
+        self.infer_worker.response_anomaly_coordinator = coordinator
+        cfg = MockConfigDict({
+            'infer': {'partitioner': {}, 'runner': {}},
+            'cli_args': MagicMock(merge_ds=False, mode='all'),
+            'work_dir': '/test/workdir',
+            'response_anomaly': {'enabled': True},
+        })
+
+        with (
+            patch.object(self.infer_worker, '_update_tasks_cfg'),
+            patch(
+                'ais_bench.benchmark.cli.workers._run_response_anomaly_monitor'
+            ),
+            patch(
+                'ais_bench.benchmark.cli.workers.TasksMonitor.rm_tmp_files'
+            ),
+        ):
+            self.infer_worker.do_work(cfg)
+
+        mock_remove.assert_called_once()
+        mock_logger.warning.assert_any_call(
+            "Failed to remove stale response anomaly status file %s: %s",
+            '/test/workdir/status_tmp/tmp_ResponseAnomaly.json',
+            mock_remove.side_effect,
+        )
+        mock_runner.assert_called_once_with([])
+        coordinator.start.assert_called_once_with(cfg)
+        coordinator.join.assert_called_once()
+
+    @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
+    @patch('ais_bench.benchmark.cli.workers.RUNNERS')
+    @patch('ais_bench.benchmark.cli.workers.logger')
+    def test_do_work_skips_anomaly_detection_when_disabled(self, mock_logger, mock_runners, mock_partitioners):
+        """未启用检测时不启动协调器"""
+        mock_partitioner = MagicMock()
+        mock_partitioners.build.return_value = mock_partitioner
+        mock_partitioner.return_value = []
+        mock_runner = MagicMock()
+        mock_runners.build.return_value = mock_runner
+
+        coordinator = MagicMock()
+        coordinator.is_running = False
+        self.infer_worker.response_anomaly_coordinator = coordinator
+
+        cfg = MockConfigDict({
+            'infer': {'partitioner': {}, 'runner': {}},
+            'cli_args': MagicMock(merge_ds=False, mode='all'),
+            'work_dir': '/test/workdir',
+        })
+
+        with patch.object(self.infer_worker, '_update_tasks_cfg'):
+            self.infer_worker.do_work(cfg)
+
+        coordinator.start.assert_not_called()
 
 
 class TestEval:

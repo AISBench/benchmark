@@ -31,6 +31,9 @@ The model configurations corresponding to different service-oriented backends ar
 
 ### Parameter Description for Service-Oriented Inference Backend Configuration
 The configuration file for the service-oriented inference backend is configured using Python syntax, as shown in the example below:
+
+The common model templates do not preconfigure `response_anomaly`. Add the `response_anomaly` block shown below only when response anomaly detection is needed: locate the target model in the `models` list of the model configuration file and add it inside that model's `dict`, at the same level as fields such as `generation_kwargs` and `pred_postprocessor`. It is not required when anomaly detection is disabled.
+
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPI
 
@@ -55,6 +58,12 @@ models = [
         generation_kwargs = dict(   # Model inference parameters, configured with reference to the VLLM documentation; the AISBench evaluation tool does not process these parameters and attaches them to the sent requests
             temperature = 0.01,
             ignore_eos=False,
+        ),
+        response_anomaly = dict(    # Optional; model-level config for msProbe response anomaly detection
+            model_name="",       # Model name, for example Qwen3-30B-A3B
+            model_path="",       # Local model directory, for example /home/Qwen3-30B-A3B; optional, used to auto-generate configs
+            msprobe_mtype_path='/path/to/mtype_config.json',
+            msprobe_token2category_dir='/path/to/token2category/',
         )
     )
 ]
@@ -86,15 +95,18 @@ The description of configurable parameters for the service-oriented inference ba
 | `generation_kwargs` | Dict | Configuration of inference generation parameters, depending on the specific service-oriented backend and interface type. Note: Currently, multi-sampling parameters such as `best_of` and `n` are not supported, but multiple independent inferences can be performed using the `num_return_sequences` parameter (for details, refer to 🔗 [the role of `num_return_sequences` in the Text Generation Documentation](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences\(int,)) |
 | `returns_tool_calls` | Bool | Controls the extraction method of function call information. When set to `True`, the system extracts function call information from the `tool_calls` field of the API response; when set to `False`, the system parses function call information from the `content` field |
 | `pred_postprocessor` | Dict | Post-processing configuration for model output results. It is used to format, clean, or convert the original model output to meet the requirements of specific evaluation tasks |
+| `response_anomaly` | Dict | Optional; model-level config for msProbe response anomaly detection, including `model_name` (must match the name in msProbe's mtype_config.json), `model_path` (local model directory, optional, used to auto-generate configs), `msprobe_mtype_path`, and `msprobe_token2category_dir`. When mtype/token-category paths are not provided, the default files inside the msProbe package are used |
 
 
 **Precautions**:
+- Response anomaly detection currently supports only the vLLM Chat API model configurations `vllm_api_general_chat`, `vllm_api_stream_chat`, and `vllm_api_stream_chat_multiturn`. Other model backends are not supported yet.
 - `request_rate` is affected by hardware performance. You can increase 📚 [WORKERS_NUM](./cli_args.md#configuration-constant-file-parameters) to improve concurrency capability.
 - The function of `request_rate` may be overwritten by the `traffic_cfg` item. For specific reasons, refer to 🔗 [Parameter Interpretation Section in the Description of Request Rate (RPS) Distribution Control and Visualization](../../advanced_tutorials/rps_distribution.md#parameter-interpretation).
 - When the dataset has timestamps and **use_timestamp** is True in the model config, requests are scheduled by timestamp and **request_rate** and **traffic_cfg** are ignored.
 - Setting `batch_size` too large may result in high CPU usage. Please configure it reasonably based on hardware conditions.
 - The default service address used by the service-oriented inference evaluation API is `localhost:8080`. In actual use, you need to modify it to the IP and port of the service-oriented backend according to the actual deployment.
 - When using an IPv6 literal (such as `::1` or `2001:db8::1`) as `host_ip`, the tool will automatically wrap it in brackets in the generated URL (for example, `http://[2001:db8::1]:8080/`), so you do not need to manually add brackets in the configuration.
+- When response anomaly detection (`response_anomaly`) is enabled, the service must return token ids and top-k logprobs; AISBench automatically adds `logprobs=True` and a fixed `top_logprobs=20` to the inference requests, and Cases whose responses lack these fields are marked as `skipped` in the detection results. See [Response Anomaly Detection Configuration](./cli_args.md#response-anomaly-detection-configuration) for details.
 
 
 ### Multi-LoRA Routing
