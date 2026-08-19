@@ -150,7 +150,7 @@ AISBench修改的数据集获取链接：https://github.com/AISBench/terminal-be
 
 | 镜像名称 | 获取链接 |cpu架构| 打包压缩包大小 |
 | -------- | -------- | ------- |-------- |
-|`terminal-bench-2.1-images-aarch64.tar`| https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-aarch64.tar | aarch64 | 37.74 GB |
+|`terminal-bench-2.1-images-aarch64.tar`| 暂不支持 | aarch64 | NA |
 |`terminal-bench-2.1-images-x86_64.tar`| https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar | x86_64 | 38.62GB |
 
 

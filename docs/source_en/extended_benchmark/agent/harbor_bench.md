@@ -151,7 +151,7 @@ AISBench modified dataset repository: [https://github.com/AISBench/terminal-benc
 
 | Image Name | Download Link | CPU Architecture | Compressed Size |
 | --------- | ------------ | ---------------- | -------------- |
-| `terminal-bench-2.1-images-aarch64.tar` | [Link](https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-aarch64.tar) | aarch64 | 37.74 GB |
+| `terminal-bench-2.1-images-aarch64.tar` | Not Supported | aarch64 | NA |
 | `terminal-bench-2.1-images-x86_64.tar` | [Link](https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar) | x86_64 | 38.62 GB |
 
 > ⚠️ Note:
