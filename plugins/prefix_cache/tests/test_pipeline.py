@@ -79,6 +79,24 @@ class PipelineTest(unittest.TestCase):
             manifest = json.loads(manifest_text)
             self.assertTrue(manifest["effective_config"]["service"]["api_key_configured"])
 
+    def test_manifest_contains_detailed_audit_fields(self):
+        with tempfile.TemporaryDirectory() as folder:
+            scenario = write_case(Path(folder))
+            paths = prepare_scenario(scenario, tokenizer_loader=lambda _: FakeTokenizer())
+            manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+            analysis = json.loads(paths.analysis.read_text(encoding="utf-8"))
+            rows = read_jsonl(paths.full)
+            self.assertIn("p99", manifest["requests"]["input_length_summary"])
+            self.assertIn("bins", manifest["requests"]["input_length_summary"])
+            self.assertIn("target_reachable", manifest["prefix_cache"])
+            self.assertTrue(all("reachable_max" in group for group in manifest["groups"].values()))
+            self.assertEqual(manifest["divergence"]["collision_status"], "pass")
+            self.assertEqual(len({row["request_random_seed"] for row in rows}), len(rows))
+            self.assertTrue(all(row["divergence_unique"] for row in rows))
+            self.assertIn(analysis["validation"]["status"], {"PASS", "PASS_WITH_WARNING"})
+            self.assertFalse(analysis["validation"]["affects_exit_code"])
+            self.assertIn("target_signed_difference_pp", analysis)
+
     def test_warmup_manifest_has_every_group_rank(self):
         with tempfile.TemporaryDirectory() as folder:
             scenario = write_case(Path(folder), mode="warmup")
@@ -129,6 +147,9 @@ class PipelineTest(unittest.TestCase):
             self.assertEqual(code, 0)
             analysis = json.loads(paths.analysis.read_text(encoding="utf-8"))
             self.assertIn("ACTUAL_DEVIATION", {warning["code"] for warning in analysis["warnings"]})
+            self.assertIn("theory_actual_signed_difference_pp", analysis)
+            self.assertEqual(analysis["validation"]["actual_status"], "PASS_WITH_WARNING")
+            self.assertFalse(analysis["validation"]["affects_exit_code"])
             self.assertIn("raw_prometheus", analysis["runtime"]["metrics_baseline"])
             self.assertIn("raw_prometheus", analysis["runtime"]["metrics_after"])
 

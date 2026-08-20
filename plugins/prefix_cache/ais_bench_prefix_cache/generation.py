@@ -55,6 +55,7 @@ class RequestPlan:
     gsm_hashes: tuple[str, ...] = ()
     canonical_prefix_sha256: str = ""
     seed_sha256: str = ""
+    request_random_seed: int = 0
     watermark_before: int = 0
     theoretical_hit_tokens: int = 0
     watermark_after: int = 0
@@ -81,6 +82,8 @@ class SolveResult:
     effective_hit_rate: float
     min_reachable_rate: float
     max_reachable_rate: float
+    target_reachable: bool
+    group_reachability: dict[str, dict[str, float]]
     adjusted: bool
     reason: str | None
 
@@ -169,13 +172,38 @@ def build_input_lengths(config: dict[str, Any], count: int, seed: int) -> list[i
     mode = config["mode"]
     if mode == "fixed":
         return [int(config["value"])] * count
+    if mode == "explicit":
+        values = [int(value) for value in config["values"]]
+        if len(values) != count:
+            raise ScenarioValidationError("explicit input length count must equal requests.count")
+        return values
     if mode == "csv":
         values = _csv_values(config["path"], ("input_prompt_tokens", "content_tokens", "input_tokens"))
         if len(values) != count:
             raise ScenarioValidationError("input CSV row count must equal requests.count")
         return values
+    if mode == "range":
+        rng = random.Random(seed)
+        return [rng.randint(int(item["min"]), int(item["max"])) for item in config["ranges"] for _ in range(int(item["count"]))]
+    return _truncated_normal_values(config, count, seed)
+
+
+def _truncated_normal_values(config: dict[str, Any], count: int, seed: int) -> list[int]:
+    low, high = int(config["min"]), int(config["max"])
+    if low == high:
+        return [low] * count
+    mean = float(config.get("mean", (low + high) / 2))
+    std = float(config.get("std", max(1.0, (high - low) / 4)))
     rng = random.Random(seed)
-    values = [rng.randint(int(item["min"]), int(item["max"])) for item in config["ranges"] for _ in range(int(item["count"]))]
+    values: list[int] = []
+    attempts = 0
+    while len(values) < count and attempts < max(1000, count * 100):
+        value = int(round(rng.gauss(mean, std)))
+        if low <= value <= high:
+            values.append(value)
+        attempts += 1
+    if len(values) != count:
+        raise ScenarioValidationError("truncated_normal could not produce enough values")
     return values
 
 
@@ -192,20 +220,7 @@ def build_output_lengths(config: dict[str, Any], count: int, seed: int) -> list[
     rng = random.Random(seed)
     if mode == "uniform":
         return [rng.randint(low, high) for _ in range(count)]
-    if low == high:
-        return [low] * count
-    mean = float(config.get("mean", (low + high) / 2))
-    std = float(config.get("std", max(1.0, (high - low) / 4)))
-    values: list[int] = []
-    attempts = 0
-    while len(values) < count and attempts < max(1000, count * 100):
-        value = int(round(rng.gauss(mean, std)))
-        if low <= value <= high:
-            values.append(value)
-        attempts += 1
-    if len(values) != count:
-        raise ScenarioValidationError("truncated_normal could not produce enough values")
-    return values
+    return _truncated_normal_values(config, count, seed)
 
 
 def assign_groups(count: int, config: dict[str, Any], seed: int) -> list[str]:
@@ -236,7 +251,7 @@ def assign_groups(count: int, config: dict[str, Any], seed: int) -> list[str]:
     return groups
 
 
-def order_indices(group_ids: Sequence[str], strategy: str, seed: int) -> list[int]:
+def order_indices(group_ids: Sequence[str], strategy: str, seed: int, input_lengths: Sequence[int] | None = None) -> list[int]:
     indices = list(range(len(group_ids)))
     rng = random.Random(seed)
     if strategy == "sequential":
@@ -247,6 +262,11 @@ def order_indices(group_ids: Sequence[str], strategy: str, seed: int) -> list[in
     buckets: dict[str, list[int]] = {}
     for index, group in enumerate(group_ids):
         buckets.setdefault(group, []).append(index)
+    if strategy == "input_len_asc":
+        if input_lengths is None or len(input_lengths) != len(group_ids):
+            raise ScenarioValidationError("input_len_asc requires one input length per request")
+        for group in buckets:
+            buckets[group].sort(key=lambda index: (int(input_lengths[index]), index))
     if strategy == "within_group_shuffle":
         result: list[int] = []
         for group in sorted(buckets):
@@ -318,8 +338,8 @@ def _plans_for_prefixes(input_lengths: Sequence[int], output_lengths: Sequence[i
     return plans
 
 
-def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[int], group_ids: Sequence[str], ranks: Sequence[int | None], lane_sequences: Sequence[int | None], block_size: int, seed_tokens: int, mode: str, target_hit_rate: float) -> SolveResult:
-    candidates = [list(range(0, max(0, ((length - seed_tokens) // block_size) * block_size) + 1, block_size)) for length in input_lengths]
+def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[int], group_ids: Sequence[str], ranks: Sequence[int | None], lane_sequences: Sequence[int | None], block_size: int, minimum_non_shared_tokens: int, mode: str, target_hit_rate: float) -> SolveResult:
+    candidates = [list(range(0, max(0, ((length - minimum_non_shared_tokens) // block_size) * block_size) + 1, block_size)) for length in input_lengths]
     total_input = sum(input_lengths)
     target_tokens = int(total_input * target_hit_rate + 0.5)
 
@@ -379,12 +399,36 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
                 _, prefixes, best_hit = best_move
                 best_error = abs(best_hit - target_tokens)
                 changed = True
-    zero_hit = score([0] * len(prefixes))[1]
+    zero_prefixes = [0] * len(prefixes)
+    zero_plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, zero_prefixes)
+    zero_warm = {group: 0 for group in set(group_ids)} if mode == "warmup" else None
+    zero_theory = simulate_theory(zero_plans, mode, zero_warm)
+    zero_hit = zero_theory.total_hit_tokens
     max_prefixes = [values[-1] for values in candidates]
-    max_hit = score(max_prefixes)[1]
+    max_plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, max_prefixes)
+    max_warm = {
+        group: max((prefix for prefix, current in zip(max_prefixes, group_ids) if current == group), default=0)
+        for group in set(group_ids)
+    } if mode == "warmup" else None
+    max_theory = simulate_theory(max_plans, mode, max_warm)
+    max_hit = max_theory.total_hit_tokens
     effective_rate = best_hit / total_input if total_input else 0.0
+    min_rate = zero_hit / total_input if total_input else 0.0
+    max_rate = max_hit / total_input if total_input else 0.0
+    group_reachability = {
+        group: {
+            "min_reachable_rate": float(zero_theory.group_stats[group]["hit_rate"]),
+            "max_reachable_rate": float(max_theory.group_stats[group]["hit_rate"]),
+        }
+        for group in sorted(set(group_ids))
+    }
+    target_reachable = min_rate <= target_hit_rate <= max_rate
     adjusted = best_hit != target_tokens
-    return SolveResult(tuple(prefixes), target_tokens, best_hit, effective_rate, zero_hit / total_input if total_input else 0.0, max_hit / total_input if total_input else 0.0, adjusted, "block alignment and cache-watermark constraints" if adjusted else None)
+    return SolveResult(
+        tuple(prefixes), target_tokens, best_hit, effective_rate, min_rate, max_rate,
+        target_reachable, group_reachability, adjusted,
+        "block alignment and cache-watermark constraints" if adjusted else None,
+    )
 
 
 def _safe_token_text(tokenizer: TokenizerLike, token_id: int, special: set[int]) -> str | None:

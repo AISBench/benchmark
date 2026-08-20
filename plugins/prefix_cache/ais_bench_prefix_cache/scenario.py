@@ -17,9 +17,9 @@ _ALLOWED = {
     "corpus": {"path", "field", "selection"},
     "corpus.selection": {"mode", "values", "indices", "question_sha256"},
     "requests": {"count", "input_length", "output_length"},
-    "requests.input_length": {"mode", "value", "ranges", "path"},
+    "requests.input_length": {"mode", "value", "values", "ranges", "min", "max", "mean", "std", "path"},
     "requests.output_length": {"mode", "value", "min", "max", "mean", "std", "path"},
-    "prefix_cache": {"mode", "target_hit_rate", "seed_blocks", "groups", "order"},
+    "prefix_cache": {"mode", "target_hit_rate", "seed_blocks", "minimum_non_shared_length", "groups", "order"},
     "prefix_cache.groups": {"count", "assignment", "overrides"},
     "prefix_cache.groups.assignment": {"mode", "exponent", "weights"},
     "prefix_cache.order": {"strategy"},
@@ -29,11 +29,11 @@ _ALLOWED = {
 }
 
 _MODES = {
-    "input": {"fixed", "range", "csv"},
+    "input": {"fixed", "explicit", "range", "truncated_normal", "csv"},
     "output": {"fixed", "uniform", "truncated_normal", "csv"},
     "selection": {"random", "indices", "question_sha256", "mixed"},
     "assignment": {"uniform", "zipf", "weights"},
-    "order": {"sequential", "within_group_shuffle", "interleave", "global_shuffle"},
+    "order": {"sequential", "within_group_shuffle", "interleave", "global_shuffle", "input_len_asc"},
     "cache": {"cold", "warmup"},
 }
 
@@ -72,11 +72,19 @@ def _mode(section: dict[str, Any], allowed: set[str], path: str) -> str:
 
 def _validate_input_config(config: dict[str, Any], path: str, base: Path, expected_count: int | None) -> None:
     mode = _mode(config, _MODES["input"], path)
-    unknown = set(config) - {"mode", "value", "ranges", "path"}
+    unknown = set(config) - {"mode", "value", "values", "ranges", "min", "max", "mean", "std", "path"}
     if unknown:
         raise ScenarioValidationError(f"unknown field: {path}.{sorted(unknown)[0]}")
     if mode == "fixed":
         _positive(config.get("value"), f"{path}.value")
+    elif mode == "explicit":
+        values = config.get("values")
+        if not isinstance(values, list) or not values:
+            raise ScenarioValidationError(f"{path}.values must be a non-empty list")
+        for index, value in enumerate(values):
+            _positive(value, f"{path}.values[{index}]")
+        if expected_count is not None and len(values) != expected_count:
+            raise ScenarioValidationError(f"{path}.values length must equal expected request count")
     elif mode == "range":
         ranges = config.get("ranges")
         if not isinstance(ranges, list) or not ranges:
@@ -92,6 +100,13 @@ def _validate_input_config(config: dict[str, Any], path: str, base: Path, expect
             total += _positive(item.get("count"), f"{path}.ranges[{index}].count")
         if expected_count is not None and total != expected_count:
             raise ScenarioValidationError(f"{path} range counts must equal expected request count")
+    elif mode == "truncated_normal":
+        low = _positive(config.get("min"), f"{path}.min")
+        high = _positive(config.get("max"), f"{path}.max")
+        if high < low:
+            raise ScenarioValidationError(f"{path}.max must be >= min")
+        if "std" in config and float(config["std"]) <= 0:
+            raise ScenarioValidationError(f"{path}.std must be positive")
     else:
         if not isinstance(config.get("path"), str) or not config["path"]:
             raise ScenarioValidationError(f"{path}.path must be a non-empty string")
@@ -122,8 +137,12 @@ def _minimum_input_tokens(config: dict[str, Any], path: str) -> int:
     mode = config["mode"]
     if mode == "fixed":
         return int(config["value"])
+    if mode == "explicit":
+        return min(int(value) for value in config["values"])
     if mode == "range":
         return min(int(item["min"]) for item in config["ranges"])
+    if mode == "truncated_normal":
+        return int(config["min"])
     try:
         with Path(config["path"]).open(encoding="utf-8-sig", newline="") as source:
             rows = list(csv.DictReader(source))
@@ -223,9 +242,18 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
         raise ScenarioValidationError("prefix_cache.target_hit_rate must be in [0, 1]")
     pc["seed_blocks"] = _positive(pc.get("seed_blocks", 1), "prefix_cache.seed_blocks")
     seed_tokens = tokenizer["block_size"] * pc["seed_blocks"]
-    if _minimum_input_tokens(input_cfg, "requests.input_length") < seed_tokens:
+    pc["minimum_non_shared_length"] = _positive(
+        pc.get("minimum_non_shared_length", seed_tokens),
+        "prefix_cache.minimum_non_shared_length",
+    )
+    if pc["minimum_non_shared_length"] < seed_tokens:
         raise ScenarioValidationError(
-            f"requests.input_length must be at least {seed_tokens} tokens to contain the configured seed"
+            f"prefix_cache.minimum_non_shared_length must be at least seed length {seed_tokens}"
+        )
+    reserved_tokens = pc["minimum_non_shared_length"]
+    if _minimum_input_tokens(input_cfg, "requests.input_length") < reserved_tokens:
+        raise ScenarioValidationError(
+            f"requests.input_length must be at least {reserved_tokens} tokens to contain the configured non-shared region"
         )
     groups = _require_dict(pc.get("groups"), "prefix_cache.groups")
     groups["count"] = _positive(groups.get("count"), "prefix_cache.groups.count")
@@ -245,9 +273,9 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
             raise ScenarioValidationError(f"unknown field: prefix_cache.groups.overrides.{group_id}.{sorted(unknown)[0]}")
         if "input_length" in override:
             _validate_input_config(override["input_length"], f"prefix_cache.groups.overrides.{group_id}.input_length", source.parent, None)
-            if _minimum_input_tokens(override["input_length"], f"prefix_cache.groups.overrides.{group_id}.input_length") < seed_tokens:
+            if _minimum_input_tokens(override["input_length"], f"prefix_cache.groups.overrides.{group_id}.input_length") < reserved_tokens:
                 raise ScenarioValidationError(
-                    f"prefix_cache.groups.overrides.{group_id}.input_length must be at least {seed_tokens} tokens to contain the configured seed"
+                    f"prefix_cache.groups.overrides.{group_id}.input_length must be at least {reserved_tokens} tokens to contain the configured non-shared region"
                 )
         if "output_length" in override:
             _validate_output_config(override["output_length"], f"prefix_cache.groups.overrides.{group_id}.output_length", source.parent)

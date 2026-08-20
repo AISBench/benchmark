@@ -144,10 +144,23 @@ def run_scenario(scenario_path: Path | str, aisbench_config: Path | str | None =
     actual = diff_metrics(baseline, after)
     actual_dict = metrics_to_dict(actual)
     theory_rate = float(analysis["theoretical_hit_rate"])
-    difference_pp = abs((actual.global_hit_rate or 0.0) - theory_rate) * 100 if actual.global_hit_rate is not None else None
+    signed_difference_pp = ((actual.global_hit_rate or 0.0) - theory_rate) * 100 if actual.global_hit_rate is not None else None
+    difference_pp = abs(signed_difference_pp) if signed_difference_pp is not None else None
     if difference_pp is not None and difference_pp > scenario.section("validation")["actual_warning_pp"]:
         warnings.append({"code": "ACTUAL_DEVIATION", "difference_pp": difference_pp})
-    analysis.update({"status": "complete", "runtime": runtime, "actual": actual_dict, "theory_actual_difference_pp": difference_pp, "warnings": warnings})
+    validation = dict(analysis.get("validation", {}))
+    validation["actual_status"] = "PASS" if difference_pp is None or difference_pp <= scenario.section("validation")["actual_warning_pp"] else "PASS_WITH_WARNING"
+    validation["status"] = "PASS" if not warnings else "PASS_WITH_WARNING"
+    analysis.update({
+        "status": "complete",
+        "runtime": runtime,
+        "actual": actual_dict,
+        "theory_actual_difference_pp": difference_pp,
+        "theory_actual_signed_difference_pp": signed_difference_pp,
+        "theory_actual_absolute_difference_pp": difference_pp,
+        "validation": validation,
+        "warnings": warnings,
+    })
     write_json(analysis_path, analysis, overwrite=True)
     return analysis
 
@@ -164,10 +177,14 @@ def analyze_snapshots(manifest_path: Path | str, baseline_path: Path | str, afte
     analysis_path = manifest_file.parent / manifest["artifacts"]["analysis"]["name"]
     analysis = _read_json(analysis_path)
     theory_rate = float(analysis["theoretical_hit_rate"])
-    difference_pp = abs((actual.global_hit_rate or 0.0) - theory_rate) * 100 if actual.global_hit_rate is not None else None
+    signed_difference_pp = ((actual.global_hit_rate or 0.0) - theory_rate) * 100 if actual.global_hit_rate is not None else None
+    difference_pp = abs(signed_difference_pp) if signed_difference_pp is not None else None
     warnings = list(analysis.get("warnings", []))
     if difference_pp is not None and difference_pp > effective["validation"]["actual_warning_pp"]:
         warnings.append({"code": "ACTUAL_DEVIATION", "difference_pp": difference_pp})
+    validation = dict(analysis.get("validation", {}))
+    validation["actual_status"] = "PASS" if difference_pp is None or difference_pp <= effective["validation"]["actual_warning_pp"] else "PASS_WITH_WARNING"
+    validation["status"] = "PASS" if not warnings else "PASS_WITH_WARNING"
     analysis.update({
         "status": "analyzed",
         "runtime": {
@@ -176,6 +193,9 @@ def analyze_snapshots(manifest_path: Path | str, baseline_path: Path | str, afte
         },
         "actual": metrics_to_dict(actual),
         "theory_actual_difference_pp": difference_pp,
+        "theory_actual_signed_difference_pp": signed_difference_pp,
+        "theory_actual_absolute_difference_pp": difference_pp,
+        "validation": validation,
         "warnings": warnings,
     })
     write_json(analysis_path, analysis, overwrite=True)

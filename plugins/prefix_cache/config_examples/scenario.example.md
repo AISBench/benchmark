@@ -188,6 +188,28 @@ gsm8k-prefix-cache-60.analysis.json
 - 所有 `count` 之和必须等于 `requests.count`；
 - 采样由 `random_seed` 决定。
 
+#### 显式长度列表
+
+```json
+"input_length": {"mode": "explicit", "values": [512, 768, 1024, 2048]}
+```
+
+`values` 必须全部是正整数，元素个数必须等于对应范围内的请求数。全局配置时等于 `requests.count`；组级覆盖时等于该组实际请求数。
+
+#### 截断正态分布
+
+```json
+"input_length": {
+  "mode": "truncated_normal",
+  "min": 512,
+  "max": 2048,
+  "mean": 1024,
+  "std": 256
+}
+```
+
+只接受 `[min,max]` 内的整数采样；`mean` 默认取区间中点，`std` 默认按区间宽度推导且显式值必须大于 0。相同 `random_seed` 产生相同长度序列。
+
 #### CSV 指定
 
 ```json
@@ -250,6 +272,7 @@ CSV 必须包含正整数 `output_tokens` 列，行数等于 `requests.count`。
   "mode": "warmup",
   "target_hit_rate": 0.6,
   "seed_blocks": 1,
+  "minimum_non_shared_length": 16,
   "groups": {
     "count": 4,
     "assignment": {"mode": "zipf", "exponent": 1.0}
@@ -281,13 +304,23 @@ seed token 数 = seed_blocks × tokenizer.block_size
 
 seed 位于公共前缀和自然后缀之间，所有正式请求全局唯一，防止请求在公共前缀之后继续意外共享。输入长度必须能容纳 seed。
 
-插件在加载 Scenario 时就会检查 fixed/range/CSV 输入长度的最小值是否能容纳 seed；不足时会在生成数据前直接报配置错误。
+插件在加载 Scenario 时就会检查 fixed/explicit/range/truncated_normal/CSV 输入长度的最小值是否能容纳非共享区；不足时会在生成数据前直接报配置错误。
 
-### 8.4 `groups.count`
+### 8.4 `minimum_non_shared_length`
+
+每条正式请求至少预留多少个非共享 token，默认等于 `seed_blocks × block_size`，并且不能小于唯一 seed 长度。
+
+```text
+公共前缀最大长度 = 按 Block 向下对齐(input_length - minimum_non_shared_length)
+```
+
+当该值大于 seed 长度时，多出的空间由 GSM8K 自然后缀填充。它用于保证公共前缀之后不仅有全局唯一 seed，还能保留指定规模的自然差异内容。
+
+### 8.5 `groups.count`
 
 Prefix Group 数量。插件生成 `group-0`、`group-1` 等 ID。每个组独立生成 canonical 前缀、维护水位、统计理论命中率，并在 warmup 时逐 DP 预热。
 
-### 8.5 `groups.assignment`
+### 8.6 `groups.assignment`
 
 均匀分配：
 
@@ -316,7 +349,7 @@ Zipf 分配：
 
 权重数量必须等于 `groups.count`，不能为负且总和大于 0；无需预先归一化。
 
-### 8.6 `groups.overrides`
+### 8.7 `groups.overrides`
 
 可按组覆盖全局设置：
 
@@ -339,12 +372,13 @@ Zipf 分配：
 - `corpus_selection` 支持 random/indices/question_sha256/mixed；
 - 组级 range/CSV 生成数量必须等于实际分到该组的请求数。
 
-### 8.7 `order.strategy`
+### 8.8 `order.strategy`
 
 - `sequential`：保持目标分配阶段顺序；
 - `within_group_shuffle`：各组内部打乱，再按组输出；
 - `interleave`：各组轮转交错，默认，适合多租户流量；
 - `global_shuffle`：全局确定性打乱。
+- `input_len_asc`：每个 Prefix Group 内按输入长度从短到长排列，再按组轮转交错；相同长度保持原始稳定顺序。
 
 理论水位总是按最终发送顺序重新模拟。
 
@@ -410,6 +444,8 @@ vllm:kv_cache_usage_perc
 
 单位是百分点（pp），不是相对百分比。例如 60% 与 58.5% 相差 1.5 pp。两种偏差始终只 warning，不改变原本成功的退出码。
 
+分析产物同时记录带符号偏差、绝对偏差、目标是否在全局可达范围内，以及 `PASS`/`PASS_WITH_WARNING` 展示状态。该状态只用于展示，不控制退出码。
+
 ## 11. `aisbench`
 
 ```json
@@ -442,6 +478,7 @@ vllm:kv_cache_usage_perc
 - 创建 4 个组，按指数 1.0 的 Zipf 热度分配；
 - 目标全局命中率为 60%；
 - 使用一个 16-token Block 作为全局唯一 seed；
+- 每条请求至少保留 16 token 非共享区；
 - 请求按组交错排列；
 - 使用 warmup 模式；
 - 单个 vLLM HTTP 入口内部有 2 个 DP rank；
@@ -450,7 +487,7 @@ vllm:kv_cache_usage_perc
 
 ## 13. 建议检查顺序
 
-```powershell
+```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
 ais-bench-prefix-cache prepare --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest路径>
@@ -463,6 +500,9 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 - `effective_target_hit_rate`：求解器选择的可达目标；
 - `theoretical_hit_rate`：按最终顺序模拟的理论值；
 - `reachable_min/max`：当前长度、Block、分组和路由下的范围；
+- `target_reachable`：目标是否落在全局最大/最小可达区间；
 - `groups`：请求分布与 canonical 前缀；
 - `warmup.plan`：是否覆盖每个 Prefix Group × DP rank；
 - `warnings`：目标偏差、空缓存假定或实际偏差。
+
+Manifest 还会记录输入/输出长度的 min/max/mean/P50/P90/P95/P99 与分桶计数、各组 reachable min/max、每条请求的确定性 `request_random_seed`，以及唯一差异块的碰撞检查状态。

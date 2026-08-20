@@ -239,7 +239,7 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 ### `<run_id>.full.jsonl`
 
-完整审计数据：最终 prompt、输入/输出 token 数、组、公共前缀、唯一 seed、GSM8K 来源、DP 路由、理论命中 token 和水位变化。
+完整审计数据：最终 prompt、输入/输出 token 数、组、公共前缀、唯一 seed、每请求确定性随机种子、GSM8K 来源、DP 路由、理论命中 token、水位变化和差异块碰撞状态。
 
 ### `<run_id>.requests.jsonl`
 
@@ -247,11 +247,11 @@ AISBench 最小输入，每行只包含 `question`、`answer`、`max_tokens`。D
 
 ### `<run_id>.manifest.json`
 
-复现和校验入口：有效配置、输入哈希、tokenizer 指纹、组、DP、warmup 计划以及产物路径、大小和哈希。`api_key` 明文不会写入 Manifest，只记录是否配置。
+复现和校验入口：有效配置、输入哈希、tokenizer 指纹、输入/输出长度分位数和分桶、全局及组级可达范围、差异块唯一性、组、DP、warmup 计划以及产物路径、大小和哈希。`api_key` 明文不会写入 Manifest，只记录是否配置。
 
 ### `<run_id>.analysis.json`
 
-保存 requested/effective/theoretical hit rate、分组和分 DP 理论结果、baseline/after 原始指标、实际命中率、偏差及 warnings。
+保存 requested/effective/theoretical hit rate、目标可达性、带符号/绝对偏差、只展示不控制退出码的验证状态、分组和分 DP 理论结果、baseline/after 原始指标、实际命中率及 warnings。
 
 ## 8. 命中率和退出码
 

@@ -80,6 +80,16 @@ class CoreTest(unittest.TestCase):
         normal = {"mode": "truncated_normal", "min": 2, "max": 8}
         self.assertEqual(build_output_lengths(normal, 6, 9), build_output_lengths(normal, 6, 9))
 
+    def test_explicit_and_truncated_normal_input_lengths(self):
+        self.assertEqual(
+            build_input_lengths({"mode": "explicit", "values": [8, 12, 16]}, 3, 7),
+            [8, 12, 16],
+        )
+        normal = {"mode": "truncated_normal", "min": 8, "max": 16, "mean": 12, "std": 2}
+        first = build_input_lengths(normal, 20, 9)
+        self.assertEqual(first, build_input_lengths(normal, 20, 9))
+        self.assertTrue(all(8 <= value <= 16 for value in first))
+
     def test_csv_lengths_and_specified_gsm_selection(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -169,6 +179,12 @@ class CoreTest(unittest.TestCase):
         self.assertEqual([groups.count(f"group-{i}") for i in range(3)], [5, 3, 2])
         for strategy in ("sequential", "within_group_shuffle", "interleave", "global_shuffle"):
             self.assertEqual(sorted(order_indices(groups, strategy, 42)), list(range(10)))
+        lengths = [30, 20, 10, 40, 15, 25]
+        grouped = ["g0", "g1", "g0", "g1", "g0", "g1"]
+        ordered = order_indices(grouped, "input_len_asc", 42, lengths)
+        for group in ("g0", "g1"):
+            selected = [lengths[index] for index in ordered if grouped[index] == group]
+            self.assertEqual(selected, sorted(selected))
 
     def test_routes_and_dp_watermarks(self):
         groups = ["g0", "g1", "g0", "g1", "g0", "g1", "g0", "g1"]
@@ -186,6 +202,14 @@ class CoreTest(unittest.TestCase):
         result = solve_prefix_lengths([32] * 4, [1] * 4, groups, ranks, lanes, 4, 4, "cold", 0.5)
         self.assertTrue(all(value % 4 == 0 for value in result.shared_prefix_tokens))
         self.assertLessEqual(result.effective_hit_rate, result.max_reachable_rate)
+        self.assertIn("g0", result.group_reachability)
+
+    def test_solver_reserves_minimum_non_shared_length(self):
+        groups = ["g0", "g0"]
+        ranks, lanes = assign_cold_routes(groups, 1)
+        result = solve_prefix_lengths([20, 20], [1, 1], groups, ranks, lanes, 4, 8, "cold", 1.0)
+        self.assertTrue(all(prefix <= 12 for prefix in result.shared_prefix_tokens))
+        self.assertFalse(result.target_reachable)
 
     def test_solver_matches_exhaustive_small_oracle(self):
         lengths = [16, 20, 24]

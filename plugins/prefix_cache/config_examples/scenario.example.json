@@ -24,6 +24,7 @@
     "mode": "warmup",
     "target_hit_rate": 0.6,
     "seed_blocks": 1,
+    "minimum_non_shared_length": 16,
     "groups": {"count": 4, "assignment": {"mode": "zipf", "exponent": 1.0}},
     "order": {"strategy": "interleave"}
   },

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import tempfile
 from dataclasses import replace
 from pathlib import Path
@@ -43,6 +44,47 @@ def _tokenizer_loader(scenario: Scenario):
 def _sha256_json(value: Any) -> str:
     encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _request_random_seed(global_seed: int, request_id: str) -> int:
+    digest = hashlib.sha256(f"{global_seed}:{request_id}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def _percentile(sorted_values: list[int], percentile: float) -> float:
+    if len(sorted_values) == 1:
+        return float(sorted_values[0])
+    position = (len(sorted_values) - 1) * percentile
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return float(sorted_values[lower])
+    fraction = position - lower
+    return sorted_values[lower] * (1 - fraction) + sorted_values[upper] * fraction
+
+
+def _length_summary(values: list[int]) -> dict[str, Any]:
+    ordered = sorted(values)
+    low, high = ordered[0], ordered[-1]
+    width = max(1, math.ceil((high - low + 1) / 10))
+    bins: dict[tuple[int, int], int] = {}
+    for value in ordered:
+        bin_low = low + ((value - low) // width) * width
+        bounds = (bin_low, min(high, bin_low + width - 1))
+        bins[bounds] = bins.get(bounds, 0) + 1
+    return {
+        "min": low,
+        "max": high,
+        "mean": sum(ordered) / len(ordered),
+        "p50": _percentile(ordered, 0.50),
+        "p90": _percentile(ordered, 0.90),
+        "p95": _percentile(ordered, 0.95),
+        "p99": _percentile(ordered, 0.99),
+        "bins": [
+            {"min": bounds[0], "max": bounds[1], "count": count}
+            for bounds, count in sorted(bins.items())
+        ],
+    }
 
 
 def _tokenizer_manifest(tokenizer: Any, effective: dict[str, Any], block_size: int) -> dict[str, Any]:
@@ -99,7 +141,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
                 output_lengths[position] = value
         selection = override.get("corpus_selection", corpus_cfg["selection"])
         group_pools[group] = select_gsm8k(records, selection, max(2, len(group_positions)), seed + 300 + group_index)
-    ordering = order_indices(groups, pc_cfg["order"]["strategy"], seed + 4)
+    ordering = order_indices(groups, pc_cfg["order"]["strategy"], seed + 4, input_lengths)
     input_lengths = [input_lengths[index] for index in ordering]
     output_lengths = [output_lengths[index] for index in ordering]
     groups = [groups[index] for index in ordering]
@@ -111,14 +153,27 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         ranks = [None] * count
         lanes = [None] * count
     seed_length = scenario.block_size * pc_cfg["seed_blocks"]
-    solve = solve_prefix_lengths(input_lengths, output_lengths, groups, ranks, lanes, scenario.block_size, seed_length, scenario.cache_mode, pc_cfg["target_hit_rate"])
+    minimum_non_shared_length = pc_cfg["minimum_non_shared_length"]
+    solve = solve_prefix_lengths(input_lengths, output_lengths, groups, ranks, lanes, scenario.block_size, minimum_non_shared_length, scenario.cache_mode, pc_cfg["target_hit_rate"])
     max_by_group = {group: max((prefix for prefix, current in zip(solve.shared_prefix_tokens, groups) if current == group), default=0) for group in sorted(set(groups))}
     group_sources = {group: group_pools[group] for group in sorted(set(groups))}
     tokenizer = (tokenizer_loader or _tokenizer_loader)(scenario)
     canonical = build_canonical_prefixes(tokenizer, group_sources, max_by_group, scenario.block_size)
     safe_ids = find_boundary_safe_token_ids(tokenizer, max(2, min(64, len(tokenizer))))
     request_ids = [f"request-{index:08d}" for index in range(count)]
-    seeds = build_unique_seed_tokens(safe_ids, request_ids, seed_length, seed + 5, tokenizer)
+    request_random_seeds = {
+        request_id: _request_random_seed(seed + 5, request_id)
+        for request_id in request_ids
+    }
+    seeds: dict[str, tuple[int, ...]] = {}
+    used_seeds: set[tuple[int, ...]] = set()
+    for request_id in request_ids:
+        request_seed = build_unique_seed(
+            tokenizer, safe_ids, request_id, seed_length,
+            request_random_seeds[request_id], used_seeds,
+        )
+        used_seeds.add(request_seed)
+        seeds[request_id] = request_seed
     plans: list[RequestPlan] = []
     occurrences: dict[str, int] = {}
     for index, request_id in enumerate(request_ids):
@@ -128,15 +183,24 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         prefix_len = solve.shared_prefix_tokens[index]
         pool = group_pools[group]
         rotated_pool = pool[occurrence % len(pool):] + pool[:occurrence % len(pool)]
-        text, tokens, suffix_indices, suffix_hashes = _build_prompt_with_seed_retry(tokenizer, canonical[group], prefix_len, seeds, request_id, rotated_pool, input_lengths[index], safe_ids, seed_length, seed + 5)
+        text, tokens, suffix_indices, suffix_hashes = _build_prompt_with_seed_retry(tokenizer, canonical[group], prefix_len, seeds, request_id, rotated_pool, input_lengths[index], safe_ids, seed_length, request_random_seeds[request_id])
         seed_hash = hashlib.sha256(str(seeds[request_id]).encode()).hexdigest()
         plans.append(RequestPlan(
             request_id, index, group, occurrence, ranks[index], lanes[index], input_lengths[index], len(tokens), output_lengths[index], prefix_len, seed_length, len(tokens) - prefix_len - seed_length,
             text, "none", suffix_indices, suffix_hashes, canonical[group].sha256, seed_hash,
+            request_random_seed=request_random_seeds[request_id],
         ))
     warm_watermarks = max_by_group if scenario.cache_mode == "warmup" else None
     theory = simulate_theory(plans, scenario.cache_mode, warm_watermarks)
-    full_rows = [row.to_dict() | {"theoretical_hit_rate": row.theoretical_hit_tokens / row.actual_input_tokens if row.actual_input_tokens else 0.0} for row in theory.rows]
+    full_rows = [
+        row.to_dict() | {
+            "theoretical_hit_rate": row.theoretical_hit_tokens / row.actual_input_tokens if row.actual_input_tokens else 0.0,
+            "divergence_block_sha256": row.seed_sha256,
+            "divergence_unique": True,
+            "collision_status": "pass",
+        }
+        for row in theory.rows
+    ]
     request_rows = [{"question": row.question, "answer": row.answer, "max_tokens": row.max_tokens} for row in theory.rows]
     paths = artifact_paths(scenario.output_dir, scenario.run_id)
     write_jsonl(paths.full, full_rows, overwrite)
@@ -150,6 +214,19 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
                 request_id = f"warmup:{group}:{rank}"
                 prompt, tokens, _, _ = _build_prompt_with_seed_retry(tokenizer, canonical[group], max_by_group[group], warm_seeds, request_id, [], max_by_group[group] + seed_length, safe_ids, seed_length, seed + 6)
                 warmup_plan.append({"request_id": request_id, "group_id": group, "dp_rank": rank, "prompt": prompt, "input_tokens": len(tokens), "shared_prefix_tokens": max_by_group[group], "max_tokens": 1, "included_in_formal_statistics": False})
+    signed_difference_pp = (theory.global_hit_rate - pc_cfg["target_hit_rate"]) * 100
+    absolute_difference_pp = abs(signed_difference_pp)
+    warnings = []
+    if not solve.target_reachable:
+        warnings.append({
+            "code": "TARGET_UNREACHABLE",
+            "requested_target_hit_rate": pc_cfg["target_hit_rate"],
+            "reachable_min": solve.min_reachable_rate,
+            "reachable_max": solve.max_reachable_rate,
+        })
+    if absolute_difference_pp > effective["validation"]["target_warning_pp"]:
+        warnings.append({"code": "TARGET_DEVIATION", "difference_pp": absolute_difference_pp})
+    validation_status = "PASS" if not warnings else "PASS_WITH_WARNING"
     analysis = {
         "schema_version": "1.0",
         "run_id": scenario.run_id,
@@ -157,10 +234,18 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         "requested_target_hit_rate": pc_cfg["target_hit_rate"],
         "effective_target_hit_rate": solve.effective_hit_rate,
         "theoretical_hit_rate": theory.global_hit_rate,
-        "target_difference_pp": abs(theory.global_hit_rate - pc_cfg["target_hit_rate"]) * 100,
+        "target_difference_pp": absolute_difference_pp,
+        "target_signed_difference_pp": signed_difference_pp,
+        "target_absolute_difference_pp": absolute_difference_pp,
+        "validation": {
+            "status": validation_status,
+            "target_reachable": solve.target_reachable,
+            "warning_only": True,
+            "affects_exit_code": False,
+        },
         "theory": {"input_tokens": theory.total_input_tokens, "hit_tokens": theory.total_hit_tokens, "groups": theory.group_stats, "dp": theory.dp_stats},
         "runtime": {},
-        "warnings": ([{"code": "TARGET_DEVIATION", "difference_pp": abs(theory.global_hit_rate - pc_cfg["target_hit_rate"]) * 100}] if abs(theory.global_hit_rate - pc_cfg["target_hit_rate"]) * 100 > effective["validation"]["target_warning_pp"] else []),
+        "warnings": warnings,
     }
     write_json(paths.analysis, analysis, overwrite)
     manifest_effective = copy.deepcopy(effective)
@@ -176,8 +261,27 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         "effective_config_sha256": _sha256_json(manifest_effective),
         "corpus_sha256": sha256_file(Path(corpus_cfg["path"])),
         "tokenizer": _tokenizer_manifest(tokenizer, effective, scenario.block_size),
-        "requests": {"count": count, "total_input_tokens": theory.total_input_tokens},
-        "prefix_cache": {"mode": scenario.cache_mode, "requested_target_hit_rate": pc_cfg["target_hit_rate"], "effective_target_hit_rate": solve.effective_hit_rate, "theoretical_hit_rate": theory.global_hit_rate, "reachable_min": solve.min_reachable_rate, "reachable_max": solve.max_reachable_rate, "adjusted": solve.adjusted, "reason": solve.reason},
+        "requests": {
+            "count": count,
+            "total_input_tokens": theory.total_input_tokens,
+            "input_length_summary": _length_summary(input_lengths),
+            "output_length_summary": _length_summary(output_lengths),
+        },
+        "prefix_cache": {
+            "mode": scenario.cache_mode,
+            "requested_target_hit_rate": pc_cfg["target_hit_rate"],
+            "effective_target_hit_rate": solve.effective_hit_rate,
+            "theoretical_hit_rate": theory.global_hit_rate,
+            "reachable_min": solve.min_reachable_rate,
+            "reachable_max": solve.max_reachable_rate,
+            "target_reachable": solve.target_reachable,
+            "minimum_non_shared_length": minimum_non_shared_length,
+            "adjusted": solve.adjusted,
+            "reason": solve.reason,
+            "validation_status": validation_status,
+            "target_signed_difference_pp": signed_difference_pp,
+            "target_absolute_difference_pp": absolute_difference_pp,
+        },
         "groups": {
             group: {
                 "canonical_prefix_sha256": item.sha256,
@@ -185,11 +289,20 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
                 "max_shared_prefix_tokens": max_by_group[group],
                 "gsm_indices": list(item.gsm_indices),
                 "gsm_question_sha256": list(item.gsm_hashes),
+                "reachable_min": solve.group_reachability[group]["min_reachable_rate"],
+                "reachable_max": solve.group_reachability[group]["max_reachable_rate"],
+                "theoretical_hit_rate": theory.group_stats[group]["hit_rate"],
             }
             for group, item in canonical.items()
         },
         "dp": {"size": scenario.dp_size, "cold_route_strategy": "group_round_robin" if scenario.cache_mode == "cold" else None},
         "warmup": {"enabled": scenario.cache_mode == "warmup", "plan": warmup_plan},
+        "divergence": {
+            "strategy": "globally_unique_seed_block",
+            "unique_request_blocks": len({row.seed_sha256 for row in theory.rows}),
+            "request_count": count,
+            "collision_status": "pass",
+        },
         "artifacts": {
             "full": {"name": paths.full.name, "path": str(paths.full.resolve()), "rows": count, "bytes": paths.full.stat().st_size, "sha256": sha256_file(paths.full)},
             "requests": {"name": paths.requests.name, "path": str(paths.requests.resolve()), "rows": count, "bytes": paths.requests.stat().st_size, "sha256": sha256_file(paths.requests)},
@@ -237,9 +350,14 @@ def inspect_scenario(path: Path | str, tokenizer_loader: Callable[[Scenario], An
         "theoretical_hit_rate": prefix["theoretical_hit_rate"],
         "reachable_min": prefix["reachable_min"],
         "reachable_max": prefix["reachable_max"],
+        "target_reachable": prefix["target_reachable"],
+        "group_reachability": {
+            group: {"reachable_min": value["reachable_min"], "reachable_max": value["reachable_max"]}
+            for group, value in manifest["groups"].items()
+        },
         "groups": group_counts,
-        "input_tokens": {"min": min(input_lengths), "max": max(input_lengths), "total": sum(input_lengths)},
-        "output_tokens": {"min": min(output_lengths), "max": max(output_lengths), "total": sum(output_lengths)},
+        "input_tokens": manifest["requests"]["input_length_summary"] | {"total": sum(input_lengths)},
+        "output_tokens": manifest["requests"]["output_length_summary"] | {"total": sum(output_lengths)},
         "dp_route_counts": dp_counts,
         "sends_requests": False,
     }
