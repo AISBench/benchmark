@@ -68,9 +68,7 @@ def parse_args():
 
 def _model_name(model_path: str) -> str:
     normalized = model_path.rstrip("/\\")
-    # CLI input may use either POSIX or Windows separators, regardless of the
-    # operating system on which the selector is executed.
-    name = Path(normalized.replace("\\", "/")).name
+    name = Path(normalized).name
     if not name:
         raise ValueError(f"Unable to infer model name from model path: {model_path!r}")
     return name
