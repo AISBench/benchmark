@@ -79,7 +79,8 @@ class VLLMClient:
             raise RuntimeCapabilityError("warmup plan does not cover every Prefix Group × DP rank")
         for item in sorted(plan, key=lambda value: (value["group_id"], value["dp_rank"])):
             started = time.perf_counter()
-            self.send_completion(item["prompt"], int(item.get("max_tokens", 1)), int(item["dp_rank"]))
+            rank = int(item["dp_rank"]) if self.scenario.dp_size > 1 else None
+            self.send_completion(item["prompt"], int(item.get("max_tokens", 1)), rank)
             results.append({"group_id": item["group_id"], "dp_rank": item["dp_rank"], "success": True, "elapsed_seconds": time.perf_counter() - started})
         return results
 

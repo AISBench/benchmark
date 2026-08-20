@@ -63,6 +63,14 @@ class MetricsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeCapabilityError, "does not cover"):
             client.warm_every_group_rank(plan[:-1])
 
+    def test_single_dp_warmup_does_not_send_routing_header_rank(self):
+        data = {"service": {"dp_size": 1, "timeout_seconds": 1, "model": "m", "inference_url": "http://x", "metrics_url": "http://x/metrics", "reset_url": None, "assume_empty_cache": True, "engine_label_map": {}, "api_key": ""}}
+        client = VLLMClient(Scenario(Path("scenario.json"), data))
+        calls = []
+        client.send_completion = lambda prompt, max_tokens, dp_rank=None: calls.append(dp_rank) or {}  # type: ignore[method-assign]
+        client.warm_every_group_rank([{"group_id": "g0", "dp_rank": 0, "prompt": "g0", "max_tokens": 1}])
+        self.assertEqual(calls, [None])
+
     def test_reset_requires_explicit_assume_empty(self):
         base = {"dp_size": 1, "timeout_seconds": 1, "model": "m", "inference_url": "http://x", "metrics_url": "http://x/metrics", "reset_url": None, "engine_label_map": {}, "api_key": ""}
         client = VLLMClient(Scenario(Path("scenario.json"), {"service": base | {"assume_empty_cache": True}}))

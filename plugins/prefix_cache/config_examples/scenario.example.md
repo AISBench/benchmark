@@ -136,6 +136,7 @@ gsm8k-prefix-cache-60.analysis.json
 ```
 
 先加入行号样本，再加入哈希样本，适合同时固定位置和内容身份。
+如果两类列表合计样本数小于实际需要数量，插件会按合并后的顺序循环复用；如需避免复用，请提供足够多的指定样本。
 
 ## 7. `requests`
 
@@ -279,6 +280,8 @@ seed token 数 = seed_blocks × tokenizer.block_size
 ```
 
 seed 位于公共前缀和自然后缀之间，所有正式请求全局唯一，防止请求在公共前缀之后继续意外共享。输入长度必须能容纳 seed。
+
+插件在加载 Scenario 时就会检查 fixed/range/CSV 输入长度的最小值是否能容纳 seed；不足时会在生成数据前直接报配置错误。
 
 ### 8.4 `groups.count`
 
@@ -448,10 +451,10 @@ vllm:kv_cache_usage_perc
 ## 13. 建议检查顺序
 
 ```powershell
-ais-bench-prefix-cache inspect --scenario .\scenario.json
-ais-bench-prefix-cache prepare --scenario .\scenario.json
+ais-bench-prefix-cache inspect --scenario ./scenario.json
+ais-bench-prefix-cache prepare --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest路径>
-ais-bench-prefix-cache run --scenario .\scenario.json
+ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
 重点检查：

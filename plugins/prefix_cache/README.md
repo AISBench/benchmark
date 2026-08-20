@@ -25,21 +25,21 @@ Scenario 示例见 [config_examples/scenario.example.json](config_examples/scena
 
 ### 2.1 创建隔离环境（推荐）
 
-```powershell
+```bash
 python -m venv .venv
 ```
 
 作用：在当前仓库创建独立 Python 环境，避免插件依赖与系统 Python 中的其他包互相影响。
 
-```powershell
-.\.venv\Scripts\Activate.ps1
+```bash
+source .venv/bin/activate
 ```
 
-作用：在 PowerShell 中启用该虚拟环境。后续 `python` 和 `pip` 都会使用 `.venv` 中的解释器和依赖。如果无法激活，也可以直接使用 `.\.venv\Scripts\python.exe` 执行后续命令。
+作用：在 Linux Bash 中启用该虚拟环境。后续 `python` 和 `pip` 都会使用 `.venv` 中的解释器和依赖。如果不激活，也可以直接使用 `.venv/bin/python` 执行后续命令。
 
 ### 2.2 安装 AISBench
 
-```powershell
+```bash
 python -m pip install -e .
 ```
 
@@ -47,8 +47,8 @@ python -m pip install -e .
 
 ### 2.3 安装 Prefix Cache 插件
 
-```powershell
-python -m pip install -e .\plugins\prefix_cache
+```bash
+python -m pip install -e ./plugins/prefix_cache
 ```
 
 这条命令会：
@@ -61,7 +61,7 @@ python -m pip install -e .\plugins\prefix_cache
 
 ### 2.4 验证安装
 
-```powershell
+```bash
 ais-bench-prefix-cache --help
 ```
 
@@ -69,7 +69,7 @@ ais-bench-prefix-cache --help
 
 如果系统找不到该命令，可以使用等价形式：
 
-```powershell
+```bash
 python -m ais_bench_prefix_cache.cli --help
 ```
 
@@ -96,8 +96,8 @@ python -m ais_bench_prefix_cache.cli --help
 
 ### 4.1 复制并修改配置
 
-```powershell
-Copy-Item .\plugins\prefix_cache\config_examples\scenario.example.json .\scenario.json
+```bash
+cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 ```
 
 作用：复制一份可编辑的 Scenario。至少修改：
@@ -112,8 +112,8 @@ Copy-Item .\plugins\prefix_cache\config_examples\scenario.example.json .\scenari
 
 ### 4.2 `inspect`：检查配置和理论范围
 
-```powershell
-ais-bench-prefix-cache inspect --scenario .\scenario.json
+```bash
+ais-bench-prefix-cache inspect --scenario ./scenario.json
 ```
 
 作用：
@@ -126,8 +126,8 @@ ais-bench-prefix-cache inspect --scenario .\scenario.json
 
 ### 4.3 `prepare`：生成正式数据产物
 
-```powershell
-ais-bench-prefix-cache prepare --scenario .\scenario.json
+```bash
+ais-bench-prefix-cache prepare --scenario ./scenario.json
 ```
 
 作用：根据 Scenario 确定性生成并校验四个文件：
@@ -139,16 +139,16 @@ ais-bench-prefix-cache prepare --scenario .\scenario.json
 
 默认不覆盖同名文件。确定需要重建时使用：
 
-```powershell
-ais-bench-prefix-cache prepare --scenario .\scenario.json --overwrite
+```bash
+ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
 ```
 
 `--overwrite` 只覆盖该 run 对应的四个确定文件，不会清理整个输出目录。
 
 ### 4.4 `validate`：校验已有产物
 
-```powershell
-ais-bench-prefix-cache validate --manifest .\outputs\gsm8k-prefix-cache-60\gsm8k-prefix-cache-60.manifest.json
+```bash
+ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60/gsm8k-prefix-cache-60.manifest.json
 ```
 
 作用：不生成数据、不访问 vLLM，只检查：
@@ -163,8 +163,8 @@ ais-bench-prefix-cache validate --manifest .\outputs\gsm8k-prefix-cache-60\gsm8k
 
 ### 4.5 `run`：执行完整压测
 
-```powershell
-ais-bench-prefix-cache run --scenario .\scenario.json
+```bash
+ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
 完整流程为：
@@ -181,19 +181,19 @@ ais-bench-prefix-cache run --scenario .\scenario.json
 
 临时覆盖 Scenario 中 AISBench 配置的方法：
 
-```powershell
-ais-bench-prefix-cache run --scenario .\scenario.json --config .\my_prefix_cache_perf.py
+```bash
+ais-bench-prefix-cache run --scenario ./scenario.json --config ./my_prefix_cache_perf.py
 ```
 
 `--config` 只影响本次执行，不修改 Scenario 文件。
 
 ### 4.6 `analyze`：使用离线指标重新分析
 
-```powershell
-ais-bench-prefix-cache analyze `
-  --manifest .\outputs\gsm8k-prefix-cache-60\gsm8k-prefix-cache-60.manifest.json `
-  --baseline .\baseline.prom `
-  --after .\after.prom
+```bash
+ais-bench-prefix-cache analyze \
+  --manifest ./outputs/gsm8k-prefix-cache-60/gsm8k-prefix-cache-60.manifest.json \
+  --baseline ./baseline.prom \
+  --after ./after.prom
 ```
 
 作用：读取保存好的两份 Prometheus 文本，重新计算正式阶段 query/hit token 增量、分 DP 命中率、全局 token 加权命中率和理论/实际差值。该命令不连接 vLLM，也不重新执行 AISBench。
@@ -202,19 +202,19 @@ ais-bench-prefix-cache analyze `
 
 正式测试建议分阶段执行：
 
-```powershell
-ais-bench-prefix-cache inspect --scenario .\scenario.json
-ais-bench-prefix-cache prepare --scenario .\scenario.json
+```bash
+ais-bench-prefix-cache inspect --scenario ./scenario.json
+ais-bench-prefix-cache prepare --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest路径>
-ais-bench-prefix-cache run --scenario .\scenario.json
+ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
 这样可以在发送任何请求前人工审计数据。`run` 发现已有且匹配当前 Scenario 的产物时会直接复用。
 
 自动化环境可以直接执行：
 
-```powershell
-ais-bench-prefix-cache run --scenario .\scenario.json
+```bash
+ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
 ## 6. cold 与 warmup
@@ -273,6 +273,8 @@ sum(所有 DP 的 hit token 增量) / sum(所有 DP 的 query token 增量)
 ### 目标命中率为什么不完全相等？
 
 公共前缀按 `block_size` 对齐，cold 还受顺序、组、DP 路由和缓存水位约束。插件选择最接近的可达结果，并记录 requested、effective、theoretical 和偏差原因。
+
+如果多个 Prefix Group 选择了相同的首个 GSM8K 样本，插件会先尝试轮换组内样本；所有轮换仍碰撞时才使用确定性的组标记兜底，避免小语料或重复 indices 让整个 prepare 直接失败。
 
 ### warmup 为什么不进入正式统计？
 

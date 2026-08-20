@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from urllib.parse import urlsplit, urlunsplit
 from typing import Any
 
 from ais_bench.benchmark.models.api_models.vllm_custom_api import VLLMCustomAPI
@@ -17,6 +18,13 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
     """vLLM completions model with concurrency-safe per-request DP routing."""
 
     def __init__(self, inference_url: str, *args, **kwargs):
+        parsed = urlsplit(inference_url)
+        endpoint_suffix = "/v1/completions"
+        if parsed.path.rstrip("/").endswith(endpoint_suffix):
+            base_path = parsed.path.rstrip("/")[: -len(endpoint_suffix)] or "/"
+            kwargs["url"] = urlunsplit((parsed.scheme, parsed.netloc, base_path, "", ""))
+        else:
+            kwargs["url"] = inference_url
         super().__init__(*args, **kwargs)
         self.url = inference_url
 

@@ -103,7 +103,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     seed_length = scenario.block_size * pc_cfg["seed_blocks"]
     solve = solve_prefix_lengths(input_lengths, output_lengths, groups, ranks, lanes, scenario.block_size, seed_length, scenario.cache_mode, pc_cfg["target_hit_rate"])
     max_by_group = {group: max((prefix for prefix, current in zip(solve.shared_prefix_tokens, groups) if current == group), default=0) for group in sorted(set(groups))}
-    group_sources = {group: [group_pools[group][0]] for group in sorted(set(groups))}
+    group_sources = {group: group_pools[group] for group in sorted(set(groups))}
     tokenizer = (tokenizer_loader or _tokenizer_loader)(scenario)
     canonical = build_canonical_prefixes(tokenizer, group_sources, max_by_group, scenario.block_size)
     safe_ids = find_boundary_safe_token_ids(tokenizer, max(2, min(64, len(tokenizer))))

@@ -140,8 +140,13 @@ def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: in
                 raise ScenarioValidationError(f"GSM8K hash must resolve uniquely: {value}")
             selected.append(matches[0])
     else:
-        selected = select_gsm8k(records, {"mode": "indices", "values": config.get("indices", [])}, len(config.get("indices", [])), seed)
-        selected += select_gsm8k(records, {"mode": "question_sha256", "values": config.get("question_sha256", [])}, len(config.get("question_sha256", [])), seed)
+        selected = []
+        index_values = config.get("indices", [])
+        hash_values = config.get("question_sha256", [])
+        if index_values:
+            selected.extend(select_gsm8k(records, {"mode": "indices", "values": index_values}, len(index_values), seed))
+        if hash_values:
+            selected.extend(select_gsm8k(records, {"mode": "question_sha256", "values": hash_values}, len(hash_values), seed))
     if not selected:
         raise ScenarioValidationError("specified GSM8K selection is empty")
     return [selected[i % len(selected)] for i in range(count)]
@@ -439,11 +444,32 @@ def _repeat_tokens(records: Sequence[GSMRecord], tokenizer: TokenizerLike, targe
 def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, Sequence[GSMRecord]], max_lengths: dict[str, int], block_size: int) -> dict[str, CanonicalPrefix]:
     result: dict[str, CanonicalPrefix] = {}
     first_blocks: set[tuple[int, ...]] = set()
-    for group in sorted(group_sources):
-        token_ids, indices, hashes = _repeat_tokens(group_sources[group], tokenizer, max(max_lengths[group], block_size))
+    for group_position, group in enumerate(sorted(group_sources)):
+        source_records = list(group_sources[group])
+        if not source_records:
+            raise ArtifactValidationError(f"canonical prefix source is empty for {group}")
+        token_ids = indices = hashes = None
+        for offset in range(len(source_records)):
+            rotated = source_records[offset:] + source_records[:offset]
+            candidate_tokens, candidate_indices, candidate_hashes = _repeat_tokens(
+                rotated, tokenizer, max(max_lengths[group], block_size)
+            )
+            if tuple(candidate_tokens[:block_size]) not in first_blocks:
+                token_ids, indices, hashes = candidate_tokens, candidate_indices, candidate_hashes
+                break
+        if token_ids is None:
+            # Explicitly duplicated corpus selections can make every source rotation
+            # identical. Add a deterministic group marker only in that collision case
+            # so one bad override cannot abort the whole dataset generation.
+            marker = tokenizer.encode(f"{group_position} prefix-cache-group-{group} ", add_special_tokens=False)
+            source_tokens, source_indices, source_hashes = _repeat_tokens(
+                source_records, tokenizer, max(max_lengths[group], block_size)
+            )
+            token_ids = marker + source_tokens
+            indices, hashes = source_indices, source_hashes
+            if tuple(token_ids[:block_size]) in first_blocks:
+                raise ArtifactValidationError(f"canonical prefixes collide in first block for {group} after deterministic fallback")
         first_block = tuple(token_ids[:block_size])
-        if first_block in first_blocks:
-            raise ArtifactValidationError(f"canonical prefixes collide in first block for {group}")
         first_blocks.add(first_block)
         text = tokenizer.decode(token_ids, skip_special_tokens=False)
         actual = tokenizer.encode(text, add_special_tokens=False)

@@ -6,7 +6,7 @@
     "output_dir": "./outputs/gsm8k-prefix-cache-60"
   },
   "tokenizer": {
-    "path": "/models/example",
+    "path": "/home/weights/Qwen3.6-27B",
     "block_size": 16,
     "trust_remote_code": false
   },

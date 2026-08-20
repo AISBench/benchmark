@@ -12,6 +12,8 @@ from ais_bench_prefix_cache.generation import (
     build_input_lengths,
     build_output_lengths,
     build_unique_seed_tokens,
+    build_canonical_prefixes,
+    GSMRecord,
     load_gsm8k,
     order_indices,
     select_gsm8k,
@@ -80,6 +82,52 @@ class CoreTest(unittest.TestCase):
                 1,
             )
             self.assertEqual([row.line_index for row in by_hash], [1, 1])
+
+    def test_mixed_selection_allows_hashes_without_indices(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            corpus = root / "gsm.jsonl"
+            corpus.write_text(
+                "".join(json.dumps({"question": value}) + "\n" for value in ("alpha", "beta")),
+                encoding="utf-8",
+            )
+            records = load_gsm8k(corpus)
+            selected = select_gsm8k(
+                records,
+                {"mode": "mixed", "indices": [], "question_sha256": [records[1].question_sha256]},
+                3,
+                1,
+            )
+            self.assertEqual([row.line_index for row in selected], [1, 1, 1])
+
+    def test_canonical_collision_uses_group_fallback(self):
+        class CharTokenizer:
+            def encode(self, text, add_special_tokens=False):
+                return [ord(char) for char in text]
+
+            def decode(self, token_ids, skip_special_tokens=False):
+                return "".join(chr(token_id) for token_id in token_ids)
+
+        record = GSMRecord(0, "same question", "hash")
+        canonical = build_canonical_prefixes(
+            CharTokenizer(),
+            {"group-0": [record], "group-1": [record]},
+            {"group-0": 8, "group-1": 8},
+            4,
+        )
+        self.assertNotEqual(
+            canonical["group-0"].token_ids[:4], canonical["group-1"].token_ids[:4]
+        )
+
+    def test_seed_capacity_is_rejected_during_scenario_validation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data = scenario_dict(root)
+            data["requests"]["input_length"] = {"mode": "fixed", "value": 2}
+            path = root / "scenario.json"
+            path.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ScenarioValidationError, "at least 4 tokens"):
+                load_scenario(path)
 
     def test_groups_and_orders(self):
         groups = assign_groups(10, {"count": 3, "assignment": {"mode": "weights", "weights": [0.5, 0.3, 0.2]}}, 42)

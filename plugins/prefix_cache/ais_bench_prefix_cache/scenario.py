@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import csv
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,6 +118,29 @@ def _validate_output_config(config: dict[str, Any], path: str, base: Path) -> No
         config["path"] = _resolve_path(base, config["path"])
 
 
+def _minimum_input_tokens(config: dict[str, Any], path: str) -> int:
+    mode = config["mode"]
+    if mode == "fixed":
+        return int(config["value"])
+    if mode == "range":
+        return min(int(item["min"]) for item in config["ranges"])
+    try:
+        with Path(config["path"]).open(encoding="utf-8-sig", newline="") as source:
+            rows = list(csv.DictReader(source))
+    except OSError as exc:
+        raise ScenarioValidationError(f"{path} CSV cannot be read: {exc}") from exc
+    aliases = ("input_prompt_tokens", "content_tokens", "input_tokens")
+    if not rows:
+        raise ScenarioValidationError(f"{path} CSV must contain at least one data row")
+    column = next((name for name in aliases if name in rows[0]), None)
+    if column is None:
+        raise ScenarioValidationError(f"{path} CSV requires one of columns {list(aliases)}")
+    try:
+        return min(int(row[column]) for row in rows)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ScenarioValidationError(f"{path} CSV contains an invalid input length: {exc}") from exc
+
+
 @dataclass(frozen=True)
 class Scenario:
     source_path: Path
@@ -198,6 +222,11 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     if isinstance(target, bool) or not isinstance(target, (int, float)) or not 0 <= target <= 1:
         raise ScenarioValidationError("prefix_cache.target_hit_rate must be in [0, 1]")
     pc["seed_blocks"] = _positive(pc.get("seed_blocks", 1), "prefix_cache.seed_blocks")
+    seed_tokens = tokenizer["block_size"] * pc["seed_blocks"]
+    if _minimum_input_tokens(input_cfg, "requests.input_length") < seed_tokens:
+        raise ScenarioValidationError(
+            f"requests.input_length must be at least {seed_tokens} tokens to contain the configured seed"
+        )
     groups = _require_dict(pc.get("groups"), "prefix_cache.groups")
     groups["count"] = _positive(groups.get("count"), "prefix_cache.groups.count")
     assignment = groups.setdefault("assignment", {"mode": "uniform"})
@@ -216,6 +245,10 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
             raise ScenarioValidationError(f"unknown field: prefix_cache.groups.overrides.{group_id}.{sorted(unknown)[0]}")
         if "input_length" in override:
             _validate_input_config(override["input_length"], f"prefix_cache.groups.overrides.{group_id}.input_length", source.parent, None)
+            if _minimum_input_tokens(override["input_length"], f"prefix_cache.groups.overrides.{group_id}.input_length") < seed_tokens:
+                raise ScenarioValidationError(
+                    f"prefix_cache.groups.overrides.{group_id}.input_length must be at least {seed_tokens} tokens to contain the configured seed"
+                )
         if "output_length" in override:
             _validate_output_config(override["output_length"], f"prefix_cache.groups.overrides.{group_id}.output_length", source.parent)
         if "corpus_selection" in override:
