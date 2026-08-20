@@ -42,6 +42,8 @@ class PipelineTest(unittest.TestCase):
             self.assertTrue(all(path.exists() for path in paths.__dict__.values()))
             requests = read_jsonl(paths.requests)
             self.assertEqual(set(requests[0]), {"question", "answer", "max_tokens"})
+            first_line = paths.requests.read_text(encoding="utf-8").splitlines()[0]
+            self.assertEqual(list(json.loads(first_line)), ["question", "answer", "max_tokens"])
             self.assertTrue(validate_artifacts(paths.manifest)["ok"])
 
     def test_inspect_reports_reachability_without_persisting_run_artifacts(self):

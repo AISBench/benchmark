@@ -45,7 +45,9 @@ def write_json(path: Path, value: dict[str, Any], overwrite: bool) -> None:
 
 def write_jsonl(path: Path, rows: Iterable[dict[str, Any]], overwrite: bool) -> int:
     materialized = list(rows)
-    text = "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in materialized)
+    # Preserve insertion order: requests.jsonl has a documented public field
+    # order (question, answer, max_tokens).
+    text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in materialized)
     _atomic_text(path, text, overwrite)
     return len(materialized)
 
