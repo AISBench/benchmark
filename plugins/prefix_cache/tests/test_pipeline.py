@@ -9,7 +9,8 @@ from ais_bench_prefix_cache.pipeline import inspect_scenario, prepare_scenario
 from ais_bench_prefix_cache.cli import main as cli_main
 from ais_bench_prefix_cache.errors import PrefixCacheError
 from tests.test_core import scenario_dict
-from ais_bench_prefix_cache.runtime import run_scenario
+from ais_bench_prefix_cache.runtime import render_aisbench_config, run_scenario
+from ais_bench_prefix_cache.scenario import load_scenario
 
 
 class FakeTokenizer:
@@ -152,6 +153,32 @@ class PipelineTest(unittest.TestCase):
             self.assertFalse(analysis["validation"]["affects_exit_code"])
             self.assertIn("raw_prometheus", analysis["runtime"]["metrics_baseline"])
             self.assertIn("raw_prometheus", analysis["runtime"]["metrics_after"])
+
+    def test_render_aisbench_config_is_static(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            scenario = write_case(root)
+            config = root / "perf.py"
+            config.write_text(
+                "import os\n"
+                "from ais_bench_prefix_cache.datasets import PrefixCacheDataset\n"
+                "scenario = os.environ['AISBENCH_PREFIX_CACHE_SCENARIO']\n"
+                "datasets = [dict(type=PrefixCacheDataset, abbr='t', requests_path='r', full_path='f', manifest_path='m')]\n"
+                "models = [dict(type=PrefixCacheDataset)]\n"
+                "infer = dict(partitioner=dict(type=PrefixCacheDataset))\n"
+                "summarizer = dict(attr='accuracy', summary_groups=[])\n"
+                "work_dir = os.environ.get('AISBENCH_PREFIX_CACHE_WORK_DIR', 'fallback')\n",
+                encoding="utf-8",
+            )
+            generated = render_aisbench_config(config, load_scenario(scenario))
+            text = generated.read_text(encoding="utf-8")
+            self.assertIn("import PrefixCacheDataset as _ref0", text)
+            self.assertIn("'type': _ref0", text)
+            self.assertIn("datasets =", text)
+            self.assertIn("summarizer =", text)
+            self.assertIn("'attr': 'accuracy'", text)
+            self.assertIn("work_dir =", text)
+            self.assertNotIn("os.environ", text)
 
     def test_run_rejects_stale_prepared_scenario_before_network(self):
         with tempfile.TemporaryDirectory() as folder:
