@@ -9,10 +9,12 @@ from ais_bench_prefix_cache.generation import (
     RequestPlan,
     assign_cold_routes,
     assign_groups,
+    build_canonical_prefixes,
     build_input_lengths,
     build_output_lengths,
+    build_unique_seed,
     build_unique_seed_tokens,
-    build_canonical_prefixes,
+    find_boundary_safe_token_ids,
     GSMRecord,
     load_gsm8k,
     order_indices,
@@ -20,6 +22,31 @@ from ais_bench_prefix_cache.generation import (
     simulate_theory,
     solve_prefix_lengths,
 )
+
+
+class _FakeTokenizer:
+    """Ids 0..25 map to single letters; the pair 'ab' re-encodes as id 52."""
+
+    def __init__(self):
+        self.all_special_ids = []
+
+    def __len__(self):
+        return 64
+
+    def decode(self, token_ids, skip_special_tokens=False):
+        return "".join(chr(97 + (token_id % 26)) for token_id in token_ids)
+
+    def encode(self, text, add_special_tokens=False):
+        ids = [ord(ch) - 97 for ch in text if "a" <= ch <= "z"]
+        out, i = [], 0
+        while i < len(ids):
+            if ids[i] == 0 and i + 1 < len(ids) and ids[i + 1] == 1:
+                out.append(52)
+                i += 2
+            else:
+                out.append(ids[i])
+                i += 1
+        return out
 from ais_bench_prefix_cache.scenario import load_scenario
 
 
@@ -128,6 +155,14 @@ class CoreTest(unittest.TestCase):
             path.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaisesRegex(ScenarioValidationError, "at least 4 tokens"):
                 load_scenario(path)
+
+    def test_seed_generation_round_trips(self):
+        tokenizer = _FakeTokenizer()
+        safe_ids = find_boundary_safe_token_ids(tokenizer, 8)
+        self.assertNotIn(52, safe_ids)
+        for index in range(20):
+            seed = build_unique_seed(tokenizer, safe_ids, f"r{index}", 4, 42)
+            self.assertEqual(tokenizer.encode(tokenizer.decode(seed), add_special_tokens=False), list(seed))
 
     def test_groups_and_orders(self):
         groups = assign_groups(10, {"count": 3, "assignment": {"mode": "weights", "weights": [0.5, 0.3, 0.2]}}, 42)

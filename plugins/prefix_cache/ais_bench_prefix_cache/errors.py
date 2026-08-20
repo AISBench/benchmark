@@ -10,5 +10,9 @@ class ArtifactValidationError(PrefixCacheError):
     """Generated artifact is incomplete or inconsistent."""
 
 
+class PromptRoundTripError(ArtifactValidationError):
+    """Composed prompt tokens do not survive decode/re-encode."""
+
+
 class RuntimeCapabilityError(PrefixCacheError):
     """The configured inference service cannot satisfy the scenario."""

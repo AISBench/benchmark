@@ -10,7 +10,7 @@ from typing import Any, Callable
 
 from . import __version__
 from .artifacts import ArtifactPaths, artifact_paths, read_jsonl, sha256_file, validate_artifacts, write_json, write_jsonl
-from .errors import ArtifactValidationError
+from .errors import ArtifactValidationError, PromptRoundTripError
 from .generation import (
     RequestPlan,
     assign_cold_routes,
@@ -19,6 +19,7 @@ from .generation import (
     build_input_lengths,
     build_output_lengths,
     build_prompt,
+    build_unique_seed,
     build_unique_seed_tokens,
     find_boundary_safe_token_ids,
     load_gsm8k,
@@ -57,6 +58,15 @@ def _tokenizer_manifest(tokenizer: Any, effective: dict[str, Any], block_size: i
         "block_size": block_size,
         "fingerprint_sha256": _sha256_json(fingerprint_source),
     }
+
+
+def _build_prompt_with_seed_retry(tokenizer: Any, canonical: Any, prefix_len: int, seeds: dict[str, tuple[int, ...]], request_id: str, rotated_pool: list[Any], target_tokens: int, safe_ids: list[int], seed_length: int, random_seed: int):
+    for attempt in range(64):
+        try:
+            return build_prompt(tokenizer, canonical, prefix_len, seeds[request_id], rotated_pool, target_tokens)
+        except PromptRoundTripError:
+            seeds[request_id] = build_unique_seed(tokenizer, safe_ids, request_id, seed_length, random_seed + attempt * 10007 + 1, set(seeds.values()))
+    raise ArtifactValidationError(f"unable to construct a round-trip-safe prompt for {request_id}")
 
 
 def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_loader: Callable[[Scenario], Any] | None = None) -> ArtifactPaths:
@@ -108,7 +118,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     canonical = build_canonical_prefixes(tokenizer, group_sources, max_by_group, scenario.block_size)
     safe_ids = find_boundary_safe_token_ids(tokenizer, max(2, min(64, len(tokenizer))))
     request_ids = [f"request-{index:08d}" for index in range(count)]
-    seeds = build_unique_seed_tokens(safe_ids, request_ids, seed_length, seed + 5)
+    seeds = build_unique_seed_tokens(safe_ids, request_ids, seed_length, seed + 5, tokenizer)
     plans: list[RequestPlan] = []
     occurrences: dict[str, int] = {}
     for index, request_id in enumerate(request_ids):
@@ -118,7 +128,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         prefix_len = solve.shared_prefix_tokens[index]
         pool = group_pools[group]
         rotated_pool = pool[occurrence % len(pool):] + pool[:occurrence % len(pool)]
-        text, tokens, suffix_indices, suffix_hashes = build_prompt(tokenizer, canonical[group], prefix_len, seeds[request_id], rotated_pool, input_lengths[index])
+        text, tokens, suffix_indices, suffix_hashes = _build_prompt_with_seed_retry(tokenizer, canonical[group], prefix_len, seeds, request_id, rotated_pool, input_lengths[index], safe_ids, seed_length, seed + 5)
         seed_hash = hashlib.sha256(str(seeds[request_id]).encode()).hexdigest()
         plans.append(RequestPlan(
             request_id, index, group, occurrence, ranks[index], lanes[index], input_lengths[index], len(tokens), output_lengths[index], prefix_len, seed_length, len(tokens) - prefix_len - seed_length,
@@ -134,11 +144,11 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     warmup_plan = []
     if scenario.cache_mode == "warmup":
         warm_ids = [f"warmup:{group}:{rank}" for group in sorted(canonical) for rank in range(scenario.dp_size)]
-        warm_seeds = build_unique_seed_tokens(safe_ids, warm_ids, seed_length, seed + 6)
+        warm_seeds = build_unique_seed_tokens(safe_ids, warm_ids, seed_length, seed + 6, tokenizer)
         for group in sorted(canonical):
             for rank in range(scenario.dp_size):
                 request_id = f"warmup:{group}:{rank}"
-                prompt, tokens, _, _ = build_prompt(tokenizer, canonical[group], max_by_group[group], warm_seeds[request_id], [], max_by_group[group] + seed_length)
+                prompt, tokens, _, _ = _build_prompt_with_seed_retry(tokenizer, canonical[group], max_by_group[group], warm_seeds, request_id, [], max_by_group[group] + seed_length, safe_ids, seed_length, seed + 6)
                 warmup_plan.append({"request_id": request_id, "group_id": group, "dp_rank": rank, "prompt": prompt, "input_tokens": len(tokens), "shared_prefix_tokens": max_by_group[group], "max_tokens": 1, "included_in_formal_statistics": False})
     analysis = {
         "schema_version": "1.0",

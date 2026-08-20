@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Iterable, Protocol, Sequence
 
-from .errors import ArtifactValidationError, ScenarioValidationError
+from .errors import ArtifactValidationError, PromptRoundTripError, ScenarioValidationError
 
 
 class TokenizerLike(Protocol):
@@ -387,41 +387,72 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     return SolveResult(tuple(prefixes), target_tokens, best_hit, effective_rate, zero_hit / total_input if total_input else 0.0, max_hit / total_input if total_input else 0.0, adjusted, "block alignment and cache-watermark constraints" if adjusted else None)
 
 
+def _safe_token_text(tokenizer: TokenizerLike, token_id: int, special: set[int]) -> str | None:
+    if token_id in special:
+        return None
+    text = tokenizer.decode([token_id], skip_special_tokens=False)
+    if not text:
+        return None
+    if tokenizer.encode(text, add_special_tokens=False) != [token_id]:
+        return None
+    if tokenizer.encode("X" + text, add_special_tokens=False)[-1:] != [token_id]:
+        return None
+    if tokenizer.encode(text + "X", add_special_tokens=False)[:1] != [token_id]:
+        return None
+    return text
+
+
 def find_boundary_safe_token_ids(tokenizer: TokenizerLike, minimum: int) -> list[int]:
+    # Prefer space-prefixed tokens: in BPE tokenizers they cannot merge with
+    # preceding text, so seeds built from them stay stable at every junction.
     vocab_size = len(tokenizer)  # type: ignore[arg-type]
     special = set(getattr(tokenizer, "all_special_ids", []))
-    safe: list[int] = []
+    preferred: list[int] = []
+    fallback: list[int] = []
     for token_id in range(vocab_size):
-        if token_id in special:
+        text = _safe_token_text(tokenizer, token_id, special)
+        if text is None:
             continue
-        text = tokenizer.decode([token_id], skip_special_tokens=False)
-        standalone = tokenizer.encode(text, add_special_tokens=False) == [token_id]
-        contextual = tokenizer.encode("X" + text, add_special_tokens=False)[-1:] == [token_id]
-        if standalone and (text.startswith(" ") or contextual):
-            safe.append(token_id)
-            if len(safe) >= minimum:
-                return safe
-    raise ArtifactValidationError(f"tokenizer has only {len(safe)} boundary-safe tokens; need {minimum}")
+        if text.startswith(" "):
+            preferred.append(token_id)
+            if len(preferred) >= minimum:
+                return preferred
+        else:
+            fallback.append(token_id)
+    combined = preferred + fallback
+    if len(combined) < minimum:
+        raise ArtifactValidationError(f"tokenizer has only {len(combined)} boundary-safe tokens; need {minimum}")
+    return combined[:minimum]
 
 
-def build_unique_seed_tokens(safe_ids: Sequence[int], request_ids: Sequence[str], seed_length: int, random_seed: int) -> dict[str, tuple[int, ...]]:
+def _seed_round_trips(tokenizer: TokenizerLike, seed: Sequence[int]) -> bool:
+    text = tokenizer.decode(seed, skip_special_tokens=False)
+    return tokenizer.encode(text, add_special_tokens=False) == list(seed)
+
+
+def build_unique_seed(tokenizer: TokenizerLike | None, safe_ids: Sequence[int], request_id: str, seed_length: int, random_seed: int, exclude: set[tuple[int, ...]] | None = None) -> tuple[int, ...]:
     if seed_length < 1 or len(safe_ids) < 2:
         raise ArtifactValidationError("seed generation requires positive length and at least two safe tokens")
+    used = exclude if exclude is not None else set()
+    for nonce in range(4096):
+        digest = hashlib.sha256(f"{random_seed}:{request_id}:{nonce}".encode()).digest()
+        stream = itertools.cycle(digest)
+        seed = tuple(safe_ids[next(stream) % len(safe_ids)] for _ in range(seed_length))
+        if seed in used:
+            continue
+        if tokenizer is not None and not _seed_round_trips(tokenizer, seed):
+            continue
+        return seed
+    raise ArtifactValidationError(f"unable to construct a unique round-trip-safe seed for {request_id}")
+
+
+def build_unique_seed_tokens(safe_ids: Sequence[int], request_ids: Sequence[str], seed_length: int, random_seed: int, tokenizer: TokenizerLike | None = None) -> dict[str, tuple[int, ...]]:
     result: dict[str, tuple[int, ...]] = {}
     used: set[tuple[int, ...]] = set()
     for request_id in request_ids:
-        nonce = 0
-        while True:
-            digest = hashlib.sha256(f"{random_seed}:{request_id}:{nonce}".encode()).digest()
-            stream = itertools.cycle(digest)
-            seed = tuple(safe_ids[next(stream) % len(safe_ids)] for _ in range(seed_length))
-            if seed not in used:
-                used.add(seed)
-                result[request_id] = seed
-                break
-            nonce += 1
-            if nonce > len(request_ids) * 10 + 100:
-                raise ArtifactValidationError("unable to construct globally unique seeds")
+        seed = build_unique_seed(tokenizer, safe_ids, request_id, seed_length, random_seed, used)
+        used.add(seed)
+        result[request_id] = seed
     return result
 
 
@@ -489,5 +520,5 @@ def build_prompt(tokenizer: TokenizerLike, canonical: CanonicalPrefix, shared_pr
     text = tokenizer.decode(expected, skip_special_tokens=False)
     actual = tokenizer.encode(text, add_special_tokens=False)
     if actual != expected:
-        raise ArtifactValidationError("prompt token layout changed after decode/re-encode")
+        raise PromptRoundTripError("prompt token layout changed after decode/re-encode")
     return text, tuple(actual), indices, hashes
