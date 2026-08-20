@@ -1,19 +1,11 @@
-import os
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-DEFAULT_MODEL_PATH = os.environ.get(
-    'CORESET_MODEL_PATH',
-    os.environ.get('MODEL_PATH', '/workspace/raw_models/Qwen3-4B-Instruct-2507'),
-)
-
-
-def load_model(model_path=None):
-    if model_path is None:
-        model_path = os.environ.get('MODEL_PATH', DEFAULT_MODEL_PATH)
+def load_model(model_path):
+    """Load the Hugging Face model used for hidden-state feature extraction."""
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForCausalLM.from_pretrained(model_path, device_map='auto')
+    model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
     model.eval()
     return model, tokenizer
 

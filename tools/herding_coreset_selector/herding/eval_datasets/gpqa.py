@@ -1,17 +1,15 @@
-import os
 import csv
+import os
 
-from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
 from ais_bench.benchmark.datasets import GPQADataset
-from ais_bench.benchmark.utils.config.build import build_dataset_from_cfg
+from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
 from ais_bench.benchmark.registry import ICL_PROMPT_TEMPLATES
+from ais_bench.benchmark.utils.config.build import build_dataset_from_cfg
 
-from herding.eval_datasets.dataset_base import (
-    EvalDatasetBase, reg_eval_dataset,
-    CFG_BASE_DATASET_DIR, CFG_CORESET_OUT_DIR,
-)
+from herding.eval_datasets.dataset_base import EvalDatasetBase, reg_eval_dataset
 
-DATASETS_PATH = os.environ.get('DATASET_PATH', f'{CFG_BASE_DATASET_DIR}/gpqa')
+
+FILENAME = "gpqa_diamond.csv"
 
 align_prompt = """
 Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.
@@ -24,53 +22,54 @@ C) {C}
 D) {D}
 """.strip()
 
-dataset_cfg = dict(
-    abbr='GPQA_diamond',
-    type=GPQADataset,
-    path=DATASETS_PATH,
-    name='gpqa_diamond.csv',
-    reader_cfg=dict(
-        input_columns=['question', 'A', 'B', 'C', 'D'],
-        output_column='answer',
-    ),
-)
-
 prompt_template_cfg = dict(
     type=PromptTemplate,
     template=align_prompt,
 )
 
-dataset = build_dataset_from_cfg(dataset_cfg).test
 prompt_template = ICL_PROMPT_TEMPLATES.build(prompt_template_cfg)
 
 
-@reg_eval_dataset('gpqa')
+@reg_eval_dataset("gpqa")
 class GpqaDataset(EvalDatasetBase):
+    def __init__(self, dataset_path, output_dir):
+        super().__init__(dataset_path, output_dir)
+
+        dataset_cfg = dict(
+            abbr="GPQA_diamond",
+            type=GPQADataset,
+            path=self.dataset_path,
+            name=FILENAME,
+            reader_cfg=dict(
+                input_columns=["question", "A", "B", "C", "D"],
+                output_column="answer",
+            ),
+        )
+        self.dataset = build_dataset_from_cfg(dataset_cfg).test
+
     def dataset_size(self):
-        return len(dataset)
+        return len(self.dataset)
 
     def dataset_prompts(self):
-        for i in dataset:
-            yield prompt_template.generate_item(i)
+        for item in self.dataset:
+            yield prompt_template.generate_item(item)
 
     def save_data_by_indices(self, indices, outpath):
-        FILENAME = 'gpqa_diamond.csv'
-        filepath = os.path.join(DATASETS_PATH, FILENAME)
-        with open(filepath, newline='', encoding='utf-8') as f:
+        filepath = os.path.join(self.dataset_path, FILENAME)
+        with open(filepath, newline="", encoding="utf-8") as f:
             data = list(csv.reader(f))
 
         header = [data[0]]
         data = data[1:]
 
-        outpath = os.path.join(CFG_CORESET_OUT_DIR, outpath)
-        os.makedirs(outpath, exist_ok=True)
+        output_dir = os.path.join(self.output_dir, outpath)
+        os.makedirs(output_dir, exist_ok=True)
 
         rearranged_data = [data[idx] for idx in indices]
-        output_filepath = os.path.join(outpath, FILENAME)
-        with open(output_filepath, 'w', encoding='utf-8') as f:
+        output_filepath = os.path.join(output_dir, FILENAME)
+        with open(output_filepath, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            for line in (header + rearranged_data):
-                writer.writerow(line)
+            writer.writerows(header + rearranged_data)
 
-        self.save_indices(indices, outpath)
-        return outpath
+        self.save_indices(indices, output_dir)
+        return output_dir
