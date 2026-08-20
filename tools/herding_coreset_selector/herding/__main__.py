@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 
 
-SUPPORTED_DATASETS = ("gpqa", "aime2025")
 DEFAULT_CORESET_RATIO = 0.2
 DEFAULT_OUTPUT_DIR = "./datasets"
 CORESET_METHOD = "herding"
@@ -30,7 +29,7 @@ def parse_args():
     parser.add_argument(
         "--eval-dataset",
         required=True,
-        choices=SUPPORTED_DATASETS,
+
         help="Evaluation dataset adapter to use.",
     )
     parser.add_argument(
@@ -69,7 +68,9 @@ def parse_args():
 
 def _model_name(model_path: str) -> str:
     normalized = model_path.rstrip("/\\")
-    name = Path(normalized).name
+    # CLI input may use either POSIX or Windows separators, regardless of the
+    # operating system on which the selector is executed.
+    name = Path(normalized.replace("\\", "/")).name
     if not name:
         raise ValueError(f"Unable to infer model name from model path: {model_path!r}")
     return name
