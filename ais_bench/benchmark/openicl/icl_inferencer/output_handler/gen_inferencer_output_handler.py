@@ -71,6 +71,12 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
         if isinstance(output, Output) and output.extra_details_data.get('response_anomaly_payload'):
             result_data['response_anomaly_payload'] = output.extra_details_data['response_anomaly_payload']
 
+        if isinstance(output, Output):
+            result_data["input_tokens"] = output.input_tokens
+            result_data["output_tokens"] = output.output_tokens
+            if output.origin_logprobs:
+                result_data["origin_logprobs"] = output.origin_logprobs
+
         if gold:
             result_data["gold"] = gold
         return result_data

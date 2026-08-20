@@ -548,5 +548,26 @@ class TestAPITemplateParser(unittest.TestCase):
         self.assertEqual(result[2]["role"], "assistant")
 
 
+class TestBaseAPIModelParseLogprobs(unittest.TestCase):
+    def test_parse_logprobs_base_default_no_op(self):
+        """测试 BaseAPIModel._parse_logprobs 基类空实现不报错且不修改 output"""
+        import asyncio
+        from unittest.mock import MagicMock
+
+        # BaseAPIModel 需要初始化参数，用 mock 绕过
+        model = MagicMock(spec=BaseAPIModel)
+        # 绑定真实方法到 mock 对象上
+        model._parse_logprobs = BaseAPIModel._parse_logprobs.__get__(model, BaseAPIModel)
+
+        output = Output()
+        output.origin_logprobs = []
+
+        choice = {"logprobs": {"tokens": ["A"], "token_logprobs": [-0.5]}}
+
+        asyncio.run(model._parse_logprobs(choice, output))
+
+        self.assertEqual(output.origin_logprobs, [])
+
+
 if __name__ == "__main__":
     unittest.main()

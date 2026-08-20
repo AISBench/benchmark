@@ -113,6 +113,11 @@ class BaseAPIModel(BaseModel):
         self.verbose = verbose
         self.session = None
         self.base_url = self._get_base_url()
+        if self._logprobs_enabled():
+            self.logger.warning(
+                "logprobs is enabled, which will increase response size and "
+                "may impact evaluation performance and memory usage"
+            )
 
     @abstractmethod
     def _get_url(self) -> str:
@@ -218,6 +223,30 @@ class BaseAPIModel(BaseModel):
             f"{self.__class__.__name__} does not supported"
             " to be called in base classes",
         )
+
+    async def _parse_logprobs(self, choice: dict, output: Output) -> None:
+        """
+        基类空实现，子类按需 override。vLLM 系列模型 override 此方法
+        以解析 OpenAI 兼容的 logprobs 响应。
+        """
+        pass
+
+    def _logprobs_enabled(self) -> bool:
+        """检查 generation_kwargs 是否开启了 logprobs 采集。
+
+        chat API: logprobs 为 bool，True 表示开启
+        completions API: logprobs 为 int，> 0 表示开启
+        """
+        if not self.generation_kwargs:
+            return False
+        val = self.generation_kwargs.get("logprobs")
+        if val is None:
+            return False
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, int):
+            return val > 0
+        return False
 
     async def parse_text_response(self, data, output):
         raise AISBenchNotImplementedError(

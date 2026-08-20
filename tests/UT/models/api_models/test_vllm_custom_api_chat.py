@@ -333,6 +333,107 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
     def test_parse_text_response_wrapper(self):
         self.run_async_test(self.test_parse_text_response())
 
+    async def test_parse_logprobs_with_data(self):
+        """测试_parse_logprobs正确解析chat API logprobs响应"""
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+
+        content_list = [
+            {"token": "B", "logprob": -0.5, "bytes": [66], "top_logprobs": [{"token": "B", "logprob": -0.5}, {"token": "A", "logprob": -2.1}]}
+        ]
+        choice = {
+            "message": {"content": "B"},
+            "logprobs": {"content": content_list}
+        }
+
+        await model._parse_logprobs(choice, output)
+
+        # chat API 直接透传 lp.content，保持 vLLM 原始结构
+        self.assertEqual(output.origin_logprobs, content_list)
+
+    async def test_parse_logprobs_without_logprobs_field(self):
+        """测试_parse_logprobs在响应无logprobs字段时不报错"""
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+
+        choice = {"message": {"content": "B"}}
+
+        await model._parse_logprobs(choice, output)
+
+        self.assertEqual(output.origin_logprobs, [])
+
+    async def test_parse_logprobs_enabled_but_missing_warns(self):
+        """测试开启logprobs但响应缺失时，写入logprobs_warning到extra_details_data"""
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"logprobs": True}
+        model = VLLMCustomAPIChat(**kwargs)
+        output = RequestOutput()
+
+        choice = {"message": {"content": "B"}}  # 无 logprobs 字段
+
+        await model._parse_logprobs(choice, output)
+
+        self.assertEqual(output.origin_logprobs, [])
+        self.assertIn("logprobs_warning", output.extra_details_data)
+        self.assertIn("logprobs is enabled", output.extra_details_data["logprobs_warning"])
+
+    async def test_parse_logprobs_with_none_content(self):
+        """测试_parse_logprobs保留None项（predefined token）"""
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+
+        content_list = [
+            None,
+            {"token": "B", "logprob": -0.3, "top_logprobs": [{"token": "B", "logprob": -0.3}]}
+        ]
+        choice = {
+            "message": {"content": "AB"},
+            "logprobs": {"content": content_list}
+        }
+
+        await model._parse_logprobs(choice, output)
+
+        # 直接透传，None 项保留
+        self.assertEqual(output.origin_logprobs, content_list)
+
+    async def test_parse_text_response_with_logprobs(self):
+        """测试parse_text_response正确调用_parse_logprobs"""
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+
+        content_list = [
+            {"token": "B", "logprob": -0.5, "top_logprobs": [{"token": "B", "logprob": -0.5}]}
+        ]
+        response = {
+            "choices": [{
+                "message": {"content": "B"},
+                "logprobs": {"content": content_list}
+            }],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 1}
+        }
+
+        await model.parse_text_response(response, output)
+
+        self.assertEqual(output.content, "B")
+        self.assertEqual(output.input_tokens, 10)
+        self.assertEqual(output.output_tokens, 1)
+        self.assertEqual(output.origin_logprobs, content_list)
+
+    def test_parse_logprobs_with_data_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_with_data())
+
+    def test_parse_logprobs_without_logprobs_field_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_without_logprobs_field())
+
+    def test_parse_logprobs_enabled_but_missing_warns_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_enabled_but_missing_warns())
+
+    def test_parse_logprobs_with_none_content_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_with_none_content())
+
+    def test_parse_text_response_with_logprobs_wrapper(self):
+        self.run_async_test(self.test_parse_text_response_with_logprobs())
+
     def test_calc_ppl(self):
         """测试_calc_ppl方法"""
         model = VLLMCustomAPIChat(**self.default_kwargs)
