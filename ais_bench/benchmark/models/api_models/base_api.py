@@ -462,6 +462,8 @@ class BaseAPIModel(BaseModel):
                     chunk = chunk.decode("utf-8")
                     if chunk.startswith(":"):
                         continue
+                    if chunk.startswith("id:"):
+                        continue
                     chunk = chunk.removeprefix("data:").strip()
                     if chunk == "[DONE]":
                         break
