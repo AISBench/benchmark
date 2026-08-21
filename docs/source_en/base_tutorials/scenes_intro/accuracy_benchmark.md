@@ -31,7 +31,7 @@ In multi-task evaluation scenarios, the number of subtasks is the product of the
 ::::{tab-set}
 :::{tab-item} ⭐ Recommended: Using a Custom Configuration File
 
-Refer to the [model_api_test_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_en.py) file from the quick start. Import multiple model tasks and dataset tasks within `with read_base():`, then combine them into the `models` and `datasets` lists. For a complete example, refer to [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py):
+Refer to the [model_api_test_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_en.py) file from the quick start. Import multiple model tasks and dataset tasks within `with read_base():`, then combine them into the `models` and `datasets` lists. For a complete example, refer to [multi_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_en.py):
 
 ```python
 from mmengine.config import read_base
@@ -55,7 +55,7 @@ models = vllm_api_general_chat + vllm_api_stream_chat
 After modifying the configuration file, execute the command:
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py
+ais_bench ais_bench/configs/accuracy_benchmark/multi_task_en.py
 ```
 
 #### Custom Model-Dataset Pairings (Optional)
@@ -189,7 +189,7 @@ By default, multiple subtasks are executed serially. Continuous Batch is enabled
 ::::{tab-set}
 :::{tab-item} ⭐ Recommended: Using a Custom Configuration File
 
-In the custom configuration file, `max_num_workers` no longer needs to be set; instead, it is passed via the command-line parameter [`--max-num-workers`](../all_params/cli_args.md#common-parameters). The configuration file example is identical to that in [Multi-Task Evaluation](#multi-task-evaluation). For a complete example, refer to [multi_task_parallel_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_parallel_zh_cn.py):
+In the custom configuration file, `max_num_workers` no longer needs to be set; instead, it is passed via the command-line parameter [`--max-num-workers`](../all_params/cli_args.md#common-parameters). The configuration file example is identical to that in [Multi-Task Evaluation](#multi-task-evaluation). For a complete example, refer to [multi_task_parallel_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_parallel_en.py):
 
 ```python
 # The complete example is identical to the configuration in Multi-Task Evaluation; the only difference lies in the execution command
@@ -214,7 +214,7 @@ models = vllm_api_general_chat + vllm_api_stream_chat
 Execute the command (specify the parallelism count via `--max-num-workers 4`):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/multi_task_parallel_zh_cn.py --max-num-workers 4
+ais_bench ais_bench/configs/accuracy_benchmark/multi_task_parallel_en.py --max-num-workers 4
 ```
 
 :::
@@ -259,10 +259,10 @@ If the inference task fails due to an unexpected interruption or server exceptio
 ::::{tab-set}
 :::{tab-item} ⭐ Recommended: Using a Custom Configuration File
 
-First execution command (based on [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py)):
+First execution command (based on [single_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/single_task_en.py)):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py
+ais_bench ais_bench/configs/accuracy_benchmark/single_task_en.py
 ```
 
 At this point, some inference results will be saved, and the following file content will be generated under the 📚 [`--work-dir`](../all_params/cli_args.md#common-parameters) directory:
@@ -283,7 +283,7 @@ At this point, some inference results will be saved, and the following file cont
 2. Resume the inference by specifying the task timestamp directory via the `--reuse` parameter (`--reuse` is a common parameter; when using a custom configuration file, it can still be appended via the command line):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py --reuse 20250628_151326
+ais_bench ais_bench/configs/accuracy_benchmark/single_task_en.py --reuse 20250628_151326
 ```
 
 :::
@@ -330,16 +330,16 @@ After the resumption is completed, the accuracy results of all requests will be 
 For example, an interruption occurs when executing the following multi-task evaluation command:
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py
+ais_bench ais_bench/configs/accuracy_benchmark/multi_task_en.py
 ```
 
 Resume all tasks after interruption in the following way:
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py --reuse 20250628_151326
+ais_bench ais_bench/configs/accuracy_benchmark/multi_task_en.py --reuse 20250628_151326
 ```
 
-You can also resume only part of the tasks after editing the custom configuration file. For a complete example, refer to [multi_task_resume_partial_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_zh_cn.py):
+You can also resume only part of the tasks after editing the custom configuration file. For a complete example, refer to [multi_task_resume_partial_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_en.py):
 
 ```python
 from mmengine.config import read_base
@@ -361,10 +361,10 @@ Then execute:
 
 ```bash
 # Resume only the vllm_api_general_chat + gsm8k_gen_4_shot_cot_str task after interruption
-ais_bench ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_zh_cn.py --reuse 20250628_151326
+ais_bench ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_en.py --reuse 20250628_151326
 
 # Resume the two tasks of vllm_api_general_chat + gsm8k_gen_4_shot_cot_str and vllm_api_general_chat + aime2024_gen_0_shot_chat_prompts
-ais_bench ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_zh_cn.py --reuse 20250628_151326
+ais_bench ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_en.py --reuse 20250628_151326
 ```
 
 > 💡 If you need to resume only part of the combinations (e.g., `vllm_api_general_chat + aime2024`, `vllm_api_stream_chat + aime2024`), simply specify the corresponding model tasks and dataset tasks in the custom configuration file and then specify the timestamp via `--reuse`. See 📚 [Custom Model-Dataset Pairings](../../advanced_tutorials/run_custom_config.md#6-custom-model-dataset-pairings) for details.
@@ -398,7 +398,7 @@ Some datasets are categorized into different sub-datasets, which will be split i
 ::::{tab-set}
 :::{tab-item} ⭐ Recommended: Using a Custom Configuration File
 
-Modify the custom configuration file to import a dataset task that supports merged inference. For a complete example, refer to [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/ceval_merge_zh_cn.py):
+Modify the custom configuration file to import a dataset task that supports merged inference. For a complete example, refer to [ceval_merge_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/ceval_merge_en.py):
 
 ```python
 from mmengine.config import read_base
@@ -418,7 +418,7 @@ models = vllm_api_general
 Execute the command (`--merge-ds` is a common parameter; when using a custom configuration file, it can still be appended via the command line):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/ceval_merge_zh_cn.py --merge-ds
+ais_bench ais_bench/configs/accuracy_benchmark/ceval_merge_en.py --merge-ds
 ```
 
 :::
@@ -447,7 +447,7 @@ Example as follows:
 
 **Method 1: Basic approach — Use `--num-prompts` to specify the number of entries to read**
 
-For a complete example, refer to [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py):
+For a complete example, refer to [fixed_prompts_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_en.py):
 
 ```python
 from mmengine.config import read_base
@@ -467,12 +467,12 @@ models = vllm_api_stream_chat
 Execute the command (specify reading only 1 sample via `--num-prompts 1`):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py --num-prompts 1
+ais_bench ais_bench/configs/accuracy_benchmark/fixed_prompts_en.py --num-prompts 1
 ```
 
 **Method 2: Advanced approach — Use `test_range` to flexibly specify the reading range**
 
-If you need more flexible range control (e.g., specifying a start index and custom step), you can set the `reader_cfg.test_range` field of the dataset directly in the custom configuration file, without passing any command-line parameter. For a complete example, refer to [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py):
+If you need more flexible range control (e.g., specifying a start index and custom step), you can set the `reader_cfg.test_range` field of the dataset directly in the custom configuration file, without passing any command-line parameter. For a complete example, refer to [fixed_prompts_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_en.py):
 
 ```python
 from mmengine.config import read_base
@@ -496,7 +496,7 @@ models = vllm_api_stream_chat
 Execute the command (test_range has been specified in the configuration file, no need to pass `--num-prompts`):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py
+ais_bench ais_bench/configs/accuracy_benchmark/fixed_prompts_en.py
 ```
 
 :::
@@ -521,7 +521,7 @@ This scenario aims to explore model capabilities from multiple dimensions such a
 ::::{tab-set}
 :::{tab-item} ⭐ Recommended: Using a Custom Configuration File
 
-For a complete example, refer to [multi_repeat_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_repeat_zh_cn.py):
+For a complete example, refer to [multi_repeat_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_repeat_en.py):
 
 ```python
 from mmengine.config import read_base
@@ -547,7 +547,7 @@ models[0]["generation_kwargs"] = dict(
 Execute the command:
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/multi_repeat_zh_cn.py
+ais_bench ais_bench/configs/accuracy_benchmark/multi_repeat_en.py
 ```
 
 :::
@@ -592,14 +592,14 @@ All custom configuration file examples involved in this section have been unifor
 
 | Filename | Corresponding Scenario |
 | --- | --- |
-| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py) | Single-task evaluation |
-| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py) | Multi-task evaluation |
-| [multi_task_parallel_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_parallel_zh_cn.py) | Multi-task parallel evaluation |
-| [multi_task_resume_partial_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_zh_cn.py) | Resumption after interruption & retesting of failed cases (partial tasks) |
-| [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/ceval_merge_zh_cn.py) | Merging sub-dataset inference |
-| [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py) | Fixed request count evaluation |
-| [multi_repeat_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_repeat_zh_cn.py) | Multiple independent repeat inference |
-| [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/inference_re_eval_zh_cn.py) | Re-evaluation of inference results |
+| [single_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/single_task_en.py) | Single-task evaluation |
+| [multi_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_en.py) | Multi-task evaluation |
+| [multi_task_parallel_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_parallel_en.py) | Multi-task parallel evaluation |
+| [multi_task_resume_partial_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_en.py) | Resumption after interruption & retesting of failed cases (partial tasks) |
+| [ceval_merge_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/ceval_merge_en.py) | Merging sub-dataset inference |
+| [fixed_prompts_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_en.py) | Fixed request count evaluation |
+| [multi_repeat_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_repeat_en.py) | Multiple independent repeat inference |
+| [inference_re_eval_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/inference_re_eval_en.py) | Re-evaluation of inference results |
 
 > For a complete description of the custom configuration file syntax (including the top-level variables that can be defined, detailed field descriptions, advanced Python usage, etc.), please refer to 📚 [Running AISBench with a Custom Configuration File](../../advanced_tutorials/run_custom_config.md). The "Custom Configuration File Examples for Each Scenario" section also provides complete examples of 10 typical scenarios (such as service-oriented performance evaluation, synthetic dataset performance evaluation, steady-state performance evaluation, multi-turn dialogue performance evaluation, judge model evaluation, custom dataset evaluation, etc.).
 
@@ -622,7 +622,7 @@ Assume the command used for the previous performance evaluation was:
 :::{tab-item} ⭐ Recommended: Using a Custom Configuration File
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py
+ais_bench ais_bench/configs/accuracy_benchmark/single_task_en.py
 ```
 At the same time, the timestamp of the saved results is `20250628_151326`. However, the accuracy data for 8 cases is incorrect, showing a score of 0:
 ```bash
@@ -634,7 +634,7 @@ Check `20250628_151326/predictions/vllm-api-general-chat/gsm8k.json` and find th
 
 **Re-evaluation steps:**
 
-1. Edit the custom configuration file (e.g., [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/inference_re_eval_zh_cn.py)) to override the answer extraction function in the `eval_cfg` of the corresponding dataset according to actual needs (refer to the following example). The `pred_postprocessor` is responsible for extracting the answer from the model output and can be replaced or customized according to the actual situation. The complete example is as follows:
+1. Edit the custom configuration file (e.g., [inference_re_eval_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/inference_re_eval_en.py)) to override the answer extraction function in the `eval_cfg` of the corresponding dataset according to actual needs (refer to the following example). The `pred_postprocessor` is responsible for extracting the answer from the model output and can be replaced or customized according to the actual situation. The complete example is as follows:
 
 ```python
 from mmengine.config import read_base
@@ -659,7 +659,7 @@ datasets[0]['eval_cfg']['dataset_postprocessor'] = dict(type=gsm8k_dataset_postp
 2. On the basis of the first accuracy evaluation command, add `--mode eval` and `--reuse {timestamp of the inference results to be reused}` to perform repeated re-evaluation (`--mode` and `--reuse` are common parameters; when using a custom configuration file, they can still be appended via the command line):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark/inference_re_eval_zh_cn.py --mode eval --reuse 20250628_151326
+ais_bench ais_bench/configs/accuracy_benchmark/inference_re_eval_en.py --mode eval --reuse 20250628_151326
 ```
 
 :::

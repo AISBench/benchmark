@@ -866,7 +866,16 @@ vllm_api_general_copy[0]['abbr'] = vllm_api_general[0]['abbr'] + '-copy'
 
 这样vllm_api_general_copy[0]与vllm_api_general[0]的abbr不同，组合2与组合1是不同任务，会被正常执行。
 
-## 预设自定义配置文件文件样例列表
+## 预设自定义配置文件样例列表
+
+### 快速上手
+
+| 文件名 | 简介 |
+| --- | --- |
+| [model_api_test_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_zh_cn.py) | 快速上手样例（中文注释）：配置 `vllm_api_general_chat` 服务化模型与 `demo_gsm8k_gen_4_shot_cot_chat_prompt` 数据集，执行单任务精度测评 |
+| [model_api_test_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_en.py) | 快速上手样例（英文注释）：与 `model_api_test_zh_cn.py` 内容一致，注释为英文 |
+
+### 服务化精度测评（`api_examples/`）
 
 | 文件名 | 简介 |
 | --- | --- |
@@ -875,10 +884,74 @@ vllm_api_general_copy[0]['abbr'] = vllm_api_general[0]['abbr'] + '-copy'
 | [infer_vllm_api_stream_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_stream_chat.py) | 基于gsm8k数据集使用vllm api(0.6+版本)访问v1/chat/completions子服务使用流式推理进行评测，prompt格式为对话格式，自定义了数据集路径 |
 | [infer_vllm_api_old.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_old.py) | 基于gsm8k数据集使用旧版vllm api访问v1/completions子服务进行评测，prompt格式为字符串格式 |
 | [infer_mindie_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_mindie_stream_api_general.py) | 基于gsm8k数据集使用mindie stream api访问infer子服务进行评测，prompt格式为字符串格式，自定义了数据集路径 |
+| [demo_infer_vllm_api.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/demo_infer_vllm_api.py) | Demo示例：同时评测v1/chat/completions与v1/completions两个接口在GSM8K与MATH数据集上的精度表现 |
+| [infer_vllm_api_multi_model_multi_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_multi_model_multi_dataset.py) | 多模型多数据集精度测评：将3个vllm服务化模型（general/general_chat/stream_chat）与GSM8K、MATH、MMLU数据集进行笛卡尔积组合 |
+| [infer_vllm_api_with_model_dataset_combinations.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_with_model_dataset_combinations.py) | 自定义模型-数据集配对：通过 `model_dataset_combinations` 精确控制模型与数据集的配对关系 |
+| [infer_vllm_api_with_judge_model.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_with_judge_model.py) | 裁判模型测评：评测需要LLM Judge的AIME 2025数据集，在 `judge_infer_cfg` 中配置裁判模型 |
+
+### 服务化性能测评（`api_examples/`）
+
+| 文件名 | 简介 |
+| --- | --- |
+| [demo_infer_vllm_api_perf.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/demo_infer_vllm_api_perf.py) | Demo示例：同时评测v1/chat/completions与v1/completions两个接口使用合成数据集进行流式性能测评 |
+| [perf_vllm_api_synthetic.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_synthetic.py) | 合成数据集性能测评：自定义合成数据集的输入输出token长度分布 |
+| [perf_vllm_api_stable_stage.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_stable_stage.py) | 稳态性能测评：以多个 `request_rate`（0/5/10/20）发送合成数据集进行稳态性能测试 |
+| [perf_vllm_api_multiturn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_multiturn.py) | 多轮对话性能测评：使用ShareGPT多轮对话数据集 |
+| [perf_vllm_api_custom_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_custom_dataset.py) | 自定义数据集性能测评：在自定义CSV/JSONL数据集上进行性能测评 |
+| [perf_vllm_api_rps_distribution.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_rps_distribution.py) | RPS分布控制性能测评：通过 `traffic_cfg`（burstiness、ramp-up策略）控制请求到达分布 |
+
+### 纯模型精度测评（`hf_example/`）
+
+| 文件名 | 简介 |
+| --- | --- |
 | [infer_hf_base_model.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/hf_example/infer_hf_base_model.py) | 基于gsm8k数据集使用huggingface base模型的推理接口进行评测，prompt格式为字符串格式，自定义了数据集路径 |
 | [infer_hf_chat_model.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/hf_example/infer_hf_chat_model.py) | 基于gsm8k数据集使用huggingface chat模型的推理接口进行评测，prompt格式为对话格式，自定义了数据集路径 |
-| [demo_infer_vllm_api.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/demo_infer_vllm_api.py) | Demo示例：同时评测v1/chat/completions与v1/completions两个接口在GSM8K与MATH数据集上的精度表现 |
-| [demo_infer_vllm_api_perf.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/demo_infer_vllm_api_perf.py) | Demo示例：同时评测v1/chat/completions与v1/completions两个接口使用合成数据集进行流式性能测评 |
+| [infer_hf_multi_model_multi_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/hf_example/infer_hf_multi_model_multi_dataset.py) | 多模型多数据集纯模型测评：在多个数据集上评测多个HuggingFace本地模型 |
+
+### 多模态测评（`lmm_example/`）
+
+| 文件名 | 简介 |
+| --- | --- |
+| [multi_device_run_qwen_image_edit.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/lmm_example/multi_device_run_qwen_image_edit.py) | 多模态图像编辑模型测评（Qwen图像编辑，多设备） |
+| [infer_lmm_multi_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/lmm_example/infer_lmm_multi_dataset.py) | 多模态多数据集精度测评：在多个多模态数据集上评测多模态模型 |
+
+### 精度测评场景样例（`accuracy_benchmark/`）
+
+| 文件名 | 简介 |
+| --- | --- |
+| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py) | 单任务精度测评 |
+| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py) | 多任务精度测评 |
+| [multi_task_parallel_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_parallel_zh_cn.py) | 多任务并行精度测评 |
+| [multi_task_resume_partial_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_zh_cn.py) | 中断续跑与失败用例重测（部分任务） |
+| [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/ceval_merge_zh_cn.py) | 子数据集合并推理 |
+| [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py) | 固定请求数测评 |
+| [multi_repeat_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_repeat_zh_cn.py) | 多次独立重复推理 |
+| [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/inference_re_eval_zh_cn.py) | 推理结果重评估 |
+
+### 纯模型精度测评场景样例（`accuracy_benchmark_local/`）
+
+| 文件名 | 简介 |
+| --- | --- |
+| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/single_task_zh_cn.py) | 纯模型单任务测评 |
+| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/multi_task_zh_cn.py) | 纯模型多任务/多任务并行测评 |
+| [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/ceval_merge_zh_cn.py) | 子数据集合并推理 |
+| [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/inference_re_eval_zh_cn.py) | 纯模型推理结果重评估 |
+
+### 性能测评场景样例（`performance_benchmark/`）
+
+| 文件名 | 简介 |
+| --- | --- |
+| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/single_task_zh_cn.py) | 单任务性能测评 |
+| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/multi_task_zh_cn.py) | 多任务性能测评 |
+| [synthetic_gen_string_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/synthetic_gen_string_zh_cn.py) | 自定义序列长度性能测评 |
+| [multi_task_synthetic_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/multi_task_synthetic_zh_cn.py) | 自定义序列的多任务组合性能测评 |
+| [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py) | 固定请求数性能测评 |
+| [perf_recalculate_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/perf_recalculate_zh_cn.py) | 性能结果重计算 |
+
+### 通用工具
+
+| 文件名 | 简介 |
+| --- | --- |
 | [all_dataset_configs.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/all_dataset_configs.py) | 所有支持的数据集配置导入汇总，可在自定义配置文件中直接 `from ... import` 使用 |
 
 **注**: 上述自定义配置文件如果要评测其他数据集，请从[ais_bench/configs/api_examples/all_dataset_configs.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/all_dataset_configs.py)导入其他数据集。

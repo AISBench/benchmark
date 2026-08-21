@@ -895,23 +895,23 @@ In this way, `vllm_api_general_copy[0]` and `vllm_api_general[0]` have different
 
 | Filename | Description |
 | --- | --- |
-| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py) | Single-task accuracy evaluation |
-| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py) | Multi-task accuracy evaluation |
-| [multi_task_parallel_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_parallel_zh_cn.py) | Multi-task parallel accuracy evaluation |
-| [multi_task_resume_partial_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_zh_cn.py) | Resumption after interruption & retesting of failed cases (partial tasks) |
-| [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/ceval_merge_zh_cn.py) | Merging sub-dataset inference |
-| [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py) | Fixed request count evaluation |
-| [multi_repeat_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_repeat_zh_cn.py) | Multiple independent repeat inference |
-| [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/inference_re_eval_zh_cn.py) | Re-evaluation of inference results |
+| [single_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/single_task_en.py) | Single-task accuracy evaluation |
+| [multi_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_en.py) | Multi-task accuracy evaluation |
+| [multi_task_parallel_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_parallel_en.py) | Multi-task parallel accuracy evaluation |
+| [multi_task_resume_partial_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_en.py) | Resumption after interruption & retesting of failed cases (partial tasks) |
+| [ceval_merge_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/ceval_merge_en.py) | Merging sub-dataset inference |
+| [fixed_prompts_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_en.py) | Fixed request count evaluation |
+| [multi_repeat_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_repeat_en.py) | Multiple independent repeat inference |
+| [inference_re_eval_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/inference_re_eval_en.py) | Re-evaluation of inference results |
 
 ### Pure Model Accuracy Evaluation Scenario Samples (`accuracy_benchmark_local/`)
 
 | Filename | Description |
 | --- | --- |
-| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/single_task_zh_cn.py) | Single-task pure model evaluation |
-| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/multi_task_zh_cn.py) | Pure model multi-task / multi-task parallel evaluation |
-| [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/ceval_merge_zh_cn.py) | Merged sub-dataset inference |
-| [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/inference_re_eval_zh_cn.py) | Re-evaluation of pure model inference results |
+| [single_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/single_task_en.py) | Single-task pure model evaluation |
+| [multi_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/multi_task_en.py) | Pure model multi-task / multi-task parallel evaluation |
+| [ceval_merge_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/ceval_merge_en.py) | Merged sub-dataset inference |
+| [inference_re_eval_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/inference_re_eval_en.py) | Re-evaluation of pure model inference results |
 
 ### Performance Evaluation Scenario Samples (`performance_benchmark/`)
 
@@ -925,12 +925,6 @@ In this way, `vllm_api_general_copy[0]` and `vllm_api_general[0]` have different
 | [performance_seq_combinations.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_seq_combinations.py) | Custom sequence multi-task combinations |
 | [performance_fixed_request.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_fixed_request.py) | Fixed request count performance evaluation |
 | [performance_re_eval.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_re_eval.py) | Performance result recalculation |
-| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/single_task_zh_cn.py) | Single-task performance evaluation (Chinese) |
-| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/multi_task_zh_cn.py) | Multi-task performance evaluation (Chinese) |
-| [synthetic_gen_string_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/synthetic_gen_string_zh_cn.py) | Custom sequence length performance evaluation (Chinese) |
-| [multi_task_synthetic_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/multi_task_synthetic_zh_cn.py) | Custom sequence multi-task combination performance evaluation (Chinese) |
-| [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py) | Fixed request count performance evaluation (Chinese) |
-| [perf_recalculate_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/perf_recalculate_zh_cn.py) | Performance result recalculation (Chinese) |
 
 ### Common Utilities
 

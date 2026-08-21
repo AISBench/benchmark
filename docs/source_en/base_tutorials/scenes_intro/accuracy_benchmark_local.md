@@ -14,7 +14,7 @@ The main functions in the pure model accuracy evaluation scenario are similar to
 
 ### Pure Model Multi-Task Evaluation
 
-Supports simultaneous configuration of multiple dataset tasks through a single command for batch evaluation. For a complete example, refer to [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/multi_task_zh_cn.py):
+Supports simultaneous configuration of multiple dataset tasks through a single command for batch evaluation. For a complete example, refer to [multi_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/multi_task_en.py):
 
 ```python
 from mmengine.config import read_base
@@ -44,7 +44,7 @@ models = [
 Execution command:
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark_local/multi_task_zh_cn.py
+ais_bench ais_bench/configs/accuracy_benchmark_local/multi_task_en.py
 ```
 
 #### Custom Model-Dataset Pairings (Optional)
@@ -93,7 +93,7 @@ Supports multi-task parallelism through the [`--max-num-workers`](../all_params/
 Execution command (taking `max-num-workers 4` as an example):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark_local/multi_task_zh_cn.py --max-num-workers 4
+ais_bench ais_bench/configs/accuracy_benchmark_local/multi_task_en.py --max-num-workers 4
 ```
 
 > ⚠️ Note: Multi-task parallel evaluation in pure model accuracy evaluation will occupy different GPU units. The number of GPU units required for parallel tasks should be less than or equal to the total number of available GPUs.
@@ -107,13 +107,13 @@ During the pure model accuracy evaluation, if the task is interrupted, you can u
 First execution command:
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark_local/single_task_zh_cn.py
+ais_bench ais_bench/configs/accuracy_benchmark_local/single_task_en.py
 ```
 
 Specify the task timestamp directory through the `--reuse` parameter to continue (`--reuse` is a common parameter, and can still be appended through the command line when using a custom configuration file):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark_local/single_task_zh_cn.py --reuse 20250628_151326
+ais_bench ais_bench/configs/accuracy_benchmark_local/single_task_en.py --reuse 20250628_151326
 ```
 
 > ⚠️ Note: Currently, pure model accuracy evaluation does not support automatic retesting of failed cases.
@@ -122,7 +122,7 @@ ais_bench ais_bench/configs/accuracy_benchmark_local/single_task_zh_cn.py --reus
 
 ### Pure Model Merged Sub-Dataset Inference
 
-Supports merging datasets containing multiple small-scale sub-datasets into a single task for unified evaluation. For a complete example, refer to [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/ceval_merge_zh_cn.py):
+Supports merging datasets containing multiple small-scale sub-datasets into a single task for unified evaluation. For a complete example, refer to [ceval_merge_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/ceval_merge_en.py):
 
 ```python
 from mmengine.config import read_base
@@ -149,7 +149,7 @@ models = [
 Execution command (`--merge-ds` is a common parameter, and can still be appended through the command line when using a custom configuration file):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark_local/ceval_merge_zh_cn.py --merge-ds
+ais_bench ais_bench/configs/accuracy_benchmark_local/ceval_merge_en.py --merge-ds
 ```
 
 > 💡 For detailed usage, you can also refer to [Usage of Service-Oriented Accuracy Merged Sub-Dataset Inference](accuracy_benchmark.md#merging-sub-dataset-inference).
@@ -162,10 +162,10 @@ All custom configuration file examples involved in this section are uniformly st
 
 | File Name | Corresponding Scenario |
 | --- | --- |
-| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/single_task_zh_cn.py) | Single-Task Evaluation |
-| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/multi_task_zh_cn.py) | Pure Model Multi-Task Evaluation / Multi-Task Parallel Evaluation |
-| [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/ceval_merge_zh_cn.py) | Merged Sub-Dataset Inference |
-| [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/inference_re_eval_zh_cn.py) | Re-Evaluation of Pure Model Inference Results |
+| [single_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/single_task_en.py) | Single-Task Evaluation |
+| [multi_task_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/multi_task_en.py) | Pure Model Multi-Task Evaluation / Multi-Task Parallel Evaluation |
+| [ceval_merge_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/ceval_merge_en.py) | Merged Sub-Dataset Inference |
+| [inference_re_eval_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/inference_re_eval_en.py) | Re-Evaluation of Pure Model Inference Results |
 
 For details, refer to the "Pure Model Accuracy Evaluation" example in [Running AISBench via Custom Configuration Files](../../advanced_tutorials/run_custom_config.md#custom-configuration-file-examples-for-each-scenario).
 
@@ -173,7 +173,7 @@ For details, refer to the "Pure Model Accuracy Evaluation" example in [Running A
 
 ### Re-Evaluation of Pure Model Inference Results
 
-For a complete example, refer to [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/inference_re_eval_zh_cn.py):
+For a complete example, refer to [inference_re_eval_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/inference_re_eval_en.py):
 
 ```python
 from mmengine.config import read_base
@@ -205,7 +205,7 @@ datasets[0]['eval_cfg']['dataset_postprocessor'] = dict(type=gsm8k_dataset_postp
 Execution command (`--mode eval` and `--reuse` are common parameters, and can still be appended through the command line when using a custom configuration file):
 
 ```bash
-ais_bench ais_bench/configs/accuracy_benchmark_local/inference_re_eval_zh_cn.py --mode eval --reuse 20250628_151326
+ais_bench ais_bench/configs/accuracy_benchmark_local/inference_re_eval_en.py --mode eval --reuse 20250628_151326
 ```
 
 > 💡 For detailed usage, you can also refer to [Usage of Service-Oriented Accuracy Re-Evaluation of Inference Results](accuracy_benchmark.md#re-evaluation-of-inference-results).
