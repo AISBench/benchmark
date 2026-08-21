@@ -6,7 +6,8 @@ from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
-from ais_bench.benchmark.datasets import GenericDataset, AccuracyEvaluator
+from ais_bench.benchmark.datasets import CustomDataset
+from ais_bench.benchmark.openicl.icl_evaluator import AccEvaluator
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -14,7 +15,7 @@ with read_base():
 datasets = [
     dict(
         abbr='my_custom_dataset',
-        type=GenericDataset,
+        type=CustomDataset,
         path='/path/to/your/dataset.jsonl',
         reader_cfg=dict(
             input_columns=['question'],
@@ -23,18 +24,16 @@ datasets = [
         infer_cfg=dict(
             prompt_template=dict(
                 type=PromptTemplate,
-                template=dict(
-                    round=[
-                        dict(role='HUMAN', prompt='{question}'),
-                    ],
-                ),
+                template='{question}',
             ),
             retriever=dict(type=ZeroRetriever),
             inferencer=dict(type=GenInferencer),
         ),
         eval_cfg=dict(
-            evaluator=dict(type=AccuracyEvaluator),
+            evaluator=dict(type=AccEvaluator),
+            pred_role='BOT',
         ),
+        meta_path='',
     )
 ]
 

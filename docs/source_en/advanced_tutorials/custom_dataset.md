@@ -114,10 +114,10 @@ This method currently only supports **accuracy evaluation scenarios**. Other par
 #### Example Command
 ```shell
 # Use vllm API
-ais_bench ais_bench/configs/api_examples/infer_api_vllm_general.py
+ais_bench ais_bench/configs/api_examples/infer_vllm_api_general.py
 
 # Use mindie API
-ais_bench ais_bench/configs/api_examples/infer_api_mindie_stream_general.py
+ais_bench ais_bench/configs/api_examples/infer_mindie_stream_api_general.py
 ```
 
 

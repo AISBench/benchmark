@@ -601,7 +601,8 @@ from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
-from ais_bench.benchmark.datasets import GenericDataset, AccuracyEvaluator
+from ais_bench.benchmark.datasets import CustomDataset
+from ais_bench.benchmark.openicl.icl_evaluator import AccEvaluator
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -609,7 +610,7 @@ with read_base():
 datasets = [
     dict(
         abbr='my_custom_dataset',
-        type=GenericDataset,
+        type=CustomDataset,
         path='/path/to/your/dataset.jsonl',
         reader_cfg=dict(
             input_columns=['question'],
@@ -618,18 +619,16 @@ datasets = [
         infer_cfg=dict(
             prompt_template=dict(
                 type=PromptTemplate,
-                template=dict(
-                    round=[
-                        dict(role='HUMAN', prompt='{question}'),
-                    ],
-                ),
+                template='{question}',
             ),
             retriever=dict(type=ZeroRetriever),
             inferencer=dict(type=GenInferencer),
         ),
         eval_cfg=dict(
-            evaluator=dict(type=AccuracyEvaluator),
+            evaluator=dict(type=AccEvaluator),
+            pred_role='BOT',
         ),
+        meta_path='',
     )
 ]
 
@@ -845,6 +844,15 @@ In this way, `vllm_api_general_copy[0]` and `vllm_api_general[0]` have different
 
 ## List of Preset Custom Configuration File Samples
 
+### Quick Start
+
+| Filename | Description |
+| --- | --- |
+| [model_api_test_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_en.py) | Quick-start example (English): configures the `vllm_api_general_chat` service model and the `demo_gsm8k_gen_4_shot_cot_chat_prompt` dataset for a single accuracy evaluation task. |
+| [model_api_test_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_zh_cn.py) | Quick-start example (Chinese): same as `model_api_test_en.py`, with Chinese comments. |
+
+### Service-Oriented Accuracy Evaluation (`api_examples/`)
+
 | Filename | Description |
 | --- | --- |
 | [infer_vllm_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_general.py) | Evaluates the `v1/completions` sub-service using vLLM API (version 0.6+) on the GSM8K dataset. The prompt format is a string, and the dataset path is customized. |
@@ -852,10 +860,82 @@ In this way, `vllm_api_general_copy[0]` and `vllm_api_general[0]` have different
 | [infer_vllm_api_stream_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_stream_chat.py) | Evaluates the `v1/chat/completions` sub-service with streaming inference using vLLM API (version 0.6+) on the GSM8K dataset. The prompt format is a conversation format, and the dataset path is customized. |
 | [infer_vllm_api_old.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_old.py) | Evaluates the `v1/completions` sub-service using older vLLM API on the GSM8K dataset. The prompt format is a string. |
 | [infer_mindie_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_mindie_stream_api_general.py) | Evaluates the `infer` sub-service using MindIE Stream API on the GSM8K dataset. The prompt format is a string, and the dataset path is customized. |
+| [demo_infer_vllm_api.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/demo_infer_vllm_api.py) | Demo example: Evaluates the accuracy of two interfaces `v1/chat/completions` and `v1/completions` simultaneously on the GSM8K and MATH datasets. |
+| [infer_vllm_api_multi_model_multi_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_multi_model_multi_dataset.py) | Multi-model multi-dataset accuracy evaluation: combines 3 vLLM service models (`general`, `general_chat`, `stream_chat`) with the GSM8K, MATH, and MMLU datasets via the Cartesian product. |
+| [infer_vllm_api_with_model_dataset_combinations.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_with_model_dataset_combinations.py) | Custom model-dataset pairings: precisely controls which models are paired with which datasets via `model_dataset_combinations`. |
+| [infer_vllm_api_with_judge_model.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/infer_vllm_api_with_judge_model.py) | Judge model evaluation: evaluates the AIME 2025 dataset that requires an LLM Judge, configuring the judge model in `judge_infer_cfg`. |
+
+### Service-Oriented Performance Evaluation (`api_examples/`)
+
+| Filename | Description |
+| --- | --- |
+| [demo_infer_vllm_api_perf.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/demo_infer_vllm_api_perf.py) | Demo example: Evaluates the streaming performance of two interfaces `v1/chat/completions` and `v1/completions` simultaneously using synthetic datasets. |
+| [perf_vllm_api_synthetic.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_synthetic.py) | Synthetic dataset performance evaluation: customizes the input/output token length distributions of the synthetic dataset. |
+| [perf_vllm_api_stable_stage.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_stable_stage.py) | Steady-state performance evaluation: sends the synthetic dataset at multiple `request_rate`s (0/5/10/20) for steady-state performance testing. |
+| [perf_vllm_api_multiturn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_multiturn.py) | Multi-turn dialogue performance evaluation: uses the ShareGPT multi-turn dialogue dataset. |
+| [perf_vllm_api_custom_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_custom_dataset.py) | Custom dataset performance evaluation: evaluates performance on your own CSV/JSONL dataset. |
+| [perf_vllm_api_rps_distribution.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/perf_vllm_api_rps_distribution.py) | RPS distribution control performance evaluation: configures `traffic_cfg` (burstiness, ramp-up strategy) to control the request arrival distribution. |
+
+### Pure Model Accuracy Evaluation (`hf_example/`)
+
+| Filename | Description |
+| --- | --- |
 | [infer_hf_base_model.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/hf_example/infer_hf_base_model.py) | Evaluates using the inference interface of a Hugging Face base model on the GSM8K dataset. The prompt format is a string, and the dataset path is customized. |
 | [infer_hf_chat_model.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/hf_example/infer_hf_chat_model.py) | Evaluates using the inference interface of a Hugging Face chat model on the GSM8K dataset. The prompt format is a conversation format, and the dataset path is customized. |
-| [demo_infer_vllm_api.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/demo_infer_vllm_api.py) | Demo example: Evaluates the accuracy of two interfaces `v1/chat/completions` and `v1/completions` simultaneously on the GSM8K and MATH datasets. |
-| [demo_infer_vllm_api_perf.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/demo_infer_vllm_api_perf.py) | Demo example: Evaluates the streaming performance of two interfaces `v1/chat/completions` and `v1/completions` simultaneously using synthetic datasets. |
+| [infer_hf_multi_model_multi_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/hf_example/infer_hf_multi_model_multi_dataset.py) | Multi-model multi-dataset pure model evaluation: evaluates multiple Hugging Face local models on multiple datasets. |
+
+### Multimodal Evaluation (`lmm_example/`)
+
+| Filename | Description |
+| --- | --- |
+| [multi_device_run_qwen_image_edit.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/lmm_example/multi_device_run_qwen_image_edit.py) | Multimodal image-edit model evaluation (Qwen image edit, multi-device). |
+| [infer_lmm_multi_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/lmm_example/infer_lmm_multi_dataset.py) | Multimodal multi-dataset accuracy evaluation: evaluates a multimodal model on multiple multimodal datasets. |
+
+### Accuracy Evaluation Scenario Samples (`accuracy_benchmark/`)
+
+| Filename | Description |
+| --- | --- |
+| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/single_task_zh_cn.py) | Single-task accuracy evaluation |
+| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py) | Multi-task accuracy evaluation |
+| [multi_task_parallel_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_parallel_zh_cn.py) | Multi-task parallel accuracy evaluation |
+| [multi_task_resume_partial_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_zh_cn.py) | Resumption after interruption & retesting of failed cases (partial tasks) |
+| [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/ceval_merge_zh_cn.py) | Merging sub-dataset inference |
+| [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py) | Fixed request count evaluation |
+| [multi_repeat_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_repeat_zh_cn.py) | Multiple independent repeat inference |
+| [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/inference_re_eval_zh_cn.py) | Re-evaluation of inference results |
+
+### Pure Model Accuracy Evaluation Scenario Samples (`accuracy_benchmark_local/`)
+
+| Filename | Description |
+| --- | --- |
+| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/single_task_zh_cn.py) | Single-task pure model evaluation |
+| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/multi_task_zh_cn.py) | Pure model multi-task / multi-task parallel evaluation |
+| [ceval_merge_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/ceval_merge_zh_cn.py) | Merged sub-dataset inference |
+| [inference_re_eval_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark_local/inference_re_eval_zh_cn.py) | Re-evaluation of pure model inference results |
+
+### Performance Evaluation Scenario Samples (`performance_benchmark/`)
+
+| Filename | Description |
+| --- | --- |
+| [performance_qwen2_7b_sharegpt.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_qwen2_7b_sharegpt.py) | Single-task performance evaluation (ShareGPT) |
+| [performance_multi_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_multi_dataset.py) | Multi-dataset performance evaluation |
+| [performance_multi_rate.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_multi_rate.py) | Multi-rate performance evaluation |
+| [performance_multi_model.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_multi_model.py) | Multi-model performance evaluation |
+| [performance_synthetic.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_synthetic.py) | Synthetic dataset multi-task combinations |
+| [performance_seq_combinations.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_seq_combinations.py) | Custom sequence multi-task combinations |
+| [performance_fixed_request.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_fixed_request.py) | Fixed request count performance evaluation |
+| [performance_re_eval.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_re_eval.py) | Performance result recalculation |
+| [single_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/single_task_zh_cn.py) | Single-task performance evaluation (Chinese) |
+| [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/multi_task_zh_cn.py) | Multi-task performance evaluation (Chinese) |
+| [synthetic_gen_string_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/synthetic_gen_string_zh_cn.py) | Custom sequence length performance evaluation (Chinese) |
+| [multi_task_synthetic_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/multi_task_synthetic_zh_cn.py) | Custom sequence multi-task combination performance evaluation (Chinese) |
+| [fixed_prompts_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py) | Fixed request count performance evaluation (Chinese) |
+| [perf_recalculate_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/perf_recalculate_zh_cn.py) | Performance result recalculation (Chinese) |
+
+### Common Utilities
+
+| Filename | Description |
+| --- | --- |
 | [all_dataset_configs.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/all_dataset_configs.py) | A consolidated import of all supported dataset configurations; can be used directly via `from ... import` in custom configuration files. |
 
 **Note**: To evaluate other datasets using the above custom configuration files, import additional datasets from [ais_bench/configs/api_examples/all_dataset_configs.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/api_examples/all_dataset_configs.py).

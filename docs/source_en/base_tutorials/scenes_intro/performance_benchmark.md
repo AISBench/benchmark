@@ -28,88 +28,26 @@ After the service is started, the following **custom configuration file** can be
 - Configuration file content:
   ```python
   from mmengine.config import read_base
-  from ais_bench.benchmark.models import vLLMCausalLM
-  from ais_bench.benchmark.partitioners import NaivePartitioner
-  from ais_bench.benchmark.runners.local_api import LocalAPIRunner
-  from ais_bench.benchmark.tasks import OpenICLInferTask
-  from ais_bench.benchmark.datasets import GenericDataset
 
   with read_base():
-      from ais_bench.benchmark.configs.summarizers.example import summarizer
+      from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+      from ais_bench.benchmark.configs.datasets.sharegpt.sharegpt_gen import sharegpt_datasets as datasets
+      from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
 
-  datasets = [
-      dict(
-          type=GenericDataset,
-          abbr='sharegpt',
-          path='ais_bench/datasets/ShareGPT/ShareGPT.jsonl',
-          reader_cfg=dict(
-              input_columns=['prompt'],
-              output_column='completion',
-          ),
-          infer_cfg=dict(
-              prompt_template=dict(
-                  type=PromptTemplate,
-                  template=dict(
-                      round=[
-                          dict(
-                              role='HUMAN',
-                              prompt='{prompt}',
-                          ),
-                      ],
-                  ),
-              ),
-              retriever=dict(type=ZeroRetriever),
-              inferencer=dict(
-                  type=GenInferencer,
-                  generation_kwargs={
-                      'max_new_tokens': 1024,
-                      'temperature': 0,
-                      'top_p': 1.0,
-                  },
-              ),
-          ),
-      )
-  ]
+  models = vllm_api_stream_chat
+  models[0]["host_ip"] = "localhost"
+  models[0]["host_port"] = 8080
+  models[0]["max_out_len"] = 1024
+  models[0]["batch_size"] = 50
+  models[0]["request_rate"] = 1  # Request sending frequency: send 1 request to the server every 1/request_rate seconds; if less than 0.001, all requests are sent at once
+  models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)  # When testing performance and needing to limit the output length, ignore_eos must be set to True
 
-  models = [
-      dict(
-          type=vLLMCausalLM,
-          abbr='vllm-qwen2.5-7b',
-          path='Qwen/Qwen2.5-7B-Instruct',
-          model_kwargs=dict(
-              tokenizer_path='Qwen/Qwen2.5-7B-Instruct',
-          },
-          url='http://localhost:8080/v1/chat/completions',
-          max_out_len=1024,
-          batch_size=50,
-          generation_kwargs={
-              'temperature': 0,
-              'top_p': 1.0,
-          },
-      ),
-  ]
-
-  # Custom performance dimensions
-  stats_list = [
-      'request_rate',
-      'num_prompts',
-      'benchmark_duration',
-      'avg_latency',
-      'p99_latency',
-      'qps',
-      'tput',
-      'concurrency',
-  ]
-
-  # Number of requests to send
-  num_prompts = 50
-  # Sending rate (QPS), only takes effect when not equal to -1
-  request_rate = 1.0
+  work_dir = "outputs/default/"
   ```
 
-- Execution command:
+- Execution command (you can also append `--num-prompts N` to limit the number of requests sent):
   ```bash
-  ais_bench performance_qwen2_7b_sharegpt.py
+  ais_bench ais_bench/configs/performance_benchmark/performance_qwen2_7b_sharegpt.py
   ```
 
 After the task is completed, you can view the performance result report in the `summary/` directory under the task output directory.
@@ -343,16 +281,16 @@ The configuration file content is consistent with the [Quick Start One-Click Eva
 Execution command:
 
 ```bash
-ais_bench performance_qwen2_7b_sharegpt.py
+ais_bench ais_bench/configs/performance_benchmark/performance_qwen2_7b_sharegpt.py
 ```
 
 :::
 :::{tab-item} Alternative: Command-Line Parameters
 
-You can also use the preset configuration file for one-click evaluation:
+You can also use the preset configuration file for one-click evaluation (the service address needs to be configured in the model configuration file [vllm_api_stream_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py)):
 
 ```bash
-ais_bench --models vllm_qwen2_5_7b_chat --datasets sharegpt_gen_perf --url http://localhost:8080/v1/chat/completions
+ais_bench --models vllm_api_stream_chat --datasets sharegpt_gen -m perf
 ```
 
 :::
@@ -360,47 +298,46 @@ ais_bench --models vllm_qwen2_5_7b_chat --datasets sharegpt_gen_perf --url http:
 
 #### Specifying Custom Performance Dimensions
 
-AISBench supports users in customizing the statistical items of performance reports. By modifying the `stats_list` field in the custom configuration file, you can control which performance dimensions to output in the summary report.
+AISBench supports users in customizing the statistical items of performance reports. In the custom configuration file, you can customize the `summarizer` and modify the `stats_list` field of its calculator to control which statistical dimensions (e.g., `Average`, `Min`, `Max`, `Median`, `P75`, `P90`, `P99`) are computed for each performance parameter (E2EL, TTFT, TPOT, etc.) in the summary report.
 
-The `stats_list` field is a string list. Common configurable performance dimensions include:
+Commonly used statistical items include:
 
-| Dimension | Description |
+| Statistic | Description |
 | --- | --- |
-| `benchmark_duration` | Total benchmark duration |
-| `num_prompts` | Total number of requests |
-| `request_rate` | Sending rate (QPS) |
-| `qps` | Actual QPS |
-| `tput` | Total token throughput (tokens/second) |
-| `prefill_token_throughput` | Prefill phase token throughput |
-| `decode_token_throughput` | Decode phase token throughput |
-| `concurrency` | Concurrency |
-| `avg_latency` | Average end-to-end latency |
-| `p50_latency` | P50 end-to-end latency |
-| `p90_latency` | P90 end-to-end latency |
-| `p99_latency` | P99 end-to-end latency |
-| `ttft` | Time To First Token |
-| `tpot` | Time Per Output Token |
-| `itl` | Inter-Token Latency |
-| `e2el` | End-to-End Latency |
-| `output_tokens_per_request` | Average output tokens per request |
-| `total_input_tokens` | Total input tokens |
-| `total_output_tokens` | Total output tokens |
+| `Average` | Average value |
+| `Min` | Minimum value |
+| `Max` | Maximum value |
+| `Median` | Median value |
+| `P75` | 75th percentile |
+| `P90` | 90th percentile |
+| `P95` | 95th percentile |
+| `P99` | 99th percentile |
 
-The following is an example configuration that contains the most commonly used performance dimensions:
+The following is an example configuration that contains the most commonly used statistical items:
 
 ```python
-stats_list = [
-    'benchmark_duration',
-    'num_prompts',
-    'request_rate',
-    'qps',
-    'tput',
-    'concurrency',
-    'avg_latency',
-    'p50_latency',
-    'p99_latency',
-]
+from mmengine.config import read_base
+from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
+from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
+
+with read_base():
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+# Key: customize the stats_list of the performance summarizer calculator
+summarizer = dict(
+    attr="performance",
+    type=DefaultPerfSummarizer,
+    calculator=dict(
+        type=DefaultPerfMetricCalculator,
+        stats_list=["Average", "Min", "Max", "Median", "P75", "P90", "P95", "P99"],
+    ),
+)
+
+models = vllm_api_stream_chat
 ```
+
+For a complete runnable example, refer to [performance_re_eval.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_re_eval.py).
 
 ### Multi-Task Performance Evaluation
 
@@ -460,46 +397,41 @@ Supports multi-task parallelism through the [`--max-num-workers`](../all_params/
 
 ```python
 from mmengine.config import read_base
-from ais_bench.benchmark.models import vLLMCausalLM
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local_api import LocalAPIRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
-    from ais_bench.benchmark.configs.summarizers.example import summarizer
-    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_4_shot_cot_str import gsm8k_datasets
     from ais_bench.benchmark.configs.datasets.aime2024.aime2024_gen_0_shot_chat_prompt import aime2024_datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
 
 datasets = gsm8k_datasets + aime2024_datasets
 
-models = [
-    dict(
-        type=vLLMCausalLM,
-        abbr='vllm-qwen2.5-7b',
-        path='Qwen/Qwen2.5-7B-Instruct',
-        model_kwargs=dict(
-            tokenizer_path='Qwen/Qwen2.5-7B-Instruct',
-        ),
-        url='http://localhost:8080/v1/chat/completions',
-        max_out_len=1024,
-        batch_size=50,
-    ),
-]
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+work_dir = "outputs/default/"
 ```
 
 Execution command:
 
 ```bash
-ais_bench performance_multi_dataset.py
+ais_bench ais_bench/configs/performance_benchmark/performance_multi_dataset.py
 ```
 
 :::
 :::{tab-item} Alternative: Command-Line Parameters
 
-Use the `--models` parameter to specify multiple datasets:
+Use the `--datasets` parameter to specify multiple datasets:
 
 ```bash
-ais_bench --models vllm_qwen2_5_7b_chat --datasets gsm8k_gen_4_shot_cot_str_perf,aime2024_gen_perf --url http://localhost:8080/v1/chat/completions
+ais_bench --models vllm_api_stream_chat --datasets gsm8k_gen_4_shot_cot_str,aime2024_gen_0_shot_chat_prompt -m perf
 ```
 
 :::
@@ -513,66 +445,35 @@ The following configuration file example sends the `ShareGPT` dataset to the ser
 :::{tab-item} ⭐ Custom Configuration File
 
 ```python
+import copy
 from mmengine.config import read_base
-from ais_bench.benchmark.models import vLLMCausalLM
-from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
-from ais_bench.benchmark.datasets import GenericDataset
 
 with read_base():
-    from ais_bench.benchmark.configs.summarizers.example import summarizer
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.sharegpt.sharegpt_gen import sharegpt_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as base_vllm_api_stream_chat
 
-datasets = [
-    dict(
-        type=GenericDataset,
-        abbr=f'sharegpt_rate_{rate}',
-        path='ais_bench/datasets/ShareGPT/ShareGPT.jsonl',
-        reader_cfg=dict(
-            input_columns=['prompt'],
-            output_column='completion',
-        ),
-        infer_cfg=dict(
-            prompt_template=dict(
-                type=PromptTemplate,
-                template=dict(
-                    round=[
-                        dict(
-                            role='HUMAN',
-                            prompt='{prompt}',
-                        ),
-                    ],
-                ),
-            ),
-            retriever=dict(type=ZeroRetriever),
-            inferencer=dict(type=GenInferencer),
-        ),
-    )
-    for rate in [1, 2, 4, 8]
-]
+# In AISBench, `request_rate` is a field of the model configuration, so build one
+# model configuration per rate via `copy.deepcopy` and combine them with one dataset.
+models = []
+for rate in [1, 2, 4, 8]:
+    model_cfg = copy.deepcopy(base_vllm_api_stream_chat[0])
+    model_cfg["abbr"] = f"vllm-api-stream-chat-rate-{rate}"
+    model_cfg["host_ip"] = "localhost"
+    model_cfg["host_port"] = 8080
+    model_cfg["max_out_len"] = 1024
+    model_cfg["batch_size"] = 50
+    model_cfg["request_rate"] = rate
+    model_cfg["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+    models.append(model_cfg)
 
-models = [
-    dict(
-        type=vLLMCausalLM,
-        abbr='vllm-qwen2.5-7b',
-        path='Qwen/Qwen2.5-7B-Instruct',
-        model_kwargs=dict(
-            tokenizer_path='Qwen/Qwen2.5-7B-Instruct',
-        ),
-        url='http://localhost:8080/v1/chat/completions',
-        max_out_len=1024,
-        batch_size=50,
-    ),
-]
-
-# Each dataset uses the corresponding request_rate
-request_rate = [1.0, 2.0, 4.0, 8.0]
+work_dir = "outputs/default/"
 ```
 
 Execution command:
 
 ```bash
-ais_bench performance_multi_rate.py
+ais_bench ais_bench/configs/performance_benchmark/performance_multi_rate.py
 ```
 
 :::
@@ -591,43 +492,46 @@ Supports simultaneous evaluation of multiple models on the same dataset, suitabl
 :::{tab-item} ⭐ Custom Configuration File
 
 ```python
-models = [
-    dict(
-        type=vLLMCausalLM,
-        abbr='vllm-qwen2.5-7b',
-        path='Qwen/Qwen2.5-7B-Instruct',
-        model_kwargs=dict(
-            tokenizer_path='Qwen/Qwen2.5-7B-Instruct',
-        ),
-        url='http://localhost:8080/v1/chat/completions',
-        max_out_len=1024,
-        batch_size=50,
-    ),
-    dict(
-        type=vLLMCausalLM,
-        abbr='vllm-qwen2.5-14b',
-        path='Qwen/Qwen2.5-14B-Instruct',
-        model_kwargs=dict(
-            tokenizer_path='Qwen/Qwen2.5-14B-Instruct',
-        ),
-        url='http://localhost:8080/v1/chat/completions',
-        max_out_len=1024,
-        batch_size=50,
-    ),
-]
+from mmengine.config import read_base
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.sharegpt.sharegpt_gen import sharegpt_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_stream import models as vllm_api_general_stream
+
+# Rename the abbr of each model so that the results are distinguishable
+vllm_api_stream_chat[0]["abbr"] = "vllm-qwen2.5-7b"
+vllm_api_general_stream[0]["abbr"] = "vllm-qwen2.5-14b"
+
+vllm_api_stream_chat[0]["host_ip"] = "localhost"
+vllm_api_stream_chat[0]["host_port"] = 8080
+vllm_api_stream_chat[0]["max_out_len"] = 1024
+vllm_api_stream_chat[0]["batch_size"] = 50
+vllm_api_stream_chat[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+vllm_api_general_stream[0]["host_ip"] = "localhost"
+vllm_api_general_stream[0]["host_port"] = 8081
+vllm_api_general_stream[0]["max_out_len"] = 1024
+vllm_api_general_stream[0]["batch_size"] = 50
+vllm_api_general_stream[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+models = vllm_api_stream_chat + vllm_api_general_stream
+
+work_dir = "outputs/default/"
 ```
 
 Execution command:
 
 ```bash
-ais_bench performance_multi_model.py
+ais_bench ais_bench/configs/performance_benchmark/performance_multi_model.py
 ```
 
 :::
 :::{tab-item} Alternative: Command-Line Parameters
 
 ```bash
-ais_bench --models vllm_qwen2_5_7b_chat,vllm_qwen2_5_14b_chat --datasets sharegpt_gen_perf --url http://localhost:8080/v1/chat/completions
+ais_bench --models vllm_api_stream_chat,vllm_api_general_stream --datasets sharegpt_gen -m perf
 ```
 
 :::
@@ -644,60 +548,50 @@ The following configuration file example sends synthetic datasets of different i
 
 ```python
 from mmengine.config import read_base
-from ais_bench.benchmark.models import vLLMCausalLM
-from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
-from ais_bench.benchmark.datasets import SyntheticDataset
 
 with read_base():
-    from ais_bench.benchmark.configs.summarizers.example import summarizer
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.synthetic.synthetic_gen_string import synthetic_datasets as base_synthetic_datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
 
-# Define multiple sub-datasets with different input/output lengths
+# Define multiple sub-datasets with different input/output lengths via the `config` field
 datasets = []
 for input_len in [256, 512, 1024]:
     for output_len in [256, 512]:
-        datasets.append(
-            dict(
-                type=SyntheticDataset,
-                abbr=f'syn_in{input_len}_out{output_len}',
-                num_infer_questions=100,
-                input_lens=[input_len],
-                output_lens=[output_len],
-                input_distribution='uniform',
-                output_distribution='uniform',
-                reader_cfg=dict(
-                    input_columns=['query'],
-                    output_column='answer',
-                ),
-                infer_cfg=dict(
-                    retriever=dict(type=ZeroRetriever),
-                    inferencer=dict(type=GenInferencer),
-                ),
-            )
-        )
+        ds = dict(base_synthetic_datasets[0])
+        ds["abbr"] = f"syn_in{input_len}_out{output_len}"
+        ds["config"] = {
+            "Type": "string",
+            "RequestCount": 100,
+            "TrustRemoteCode": False,
+            "StringConfig": {
+                "Input": {
+                    "Method": "uniform",
+                    "Params": {"MinValue": input_len, "MaxValue": input_len},
+                },
+                "Output": {
+                    "Method": "uniform",
+                    "Params": {"MinValue": output_len, "MaxValue": output_len},
+                },
+            },
+        }
+        datasets.append(ds)
 
-models = [
-    dict(
-        type=vLLMCausalLM,
-        abbr='vllm-qwen2.5-7b',
-        path='Qwen/Qwen2.5-7B-Instruct',
-        model_kwargs=dict(
-            tokenizer_path='Qwen/Qwen2.5-7B-Instruct',
-        ),
-        url='http://localhost:8080/v1/chat/completions',
-        max_out_len=1024,
-        batch_size=50,
-    ),
-]
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["request_rate"] = 2
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
 
-request_rate = 2.0
+work_dir = "outputs/default/"
 ```
 
 Execution command:
 
 ```bash
-ais_bench performance_synthetic.py
+ais_bench ais_bench/configs/performance_benchmark/performance_synthetic.py
 ```
 
 :::
@@ -729,63 +623,57 @@ For multi-task combinations based on custom sequence lengths, the user can combi
 
 ```python
 from mmengine.config import read_base
-from ais_bench.benchmark.models import vLLMCausalLM
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local_api import LocalAPIRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
-from ais_bench.benchmark.datasets import SyntheticDataset
 
 with read_base():
-    from ais_bench.benchmark.configs.summarizers.example import summarizer
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.synthetic.synthetic_gen_string import synthetic_datasets as base_synthetic_datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
 
 datasets = []
 for input_len in [256, 512]:
     for output_len in [256, 512]:
-        datasets.append(
-            dict(
-                type=SyntheticDataset,
-                abbr=f'syn_in{input_len}_out{output_len}',
-                num_infer_questions=100,
-                input_lens=[input_len],
-                output_lens=[output_len],
-                input_distribution='uniform',
-                output_distribution='uniform',
-                reader_cfg=dict(
-                    input_columns=['query'],
-                    output_column='answer',
-                ),
-                infer_cfg=dict(
-                    retriever=dict(type=ZeroRetriever),
-                    inferencer=dict(type=GenInferencer),
-                ),
-            )
-        )
+        ds = dict(base_synthetic_datasets[0])
+        ds["abbr"] = f"syn_in{input_len}_out{output_len}"
+        ds["config"] = {
+            "Type": "string",
+            "RequestCount": 100,
+            "TrustRemoteCode": False,
+            "StringConfig": {
+                "Input": {
+                    "Method": "uniform",
+                    "Params": {"MinValue": input_len, "MaxValue": input_len},
+                },
+                "Output": {
+                    "Method": "uniform",
+                    "Params": {"MinValue": output_len, "MaxValue": output_len},
+                },
+            },
+        }
+        datasets.append(ds)
 
-models = [
-    dict(
-        type=vLLMCausalLM,
-        abbr='vllm-qwen2.5-7b',
-        path='Qwen/Qwen2.5-7B-Instruct',
-        model_kwargs=dict(
-            tokenizer_path='Qwen/Qwen2.5-7B-Instruct',
-        ),
-        url='http://localhost:8080/v1/chat/completions',
-        max_out_len=1024,
-        batch_size=50,
-    ),
-]
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
 
 # Key: Only specify partial models for partial datasets
 model_dataset_combinations = [
     dict(models=[models[0]], datasets=[datasets[0], datasets[1]]),
     dict(models=[models[0]], datasets=[datasets[2]]),
 ]
+
+work_dir = "outputs/default/"
 ```
 
 Execution command:
 
 ```bash
-ais_bench performance_seq_combinations.py
+ais_bench ais_bench/configs/performance_benchmark/performance_seq_combinations.py
 ```
 
 :::
@@ -883,21 +771,38 @@ In some scenarios, the user wants to fix the total number of requests sent witho
 :::{tab-item} ⭐ Custom Configuration File
 
 ```python
-num_prompts = 100
-request_rate = -1  # -1 indicates concurrent sending without rate limiting
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.tasks import OpenICLInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["request_rate"] = -1  # -1 indicates concurrent sending without rate limiting
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+work_dir = "outputs/default/"
 ```
 
-Execution command:
+Execution command (you can append `--num-prompts 100` to fix the total number of requests):
 
 ```bash
-ais_bench performance_fixed_request.py
+ais_bench ais_bench/configs/performance_benchmark/performance_fixed_request.py --mode perf
 ```
 
 :::
 :::{tab-item} Alternative: Command-Line Parameters
 
 ```bash
-ais_bench --models vllm_qwen2_5_7b_chat --datasets sharegpt_gen_perf --url http://localhost:8080/v1/chat/completions --num-prompts 100 --request-rate inf
+ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --mode perf --num-prompts 100
 ```
 
 :::
@@ -923,8 +828,7 @@ All custom configuration file examples involved in this section are uniformly st
 For details, refer to the "Service-Oriented Performance Evaluation" example in [Running AISBench via Custom Configuration Files](../../advanced_tutorials/run_custom_config.md#custom-configuration-file-examples-for-each-scenario).
 
 ## Other Functional Scenarios
-<<<<<<< HEAD
-=======
+
 ### Speculative Decoding Metrics Collection
 
 When running performance evaluation against a vLLM inference server with speculative decoding enabled, you can append `--spec-decode` to collect spec decode performance metrics (acceptance rate, acceptance length, etc.) from the server's Prometheus `/metrics` endpoint. The metrics are displayed alongside the standard performance results and saved to `spec_decode_*.json` under the `performances/` directory.
@@ -934,7 +838,6 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 ```
 
 For prerequisites, configuration details, and metric explanations, see 📚 [Speculative Decoding Metrics Collection](../../advanced_tutorials/spec_decode.md).
->>>>>>> master_center
 
 ### Performance Result Recalculation
 
@@ -946,43 +849,41 @@ For a complete example, refer to [performance_re_eval.py](https://github.com/AIS
 
 ```python
 from mmengine.config import read_base
-from ais_bench.benchmark.models import vLLMCausalLM
+from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
+from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local_api import LocalAPIRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
-    from ais_bench.benchmark.configs.summarizers.example import summarizer
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
 
-models = [
-    dict(
-        type=vLLMCausalLM,
-        abbr='vllm-qwen2.5-7b',
-        path='Qwen/Qwen2.5-7B-Instruct',
-        model_kwargs=dict(
-            tokenizer_path='Qwen/Qwen2.5-7B-Instruct',
-        ),
-        url='http://localhost:8080/v1/chat/completions',
-        max_out_len=1024,
-        batch_size=50,
+# Key: customize the stats_list of the performance summarizer to control the
+# statistical dimensions of the performance summary
+summarizer = dict(
+    attr="performance",
+    type=DefaultPerfSummarizer,
+    calculator=dict(
+        type=DefaultPerfMetricCalculator,
+        stats_list=["Average", "Min", "Max", "Median", "P75", "P90", "P95", "P99"],
     ),
-]
+)
 
-# Recalculate the performance summary based on existing inference results
-stats_list = [
-    'benchmark_duration',
-    'num_prompts',
-    'qps',
-    'tput',
-    'avg_latency',
-    'p99_latency',
-]
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+work_dir = "outputs/default/"
 ```
 
 Execution command (`--mode perf` and `--reuse` are common parameters, and can still be appended through the command line when using a custom configuration file):
 
 ```bash
-ais_bench performance_re_eval.py --mode perf --reuse 20250628_151326
+ais_bench ais_bench/configs/performance_benchmark/performance_re_eval.py --mode perf --reuse 20250628_151326
 ```
 
 ## Specifications

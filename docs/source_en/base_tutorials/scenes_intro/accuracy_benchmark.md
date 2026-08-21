@@ -31,7 +31,7 @@ In multi-task evaluation scenarios, the number of subtasks is the product of the
 ::::{tab-set}
 :::{tab-item} ⭐ Recommended: Using a Custom Configuration File
 
-Refer to the [model_api_test_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_zh_cn.py) file from the quick start. Import multiple model tasks and dataset tasks within `with read_base():`, then combine them into the `models` and `datasets` lists. For a complete example, refer to [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py):
+Refer to the [model_api_test_en.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/model_api_test_en.py) file from the quick start. Import multiple model tasks and dataset tasks within `with read_base():`, then combine them into the `models` and `datasets` lists. For a complete example, refer to [multi_task_zh_cn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py):
 
 ```python
 from mmengine.config import read_base

@@ -105,11 +105,11 @@ ais_bench \
 命令行参考：
 
 ```shell
-ais_bench ais_bench/configs/api_examples/infer_api_vllm_general.py
+ais_bench ais_bench/configs/api_examples/infer_vllm_api_general.py
 ```
 
 ```shell
-ais_bench ais_bench/configs/api_examples/infer_api_mindie_stream_general.py
+ais_bench ais_bench/configs/api_examples/infer_mindie_stream_api_general.py
 ```
 
 在原配置文件中，直接向 `datasets` 变量中添加新的项即可。同普通数据集一致，该方式下支持自定义数据集与普通数据集混用。
