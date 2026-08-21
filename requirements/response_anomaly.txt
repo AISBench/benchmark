@@ -1,0 +1,4 @@
+# Install the official msProbe source at a verified commit for reproducible
+# response anomaly detection. Requires Git and network access during install.
+mindstudio-probe @ git+https://gitcode.com/Ascend/msprobe.git@3de412d71d6566a62c28b9131f9969930628d87f
+zstandard>=0.22.0

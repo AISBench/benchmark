@@ -1,0 +1,314 @@
+name: PR Quality Check (PR 合入质量看护)
+
+# 触发时机：
+# - pull_request_target.opened        ：PR 新建时触发
+# - pull_request_target.synchronize   ：PR 中代码内容出现变更（新 commit 推送）时触发
+# - issue_comment.created             ：在 PR 评论中输入 /pr_check（可附说明）手动触发重检
+# - workflow_dispatch                 ：管理员可手动触发以便回溯校验（非自动触发）
+#
+# 阻断合入的原理（请管理员在仓库 Settings -> Branches 中配置）：
+#   1. 本 workflow 中的 Job 名 "PR Quality Gate" 即为一条 status check。
+#   2. 任意一项检查不通过时，本 Job 调用 core.setFailed() 失败，status check 为 failure。
+#   3. 在分支保护规则中把 "PR Quality Gate" 加入 "Required status checks" 后，
+#      只要该 check 未通过，GitHub 将不允许合入，从而达到"无论如何都不允许合入"的效果。
+on:
+  pull_request_target:
+    types:
+      - opened       # PR 创建
+      - synchronize  # PR 中代码内容出现变更（push 新 commit）
+  issue_comment:
+    types: [created]  # 在 PR 评论中输入 /pr_check 触发手动重检
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  pr-quality-gate:
+    name: PR Quality Gate
+    runs-on: ubuntu-latest
+    # 注意：本工作流的主要目的就是拦截"从 fork 仓库往主仓提的 PR"，
+    # 因此不要用 if 把 fork PR 过滤掉；无论 PR 来自哪，都要执行检查。
+    # 阻断原理：检查不通过时调用 core.setFailed()，配合分支保护中的 Required status check 实现拦截。
+    #
+    # 仅 issue_comment 触发时按下面规则过滤（其它事件不受此 if 影响）：
+    #   1) 评论必须挂在 PR 下（不是普通 Issue）
+    #   2) 评论正文必须为 /pr_check 或以 "/pr_check " 开头（允许附加参数/说明）
+    if: |
+      github.event_name != 'issue_comment' ||
+      (
+        github.event.issue.pull_request &&
+        (
+          github.event.comment.body == '/pr_check' ||
+          startsWith(github.event.comment.body, '/pr_check ')
+        )
+      )
+    steps:
+      - name: 确保失败标签存在（红色）
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            // GitHub 标准红色 d73a4a
+            const labels = [
+              { name: 'large_pr',      color: 'd73a4a', description: 'PR 新增代码超过 1000 行，建议拆分为更小的 PR' },
+              { name: 'no_issue',      color: 'd73a4a', description: 'PR 未关联任何 Issue，合入前必须关联 Issue' },
+              { name: 'no_review',     color: 'd73a4a', description: 'PR 未包含任何检视意见，合入前必须包含检视意见' },
+              { name: 'review_opened', color: 'd73a4a', description: 'PR 中存在未闭环的检视意见，所有检视意见必须闭环后才能合入' },
+              { name: 'no_UT',         color: 'd73a4a', description: 'feature / bugfix 类型 PR 缺少 tests/UT 下的单元测试新增或修改' }
+            ];
+            for (const label of labels) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: label.name });
+                console.log(`标签 '${label.name}' 已存在`);
+              } catch (e) {
+                if (e.status === 404) {
+                  try {
+                    await github.rest.issues.createLabel({ owner, repo, ...label });
+                    console.log(`已创建红色标签 '${label.name}'`);
+                  } catch (err) {
+                    console.log(`创建标签 '${label.name}' 失败: ${err.message}`);
+                  }
+                } else {
+                  throw e;
+                }
+              }
+            }
+
+      - name: 执行 PR 合入质量五项检查
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 兼容三种事件来源：pull_request_target / issue_comment / workflow_dispatch
+            // - pull_request_target：payload 含 pull_request
+            // - issue_comment       ：payload 含 issue（PR 评论时 issue.number 即为 PR 号）
+            // - workflow_dispatch   ：payload 含 pull_request（GitHub 自动注入）
+            const prNumber = context.eventName === 'issue_comment'
+              ? context.payload.issue.number
+              : context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const triggerSource = context.eventName === 'issue_comment'
+              ? 'PR 评论 /pr_check'
+              : (context.eventName === 'workflow_dispatch' ? '手动 workflow_dispatch' : context.eventName);
+
+            console.log(`开始对 PR #${prNumber} 进行合入质量检查...`);
+            console.log(`触发来源: ${triggerSource}`);
+
+            // 使用 GraphQL 一次性获取全部所需数据
+            const query = `
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    additions
+                    body
+                    labels(first: 100) { nodes { name } }
+                    closingIssuesReferences(first: 10) { totalCount }
+                    reviews(first: 100) {
+                      totalCount
+                      nodes { state }
+                    }
+                    reviewThreads(first: 100) {
+                      totalCount
+                      nodes { isResolved }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const result = await github.graphql(query, { owner, repo, number: prNumber });
+            const prData = result.repository.pullRequest;
+            const currentLabels = prData.labels.nodes.map(l => l.name);
+
+            // 分页拉取 PR 中所有变更的文件（用于检查 tests/UT 是否被改动）
+            const filesQuery = `
+              query($owner: String!, $repo: String!, $number: Int!, $after: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    files(first: 100, after: $after) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes { path }
+                    }
+                  }
+                }
+              }
+            `;
+            let changedFiles = [];
+            let fileCursor = null;
+            let fileHasNext = true;
+            while (fileHasNext) {
+              const fileResult = await github.graphql(filesQuery, {
+                owner, repo, number: prNumber, after: fileCursor
+              });
+              const filesConn = fileResult.repository.pullRequest.files;
+              changedFiles = changedFiles.concat(filesConn.nodes);
+              fileHasNext = filesConn.pageInfo.hasNextPage;
+              fileCursor = filesConn.pageInfo.endCursor;
+            }
+            console.log(`[信息] PR 共变更 ${changedFiles.length} 个文件`);
+
+            const FAILURE_LABELS = ['large_pr', 'no_issue', 'no_review', 'review_opened', 'no_UT'];
+            const failures = [];
+            const failureMessages = [];
+
+            // ===== 检查 1：超大 PR（新增代码行数 > 1000） =====
+            const additions = prData.additions || 0;
+            console.log(`[检查 1] PR 新增行数 = ${additions}`);
+            if (additions > 1000) {
+              failures.push('large_pr');
+              failureMessages.push(`- **超大 PR**：新增代码 ${additions} 行，超过 1000 行上限，建议拆分。`);
+            } else {
+              console.log('[检查 1] 通过');
+            }
+
+            // ===== 检查 2：必须关联 Issue =====
+            // 两种方式同时检测：
+            //   a) GraphQL 的 closingIssuesReferences（Fixes/Closes 等关键字 + 侧边栏 Development 链接）
+            //   b) PR body 中是否包含形如 #123 / issues/123 的引用
+            const prBody = prData.body || '';
+            const closingCount = prData.closingIssuesReferences.totalCount;
+            const bodyIssueRef = /(?:fixes|closes|resolves|relates to|ref|references)?\s*#\d+|(?:issues\/)\d+/i.test(prBody);
+            const hasIssueLink = closingCount > 0 || bodyIssueRef;
+            console.log(`[检查 2] closingIssuesReferences=${closingCount}, body 中含 #N=${bodyIssueRef}`);
+            if (!hasIssueLink) {
+              failures.push('no_issue');
+              failureMessages.push('- **未关联 Issue**：请在 PR 描述中关联 Issue，例如 `Fixes #123` 或 `Relates to #123`。');
+            } else {
+              console.log('[检查 2] 通过');
+            }
+
+            // ===== 检查 3：必须至少含一条已提交的检视意见 =====
+            const reviews = prData.reviews.nodes;
+            const submittedReviews = reviews.filter(r =>
+              r.state === 'APPROVED' || r.state === 'CHANGES_REQUESTED' || r.state === 'COMMENTED'
+            );
+            console.log(`[检查 3] 总 review 数 = ${reviews.length}, 已提交 review 数 = ${submittedReviews.length}`);
+            if (submittedReviews.length === 0) {
+              failures.push('no_review');
+              failureMessages.push('- **无检视意见**：请至少邀请一位 reviewer 提交检视意见（Approve / Request changes / Comment 均可）。');
+            } else {
+              console.log('[检查 3] 通过');
+            }
+
+            // ===== 检查 4：所有行内检视意见 thread 必须已闭环 =====
+            // reviewThread 是 GitHub 的"行内检视意见对话"，每条 thread 带有 isResolved 字段；
+            // 当 thread 数量为 0 时视为通过（不存在需要闭环的对象）。
+            const threads = prData.reviewThreads.nodes;
+            const unresolvedThreads = threads.filter(t => !t.isResolved);
+            console.log(`[检查 4] reviewThread 总数 = ${threads.length}, 未闭环 = ${unresolvedThreads.length}`);
+            if (threads.length > 0 && unresolvedThreads.length > 0) {
+              failures.push('review_opened');
+              failureMessages.push(`- **检视意见未闭环**：还存在 ${unresolvedThreads.length} 条未 Resolve 的检视意见，请全部 Resolve 后再合入。`);
+            } else {
+              console.log('[检查 4] 通过');
+            }
+
+            // ===== 检查 5：feature / bugfix 类型 PR 是否包含 UT 变更 =====
+            // 规则：
+            //   - 带 feature 标签：必须 tests/UT 路径下有文件新增或修改
+            //   - 带 bugfix 标签 且 总新增 > 50 行：必须 tests/UT 路径下有文件新增或修改
+            //   - 其余标签或 bugfix 但新增 ≤ 50：不强制要求 UT
+            const labelLower = currentLabels.map(l => l.toLowerCase());
+            const hasFeature = labelLower.includes('feature');
+            const hasBugfix = labelLower.includes('bugfix');
+            const UT_DIR_PREFIX = 'tests/UT/';
+            const hasUTChange = changedFiles.some(f => f.path && f.path.startsWith(UT_DIR_PREFIX));
+            let needUT = false;
+            let utReason = '';
+            if (hasFeature) {
+              needUT = true;
+              utReason = 'feature';
+            } else if (hasBugfix && additions > 50) {
+              needUT = true;
+              utReason = `bugfix 且新增 ${additions} 行 > 50 行`;
+            }
+            console.log(`[检查 5] hasFeature=${hasFeature}, hasBugfix=${hasBugfix}, additions=${additions}, hasUTChange=${hasUTChange}, needUT=${needUT}`);
+            if (needUT && !hasUTChange) {
+              failures.push('no_UT');
+              failureMessages.push(`- **缺少 UT**：PR 含 \`${utReason}\` 标签，但 \`${UT_DIR_PREFIX}\` 路径下没有任何文件新增或修改，请补充相应单元测试。`);
+            } else if (needUT && hasUTChange) {
+              console.log(`[检查 5] 通过（含 ${utReason} 标签且 ${UT_DIR_PREFIX} 下有变更）`);
+            } else {
+              console.log('[检查 5] 跳过（无需强制 UT）');
+            }
+
+            // ===== 标签维护：失败则添加对应红色标签，通过则移除 =====
+            const labelsToAdd = failures.filter(label => !currentLabels.includes(label));
+            const labelsToRemove = currentLabels.filter(label =>
+              FAILURE_LABELS.includes(label) && !failures.includes(label)
+            );
+
+            for (const label of labelsToRemove) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner, repo, issue_number: prNumber, name: label
+                });
+                console.log(`已移除标签: ${label}`);
+              } catch (e) {
+                // 404 = 标签本来就不存在，可忽略；403 = fork PR 写权限受限，也可忽略；
+                // 这两种情况都不应让 Job 失败（status check 是否失败只取决于检查项本身）。
+                if (e.status === 404) {
+                  console.log(`标签 ${label} 不存在，跳过移除`);
+                } else if (e.status === 403) {
+                  console.log(`移除标签 ${label} 失败（fork PR 权限受限，可忽略）: ${e.message}`);
+                } else {
+                  throw e;
+                }
+              }
+            }
+
+            if (labelsToAdd.length > 0) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner, repo, issue_number: prNumber, labels: labelsToAdd
+                });
+                console.log(`已添加标签: ${labelsToAdd.join(', ')}`);
+              } catch (e) {
+                // fork PR 的 GITHUB_TOKEN 通常为只读，写标签会 403；
+                // 这种情况下静默失败即可——status check 本身仍会按规则失败，照样能阻断合入。
+                console.log(`添加标签失败（可能为 fork PR 权限受限，可忽略）: ${e.message}`);
+              }
+            }
+
+            // ===== 输出汇总 + 决定是否失败 =====
+            console.log('\n===== PR 合入质量检查结果 =====');
+            console.log(`失败项数: ${failures.length}`);
+            console.log(`失败项列表: ${failures.length === 0 ? '无' : failures.join(', ')}`);
+
+            if (failures.length > 0) {
+              const summary = [
+                '🚫 **PR 合入质量检查未通过，PR 已被禁止合入。**',
+                '',
+                '未通过项：' + failures.map(f => `\`${f}\``).join('、'),
+                '',
+                ...failureMessages,
+                '',
+                '请按上述提示整改后，重新推送（push）或评论本 PR 即可触发再次检查。'
+              ].join('\n');
+
+              // 在 PR 上贴一条可见评论，方便 PR 作者定位问题
+              try {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: prNumber, body: summary
+                });
+              } catch (e) {
+                console.log(`创建评论失败（可忽略）: ${e.message}`);
+              }
+
+              // 让 status check 失败 -> 分支保护若将本 Job 设为 Required，则合入被阻断
+              core.setFailed(summary);
+            } else {
+              try {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: prNumber,
+                  body: '✅ PR 合入质量五项检查全部通过，允许合入。'
+                });
+              } catch (e) {
+                console.log(`创建评论失败（可忽略）: ${e.message}`);
+              }
+              console.log('✅ 所有检查通过，PR 可合入。');
+            }

@@ -18,7 +18,7 @@ AISBench has **adapted to VBench 1.0**. The repository directory `ais_bench/conf
 
 ## Dependencies and Environment
 
-#### decord (Video Decoding)
+### decord (Video Decoding)
 
 On **x86_64**, `pip install decord` usually works directly. On **ARM** and other environments without prebuilt wheels, build from source, for example:
 
@@ -32,13 +32,13 @@ cd ../python
 python3 setup.py install --user
 ```
 
-#### detectron2 and GRiT
+### detectron2 and GRiT
 
 Dimensions like `object_class`, `multiple_objects`, `color`, and `spatial_relationship` depend on GRiT, which in turn depends on detectron2. AISBench **uniformly** uses the in-repo **`ais_bench/third_party/detectron2`** (shared by GPU/NPU). Run an editable install from the repo root:
 
 `pip install -e ais_bench/third_party/detectron2 --no-build-isolation`
 
-#### torchvision on Ascend (Optional)
+### torchvision on Ascend (Optional)
 
 Some torchvision operators (such as `nms` and `roi_align`) may run only on CPU on Ascend, leading to low evaluation efficiency. If `torch < 2.7.1`, refer to [Ascend torchvision adaptation](https://gitcode.com/Ascend/vision) to install a matching version for speedup.
 
@@ -220,7 +220,7 @@ dim_to_subdir = {
     "aesthetic_quality": "overall_consistency",
     "imaging_quality": "overall_consistency",
     "motion_smoothness": "subject_consistency",
-    "dynamic_degree": "subject_consistency",
+    "dynamic_degree": "subject_consistency"
 }
 
 dimension_list = [

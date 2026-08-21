@@ -5,6 +5,31 @@ from ais_bench.benchmark.utils.logging import AISLogger
 
 logger = AISLogger()
 
+
+@TEXT_POSTPROCESSORS.register_module('keep-reasoning-content')
+def keep_reasoning_content(
+    text: str | list,
+) -> str:
+    """Same processing as ``extract_non_reasoning_content`` but preserves
+    ``<think>`` / ``</think>`` tags so downstream format-checking (e.g.
+    ``format_reward`` in geometry3k) can still verify tag presence.
+
+    This is a pass-through function — it returns the text unchanged.
+    Use it in model configs where the evaluator needs to see the full
+    model output including reasoning tags.
+    """
+    if isinstance(text, list):
+        return [_keep_single(item) for item in text]
+    return _keep_single(text)
+
+
+def _keep_single(item: str) -> str:
+    """Return item unchanged (pass-through)."""
+    if not isinstance(item, str):
+        return item
+    return item
+
+
 @TEXT_POSTPROCESSORS.register_module('extract-non-reasoning-content')
 def extract_non_reasoning_content(
     text: str | list,
@@ -70,4 +95,68 @@ def extract_non_reasoning_content(
         return [_process_single(item) for item in text]
 
     logger.debug("extract_non_reasoning_content: processing single item")
+    return _process_single(text)
+
+
+@TEXT_POSTPROCESSORS.register_module('extract-non-reasoning-content-raw')
+def extract_non_reasoning_content_raw(
+    text: str | list,
+    think_start_token: str = '<think>',
+    think_end_token: str = '</think>',
+) -> str:
+    """Extract content after the last reasoning tag from text, preserving whitespace.
+
+    Same as ``extract_non_reasoning_content`` but does **not** call ``.strip()``
+    on the result. Leading and trailing whitespace (e.g. ``\\n\\n``) from the
+    original model output is kept intact.
+
+    This is important for benchmarks like IFBench where whitespace-sensitive
+    instruction checkers (e.g. ``format:no_whitespace``, ``format:line_indent``)
+    must see the raw model output.
+
+    Args:
+        text (str | list): Input text containing reasoning tags.
+        think_start_token (str): Start token for reasoning section.
+            Defaults to ``'<think>'``.
+        think_end_token (str): End token for reasoning section.
+            Defaults to ``'</think>'``.
+
+    Returns:
+        str: Processed text with reasoning sections removed, but original
+        surrounding whitespace preserved.
+    """
+    logger.debug(
+        f"extract_non_reasoning_content_raw: "
+        f"start_token='{think_start_token}', end_token='{think_end_token}'"
+    )
+
+    def _process_single(item: str):
+        if not isinstance(item, str):
+            return item
+        if think_start_token not in item and think_end_token in item:
+            result = item.split(think_end_token)[-1]
+            logger.debug(
+                f"extract_non_reasoning_content_raw: "
+                f"only end token present -> length={len(result)}"
+            )
+            return result
+
+        reasoning_regex = re.compile(
+            rf'{think_start_token}(.*?){think_end_token}', re.DOTALL
+        )
+        non_reasoning_content = reasoning_regex.sub('', item)
+        logger.debug(
+            f"extract_non_reasoning_content_raw: "
+            f"removed reasoning sections -> length={len(non_reasoning_content)}"
+        )
+        return non_reasoning_content
+
+    if isinstance(text, list):
+        logger.debug(
+            f"extract_non_reasoning_content_raw: "
+            f"processing list of {len(text)} item(s)"
+        )
+        return [_process_single(item) for item in text]
+
+    logger.debug("extract_non_reasoning_content_raw: processing single item")
     return _process_single(text)

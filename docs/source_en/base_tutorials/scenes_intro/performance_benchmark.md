@@ -78,6 +78,7 @@ models = [
 ]
 ```
 
+
 # Execute Commands
 After modifying the configuration files, execute the command to start the service performance evaluation:
 ```bash
@@ -402,6 +403,16 @@ The above command only performs inference on the first entry in the sample datas
 
 
 ## Other Functional Scenarios
+### Speculative Decoding Metrics Collection
+
+When running performance evaluation against a vLLM inference server with speculative decoding enabled, you can append `--spec-decode` to collect spec decode performance metrics (acceptance rate, acceptance length, etc.) from the server's Prometheus `/metrics` endpoint. The metrics are displayed alongside the standard performance results and saved to `spec_decode_*.json` under the `performances/` directory.
+
+```shell
+ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --mode perf --spec-decode
+```
+
+For prerequisites, configuration details, and metric explanations, see 📚 [Speculative Decoding Metrics Collection](../../advanced_tutorials/spec_decode.md).
+
 ### Performance Result Recalculation
 The main functional scenario evaluation tool for performance testing executes a complete workflow of performance sampling → calculation → aggregation:
 ```mermaid

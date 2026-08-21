@@ -36,6 +36,8 @@ Applicable to all modes and can be used in combination with accuracy or performa
 | `--num-prompts`         | Specifies the number of test cases for the dataset (selected in dataset order). A positive integer must be passed. If the number exceeds the total number of cases in the dataset or no value is specified, the entire dataset is used for testing. | `--num-prompts 500`              |
 | `--max-num-workers`     | Number of parallel tasks, range: `[1, number of CPU cores]`; default value: `1`. Invalid when `--debug` is specified; all tasks are executed serially.                                                                          | `--max-num-workers 2`            |
 | `--num-warmups`         | Number of warm-up runs before sending requests. Data is selected in dataset order for testing. When `num-warmups` exceeds the number of dataset entries, data from the dataset will be sent in a loop. Default value: `1`; set to `0` to disable warm-up. If all requests fail during the warmup phase, subsequent inference tasks will not be executed.                                                                                                          | `--num-warmups 10`               |
+| `--response-anomaly` / `--no-response-anomaly` | Enables or disables msProbe response anomaly detection. The command-line value overrides `response_anomaly.enabled` in the config file. Detection runs in a thread in parallel with Eval; requires the service to return token ids and top-k logprobs. Only supported in `all`, `infer`, and `infer_judge` generation chains; performance mode and Agent evaluation modes are unsupported. | `--response-anomaly` |
+| `--response-anomaly-payload-retention` | Payload retention mode after anomaly detection: `all` keeps everything, `anomalies` keeps anomalous and detection-failed/unavailable Cases, `none` keeps nothing. The command-line value overrides the config file; defaults to `anomalies`. | `--response-anomaly-payload-retention anomalies` |
 
 
 # ### Accuracy Evaluation Parameters
@@ -54,6 +56,7 @@ Valid only when the mode is `perf` or `perf_viz`.
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
 | `--pressure` | Switch to enable performance pressure testing mode. Effective only when `--mode perf` is set. Enabled if this parameter is configured, disabled if not; disabled by default. For details on pressure testing, refer to 📚 [Enabling Steady-State Testing with Stress Testing](../../advanced_tutorials/stable_stage.md#enabling-steady-state-testing-with-stress-testing). | `--pressure`|
 | `--pressure-time`       | Duration of pressure testing. Only takes effect when `--pressure` mode is specified. Unit: seconds; default value: 15 seconds; value range: `[1, 86400]` (i.e., 1 second to 24 hours).                     | `--pressure-time 30` |
+| `--spec-decode`         | Enable speculative decoding metrics collection from the inference server's Prometheus `/metrics` endpoint. Only effective in `--mode perf`. For detailed usage, see 📚 [Speculative Decoding Metrics Collection](../../advanced_tutorials/spec_decode.md). | `--spec-decode` |
 
 
 ## Configuration Constant File Parameters
@@ -67,3 +70,60 @@ The currently supported parameter configurations are as follows:
 | `MAX_CHUNK_SIZE` | Maximum cache size for a single chunk returned by the streaming inference model backend. The default value is 65535 bytes (64KB). | `(0, 16777216]` (Unit: Byte) |
 | `REQUEST_TIME_OUT` | Timeout period for the client to wait for a response after sending a request. The default value is None, meaning infinite waiting (always waiting for the model to return results). | `None` or `>0` (Unit: seconds) |
 | `LOG_LEVEL` | Log level, optional values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Default value: `INFO`. | `[DEBUG, INFO, WARNING, ERROR, CRITICAL]` |
+
+## Response Anomaly Detection Configuration
+
+Response anomaly detection currently supports only the vLLM Chat API model configurations `vllm_api_general_chat`, `vllm_api_stream_chat`, and `vllm_api_stream_chat_multiturn`. Other model backends are not supported yet.
+
+Add a `response_anomaly` entry to the top-level config file to enable detection; it can also be overridden with `--response-anomaly`:
+
+```python
+response_anomaly = dict(
+    enabled=True,
+)
+```
+
+Model-specific msProbe configuration goes into the model config:
+
+```python
+models = [
+    dict(
+        abbr='qwen3-30b',
+        attr='service',
+        response_anomaly=dict(
+            model_name="",   # Model name, for example Qwen3-30B-A3B
+            model_path="",   # Local model directory, for example /home/Qwen3-30B-A3B; optional, used to auto-generate configs
+            msprobe_mtype_path='/path/to/mtype_config.json',
+            msprobe_token2category_dir='/path/to/token2category/',
+        ),
+    ),
+]
+```
+
+When `msprobe_mtype_path` / `msprobe_token2category_dir` are not provided, the default files inside the msProbe package are used; when `model_path` is configured, configs are auto-generated into `<work_dir>/response_anomaly_config/<model abbr>/`. They can also be generated manually:
+
+```bash
+ais_bench-gen-response-anomaly-config \
+  --model-path /home/Qwen3-30B-A3B \
+  --model-name Qwen3-30B-A3B \
+  --output-dir ./msprobe_configs
+```
+
+When enabled, AISBench adds `logprobs=True` and a fixed `top_logprobs=20` to the service inference requests; the value is constrained by the detection algorithm and cannot be configured externally. During inference, the full payload is written directly to `response_anomaly/<model>/payload_staging/<dataset>/*.jsonl.zst`, and predictions only keep lightweight results from the start. After inference finishes, the detection thread streams and decompresses the staging data and calls msProbe; detection results are written to `response_anomaly/<model>/<dataset>.jsonl`. Each Case contains `is_anomaly`, `anomaly_type` (0: normal, 1: rare character, 2: garbled, 3: repetition, 4: NaN value) and `detection_status`. After detection, the staging data is retained or cleaned according to `payload_retention`. The status panel shows the config preparation, detector loading, streaming detection, and archive finalization stages.
+
+```python
+response_anomaly = dict(
+    enabled=True,
+    payload_retention='anomalies',  # all | anomalies | none
+    payload_storage=dict(
+        format='jsonl',
+        compression='zstd',
+        compression_level=3,
+        rows_per_shard=2000,
+    ),
+)
+```
+
+`all` keeps every payload and atomically promotes the staging data to the official archive after detection without re-compressing; `anomalies` keeps only detected anomalies plus detection-failed/unavailable Cases; `none` keeps no payload. All three modes keep the standalone detection results. `--reuse` must keep the retention policy of the original work directory. Results are written to disk in batches, and the status is refreshed at most once per second; msProbe token-category maps are cached per model and EOS token to avoid re-parsing large JSON files for every Case.
+
+Detection runs through msProbe's `ILLDetector(config_path, mtype_path, tk2cat_path).run(...)`; all three file paths can be configured in AISBench. Install the optional dependencies first: `pip install 'ais-bench-benchmark[response_anomaly]'`. During installation, pip downloads and builds the pinned msProbe source from GitCode, so the environment needs Git and network access. The service response must contain `token_ids` (or `tokens`) and `topk_logprobs`; Cases missing these fields are recorded with a `skipped` status. `model_name` must be consistent with msProbe's `mtype_config.json` and the token-category mapping. When using `--reuse`, existing detection results are inherited by Case id, and completed Cases are not re-detected.

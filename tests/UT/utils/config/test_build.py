@@ -91,10 +91,6 @@ class TestConfigBuildUtilities(unittest.TestCase):
         with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"host_port": 70000, "type": "model.Type"}))
 
-        # Invalid max_out_len
-        with self.assertRaises(AISBenchConfigError):
-            build_model_from_cfg(ConfigDict({"max_out_len": 200000, "type": "model.Type"}))
-
         # Invalid batch_size
         with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"batch_size": 200000, "type": "model.Type"}))

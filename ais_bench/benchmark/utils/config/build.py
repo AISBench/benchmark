@@ -51,10 +51,6 @@ def _validate_model_cfg(model_cfg: ConfigDict) -> dict:
             isinstance(v, int) and (0 < v < 65536),
             "host_port must be a valid port number in the range (0, 65536)",
         ),
-        "max_out_len": lambda v: (
-            isinstance(v, int) and 0 < v <= 131072,
-            "max_out_len must be an integer in the range (0, 131072]",
-        ),
         "batch_size": lambda v: (
             isinstance(v, int) and 0 < v <= 100000,
             "batch_size must be an integer in the range (0, 100000]",
@@ -141,6 +137,7 @@ def build_model_from_cfg(model_cfg: ConfigDict):
     model_cfg.pop("batch_size", None)
     model_cfg.pop("abbr", None)
     model_cfg.pop("attr", None)
+    model_cfg.pop("response_anomaly", None)
     model_cfg.pop("summarizer_abbr", None)
     model_cfg.pop("pred_postprocessor", None)
     model_cfg.pop("min_out_len", None)

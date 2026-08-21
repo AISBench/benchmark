@@ -1409,7 +1409,7 @@ If you use a virtual environment, make sure `ais_bench` and `mini-swe-agent` are
 No valid model config is detected for SWE-Bench Pro infer (required fields like `model/url/api_key` are missing or empty).
 ### Solution
 Check `models[0]` in your task config and provide at least:
-1. `model`, for example `hosted_vllm/qwen3`
+1. `model`, for example `qwen3`
 2. `url`, for example `http://127.0.0.1:2998/v1`
 3. `api_key`, `EMPTY` is acceptable for local tests
 

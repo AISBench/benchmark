@@ -54,8 +54,13 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
         self.stopping_criteria = list(stopping_criteria) if stopping_criteria else []
         self.gen_field_replace_token = gen_field_replace_token or ""
 
-        self.output_handler = GenInferencerOutputHandler(perf_mode=self.perf_mode,
-                                                        save_every=self.save_every)
+        self.output_handler = GenInferencerOutputHandler(
+            perf_mode=self.perf_mode,
+            save_every=self.save_every,
+            response_anomaly_payload_storage=(
+                self.response_anomaly_payload_storage
+            ),
+        )
 
     async def do_request(
         self, data: dict, token_bucket: BoundedSemaphore, session: aiohttp.ClientSession
@@ -76,6 +81,7 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
         uid = str(uuid.uuid4()).replace("-", "")
         output = RequestOutput(self.perf_mode)
         output.uuid = uid
+        output.data_id = index
         await self.status_counter.post()
         await self.model.generate(input, max_out_len, output, session=session, **data)
         if output.success:

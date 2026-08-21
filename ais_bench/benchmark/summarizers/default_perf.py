@@ -167,13 +167,19 @@ class DefaultPerfSummarizer:
             perf_data["start_time"] = time_points[0]
             perf_data["end_time"] = time_points[-1]
             perf_data["latency"] = time_points[-1] - time_points[0]
-            perf_data["ttft"] = time_points[1] - time_points[0]
-            perf_data["tpot"] = (
-                (perf_data["latency"] - perf_data["ttft"])
-                / (perf_data["output_tokens"] - 1)
-                if perf_data["output_tokens"] > 1
-                else 0
-            )
+            # Non-streaming: TTFT/TPOT are meaningless — set to 0 so the
+            # calculator removes them, and Prefill Token Throughput is skipped.
+            if not model_cfg.get("stream", True):
+                perf_data["ttft"] = 0
+                perf_data["tpot"] = 0
+            else:
+                perf_data["ttft"] = time_points[1] - time_points[0]
+                perf_data["tpot"] = (
+                    (perf_data["latency"] - perf_data["ttft"])
+                    / (perf_data["output_tokens"] - 1)
+                    if perf_data["output_tokens"] > 1
+                    else 0
+                )
             perf_data["itl"] = np.diff(time_points[1:]) if len(time_points) > 2 else []
             perf_data["generate_tokens_speed"] = (
                 perf_data["output_tokens"] / perf_data["latency"]

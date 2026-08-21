@@ -122,6 +122,22 @@ class ArgumentParser():
             type=validate_num_warmups,
             default=1
         )
+        parser.add_argument(
+            '--response-anomaly',
+            action=argparse.BooleanOptionalAction,
+            default=None,
+            help='Enable or disable msProbe response anomaly detection. '
+            'The command-line value overrides response_anomaly.enabled in the config file. '
+            'Only supported in all/infer/infer_judge modes; perf and Agent modes are unsupported.'
+        )
+        parser.add_argument(
+            '--response-anomaly-payload-retention',
+            choices=('all', 'anomalies', 'none'),
+            default=None,
+            help='Select which response anomaly payloads to retain after detection. '
+            'The command-line value overrides response_anomaly.payload_retention '
+            'in the config file. Defaults to anomalies when neither is set.'
+        )
 
     def _accuracy_parser(self):
         """These args are all for the accuracy evaluation."""
@@ -157,6 +173,12 @@ class ArgumentParser():
             type=validate_pressure_time,
             default=DEFAULT_PRESSURE_TIME
         )
+        parser.add_argument(
+            '--spec-decode',
+            help='Enable speculative decoding metrics collection. Only effective in --mode perf.',
+            action='store_true',
+            default=False,
+        )
 
     def _custom_dataset_parser(self):
         """These args are all for the quick construction of custom datasets."""
@@ -169,6 +191,4 @@ class ArgumentParser():
         parser.add_argument('--custom-dataset-infer-method',
                             type=str,
                             choices=['gen'])
-
-
 

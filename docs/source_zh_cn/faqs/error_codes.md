@@ -1375,7 +1375,7 @@ pip install -e .
 SWE-Bench Pro infer 未检测到可用模型配置（`model/url/api_key` 等关键字段缺失或为空）。
 ### 解决办法
 检查任务配置中的 `models[0]`，至少补齐以下字段：
-1. `model`：如 `hosted_vllm/qwen3`
+1. `model`：如 `qwen3`
 2. `url`：如 `http://127.0.0.1:2998/v1`
 3. `api_key`：本地测试可设为 `EMPTY`
 
