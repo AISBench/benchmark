@@ -106,7 +106,7 @@ device_list = [0] # [0, 1, 2, 3] 修改成实际可用的NPU设备ID列表，不
 ```bash
 ais_bench --datasets gedit_gen_0_shot_llmjudge --search
 ```
-编辑`gedit_gen_0_shot_llmjudge.py`文件中裁判模型相关的配置，裁判模型的配置与常规API模型配置相同（可以参考快速入门中相关配置教程[模型配置介绍](../../get_started/quick_start.md#任务对应配置文件修改)），只是在`judge_model`字段中：
+编辑`gedit_gen_0_shot_llmjudge.py`文件中裁判模型相关的配置，裁判模型的配置与常规API模型配置相同（可以参考快速入门中相关配置教程[模型配置介绍](../../get_started/quick_start.md#启动测评两种方式任选其一)），只是在`judge_model`字段中：
 ```python
 # ......
         judge_model=dict(

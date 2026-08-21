@@ -90,7 +90,7 @@ This command does not specify other command-line options, so it defaults to an a
 - `--datasets` specifies the dataset task, i.e., the `demo_gsm8k_gen_4_shot_cot_chat_prompt` dataset task.
 - `--summarizer` specifies the result presentation task, i.e., the `example` result presentation task (if `--summarizer` is not specified, the `example` task is used by default in the accuracy evaluation scenario). It is generally recommended to use the default, so there is no need to specify it in the command line.
 
-For multi-task evaluation, please refer to: 📚 [Multi-Task Evaluation](../base_tutorials/scenes_intro/accuracy_benchmark.md#multi-task-evaluation) for accuracy scenarios and 📚 [Multi-Task Evaluation](../base_tutorials/scenes_intro/performance_benchmark.md#multi-task-evaluation) for performance scenarios.
+For multi-task evaluation, please refer to: 📚 [Multi-Task Evaluation](../base_tutorials/scenes_intro/accuracy_benchmark.md#multi-task-evaluation) for accuracy scenarios and 📚 [Multi-Task Evaluation](../base_tutorials/scenes_intro/performance_benchmark.md#multi-task-performance-evaluation) for performance scenarios.
 
 For more flexible evaluation methods with self-combined tasks, you can refer to: 📚 [Running AISBench with a Custom Configuration File](../advanced_tutorials/run_custom_config.md#running-aisbench-with-a-custom-configuration-file).
 

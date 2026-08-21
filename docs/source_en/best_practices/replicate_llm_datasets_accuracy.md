@@ -189,7 +189,7 @@ Typically, model evaluation results are presented in a table. Take the results f
 | Claude-3.5-Sonnet-1022 | 16.0             | 26.7              | 78.3              | 65.0                | 38.9                 | 717               |
 | o1-mini | 63.6             | 80.0              | 90.0              | 60.0                | 53.8                 | 1820              |
 
-Here, `cons@64` and `pass@1` represent accuracy evaluation metrics. For detailed explanations of these metrics, refer to [Accuracy Metric Description](../base_tutorials/results_intro/accuracy_metric.md#ii-definition-and-relationship-between-passk-consk-and-avgn).
+Here, `cons@64` and `pass@1` represent accuracy evaluation metrics. For detailed explanations of these metrics, refer to [Accuracy Metric Description](../base_tutorials/results_intro/accuracy_metric.md#ii-definitions-and-relationships-of-passk-consk-avgn).
 
 Taking GPQA as an example, the table shows that `pass@1` is used as the accuracy evaluation metric. The description of pass@1 in the DeepSeek R1 paper is as follows:
 

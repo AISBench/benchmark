@@ -133,7 +133,7 @@ datasets = [
 ```
 
 
-> 💡 The above config file method is essentially a simplified application of the [Custom Config File Method](run_custom_config.md). For more complex scenarios (such as multi-model/multi-dataset combinations, custom model parameters, judge models, etc.), refer to the "Custom Dataset Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-config-file-examples-for-various-scenarios).
+> 💡 The above config file method is essentially a simplified application of the [Custom Config File Method](run_custom_config.md). For more complex scenarios (such as multi-model/multi-dataset combinations, custom model parameters, judge models, etc.), refer to the "Custom Dataset Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-configuration-file-examples-for-each-scenario).
 
 
 ### Guide to Using Dataset Supplementary Info (`.meta.json`)

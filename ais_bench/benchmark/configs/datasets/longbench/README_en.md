@@ -70,7 +70,7 @@ It is recommended to download the dataset from Hugging Face: [https://huggingfac
 | longbench_passage_retrieval_en_gen | LongBench PassageRetrieval-EN generative task | Accuracy | 0-shot | Chat format | [longbench_passage_retrieval_en_gen.py](longbenchpassage_retrieval_en/longbench_passage_retrieval_en_gen.py) |
 | longbench_passage_retrieval_zh_gen | LongBench PassageRetrieval-ZH generative task | Accuracy | 0-shot | Chat format | [longbench_passage_retrieval_zh_gen.py](longbenchpassage_retrieval_zh/longbench_passage_retrieval_zh_gen.py) |
 | longbench_qasper_gen | LongBench QASPER generative task | Accuracy | 0-shot | Chat format | [longbench_qasper_gen.py](longbenchqasper/longbench_qasper_gen.py) |
-| longbench_qmsum_gen | LongBench QMSum generative task | Accuracy | 0-shot | Chat format | [longbench_qmsum_gen.py](longbenchqmsum/longbenchqmsum_gen.py) |
+| longbench_qmsum_gen | LongBench QMSum generative task | Accuracy | 0-shot | Chat format | [longbench_qmsum_gen.py](longbenchqmsum/longbench_qmsum_gen.py) |
 | longbench_repobench_gen | LongBench RepoBench generative task | Accuracy | 0-shot | Chat format | [longbench_repobench_gen.py](longbenchrepobench/longbench_repobench_gen.py) |
 | longbench_samsum_gen | LongBench SamSum generative task | Accuracy | 0-shot | Chat format | [longbench_samsum_gen.py](longbenchsamsum/longbench_samsum_gen.py) |
 | longbench_trec_gen | LongBench TREC generative task | Accuracy | 0-shot | Chat format | [longbench_trec_gen.py](longbenchtrec/longbench_trec_gen.py) |

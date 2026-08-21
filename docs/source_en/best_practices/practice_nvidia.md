@@ -273,7 +273,7 @@ The inference backend configuration file contains settings related to the local 
 
 ```bash
 # Ensure you are in the outermost directory of the source code: your/work/dir/benchmark
-vim ais_bench/benchmark/configs/models/hf_model/hf_chat_model.py
+vim ais_bench/benchmark/configs/models/hf_models/hf_chat_model.py
 ```
 
 Modify the content of the inference backend configuration file as follows:

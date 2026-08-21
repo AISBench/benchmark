@@ -5,7 +5,7 @@ AISBench Benchmark 提供服务化性能测评能力。针对流式推理场景�
 用户可通过配置服务化后端参数，灵活控制请求内容、请求间隔、并发数量等，适配不同评测场景（如低并发延迟敏感型、高并发吞吐优先型等）。测评支持自动化执行并输出结构化结果，便于横向对比不同模型、部署方案、硬件配置下的服务性能差异。
 ## 服务化性能测评快速入门
 ### 命令含义
-AISBench服务化性能测评命令含义与📚 [工具快速入门/命令含义](../../get_started/quick_start.md#命令含义)中的解释相同。在此基础上需要额外加上`--mode perf`或`-m perf`来进入性能评测场景，以如下AISBench命令为例：
+AISBench服务化性能测评命令含义与📚 [工具快速入门/命令含义](../../get_started/quick_start.md#启动测评两种方式任选其一)中的解释相同。在此基础上需要额外加上`--mode perf`或`-m perf`来进入性能评测场景，以如下AISBench命令为例：
 ```shell
 ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer default_perf --mode perf
 ```
@@ -20,7 +20,7 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 所选模型任务`vllm_api_stream_chat`、数据集任务`demo_gsm8k_gen_4_shot_cot_chat_prompt`和结果呈现任务`default_perf`的具体信息(简介，使用约束等)可以分别从如下链接中查询含义：
 - `--models`: 📚 [服务化推理后端](../all_params/models.md#服务化推理后端)
 
-- `--datasets`:📚 [开源数据集](../all_params/datasets.md#开源数据集) → 📚 [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README.md)
+- `--datasets`:📚 [开源数据集](../../get_started/datasets.md#开源数据集) → 📚 [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README.md)
 
 - `--summarizer`:📚 [结果汇总任务](../all_params/summarizer.md#支持的结果汇总任务)
 
@@ -49,7 +49,7 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 
 ```
 
-- 快速入门中数据集任务配置文件`demo_gsm8k_gen_4_shot_cot_chat_prompt.py`不需要做额外修改，数据集任务配置文件内容介绍可参考📚 [配置开源数据集](../all_params/datasets.md#配置开源数据集)
+- 快速入门中数据集任务配置文件`demo_gsm8k_gen_4_shot_cot_chat_prompt.py`不需要做额外修改，数据集任务配置文件内容介绍可参考📚 [配置开源数据集](../../get_started/datasets.md#配置开源数据集)
 
 模型配置文件`vllm_api_stream_chat.py`中包含了模型运行相关的配置内容，是需要依据实际情况修改的。快速入门中需要修改的内容用注释标明。
 ```python
@@ -209,7 +209,7 @@ outputs/default/20251106_103326/logs/infer/vllm-api-stream-chat/demo_gsm8k.out
 
 - 可访问的服务化模型服务：确保服务进程可在当前环境下直接访问。
 - 数据集准备：
-    - 开源数据集：从📚 [开源数据集](../all_params/datasets.md#开源数据集)中选择数据集，并且在数据集对应的"详细介绍"文档中选择要执行的数据集任务。参考选取的数据集任务对应的"详细介绍"文档准备好数据集文件，建议将开源数据集手动放置在默认目录 `ais_bench/datasets/`下，程序将在任务执行时自动加载数据集文件。
+    - 开源数据集：从📚 [开源数据集](../../get_started/datasets.md#开源数据集)中选择数据集，并且在数据集对应的"详细介绍"文档中选择要执行的数据集任务。参考选取的数据集任务对应的"详细介绍"文档准备好数据集文件，建议将开源数据集手动放置在默认目录 `ais_bench/datasets/`下，程序将在任务执行时自动加载数据集文件。
     - 随机合成数据集：数据集任务选`synthetic_gen`，其他配置参考📚 [随机合成数据集](../../advanced_tutorials/synthetic_dataset.md)。
     - 自定义数据集：无需指定数据集任务，其他配置参考📚 [自定义数据集](../../advanced_tutorials/custom_dataset.md)。
 - 服务化模型后端配置：从[服务化推理后端](../all_params/models.md#服务化推理后端)中选择接口类型为`流式接口`的子服务（⚠️  其他不支持）。
@@ -218,8 +218,8 @@ outputs/default/20251106_103326/logs/infer/vllm-api-stream-chat/demo_gsm8k.out
 ### 单任务测评
 参考[服务化性能测评快速入门](#服务化性能测评快速入门)。快速入门已经提供了两种启动方式：
 
-- ⭐ 推荐：使用自定义配置文件 [服务化性能测评快速入门-使用自定义配置文件](#-推荐使用自定义配置文件)
-- 备选：使用命令行参数 [服务化性能测评快速入门-使用命令行参数](#备选使用命令行参数)
+- ⭐ 推荐：使用自定义配置文件（见上文"快速入门"中的"⭐ 推荐：使用自定义配置文件"标签页）
+- 备选：使用命令行参数（见上文"快速入门"中的"备选：使用命令行参数"标签页）
 
 ### 多任务测评
 支持同时配置多个模型或多个数据集任务，通过单次命令进行批量测评，适用于多个测试命令串行执行。
@@ -332,7 +332,7 @@ ais_bench --models vllm_api_general_stream vllm_api_stream_chat --datasets gsm8k
 
 ```
 - 参考📚 [服务化推理后端配置参数说明](../all_params/models.md#服务化推理后端配置参数说明)按照实际情况配置模型任务`vllm_api_general_stream`和`vllm_api_stream_chat`对应的配置文件。
-- 参考📚 [配置开源数据集](../all_params/datasets.md#配置开源数据集)按照实际情况配置数据集任务`gsm8k_gen_4_shot_cot_str`和`aime2024_gen_0_shot_str`对应的配置文件。**注**：如果数据集放在默认目录 `ais_bench/datasets/`下，则一般不需要配置
+- 参考📚 [配置开源数据集](../../get_started/datasets.md#配置开源数据集)按照实际情况配置数据集任务`gsm8k_gen_4_shot_cot_str`和`aime2024_gen_0_shot_str`对应的配置文件。**注**：如果数据集放在默认目录 `ais_bench/datasets/`下，则一般不需要配置
 
 #### 执行评测命令
 执行命令：

@@ -54,7 +54,7 @@ After the task is completed, you can view the performance result report in the `
 
 ### Command Meaning
 
-The meaning of the AISBench service-oriented performance evaluation command is the same as explained in 📚 [Tool Quick Start/Command Meaning](../../get_started/quick_start.md#command-meaning). On this basis, you need to add `--mode perf` or `-m perf` to enter the performance evaluation scenario. Take the following AISBench command as an example:
+The meaning of the AISBench service-oriented performance evaluation command is the same as explained in 📚 [Tool Quick Start/Command Meaning](../../get_started/quick_start.md#start-evaluation-choose-one-of-two-methods). On this basis, you need to add `--mode perf` or `-m perf` to enter the performance evaluation scenario. Take the following AISBench command as an example:
 
 ```shell
 ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer default_perf --mode perf
@@ -71,7 +71,7 @@ Among them:
 Specific information (introduction, usage constraints, etc.) about the selected model task `vllm_api_stream_chat`, dataset task `demo_gsm8k_gen_4_shot_cot_chat_prompt`, and result presentation task `default_perf` can be queried from the following links:
 
 - `--models`: 📚 [Service-Oriented Inference Backend](../all_params/models.md#service-oriented-inference-backend)
-- `--datasets`: 📚 [Open-Source Datasets](../all_params/datasets.md#open-source-datasets) → 📚 [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README_en.md)
+- `--datasets`: 📚 [Open-Source Datasets](../../get_started/datasets.md#open-source-datasets) → 📚 [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README_en.md)
 - `--summarizer`: 📚 [Result Summary Tasks](../all_params/summarizer.md#supported-result-summary-tasks)
 
 ### Preparations Before Running the Command
@@ -102,7 +102,7 @@ Executing the query command will yield the following results:
 ╘══════════════╧═══════════════════════════════════════╧════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╛
 ```
 
-- The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in the quick start does not require additional modifications. For an introduction to the content of the dataset task configuration file, please refer to 📚 [Configure Open-Source Datasets](../all_params/datasets.md#configure-open-source-datasets)
+- The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in the quick start does not require additional modifications. For an introduction to the content of the dataset task configuration file, please refer to 📚 [Configure Open-Source Datasets](../../get_started/datasets.md#configuring-open-source-datasets)
 
 The model configuration file `vllm_api_stream_chat.py` contains configuration content related to model operation and needs to be modified according to actual conditions. The content that needs to be modified in the quick start is marked with comments.
 
@@ -257,8 +257,8 @@ Before performing service-oriented inference, the following conditions must be m
 
 - Available model weights: Ensure that the model weight files to be tested are already available locally. Open-source weights can be obtained from 🔗 [Hugging Face Community](https://huggingface.co/models).
 - Service environment preparation: Ensure that the model inference service is started through inference engines such as vLLM/vLLM-Ascend. The startup parameters need to ensure that the server's `max-model-len` and other configurations can accommodate the length of the prompt and output to be sent.
-- Dataset preparation: Select a dataset suitable for performance evaluation scenarios, such as `ShareGPT`. For details, refer to 📚 [Datasets](../all_params/datasets.md#open-source-datasets). The user can also prepare a custom dataset, see [Custom Dataset Evaluation](#custom-dataset-evaluation).
-- Model task preparation: Select the model task to execute from 📚 [vLLM Model Backend](../all_params/models.md#vllm-model-backend).
+- Dataset preparation: Select a dataset suitable for performance evaluation scenarios, such as `ShareGPT`. For details, refer to 📚 [Datasets](../../get_started/datasets.md#open-source-datasets). The user can also prepare a custom dataset, see [Custom Dataset Evaluation](../../advanced_tutorials/custom_dataset.md).
+- Model task preparation: Select the model task to execute from 📚 [vLLM Model Backend](../all_params/models.md#service-oriented-inference-backend).
 
 :::{admonition} Service Startup Precautions
 :class: warning
@@ -602,7 +602,7 @@ It is not supported to specify multiple synthetic datasets with different length
 :::
 :::
 
-> 💡 For more configuration details of `SyntheticDataset`, please refer to 📚 [Datasets](../all_params/datasets.md#synthetic-dataset).
+> 💡 For more configuration details of `SyntheticDataset`, please refer to 📚 [Datasets](../../get_started/datasets.md#randomly-synthesized-datasets).
 
 ### Custom Sequence Length Usage through Custom Config File Approach
 
@@ -612,7 +612,7 @@ It is not supported to specify multiple synthetic datasets with different length
 For the synthetic dataset scenario, in order to fully support the user's combination of multiple different input/output lengths, multiple different QPS sending rates, etc., it is **strongly recommended to use a custom configuration file**, because the command-line parameters can only support a single fixed length and a single QPS, and cannot satisfy the combinatorial requirements.
 :::
 
-For detailed instructions on writing custom configuration files, please refer to [Custom Configuration Files](../../advanced_tutorials/run_custom_config.md#synthetic-dataset-performance-evaluation).
+For detailed instructions on writing custom configuration files, please refer to [Custom Configuration Files](../../advanced_tutorials/run_custom_config.md#4-synthetic-dataset-performance-evaluation).
 
 ### Custom Sequence Multi-Task Combinations
 

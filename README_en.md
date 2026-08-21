@@ -72,9 +72,9 @@
 
 - **\[2025.6.12\]** Supported accuracy and performance evaluation for multimodal datasets including [textvqa](ais_bench/benchmark/configs/datasets/textvqa/README_en.md), [videobench](ais_bench/benchmark/configs/datasets/videobench/README_en.md), and [vocalsound](ais_bench/benchmark/configs/datasets/vocalsound/README_en.md)! 🔥🔥🔥
 
-- **\[2025.6.6\]** AISBench supports steady-state performance evaluation to obtain the true optimal performance of the system. Refer to 📚 [Service Deployment Steady-State Performance Test](doc/users_guide/stable_stage.md) to get started quickly! 🔥🔥🔥
+- **\[2025.6.6\]** AISBench supports steady-state performance evaluation to obtain the true optimal performance of the system. Refer to 📚 [Service Deployment Steady-State Performance Test](docs/source_en/advanced_tutorials/stable_stage.md) to get started quickly! 🔥🔥🔥
 
-- **\[2025.5.16\]** Supported performance evaluation for high concurrency service deployment (up to 30,000+ concurrent requests). 📚 [Performance Metrics](doc/users_guide/performance_metric.md) are aligned with 🔗 [vllm benchmark](https://github.com/vllm-project/vllm/tree/main/benchmarks). See 📚 [Service Deployment Performance Evaluation Guide](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/scenes_intro/performance_benchmark.html) for details! 🔥🔥🔥
+- **\[2025.5.16\]** Supported performance evaluation for high concurrency service deployment (up to 30,000+ concurrent requests). 📚 [Performance Metrics](docs/source_en/base_tutorials/results_intro/performance_metric.md) are aligned with 🔗 [vllm benchmark](https://github.com/vllm-project/vllm/tree/main/benchmarks). See 📚 [Service Deployment Performance Evaluation Guide](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/scenes_intro/performance_benchmark.html) for details! 🔥🔥🔥
 
 - **\[2025.4.30\]** Accuracy evaluation supports resuming from breakpoints and re-evaluating failed cases, significantly improving the robustness of accuracy evaluation. Refer to 📚 [Resume from Interruption & Re-evaluate Failed Cases](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id10) to get started quickly! 🔥🔥🔥
 

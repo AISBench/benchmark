@@ -174,7 +174,7 @@ This log indicates that detailed task data is stored in `outputs/default/2025062
 
 ## Implement via Custom Config Files
 
-> 💡 The above multi-turn dialogue performance evaluation scenario can also be implemented through the [Custom Config File Method](run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax such as loops, conditional judgments, list comprehensions, etc. You can write models, datasets, summarizer, and other configurations into a single file, write once and reuse multiple times. See the "Multi-Turn Dialogue Performance Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-config-file-examples-for-various-scenarios).
+> 💡 The above multi-turn dialogue performance evaluation scenario can also be implemented through the [Custom Config File Method](run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax such as loops, conditional judgments, list comprehensions, etc. You can write models, datasets, summarizer, and other configurations into a single file, write once and reuse multiple times. See the "Multi-Turn Dialogue Performance Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-configuration-file-examples-for-each-scenario).
 
 ### Viewing Detailed Performance Data
 ```shell

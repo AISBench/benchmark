@@ -731,13 +731,13 @@ work_dir = 'outputs/demo_api-vllm-general-chat/'
 修改好配置文件后，执行如下命令启动精度评测：
 
 ```bash
-ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api_general_chat.py
+ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api.py
 ```
 
 如果需要执行多任务并行，可以在命令行中添加 [`--max-num-workers`](../base_tutorials/all_params/cli_args.md#公共参数)参数指定最大任务并行数，示例如下：
 
 ```bash
-ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api_general_chat.py --max-num-workers 4
+ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api.py --max-num-workers 4
 ```
 
 ### 输出结果

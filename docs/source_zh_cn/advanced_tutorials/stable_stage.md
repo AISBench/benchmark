@@ -209,7 +209,7 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 压力测试的流程与[稳态测试快速入门](#稳态测试快速入门)基本一致，差异主要有如下两点：
 #### 压力测试参数说明
 通过命令参数`--pressure-time`和指定压力测试的持续时间，压测持续时间不能超过86400秒（24小时）。
-通过配置[模型配置文件](../base_tutorials/all_params/models.md#配置模型)中的`request_rate`参数来指定每个进程新增线程（客户端）的频率。此参数取值越大，实际新增线程（客户端）的频率偏差越大（偏差和cpu单核处理能力有关）。
+通过配置[模型配置文件](../base_tutorials/all_params/models.md#服务化推理后端)中的`request_rate`参数来指定每个进程新增线程（客户端）的频率。此参数取值越大，实际新增线程（客户端）的频率偏差越大（偏差和cpu单核处理能力有关）。
 通过修改[配置常量文件参数](../base_tutorials/all_params/cli_args.md#配置常量文件参数)中的`WORKERS_NUM`参数来指定压力测试中使用的进程数,提高压力测试的并发能力。
 
 

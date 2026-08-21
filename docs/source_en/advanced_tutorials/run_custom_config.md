@@ -715,12 +715,12 @@ work_dir = 'outputs/demo_api-vllm-general-chat/'
 ### Executing the Custom Task Combination
 After modifying the configuration file, run the following command to start the accuracy evaluation:
 ```bash
-ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api_general_chat.py
+ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api.py
 ```
 
 If you need to execute multiple tasks in parallel, you can add the [`--max-num-workers`](../base_tutorials/all_params/cli_args.md#common-parameters) parameter to the command line to specify the maximum number of parallel tasks. Example:
 ```bash
-ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api_general_chat.py --max-num-workers 4
+ais_bench ais_bench/configs/api_examples/demo_infer_vllm_api.py --max-num-workers 4
 ```
 
 

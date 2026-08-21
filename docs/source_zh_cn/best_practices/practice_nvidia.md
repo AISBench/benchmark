@@ -269,7 +269,7 @@ math_datasets = [
 
 ```
 # 确保处于源码最外层路径your/work/dir/benchmark下
-vim ais_bench/benchmark/configs/models/hf_model/hf_chat_model.py
+vim ais_bench/benchmark/configs/models/hf_models/hf_chat_model.py
 ```
 推理后端配置文件内容修改如下:
 ```py

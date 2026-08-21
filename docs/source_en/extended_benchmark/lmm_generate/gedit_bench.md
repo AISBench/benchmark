@@ -136,7 +136,7 @@ Execute the following command to find the path where the `gedit_gen_0_shot_llmju
 ais_bench --datasets gedit_gen_0_shot_llmjudge --search
 ```
 
-Edit the judge model related configuration in the `gedit_gen_0_shot_llmjudge.py` file. The judge model configuration is the same as the regular API model configuration (you can refer to the relevant configuration tutorial in Quick Start [Model Configuration Introduction](../../get_started/quick_start.md#task-corresponding-configuration-file-modification)), but in the `judge_model` field:
+Edit the judge model related configuration in the `gedit_gen_0_shot_llmjudge.py` file. The judge model configuration is the same as the regular API model configuration (you can refer to the relevant configuration tutorial in Quick Start [Model Configuration Introduction](../../get_started/quick_start.md#start-evaluation-choose-one-of-two-methods)), but in the `judge_model` field:
 
 ```python
 # ......

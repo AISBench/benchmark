@@ -5,7 +5,7 @@ Load models and datasets in a local environment, compare outputs with reference 
 Before performing service-oriented inference, the following conditions must be met:
 
 - Available model weights: Ensure that the model weight files to be tested are already available locally. Open-source weights can be obtained from 🔗 [Hugging Face Community](https://huggingface.co/models).
-- Dataset task preparation: Select a dataset from 📚 [Open-Source Datasets](../all_params/datasets.md#open-source-datasets), and choose the dataset task to execute in the "detailed introduction" document corresponding to the dataset. Prepare the dataset files according to the "detailed introduction" document of the selected dataset task. It is recommended to manually place the open-source dataset in the default directory `ais_bench/datasets/`, and the program will automatically load the dataset files during task execution.
+- Dataset task preparation: Select a dataset from 📚 [Open-Source Datasets](../../get_started/datasets.md#open-source-datasets), and choose the dataset task to execute in the "detailed introduction" document corresponding to the dataset. Prepare the dataset files according to the "detailed introduction" document of the selected dataset task. It is recommended to manually place the open-source dataset in the default directory `ais_bench/datasets/`, and the program will automatically load the dataset files during task execution.
 - Model task preparation: Select the model task to execute from 📚 [Local Model Backend](../all_params/models.md#local-model-backend).
 
 ## Main Functions
@@ -118,7 +118,7 @@ ais_bench ais_bench/configs/accuracy_benchmark_local/single_task_en.py --reuse 2
 
 > ⚠️ Note: Currently, pure model accuracy evaluation does not support automatic retesting of failed cases.
 
-> 💡 For detailed usage, you can also refer to [Usage of Service-Oriented Accuracy Resumption After Interruption](accuracy_benchmark.md#resumption-after-interruption-&-retesting-of-failed-cases).
+> 💡 For detailed usage, you can also refer to [Usage of Service-Oriented Accuracy Resumption After Interruption](accuracy_benchmark.md#resumption-after-interruption--retesting-of-failed-cases).
 
 ### Pure Model Merged Sub-Dataset Inference
 

@@ -7,7 +7,7 @@ Before performing service-oriented inference, the following conditions must be m
 
 - Accessible service-oriented model service: Ensure the service process can be directly accessed in the current environment.
 - Dataset task preparation:
-  - Open-source datasets: Select a dataset from 📚 [Open-Source Datasets](../all_params/datasets.md#open-source-datasets), and choose the dataset task to execute from the "detailed introduction" document corresponding to the dataset. Prepare the dataset files by referring to the "detailed introduction" document of the selected dataset task. It is recommended to manually place the open-source dataset in the default directory `ais_bench/datasets/`; the program will automatically load the dataset files during task execution.
+  - Open-source datasets: Select a dataset from 📚 [Open-Source Datasets](../../get_started/datasets.md#open-source-datasets), and choose the dataset task to execute from the "detailed introduction" document corresponding to the dataset. Prepare the dataset files by referring to the "detailed introduction" document of the selected dataset task. It is recommended to manually place the open-source dataset in the default directory `ais_bench/datasets/`; the program will automatically load the dataset files during task execution.
   - Custom datasets: No need to specify a dataset task; refer to 📚 [Custom Dataset](../../advanced_tutorials/custom_dataset.md) for other configurations.
 - Model task preparation: Select the model task to execute from 📚 [Service-Oriented Inference Backend](../all_params/models.md#service-oriented-inference-backend).
 
@@ -120,7 +120,7 @@ The following configuration files to be modified will be queried:
 ╘═════════════╧═════════════════════════════════╧═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╛
 ```
 - Refer to 📚 [Service-Oriented Inference Backend Configuration Parameter Description](../all_params/models.md#parameter-description-for-service-oriented-inference-backend-configuration) to configure the configuration files corresponding to the model tasks `vllm_api_general_chat` and `vllm_api_stream_chat` according to the actual situation.
-- Refer to 📚 [Configure Open-Source Datasets](../all_params/datasets.md#configuring-open-source-datasets) to configure the configuration files corresponding to the dataset tasks `gsm8k_gen_4_shot_cot_str` and `aime2024_gen_0_shot_chat_prompt` according to the actual situation. **Note**: If the dataset is placed in the default directory `ais_bench/datasets/`, no configuration is generally required.
+- Refer to 📚 [Configure Open-Source Datasets](../../get_started/datasets.md#configuring-open-source-datasets) to configure the configuration files corresponding to the dataset tasks `gsm8k_gen_4_shot_cot_str` and `aime2024_gen_0_shot_chat_prompt` according to the actual situation. **Note**: If the dataset is placed in the default directory `ais_bench/datasets/`, no configuration is generally required.
 
 #### Execute the Evaluation Command
 
