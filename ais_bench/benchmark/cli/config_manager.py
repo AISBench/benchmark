@@ -37,7 +37,6 @@ class CustomConfigChecker:
     def check(self):
         self._check_models_config()
         self._check_datasets_config()
-        # self._check_summarizer_config()  # summarizer has default value, so it is not required
 
     def _check_models_config(self):
         models = self.config.get('models', [])
