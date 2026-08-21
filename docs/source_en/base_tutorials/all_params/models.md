@@ -31,6 +31,9 @@ The model configurations corresponding to different service-oriented backends ar
 
 ### Parameter Description for Service-Oriented Inference Backend Configuration
 The configuration file for the service-oriented inference backend is configured using Python syntax, as shown in the example below:
+
+The common model templates do not preconfigure `response_anomaly`. Add the `response_anomaly` block shown below only when response anomaly detection is needed: locate the target model in the `models` list of the model configuration file and add it inside that model's `dict`, at the same level as fields such as `generation_kwargs` and `pred_postprocessor`. It is not required when anomaly detection is disabled.
+
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPI
 
@@ -55,6 +58,12 @@ models = [ # Equivalent to the `models` imported via `from ais_bench.benchmark.c
         generation_kwargs = dict(   # Model inference parameters, configured with reference to the VLLM documentation; the AISBench evaluation tool does not process these parameters and attaches them to the sent requests
             temperature = 0.01,
             ignore_eos=False,
+        ),
+        response_anomaly = dict(    # Optional; model-level config for msProbe response anomaly detection
+            model_name="",       # Model name, for example Qwen3-30B-A3B
+            model_path="",       # Local model directory, for example /home/Qwen3-30B-A3B; optional, used to auto-generate configs
+            msprobe_mtype_path='/path/to/mtype_config.json',
+            msprobe_token2category_dir='/path/to/token2category/',
         )
     )
 ]
@@ -79,22 +88,64 @@ The description of configurable parameters for the service-oriented inference ba
 | `api_key` | String | Custom API key, default is an empty string. Only supports the `VLLMCustomAPI` and `VLLMCustomAPIChat` model type. |
 | `host_ip` | String | Server IP address, supporting valid IPv4 or IPv6, e.g., `127.0.0.1`, `::1`. When using an IPv6 literal, the tool automatically wraps it in brackets when building URLs, for example: `http://[::1]:8080/` |
 | `host_port` | Int | Server port number, which must be consistent with the port specified during service-oriented deployment |
-| `url` | String | Custom URL path for accessing the inference service (needs to be configured when the base URL is not a combination of http/https://host_ip:host_port; after configuration, `host_ip` and `host_port` will be ignored). For example, when `models`'s `type` is `VLLMCustomAPI`, configure `url` as `https://xxxxxxx/yyyy/`, the actual request URL accessed is `https://xxxxxxx/yyyy/v1/completions` |
-| `max_out_len` | Int | Maximum output length of the inference response; the actual length may be limited by the server. Valid range: (0, 131072] |
+| `url` | String | Custom URL path for accessing the inference service (needs to be configured when the base URL is not a combination of http://host_ip:host_port).For example, when `models`'s `type` is `VLLMCustomAPI`, configure `url` as `https://xxxxxxx/yyyy/`, the actual request URL accessed is `https://xxxxxxx/yyyy/v1/completions` |
+| `max_out_len` | Int | Maximum output length of the inference response; the actual length may be limited by the server. |
 | `batch_size` | Int | Batch size for concurrent requests. Valid range: (0, 64000] |
 | `trust_remote_code` | Boolean | Whether the tokenizer trusts remote code, default is `False`|
 | `generation_kwargs` | Dict | Configuration of inference generation parameters, depending on the specific service-oriented backend and interface type. Note: Currently, multi-sampling parameters such as `best_of` and `n` are not supported, but multiple independent inferences can be performed using the `num_return_sequences` parameter (for details, refer to 🔗 [the role of `num_return_sequences` in the Text Generation Documentation](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences\(int,)) |
 | `returns_tool_calls` | Bool | Controls the extraction method of function call information. When set to `True`, the system extracts function call information from the `tool_calls` field of the API response; when set to `False`, the system parses function call information from the `content` field |
 | `pred_postprocessor` | Dict | Post-processing configuration for model output results. It is used to format, clean, or convert the original model output to meet the requirements of specific evaluation tasks |
+| `response_anomaly` | Dict | Optional; model-level config for msProbe response anomaly detection, including `model_name` (must match the name in msProbe's mtype_config.json), `model_path` (local model directory, optional, used to auto-generate configs), `msprobe_mtype_path`, and `msprobe_token2category_dir`. When mtype/token-category paths are not provided, the default files inside the msProbe package are used |
 
 
 **Precautions**:
+- Response anomaly detection currently supports only the vLLM Chat API model configurations `vllm_api_general_chat`, `vllm_api_stream_chat`, and `vllm_api_stream_chat_multiturn`. Other model backends are not supported yet.
 - `request_rate` is affected by hardware performance. You can increase 📚 [WORKERS_NUM](./cli_args.md#configuration-constant-file-parameters) to improve concurrency capability.
 - The function of `request_rate` may be overwritten by the `traffic_cfg` item. For specific reasons, refer to 🔗 [Parameter Interpretation Section in the Description of Request Rate (RPS) Distribution Control and Visualization](../../advanced_tutorials/rps_distribution.md#parameter-interpretation).
 - When the dataset has timestamps and **use_timestamp** is True in the model config, requests are scheduled by timestamp and **request_rate** and **traffic_cfg** are ignored.
 - Setting `batch_size` too large may result in high CPU usage. Please configure it reasonably based on hardware conditions.
 - The default service address used by the service-oriented inference evaluation API is `localhost:8080`. In actual use, you need to modify it to the IP and port of the service-oriented backend according to the actual deployment.
 - When using an IPv6 literal (such as `::1` or `2001:db8::1`) as `host_ip`, the tool will automatically wrap it in brackets in the generated URL (for example, `http://[2001:db8::1]:8080/`), so you do not need to manually add brackets in the configuration.
+- When response anomaly detection (`response_anomaly`) is enabled, the service must return token ids and top-k logprobs; AISBench automatically adds `logprobs=True` and a fixed `top_logprobs=20` to the inference requests, and Cases whose responses lack these fields are marked as `skipped` in the detection results. See [Response Anomaly Detection Configuration](./cli_args.md#response-anomaly-detection-configuration) for details.
+
+
+### Multi-LoRA Routing
+
+Route each sample to the correct LoRA adapter by `data_id` (dataset row index). Supported backends: `VLLMCustomAPIChat`, `VLLMCustomAPI`, `TGICustomAPI`, `MindieStreamApi`. No new model class is required; just add `lora_data_map_file` under `generation_kwargs`.
+
+```python
+from ais_bench.benchmark.models import VLLMCustomAPIChat
+
+models = [
+    dict(
+        type=VLLMCustomAPIChat,
+        abbr='vllm-chat-lora',
+        host_ip='127.0.0.1', host_port=8080,
+        generation_kwargs=dict(
+            temperature=0,
+            lora_data_map_file='./lora_data_map.json',
+        ),
+    ),
+]
+```
+
+`lora_data_map.json` (key = stringified `data_id`, value = LoRA adapter name registered on the server):
+
+```json
+{"0": "LoraAdapter1", "1": "LoraAdapter2", "6": "LoraAdapter1"}
+```
+
+> ⚠️ **Recommendation**: Use an **absolute path** for `lora_data_map_file` to avoid resolution failures caused by different working directories.
+
+| Backend class | Where LoRA is set in the request body | Corresponding preset configs |
+| --- | --- | --- |
+| `VLLMCustomAPIChat` | Overwrites `model` field with the adapter name | `vllm_api_general_chat`, `vllm_api_stream_chat`, `vllm_api_stream_chat_multiturn`, `vllm_api_function_call_chat` |
+| `VLLMCustomAPI` | Overwrites `model` field with the adapter name | `vllm_api_general`, `vllm_api_general_stream` |
+| `TGICustomAPI` | Sets `parameters.adapter_id` to the adapter name | `tgi_api_general` |
+| `MindieStreamApi` | Sets `parameters.adapter_id` to the adapter name | `mindie_stream_api_general` |
+
+- If the `data_id` is not in the mapping, the JSON file is missing/invalid, or `data_id` is absent → the request silently falls back to the base model (no error).
+- Run with `--debug` (or set `verbose=True` in the model config) to log each routing decision as `[Multi-LoRA] data_id=... lora_model_name=...`.
 
 
 ## Local Model Backend
@@ -149,9 +200,9 @@ The description of configurable parameters for the huggingface local model infer
 | `model_kwargs` | Dict | Model loading parameters. Refer to 🔗 [AutoModel Configuration](https://huggingface.co/docs/transformers/v4.50.0/en/model_doc/auto#transformers.AutoConfig.from_pretrained) |
 | `generation_kwargs` | Dict | Inference generation parameters. Refer to 🔗 [Text Generation Documentation](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation) |
 | `run_cfg` | Dict | Runtime configuration, including `num_gpus` (number of GPUs used) and `num_procs` (number of machine processes used) |
-| `max_out_len` | Int | Maximum number of output tokens generated by inference. Valid range: (0, 131072] |
+| `max_out_len` | Int | Maximum number of output tokens generated by inference. |
 | `batch_size` | Int | Batch size for inference requests. Valid range: (0, 64000] |
-| `max_seq_len` | Int | Maximum input sequence length. Valid range: (0, 131072] |
+| `max_seq_len` | Int | Maximum input sequence length. |
 | `batch_padding` | Bool | Whether to enable batch padding. Set to `True` or `False` |
 
 ### Parameter Description for vLLM Offline Inference Model Backend Configuration
@@ -195,5 +246,5 @@ The description of configurable parameters for the vllm offline inference local 
 | `model_kwargs` | Dict | LLM init params, refer 🔗 [LLM init params](https://docs.vllm.com.cn/en/latest/serving/engine_args.html#) |
 | `sample_kwargs` | Dict | LLM sample params, refer 🔗 [sample params](https://docs.vllm.ai/en/v0.6.5/dev/sampling_params.html) |
 | `vision_kwargs` | Dict | multi-modal input params，refer 🔗 [multi-modal vllm offline inference](https://docs.vllm.ai/en/v0.7.3/getting_started/examples/vision_language.html) |
-| `max_out_len` | Int | Maximum number of output tokens generated by inference. Valid range: (0, 131072] |
+| `max_out_len` | Int | Maximum number of output tokens generated by inference. |
 | `batch_size` | Int | Batch size for inference requests. Valid range: (0, 64000] |

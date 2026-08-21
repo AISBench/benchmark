@@ -22,6 +22,8 @@
 [👨‍💻 Developer Documentation](https://ais-bench-benchmark.readthedocs.io/en/latest/develop_guide/contributing.html) |
 [🔥 Latest Updates](#-latest-updates)|
 [🤔 Report Issues](https://github.com/AISBench/benchmark/issues/new/choose)
+[📦 Container Image](https://github.com/AISBench/benchmark/pkgs/container/aisbench_benchmark)
+
 <br><br>[简体中文](README.md) | English
 </div>
 
@@ -30,6 +32,9 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2026.6.29\]** Integrated the multi-dimensional evaluation benchmark for text-to-image models **OneIG-Benchmark**: Comprehensive evaluation of generated images across **alignment, text rendering, reasoning capability, style performance, and diversity**, supports EN/ZH bilingual mode, adopts a hybrid evaluation method of **LLM-as-Judge + dedicated small models**, with precision difference < 1% compared to the official evaluation method. 🔥🔥🔥 See [Evaluate OneIG-Benchmark in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/lmm_generate/oneig.html) for examples and details.
+- **\[2026.6.15\]** Added **Docker image multi-architecture support**: The AISBench Benchmark image now supports both **x86_64** and **aarch64 (ARM)** architectures, covering Ubuntu 22.04/24.04, openEuler 22.03/24.03 with Python 3.10/3.11/3.12 combinations. AISBench has also been published to **PyPI** and can be installed with one click via `pip install ais_bench_benchmark` / `pip install ais_bench_benchmark[full]`. See [Docker Image Overview](docker/OVERVIEW.en.md) for image details. 🚀🚀🚀
+- **\[2026.6.11\]** Integrated SWE-Bench Pro for long-horizon software engineering agent evaluation: supports evaluating agent models on long-horizon software engineering tasks in x86 environments, providing `full` / `mini` datasets and end-to-end workflows for `mini-swe-agent` infer and SWE-Bench Pro harness eval. See [Evaluate SWE-Bench Pro in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench_pro.html) for examples and details. 🔥🔥🔥
 - **\[2026.5.30\]** Support for evaluating Terminal-Bench 2.0 in AISBench, significantly reducing evaluation costs 🔥🔥🔥. Search for the `mini` keyword in the corresponding evaluation documentation:
   - [Evaluate Terminal-Bench 2.0 in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/harbor_bench.html)
 - **\[2026.5.18]** Support for evaluating mini subsets of SWE-Bench, TAU2-Bench, and VBench 1.0 in AISBench, significantly reducing evaluation costs 🔥🔥🔥. Search for the `mini` keyword in the corresponding evaluation documentation:
@@ -146,9 +151,6 @@ pip3 install ais_bench_benchmark
 ```shell
 pip3 install ais_bench_benchmark[full]
 ```
-
-
-For further configuration or to initiate evaluation tasks using CLI or Python scripts, refer to the [Quick Start Guide](#quick-start).
 
 
 ## ❌ Tool Uninstallation
@@ -378,8 +380,8 @@ For more tutorials, please refer to our 👉[Documentation](https://ais-bench-be
 
 ## 🔜 Coming Soon
 - [x] **\[Completed\]** ✅ AISBench has completed comprehensive refactoring, supporting plug-and-play integration of cutting-edge testing benchmarks within the AISBench framework to address the increasingly complex and diverse testing tasks in the industry; while significantly improving usability.
-- [ ] **\[Planned\]** Continue to expand industry-leading multimodal evaluation capabilities, supporting more multimodal datasets and evaluation scenarios.
-- [ ] **\[Planned\]** Provide evaluation capabilities for mainstream industry Agents, supporting Agent task chains and tool calling in complex scenarios.
+- [x] **\[Completed\]** Continue to expand industry-leading multimodal evaluation capabilities, supporting more multimodal datasets and evaluation scenarios.
+- [x] **\[Completed\]** Provide evaluation capabilities for mainstream industry Agents, supporting Agent task chains and tool calling in complex scenarios.
 
 
 ## 🤝 Acknowledgements

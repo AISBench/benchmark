@@ -195,6 +195,86 @@ fi
 
 echo "镜像验证成功！"
 
+echo "开始验证 Docker 与 Docker Compose 基本命令..."
+
+docker_version_output=$(docker run --rm ${image_name} docker --version 2>&1)
+docker_version_status=$?
+if [ ${docker_version_status} -ne 0 ]; then
+    echo "错误：镜像中 docker --version 执行失败（退出码: ${docker_version_status}）"
+    echo "输出：${docker_version_output}"
+    exit 1
+fi
+
+compose_version_output=$(docker run --rm ${image_name} docker compose version 2>&1)
+compose_version_status=$?
+if [ ${compose_version_status} -ne 0 ]; then
+    echo "错误：镜像中 docker compose version 执行失败（退出码: ${compose_version_status}）"
+    echo "输出：${compose_version_output}"
+    exit 1
+fi
+
+dockerd_version_output=$(docker run --rm ${image_name} dockerd --version 2>&1)
+dockerd_version_status=$?
+if [ ${dockerd_version_status} -ne 0 ]; then
+    echo "错误：镜像中 dockerd --version 执行失败（退出码: ${dockerd_version_status}）"
+    echo "输出：${dockerd_version_output}"
+    exit 1
+fi
+
+# dockerd 二进制存在性二次校验（Docker 27.x 输出与 docker --version 同格式，需确保调用的是 dockerd 而非 docker）
+dockerd_which_output=$(docker run --rm ${image_name} which dockerd 2>&1)
+if [ $? -ne 0 ] || [ -z "${dockerd_which_output}" ]; then
+    echo "错误：镜像中未找到 dockerd 可执行文件"
+    echo "输出：${dockerd_which_output}"
+    exit 1
+fi
+
+# 关键字符串校验
+if ! echo "${docker_version_output}" | grep -F "Docker version" > /dev/null 2>&1; then
+    echo "错误：Docker 验证失败，未找到预期内容：Docker version"
+    echo "实际输出：${docker_version_output}"
+    exit 1
+fi
+if ! echo "${compose_version_output}" | grep -F "Docker Compose version" > /dev/null 2>&1; then
+    echo "错误：Docker Compose 验证失败，未找到预期内容：Docker Compose version"
+    echo "实际输出：${compose_version_output}"
+    exit 1
+fi
+# Docker 27.x 的 dockerd --version 输出格式为 "Docker version X.Y.Z, build ..."，与 docker --version 相同
+if ! echo "${dockerd_version_output}" | grep -F "Docker version" > /dev/null 2>&1; then
+    echo "错误：dockerd 验证失败，未找到预期内容：Docker version"
+    echo "实际输出：${dockerd_version_output}"
+    exit 1
+fi
+
+# 版本号校验：Docker >= 20.0，Docker Compose >= 2.0.0
+docker_ver=$(echo "${docker_version_output}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+compose_ver=$(echo "${compose_version_output}" | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//')
+dockerd_ver=$(echo "${dockerd_version_output}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+docker_major=$(echo "${docker_ver}" | cut -d. -f1)
+compose_major=$(echo "${compose_ver}" | cut -d. -f1)
+
+# 进一步校验：dockerd 与 docker 版本号应一致，确保不是同一二进制被误调用两次
+if [ "${docker_ver}" != "${dockerd_ver}" ]; then
+    echo "错误：docker 与 dockerd 版本不一致（${docker_ver} vs ${dockerd_ver}），可能 dockerd 安装异常"
+    exit 1
+fi
+
+if [ -z "${docker_ver}" ] || [ "${docker_major}" -lt 20 ]; then
+    echo "错误：Docker 版本 ${docker_ver} 低于要求的 20.0"
+    exit 1
+fi
+
+if [ -z "${compose_ver}" ] || [ "${compose_major}" -lt 2 ]; then
+    echo "错误：Docker Compose 版本 ${compose_ver} 低于要求的 2.0.0"
+    exit 1
+fi
+
+echo "Docker 验证通过：${docker_ver}"
+echo "Docker Compose 验证通过：${compose_ver}"
+echo "dockerd 验证通过：${dockerd_version_output}"
+
 if [ "$push" == "1" ]; then
     echo "开始推送镜像到远程仓库（覆盖已有同名镜像）..."
     docker push ${image_name}

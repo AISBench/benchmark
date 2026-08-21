@@ -24,6 +24,8 @@
 [👨‍💻开发者文档](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/develop_guide/contributing.html) |
 [🔥最新进展](#-最新进展)|
 [🤔报告问题](https://github.com/AISBench/benchmark/issues/new/choose)
+[📦容器镜像](https://github.com/AISBench/benchmark/pkgs/container/aisbench_benchmark)
+
 简体中文 | [English](README_en.md)
 
 </div>
@@ -34,6 +36,9 @@
 
 ## 🔥 最新进展
 
+- **\[2026.6.29]** 接入文生图模型多维评测基准 **OneIG-Benchmark**：围绕**对齐性、文本渲染、推理能力、风格表现、多样性**五个维度对生成图片进行综合评估，支持 EN/ZH 双语言模式，采用 **LLM-as-Judge + 专用小模型** 的混合评测方式，与官方评测方法精度差异 < 1%。🔥🔥🔥 示例与说明见 [在AISBench中测评OneIG-Benchmark](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/lmm_generate/oneig.html)。
+- **\[2026.6.15]** 新增 **Docker 镜像多架构支持**：AISBench Benchmark 镜像同步支持 **x86_64** 与 **aarch64 (ARM)** 架构，覆盖 Ubuntu 22.04/24.04、openEuler 22.03/24.03 与 Python 3.10/3.11/3.12 多种组合；同时 AISBench 已发布到 **PyPI**，可通过 `pip install ais_bench_benchmark` / `pip install ais_bench_benchmark[full]` 一键安装。镜像说明见 [Docker 镜像概览](docker/OVERVIEW.zh.md)。🚀🚀🚀
+- **\[2026.6.11]** 接入长时域软件工程智能体评测基准 **SWE-Bench Pro**：支持在 x86 环境下对智能体模型在长时域软件工程任务上的表现进行评测，提供 `full` / `mini` 数据集以及 `mini-swe-agent` infer 与 SWE-Bench Pro harness eval 的端到端流程。示例与说明见 [在AISBench中测评SWE-Bench Pro](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/swe_bench_pro.html)。🔥🔥🔥
 - **\[2026.5.30]** 支持在AISBench中测评基于Harbor的Terminal-Bench 2.0，并支持mini数据集，大幅降低评测成本🔥🔥🔥。示例与说明见 [在AISBench中测评基于Harbor的Terminal-Bench 2.0](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/harbor_bench.html)。
 - **\[2026.5.18]** 支持在AISBench中测评SWE-Bench、TAU2-Bench、VBench 1.0的mini子集，大幅降低评测成本🔥🔥🔥。mini子集示例与说明在对应测评文档中搜索`mini`关键词：
   - [在AISBench中测评SWE-Bench](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/swe_bench.html)
@@ -393,8 +398,8 @@ demo_gsm8k              401e4c   accuracy gen                   62.50
 ## 🔜 即将推出
 
 - [x] **\[已完成]** ✅ AISBench完成全面重构，支持在AISBench框架下🔌插件化集成前沿测试基准，以应对业界愈发复杂多样化的测试任务；并且显著提高易用性。
-- [ ] **\[规划中]** 持续扩展业界前沿的多模态测评能力，支持更多多模态数据集和评测场景。
-- [ ] **\[规划中]** 提供业界主流Agent测评能力，支持Agent任务链和工具调用等复杂场景的评测。
+- [x] **\[已完成]** 持续扩展业界前沿的多模态测评能力，支持更多多模态数据集和评测场景。
+- [x] **\[已完成]** 提供业界主流Agent测评能力，支持Agent任务链和工具调用等复杂场景的评测。
 
 ## 🤝 致谢
 

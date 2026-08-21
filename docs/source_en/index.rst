@@ -55,6 +55,7 @@ To help you quickly get started with AISBench Benchmark Tool, we recommend learn
    advanced_tutorials/synthetic_dataset
    advanced_tutorials/custom_dataset
    advanced_tutorials/judge_model_evaluate
+   advanced_tutorials/spec_decode
 
 .. toctree::
    :maxdepth: 2

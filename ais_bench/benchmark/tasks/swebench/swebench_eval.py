@@ -34,8 +34,10 @@ from ais_bench.benchmark.utils.logging.exceptions import (
     FileOperationError,
 )
 from ais_bench.benchmark.tasks.swebench.utils import (
+    add_swebench_session_label_to_docker_client,
     cleanup_swebench_containers,
     ensure_swebench_docker_images,
+    make_swebench_session_id,
 )
 
 
@@ -398,11 +400,13 @@ class SWEBenchEvalTask(BaseTask):
             }
         )
 
+        session_id = make_swebench_session_id()
+
         def _on_interrupt(signum, frame):
             self.logger.info(
-                "Interrupted: cleaning up eval containers (sweb.eval.*)..."
+                "Interrupted: cleaning up eval containers started by this task..."
             )
-            cleanup_swebench_containers()
+            cleanup_swebench_containers(session_id=session_id)
             os._exit(128 + (2 if signum == signal.SIGINT else 15))
 
         old_sigint = signal.signal(signal.SIGINT, _on_interrupt)
@@ -413,7 +417,10 @@ class SWEBenchEvalTask(BaseTask):
             if platform.system() == "Linux":
                 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, 4096))
 
-            client = __import__("docker").from_env()
+            client = add_swebench_session_label_to_docker_client(
+                __import__("docker").from_env(),
+                session_id,
+            )
             existing_images = list_images(client)
 
             if not instances:

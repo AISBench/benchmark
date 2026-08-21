@@ -6,7 +6,7 @@
 HLE（Humanity's Last Exam）是 Center for AI Safety 发布的前沿多模态基准测试数据集，旨在成为最后一个广泛覆盖学科领域的闭卷学术基准测试。该数据集包含 2,500 道高质量题目，涵盖数学、人文科学、自然科学等多个学科领域。题目由领域专家精心设计，确保了题目的专业性和挑战性。HLE 支持纯文本和图像输入，并通过 LLM Judge 评估协议进行自动评分，同时提供置信度校准指标，适合全面评估模型在多学科知识和多模态理解方面的能力。
 
 > 🔗 数据集主页链接: [https://huggingface.co/datasets/cais/hle](https://huggingface.co/datasets/cais/hle)
-> 
+>
 > 🔗 官方 GitHub 仓库: [https://github.com/centerforaisafety/hle](https://github.com/centerforaisafety/hle)
 
 

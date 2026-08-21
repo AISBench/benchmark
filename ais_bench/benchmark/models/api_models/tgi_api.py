@@ -1,3 +1,5 @@
+import json
+import os
 import urllib
 from typing import Dict, Optional, Union
 
@@ -65,12 +67,40 @@ class TGICustomAPI(BaseAPIModel):
         self.url = self._get_url()
         self.template_parser = LMTemplateParser(meta_template)
         # For non-chat APIs, the actual prompt is passed as a plain string (just like with offline models), so LMTemplateParser is used.
+        # Multi-LoRA: load data_id -> lora adapter name map from generation_kwargs (optional).
+        self.lora_data_map = self._load_lora_data_map(generation_kwargs)
 
     def _get_url(self) -> str:
         endpoint = "generate_stream" if self.stream else "generate"
         url = urllib.parse.urljoin(self.base_url, endpoint)
         self.logger.debug(f"Request url: {url}")
         return url
+
+    @staticmethod
+    def _load_lora_data_map(generation_kwargs):
+        """Load data_id -> LoRA adapter name mapping JSON file."""
+        if not generation_kwargs:
+            return None
+        lora_data_map_file = generation_kwargs.get("lora_data_map_file")
+        if not (isinstance(lora_data_map_file, str) and lora_data_map_file):
+            return None
+        file_path = os.path.abspath(lora_data_map_file)
+        if not os.path.exists(file_path):
+            return None
+        try:
+            with open(file_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    def _resolve_lora_model_name(self, output: Output):
+        """Look up LoRA adapter name for the current sample's data_id."""
+        if not self.lora_data_map:
+            return None
+        data_id = getattr(output, "data_id", None)
+        if data_id is None:
+            return None
+        return self.lora_data_map.get(f"{data_id}")
 
     async def get_request_body(
         self, input_data: PromptType, max_out_len: int, output: Output, **args
@@ -79,6 +109,16 @@ class TGICustomAPI(BaseAPIModel):
 
         generation_kwargs = self.generation_kwargs.copy()
         generation_kwargs.update({"max_new_tokens": max_out_len})
+        # Multi-LoRA: TGI uses ``parameters.adapter_id`` for LoRA selection.
+        lora_model_name = self._resolve_lora_model_name(output)
+        if lora_model_name:
+            generation_kwargs["adapter_id"] = lora_model_name
+        # Debug: log LoRA routing decision for observability.
+        self.logger.debug(
+            f"[Multi-LoRA] data_id={getattr(output, 'data_id', None)} "
+            f"lora_model_name={lora_model_name} "
+            f"adapter_id_in_request_body={lora_model_name}"
+        )
         request_body = dict(inputs=input_data, parameters=generation_kwargs)
         return request_body
 

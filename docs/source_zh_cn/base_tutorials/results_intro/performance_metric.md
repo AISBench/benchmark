@@ -11,6 +11,7 @@
 + InputTokens：请求的输入 Token 数量。
 + OutputTokens：请求生成的输出 Token 数量。
 + OutputTokenThroughput：输出 Token 的吞吐率（Token/s）。
++ PrefillTokenThroughput：Prefill 阶段的 Token 吞吐率（Token/s），按每个请求统计。
 + Tokenizer：Tokenizer 编码耗时。
 + Detokenizer：Detokenizer 解码耗时。
 
@@ -23,6 +24,7 @@
 |InputTokens|统计此参数的阶段|输入token平均长度|最大输入token长度|最小输入token长度|输入token中位数长度|75分位输入token长度|90分位输入token长度|99分位输入token长度|测试数据量，来源于输入参数|
 |OutputTokens|统计此参数的阶段|输出token平均长度|最大输出token长度|最小输出token长度|输出token中位数长度|75分位输出token长度|90分位输出token长度|99分位输出token长度|测试数据量，来源于输入参数|
 |OutputTokenThroughput|统计此参数的阶段|平均输出吞吐|最大输出吞吐|最小输出吞吐|中位数输出吞吐|输出吞吐75分位|输出吞吐90分位|输出吞吐99分位|测试数据量，来源于输入参数|
+|PrefillTokenThroughput|统计此参数的阶段|Prefill阶段平均吞吐率|Prefill阶段最大吞吐率|Prefill阶段最小吞吐率|Prefill阶段中位数吞吐率|75分位Prefill阶段吞吐率|90分位Prefill阶段吞吐率|99分位Prefill阶段吞吐率|测试数据量，来源于输入参数|
 
 ## 端到端性能输出结果
 | 参数                           | 说明                    |
@@ -35,8 +37,21 @@
 | **Max Concurrency**          | 配置的最大并发数              |
 | **Request Throughput**       | 请求级吞吐率（请求数/秒）         |
 | **Total Input Tokens**       | 所有请求的总输入 Token 数      |
-| **Prefill Token Throughput** | Prefill 阶段的 Token 吞吐率 |
 | **Total Output Tokens**      | 所有请求生成的总输出 Token 数    |
 | **Input Token Throughput**   | 输入 Token 吞吐率          |
 | **Output Token Throughput**  | 输出 Token 吞吐率          |
 | **Total Token Throughput**   | 总 Token 吞吐率（输入 + 输出）  |
+
+
+## 投机推理指标
+
+当启用 `--spec-decode` 时（仅在 `--mode perf` 下有效），AISBench 会额外从推理服务的 Prometheus `/metrics` 端点采集投机推理性能指标。完整说明见 📚 [投机推理指标采集](../../advanced_tutorials/spec_decode.md)。
+
+| 参数                               | 说明                                              |
+| ---------------------------------- | ------------------------------------------------- |
+| **Acceptance rate (%)**            | 草稿 Token 被目标模型采纳的百分比                   |
+| **Acceptance length**              | 每次前向推理平均采纳的 Token 数                     |
+| **Drafts**                         | 评测窗口内的草稿-验证循环次数                        |
+| **Draft tokens**                   | 评测窗口内生成的候选 Token 总数                      |
+| **Accepted tokens**                | 评测窗口内被采纳的 Token 总数                        |
+| **Per-position acceptance rates**  | 每个草稿位置的采纳率（`{位置: 比率}`）               |

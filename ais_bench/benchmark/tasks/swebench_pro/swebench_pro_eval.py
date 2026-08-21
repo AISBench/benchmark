@@ -35,6 +35,9 @@ from ais_bench.benchmark.tasks.swebench_pro.utils import (
     eval_with_docker,
     list_swebench_pro_images,
     clean_swebench_pro_images,
+    cleanup_swebench_pro_containers,
+    make_swebench_pro_session_id,
+    add_swebench_pro_session_label_to_docker_client,
 )
 
 KEY_INSTANCE_ID = "instance_id"
@@ -361,7 +364,10 @@ class SWEBenchProEvalTask(BaseTask):
                 SWEBP_CODES.SWEBENCH_HARNESS_IMPORT_ERROR,
                 "docker SDK is not installed. Install via 'pip install docker'"
             ) from e
-        docker_client = docker.from_env()
+        session_id = make_swebench_pro_session_id()
+        docker_client = add_swebench_pro_session_label_to_docker_client(
+            docker.from_env(), session_id
+        )
         prior_images = list_swebench_pro_images(docker_client)
         
         ensure_swebench_pro_docker_images(
@@ -482,9 +488,9 @@ class SWEBenchProEvalTask(BaseTask):
         finally:
             if pbar is not None:
                 pbar.close()
-        
+            cleanup_swebench_pro_containers(session_id=session_id)
+
         self.logger.info("All instances run.")
- 
         self.logger.info("Cleaning up SWE-bench Pro images...")
         clean_swebench_pro_images(docker_client, prior_images, self.logger)
         self.logger.info("Image cleanup completed.")

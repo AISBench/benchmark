@@ -416,6 +416,215 @@ class TestBasePerfMetricCalculator(unittest.TestCase):
         # 注意：不再测试零除情况，因为会导致异常
 
     @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_convert_result_prefill_token_throughput(self, mock_logger_class):
+        """Test that convert_result calculates per-request PrefillTokenThroughput."""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+        calculator = ConcretePerfMetricCalculator()
+
+        raw_result = {
+            'latency': [0.1, 0.2],
+            'ttft': [0.05, 0.10],
+            'tpot': [0.02, 0.03],
+            'input_tokens': [100, 200],
+            'output_tokens': [50, 60],
+            'generate_tokens_speed': [100, 200],
+        }
+        converted = calculator.convert_result(raw_result)
+
+        self.assertIn('PrefillTokenThroughput', converted)
+        self.assertEqual(len(converted['PrefillTokenThroughput']), 2)
+        # Prefill Throughput = input_tokens / ttft
+        self.assertAlmostEqual(converted['PrefillTokenThroughput'][0], 100 / 0.05)
+        self.assertAlmostEqual(converted['PrefillTokenThroughput'][1], 200 / 0.10)
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_convert_result_prefill_with_zero_ttft(self, mock_logger_class):
+        """Test PrefillTokenThroughput when ttft is zero: appended as 0.0
+        but removed together with TTFT because TTFT sum is zero."""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+        calculator = ConcretePerfMetricCalculator()
+
+        raw_result = {
+            'latency': [0.1],
+            'ttft': [0.0],
+            'tpot': [0.02],  # non-zero tpot so only TTFT is removed
+            'input_tokens': [500],
+            'output_tokens': [50],
+            'generate_tokens_speed': [100],
+        }
+        converted = calculator.convert_result(raw_result)
+
+        # TTFT sum is 0.0 → both TTFT and PrefillTokenThroughput are removed
+        self.assertNotIn('TTFT', converted)
+        self.assertNotIn('PrefillTokenThroughput', converted)
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_convert_result_prefill_with_mixed_ttft(self, mock_logger_class):
+        """Test PrefillTokenThroughput when some ttft values are zero."""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+        calculator = ConcretePerfMetricCalculator()
+
+        raw_result = {
+            'latency': [0.1, 0.2],
+            'ttft': [0.0, 0.10],
+            'tpot': [0.02, 0.03],
+            'input_tokens': [100, 200],
+            'output_tokens': [50, 60],
+            'generate_tokens_speed': [100, 200],
+        }
+        converted = calculator.convert_result(raw_result)
+
+        # TTFT sum is NOT zero (0.0 + 0.10 = 0.10) → PrefillTokenThroughput retained
+        self.assertIn('TTFT', converted)
+        self.assertIn('PrefillTokenThroughput', converted)
+        self.assertEqual(len(converted['PrefillTokenThroughput']), 2)
+        # First request: ttft=0.0 → throughput=0.0
+        self.assertEqual(converted['PrefillTokenThroughput'][0], 0.0)
+        # Second request: ttft=0.10 → throughput=200/0.10=2000
+        self.assertAlmostEqual(converted['PrefillTokenThroughput'][1], 200 / 0.10)
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_convert_result_prefill_with_list_input_tokens(self, mock_logger_class):
+        """Test PrefillTokenThroughput with list-type input_tokens (summed)."""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+        calculator = ConcretePerfMetricCalculator()
+
+        raw_result = {
+            'latency': [0.1],
+            'ttft': [0.05],
+            'input_tokens': [[100, 200, 300]],  # list of lists
+            'output_tokens': [50],
+            'generate_tokens_speed': [100],
+        }
+        converted = calculator.convert_result(raw_result)
+
+        self.assertIn('PrefillTokenThroughput', converted)
+        # Should sum the list: 100 + 200 + 300 = 600, then 600 / 0.05 = 12000
+        self.assertAlmostEqual(converted['PrefillTokenThroughput'][0], 600 / 0.05)
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_convert_result_prefill_removed_when_ttft_zero(self, mock_logger_class):
+        """Test PrefillTokenThroughput is removed when TTFT sum is zero."""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+        calculator = ConcretePerfMetricCalculator()
+
+        raw_result = {
+            'latency': [0.1, 0.2],
+            'ttft': [0.0, 0.0],
+            'tpot': [0.02, 0.03],
+            'input_tokens': [100, 200],
+            'output_tokens': [50, 60],
+            'generate_tokens_speed': [100, 200],
+        }
+        converted = calculator.convert_result(raw_result)
+
+        # TTFT should be removed (sum is 0.0)
+        self.assertNotIn('TTFT', converted)
+        # PrefillTokenThroughput should also be removed when TTFT is removed
+        self.assertNotIn('PrefillTokenThroughput', converted)
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_convert_result_no_prefill_without_ttft(self, mock_logger_class):
+        """Test PrefillTokenThroughput is not added when no ttft/input_tokens."""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+        calculator = ConcretePerfMetricCalculator()
+
+        raw_result = {
+            'latency': [0.1],
+            'output_tokens': [50],
+            'generate_tokens_speed': [100],
+        }
+        converted = calculator.convert_result(raw_result)
+
+        # No input_tokens or ttft -> PrefillTokenThroughput should not be present
+        self.assertNotIn('PrefillTokenThroughput', converted)
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_add_units_to_metrics_prefill_after_output(self, mock_logger_class):
+        """Test PrefillTokenThroughput appears after OutputTokenThroughput in units map."""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+        calculator = ConcretePerfMetricCalculator()
+
+        metrics = {
+            'OutputTokenThroughput': {
+                'stage1': {'Average': 100.0, 'Min': 50.0, 'Max': 150.0, 'N': 10}
+            },
+            'PrefillTokenThroughput': {
+                'stage1': {'Average': 200.0, 'Min': 100.0, 'Max': 300.0, 'N': 10}
+            },
+        }
+
+        metrics_with_units = calculator._add_units_to_metrics(metrics)
+
+        self.assertEqual(
+            metrics_with_units['OutputTokenThroughput']['stage1']['Average'],
+            '100.0 token/s'
+        )
+        self.assertEqual(
+            metrics_with_units['PrefillTokenThroughput']['stage1']['Average'],
+            '200.0 token/s'
+        )
+
+        # Verify the order: OutputTokenThroughput key should come before PrefillTokenThroughput
+        keys = list(metrics_with_units.keys())
+        output_idx = keys.index('OutputTokenThroughput')
+        prefill_idx = keys.index('PrefillTokenThroughput')
+        self.assertLess(output_idx, prefill_idx,
+                        'OutputTokenThroughput should be before PrefillTokenThroughput')
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_calc_common_metrics_no_prefill_token_throughput(self, mock_logger_class):
+        """Test Prefill Token Throughput is NOT in common metrics (moved to per-request)."""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+        simple_perf_details = {
+            'stage_dict': {'stage1': {}},
+            'infer_time': {'stage1': 10.0},
+            'data_count': {'stage1': 100},
+            'success_count': {'stage1': 95},
+            'result': {
+                'stage1': {
+                    'E2EL': [0.1, 0.2, 0.3],
+                    'TTFT': [0.05, 0.06, 0.07],
+                    'InputTokens': [10, 20, 30],
+                    'OutputTokens': [50, 60, 70]
+                }
+            },
+            'decode_latencies': {
+                'stage1': [[0.02], [0.03], [0.04]]
+            }
+        }
+        calculator = ConcretePerfMetricCalculator()
+        calculator._init_datas(simple_perf_details, 10)
+        calculator._calc_common_metrics()
+
+        # Prefill Token Throughput should NOT be in common metrics
+        self.assertNotIn('Prefill Token Throughput', calculator.common_metrics)
+        self.assertIn('Output Token Throughput', calculator.common_metrics)
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_add_units_to_common_metrics_no_prefill_token_throughput(self, mock_logger_class):
+        """Test Prefill Token Throughput is NOT in common metrics units map."""
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+        calculator = ConcretePerfMetricCalculator()
+
+        common_metrics = {
+            'Output Token Throughput': {'stage1': 100.5},
+        }
+
+        result = calculator._add_units_to_common_metrics(common_metrics)
+        # Prefill Token Throughput should not have a unit mapping
+        self.assertEqual(result['Output Token Throughput']['stage1'], '100.5 token/s')
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
     def test_calculate_concurrency(self, mock_logger_class):
         # 测试并发计算
         mock_logger = MagicMock()

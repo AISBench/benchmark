@@ -37,6 +37,25 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.max_workers_per_gpu, 1)
         self.assertEqual(args.num_warmups, 1)
         self.assertIsNone(args.num_prompts)
+        self.assertIsNone(args.response_anomaly_payload_retention)
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_response_anomaly_payload_retention(
+        self, mock_get_current_time_str
+    ):
+        mock_get_current_time_str.return_value = "20230516_144254"
+        for retention in ('all', 'anomalies', 'none'):
+            sys.argv = [
+                'benchmark.py',
+                '--response-anomaly-payload-retention',
+                retention,
+            ]
+
+            with self.subTest(retention=retention):
+                args = ArgumentParser().parse_args()
+                self.assertEqual(
+                    args.response_anomaly_payload_retention, retention
+                )
 
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
     def test_parse_args_with_config(self, mock_get_current_time_str):

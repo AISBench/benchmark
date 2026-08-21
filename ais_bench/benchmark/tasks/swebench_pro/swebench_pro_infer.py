@@ -28,31 +28,39 @@ from ais_bench.benchmark.utils.logging.exceptions import (
     AISBenchValueError,
 )
 from ais_bench.benchmark.tasks.swebench_pro.utils import (
+    add_swebench_pro_session_label_to_run_args,
     cleanup_swebench_pro_containers,
     ensure_swebench_pro_docker_images,
     get_dockerhub_image_uri,
+    make_swebench_pro_session_id,
     merge_nested_dicts,
     build_problem_statement,
+    sanitize_config_for_logging,
 )
+from ais_bench.benchmark.tasks.swebench.utils import DEFAULT_LITELLM_TIMEOUT
 
 
 def _get_minisweagent_config(model_cfg: ConfigDict) -> dict:
     model_name = model_cfg.get("model") or model_cfg.get("model_name") or ""
     if model_cfg.get("url") and model_name:
         model_name = f"hosted_vllm/{model_name}"
-    model_type = (
-        getattr(model_cfg.get("type"), "__name__", None)
-        or (model_cfg.get("type", "") if isinstance(model_cfg.get("type"), str) else "")
+    model_type = getattr(model_cfg.get("type"), "__name__", None) or (
+        model_cfg.get("type", "") if isinstance(model_cfg.get("type"), str) else ""
     )
     if isinstance(model_type, str):
         model_type = model_type.split(".")[-1]
     model_kwargs = dict(model_cfg.get("generation_kwargs", {}))
+    # Set default inference timeout (LiteLLM default is 600s, too long for SWE-bench)
+    model_kwargs.setdefault("timeout", DEFAULT_LITELLM_TIMEOUT)
     if model_cfg.get("api_key"):
         model_kwargs["api_key"] = model_cfg["api_key"]
     if model_cfg.get("url"):
         model_kwargs["api_base"] = model_cfg["url"]
     model_class = "litellm"
-    if "openrouter" in (model_type or "").lower() or "openrouter" in (str(model_cfg.get("type", ""))).lower():
+    if (
+        "openrouter" in (model_type or "").lower()
+        or "openrouter" in (str(model_cfg.get("type", ""))).lower()
+    ):
         model_class = "openrouter"
     model_dict = {
         "model_name": model_name,
@@ -153,7 +161,9 @@ def _make_swebench_pro_progress_manager(
         )
         from rich.live import Live
 
-        run_batch_manager = RunBatchProgressManager(num_instances, yaml_report_path=out_dir / "exit_statuses.yaml")
+        run_batch_manager = RunBatchProgressManager(
+            num_instances, yaml_report_path=out_dir / "exit_statuses.yaml"
+        )
         composite = _CompositeProgressManager(tsm_manager, run_batch_manager)
         return composite, run_batch_manager.render_group
     except ImportError:
@@ -191,7 +201,8 @@ class SWEBenchProInferTask(BaseTask):
             raise AISBenchImportError(
                 SWEBP_CODES.MINISWEAGENT_IMPORT_ERROR,
                 "SWEBenchProInferTask requires mini-swe-agent. "
-                "Install with: pip install mini-swe-agent"
+                "Refer to the Prerequisites section in the swe_bench_pro.md file. "
+                "Install with: git clone https://github.com/scaleapi/mini-swe-agent.git",
             ) from e
 
         dataset_cfg = self.dataset_cfgs[0]
@@ -239,7 +250,9 @@ class SWEBenchProInferTask(BaseTask):
         existing_ids = set(existing_preds.keys())
         instances = [i for i in instances if i["instance_id"] not in existing_ids]
         if existing_ids:
-            self.logger.info("Reuse: skipping %d already-done instances", len(existing_ids))
+            self.logger.info(
+                "Reuse: skipping %d already-done instances", len(existing_ids)
+            )
         if not instances:
             self.logger.info("All instances already done, nothing to run.")
             return
@@ -260,17 +273,22 @@ class SWEBenchProInferTask(BaseTask):
         if not (model_name or "").strip():
             raise AISBenchValueError(
                 SWEBP_CODES.MODEL_NOT_SET,
-                "No model set for SWEBenchPro infer. In your config, set "
-                "models[0]['model'], models[0]['url'], and models[0]['api_key']. "
-                "Example for local vLLM: model='hosted_vllm/qwen3', url='http://127.0.0.1:2998/v1', api_key='EMPTY'."
+                "No model set for SWEBenchPro infer in your config "
+                "Example for local vLLM: model='qwen3', url='http://127.0.0.1:2998/v1', api_key='EMPTY'.",
             )
         our_config.setdefault("environment", {})["environment_class"] = "docker"
         # SWE-bench Pro images have hardcoded entrypoint=bin/bash which prevents sleep command execution, need to override to empty for default bin/sh
         our_config.setdefault("environment", {})["run_args"] = ["--rm", "--entrypoint="]
         base_config = merge_nested_dicts(default_swebench_config, our_config)
         if dataset_cfg.get("step_limit") is not None:
-            base_config.setdefault("agent", {})["step_limit"] = dataset_cfg["step_limit"]
-        self.logger.info(f"base_config '{base_config}'")
+            base_config.setdefault("agent", {})["step_limit"] = dataset_cfg[
+                "step_limit"
+            ]
+
+        session_id = make_swebench_pro_session_id()
+        add_swebench_pro_session_label_to_run_args(base_config, session_id)
+
+        self.logger.info("base_config '%s'", sanitize_config_for_logging(base_config))
 
         progress_manager, live_render_group = _make_swebench_pro_progress_manager(
             task_state_manager, len(instances), out_dir
@@ -286,24 +304,24 @@ class SWEBenchProInferTask(BaseTask):
 
         def build_instance(raw_instance: dict) -> BatchInstance:
             return BatchInstance(
-                        instance_id=raw_instance["instance_id"],
-                        problem_statement=build_problem_statement(raw_instance),
-                        image_name=get_dockerhub_image_uri(raw_instance),
-                        repo_name=raw_instance["repo"],
-                        base_commit=raw_instance["base_commit"],
-                        extra_fields={
-                            k: v
-                            for k, v in raw_instance.items()
-                            if k
-                            not in [
-                                "instance_id",
-                                "problem_statement",
-                                "image_name",
-                                "repo_name",
-                                "base_commit",
-                            ]
-                        },
-                    )
+                instance_id=raw_instance["instance_id"],
+                problem_statement=build_problem_statement(raw_instance),
+                image_name=get_dockerhub_image_uri(raw_instance),
+                repo_name=raw_instance["repo"],
+                base_commit=raw_instance["base_commit"],
+                extra_fields={
+                    k: v
+                    for k, v in raw_instance.items()
+                    if k
+                    not in [
+                        "instance_id",
+                        "problem_statement",
+                        "image_name",
+                        "repo_name",
+                        "base_commit",
+                    ]
+                },
+            )
 
         workers = self.model_cfg.get("batch_size", 1)
         pro_instances = [build_instance(inst) for inst in instances]
@@ -311,7 +329,7 @@ class SWEBenchProInferTask(BaseTask):
         run_config = RunBatchConfig(
             workers=workers,
             redo_existing=False,
-            raise_exceptions=True, # raise exceptions in the main thread
+            raise_exceptions=True,  # raise exceptions in the main thread
         )
 
         def process_futures(futures):
@@ -357,16 +375,17 @@ class SWEBenchProInferTask(BaseTask):
                     for future in futures:
                         if not future.running() and not future.done():
                             future.cancel()
-                    cleanup_swebench_pro_containers()
+                    cleanup_swebench_pro_containers(session_id=session_id)
                     executor.shutdown(wait=False)
                     raise
             finally:
                 if not interrupted[0]:
                     executor.shutdown(wait=True)
-                cleanup_swebench_pro_containers()
+                cleanup_swebench_pro_containers(session_id=session_id)
 
         if live_render_group is not None:
             from rich.live import Live
+
             with Live(live_render_group, refresh_per_second=4):
                 run_executor()
         else:

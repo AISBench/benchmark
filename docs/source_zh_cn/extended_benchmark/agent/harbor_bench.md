@@ -44,22 +44,94 @@
 
 确保本地或云端部署了遵循 OpenAI chat/completions API 规范且支持 tool call 的被测推理服务。
 
-### 2. 测评环境准备
-确保环境docker 版本 >= 20.10.0，docker compose 版本 >= 2.0.0（docker compose可能需要额外安装）。同时需要准备一个python 3.12的运行环境
-
-### 3. 安装 AISBench 测评工具 & Harbor 依赖
-
+### 2. 安装 AISBench 测评工具 & Harbor 依赖
+#### 2.1 源码安装
+> ⚠️环境限制： 确保环境docker 版本 >= 20.10.0，docker compose 版本 >= 2.0.0（docker compose可能需要额外安装）。同时需要准备一个python 3.12的运行环境
 1. 在python 3.12的运行环境内，参考 [AISBench 安装文档](../../get_started/install.md) 安装 AISBench 测评工具。
 2. python 3.12的运行环境内安装 Harbor：
    ```bash
    pip install harbor==0.6.1
    ```
+3. 编辑harbor中的docker compose配置文件
+首先执行：
+```bash
+pip3 show harbor | grep Loca
+```
+找到site-package路径，在这个路径下找到`harbor/environments/docker/docker-compose-base.yaml`, 例如
+
+```
+/usr/local/lib/python3.12/dist-packages/harbor/environments/docker/docker-compose-base.yaml
+```
+
+在这个文件中配置：
+
+```yaml
+services:
+  main:
+    network_mode: host # 共享主机网络，必须配置
+    environment: # 在容器中普遍生效的环境变量
+      http_proxy: XXXXXXXX # 如果执行环境无法访问互联网，需要配置代理环境变量
+      https_proxy: XXXXXXXX # 如果执行环境无法访问互联网，需要配置代理环境变量
+      no_proxy: XXXXXXXX
+    volumes:
+      - type: bind
+        source: ${HOST_VERIFIER_LOGS_PATH}
+        target: ${ENV_VERIFIER_LOGS_PATH}
+      - type: bind
+        source: ${HOST_AGENT_LOGS_PATH}
+        target: ${ENV_AGENT_LOGS_PATH}
+      - type: bind
+        source: ${HOST_ARTIFACTS_PATH}
+        target: ${ENV_ARTIFACTS_PATH}
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY}
+```
+
+> ⚠️注意：安装harbor会将datasets库的版本升级到4.0.0以上的版本，这会导致安装后报datasets库的依赖冲突，对于执行harbor测试terminal-bench相关数据集没有影响，但是如果你需要测试其他数据集，需要降低datasets库的版本。
+
+#### 2.2 在docker容器中安装
+1. 参考[镜像概览](https://github.com/AISBench/benchmark/blob/master/docker/OVERVIEW.zh.md)的“运行 Agent / 沙箱类测评（在容器内使用 Docker）”章节启动基于**python3.12及以上版本镜像（2026.7.1之后发布的镜像才支持）**的容器。
+2. 在容器内执行以下命令安装 Harbor：
+   ```bash
+   pip install harbor==0.6.1 --break-system-packages
+   ```
+3. 编辑harbor中的docker compose配置文件`/usr/local/lib/python3.12/dist-packages/harbor/environments/docker/docker-compose-base.yaml`
+```yaml
+services:
+  main:
+    network_mode: host # 共享主机网络，必须配置
+    security_opt: # 模式 B 启动的容器需要配置
+      - seccomp=unconfined
+    environment: # 在容器中普遍生效的环境变量
+      http_proxy: XXXXXXXX # 如果执行环境无法访问互联网，需要配置代理环境变量
+      https_proxy: XXXXXXXX # 如果执行环境无法访问互联网，需要配置代理环境变量
+      no_proxy: XXXXXXXX
+    volumes:
+      - type: bind
+        source: ${HOST_VERIFIER_LOGS_PATH}
+        target: ${ENV_VERIFIER_LOGS_PATH}
+      - type: bind
+        source: ${HOST_AGENT_LOGS_PATH}
+        target: ${ENV_AGENT_LOGS_PATH}
+      - type: bind
+        source: ${HOST_ARTIFACTS_PATH}
+        target: ${ENV_ARTIFACTS_PATH}
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY}
+```
 > ⚠️注意：安装harbor会将datasets库的版本升级到4.0.0以上的版本，这会导致安装后报datasets库的依赖冲突，对于执行harbor测试terminal-bench相关数据集没有影响，但是如果你需要测试其他数据集，需要降低datasets库的版本。
 
 
-### 4. 准备AISBench修改过的Terminal-Bench-2数据集和对应镜像
+### 3. 准备AISBench修改过的Terminal-Bench数据集和对应镜像
+#### 3.1 terminal-bench 2
 AISBench修改的数据集获取链接：https://github.com/AISBench/terminal-bench-2
-> 👉注意: AISBench没有改用例内容，只是将所有环境的准备全部集中到Dockerfile中，避免反复执行还需要反复构建环境和安装依赖
+> 👉注意: AISBench没有改用例内容，只是将所有环境的准备（包括terminus 2这个agent的所有依赖以及验证资源的）全部集中到Dockerfile中，避免反复执行还需要反复构建环境和安装依赖
 
 Terminal-Bench-2 预制打包镜像信息：
 | 镜像名称 | 获取链接 |cpu架构| 打包压缩包大小 |
@@ -67,9 +139,27 @@ Terminal-Bench-2 预制打包镜像信息：
 |`terminal-bench-2-prepared-images_aarch64.tar`| https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_aarch64.tar | aarch64 | 48.50 GB |
 |`terminal-bench-2-prepared-images_x86_64.tar`| https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_x86_64.tar | x86_64 | 71.43GB |
 
-> 👉注意：如果不想准备所有case的镜像，可以从[terminal-bench-2-offline-mini](https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini)获取基于terminal-bench-2.0小规模采样的数据集及对应打包镜像
+> 🌟提示：如果不想准备所有case的镜像，可以从[terminal-bench-2-offline-mini](https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini)获取基于terminal-bench-2.0小规模采样的数据集及对应打包镜像
 
-### 5. 配置 Harbor 任务的自定义配置文件
+#### 3.2 terminal-bench 2.1
+> terminal-bench 2.1简单来说就是terminal-bench-2.0的一个bugfix版本，用例数量和用例名称是完全一致的，只有部分case的数据集内容和镜像内容有所差别。
+
+AISBench修改的数据集获取链接：https://github.com/AISBench/terminal-bench-2.1
+
+> 👉注意：AISBench没有修改terminal-bench-2.1的官方原始镜像的内容，仅修改了镜像的tag名称便于和terminal-bench-2.0进行区分，数据集中的task.toml中镜像名称也做了同步修改。
+
+| 镜像名称 | 获取链接 |cpu架构| 打包压缩包大小 |
+| -------- | -------- | ------- |-------- |
+|`terminal-bench-2.1-images-aarch64.tar`| 暂不支持 | aarch64 | NA |
+|`terminal-bench-2.1-images-x86_64.tar`| https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar | x86_64 | 38.62GB |
+
+
+> ⚠️注意：
+> 如果通过源码安装 AISBench 测评工具 & Harbor 依赖这种方式安装依赖的情况下，部署Terminal-Bench-2/2.1的镜像需要在**物理机**上执行`docker load -i xxxxxxx.tar`
+> 如果通过模式 A（真 docker in docker）启动AISBench容器，部署Terminal-Bench-2/2.1的镜像需要在**容器内**上执行`docker load -i xxxxxxx.tar`
+> 如果提供给模式 B（Socket 代理）启动AISBench容器，部署Terminal-Bench-2/2.1的镜像需要在**物理机**上执行`docker load -i xxxxxxx.tar`
+
+### 4. 配置 Harbor 任务的自定义配置文件
 
 在 AISBench 工具根目录下修改 `ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py`：
 
@@ -89,6 +179,12 @@ models = [
                 "input_cost_per_token": 0.0,
                 "output_cost_per_token": 0.0,
             },
+            "llm_call_kwargs": { # LLM调用参数
+                "max_tokens": 4096, # 最大输出token数
+                # "temperature": 0.7,
+                # "top_p": 0.9,
+                # "top_k": 50,
+            },
         },
         agent_env=None,  # --ae/--agent-env: 传递给agent的环境变量
     )
@@ -105,7 +201,7 @@ for task in sub_tasks:
                 # ......
                 n_concurrent_trials=5,  # -n/--n-concurrent: 并发运行的trial数量
                 # ......
-                path="/path/to/terminal-bench-2/",  # -p/--path: 本地数据集路径
+                path="/path/to/terminal-bench-2/",  # -p/--path: 本地数据集路径，terminal-bench-2或者terminal-bench 2.1数据集的路径
                 # ......
                 n_tasks=None,  # --n-tasks: 最大任务数量, None默认跑全部，快速入门可以尝试设置几条快速跑通流程
                 # ......
@@ -116,7 +212,7 @@ for task in sub_tasks:
 # ......
 ```
 
-### 6. 执行 Harbor 任务
+### 5. 执行 Harbor 任务
 
 1. 在 AISBench 工具根目录下执行以下命令：
    ```bash

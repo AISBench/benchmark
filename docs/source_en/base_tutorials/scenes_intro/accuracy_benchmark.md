@@ -582,7 +582,7 @@ After the accuracy evaluation phase is completed, the results will be recorded i
 | aime2024  | 604a78    | cons@5                    | gen  | 13.33                |
 ```
 
-For **specific interpretation of indicators** and **parameter constraints** in the table above, please refer to 📚 [Accuracy Evaluation Scenario: Interpretation of Evaluation Metrics](accuracy_metric.md)
+For **specific interpretation of indicators** and **parameter constraints** in the table above, please refer to 📚 [Accuracy Evaluation Scenario: Interpretation of Evaluation Metrics](../results_intro/accuracy_metric.md).
 
 ## Implementation via Custom Configuration Files
 

@@ -15,7 +15,11 @@ OmniDocBench is a benchmark for evaluating diverse document parsing in real-worl
 ```bash
 # Within the Linux server, under the tool root path
 cd ais_bench/datasets
-git clone https://huggingface.co/datasets/opendatalab/OmniDocBench
+git lfs install
+GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/datasets/opendatalab/OmniDocBench
+cd OmniDocBench
+git checkout 91fe284bbfacfa687959ae3eb00846ca852aa907 # Note: Must be this commit ID version of the dataset
+git lfs pull
 ```
 - Execute `tree OmniDocBench/` in the directory `{tool_root_path}/ais_bench/datasets` to check the directory structure. If the directory structure is as shown below, the dataset has been deployed successfully:
     ```
