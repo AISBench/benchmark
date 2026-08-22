@@ -36,7 +36,7 @@ Refer to the [model_api_test_en.py](https://github.com/AISBench/benchmark/tree/m
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -65,7 +65,7 @@ By default, the `models` list and `datasets` list in the above configuration are
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -195,7 +195,7 @@ In the custom configuration file, `max_num_workers` no longer needs to be set; i
 # The complete example is identical to the configuration in Multi-Task Evaluation; the only difference lies in the execution command
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -344,7 +344,7 @@ You can also resume only part of the tasks after editing the custom configuratio
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -403,7 +403,7 @@ Modify the custom configuration file to import a dataset task that supports merg
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -452,7 +452,7 @@ For a complete example, refer to [fixed_prompts_en.py](https://github.com/AISBen
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -477,7 +477,7 @@ If you need more flexible range control (e.g., specifying a start index and cust
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -526,7 +526,7 @@ For a complete example, refer to [multi_repeat_en.py](https://github.com/AISBenc
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -639,7 +639,7 @@ Check `20250628_151326/predictions/vllm-api-general-chat/gsm8k.json` and find th
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.datasets import gsm8k_postprocess, gsm8k_dataset_postprocess
 

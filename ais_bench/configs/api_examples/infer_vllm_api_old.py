@@ -1,7 +1,7 @@
 from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIOld
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -39,7 +39,7 @@ models = [
 
 infer = dict(partitioner=dict(type=NaivePartitioner),
              runner=dict(
-                 type=LocalAPIRunner,
+                 type=LocalRunner,
                  max_num_workers=2,
                  task=dict(type=OpenICLInferTask)), )
 

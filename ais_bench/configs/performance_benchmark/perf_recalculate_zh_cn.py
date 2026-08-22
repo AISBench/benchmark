@@ -2,7 +2,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -31,7 +31,7 @@ work_dir = "outputs/default/"
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
     runner=dict(
-        type=LocalAPIRunner,
+        type=LocalRunner,
         task=dict(type=OpenICLInferTask),
     ),
 )

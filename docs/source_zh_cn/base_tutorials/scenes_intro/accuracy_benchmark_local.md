@@ -19,7 +19,7 @@
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -54,7 +54,7 @@ ais_bench ais_bench/configs/accuracy_benchmark_local/multi_task_zh_cn.py
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -127,7 +127,7 @@ ais_bench ais_bench/configs/accuracy_benchmark_local/single_task_zh_cn.py --reus
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -178,7 +178,7 @@ ais_bench ais_bench/configs/accuracy_benchmark_local/ceval_merge_zh_cn.py --merg
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.datasets import gsm8k_postprocess, gsm8k_dataset_postprocess
 

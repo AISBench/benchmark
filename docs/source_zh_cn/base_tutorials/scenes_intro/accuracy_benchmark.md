@@ -34,7 +34,7 @@
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -63,7 +63,7 @@ ais_bench ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -196,7 +196,7 @@ aime2024   604a78     accuracy  gen                        50.00                
 # 完整样例与多任务测评中的配置一致，区别仅在执行命令
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -346,7 +346,7 @@ ais_bench ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py --reuse 20250
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -405,7 +405,7 @@ ais_bench --models vllm_api_general_chat vllm_api_stream_chat --datasets aime202
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -454,7 +454,7 @@ ais_bench --models vllm_api_general --datasets ceval_gen --merge-ds
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -479,7 +479,7 @@ ais_bench ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py --num-prom
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -528,7 +528,7 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -641,7 +641,7 @@ demo_gsm8k              401e4c   accuracy gen                   00.00
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.datasets import gsm8k_postprocess, gsm8k_dataset_postprocess
 

@@ -20,7 +20,7 @@ Supports simultaneous configuration of multiple dataset tasks through a single c
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -55,7 +55,7 @@ By default, the `models` list and `datasets` list in the above configuration wil
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -128,7 +128,7 @@ Supports merging datasets containing multiple small-scale sub-datasets into a si
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -179,7 +179,7 @@ For a complete example, refer to [inference_re_eval_en.py](https://github.com/AI
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.datasets import gsm8k_postprocess, gsm8k_dataset_postprocess
 

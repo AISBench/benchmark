@@ -197,7 +197,7 @@ work_dir = 'outputs/temperature_comparison/'
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
     runner=dict(
-        type=LocalAPIRunner,
+        type=LocalRunner,
         max_num_workers=2,
         task=dict(type=OpenICLInferTask),
     ),
@@ -222,7 +222,7 @@ ais_bench ais_bench/configs/api_examples/infer_vllm_api_general.py
 from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -256,7 +256,7 @@ models = [
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
     runner=dict(
-        type=LocalAPIRunner,
+        type=LocalRunner,
         max_num_workers=2,
         task=dict(type=OpenICLInferTask),
     ),
@@ -273,7 +273,7 @@ work_dir = 'outputs/api-vllm-general-chat/'
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFaceBaseModel
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -308,7 +308,7 @@ models = [
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
     runner=dict(
-        type=LocalAPIRunner,
+        type=LocalRunner,
         max_num_workers=2,
         task=dict(type=OpenICLInferTask),
     ),
@@ -464,7 +464,7 @@ work_dir = 'outputs/custom_combinations/'
 from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content
 
@@ -499,7 +499,7 @@ models = [
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
     runner=dict(
-        type=LocalAPIRunner,
+        type=LocalRunner,
         max_num_workers=2,
         task=dict(type=OpenICLInferTask),
     ),
@@ -558,7 +558,7 @@ work_dir = 'outputs/steady_state_perf/'
 from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content
 
@@ -593,7 +593,7 @@ models = [
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
     runner=dict(
-        type=LocalAPIRunner,
+        type=LocalRunner,
         max_num_workers=2,
         task=dict(type=OpenICLInferTask),
     ),
@@ -610,7 +610,7 @@ work_dir = 'outputs/multi_turn_benchmark/'
 from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
@@ -665,7 +665,7 @@ models = [
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
     runner=dict(
-        type=LocalAPIRunner,
+        type=LocalRunner,
         max_num_workers=2,
         task=dict(type=OpenICLInferTask),
     ),
@@ -683,7 +683,7 @@ work_dir = 'outputs/custom_dataset/'
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 

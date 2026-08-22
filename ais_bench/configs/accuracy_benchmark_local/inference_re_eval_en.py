@@ -1,7 +1,7 @@
 from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 from ais_bench.benchmark.datasets import gsm8k_postprocess, gsm8k_dataset_postprocess
 
@@ -37,7 +37,7 @@ work_dir = 'outputs/default/'
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
     runner=dict(
-        type=LocalAPIRunner,
+        type=LocalRunner,
         task=dict(type=OpenICLInferTask),
     ),
 )

@@ -243,7 +243,7 @@ outputs/default/20251106_103326/logs/infer/vllm-api-stream-chat/demo_gsm8k.out
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -272,7 +272,7 @@ ais_bench ais_bench/configs/performance_benchmark/multi_task_zh_cn.py --mode per
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -440,7 +440,7 @@ ais_bench --models vllm_api_general_stream vllm_api_stream_chat --datasets gsm8k
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -569,7 +569,7 @@ ais_bench --models  vllm_api_stream_chat --datasets synthetic_gen_string -m perf
 import copy
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -643,7 +643,7 @@ work_dir = "outputs/default/"
 
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
-    runner=dict(type=LocalAPIRunner, task=dict(type=OpenICLInferTask)),
+    runner=dict(type=LocalRunner, task=dict(type=OpenICLInferTask)),
 )
 ```
 
@@ -697,7 +697,7 @@ ais_bench ais_bench/configs/performance_benchmark/multi_task_synthetic_zh_cn.py 
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -722,7 +722,7 @@ ais_bench ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py --mode 
 ```python
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
@@ -823,7 +823,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
+from ais_bench.benchmark.runners.local import LocalRunner
 from ais_bench.benchmark.tasks import OpenICLInferTask
 
 with read_base():
