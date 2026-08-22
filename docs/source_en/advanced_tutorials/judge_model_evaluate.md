@@ -222,6 +222,10 @@ The result display example is as follows:
 
 From the quick start section of the judge model, you can see that except for the additional need to modify the judge model configuration in the data configuration file, the other evaluation execution methods are exactly the same as the conventional evaluation execution methods. Therefore, the execution methods for other accuracy evaluation function scenarios are also exactly the same.
 
+## Implement via Custom Config Files
+
+> 💡 The above judge model evaluation scenario can also be implemented through the [Custom Config File Method](run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax such as loops, conditional judgments, list comprehensions, etc. You can write the tested model, judge model, dataset, summarizer, and other configurations into a single file, write once and reuse multiple times. See the "Judge Model Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-configuration-file-examples-for-each-scenario).
+
 ### Multi-task Evaluation
 
 Refer to [Accuracy Evaluation Scenario Multi-task Evaluation](../base_tutorials/scenes_intro/accuracy_benchmark.md#multi-task-evaluation)
@@ -232,13 +236,13 @@ Refer to [Accuracy Evaluation Scenario Multi-task Parallel Evaluation](../base_t
 
 ### Interrupted Evaluation & Failed Case Re-evaluation
 
-Refer to [Accuracy Evaluation Scenario Interrupted Evaluation & Failed Case Re-evaluation](../base_tutorials/scenes_intro/accuracy_benchmark.md#interrupted-evaluation-failed-case-re-evaluation)
+Refer to [Accuracy Evaluation Scenario Interrupted Evaluation & Failed Case Re-evaluation](../base_tutorials/scenes_intro/accuracy_benchmark.md#resumption-after-interruption--retesting-of-failed-cases)
 
 > ⚠️ Note: After `--reuse` re-completes the tested model inference results, the judge model will re-evaluate all complete inference results from scratch, and previously judged results will not be used.
 
 ### Merged Sub-dataset Inference
 
-Refer to [Accuracy Evaluation Scenario Merged Sub-dataset Inference](../base_tutorials/scenes_intro/accuracy_benchmark.md#merged-sub-dataset-inference)
+Refer to [Accuracy Evaluation Scenario Merged Sub-dataset Inference](../base_tutorials/scenes_intro/accuracy_benchmark.md#merging-sub-dataset-inference)
 
 ### Fixed Request Count Evaluation
 
@@ -246,13 +250,13 @@ Refer to [Accuracy Evaluation Scenario Fixed Request Count Evaluation](../base_t
 
 ### Multiple Independent Repetitions Inference
 
-Refer to [Accuracy Evaluation Scenario Multiple Independent Repetitions Inference](../base_tutorials/scenes_intro/accuracy_benchmark.md#multiple-independent-repetitions-inference)
+Refer to [Accuracy Evaluation Scenario Multiple Independent Repetitions Inference](../base_tutorials/scenes_intro/accuracy_benchmark.md#multiple-independent-repeat-inference)
 
 > ⚠️ This scenario requires attention: only need to configure the parameters for multiple independent repetitions inference in the tested model, no need to configure in the judge model configuration.
 
 ### Inference Results Re-evaluation
 
-Refer to [Accuracy Evaluation Scenario Inference Results Re-evaluation](../base_tutorials/scenes_intro/accuracy_benchmark.md#inference-results-re-evaluation)
+Refer to [Accuracy Evaluation Scenario Inference Results Re-evaluation](../base_tutorials/scenes_intro/accuracy_benchmark.md#re-evaluation-of-inference-results)
 
 > ⚠️ This scenario requires attention that re-evaluation starts from the judge model inference
 

@@ -49,10 +49,10 @@ RefCOCO/
 
 ## 可用数据集任务
 
-| Task Name          | Introduction                                                                                                                                                                                                    | Evaluation Metric | Few-Shot | Prompt Format                      | Config File                                    |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------- | ---------------------------------- | ---------------------------------------------- |
-| refcoco_gen        | RefCOCO 生成式定位任务配置，使用文件路径图像输入（`file://{image}`），导出 `RefCOCO_val`、`RefCOCO_test`、`RefCOCO_testA`、`RefCOCO_testB` 四个 split 任务                                                      | Accuracy@0.5      | 0-shot   | 多模态对话格式（MMPromptTemplate） | [refcoco_gen.py](refcoco_gen.py)               |
-| refcoco_gen_base64 | RefCOCO 生成式定位任务配置，使用 base64 data URL 图像输入（`data:image/jpeg;base64,{image}`），导出 `RefCOCO_base64_val`、`RefCOCO_base64_test`、`RefCOCO_base64_testA`、`RefCOCO_base64_testB` 四个 split 任务 | Accuracy@0.5      | 0-shot   | 多模态对话格式（MMPromptTemplate） | [refcoco_gen_base64.py](refcoco_gen_base64.py) |
+| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| refcoco_gen | RefCOCO 生成式定位任务配置，使用文件路径图像输入（`file://{image}`），导出 `RefCOCO_val`、`RefCOCO_test`、`RefCOCO_testA`、`RefCOCO_testB` 四个 split 任务 | Accuracy@0.5 | 0-shot | 多模态对话格式（MMPromptTemplate） | `from ais_bench.benchmark.configs.datasets.refcoco.refcoco_gen import refcoco_datasets as datasets` | [refcoco_gen.py](refcoco_gen.py) |
+| refcoco_gen_base64 | RefCOCO 生成式定位任务配置，使用 base64 data URL 图像输入（`data:image/jpeg;base64,{image}`），导出 `RefCOCO_base64_val`、`RefCOCO_base64_test`、`RefCOCO_base64_testA`、`RefCOCO_base64_testB` 四个 split 任务 | Accuracy@0.5 | 0-shot | 多模态对话格式（MMPromptTemplate） | `from ais_bench.benchmark.configs.datasets.refcoco.refcoco_gen_base64 import refcoco_datasets as datasets` | [refcoco_gen_base64.py](refcoco_gen_base64.py) |
 
 ## 数据集分类
 

@@ -151,6 +151,12 @@ ais_bench --models vllm_api_stream_chat --datasets sharegpt_gen -m perf --debug
 
 ### 性能细节查看
 执行AISBench命令后，任务执行更多细节最终会落盘在默认的输出路径，这个输出路径在运行中的打屏日志中有提示，例如：
+
+## 通过自定义配置文件实现
+
+> 💡 上述多轮对话性能测评场景也可以通过 [自定义配置文件方式](run_custom_config.md) 实现。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](run_custom_config.md#各场景自定义配置文件示例) 中"多轮对话性能测评"示例。
+
+### 性能细节查看
 ```shell
 06/28 15:13:26 - AISBench - INFO - Current exp folder: outputs/default/20250628_151326
 ```

@@ -208,9 +208,14 @@ After the command execution is completed, the task execution details in `outputs
 For instructions on how to view the charts in this HTML file, please refer to 📚 [Instructions for Using Performance Test Visualization Concurrency Charts](../base_tutorials/results_intro/performance_visualization.md)
 
 
+## Implement via Custom Config Files
+
+> 💡 The above steady-state performance evaluation scenario can also be implemented through the [Custom Config File Method](run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax such as loops, conditional judgments, list comprehensions, etc. You can write models, datasets, summarizer, and other configurations into a single file, write once and reuse multiple times. See the "Steady-State Performance Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-configuration-file-examples-for-each-scenario).
+
+
 ## Other Functional Scenarios
 ### Recalculating Performance Results
-Refer to 📚 [Recalculation of Performance Results](../base_tutorials/scenes_intro/performance_benchmark.md#recalculation-of-performance-results)
+Refer to 📚 [Recalculation of Performance Results](../base_tutorials/scenes_intro/performance_benchmark.md#performance-result-recalculation)
 
 #### Configuration Differences
 Modify the configuration file `stable_stage.py` corresponding to the `stable_stage` result presentation task specified by `--summarizer`.

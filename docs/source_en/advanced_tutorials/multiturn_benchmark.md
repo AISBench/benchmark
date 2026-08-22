@@ -172,6 +172,11 @@ After executing the AISBench command, detailed task execution data is saved to a
 
 This log indicates that detailed task data is stored in `outputs/default/20250628_151326` (relative to the directory where the command was executed).
 
+## Implement via Custom Config Files
+
+> 💡 The above multi-turn dialogue performance evaluation scenario can also be implemented through the [Custom Config File Method](run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax such as loops, conditional judgments, list comprehensions, etc. You can write models, datasets, summarizer, and other configurations into a single file, write once and reuse multiple times. See the "Multi-Turn Dialogue Performance Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-configuration-file-examples-for-each-scenario).
+
+### Viewing Detailed Performance Data
 ```shell
 20250628_151326           # Unique directory generated for each experiment based on timestamp
 ├── configs               # Auto-saved dump of all configuration files
@@ -181,7 +186,7 @@ This log indicates that detailed task data is stored in `outputs/default/2025062
      └── vllm-api-chat-stream/          # Name of the "service-based model configuration" (corresponds to the `abbr` parameter in the model task configuration file)
           ├── sharegptdataset.csv          # Per-request performance output (CSV), matching the "Performance Parameters" table in the printed results
           ├── sharegptdataset.json         # End-to-end performance output (JSON), matching the "Common Metric" table in the printed results
-          ├── sharegptdataset_details.h5   # Full打点 ITL data (Inter-Token Latency)
+          ├── sharegptdataset_details.h5   # Full-granularity ITL data (Inter-Token Latency)
           ├── sharegptdataset_details.json # Full detailed metrics
           └── sharegptdataset_plot.html    # Request concurrency visualization report (HTML)
 ```
