@@ -1,0 +1,37 @@
+{
+  "effective_target_hit_rate": 0.6000385389741988,
+  "requested_target_hit_rate": 0.6,
+  "run_id": "gsm8k-token2048-prefix-cache-60",
+  "runtime": {},
+  "schema_version": "1.0",
+  "status": "prepared",
+  "target_absolute_difference_pp": 0.0038538974198809584,
+  "target_difference_pp": 0.0038538974198809584,
+  "target_signed_difference_pp": 0.0038538974198809584,
+  "theoretical_hit_rate": 0.6000385389741988,
+  "theory": {
+    "dp": {
+      "0": {
+        "hit_rate": 0.6000385389741988,
+        "hit_tokens": 180608,
+        "input_tokens": 300994
+      }
+    },
+    "groups": {
+      "group-0": {
+        "hit_rate": 0.6000385389741988,
+        "hit_tokens": 180608,
+        "input_tokens": 300994
+      }
+    },
+    "hit_tokens": 180608,
+    "input_tokens": 300994
+  },
+  "validation": {
+    "affects_exit_code": false,
+    "status": "PASS",
+    "target_reachable": true,
+    "warning_only": true
+  },
+  "warnings": []
+}
