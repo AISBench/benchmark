@@ -23,11 +23,11 @@ rm mmlu_pro.zip
     ```
 
 ## Available Dataset Tasks
-### mmlu_pro_gen_0_shot_str
+### mmlu_pro_gen_0_shot_cot_str
 #### Basic Information
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
 | --- | --- | --- | --- | --- | --- |
-| mmlu_pro_gen_0_shot_str | Generative task for the mmlu-pro dataset | pass@1 | 0-shot | String format | [mmlu_pro_gen_0_shot_str.py](mmlu_pro_gen_0_shot_str.py) |
+| mmlu_pro_gen_0_shot_cot_str | Generative task for the mmlu-pro dataset | pass@1 | 0-shot | String format | [mmlu_pro_gen_0_shot_cot_str.py](mmlu_pro_gen_0_shot_cot_str.py) |
 | mmlu_pro_gen_5_shot_str | Generative task for the mmlu-pro dataset | pass@1 | 5-shot | String format | [mmlu_pro_gen_5_shot_str.py](mmlu_pro_gen_5_shot_str.py) |
 
 

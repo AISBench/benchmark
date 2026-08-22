@@ -23,9 +23,9 @@ rm mmlu_pro.zip
     ```
 
 ## 可用数据集任务
-### mmlu_pro_gen_0_shot_str
+### mmlu_pro_gen_0_shot_cot_str
 #### 基本信息
 |任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
 | --- | --- | --- | --- | --- | --- |
-|mmlu_pro_gen_0_shot_str|mmlu-pro数据集生成式任务|pass@1|0-shot|字符串格式|[mmlu_pro_gen_0_shot_str.py](mmlu_pro_gen_0_shot_str.py)|
+|mmlu_pro_gen_0_shot_cot_str|mmlu-pro数据集生成式任务|pass@1|0-shot|字符串格式|[mmlu_pro_gen_0_shot_cot_str.py](mmlu_pro_gen_0_shot_cot_str.py)|
 |mmlu_pro_gen_5_shot_str|mmlu-pro数据集生成式任务|pass@1|0-shot|字符串格式|[mmlu_pro_gen_5_shot_str.py](mmlu_pro_gen_5_shot_str.py)|

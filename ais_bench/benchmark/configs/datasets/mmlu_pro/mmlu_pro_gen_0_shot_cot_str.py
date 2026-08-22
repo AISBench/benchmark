@@ -44,7 +44,7 @@ for category in categories:
         evaluator=dict(type=AccEvaluator),
         pred_postprocessor=dict(
             type=match_answer_pattern,
-            answer_pattern=r'(?i)ANSWER\s*:\s*([A-P])')
+            answer_pattern=r'(?i)\bANSWER\s*:\s*([A-P])\b')
     )
 
     mmlu_pro_datasets.append(
