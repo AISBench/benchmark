@@ -108,9 +108,131 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 - `service.dp_size`：真实 DP 数量；
 - `aisbench.config`：AISBench Python 配置。
 
-各参数含义见 [Scenario 参数说明](config_examples/scenario.example.md)。
+各参数含义见 [Scenario 参数说明](config_examples/scenario.example.md)。下面同时列出本插件最关键的数据构造参数，README 本身即可作为快速使用手册。
 
-### 4.2 `inspect`：检查配置和理论范围
+### 4.2 Prefix Cache 数据构造参数
+
+#### 输入长度模式
+
+`requests.input_length` 控制每条正式请求的总输入 token 数。总长度由公共前缀、全局唯一 seed 和 GSM8K 自然后缀共同组成。
+
+固定长度：
+
+```json
+"input_length": {"mode": "fixed", "value": 1024}
+```
+
+显式长度列表：
+
+```json
+"input_length": {
+  "mode": "explicit",
+  "values": [512, 768, 1024, 2048]
+}
+```
+
+`values` 必须全部为正整数。作为全局配置时，元素数量必须等于 `requests.count`；作为 Prefix Group 覆盖配置时，元素数量必须等于该组实际请求数。
+
+多个闭区间采样：
+
+```json
+"input_length": {
+  "mode": "range",
+  "ranges": [
+    {"min": 512, "max": 1024, "count": 80},
+    {"min": 2048, "max": 4096, "count": 20}
+  ]
+}
+```
+
+每个区间包含 `min` 和 `max`，所有 `count` 之和必须等于对应的请求数量。采样由 `run.random_seed` 确定，相同配置可重复生成相同长度序列。
+
+截断正态分布：
+
+```json
+"input_length": {
+  "mode": "truncated_normal",
+  "min": 512,
+  "max": 2048,
+  "mean": 1024,
+  "std": 256
+}
+```
+
+只接受 `[min,max]` 内的整数采样。`mean` 默认取区间中点；`std` 默认根据区间宽度推导，显式设置时必须大于 0；`min=max` 等价于固定长度。
+
+CSV 长度文件：
+
+```json
+"input_length": {"mode": "csv", "path": "./input_lengths.csv"}
+```
+
+CSV 行数必须等于对应请求数，并包含 `input_prompt_tokens`、`content_tokens` 或 `input_tokens` 中的一列。
+
+#### 最小非共享长度与唯一 seed
+
+```json
+"prefix_cache": {
+  "seed_blocks": 1,
+  "minimum_non_shared_length": 16
+}
+```
+
+唯一 seed 长度按下式计算：
+
+```text
+seed_tokens = seed_blocks × tokenizer.block_size
+```
+
+`minimum_non_shared_length` 默认等于 `seed_tokens`，不能小于 seed 长度。公共前缀的最大长度为：
+
+```text
+floor((input_length - minimum_non_shared_length) / block_size) × block_size
+```
+
+当最小非共享长度大于 seed 长度时，剩余空间由 GSM8K 自然后缀填充。每条正式请求都会使用实际参与构造的确定性 `request_random_seed` 生成差异 seed，seed token 序列在整个数据集中保持唯一，避免公共前缀结束后继续误共享。
+
+Scenario 加载阶段会检查每种输入长度模式的最小值是否能容纳非共享区，不满足时在生成数据前直接报错。
+
+#### 请求顺序策略
+
+```json
+"order": {"strategy": "input_len_asc"}
+```
+
+支持以下策略：
+
+- `sequential`：保持数据生成阶段的稳定顺序；
+- `within_group_shuffle`：每个 Prefix Group 内确定性打乱，再按组输出；
+- `interleave`：不同 Prefix Group 按轮次交错；
+- `global_shuffle`：所有请求全局确定性打乱；
+- `input_len_asc`：每个 Prefix Group 内按输入长度从短到长排序，再按组轮转交错；相同长度保持原始顺序。
+
+理论命中率始终按照最终发送顺序重新模拟。cold 模式下，同一个 `(Prefix Group, DP rank)` lane 的正式请求会保持该顺序，即使 AISBench 并发发送也不会破坏理论缓存水位。
+
+#### 可达性与长度统计
+
+求解器会同时计算：
+
+- 全局 `reachable_min` 和 `reachable_max`；
+- 每个 Prefix Group 的 `reachable_min` 和 `reachable_max`；
+- `target_reachable`，表示目标命中率是否处于全局可达区间；
+- requested、effective 和 theoretical hit rate；
+- 理论值减目标值的带符号偏差和绝对偏差。
+
+Manifest 的输入和输出长度摘要包含 `min`、`max`、`mean`、`p50`、`p90`、`p95`、`p99` 以及最多十个长度分桶。`inspect` 也会展示这些摘要和组级可达范围。
+
+#### 验证状态与退出码
+
+`analysis.json` 使用 `PASS` 或 `PASS_WITH_WARNING` 展示验证状态：
+
+- 目标超出可达区间时记录 `TARGET_UNREACHABLE`；
+- 理论值与目标相差超过 `target_warning_pp` 时记录 `TARGET_DEVIATION`；
+- 实际值与理论值相差超过 `actual_warning_pp` 时记录 `ACTUAL_DEVIATION`。
+
+这些状态和差异只用于展示，`warning_only=true` 且 `affects_exit_code=false`。偏差不会改变原本成功的退出码；只有配置、产物、服务能力或 AISBench 执行错误才会失败。
+
+### 4.3 `inspect`：检查配置和理论范围
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
@@ -124,7 +246,7 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 - 展示组分布、输入/输出长度和 cold DP 路由摘要；
 - 不访问 vLLM、不发送请求，也不在 Scenario 的 `output_dir` 留下产物。
 
-### 4.3 `prepare`：生成正式数据产物
+### 4.4 `prepare`：生成正式数据产物
 
 ```bash
 ais-bench-prefix-cache prepare --scenario ./scenario.json
@@ -145,7 +267,7 @@ ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
 
 `--overwrite` 只覆盖该 run 对应的四个确定文件，不会清理整个输出目录。
 
-### 4.4 `validate`：校验已有产物
+### 4.5 `validate`：校验已有产物
 
 ```bash
 ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60/gsm8k-prefix-cache-60.manifest.json
@@ -161,7 +283,7 @@ ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60/gsm8k
 
 它用于发现文件被手工编辑、截断、换序或使用了错误版本。
 
-### 4.5 `run`：执行完整压测
+### 4.6 `run`：执行完整压测
 
 ```bash
 ais-bench-prefix-cache run --scenario ./scenario.json
@@ -187,7 +309,7 @@ ais-bench-prefix-cache run --scenario ./scenario.json --config ./my_prefix_cache
 
 `--config` 只影响本次执行，不修改 Scenario 文件。
 
-### 4.6 `analyze`：使用离线指标重新分析
+### 4.7 `analyze`：使用离线指标重新分析
 
 ```bash
 ais-bench-prefix-cache analyze \
