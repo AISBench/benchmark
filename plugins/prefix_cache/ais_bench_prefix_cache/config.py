@@ -14,11 +14,22 @@ from .scenario import load_scenario
 
 
 def _manifest(scenario):
+    """定位并读取指定场景对应的 manifest 工件文件，返回 (路径, 解析后的内容)。
+
+    manifest 记录了 prepare 阶段生成的请求/工件元信息，是后续组装
+    AISBench 配置的数据来源。
+    """
     path = scenario.output_dir / f"{scenario.run_id}.manifest.json"
     return path, json.loads(path.read_text(encoding="utf-8"))
 
 
 def build_dataset_config(scenario_path: str | Path) -> dict:
+    """根据场景配置，构造 AISBench 的 dataset 配置字典。
+
+    指向 prepare 阶段落盘的 requests/full/manifest 工件，并装配
+    PromptTemplate、ZeroRetriever、PrefixCacheGenInferencer 与 AccEvaluator，
+    使 AISBench 能按 prefix cache 语义读取并执行这批请求。
+    """
     scenario = load_scenario(scenario_path)
     manifest_path, manifest = _manifest(scenario)
     base = manifest_path.parent
@@ -39,6 +50,12 @@ def build_dataset_config(scenario_path: str | Path) -> dict:
 
 
 def build_model_config(scenario_path: str | Path) -> dict:
+    """构造 AISBench 的模型（推理服务）配置字典。
+
+    从场景的 service/tokenizer 段取出模型名、推理地址、api_key 等，
+    封装为 VLLMPrefixCacheAPI；max_out_len=1 表示本基准只关心
+    前缀命中，不关心实际生成内容。
+    """
     scenario = load_scenario(scenario_path)
     service = scenario.section("service")
     tokenizer = scenario.section("tokenizer")

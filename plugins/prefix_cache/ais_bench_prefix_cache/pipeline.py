@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def _tokenizer_loader(scenario: Scenario):
+    """按场景配置加载 HuggingFace AutoTokenizer，作为默认 tokenizer 加载器。"""
     try:
         from transformers import AutoTokenizer
     except ImportError as exc:
@@ -46,11 +47,13 @@ def _tokenizer_loader(scenario: Scenario):
 
 
 def _sha256_json(value: Any) -> str:
+    """对任意 JSON 可序列化值做规范化后计算 SHA-256（键排序、紧凑分隔符）。"""
     encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
 def _request_random_seed(global_seed: int, request_id: str) -> int:
+    """由全局种子 + 请求 id 派生每条请求的确定性随机种子（可复现）。"""
     digest = hashlib.sha256(f"{global_seed}:{request_id}".encode("utf-8")).digest()
     result = int.from_bytes(digest[:8], "big")
     logger.info("[prepare] _request_random_seed global_seed=%d request_id=%s -> %d", global_seed, request_id, result)
@@ -58,6 +61,7 @@ def _request_random_seed(global_seed: int, request_id: str) -> int:
 
 
 def _percentile(sorted_values: list[int], percentile: float) -> float:
+    """对已排序序列做线性插值分位数（支持单元素序列）。"""
     if len(sorted_values) == 1:
         return float(sorted_values[0])
     position = (len(sorted_values) - 1) * percentile
@@ -70,6 +74,7 @@ def _percentile(sorted_values: list[int], percentile: float) -> float:
 
 
 def _length_summary(values: list[int]) -> dict[str, Any]:
+    """生成长度分布的摘要：min/max/mean/分位数，并分为最多 10 桶直方图。"""
     logger.info("[prepare] _length_summary values_count=%d", len(values))
     ordered = sorted(values)
     low, high = ordered[0], ordered[-1]
@@ -97,6 +102,7 @@ def _length_summary(values: list[int]) -> dict[str, Any]:
 
 
 def _tokenizer_manifest(tokenizer: Any, effective: dict[str, Any], block_size: int) -> dict[str, Any]:
+    """生成 tokenizer 的指纹信息（路径/类/词表/特殊 id），用于工件溯源与一致性校验。"""
     special_ids = sorted(int(value) for value in getattr(tokenizer, "all_special_ids", []))
     fingerprint_source = {
         "path": effective["tokenizer"]["path"],
@@ -115,6 +121,7 @@ def _tokenizer_manifest(tokenizer: Any, effective: dict[str, Any], block_size: i
 
 
 def _build_prompt_with_seed_retry(tokenizer: Any, canonical: Any, prefix_len: int, seeds: dict[str, tuple[int, ...]], request_id: str, rotated_pool: list[Any], target_tokens: int, safe_ids: list[int], seed_length: int, random_seed: int):
+    """构造 prompt；若 round-trip 失败则换一个唯一 seed 重试，最多 64 次。"""
     logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s prefix_len=%d target_tokens=%d seed_length=%d random_seed=%d rotated_pool=%d", request_id, prefix_len, target_tokens, seed_length, random_seed, len(rotated_pool))
     for attempt in range(64):
         try:
@@ -122,12 +129,19 @@ def _build_prompt_with_seed_retry(tokenizer: Any, canonical: Any, prefix_len: in
             logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s attempt=%d ok", request_id, attempt)
             return result
         except PromptRoundTripError:
+            # seed 可能导致 decode/re-encode 后 token 布局变化，重新生成一个不重复的 seed。
             logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s attempt=%d PromptRoundTripError -> regenerating seed", request_id, attempt)
             seeds[request_id] = build_unique_seed(tokenizer, safe_ids, request_id, seed_length, random_seed + attempt * 10007 + 1, set(seeds.values()))
     raise ArtifactValidationError(f"unable to construct a round-trip-safe prompt for {request_id}")
 
 
 def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_loader: Callable[[Scenario], Any] | None = None) -> ArtifactPaths:
+    """准备阶段：从场景配置生成全部请求工件（full/requests/manifest/analysis）。
+
+    流程：解析配置 → 生成输入/输出长度、分组 → 应用 group override → 排序 →
+    cold 路由 → 求解共享前缀 → 构造 canonical 前缀与每条 prompt → 理论命中率模拟 →
+    落盘工件并校验。整个过程不发任何网络请求。
+    """
     logger.info("[prepare] prepare_scenario path=%s overwrite=%s tokenizer_loader=%s", path, overwrite, tokenizer_loader)
     scenario = load_scenario(path)
     logger.info("[prepare] scenario run_id=%s random_seed=%d cache_mode=%s dp_size=%d block_size=%d output_dir=%s source_path=%s", scenario.run_id, scenario.random_seed, scenario.cache_mode, scenario.dp_size, scenario.block_size, scenario.output_dir, scenario.source_path)
@@ -143,6 +157,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     count = request_cfg["count"]
     seed = scenario.random_seed
     logger.info("[prepare] count=%d seed=%d", count, seed)
+    # 阶段1：按配置生成输入/输出长度序列，并按权重把请求分配到各 Prefix Group。
     input_lengths = build_input_lengths(request_cfg["input_length"], count, seed)
     output_lengths = build_output_lengths(request_cfg["output_length"], count, seed + 1)
     groups = assign_groups(count, pc_cfg["groups"], seed + 2)
@@ -151,6 +166,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     logger.info("[prepare] groups=%s distribution=%s", groups, {group: groups.count(group) for group in sorted(set(groups))})
     records = load_gsm8k(Path(corpus_cfg["path"]), corpus_cfg["field"])
     logger.info("[prepare] records=%d", len(records))
+    # 阶段2：应用每个组的 override（独立输入/输出长度、语料选择），构造各组的语料池。
     overrides = pc_cfg["groups"].get("overrides", {})
     logger.info("[prepare] overrides=%s", overrides)
     group_pools: dict[str, list[Any]] = {}
@@ -175,6 +191,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         logger.info("[prepare] group=%s selection=%s", group, selection)
         group_pools[group] = select_gsm8k(records, selection, max(2, len(group_positions)), seed + 300 + group_index)
     logger.info("[prepare] group_pools sizes=%s", {group: len(pool) for group, pool in group_pools.items()})
+    # 阶段3：按配置策略重排请求顺序，长度/分组随之对齐。
     ordering = order_indices(groups, pc_cfg["order"]["strategy"], seed + 4, input_lengths)
     logger.info("[prepare] ordering=%s", ordering)
     input_lengths = [input_lengths[index] for index in ordering]
@@ -183,6 +200,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     logger.info("[prepare] after ordering input_lengths=%s", input_lengths)
     logger.info("[prepare] after ordering output_lengths=%s", output_lengths)
     logger.info("[prepare] after ordering groups=%s", groups)
+    # 阶段4：cold 模式给每条请求分派 DP rank 与 lane；warmup 模式无需路由。
     if scenario.cache_mode == "cold":
         ranks_raw, lane_raw = assign_cold_routes(groups, scenario.dp_size)
         ranks: list[int | None] = ranks_raw
@@ -195,6 +213,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     seed_length = scenario.block_size * pc_cfg["seed_blocks"]
     minimum_non_shared_length = pc_cfg["minimum_non_shared_length"]
     logger.info("[prepare] seed_length=%d minimum_non_shared_length=%d", seed_length, minimum_non_shared_length)
+    # 阶段5：求解每条请求的共享前缀长度，使理论命中率逼近目标。
     solve = solve_prefix_lengths(input_lengths, output_lengths, groups, ranks, lanes, scenario.block_size, minimum_non_shared_length, scenario.cache_mode, pc_cfg["target_hit_rate"])
     logger.info("[prepare] solve shared_prefix_tokens=%s", solve.shared_prefix_tokens)
     logger.info("[prepare] solve requested_hit_tokens=%d effective_hit_tokens=%d effective_hit_rate=%.4f min_reachable_rate=%.4f max_reachable_rate=%.4f target_reachable=%s adjusted=%s reason=%s", solve.requested_hit_tokens, solve.effective_hit_tokens, solve.effective_hit_rate, solve.min_reachable_rate, solve.max_reachable_rate, solve.target_reachable, solve.adjusted, solve.reason)
@@ -202,12 +221,14 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     group_sources = {group: group_pools[group] for group in sorted(set(groups))}
     logger.info("[prepare] max_by_group=%s", max_by_group)
     logger.info("[prepare] group_sources sizes=%s", {group: len(pool) for group, pool in group_sources.items()})
+    # 阶段6：加载 tokenizer，为每个组构造 canonical 前缀并选出边界安全的 seed token。
     tokenizer = (tokenizer_loader or _tokenizer_loader)(scenario)
     logger.info("[prepare] tokenizer=%s vocab_size=%d", f"{tokenizer.__class__.__module__}.{tokenizer.__class__.__qualname__}", len(tokenizer))
     canonical = build_canonical_prefixes(tokenizer, group_sources, max_by_group, scenario.block_size)
     logger.info("[prepare] canonical=%s", {group: {"sha256": item.sha256, "tokens": len(item.token_ids), "gsm_indices": list(item.gsm_indices), "gsm_hashes": list(item.gsm_hashes)} for group, item in canonical.items()})
     safe_ids = find_boundary_safe_token_ids(tokenizer, max(2, min(64, len(tokenizer))))
     logger.info("[prepare] safe_ids count=%d safe_ids=%s", len(safe_ids), safe_ids)
+    # 阶段7：为每条请求生成唯一 seed，再按 shared_prefix + seed + 自然后缀拼 prompt。
     request_ids = [f"request-{index:08d}" for index in range(count)]
     request_random_seeds = {
         request_id: _request_random_seed(seed + 5, request_id)
@@ -233,6 +254,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         occurrences[group] = occurrence + 1
         prefix_len = solve.shared_prefix_tokens[index]
         pool = group_pools[group]
+        # 组内循环轮换语料池，保证不同请求的后缀不同但前缀可共享。
         rotated_pool = pool[occurrence % len(pool):] + pool[:occurrence % len(pool)]
         logger.info("[prepare] build plan index=%d request_id=%s group=%s occurrence=%d prefix_len=%d pool_size=%d rotation_offset=%d", index, request_id, group, occurrence, prefix_len, len(pool), occurrence % len(pool))
         text, tokens, suffix_indices, suffix_hashes = _build_prompt_with_seed_retry(tokenizer, canonical[group], prefix_len, seeds, request_id, rotated_pool, input_lengths[index], safe_ids, seed_length, request_random_seeds[request_id])
@@ -246,6 +268,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         logger.info("[prepare] plan request_id=%s sequence_index=%d group=%s occurrence=%d dp_rank=%s lane=%s target_input_tokens=%d actual_input_tokens=%d max_tokens=%d shared_prefix_tokens=%d seed_tokens=%d natural_suffix_tokens=%d seed_sha256=%s", plan.request_id, plan.sequence_index, plan.group_id, plan.occurrence_index_within_group, plan.dp_rank, plan.lane_sequence, plan.target_input_tokens, plan.actual_input_tokens, plan.max_tokens, plan.shared_prefix_tokens, plan.seed_tokens, plan.natural_suffix_tokens, plan.seed_sha256)
     warm_watermarks = max_by_group if scenario.cache_mode == "warmup" else None
     logger.info("[prepare] warm_watermarks=%s", warm_watermarks)
+    # 阶段8：按缓存水位模拟理论命中率，并生成 full/requests 行。
     theory = simulate_theory(plans, scenario.cache_mode, warm_watermarks)
     logger.info("[prepare] theory total_input_tokens=%d total_hit_tokens=%d global_hit_rate=%.4f", theory.total_input_tokens, theory.total_hit_tokens, theory.global_hit_rate)
     logger.info("[prepare] theory group_stats=%s dp_stats=%s", theory.group_stats, theory.dp_stats)
@@ -262,10 +285,12 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     logger.info("[prepare] full_rows=%d request_rows=%d first_full_row=%s", len(full_rows), len(request_rows), full_rows[0])
     paths = artifact_paths(scenario.output_dir, scenario.run_id)
     logger.info("[prepare] paths full=%s requests=%s manifest=%s analysis=%s", paths.full, paths.requests, paths.manifest, paths.analysis)
+    # 阶段9：落盘 full/requests 工件，并在 warmup 模式下生成预热计划。
     write_jsonl(paths.full, full_rows, overwrite)
     write_jsonl(paths.requests, request_rows, overwrite)
     warmup_plan = []
     if scenario.cache_mode == "warmup":
+        # warmup 模式：为每个 (group, rank) 生成一条预热请求，把缓存前缀写满。
         warm_ids = [f"warmup:{group}:{rank}" for group in sorted(canonical) for rank in range(scenario.dp_size)]
         logger.info("[prepare] warmup warm_ids=%s", warm_ids)
         warm_seeds = build_unique_seed_tokens(safe_ids, warm_ids, seed_length, seed + 6, tokenizer)
@@ -276,6 +301,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
                 prompt, tokens, _, _ = _build_prompt_with_seed_retry(tokenizer, canonical[group], max_by_group[group], warm_seeds, request_id, [], max_by_group[group] + seed_length, safe_ids, seed_length, seed + 6)
                 warmup_plan.append({"request_id": request_id, "group_id": group, "dp_rank": rank, "prompt": prompt, "input_tokens": len(tokens), "shared_prefix_tokens": max_by_group[group], "max_tokens": 1, "included_in_formal_statistics": False})
                 logger.info("[prepare] warmup plan item=%s", warmup_plan[-1])
+    # 阶段10：生成告警（目标不可达 / 命中率偏差）并写 analysis.json。
     signed_difference_pp = (theory.global_hit_rate - pc_cfg["target_hit_rate"]) * 100
     absolute_difference_pp = abs(signed_difference_pp)
     logger.info("[prepare] signed_difference_pp=%.4f absolute_difference_pp=%.4f", signed_difference_pp, absolute_difference_pp)
@@ -383,12 +409,17 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
 
 
 def inspect_scenario(path: Path | str, tokenizer_loader: Callable[[Scenario], Any] | None = None) -> dict[str, Any]:
-    """Generate a read-only summary in a temporary directory without sending requests."""
+    """Generate a read-only summary in a temporary directory without sending requests.
+
+    只预览场景：在临时目录中改 run_id/output_dir 后复用 prepare 流程生成工件，
+    但只返回统计摘要（分组分布、长度分布、可达命中率等），不发任何真实请求。
+    """
     logger.info("[inspect] inspect_scenario path=%s tokenizer_loader=%s", path, tokenizer_loader)
     scenario = load_scenario(path)
     logger.info("[inspect] scenario run_id=%s cache_mode=%s dp_size=%d block_size=%d source_path=%s", scenario.run_id, scenario.cache_mode, scenario.dp_size, scenario.block_size, scenario.source_path)
     effective = scenario.to_effective_dict()
     logger.info("[inspect] effective keys=%s", sorted(effective))
+    # tokenizer 相对路径且场景目录下存在本地副本时，改用本地路径，避免远程加载。
     tokenizer_path = Path(effective["tokenizer"]["path"])
     local_tokenizer = scenario.source_path.parent / tokenizer_path
     logger.info("[inspect] tokenizer_path=%s local_tokenizer=%s", tokenizer_path, local_tokenizer)
@@ -400,6 +431,7 @@ def inspect_scenario(path: Path | str, tokenizer_loader: Callable[[Scenario], An
     with tempfile.TemporaryDirectory(prefix="aisbench-prefix-cache-inspect-") as folder:
         logger.info("[inspect] temporary folder=%s", folder)
         root = Path(folder)
+        # 改写 run_id/output_dir，让 prepare 的产物落到临时目录且不覆盖任何真实工件。
         effective["run"]["run_id"] = "inspect"
         effective["run"]["output_dir"] = str(root / "artifacts")
         effective["run"]["overwrite"] = False
@@ -416,6 +448,7 @@ def inspect_scenario(path: Path | str, tokenizer_loader: Callable[[Scenario], An
     group_counts: dict[str, int] = {}
     dp_counts: dict[str, int] = {}
     for row in rows:
+        # 统计各分组与各 DP rank 的请求数量。
         group_counts[row["group_id"]] = group_counts.get(row["group_id"], 0) + 1
         if row["dp_rank"] is not None:
             key = str(row["dp_rank"])

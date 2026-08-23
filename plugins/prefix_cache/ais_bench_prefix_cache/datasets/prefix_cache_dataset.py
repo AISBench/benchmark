@@ -16,6 +16,12 @@ from ..errors import ArtifactValidationError
 class PrefixCacheDataset(BaseDataset):
     @staticmethod
     def load(requests_path: str, full_path: str, manifest_path: str, **kwargs) -> Dataset:
+        """把 prepare 阶段生成的 requests/full 工件加载为 HuggingFace Dataset。
+
+        校验 manifest 与两份工件的一致性，再把请求的 question/answer/max_tokens
+        与审计信息（dp_rank、group_id、lane_sequence、cache_mode）合并到同一行，
+        供推理器按 prefix cache 的冷/热路由语义执行。
+        """
         manifest_file = Path(manifest_path).resolve()
         validate_artifacts(manifest_file)
         manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
@@ -26,6 +32,7 @@ class PrefixCacheDataset(BaseDataset):
         mode = manifest["prefix_cache"]["mode"]
         rows = []
         for index, (request, audit) in enumerate(zip(requests, full)):
+            # 审计行的 sequence_index 必须与行号一致，保证路由元数据对齐。
             if audit["sequence_index"] != index:
                 raise ArtifactValidationError(f"route metadata order mismatch at row {index}")
             rows.append({

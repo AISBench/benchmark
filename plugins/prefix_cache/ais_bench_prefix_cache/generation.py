@@ -23,35 +23,38 @@ class TokenizerLike(Protocol):
 
 @dataclass(frozen=True)
 class GSMRecord:
-    line_index: int
-    question: str
-    question_sha256: str
+    """语料（GSM8K）中的一条记录。"""
+    line_index: int        # 源文件行号
+    question: str          # 规范化后的题干文本
+    question_sha256: str   # 题干的 SHA-256，用于去重/溯源
 
 
 @dataclass(frozen=True)
 class CanonicalPrefix:
+    """某个 Prefix Group 的规范化共享前缀（由语料重复拼接并截断到所需长度）。"""
     group_id: str
-    text: str
-    token_ids: tuple[int, ...]
-    sha256: str
-    gsm_indices: tuple[int, ...]
-    gsm_hashes: tuple[str, ...]
+    text: str                      # 前缀文本
+    token_ids: tuple[int, ...]     # 前缀 token 序列
+    sha256: str                    # 前缀指纹
+    gsm_indices: tuple[int, ...]   # 来源语料行号
+    gsm_hashes: tuple[str, ...]    # 来源语料 hash
 
 
 @dataclass(frozen=True)
 class RequestPlan:
+    """一条请求的完整生成计划（构造 prompt 与模拟命中率的载体）。"""
     request_id: str
-    sequence_index: int
-    group_id: str
-    occurrence_index_within_group: int
-    dp_rank: int | None
-    lane_sequence: int | None
+    sequence_index: int            # 全局序号
+    group_id: str                  # 所属 Prefix Group
+    occurrence_index_within_group: int  # 组内出现次序
+    dp_rank: int | None            # cold 模式下路由到的 DP 卡
+    lane_sequence: int | None      # 该 lane 内的序号（用于串行放行）
     target_input_tokens: int
-    actual_input_tokens: int
+    actual_input_tokens: int       # 实际构造出的输入 token 数
     max_tokens: int
-    shared_prefix_tokens: int
-    seed_tokens: int
-    natural_suffix_tokens: int
+    shared_prefix_tokens: int      # 共享前缀长度（求解器的核心决策量）
+    seed_tokens: int               # 唯一 seed 块长度
+    natural_suffix_tokens: int     # 自然后缀长度
     question: str = ""
     answer: str = "none"
     gsm_indices: tuple[int, ...] = ()
@@ -59,9 +62,9 @@ class RequestPlan:
     canonical_prefix_sha256: str = ""
     seed_sha256: str = ""
     request_random_seed: int = 0
-    watermark_before: int = 0
-    theoretical_hit_tokens: int = 0
-    watermark_after: int = 0
+    watermark_before: int = 0      # 模拟：请求到达前缓存水位
+    theoretical_hit_tokens: int = 0  # 模拟：理论命中 token 数
+    watermark_after: int = 0       # 模拟：请求后缓存水位
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -69,6 +72,7 @@ class RequestPlan:
 
 @dataclass(frozen=True)
 class TheorySummary:
+    """缓存水位模拟的汇总结果。"""
     rows: tuple[RequestPlan, ...]
     total_input_tokens: int
     total_hit_tokens: int
@@ -79,23 +83,26 @@ class TheorySummary:
 
 @dataclass(frozen=True)
 class SolveResult:
-    shared_prefix_tokens: tuple[int, ...]
-    requested_hit_tokens: int
-    effective_hit_tokens: int
+    """共享前缀长度求解的结果与可达性/偏差诊断。"""
+    shared_prefix_tokens: tuple[int, ...]   # 每条请求的共享前缀长度（核心产物）
+    requested_hit_tokens: int               # 目标命中 token 数
+    effective_hit_tokens: int               # 实际达到的命中 token 数
     effective_hit_rate: float
-    min_reachable_rate: float
-    max_reachable_rate: float
-    target_reachable: bool
-    group_reachability: dict[str, dict[str, float]]
-    adjusted: bool
-    reason: str | None
+    min_reachable_rate: float               # 理论最低可达命中率（全不共享）
+    max_reachable_rate: float               # 理论最高可达命中率（全共享）
+    target_reachable: bool                  # 目标命中率是否落在可达区间
+    group_reachability: dict[str, dict[str, float]]  # 各组的可达区间
+    adjusted: bool                          # 是否因约束无法精确命中目标
+    reason: str | None                      # 无法精确命中的原因
 
 
 def normalize_question(value: str) -> str:
+    """规范化题干：合并空白、去首尾空格。"""
     return " ".join(value.strip().split())
 
 
 def load_gsm8k(path: Path, field: str = "question") -> list[GSMRecord]:
+    """逐行读取 GSM8K JSONL 语料并构造 GSMRecord 列表，校验空内容。"""
     logger.info("[gen] load_gsm8k path=%s field=%s", path, field)
     records: list[GSMRecord] = []
     try:
@@ -120,6 +127,7 @@ def load_gsm8k(path: Path, field: str = "question") -> list[GSMRecord]:
 
 
 def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: int, seed: int) -> list[GSMRecord]:
+    """按 selection 配置（random/indices/question_sha256/mixed）选出 count 条语料。"""
     logger.info("[gen] select_gsm8k mode=%s config=%s count=%d seed=%d", config["mode"], config, count, seed)
     mode = config["mode"]
     by_index = {item.line_index: item for item in records}
@@ -153,6 +161,7 @@ def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: in
                 raise ScenarioValidationError(f"GSM8K hash must resolve uniquely: {value}")
             selected.append(matches[0])
     else:
+        # mixed 模式：合并 indices 与 question_sha256 两部分的选择结果。
         selected = []
         index_values = config.get("indices", [])
         hash_values = config.get("question_sha256", [])
@@ -162,12 +171,14 @@ def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: in
             selected.extend(select_gsm8k(records, {"mode": "question_sha256", "values": hash_values}, len(hash_values), seed))
     if not selected:
         raise ScenarioValidationError("specified GSM8K selection is empty")
+    # 不足 count 时循环复用已选中的记录。
     result = [selected[i % len(selected)] for i in range(count)]
     logger.info("[gen] select_gsm8k selected=%d line_indices=%s", len(result), [item.line_index for item in result])
     return result
 
 
 def _csv_values(path: str, aliases: Sequence[str]) -> list[int]:
+    """从 CSV 读取指定别名列的整数值（用于显式长度配置）。"""
     logger.info("[gen] _csv_values path=%s aliases=%s", path, list(aliases))
     with Path(path).open(encoding="utf-8-sig", newline="") as source:
         rows = list(csv.DictReader(source))
@@ -183,6 +194,7 @@ def _csv_values(path: str, aliases: Sequence[str]) -> list[int]:
 
 
 def _log_lengths(label: str, values: list[int]) -> list[int]:
+    """带日志返回长度序列（供各生成函数复用）。"""
     logger.info(
         "[gen] %s count=%d min=%d max=%d mean=%.2f values=%s",
         label, len(values), min(values), max(values), sum(values) / len(values), values,
@@ -191,6 +203,7 @@ def _log_lengths(label: str, values: list[int]) -> list[int]:
 
 
 def build_input_lengths(config: dict[str, Any], count: int, seed: int) -> list[int]:
+    """按输入长度配置生成 count 条请求的输入长度序列。"""
     mode = config["mode"]
     logger.info("[gen] build_input_lengths mode=%s config=%s count=%d seed=%d", mode, config, count, seed)
     if mode == "fixed":
@@ -212,6 +225,7 @@ def build_input_lengths(config: dict[str, Any], count: int, seed: int) -> list[i
 
 
 def _truncated_normal_values(config: dict[str, Any], count: int, seed: int, label: str = "_truncated_normal_values") -> list[int]:
+    """从截断正态分布采样 count 个整数值（min<=x<=max），失败时抛校验错误。"""
     logger.info("[gen] %s config=%s count=%d seed=%d", label, config, count, seed)
     low, high = int(config["min"]), int(config["max"])
     if low == high:
@@ -234,6 +248,7 @@ def _truncated_normal_values(config: dict[str, Any], count: int, seed: int, labe
 
 
 def build_output_lengths(config: dict[str, Any], count: int, seed: int) -> list[int]:
+    """按输出长度配置生成 count 条请求的输出（max_tokens）长度序列。"""
     mode = config["mode"]
     logger.info("[gen] build_output_lengths mode=%s config=%s count=%d seed=%d", mode, config, count, seed)
     if mode == "fixed":
@@ -251,6 +266,11 @@ def build_output_lengths(config: dict[str, Any], count: int, seed: int) -> list[
 
 
 def assign_groups(count: int, config: dict[str, Any], seed: int) -> list[str]:
+    """按权重把 count 条请求分配到各 Prefix Group，返回每条请求的 group_id。
+
+    支持 uniform / zipf / weights 三种分配模式；用 Largest Remainder 法
+    把配额小数部分均摊到各分组，保证总数恰为 count。
+    """
     logger.info("[gen] assign_groups count=%d config=%s seed=%d", count, config, seed)
     group_count = int(config["count"])
     assignment = config["assignment"]
@@ -272,17 +292,24 @@ def assign_groups(count: int, config: dict[str, Any], seed: int) -> list[str]:
     allocations = [math.floor(value) for value in quotas]
     remaining = count - sum(allocations)
     logger.info("[gen] assign_groups quotas=%s allocations=%s remaining=%d", quotas, allocations, remaining)
+    # 按小数余量从大到小把剩余配额依次补齐到各分组。
     order = sorted(range(group_count), key=lambda index: (-(quotas[index] - allocations[index]), index))
     for index in order[:remaining]:
         allocations[index] += 1
     groups = [f"group-{index}" for index, amount in enumerate(allocations) for _ in range(amount)]
     if mode == "zipf":
+        # zipf 模式下打乱顺序，避免长尾集中在头部。
         random.Random(seed).shuffle(groups)
     logger.info("[gen] assign_groups groups=%s distribution=%s", groups, {group: groups.count(group) for group in sorted(set(groups))})
     return groups
 
 
 def order_indices(group_ids: Sequence[str], strategy: str, seed: int, input_lengths: Sequence[int] | None = None) -> list[int]:
+    """生成请求的发送顺序排列，控制 Prefix Cache 命中特性。
+
+    策略：sequential（原序）/ global_shuffle（全局乱序）/ within_group_shuffle
+    （组内乱序）/ interleave（组间交错）/ input_len_asc（组内按输入长度升序）。
+    """
     logger.info("[gen] order_indices count=%d strategy=%s seed=%d input_lengths_provided=%s", len(group_ids), strategy, seed, input_lengths is not None)
     indices = list(range(len(group_ids)))
     rng = random.Random(seed)
@@ -293,6 +320,7 @@ def order_indices(group_ids: Sequence[str], strategy: str, seed: int, input_leng
         rng.shuffle(indices)
         logger.info("[gen] order_indices strategy=global_shuffle result=%s", indices)
         return indices
+    # 按分组把请求装进桶，再按策略重排桶内顺序。
     buckets: dict[str, list[int]] = {}
     for index, group in enumerate(group_ids):
         buckets.setdefault(group, []).append(index)
@@ -309,6 +337,7 @@ def order_indices(group_ids: Sequence[str], strategy: str, seed: int, input_leng
             result.extend(buckets[group])
         logger.info("[gen] order_indices strategy=within_group_shuffle result=%s", result)
         return result
+    # interleave：用 zip_longest 把各组的请求轮流取出，实现交错。
     result = []
     for row in itertools.zip_longest(*(buckets[group] for group in sorted(buckets))):
         result.extend(index for index in row if index is not None)
@@ -317,12 +346,18 @@ def order_indices(group_ids: Sequence[str], strategy: str, seed: int, input_leng
 
 
 def assign_cold_routes(group_ids: Sequence[str], dp_size: int, explicit: Sequence[int] | None = None) -> tuple[list[int], list[int]]:
+    """cold 模式：为每条请求分派 DP rank 与 lane 序号。
+
+    默认按组内出现次序轮转到各 DP 卡（group_round_robin）；显式 routes 可覆盖。
+    lane 序列用于让同一 (group, rank) 上的请求按序发送。
+    """
     logger.info("[gen] assign_cold_routes count=%d dp_size=%d explicit=%s", len(group_ids), dp_size, explicit)
     if explicit is not None:
         if len(explicit) != len(group_ids) or any(rank < 0 or rank >= dp_size for rank in explicit):
             raise ScenarioValidationError("explicit DP routes are invalid")
         ranks = list(explicit)
     else:
+        # 每个组内第 k 条请求路由到 rank = k % dp_size。
         seen: dict[str, int] = {}
         ranks = []
         for group in group_ids:
@@ -340,6 +375,11 @@ def assign_cold_routes(group_ids: Sequence[str], dp_size: int, explicit: Sequenc
 
 
 def simulate_theory(plans: Sequence[RequestPlan], mode: str, warmup_watermarks: dict[str, int] | None = None, verbose: bool = True) -> TheorySummary:
+    """按缓存水位模拟理论命中率。
+
+    对每条请求维护其缓存键（组 或 组×rank）的水位；命中 = min(共享前缀, 既有水位)，
+    随后水位提升到该请求的共享前缀长度。最终汇总全局/分组/DP 的命中统计。
+    """
     if verbose:
         logger.info("[gen] simulate_theory plans=%d mode=%s warmup_watermarks=%s", len(plans), mode, warmup_watermarks)
     watermarks: dict[object, int] = {}
@@ -378,6 +418,7 @@ def simulate_theory(plans: Sequence[RequestPlan], mode: str, warmup_watermarks: 
 
 
 def _plans_for_prefixes(input_lengths: Sequence[int], output_lengths: Sequence[int], group_ids: Sequence[str], ranks: Sequence[int | None], lane_sequences: Sequence[int | None], prefixes: Sequence[int]) -> list[RequestPlan]:
+    """按给定的一组共享前缀长度构造临时 RequestPlan 列表（供求解器打分用）。"""
     occurrences: dict[str, int] = {}
     plans = []
     for index, (length, out_len, group, rank, lane_seq, prefix) in enumerate(zip(input_lengths, output_lengths, group_ids, ranks, lane_sequences, prefixes)):
@@ -388,24 +429,42 @@ def _plans_for_prefixes(input_lengths: Sequence[int], output_lengths: Sequence[i
 
 
 def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[int], group_ids: Sequence[str], ranks: Sequence[int | None], lane_sequences: Sequence[int | None], block_size: int, minimum_non_shared_tokens: int, mode: str, target_hit_rate: float) -> SolveResult:
+    """求解每条请求的共享前缀长度（shared_prefix_tokens）。
+
+    目标：让整体理论命中率尽量逼近配置的 target_hit_rate。由于共享前缀必须按
+    block_size 对齐、且必须为每条请求保留 minimum_non_shared_tokens 的非共享区
+    （seed + 自然后缀），再叠加 KV cache 水位约束，目标值不一定能精确达到。
+    根据解空间大小选择 穷举 / warmup贪心 / 爬山启发式 三种策略之一搜索，并返回
+    可达性区间（min/max）供调用方做校验与告警。
+    """
     logger.info("[gen] solve_prefix_lengths requests=%d block_size=%d minimum_non_shared_tokens=%d mode=%s target_hit_rate=%.4f", len(input_lengths), block_size, minimum_non_shared_tokens, mode, target_hit_rate)
     logger.info("[gen] solve_prefix_lengths input_lengths=%s output_lengths=%s group_ids=%s ranks=%s lane_sequences=%s", list(input_lengths), list(output_lengths), list(group_ids), list(ranks), list(lane_sequences))
+    # 每条请求的共享前缀长度候选集：必须是 block_size 的整数倍（前缀要按 block 对齐
+    # 才能命中缓存），且最大只能取到 (length - minimum_non_shared_tokens) 向下对齐的值，
+    # 从而保证每条请求都留足非共享区（seed + 自然后缀）。
     candidates = [list(range(0, max(0, ((length - minimum_non_shared_tokens) // block_size) * block_size) + 1, block_size)) for length in input_lengths]
     logger.info("[gen] solve_prefix_lengths candidates=%s", candidates)
     total_input = sum(input_lengths)
+    # 把目标命中率换算成目标命中 token 总数（四舍五入），作为搜索的靶心。
     target_tokens = int(total_input * target_hit_rate + 0.5)
     logger.info("[gen] solve_prefix_lengths total_input=%d target_tokens=%d", total_input, target_tokens)
 
     def score(prefixes: Sequence[int]) -> tuple[int, int]:
+        """给出一组共享前缀长度，模拟缓存水位后返回 (命中误差, 命中token数)。"""
+        # 按候选前缀构造临时请求计划，并模拟真实缓存水位下的理论命中 token 数。
         plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, prefixes)
+        # warmup 模式下用各组前缀最大值作为预热水位，模拟缓存已被写满。
         warm = {group: max((prefix for prefix, current in zip(prefixes, group_ids) if current == group), default=0) for group in set(group_ids)} if mode == "warmup" else None
         hit = simulate_theory(plans, mode, warm, verbose=False).total_hit_tokens
         return abs(hit - target_tokens), hit
 
+    # 解空间大小 = 各请求候选值数量的乘积，据此选择搜索策略。
     candidate_space = math.prod(len(values) for values in candidates)
     logger.info("[gen] solve_prefix_lengths candidate_space=%d", candidate_space)
     if candidate_space <= 200_000:
+        # 分支1：穷举。解空间足够小，暴力枚举所有组合取最优。
         logger.info("[gen] solve_prefix_lengths branch=exhaustive_search")
+        # 优先命中误差最小；误差相同时前缀总长越接近目标越好；最后按字典序保证确定性。
         chosen = min(
             itertools.product(*candidates),
             key=lambda trial: (score(trial)[0], abs(sum(trial) - target_tokens), tuple(trial)),
@@ -413,7 +472,10 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
         prefixes = list(chosen)
         best_error, best_hit = score(prefixes)
     elif mode == "warmup":
+        # 分支2：warmup 贪心。目标是尽量把各组前缀写满缓存（预热），
+        # 从后往前贪心填满剩余额度，总前缀量封顶到 desired。
         logger.info("[gen] solve_prefix_lengths branch=warmup_greedy")
+        # 期望写入的总前缀：不超过所有请求前缀上限之和，且对齐到 block 的整数倍。
         desired = min(sum(values[-1] for values in candidates), max(0, int(round(target_tokens / block_size)) * block_size))
         prefixes = [0] * len(candidates)
         remaining = desired
@@ -423,10 +485,14 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
             remaining -= value
         best_error, best_hit = score(prefixes)
     else:
+        # 分支3：爬山启发式（最常见的路径）。初始化已接近目标，再迭代微调直到收敛。
         logger.info("[gen] solve_prefix_lengths branch=heuristic_hill_climb")
+        # 初始解：每条请求取候选值中最接近 length*target_hit_rate 的（按输入长度比例分配前缀）。
         prefixes = [min(values, key=lambda value: abs(value - length * target_hit_rate)) for values, length in zip(candidates, input_lengths)]
         best_error, best_hit = score(prefixes)
         logger.info("[gen] solve_prefix_lengths initial_prefixes=%s initial_error=%d initial_hit=%d", prefixes, best_error, best_hit)
+        # 按 (group, rank) 分组出"lane"：同一张 DP 卡上、同组的请求共享同一块缓存，
+        # 联动调整它们的前缀长度才能保持缓存水位结构。
         lanes: dict[tuple[str, int], list[int]] = {}
         for index, (group, rank) in enumerate(zip(group_ids, ranks)):
             lanes.setdefault((group, int(rank or 0)), []).append(index)
@@ -434,10 +500,12 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
         while changed:
             changed = False
             best_move = None
+            # 候选移动：单点移动 + 同 lane 相邻两点的联动移动。
             moves: list[tuple[int, ...]] = [(index,) for index in range(len(prefixes))]
             moves.extend((left, right) for lane in lanes.values() for left, right in zip(lane, lane[1:]))
             for move in moves:
                 for direction in (-1, 1):
+                    # 把 move 涉及的前缀沿候选值上移/下移一格，越界则跳过。
                     trial = prefixes.copy()
                     valid = True
                     for index in move:
@@ -451,14 +519,17 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
                         continue
                     error, hit = score(trial)
                     key = (error, len(move), tuple(move), tuple(trial))
+                    # 只接受能减少命中误差的移动，误差相同时取字典序更小的（保证确定性）。
                     if error < best_error and (best_move is None or key < best_move[0]):
                         best_move = (key, trial, hit)
             if best_move is not None:
+                # 接受本轮最优移动，更新前缀，进入下一轮迭代。
                 _, prefixes, best_hit = best_move
                 best_error = abs(best_hit - target_tokens)
                 changed = True
                 logger.info("[gen] solve_prefix_lengths hill_climb accepted move=%s prefixes=%s error=%d hit=%d", best_move[0][2], prefixes, best_error, best_hit)
     logger.info("[gen] solve_prefix_lengths chosen_prefixes=%s best_error=%d best_hit=%d", prefixes, best_error, best_hit)
+    # 评估可达性上下界：所有前缀=0（最小命中） vs 所有前缀=候选最大值（最大命中）。
     zero_prefixes = [0] * len(prefixes)
     zero_plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, zero_prefixes)
     zero_warm = {group: 0 for group in set(group_ids)} if mode == "warmup" else None
@@ -472,10 +543,12 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     } if mode == "warmup" else None
     max_theory = simulate_theory(max_plans, mode, max_warm)
     max_hit = max_theory.total_hit_tokens
+    # 实际/最低/最高可达的命中率。
     effective_rate = best_hit / total_input if total_input else 0.0
     min_rate = zero_hit / total_input if total_input else 0.0
     max_rate = max_hit / total_input if total_input else 0.0
     logger.info("[gen] solve_prefix_lengths zero_hit=%d zero_rate=%.4f max_hit=%d max_rate=%.4f effective_hit=%d effective_rate=%.4f", zero_hit, min_rate, max_hit, max_rate, best_hit, effective_rate)
+    # 按组给出可达命中率区间，便于定位是哪个组导致目标不可达。
     group_reachability = {
         group: {
             "min_reachable_rate": float(zero_theory.group_stats[group]["hit_rate"]),
@@ -483,7 +556,9 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
         }
         for group in sorted(set(group_ids))
     }
+    # 目标命中率落在 [min_rate, max_rate] 区间内即为可达。
     target_reachable = min_rate <= target_hit_rate <= max_rate
+    # 无法精确命中目标（受 block 对齐 / 缓存水位约束）时标记 adjusted 并给出原因。
     adjusted = best_hit != target_tokens
     reason = "block alignment and cache-watermark constraints" if adjusted else None
     logger.info("[gen] solve_prefix_lengths group_reachability=%s target_reachable=%s adjusted=%s reason=%s", group_reachability, target_reachable, adjusted, reason)
@@ -495,11 +570,13 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
 
 
 def _safe_token_text(tokenizer: TokenizerLike, token_id: int, special: set[int]) -> str | None:
+    """判定某个 token 是否是"边界安全"的：单独 decode 且前后加字都不改变编码。"""
     if token_id in special:
         return None
     text = tokenizer.decode([token_id], skip_special_tokens=False)
     if not text:
         return None
+    # 单独编回、左侧拼接、右侧拼接都必须保持该 token 不变。
     if tokenizer.encode(text, add_special_tokens=False) != [token_id]:
         return None
     if tokenizer.encode("X" + text, add_special_tokens=False)[-1:] != [token_id]:
@@ -521,6 +598,7 @@ def find_boundary_safe_token_ids(tokenizer: TokenizerLike, minimum: int) -> list
         text = _safe_token_text(tokenizer, token_id, special)
         if text is None:
             continue
+        # 优先收集空格开头的 token（BPE 下与前置文本不会合并，seed 更稳定）。
         if text.startswith(" "):
             preferred.append(token_id)
             if len(preferred) >= minimum:
@@ -537,11 +615,17 @@ def find_boundary_safe_token_ids(tokenizer: TokenizerLike, minimum: int) -> list
 
 
 def _seed_round_trips(tokenizer: TokenizerLike, seed: Sequence[int]) -> bool:
+    """校验 seed token 序列 decode 后再 encode 能原样恢复（round-trip 安全）。"""
     text = tokenizer.decode(seed, skip_special_tokens=False)
     return tokenizer.encode(text, add_special_tokens=False) == list(seed)
 
 
 def build_unique_seed(tokenizer: TokenizerLike | None, safe_ids: Sequence[int], request_id: str, seed_length: int, random_seed: int, exclude: set[tuple[int, ...]] | None = None) -> tuple[int, ...]:
+    """构造一个全局唯一且 round-trip 安全的 seed token 序列（长度 seed_length）。
+
+    用 SHA-256 派生的字节流从 safe_ids 中抽样；若与已用 seed 重复或无法
+    round-trip，则换 nonce 重试。
+    """
     logger.info("[gen] build_unique_seed request_id=%s seed_length=%d random_seed=%d safe_ids=%d exclude=%d", request_id, seed_length, random_seed, len(safe_ids), len(exclude) if exclude else 0)
     if seed_length < 1 or len(safe_ids) < 2:
         raise ArtifactValidationError("seed generation requires positive length and at least two safe tokens")
@@ -562,6 +646,7 @@ def build_unique_seed(tokenizer: TokenizerLike | None, safe_ids: Sequence[int], 
 
 
 def build_unique_seed_tokens(safe_ids: Sequence[int], request_ids: Sequence[str], seed_length: int, random_seed: int, tokenizer: TokenizerLike | None = None) -> dict[str, tuple[int, ...]]:
+    """为一批 request_id 批量构造互不重复的唯一 seed，返回 {request_id: seed}。"""
     logger.info("[gen] build_unique_seed_tokens request_ids=%d seed_length=%d random_seed=%d", len(request_ids), seed_length, random_seed)
     result: dict[str, tuple[int, ...]] = {}
     used: set[tuple[int, ...]] = set()
@@ -574,6 +659,7 @@ def build_unique_seed_tokens(safe_ids: Sequence[int], request_ids: Sequence[str]
 
 
 def _repeat_tokens(records: Sequence[GSMRecord], tokenizer: TokenizerLike, target: int) -> tuple[list[int], tuple[int, ...], tuple[str, ...]]:
+    """循环拼接语料记录直至 token 数达到 target，返回 tokens 及来源索引/hash。"""
     logger.info("[gen] _repeat_tokens records=%d target=%d", len(records), target)
     tokens: list[int] = []
     indices: list[int] = []
@@ -592,6 +678,10 @@ def _repeat_tokens(records: Sequence[GSMRecord], tokenizer: TokenizerLike, targe
 
 
 def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, Sequence[GSMRecord]], max_lengths: dict[str, int], block_size: int) -> dict[str, CanonicalPrefix]:
+    """为每个 Prefix Group 构造 canonical 前缀（语料重复拼接至组内最大共享长度）。
+
+    各组的首个 block 必须互不相同，否则无法区分组；冲突时用确定性组标记兜底。
+    """
     logger.info("[gen] build_canonical_prefixes groups=%s max_lengths=%s block_size=%d", sorted(group_sources), max_lengths, block_size)
     result: dict[str, CanonicalPrefix] = {}
     first_blocks: set[tuple[int, ...]] = set()
@@ -600,6 +690,7 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
         if not source_records:
             raise ArtifactValidationError(f"canonical prefix source is empty for {group}")
         token_ids = indices = hashes = None
+        # 尝试不同旋转起点，找到首个 block 不与其他组冲突的版本。
         for offset in range(len(source_records)):
             rotated = source_records[offset:] + source_records[:offset]
             candidate_tokens, candidate_indices, candidate_hashes = _repeat_tokens(
@@ -626,6 +717,7 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
         first_blocks.add(first_block)
         text = tokenizer.decode(token_ids, skip_special_tokens=False)
         actual = tokenizer.encode(text, add_special_tokens=False)
+        # 校验前缀 decode/re-encode 后不变（round-trip 安全）。
         if actual[:max_lengths[group]] != token_ids[:max_lengths[group]]:
             raise ArtifactValidationError(f"canonical prefix does not round-trip for {group}")
         digest = hashlib.sha256(bytes(str(token_ids), "utf-8")).hexdigest()
@@ -635,6 +727,10 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
 
 
 def build_prompt(tokenizer: TokenizerLike, canonical: CanonicalPrefix, shared_prefix_tokens: int, seed: Sequence[int], suffix_records: Sequence[GSMRecord], target_tokens: int) -> tuple[str, tuple[int, ...], tuple[int, ...], tuple[str, ...]]:
+    """按 共享前缀 + 唯一seed + 自然后缀 拼接出目标长度的 prompt 文本。
+
+    返回 (文本, 实际token, 后缀来源索引, 后缀来源hash)，并校验 round-trip。
+    """
     logger.info("[gen] build_prompt group=%s shared_prefix_tokens=%d seed_len=%d target_tokens=%d suffix_records=%d", canonical.group_id, shared_prefix_tokens, len(seed), target_tokens, len(suffix_records))
     suffix_len = target_tokens - shared_prefix_tokens - len(seed)
     logger.info("[gen] build_prompt suffix_len=%d", suffix_len)

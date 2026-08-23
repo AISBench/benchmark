@@ -20,6 +20,12 @@ from .scenario import Scenario, load_scenario
 
 
 class VLLMClient:
+    """封装对 vLLM 推理服务/指标服务的 HTTP 调用。
+
+    负责发送探活、正式 completion、抓取/重置缓存指标、warmup 预热等，
+    支持按 DP rank 路由（通过 X-data-parallel-rank 请求头）。
+    """
+
     def __init__(self, scenario: Scenario):
         self.scenario = scenario
         self.config = scenario.section("service")
@@ -29,6 +35,7 @@ class VLLMClient:
             self.base_headers["Authorization"] = f"Bearer {self.config['api_key']}"
 
     def _request(self, url: str, method: str = "GET", body: dict[str, Any] | None = None, dp_rank: int | None = None) -> bytes:
+        """执行一次 HTTP 请求；可选携带 DP rank 头，失败统一转 RuntimeCapabilityError。"""
         headers = dict(self.base_headers)
         if dp_rank is not None:
             headers["X-data-parallel-rank"] = str(dp_rank)
@@ -41,6 +48,7 @@ class VLLMClient:
             raise RuntimeCapabilityError(f"vLLM request failed: {method} {url}: {exc}") from exc
 
     def send_completion(self, prompt: str, max_tokens: int, dp_rank: int | None = None) -> dict[str, Any]:
+        """发送一条非流式 completion 请求并解析 JSON 响应。"""
         body = {"model": self.config["model"], "prompt": prompt, "max_tokens": max_tokens, "temperature": 0, "stream": False}
         raw = self._request(self.config["inference_url"], "POST", body, dp_rank)
         try:
@@ -49,16 +57,23 @@ class VLLMClient:
             raise RuntimeCapabilityError("vLLM completion returned invalid JSON") from exc
 
     def snapshot(self) -> MetricSnapshot:
+        """抓取当前 Prefix Cache 指标快照（用于基线/结束对比）。"""
         text = self._request(self.config["metrics_url"]).decode("utf-8")
         return parse_metrics(text, self.scenario.dp_size, self.config.get("engine_label_map"))
 
     def precheck(self) -> dict[str, Any]:
+        """运行前能力探测：向每个 DP rank 发探针请求并确认指标可达。"""
         for rank in range(self.scenario.dp_size):
             self.send_completion(f"prefix-cache-capability-probe-{rank}", 1, rank if self.scenario.dp_size > 1 else None)
         snapshot = self.snapshot()
         return {"ok": True, "ranks": sorted(snapshot.by_rank), "metric_names": snapshot.metric_names}
 
     def reset(self) -> list[dict[str, Any]]:
+        """重置服务端 Prefix Cache 计数器。
+
+        若未配置 reset_url，则在 assume_empty_cache=true 时跳过并返回说明，
+        否则视为能力缺失。
+        """
         reset_url = self.config.get("reset_url")
         if not reset_url:
             if self.config.get("assume_empty_cache"):
@@ -73,6 +88,10 @@ class VLLMClient:
             raise
 
     def warm_every_group_rank(self, plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """按 warmup 计划预热：覆盖每个 Prefix Group × DP rank 组合，并记录耗时。
+
+        校验计划是否完备（不重不漏），再依次发送预热请求把缓存前缀写满。
+        """
         results = []
         expected = {(item["group_id"], item["dp_rank"]) for item in plan}
         required = {(group, rank) for group in sorted({item["group_id"] for item in plan}) for rank in range(self.scenario.dp_size)}
@@ -87,6 +106,7 @@ class VLLMClient:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
+    """读取 JSON 文件并解析为字典。"""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -101,7 +121,9 @@ class _ConfigTypeRef:
 
 
 def _render_config_value(value: Any, imports: list[str], refs: dict[tuple[str, str], str]) -> Any:
+    """把用户配置里的 Python 值递归渲染为可写文本（类引用转为 import 别名）。"""
     if isinstance(value, type):
+        # 遇到类引用：登记 import 别名，返回 _ConfigTypeRef 以输出为引用表达式。
         key = (value.__module__, value.__qualname__)
         alias = refs.get(key)
         if alias is None:
@@ -173,13 +195,20 @@ def render_aisbench_config(config_path: Path, scenario: Scenario) -> Path:
 
 
 def run_scenario(scenario_path: Path | str, aisbench_config: Path | str | None = None) -> dict[str, Any]:
+    """执行一次完整的前缀缓存基准测试（precheck→reset→warmup→正式跑→对比）。
+
+    先生成/校验工件，再抓取基线指标，然后以子进程方式运行 AISBench perf，
+    结束后抓取指标求差，得出真实的 Prefix Cache 命中率并回写 analysis.json。
+    """
     scenario = load_scenario(scenario_path)
     manifest_path = scenario.output_dir / f"{scenario.run_id}.manifest.json"
     analysis_path = scenario.output_dir / f"{scenario.run_id}.analysis.json"
+    # 若尚未 prepare 则自动补齐，再校验工件有效性。
     if not manifest_path.exists():
         prepare_scenario(scenario.source_path)
     validate_artifacts(manifest_path)
     manifest = _read_json(manifest_path)
+    # 场景文件指纹不一致时：允许覆盖则重跑 prepare，否则报错提示用户。
     if manifest.get("scenario_sha256") != hashlib.sha256(scenario.source_path.read_bytes()).hexdigest():
         if scenario.section("run").get("overwrite"):
             prepare_scenario(scenario.source_path, overwrite=True)
@@ -191,6 +220,7 @@ def run_scenario(scenario_path: Path | str, aisbench_config: Path | str | None =
     client = VLLMClient(scenario)
     runtime["precheck"] = client.precheck()
     runtime["phases"].append("precheck")
+    # 继承 prepare 阶段的理论告警，并叠加 reset 的说明。
     warnings = list(analysis.get("warnings", []))
     warnings.extend(client.reset())
     runtime["phases"].append("reset")
@@ -206,6 +236,7 @@ def run_scenario(scenario_path: Path | str, aisbench_config: Path | str | None =
     config_path = Path(config_value)
     if not config_path.is_absolute():
         config_path = (scenario.source_path.parent / config_path).resolve()
+    # 渲染静态 AISBench 配置，并以子进程运行 perf 模式。
     generated = render_aisbench_config(config_path, scenario)
     env = os.environ.copy()
     env["AISBENCH_PREFIX_CACHE_SCENARIO"] = str(scenario.source_path)
@@ -228,6 +259,7 @@ def run_scenario(scenario_path: Path | str, aisbench_config: Path | str | None =
     actual = diff_metrics(baseline, after)
     actual_dict = metrics_to_dict(actual)
     theory_rate = float(analysis["theoretical_hit_rate"])
+    # 真实命中率与理论命中率做差（百分点），超阈值则追加 ACTUAL_DEVIATION 告警。
     signed_difference_pp = ((actual.global_hit_rate or 0.0) - theory_rate) * 100 if actual.global_hit_rate is not None else None
     difference_pp = abs(signed_difference_pp) if signed_difference_pp is not None else None
     if difference_pp is not None and difference_pp > scenario.section("validation")["actual_warning_pp"]:
@@ -250,6 +282,10 @@ def run_scenario(scenario_path: Path | str, aisbench_config: Path | str | None =
 
 
 def analyze_snapshots(manifest_path: Path | str, baseline_path: Path | str, after_path: Path | str) -> dict[str, Any]:
+    """离线分析：直接用两个 Prometheus 指标文件对比真实命中率并回写 analysis.json。
+
+    不发送任何请求，只读 manifest 与指标文件，适合事后复算或 CI 校验。
+    """
     manifest_file = Path(manifest_path).resolve()
     validate_artifacts(manifest_file)
     manifest = _read_json(manifest_file)

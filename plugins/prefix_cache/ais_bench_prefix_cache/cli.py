@@ -23,9 +23,11 @@ PLUGIN_LOG_NAME = "ais_bench_prefix_cache"
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """构建命令行参数解析器：prepare / inspect / validate / run / analyze 五个子命令。"""
     parser = argparse.ArgumentParser(prog="ais-bench-prefix-cache")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("prepare", "inspect"):
+        # prepare 生成请求工件；inspect 只预览不发请求（共用 --scenario）。
         item = sub.add_parser(name)
         item.add_argument("--scenario", required=True, type=Path)
     prepare = sub.choices["prepare"]
@@ -61,8 +63,10 @@ def _resolve_log_file(command: str, scenario_path: Path | None) -> Path | None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI 主入口：分发到对应子命令并统一处理错误码。"""
     args = build_parser().parse_args(argv)
     log_file = _resolve_log_file(args.command, getattr(args, "scenario", None))
+    # 安装统一 logger（写控制台 + 日志文件），错误按子命令分类返回退出码。
     AISLogger(name=PLUGIN_LOG_NAME, log_file=str(log_file) if log_file else None, file_mode="w")
     logger.info("[cli] command=%s args=%s log_file=%s", args.command, vars(args), log_file)
     try:
@@ -86,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
             logger.info("[cli] run scenario=%s config=%s", args.scenario, args.config)
             result = run_scenario(args.scenario, args.config)
             logger.info("[cli] run_scenario returned result=%s", json.dumps(result, ensure_ascii=False))
+            # run 的警告打印到 stderr，不污染 stdout 的 JSON 输出。
             for warning in result.get("warnings", []):
                 print(f"WARNING: {warning}", file=sys.stderr)
         else:
@@ -96,12 +101,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"WARNING: {warning}", file=sys.stderr)
         return 0
     except PrefixCacheError as exc:
+        # 业务错误统一以 ERROR 输出并返回退出码 2，便于脚本判断。
         logger.warning("[cli] PrefixCacheError: %s", exc)
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
 
 def console_main() -> None:
+    """控制台入口：把 main 的返回码作为进程退出码。"""
     raise SystemExit(main())
 
 

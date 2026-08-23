@@ -15,13 +15,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ArtifactPaths:
-    full: Path
-    requests: Path
-    manifest: Path
-    analysis: Path
+    """一次运行产出的四个工件文件的路径集合。"""
+    full: Path       # <run_id>.full.jsonl：每条请求的完整审计记录
+    requests: Path   # <run_id>.requests.jsonl：发给推理服务的请求本体
+    manifest: Path   # <run_id>.manifest.json：运行元信息与配置指纹
+    analysis: Path   # <run_id>.analysis.json：汇总/校验结果
 
 
 def sha256_file(path: Path) -> str:
+    """分块计算文件的 SHA-256 摘要（用于工件一致性校验）。"""
     digest = hashlib.sha256()
     with path.open("rb") as source:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
@@ -32,6 +34,10 @@ def sha256_file(path: Path) -> str:
 
 
 def _atomic_text(path: Path, text: str, overwrite: bool) -> None:
+    """原子写文件：先写临时文件再 os.replace，避免半截文件。
+
+    已存在且 overwrite=False 时拒绝覆盖，防止误破坏历史工件。
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     logger.info("[artifacts] _atomic_text path=%s exists=%s overwrite=%s text_bytes=%d", path, path.exists(), overwrite, len(text.encode("utf-8")))
     if path.exists() and not overwrite:
@@ -47,11 +53,13 @@ def _atomic_text(path: Path, text: str, overwrite: bool) -> None:
 
 
 def write_json(path: Path, value: dict[str, Any], overwrite: bool) -> None:
+    """把字典以带缩进、键排序的 JSON 形式原子写入。"""
     logger.info("[artifacts] write_json path=%s overwrite=%s keys=%s", path, overwrite, sorted(value))
     _atomic_text(path, json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", overwrite)
 
 
 def write_jsonl(path: Path, rows: Iterable[dict[str, Any]], overwrite: bool) -> int:
+    """把多行记录写成 JSONL（每行一个对象），返回写入行数。"""
     materialized = list(rows)
     logger.info("[artifacts] write_jsonl path=%s overwrite=%s rows=%d", path, overwrite, len(materialized))
     # Preserve insertion order: requests.jsonl has a documented public field
@@ -62,6 +70,7 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]], overwrite: bool) -> 
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    """逐行读取 JSONL 文件并反序列化为字典列表。"""
     try:
         rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     except (OSError, json.JSONDecodeError) as exc:
@@ -71,6 +80,7 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def artifact_paths(output_dir: Path, run_id: str) -> ArtifactPaths:
+    """按 run_id 拼接出本次运行的四个工件文件路径。"""
     paths = ArtifactPaths(
         output_dir / f"{run_id}.full.jsonl",
         output_dir / f"{run_id}.requests.jsonl",
@@ -82,6 +92,7 @@ def artifact_paths(output_dir: Path, run_id: str) -> ArtifactPaths:
 
 
 def validate_artifacts(manifest_path: Path) -> dict[str, Any]:
+    """按 manifest 记录校验全部工件：行数、字段、顺序与 SHA-256 指纹一致。"""
     logger.info("[artifacts] validate_artifacts manifest_path=%s", manifest_path)
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -98,6 +109,7 @@ def validate_artifacts(manifest_path: Path) -> dict[str, Any]:
     if len(full_rows) != len(request_rows) or len(full_rows) != manifest["requests"]["count"]:
         raise ArtifactValidationError("artifact row counts do not match")
     for index, (full, request) in enumerate(zip(full_rows, request_rows)):
+        # 校验顺序一致、requests 字段集合严格为 {question, answer, max_tokens} 且与 full 对齐。
         if full["sequence_index"] != index:
             raise ArtifactValidationError(f"full row {index} has invalid sequence_index")
         if set(request) != {"question", "answer", "max_tokens"}:

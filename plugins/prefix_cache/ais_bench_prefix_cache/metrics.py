@@ -9,28 +9,34 @@ from .errors import RuntimeCapabilityError
 
 @dataclass(frozen=True)
 class RankMetrics:
-    queries: int
-    hits: int
-    kv_cache_usage: float | None = None
+    """单个 DP rank 的 Prefix Cache 计数。"""
+    queries: int        # 前缀查询次数
+    hits: int           # 前缀命中次数
+    kv_cache_usage: float | None = None  # 显存占用百分比（可选）
 
 
 @dataclass(frozen=True)
 class MetricSnapshot:
+    """某一时刻抓取的指标快照（各 rank 的累计计数）。"""
     by_rank: dict[int, RankMetrics]
-    metric_names: dict[str, str]
-    raw_text: str = ""
+    metric_names: dict[str, str]   # 逻辑名 -> 实际 Prometheus 指标名
+    raw_text: str = ""             # 原始 Prometheus 文本
 
 
 @dataclass(frozen=True)
 class ActualMetrics:
+    """两次快照求差后得到的"本次运行"真实命中统计。"""
     by_rank: dict[int, RankMetrics]
     global_queries: int
     global_hits: int
     global_hit_rate: float | None
 
 
+# Prometheus 文本行的样本正则：metric_name{labels} value
 _SAMPLE = re.compile(r'^([^\s{]+)(?:\{([^}]*)\})?\s+([-+0-9.eE]+)(?:\s+\d+)?$')
+# 标签键值对正则：key="value"（支持转义）
 _LABEL = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)="((?:\\.|[^"])*)"')
+# vLLM 各版本暴露的指标名别名，按优先级取第一个出现的。
 _ALIASES = {
     "queries": ("vllm:prefix_cache_queries", "vllm:prefix_cache_queries_total", "vllm:gpu_prefix_cache_queries", "vllm:gpu_prefix_cache_queries_total"),
     "hits": ("vllm:prefix_cache_hits", "vllm:prefix_cache_hits_total", "vllm:gpu_prefix_cache_hits", "vllm:gpu_prefix_cache_hits_total"),
@@ -39,6 +45,7 @@ _ALIASES = {
 
 
 def _rank(labels: dict[str, str], dp_size: int, mapping: dict[str, int]) -> int:
+    """从样本标签中解析出 DP rank：优先 engine 标签映射，其次回退到尾部数字。"""
     value = labels.get("engine")
     if value is None:
         if dp_size == 1:
@@ -53,6 +60,11 @@ def _rank(labels: dict[str, str], dp_size: int, mapping: dict[str, int]) -> int:
 
 
 def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | None = None) -> MetricSnapshot:
+    """解析 vLLM 的 Prometheus 指标文本为 MetricSnapshot。
+
+    逐行提取样本并按指标名聚合；为每个 DP rank 校验 queries/hits 是否齐全，
+    并检查计数自洽（hits <= queries）。
+    """
     mapping = engine_label_map or {}
     samples: dict[str, list[tuple[dict[str, str], float]]] = {}
     for raw_line in text.splitlines():
@@ -65,6 +77,7 @@ def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | No
         name, label_text, value = match.groups()
         labels = {key: bytes(val, "utf-8").decode("unicode_escape") for key, val in _LABEL.findall(label_text or "")}
         samples.setdefault(name, []).append((labels, float(value)))
+    # 把逻辑名（queries/hits/kv）映射到实际出现的指标名。
     selected: dict[str, str] = {}
     for logical, aliases in _ALIASES.items():
         selected_name = next((name for name in aliases if name in samples), None)
@@ -72,6 +85,7 @@ def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | No
             raise RuntimeCapabilityError(f"missing vLLM Prefix Cache {logical} metric")
         if selected_name:
             selected[logical] = selected_name
+    # 按 rank 聚合各逻辑指标的取值。
     values: dict[int, dict[str, float]] = {}
     for logical, name in selected.items():
         for labels, value in samples[name]:
@@ -98,6 +112,7 @@ def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | No
 
 
 def diff_metrics(before: MetricSnapshot, after: MetricSnapshot) -> ActualMetrics:
+    """用两次快照求差得到本次运行的命中统计，并校验计数未回退、hits<=queries。"""
     if set(before.by_rank) != set(after.by_rank):
         raise RuntimeCapabilityError("metric snapshots contain different DP ranks")
     by_rank: dict[int, RankMetrics] = {}
@@ -115,6 +130,7 @@ def diff_metrics(before: MetricSnapshot, after: MetricSnapshot) -> ActualMetrics
 
 
 def metrics_to_dict(actual: ActualMetrics) -> dict[str, Any]:
+    """把 ActualMetrics 序列化为便于写入 analysis.json 的字典。"""
     return {
         "by_dp": {str(rank): {"queries": row.queries, "hits": row.hits, "hit_rate": row.hits / row.queries if row.queries else None, "kv_cache_usage": row.kv_cache_usage} for rank, row in actual.by_rank.items()},
         "global_queries": actual.global_queries,
@@ -124,6 +140,7 @@ def metrics_to_dict(actual: ActualMetrics) -> dict[str, Any]:
 
 
 def snapshot_to_dict(snapshot: MetricSnapshot, include_raw: bool = True) -> dict[str, Any]:
+    """把 MetricSnapshot 序列化为字典（可选附带原始 Prometheus 文本用于审计）。"""
     result: dict[str, Any] = {
         "metric_names": snapshot.metric_names,
         "by_dp": {

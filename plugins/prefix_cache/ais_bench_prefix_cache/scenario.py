@@ -39,12 +39,14 @@ _MODES = {
 
 
 def _require_dict(value: Any, path: str) -> dict[str, Any]:
+    """校验 value 必须是 dict（JSON 对象），否则抛校验错误，原样返回。"""
     if not isinstance(value, dict):
         raise ScenarioValidationError(f"{path or 'scenario'} must be an object")
     return value
 
 
 def _strict_keys(value: dict[str, Any], path: str) -> None:
+    """递归校验 dict 的键是否都在白名单 _ALLOWED 内，拒绝未知字段。"""
     allowed = _ALLOWED.get(path)
     if allowed is not None:
         unknown = sorted(set(value) - allowed)
@@ -58,12 +60,14 @@ def _strict_keys(value: dict[str, Any], path: str) -> None:
 
 
 def _positive(value: Any, path: str) -> int:
+    """校验 value 是正整数（排除 bool），返回原值。"""
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ScenarioValidationError(f"{path} must be a positive integer")
     return value
 
 
 def _mode(section: dict[str, Any], allowed: set[str], path: str) -> str:
+    """校验 section 的 mode 取值必须在 allowed 集合内，返回 mode。"""
     value = section.get("mode")
     if value not in allowed:
         raise ScenarioValidationError(f"{path}.mode must be one of {sorted(allowed)}")
@@ -71,6 +75,7 @@ def _mode(section: dict[str, Any], allowed: set[str], path: str) -> str:
 
 
 def _validate_input_config(config: dict[str, Any], path: str, base: Path, expected_count: int | None) -> None:
+    """按 mode 校验输入长度配置（fixed/explicit/range/truncated_normal/csv），并解析 csv 路径。"""
     mode = _mode(config, _MODES["input"], path)
     unknown = set(config) - {"mode", "value", "values", "ranges", "min", "max", "mean", "std", "path"}
     if unknown:
@@ -78,6 +83,7 @@ def _validate_input_config(config: dict[str, Any], path: str, base: Path, expect
     if mode == "fixed":
         _positive(config.get("value"), f"{path}.value")
     elif mode == "explicit":
+        # 显式列表：逐项校验为正整数，且数量须等于请求总数。
         values = config.get("values")
         if not isinstance(values, list) or not values:
             raise ScenarioValidationError(f"{path}.values must be a non-empty list")
@@ -86,6 +92,7 @@ def _validate_input_config(config: dict[str, Any], path: str, base: Path, expect
         if expected_count is not None and len(values) != expected_count:
             raise ScenarioValidationError(f"{path}.values length must equal expected request count")
     elif mode == "range":
+        # 区间抽样：每段校验 min/max/count，且总数须等于请求总数。
         ranges = config.get("ranges")
         if not isinstance(ranges, list) or not ranges:
             raise ScenarioValidationError(f"{path}.ranges must be a non-empty list")
@@ -101,6 +108,7 @@ def _validate_input_config(config: dict[str, Any], path: str, base: Path, expect
         if expected_count is not None and total != expected_count:
             raise ScenarioValidationError(f"{path} range counts must equal expected request count")
     elif mode == "truncated_normal":
+        # 截断正态：校验 min/max 区间与 std>0。
         low = _positive(config.get("min"), f"{path}.min")
         high = _positive(config.get("max"), f"{path}.max")
         if high < low:
@@ -108,12 +116,14 @@ def _validate_input_config(config: dict[str, Any], path: str, base: Path, expect
         if "std" in config and float(config["std"]) <= 0:
             raise ScenarioValidationError(f"{path}.std must be positive")
     else:
+        # csv 模式：要求 path 非空并解析为绝对路径。
         if not isinstance(config.get("path"), str) or not config["path"]:
             raise ScenarioValidationError(f"{path}.path must be a non-empty string")
         config["path"] = _resolve_path(base, config["path"])
 
 
 def _validate_output_config(config: dict[str, Any], path: str, base: Path) -> None:
+    """按 mode 校验输出长度配置（fixed/uniform/truncated_normal/csv），并解析 csv 路径。"""
     mode = _mode(config, _MODES["output"], path)
     unknown = set(config) - {"mode", "value", "min", "max", "mean", "std", "path"}
     if unknown:
@@ -134,6 +144,7 @@ def _validate_output_config(config: dict[str, Any], path: str, base: Path) -> No
 
 
 def _minimum_input_tokens(config: dict[str, Any], path: str) -> int:
+    """计算输入长度配置能产生的最小 token 数（用于校验非共享区约束）。"""
     mode = config["mode"]
     if mode == "fixed":
         return int(config["value"])
@@ -143,6 +154,7 @@ def _minimum_input_tokens(config: dict[str, Any], path: str) -> int:
         return min(int(item["min"]) for item in config["ranges"])
     if mode == "truncated_normal":
         return int(config["min"])
+    # csv 模式：读取文件并取 input 长度列的最小值。
     try:
         with Path(config["path"]).open(encoding="utf-8-sig", newline="") as source:
             rows = list(csv.DictReader(source))
@@ -162,8 +174,10 @@ def _minimum_input_tokens(config: dict[str, Any], path: str) -> int:
 
 @dataclass(frozen=True)
 class Scenario:
-    source_path: Path
-    data: dict[str, Any]
+    """校验通过后的场景对象：保存源文件路径与规范化后的有效配置。"""
+
+    source_path: Path   # 场景 JSON 文件绝对路径
+    data: dict[str, Any]  # 规范化后的完整配置（含默认值）
 
     @property
     def run_id(self) -> str:
@@ -190,23 +204,32 @@ class Scenario:
         return self.data["service"]["dp_size"]
 
     def section(self, name: str) -> dict[str, Any]:
+        """按段名取配置，如 scenario.section("service")。"""
         return self.data[name]
 
     def to_effective_dict(self) -> dict[str, Any]:
+        """返回一份深拷贝的有效配置，调用方可安全修改而不影响内部数据。"""
         return copy.deepcopy(self.data)
 
 
 def _resolve_path(base: Path, value: str) -> str:
+    """把配置里的路径解析为绝对路径：相对路径以 base 为基准。"""
     path = Path(value)
     return str((base / path).resolve() if not path.is_absolute() else path.resolve())
 
 
 def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
+    """对原始场景 dict 做完整语义校验与默认值填充，返回规范化副本。
+
+    校验缺失/未知字段、类型与取值约束、路径解析、prefix cache 相关的一致性
+    （如非共享区下限、分组覆盖 id、cold 多 DP 的地址要求），并原地补默认值。
+    """
     _strict_keys(raw, "")
     required = {"schema_version", "run", "tokenizer", "corpus", "requests", "prefix_cache", "service"}
     missing = sorted(required - set(raw))
     if missing:
         raise ScenarioValidationError(f"missing field: {missing[0]}")
+    # 深拷贝后再修改，避免污染调用方的原始数据。
     data = copy.deepcopy(raw)
     data.setdefault("validation", {})
     data.setdefault("aisbench", {})
@@ -241,6 +264,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     if isinstance(target, bool) or not isinstance(target, (int, float)) or not 0 <= target <= 1:
         raise ScenarioValidationError("prefix_cache.target_hit_rate must be in [0, 1]")
     pc["seed_blocks"] = _positive(pc.get("seed_blocks", 1), "prefix_cache.seed_blocks")
+    # 非共享区下限 = seed 长度，且须保证输入长度能容纳该非共享区。
     seed_tokens = tokenizer["block_size"] * pc["seed_blocks"]
     pc["minimum_non_shared_length"] = _positive(
         pc.get("minimum_non_shared_length", seed_tokens),
@@ -263,6 +287,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     if not isinstance(overrides, dict):
         raise ScenarioValidationError("prefix_cache.groups.overrides must be an object")
     for group_id, override in overrides.items():
+        # 校验 override 的 id 必须是合法 group-N 且未越界，再校验其字段。
         expected_group_id = group_id.startswith("group-") and group_id[6:].isdigit() and int(group_id[6:]) < groups["count"]
         if not expected_group_id:
             raise ScenarioValidationError(f"invalid Prefix Group override id: {group_id}")
@@ -296,12 +321,17 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     validation = data["validation"]
     validation.setdefault("target_warning_pp", 1.0)
     validation.setdefault("actual_warning_pp", 5.0)
+    # cold 多 DP 必须显式提供推理地址，否则无法路由。
     if cache_mode == "cold" and service["dp_size"] > 1 and not service["inference_url"]:
         raise ScenarioValidationError("cold multi-DP requires inference_url")
     return data
 
 
 def load_scenario(path: Path | str) -> Scenario:
+    """读取并解析场景 JSON 文件，校验后返回 Scenario 对象。
+
+    任何读取/解析/校验失败都会以 ScenarioValidationError 形式抛出。
+    """
     source = Path(path).resolve()
     try:
         raw = json.loads(source.read_text(encoding="utf-8"))
