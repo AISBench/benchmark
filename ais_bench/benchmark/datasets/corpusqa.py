@@ -36,13 +36,22 @@ logger = AISLogger()
 
 # ---------------------------------------------------------------------------
 # Official CorpusQA ORM (Output Reward Model) judge prompt
+# Byte-identical to the official eval.py:
+#   - system message: GENERAL_ORM_PROMPT
+#   - user message:   ORM_USER_TEMPLATE.format(problem=question, answer_1=..., answer_2=...)
 # ---------------------------------------------------------------------------
-CORPUSQA_JUDGE_PROMPT = """You are an expert in verifying if two answers are the same.
+CORPUSQA_JUDGE_SYSTEM_PROMPT = """You are an expert in verifying if two answers are the same.
 Your input is a problem and two answers, Answer 1 and Answer 2. You need to check if they are equivalent.
+Your task is to determine if two answers are equivalent, without attempting to solve the original problem.
+Compare the answers to verify they represent identical values or meaning, even when written in different forms or notations.
+
 Your output must follow the following format:
 1) Provide an explanation for why the answers are equivalent or not.
 2) Then provide your final answer in the form of: [[YES]] or [[NO]]
+"""
 
+# Leading/trailing newlines preserved exactly as in the official template.
+CORPUSQA_JUDGE_USER_TEMPLATE = """
 Problem: {question}
 Answer 1: {model_answer}
 Answer 2: {answer}
@@ -138,6 +147,26 @@ class CorpusQAJGDataset(LLMJudgeDataset):
     judge prompt can reference ``question``, ``answer`` and ``model_answer``.
     """
 
+    @staticmethod
+    def _extract_answer(response: str) -> str:
+        """Mirror the official ``extract_answer`` helper.
+
+        Looks for ``The answer is: <answer>`` and returns it; otherwise
+        returns the whole (stripped) response.
+        """
+        match = re.search(r"The answer is: (.*)", response)
+        if match:
+            return match.group(1).strip()
+        return response.strip()
+
+    def _modify_dataset_item(self, dataset_item, pred_item):
+        super()._modify_dataset_item(dataset_item, pred_item)
+        # Apply the official rule-based extraction before judging, so the
+        # judge sees the exact same ``model_answer`` as the official script.
+        if dataset_item.get("model_answer") is not None:
+            dataset_item["model_answer"] = self._extract_answer(str(dataset_item["model_answer"]))
+        return dataset_item
+
     def _get_dataset_class(self):
         return CorpusQADataset
 
@@ -199,10 +228,14 @@ class CorpusQAEvaluator(BaseEvaluator):
 
     @staticmethod
     def _is_correct(judge_output: str):
-        """Return True/False for [[YES]]/[[NO]], or None if neither is found."""
+        """Mirror the official parsing rule exactly:
+        ``[[YES]]`` present and ``[[NO]]`` absent -> True;
+        ``[[NO]]`` present -> False; otherwise None (treated as incorrect).
+        """
         if not judge_output:
             return None
-        match = re.search(r"\[\[\s*(YES|NO)\s*\]\]", judge_output, re.IGNORECASE)
-        if not match:
-            return None
-        return match.group(1).upper() == "YES"
+        if "[[YES]]" in judge_output and "[[NO]]" not in judge_output:
+            return True
+        if "[[NO]]" in judge_output:
+            return False
+        return None

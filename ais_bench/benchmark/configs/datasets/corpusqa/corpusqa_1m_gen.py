@@ -1,7 +1,8 @@
 import os
 
 from ais_bench.benchmark.datasets.corpusqa import (
-    CORPUSQA_JUDGE_PROMPT,
+    CORPUSQA_JUDGE_SYSTEM_PROMPT,
+    CORPUSQA_JUDGE_USER_TEMPLATE,
     CorpusQADataset,
     CorpusQAEvaluator,
     CorpusQAJGDataset,
@@ -68,8 +69,11 @@ corpusqa_judge_infer_cfg = dict(
     prompt_template=dict(
         type=PromptTemplate,
         template=dict(
+            begin=[
+                dict(role='SYSTEM', prompt=CORPUSQA_JUDGE_SYSTEM_PROMPT),
+            ],
             round=[
-                dict(role='HUMAN', prompt=CORPUSQA_JUDGE_PROMPT),
+                dict(role='HUMAN', prompt=CORPUSQA_JUDGE_USER_TEMPLATE),
             ],
         ),
     ),
