@@ -20,7 +20,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -55,7 +55,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -128,7 +128,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -179,7 +179,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 from ais_bench.benchmark.datasets import gsm8k_postprocess, gsm8k_dataset_postprocess
 
 with read_base():

@@ -35,7 +35,7 @@
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -64,7 +64,7 @@ ais_bench ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -197,7 +197,7 @@ aime2024   604a78     accuracy  gen                        50.00                
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -347,7 +347,7 @@ ais_bench ais_bench/configs/accuracy_benchmark/multi_task_zh_cn.py --reuse 20250
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -406,7 +406,7 @@ ais_bench --models vllm_api_general_chat vllm_api_stream_chat --datasets aime202
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -455,7 +455,7 @@ ais_bench --models vllm_api_general --datasets ceval_gen --merge-ds
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -480,7 +480,7 @@ ais_bench ais_bench/configs/accuracy_benchmark/fixed_prompts_zh_cn.py --num-prom
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -529,7 +529,7 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -642,7 +642,7 @@ demo_gsm8k              401e4c   accuracy gen                   00.00
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 from ais_bench.benchmark.datasets import gsm8k_postprocess, gsm8k_dataset_postprocess
 
 with read_base():

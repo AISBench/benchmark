@@ -73,7 +73,7 @@ from ais_bench_plugin_example_pkg.models import ExampleModel # 导入样例中�
 from ais_bench_plugin_example_pkg.clients import ExampleClient # 导入样例中自定义的请求客户端类
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 from ais_bench.benchmark.utils.model_postprocessors import extract_non_reasoning_content
 
 with read_base():
@@ -111,7 +111,7 @@ infer = dict(partitioner=dict(type=NaivePartitioner),
              runner=dict(
                  type=LocalRunner,
                  max_num_workers=2,
-                 task=dict(type=OpenICLInferTask)), )
+                 task=dict(type=OpenICLApiInferTask)), )
 
 work_dir = 'outputs/example_model/'
 ```

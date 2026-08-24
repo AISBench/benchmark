@@ -3,7 +3,7 @@ from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
@@ -32,6 +32,6 @@ infer = dict(
     partitioner=dict(type=NaivePartitioner),
     runner=dict(
         type=LocalRunner,
-        task=dict(type=OpenICLInferTask),
+        task=dict(type=OpenICLApiInferTask),
     ),
 )

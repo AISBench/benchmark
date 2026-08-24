@@ -195,7 +195,7 @@ infer = dict(
     runner=dict(
         type=LocalRunner,
         max_num_workers=2,
-        task=dict(type=OpenICLInferTask),
+        task=dict(type=OpenICLApiInferTask),
     ),
 )
 ```
@@ -218,7 +218,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -253,7 +253,7 @@ infer = dict(
     runner=dict(
         type=LocalRunner,
         max_num_workers=2,
-        task=dict(type=OpenICLInferTask),
+        task=dict(type=OpenICLApiInferTask),
     ),
 )
 
@@ -268,7 +268,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import HuggingFaceBaseModel
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -304,7 +304,7 @@ infer = dict(
     runner=dict(
         type=LocalRunner,
         max_num_workers=2,
-        task=dict(type=OpenICLInferTask),
+        task=dict(type=OpenICLApiInferTask),
     ),
 )
 
@@ -454,7 +454,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content
 
 with read_base():
@@ -490,7 +490,7 @@ infer = dict(
     runner=dict(
         type=LocalRunner,
         max_num_workers=2,
-        task=dict(type=OpenICLInferTask),
+        task=dict(type=OpenICLApiInferTask),
     ),
 )
 
@@ -546,7 +546,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 from ais_bench.benchmark.utils.postprocess.model_postprocessors import extract_non_reasoning_content
 
 with read_base():
@@ -582,7 +582,7 @@ infer = dict(
     runner=dict(
         type=LocalRunner,
         max_num_workers=2,
-        task=dict(type=OpenICLInferTask),
+        task=dict(type=OpenICLApiInferTask),
     ),
 )
 
@@ -597,7 +597,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
@@ -653,7 +653,7 @@ infer = dict(
     runner=dict(
         type=LocalRunner,
         max_num_workers=2,
-        task=dict(type=OpenICLInferTask),
+        task=dict(type=OpenICLApiInferTask),
     ),
 )
 
@@ -669,7 +669,7 @@ The following example demonstrates how to evaluate the performance of two servic
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 
 with read_base():

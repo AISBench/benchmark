@@ -362,7 +362,7 @@ By default, the `models` list and `datasets` list in the configuration file are 
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -399,7 +399,7 @@ Supports multi-task parallelism through the [`--max-num-workers`](../all_params/
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -625,7 +625,7 @@ For multi-task combinations based on custom sequence lengths, the user can combi
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -704,7 +704,7 @@ For a complete example, refer to [performance_fixed_request.py](https://github.c
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -729,7 +729,7 @@ If you need more flexible range control (e.g., specifying a start index and cust
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -774,7 +774,7 @@ In some scenarios, the user wants to fix the total number of requests sent witho
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -853,7 +853,7 @@ from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets

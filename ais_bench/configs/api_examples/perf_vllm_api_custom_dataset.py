@@ -2,7 +2,7 @@ from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
@@ -58,7 +58,7 @@ infer = dict(
     runner=dict(
         type=LocalRunner,
         max_num_workers=2,
-        task=dict(type=OpenICLInferTask),
+        task=dict(type=OpenICLApiInferTask),
     ),
 )
 

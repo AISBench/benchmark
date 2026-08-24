@@ -244,7 +244,7 @@ outputs/default/20251106_103326/logs/infer/vllm-api-stream-chat/demo_gsm8k.out
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -273,7 +273,7 @@ ais_bench ais_bench/configs/performance_benchmark/multi_task_zh_cn.py --mode per
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -441,7 +441,7 @@ ais_bench --models vllm_api_general_stream vllm_api_stream_chat --datasets gsm8k
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -570,7 +570,7 @@ import copy
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -643,7 +643,7 @@ work_dir = "outputs/default/"
 
 infer = dict(
     partitioner=dict(type=NaivePartitioner),
-    runner=dict(type=LocalRunner, task=dict(type=OpenICLInferTask)),
+    runner=dict(type=LocalRunner, task=dict(type=OpenICLApiInferTask)),
 )
 ```
 
@@ -698,7 +698,7 @@ ais_bench ais_bench/configs/performance_benchmark/multi_task_synthetic_zh_cn.py 
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -723,7 +723,7 @@ ais_bench ais_bench/configs/performance_benchmark/fixed_prompts_zh_cn.py --mode 
 from mmengine.config import read_base
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
@@ -824,7 +824,7 @@ from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners.local import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
