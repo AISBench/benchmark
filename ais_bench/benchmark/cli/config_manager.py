@@ -5,7 +5,6 @@ from mmengine.config import Config
 
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
-from ais_bench.benchmark.datasets.custom import make_custom_dataset_config
 from ais_bench.benchmark.utils.file import match_cfg_file
 from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
@@ -652,6 +651,9 @@ class ConfigManager:
                     if not dataset_cfg_exist:
                         raise AISBenchConfigError(TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM, f"Config file {dataset[1]} does not contain a param end with {dataset_key_suffix}!")
         else:
+            # lazily import custom dataset support to avoid pulling the
+            # huggingface `datasets` dependency in isolated environments
+            from ais_bench.benchmark.datasets.custom import make_custom_dataset_config
             if self.args.custom_dataset_path is None:
                 raise CommandError(TMAN_CODES.CMD_MISS_REQUIRED_ARG, 'You must specify a custom dataset path, or specify --datasets.')
             dataset = {'path': self.args.custom_dataset_path}
