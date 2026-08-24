@@ -220,6 +220,8 @@ Scenario 加载阶段会检查每种输入长度模式的最小值是否能容�
 - requested、effective 和 theoretical hit rate；
 - 理论值减目标值的带符号偏差和绝对偏差。
 
+目标高于 `reachable_max` 或低于 `reachable_min` 时，求解器直接选择对应边界解；目标位于区间内时，按 Block 单位选择最近可达命中量。cold 模式按 `(Prefix Group, DP rank)` lane 精确构造，不使用可能停在局部最优的爬山搜索。
+
 Manifest 的输入和输出长度摘要包含 `min`、`max`、`mean`、`p50`、`p90`、`p95`、`p99` 以及最多十个长度分桶。`inspect` 也会展示这些摘要和组级可达范围。
 
 #### 验证状态与退出码

@@ -434,8 +434,8 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     目标：让整体理论命中率尽量逼近配置的 target_hit_rate。由于共享前缀必须按
     block_size 对齐、且必须为每条请求保留 minimum_non_shared_tokens 的非共享区
     （seed + 自然后缀），再叠加 KV cache 水位约束，目标值不一定能精确达到。
-    根据解空间大小选择 穷举 / warmup贪心 / 爬山启发式 三种策略之一搜索，并返回
-    可达性区间（min/max）供调用方做校验与告警。
+    求解器先计算可达性区间（min/max），再将目标钳制到最近的 Block 对齐命中量：
+    warmup 按请求容量分配，cold 按 (Prefix Group, DP rank) lane 线性构造精确解。
     """
     logger.info("[gen] solve_prefix_lengths requests=%d block_size=%d minimum_non_shared_tokens=%d mode=%s target_hit_rate=%.4f", len(input_lengths), block_size, minimum_non_shared_tokens, mode, target_hit_rate)
     logger.info("[gen] solve_prefix_lengths input_lengths=%s output_lengths=%s group_ids=%s ranks=%s lane_sequences=%s", list(input_lengths), list(output_lengths), list(group_ids), list(ranks), list(lane_sequences))
@@ -458,79 +458,9 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
         hit = simulate_theory(plans, mode, warm, verbose=False).total_hit_tokens
         return abs(hit - target_tokens), hit
 
-    # 解空间大小 = 各请求候选值数量的乘积，据此选择搜索策略。
-    candidate_space = math.prod(len(values) for values in candidates)
-    logger.info("[gen] solve_prefix_lengths candidate_space=%d", candidate_space)
-    if candidate_space <= 200_000:
-        # 分支1：穷举。解空间足够小，暴力枚举所有组合取最优。
-        logger.info("[gen] solve_prefix_lengths branch=exhaustive_search")
-        # 优先命中误差最小；误差相同时前缀总长越接近目标越好；最后按字典序保证确定性。
-        chosen = min(
-            itertools.product(*candidates),
-            key=lambda trial: (score(trial)[0], abs(sum(trial) - target_tokens), tuple(trial)),
-        )
-        prefixes = list(chosen)
-        best_error, best_hit = score(prefixes)
-    elif mode == "warmup":
-        # 分支2：warmup 贪心。目标是尽量把各组前缀写满缓存（预热），
-        # 从后往前贪心填满剩余额度，总前缀量封顶到 desired。
-        logger.info("[gen] solve_prefix_lengths branch=warmup_greedy")
-        # 期望写入的总前缀：不超过所有请求前缀上限之和，且对齐到 block 的整数倍。
-        desired = min(sum(values[-1] for values in candidates), max(0, int(round(target_tokens / block_size)) * block_size))
-        prefixes = [0] * len(candidates)
-        remaining = desired
-        for index in reversed(range(len(candidates))):
-            value = min(candidates[index][-1], (remaining // block_size) * block_size)
-            prefixes[index] = value
-            remaining -= value
-        best_error, best_hit = score(prefixes)
-    else:
-        # 分支3：爬山启发式（最常见的路径）。初始化已接近目标，再迭代微调直到收敛。
-        logger.info("[gen] solve_prefix_lengths branch=heuristic_hill_climb")
-        # 初始解：每条请求取候选值中最接近 length*target_hit_rate 的（按输入长度比例分配前缀）。
-        prefixes = [min(values, key=lambda value: abs(value - length * target_hit_rate)) for values, length in zip(candidates, input_lengths)]
-        best_error, best_hit = score(prefixes)
-        logger.info("[gen] solve_prefix_lengths initial_prefixes=%s initial_error=%d initial_hit=%d", prefixes, best_error, best_hit)
-        # 按 (group, rank) 分组出"lane"：同一张 DP 卡上、同组的请求共享同一块缓存，
-        # 联动调整它们的前缀长度才能保持缓存水位结构。
-        lanes: dict[tuple[str, int], list[int]] = {}
-        for index, (group, rank) in enumerate(zip(group_ids, ranks)):
-            lanes.setdefault((group, int(rank or 0)), []).append(index)
-        changed = True
-        while changed:
-            changed = False
-            best_move = None
-            # 候选移动：单点移动 + 同 lane 相邻两点的联动移动。
-            moves: list[tuple[int, ...]] = [(index,) for index in range(len(prefixes))]
-            moves.extend((left, right) for lane in lanes.values() for left, right in zip(lane, lane[1:]))
-            for move in moves:
-                for direction in (-1, 1):
-                    # 把 move 涉及的前缀沿候选值上移/下移一格，越界则跳过。
-                    trial = prefixes.copy()
-                    valid = True
-                    for index in move:
-                        values = candidates[index]
-                        next_pos = values.index(trial[index]) + direction
-                        if not 0 <= next_pos < len(values):
-                            valid = False
-                            break
-                        trial[index] = values[next_pos]
-                    if not valid:
-                        continue
-                    error, hit = score(trial)
-                    key = (error, len(move), tuple(move), tuple(trial))
-                    # 只接受能减少命中误差的移动，误差相同时取字典序更小的（保证确定性）。
-                    if error < best_error and (best_move is None or key < best_move[0]):
-                        best_move = (key, trial, hit)
-            if best_move is not None:
-                # 接受本轮最优移动，更新前缀，进入下一轮迭代。
-                _, prefixes, best_hit = best_move
-                best_error = abs(best_hit - target_tokens)
-                changed = True
-                logger.info("[gen] solve_prefix_lengths hill_climb accepted move=%s prefixes=%s error=%d hit=%d", best_move[0][2], prefixes, best_error, best_hit)
-    logger.info("[gen] solve_prefix_lengths chosen_prefixes=%s best_error=%d best_hit=%d", prefixes, best_error, best_hit)
-    # 评估可达性上下界：所有前缀=0（最小命中） vs 所有前缀=候选最大值（最大命中）。
-    zero_prefixes = [0] * len(prefixes)
+    # 先评估可达性上下界。旧实现先做局部搜索、最后才计算边界，导致目标高于
+    # reachable_max 时仍可能停在次优局部解。边界现在是求解输入而非事后报告。
+    zero_prefixes = [0] * len(candidates)
     zero_plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, zero_prefixes)
     zero_warm = {group: 0 for group in set(group_ids)} if mode == "warmup" else None
     zero_theory = simulate_theory(zero_plans, mode, zero_warm)
@@ -543,6 +473,63 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     } if mode == "warmup" else None
     max_theory = simulate_theory(max_plans, mode, max_warm)
     max_hit = max_theory.total_hit_tokens
+
+    # 所有共享前缀和理论命中量都是 block_size 的整数倍。按 Block 单位选取距
+    # target_tokens 最近、且落在可达边界内的目标命中量。
+    max_hit_units = max_hit // block_size
+    lower_units = max(0, min(max_hit_units, target_tokens // block_size))
+    upper_units = max(0, min(max_hit_units, lower_units + 1))
+    desired_hit_units = min(
+        {lower_units, upper_units, 0, max_hit_units},
+        key=lambda units: (abs(units * block_size - target_tokens), units),
+    )
+    desired_hit_tokens = desired_hit_units * block_size
+
+    prefixes = [0] * len(candidates)
+    caps = [values[-1] // block_size for values in candidates]
+    remaining_units = desired_hit_units
+    if mode == "warmup":
+        # warmup 后每个前缀 token 都命中；因此把目标 Block 数按请求容量依次分配即可。
+        for index, cap in enumerate(caps):
+            assigned = min(cap, remaining_units)
+            prefixes[index] = assigned * block_size
+            remaining_units -= assigned
+    else:
+        # cold 模式按 (group, DP rank) 独立维护水位。对任一 lane：
+        #   lane_hit = sum(prefix_i) - max(prefix_i)
+        # 选容量最大的请求作为 anchor；把所需 hit Block 分配给其余请求，再让
+        # anchor 等于这些请求中的最大前缀。于是 anchor 的前缀恰好抵消 max 项，
+        # lane_hit 精确等于已分配 Block 数。每个 0..lane_max 区间都可构造，无需爬山。
+        lanes: dict[tuple[str, int], list[int]] = {}
+        for index, (group, rank) in enumerate(zip(group_ids, ranks)):
+            lanes.setdefault((group, int(rank or 0)), []).append(index)
+        for lane_indices in lanes.values():
+            anchor = max(lane_indices, key=lambda index: (caps[index], -index))
+            lane_capacity = sum(caps[index] for index in lane_indices if index != anchor)
+            lane_units = min(lane_capacity, remaining_units)
+            lane_remaining = lane_units
+            for index in lane_indices:
+                if index == anchor:
+                    continue
+                assigned = min(caps[index], lane_remaining)
+                prefixes[index] = assigned * block_size
+                lane_remaining -= assigned
+            if lane_remaining:
+                raise ArtifactValidationError("cold Prefix Cache lane construction did not consume its target")
+            prefixes[anchor] = max((prefixes[index] for index in lane_indices if index != anchor), default=0)
+            remaining_units -= lane_units
+    if remaining_units:
+        raise ArtifactValidationError("Prefix Cache solver could not construct the selected reachable target")
+
+    best_error, best_hit = score(prefixes)
+    if best_hit != desired_hit_tokens:
+        raise ArtifactValidationError(
+            f"Prefix Cache solver constructed {best_hit} hit tokens; expected {desired_hit_tokens}"
+        )
+    logger.info(
+        "[gen] solve_prefix_lengths strategy=exact_lane_construction desired_hit=%d chosen_prefixes=%s best_error=%d best_hit=%d",
+        desired_hit_tokens, prefixes, best_error, best_hit,
+    )
     # 实际/最低/最高可达的命中率。
     effective_rate = best_hit / total_input if total_input else 0.0
     min_rate = zero_hit / total_input if total_input else 0.0
@@ -558,9 +545,16 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     }
     # 目标命中率落在 [min_rate, max_rate] 区间内即为可达。
     target_reachable = min_rate <= target_hit_rate <= max_rate
-    # 无法精确命中目标（受 block 对齐 / 缓存水位约束）时标记 adjusted 并给出原因。
+    # 无法精确命中目标时标记 adjusted，并区分目标越界与单纯 Block 对齐残差。
     adjusted = best_hit != target_tokens
-    reason = "block alignment and cache-watermark constraints" if adjusted else None
+    if target_tokens > max_hit:
+        reason = "target exceeds maximum reachable hit rate"
+    elif target_tokens < zero_hit:
+        reason = "target is below minimum reachable hit rate"
+    elif adjusted:
+        reason = "block alignment prevents an exact target hit count"
+    else:
+        reason = None
     logger.info("[gen] solve_prefix_lengths group_reachability=%s target_reachable=%s adjusted=%s reason=%s", group_reachability, target_reachable, adjusted, reason)
     return SolveResult(
         tuple(prefixes), target_tokens, best_hit, effective_rate, min_rate, max_rate,

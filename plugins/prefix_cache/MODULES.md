@@ -151,7 +151,7 @@
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `solve_prefix_lengths` | `(input_lengths, output_lengths, group_ids, ranks, lane_sequences, block_size, minimum_non_shared_tokens, mode, target_hit_rate) -> SolveResult` | **核心求解器**。① 对每条请求构造 block 对齐候选 `[0, block, 2b, …, floor((len−min_non_shared)/b)*b]`；② 评分函数 = `simulate_theory` 的 `total_hit_tokens` 与 `target_tokens` 的绝对差；③ 候选空间 ≤ 20 万时 `itertools.product` 穷举；④ 超限 warmup：从最大前缀贪心回填；⑤ 超限 cold：先按 `length*target` 取最近候选，再做单点/同 lane 相邻对的局部搜索（爬山）。最后用全 0 与全最大前缀分别计算 `min/max reachable rate` 与组级可达范围，判定 `target_reachable`、`adjusted`。 |
+| `solve_prefix_lengths` | `(input_lengths, output_lengths, group_ids, ranks, lane_sequences, block_size, minimum_non_shared_tokens, mode, target_hit_rate) -> SolveResult` | **核心求解器**。① 对每条请求构造 block 对齐候选 `[0, block, 2b, …, floor((len−min_non_shared)/b)*b]`；② 先用全 0 与全最大前缀计算全局/组级 `min/max reachable rate`；③ 将目标命中 token 钳制到可达区间内最近的 Block 整数倍；④ warmup 按请求容量直接分配目标 Block；⑤ cold 按 `(Prefix Group, DP rank)` lane 使用 `lane_hit = Σprefix − max(prefix)`，以最大容量请求为 anchor，在线性时间内构造精确目标，不再使用可能陷入局部最优的爬山搜索；⑥ 返回 `target_reachable`、`adjusted` 和明确的越界/对齐原因。 |
 
 ### 4.6 唯一 seed 与边界安全 token
 

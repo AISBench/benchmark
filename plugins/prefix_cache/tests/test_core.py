@@ -211,6 +211,21 @@ class CoreTest(unittest.TestCase):
         self.assertTrue(all(prefix <= 12 for prefix in result.shared_prefix_tokens))
         self.assertFalse(result.target_reachable)
 
+    def test_unreachable_large_cold_target_uses_exact_upper_boundary(self):
+        lengths = [
+            2504, 2150, 3174, 3051, 2962, 2619, 2467, 2404, 3776, 2178,
+            2170, 2431, 2943, 3000, 2156, 2862, 3766, 2950, 3887, 3187,
+        ]
+        groups = ["g0"] * len(lengths)
+        ranks, lanes = assign_cold_routes(groups, 1)
+        result = solve_prefix_lengths(
+            lengths, [32] * len(lengths), groups, ranks, lanes,
+            128, 128, "cold", 0.9,
+        )
+        self.assertEqual(result.effective_hit_tokens, 48_896)
+        self.assertEqual(result.effective_hit_rate, result.max_reachable_rate)
+        self.assertFalse(result.target_reachable)
+
     def test_solver_matches_exhaustive_small_oracle(self):
         lengths = [16, 20, 24]
         outputs = [1, 1, 1]
@@ -228,6 +243,30 @@ class CoreTest(unittest.TestCase):
                     error = abs(hit - target_tokens)
                     best_error = error if best_error is None else min(best_error, error)
                 self.assertEqual(abs(result.effective_hit_tokens - target_tokens), best_error, (mode, target, result))
+
+    def test_exact_cold_solver_matches_multi_lane_exhaustive_oracle(self):
+        lengths = [16, 20, 24, 28]
+        outputs = [1] * len(lengths)
+        groups = ["g0"] * len(lengths)
+        ranks = [0, 0, 1, 1]
+        lanes = [0, 1, 0, 1]
+        candidates = [range(0, ((length - 4) // 4) * 4 + 1, 4) for length in lengths]
+        for target in (0.0, 0.1, 0.35, 0.6, 0.95, 1.0):
+            result = solve_prefix_lengths(lengths, outputs, groups, ranks, lanes, 4, 4, "cold", target)
+            target_tokens = int(sum(lengths) * target + 0.5)
+            best_error = min(
+                abs(
+                    simulate_theory([
+                        RequestPlan(
+                            f"r{i}", i, "g0", i, ranks[i], lanes[i], lengths[i], lengths[i],
+                            1, prefixes[i], 4, lengths[i] - prefixes[i] - 4,
+                        )
+                        for i in range(len(lengths))
+                    ], "cold").total_hit_tokens - target_tokens
+                )
+                for prefixes in itertools.product(*candidates)
+            )
+            self.assertEqual(abs(result.effective_hit_tokens - target_tokens), best_error)
 
 
 if __name__ == "__main__":
