@@ -1,5 +1,3 @@
-import os
-
 from ais_bench.benchmark.datasets.corpusqa import (
     CORPUSQA_JUDGE_SYSTEM_PROMPT,
     CORPUSQA_JUDGE_USER_TEMPLATE,
@@ -33,11 +31,10 @@ corpusqa_infer_cfg = dict(
 # ---------------------------------------------------------------------------
 # Judge model configuration (LLM-judge / ORM, following the official script)
 # ---------------------------------------------------------------------------
-# The judge is served through a DashScope-compatible endpoint.  Configure the
-# API key via the DASHSCOPE_API_KEY environment variable and optionally
-# override the judge model name via CORPUSQA_JUDGE_MODEL.
+# The judge is served through a DashScope-compatible endpoint.  Adjust the
+# ``url`` / ``host_ip`` / ``host_port`` / ``model`` fields below to point at
+# your judge service.
 
-_corpusqa_judge_model = os.environ.get('CORPUSQA_JUDGE_MODEL', 'deepseek-v3')
 
 corpusqa_judge_infer_cfg = dict(
     judge_reader_cfg=dict(
@@ -49,15 +46,14 @@ corpusqa_judge_infer_cfg = dict(
         type=VLLMCustomAPIChat,
         abbr='dashscope-orm',
         path='',
-        model=_corpusqa_judge_model,
+        model='',
         stream=False,
         request_rate=0,
         use_timestamp=False,
-        retry=3,
-        api_key=os.environ.get('DASHSCOPE_API_KEY', ''),
+        retry=2,
+        api_key='',
         host_ip='localhost',
         host_port=8005,
-        url='https://dashscope.aliyuncs.com/compatible-mode',
         max_out_len=2048,
         batch_size=8,
         trust_remote_code=False,
