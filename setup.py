@@ -176,6 +176,8 @@ def do_setup():
             'response_anomaly':
             parse_requirements('requirements/response_anomaly.txt') +
             parse_requirements('requirements/runtime.txt'),
+            'agent':
+            parse_requirements('requirements/agent.txt'),
             'full':
             parse_requirements('requirements/extra.txt') +
             parse_requirements('requirements/api.txt') +
