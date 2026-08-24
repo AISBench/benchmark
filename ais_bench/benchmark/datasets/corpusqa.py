@@ -127,12 +127,20 @@ class CorpusQADataset(BaseDataset):
                 if "prompt" not in item or "answer" not in item:
                     logger.warning("Line misses 'prompt' or 'answer' field, skipped.")
                     continue
+                # Some ground-truth answers are the empty list ``[]`` (see the
+                # official README). Arrow cannot build a column mixing list and
+                # str, so normalise list answers to their str() rendering --
+                # this keeps the judge prompt byte-identical to the official
+                # ``str.format`` output (``Answer 2: []``).
+                answer = item["answer"]
+                if isinstance(answer, list):
+                    answer = str(answer)
                 dataset.append(
                     {
                         "id": item.get("id", len(dataset)),
                         "prompt": item["prompt"],
                         "question": item.get("question", ""),
-                        "answer": item["answer"],
+                        "answer": answer,
                     }
                 )
         logger.info(f"Loaded {len(dataset)} samples from CorpusQA dataset: {path}")
