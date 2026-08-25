@@ -19,7 +19,7 @@ from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners import LocalRunner, TasksMonitor
 from ais_bench.benchmark.tasks.base import EmptyTask
-from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
+from ais_bench.benchmark.summarizers import DefaultSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.cli.utils import clear_repeat_tasks
 from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
@@ -646,6 +646,8 @@ class AccViz(BaseWorker):
 
 class PerfViz(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
+        # lazily imported: default_perf pulls in plotly, only needed in perf
+        from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
         summarizer_cfg = cfg.get("summarizer", {})
         if (
             not summarizer_cfg

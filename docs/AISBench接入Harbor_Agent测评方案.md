@@ -364,7 +364,8 @@ windows-curses; sys_platform == "win32"
 - `cli/workers.py`、`utils/config/run.py`：`tasks` / `openicl` / partitioner / runner 相关导入函数内化；
 - `cli/config_manager.py`：`datasets.custom`（依赖 HuggingFace `datasets`）导入函数内化；`try_fill_in_custom_cfgs` 对 agent 风格数据集（含 `args` 字段）跳过 dummy 填充，避免加载配置时拉入 openicl / `datasets`；
 - `datasets/__init__.py`：各数据集后端星号导入改为逐模块 try/except 守卫，缺失可选依赖（`datasets`/torch/transformers）时仅跳过该后端，registry 按点号路径加载不受影响；
-- `utils/file/__init__.py`：`load_tokenizer`（顶层依赖 `transformers`）改为 PEP 562 惰性再导出；
+- `utils/file/__init__.py`：`load_tokenizer`（顶层依赖 `transformers`）改为 PEP 562 惰性再导出；`load_tokenizer.py` 内 `transformers` 亦改为函数内惰性导入；
+- `summarizers/__init__.py`：改为 PEP 562 惰性再导出（`default_perf` 依赖 plotly，vbench/swebench/oneig 依赖重型后端）；`workers.py` 中 `DefaultPerfSummarizer` 移入 `PerfViz.update_cfg` 惰性导入；
 - 所有 harbor 相关 import 保持函数级 lazy import（现有 `harbor_task.py` 已是此风格）。
 
 **独立使用方式**：
@@ -413,6 +414,7 @@ ais_bench configs/agent_example/harbor_agent_task.py --mode agent
 | `benchmark/ais_bench/benchmark/openicl/icl_inferencer/icl_base_local_inferencer.py` | `DataLoader` lazy import（依赖隔离） |
 | `benchmark/ais_bench/benchmark/datasets/__init__.py` | 数据集后端星号导入改为逐模块守卫（依赖隔离） |
 | `benchmark/ais_bench/benchmark/utils/file/__init__.py` | `load_tokenizer` 惰性再导出（依赖隔离） |
+| `benchmark/ais_bench/benchmark/summarizers/__init__.py` | 改为 PEP 562 惰性再导出（依赖隔离） |
 | `benchmark/ais_bench/benchmark/utils/config/run.py` | openicl/tasks 导入函数内化；agent 数据集跳过 dummy 填充 |
 | `benchmark/setup.py` | 新增 `agent` extra |
 
