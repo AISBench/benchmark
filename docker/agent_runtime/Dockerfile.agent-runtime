@@ -302,6 +302,10 @@ RUN chmod +x ${AGENT_VENVS_ROOT}/swebench_pro/bin/ais_bench
 COPY docker/agent_runtime/doctor.sh /usr/local/bin/ais_bench_agent_doctor.sh
 RUN chmod +x /usr/local/bin/ais_bench_agent_doctor.sh
 
+# A4 entrypoint (v3): ARM64 binfmt 注册 + daemon.json 写 + agent-patches 注入
+COPY docker/agent_runtime/ais_bench_agent_entrypoint.sh /usr/local/bin/ais_bench_agent_entrypoint.sh
+RUN chmod +x /usr/local/bin/ais_bench_agent_entrypoint.sh
+
 COPY docker/agent_runtime/packs/      ${AGENT_PACKS_ROOT}/
 
 # ============================================================
@@ -323,3 +327,18 @@ agent_env() {
 EOF
 
 WORKDIR /benchmark
+
+# ============================================================
+# ENTRYPOINT (v3 A4)
+#
+# 设置 runtime container 启动时的 entrypoint：先做 ARM64 binfmt 注册、
+# daemon.json 写、agent-patches 注入，再 exec 默认命令（CMD ["bash"]）。
+# dockerd 启动逻辑不在这里（避免与 bootstrap.sh 的 docker exec 启 dockerd
+# 双启冲突），保留在 bootstrap.sh 的 Mode A 段落。
+#
+# 自定义入口命令仍可覆盖：
+#   docker run ... <image> harbor jobs --help
+# → ENTRYPOINT 跑完 setup，exec harbor jobs --help
+# ============================================================
+ENTRYPOINT ["/usr/local/bin/ais_bench_agent_entrypoint.sh"]
+CMD ["bash"]
