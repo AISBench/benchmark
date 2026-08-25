@@ -37,7 +37,7 @@ Applicable to all modes and can be used in combination with accuracy or performa
 | `--num-prompts`         | Specifies the number of test cases for the dataset (selected in dataset order). A positive integer must be passed. If the number exceeds the total number of cases in the dataset or no value is specified, the entire dataset is used for testing. | `--num-prompts 500`              |
 | `--max-num-workers`     | Number of parallel tasks, range: `[1, number of CPU cores]`; default value: `1`. Invalid when `--debug` is specified; all tasks are executed serially. Note: In performance evaluation scenarios, an excessively high concurrency may cause resource contention among different processes, leading to inaccurate test results. | `--max-num-workers 2`            |
 | `--num-warmups`         | Number of warm-up runs before sending requests. Data is selected in dataset order for testing. When `num-warmups` exceeds the number of dataset entries, data from the dataset will be sent in a loop. Default value: `1`; set to `0` to disable warm-up. If all requests fail during the warmup phase, subsequent inference tasks will not be executed.                                                                                                          | `--num-warmups 10`               |
-| `--response-anomaly` / `--no-response-anomaly` | Enables or disables msProbe response anomaly detection. The command-line value overrides `response_anomaly.enabled` in the config file. Detection is serially bound to the inference stage: after inference finishes, the workflow starts detection and waits for it to complete (the dedicated status board prints the final result) before entering the subsequent Judge / Eval / Summary stages; requires the service to return token ids and top-k logprobs. Only supported in `all`, `infer`, and `infer_judge` generation chains; performance mode and Agent evaluation modes are unsupported. | `--response-anomaly` |
+| `--response-anomaly` | Enables msProbe response anomaly detection. This switch is **command-line only**: adding `--response-anomaly` to the command enables detection; omitting it disables detection (there is no `--no-response-anomaly` form). `response_anomaly.enabled` in the config file is not a supported switch and is ignored with a warning. Detection is serially bound to the inference stage: after inference finishes, the workflow starts detection and waits for it to complete (the dedicated status board prints the final result) before entering the subsequent Judge / Eval / Summary stages; requires the service to return token ids and top-k logprobs. Only supported in `all`, `infer`, and `infer_judge` generation chains; performance mode and Agent evaluation modes are unsupported. | `--response-anomaly` |
 | `--response-anomaly-payload-retention` | Payload retention mode after anomaly detection: `all` keeps everything, `anomalies` keeps anomalous and detection-failed/unavailable Cases, `none` keeps nothing. The command-line value overrides the config file; defaults to `anomalies`. | `--response-anomaly-payload-retention anomalies` |
 
 
@@ -76,11 +76,17 @@ The currently supported parameter configurations are as follows:
 
 Response anomaly detection currently supports only the vLLM Chat API model configurations `vllm_api_general_chat`, `vllm_api_stream_chat`, and `vllm_api_stream_chat_multiturn`. Other model backends are not supported yet.
 
-Add a `response_anomaly` entry to the top-level config file to enable detection; it can also be overridden with `--response-anomaly`:
+The **feature switch is command-line only**: add `--response-anomaly` to the command to enable detection (omit it to disable); the config file does not support configuring the switch (`response_anomaly.enabled` is ignored with a warning). The `response_anomaly` entry in the config file carries only non-switch settings (`payload_retention`, `payload_storage`, etc.):
 
 ```python
 response_anomaly = dict(
-    enabled=True,
+    payload_retention='anomalies',  # all | anomalies | none
+    payload_storage=dict(
+        format='jsonl',
+        compression='zstd',
+        compression_level=3,
+        rows_per_shard=2000,
+    ),
 )
 ```
 
@@ -128,7 +134,6 @@ The `detection_status` values in the detection results are:
 
 ```python
 response_anomaly = dict(
-    enabled=True,
     payload_retention='anomalies',  # all | anomalies | none
     payload_storage=dict(
         format='jsonl',
