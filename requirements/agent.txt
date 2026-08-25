@@ -3,6 +3,7 @@
 harbor
 mmengine-lite
 numpy
+Pillow
 tqdm>=4.64.1
 tabulate
 orjson

@@ -339,6 +339,7 @@ class AgentParamAdapter:
 harbor
 mmengine-lite
 numpy
+Pillow
 tqdm>=4.64.1
 tabulate
 orjson
@@ -350,7 +351,7 @@ windows-curses; sys_platform == "win32"
 ```
 
 - `harbor` 从 PyPI/镜像直接安装（**不沿用** `requirements/datasets/harbor.txt` 的 `harbor==0.6.1` 锁定）；如需精确对齐本地 0.21.0 源码，可单独执行 `pip install -e <harbor绝对路径>`；
-- `orjson` / `psutil` / `windows-curses` 为 CLI 导入链（`runners/base.py`、`utils/file/file.py`）所需；
+- `orjson` / `psutil` / `Pillow` / `windows-curses` 为 CLI 导入链（`runners/base.py`、`utils/file/file.py`、`partitioners/base.py → datasets/utils/datasets.py`）所需；
 - pydantic / typer / rich / fastapi / uvicorn / litellm 等由 harbor 自带。
 
 **`setup.py`**：新增 `extras_require["agent"] = parse_requirements("requirements/agent.txt")`；`install_requires=runtime.txt` 与默认安装保持不变。
@@ -362,6 +363,7 @@ windows-curses; sys_platform == "win32"
 - `tasks/__init__.py`：改为 PEP 562 惰性 `__getattr__` 再导出，避免包导入即拉入 swebench/oneig/openicl 等重型后端；
 - `cli/workers.py`、`utils/config/run.py`：`tasks` / `openicl` / partitioner / runner 相关导入函数内化；
 - `cli/config_manager.py`：`datasets.custom`（依赖 HuggingFace `datasets`）导入函数内化；`try_fill_in_custom_cfgs` 对 agent 风格数据集（含 `args` 字段）跳过 dummy 填充，避免加载配置时拉入 openicl / `datasets`；
+- `datasets/__init__.py`：各数据集后端星号导入改为逐模块 try/except 守卫，缺失可选依赖（`datasets`/torch/transformers）时仅跳过该后端，registry 按点号路径加载不受影响；
 - 所有 harbor 相关 import 保持函数级 lazy import（现有 `harbor_task.py` 已是此风格）。
 
 **独立使用方式**：
@@ -408,6 +410,7 @@ ais_bench configs/agent_example/harbor_agent_task.py --mode agent
 | `benchmark/ais_bench/benchmark/runners/local.py` | torch / is_npu_available lazy import |
 | `benchmark/ais_bench/benchmark/tasks/__init__.py` | 改为 PEP 562 惰性再导出（依赖隔离） |
 | `benchmark/ais_bench/benchmark/openicl/icl_inferencer/icl_base_local_inferencer.py` | `DataLoader` lazy import（依赖隔离） |
+| `benchmark/ais_bench/benchmark/datasets/__init__.py` | 数据集后端星号导入改为逐模块守卫（依赖隔离） |
 | `benchmark/ais_bench/benchmark/utils/config/run.py` | openicl/tasks 导入函数内化；agent 数据集跳过 dummy 填充 |
 | `benchmark/setup.py` | 新增 `agent` extra |
 
