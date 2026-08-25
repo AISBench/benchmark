@@ -1043,7 +1043,66 @@ class TestConfigManager(unittest.TestCase):
         self.assertIn('ais_bench-gen-response-anomaly-config', message)
 
     def test_response_anomaly_accepts_explicit_msprobe_paths(self):
-        """显式配置 mtype + token2category（真实存在）时无需 model_path。"""
+        """显式配置 mtype + token2category（真实存在）+ model_name 时无需 model_path。"""
+        import os as _os
+
+        mtype_path = _os.path.join(self.tokenizer_dir, 'mtype_config.json')
+        tk2cat_dir = _os.path.join(self.tokenizer_dir, 'token2category')
+        open(mtype_path, 'w').close()
+        _os.makedirs(tk2cat_dir, exist_ok=True)
+
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [
+                self._service_model(
+                    path='',
+                    response_anomaly={
+                        'model_name': 'Qwen3-30B-A3B',
+                        'msprobe_mtype_path': mtype_path,
+                        'msprobe_token2category_dir': tk2cat_dir,
+                    },
+                )
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
+        self.assertEqual(model_anomaly_cfg['msprobe_mtype_path'], mtype_path)
+        self.assertEqual(model_anomaly_cfg['model_name'], 'Qwen3-30B-A3B')
+        self.assertIsNone(model_anomaly_cfg['model_path'])
+
+    def test_response_anomaly_model_name_falls_back_to_path_basename(self):
+        """未配置 model_name 时回退 model_path 目录名，而不是模型 abbr。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [
+                self._service_model(
+                    abbr='vllm-api-general-chat',
+                    response_anomaly={},
+                )
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
+        self.assertEqual(
+            model_anomaly_cfg['model_name'],
+            os.path.basename(os.path.normpath(self.tokenizer_dir)),
+        )
+        self.assertNotEqual(model_anomaly_cfg['model_name'], 'vllm-api-general-chat')
+
+    def test_response_anomaly_explicit_paths_require_model_name(self):
+        """显式 msprobe 路径但缺 model_name 时应启动报错，而非静默用 abbr 匹配失败。"""
         import os as _os
 
         mtype_path = _os.path.join(self.tokenizer_dir, 'mtype_config.json')
@@ -1068,11 +1127,9 @@ class TestConfigManager(unittest.TestCase):
             'cli_args': {},
         }
 
-        config_manager._init_response_anomaly_config()
-
-        model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
-        self.assertEqual(model_anomaly_cfg['msprobe_mtype_path'], mtype_path)
-        self.assertIsNone(model_anomaly_cfg['model_path'])
+        with self.assertRaises(AISBenchConfigError) as cm:
+            config_manager._init_response_anomaly_config()
+        self.assertIn('model_name', str(cm.exception))
 
     def test_response_anomaly_rejects_nonexistent_msprobe_paths(self):
         """显式配置的 msProbe 路径不存在时启动即报错，而不是运行期全 failed。"""
@@ -1084,6 +1141,7 @@ class TestConfigManager(unittest.TestCase):
                 self._service_model(
                     path='',
                     response_anomaly={
+                        'model_name': 'Qwen3-30B-A3B',
                         'msprobe_mtype_path': '/workspace/missing/mtype_config.json',
                         'msprobe_token2category_dir': '/workspace/missing/token2category',
                     },
