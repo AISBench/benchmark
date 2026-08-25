@@ -10,7 +10,7 @@
 #   4. 启动 runtime 容器（自动带 --privileged / --cgroupns=host / daemon.json）
 #   5. 容器内启动 dockerd（模式 A）或重链 ais_bench（模式 B）
 #   6. （可选）把宿主的数据集目录挂载进容器（--datasets <PATH>）
-#   7. 自检并打印下一步（doctor → 原生 ais_bench）
+#   7. 自检并打印下一步（doctor → harbor jobs start 矩阵调度）
 #
 # 本脚本不接管测评执行，也不预置数据集 / case 镜像：
 #   - 数据集由用户在物理机上准备好，通过 --datasets <HOST_PATH> 挂载到容器内同路径
@@ -537,13 +537,25 @@ cat <<EOF
    ais_bench_agent_doctor.sh swebench      # SWE-bench（mini_swe_agent + SWE-bench harness）
    ais_bench_agent_doctor.sh swebench_pro  # SWE-bench Pro（scaleapi 适配版）
 
-4. 仅需 vim 改 model_names / api_base（path 已自动从环境变量 AISBENCH_AGENT_DATASET_PATH 读）
-   对应原生配置文件见各 pack.yaml 的 native_config 字段，例如：
+4. （可选）vim 改 model_names / api_base
+   用 harbor jobs start 跑矩阵调度时无需 vim（model_name / api_base 都从 matrix.yaml 读）
+   仅当回退到 PR #410 原生 ais_bench 单 config 模式时才需要 vim 改：
      vim ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py
      vim ais_bench/configs/swe_bench_examples/mini_swe_agent_swe_bench_lite.py
      vim ais_bench/configs/swe_bench_pro_examples/mini_swe_agent_swe_bench_pro_mini.py
 
-5. 激活对应 venv 跑测评
+5. 启动测评（推荐方式：5 层 DinD 完整工作流）
+   # harbor jobs start 直接吃 matrix.yaml，跑多 trial 矩阵
+   # matrix.yaml 已由 --matrix-yaml bind 到容器内 /opt/swebench/config/matrix.yaml
+   harbor jobs start -c /opt/swebench/config/matrix.yaml
+
+   # 也可直接调用 v3 C 批封装的便捷脚本（filter / watch / summarize 一体化）
+   ais_bench_agent_run.sh        # 等价于上面的 harbor jobs start，带默认 filter
+   ais_bench_agent_watch.sh      # 阻塞等 results.json
+   ais_bench_agent_summarize.sh  # 聚合 trial 结果到 md/csv/json
+
+6. （回退）PR #410 原生 ais_bench 单 config 模式
+   # 不推荐，仅在矩阵调度不适用时用：
    agent_env harbor       && ais_bench ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py --debug
    agent_env swebench     && ais_bench ais_bench/configs/swe_bench_examples/mini_swe_agent_swe_bench_lite.py --debug
    agent_env swebench_pro && ais_bench ais_bench/configs/swe_bench_pro_examples/mini_swe_agent_swe_bench_pro_mini.py --debug
