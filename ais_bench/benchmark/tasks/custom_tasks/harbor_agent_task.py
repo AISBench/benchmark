@@ -167,6 +167,12 @@ class HarborAgentTask(HarborTask):
         # explicit user-provided kwargs / env win over translated values
         kwargs = {**translated["kwargs"], **raw_kwargs, **cli_kwargs}
         env = {**translated["env"], **raw_env, **cli_env}
+        # inherit proxy env vars from the host process when not explicitly set,
+        # so agents can reach model services through the same proxy as the CLI
+        for var in ("http_proxy", "https_proxy", "no_proxy",
+                    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"):
+            if var not in env and os.environ.get(var):
+                env[var] = os.environ[var]
         self.logger.info(
             f"Agent '{agent_name}' built env keys: {sorted(env.keys())} | "
             f"cli_args.agent_env present: {bool(self.cli_args.get('agent_env'))} | "

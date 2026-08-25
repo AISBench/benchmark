@@ -233,6 +233,7 @@ class ArgumentParser():
         parser.add_argument(
             '--ak',
             '--agent-kwarg',
+            dest='agent_kwarg',
             help="Additional agent kwarg in 'key=value' format "
             "(can be used multiple times)",
             nargs='+',
@@ -242,6 +243,7 @@ class ArgumentParser():
         parser.add_argument(
             '--ae',
             '--agent-env',
+            dest='agent_env',
             help="Environment variable for the agent in 'KEY=VALUE' format "
             "(can be used multiple times)",
             nargs='+',
