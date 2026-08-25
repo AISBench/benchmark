@@ -257,12 +257,10 @@ COPY docker/agent_runtime/doctor.sh /usr/local/bin/ais_bench_agent_doctor.sh
 RUN chmod +x /usr/local/bin/ais_bench_agent_doctor.sh
 
 # v3 C 批: 5 层 DinD L3 调度脚本
-# C3: ais_bench_agent_summarize.sh — 聚合 jobs/*/result.json → md/csv/json
-# (C1/C2/C4 在各自 commit 中加入,这里只放 C3)
-COPY docker/agent_runtime/ais_bench_agent_summarize.sh /usr/local/bin/ais_bench_agent_summarize.sh
-RUN chmod +x /usr/local/bin/ais_bench_agent_summarize.sh
-COPY docker/agent_runtime/scripts/summarize.py /usr/local/bin/ais_bench_agent_summarize.py
-RUN chmod +x /usr/local/bin/ais_bench_agent_summarize.py
+# C4: ais_bench_agent_orchestrator_status.sh — 容器状态查询(5 段输出)
+# (C1/C2/C3 在各自 commit 中加入,这里只放 C4)
+COPY docker/agent_runtime/ais_bench_agent_orchestrator_status.sh /usr/local/bin/ais_bench_agent_orchestrator_status.sh
+RUN chmod +x /usr/local/bin/ais_bench_agent_orchestrator_status.sh
 
 COPY docker/agent_runtime/packs/      ${AGENT_PACKS_ROOT}/
 
