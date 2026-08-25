@@ -29,7 +29,6 @@ from ais_bench.benchmark.openicl.icl_evaluator.icl_base_evaluator import BaseEva
 from ais_bench.benchmark.openicl.icl_prompt_template.icl_prompt_template_base import BasePromptTemplate
 from ais_bench.benchmark.registry import ICL_EVALUATORS, ICL_PROMPT_TEMPLATES, LOAD_DATASET
 from ais_bench.benchmark.utils.logging import AISLogger
-from ais_bench.benchmark.utils.prompt import PromptList
 
 logger = AISLogger()
 
@@ -83,20 +82,46 @@ class CorpusQAPromptTemplate(BasePromptTemplate):
         output_field_replace_token: str = "",
         ice_field_replace_token: str = "",
     ):
-        prompt = PromptList()
         messages = entry.get("prompt", [])
         if isinstance(messages, str):
             # Some subsets may provide a plain text prompt.
             return messages
+        if isinstance(messages, dict):
+            messages = [messages]
+
+        # Reuse the framework's standard section emission (``_encode_template``),
+        # exactly like the built-in PromptTemplate used by other gen datasets
+        # (e.g. gsm8k_gen_4_shot_cot_chat_prompt). System messages live in the
+        # ``begin`` section; user/assistant turns in the ``round`` section.
+        template = {}
+        system_items = []
+        round_items = []
         for msg in messages:
             if not isinstance(msg, dict):
                 msg = {"role": "user", "content": str(msg)}
-            item = {"role": msg.get("role", "user"), "prompt": msg.get("content", "")}
+            # Map the released OpenAI-style roles onto the internal roles the
+            # API chat model understands (see ROLE_MAP in vllm_custom_api_chat):
+            #   system -> SYSTEM (begin section)
+            #   user / assistant -> HUMAN / BOT (round section)
+            raw_role = msg.get("role", "user")
+            if raw_role == "system":
+                role = "SYSTEM"
+            elif raw_role == "assistant":
+                role = "BOT"
+            else:
+                role = "HUMAN"
+            item = {"role": role, "prompt": msg.get("content", "")}
             for key, value in msg.items():
                 if key not in ("role", "content"):
                     item[key] = value
-            prompt.append(item)
-        return prompt
+            if role == "SYSTEM":
+                system_items.append(item)
+            else:
+                round_items.append(item)
+        if system_items:
+            template["begin"] = system_items
+        template["round"] = round_items
+        return self._encode_template(template, ice=False)
 
 
 @LOAD_DATASET.register_module()
@@ -127,13 +152,13 @@ class CorpusQADataset(BaseDataset):
                 if "prompt" not in item or "answer" not in item:
                     logger.warning("Line misses 'prompt' or 'answer' field, skipped.")
                     continue
-                # Some ground-truth answers are the empty list ``[]`` (see the
-                # official README). Arrow cannot build a column mixing list and
-                # str, so normalise list answers to their str() rendering --
-                # this keeps the judge prompt byte-identical to the official
-                # ``str.format`` output (``Answer 2: []``).
+                # Answers may be str, int/float or the empty list ``[]`` (see
+                # the official README). Arrow cannot build a column mixing
+                # these types, so normalise non-str answers to their str()
+                # rendering -- this keeps the judge prompt byte-identical to
+                # the official ``str.format`` output (e.g. ``Answer 2: []``).
                 answer = item["answer"]
-                if isinstance(answer, list):
+                if not isinstance(answer, str):
                     answer = str(answer)
                 dataset.append(
                     {
