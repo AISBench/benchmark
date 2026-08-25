@@ -407,6 +407,24 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     docker rm -f "${CONTAINER_NAME}" >/dev/null
 fi
 
+# v3 B 批 B2: 处理 data container（仅 --data-image 传入时执行）
+# data container 是只读空容器，仅用于携带 image 内置的数据卷
+# runtime 容器 --volumes-from <data>:ro 继承这些数据卷，但运行时不能改
+DATA_VOLUMES_ARG=""
+if [ -n "${DATA_IMAGE}" ]; then
+    DATA_CONTAINER_NAME="${CONTAINER_NAME}-data"
+    if docker ps -a --format '{{.Names}}' | grep -q "^${DATA_CONTAINER_NAME}$"; then
+        log "  ✓ data container 已存在: ${DATA_CONTAINER_NAME}（复用）"
+    else
+        log "  创建 data container: ${DATA_CONTAINER_NAME} ← ${DATA_IMAGE}"
+        if ! docker create --name "${DATA_CONTAINER_NAME}" "${DATA_IMAGE}" >/dev/null 2>&1; then
+            fail "data container 创建失败（镜像不存在或已损坏）: ${DATA_IMAGE}"
+        fi
+        log "    ✓ ${DATA_CONTAINER_NAME} 已创建"
+    fi
+    DATA_VOLUMES_ARG="--volumes-from ${DATA_CONTAINER_NAME}:ro"
+fi
+
 # 拼装数据集挂载参数
 MOUNT_ARGS=""
 for p in "${DATASET_MOUNTS[@]+"${DATASET_MOUNTS[@]}"}"; do
