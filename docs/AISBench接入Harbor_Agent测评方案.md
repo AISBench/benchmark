@@ -13,7 +13,7 @@
 - **旧 `harbor_task.py` 基于 harbor 0.6.1**，实现时仅参考其结果落盘与断点续跑的外层流程，**不得沿用其已过时的 API 调用**，典型差异：
   - 旧实现 `AgentName(self.model_cfg.get("agent_name", "oracle"))` 直接构造枚举——0.21.0 中 `AgentConfig.name` 为 `str`，且需支持 `module:ClassName` 自定义 import path；新实现把原始字符串传给 `AgentConfig`，由 harbor `AgentFactory` 解析，仅对不含 `:` 的值校验是否属于 `AgentName.values()`。
   - 旧实现只用了 `AgentConfig(name/model_name/kwargs/env)` 四个字段——0.21.0 新增 `import_path / n_concurrent / skills / mcp_servers / include_logs / exclude_logs / resume_trajectory / load_trajectory / deps_path / override_timeout_sec` 等，需按需透传。
-  - `requirements/datasets/harbor.txt` 锁定 `harbor==0.6.1`，**不适用于本方案**；`requirements/agent.txt` 改为引用本地 harbor（`-e ../harbor`）。
+  - `requirements/datasets/harbor.txt` 锁定 `harbor==0.6.1`，**不适用于本方案**；`requirements/agent.txt` 改为引用本地 harbor（`-e ../../harbor`，相对 `requirements/` 目录解析）。
 
 ---
 
@@ -349,7 +349,7 @@ python-dotenv
 windows-curses; sys_platform == "win32"
 ```
 
-- `-e ../harbor` 引用 `/d:/group_dev/adapt_harbor/harbor`（0.21.0），**不沿用** `requirements/datasets/harbor.txt` 的 `harbor==0.6.1` 锁定；
+- `-e ../../harbor` 引用 `/d:/group_dev/adapt_harbor/harbor`（0.21.0，相对 `requirements/` 目录解析），**不沿用** `requirements/datasets/harbor.txt` 的 `harbor==0.6.1` 锁定；
 - `orjson` / `psutil` / `windows-curses` 为 CLI 导入链（`runners/base.py`、`utils/file/file.py`）所需；
 - pydantic / typer / rich / fastapi / uvicorn / litellm 等由 harbor 自带。
 
