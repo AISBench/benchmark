@@ -6,11 +6,7 @@ from pathlib import Path
 
 from ais_bench_prefix_cache.artifacts import read_jsonl, sha256_file, validate_artifacts
 from ais_bench_prefix_cache.pipeline import inspect_scenario, prepare_scenario
-from ais_bench_prefix_cache.cli import main as cli_main
-from ais_bench_prefix_cache.errors import PrefixCacheError
 from tests.test_core import scenario_dict
-from ais_bench_prefix_cache.runtime import render_aisbench_config, run_scenario
-from ais_bench_prefix_cache.scenario import load_scenario
 
 
 class FakeTokenizer:
@@ -124,73 +120,6 @@ class PipelineTest(unittest.TestCase):
             rows = [row for row in read_jsonl(paths.full) if row["group_id"] == "group-0"]
             self.assertTrue(all(row["actual_input_tokens"] == 80 for row in rows))
             self.assertTrue(any(len(set(row["gsm_indices"])) >= 2 for row in rows))
-
-    def test_analysis_deviation_is_warning_with_zero_exit(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            scenario = write_case(root)
-            paths = prepare_scenario(scenario, tokenizer_loader=lambda _: FakeTokenizer())
-            baseline = root / "baseline.prom"
-            after = root / "after.prom"
-            baseline.write_text('\n'.join([
-                'vllm:prefix_cache_queries{engine="0"} 100',
-                'vllm:prefix_cache_queries{engine="1"} 100',
-                'vllm:prefix_cache_hits{engine="0"} 50',
-                'vllm:prefix_cache_hits{engine="1"} 50',
-            ]), encoding="utf-8")
-            after.write_text('\n'.join([
-                'vllm:prefix_cache_queries{engine="0"} 150',
-                'vllm:prefix_cache_queries{engine="1"} 150',
-                'vllm:prefix_cache_hits{engine="0"} 50',
-                'vllm:prefix_cache_hits{engine="1"} 50',
-            ]), encoding="utf-8")
-            code = cli_main(["analyze", "--manifest", str(paths.manifest), "--baseline", str(baseline), "--after", str(after)])
-            self.assertEqual(code, 0)
-            analysis = json.loads(paths.analysis.read_text(encoding="utf-8"))
-            self.assertIn("ACTUAL_DEVIATION", {warning["code"] for warning in analysis["warnings"]})
-            self.assertIn("theory_actual_signed_difference_pp", analysis)
-            self.assertEqual(analysis["validation"]["actual_status"], "PASS_WITH_WARNING")
-            self.assertFalse(analysis["validation"]["affects_exit_code"])
-            self.assertIn("raw_prometheus", analysis["runtime"]["metrics_baseline"])
-            self.assertIn("raw_prometheus", analysis["runtime"]["metrics_after"])
-
-    def test_render_aisbench_config_is_static(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            scenario = write_case(root)
-            config = root / "perf.py"
-            config.write_text(
-                "import os\n"
-                "from ais_bench_prefix_cache.datasets import PrefixCacheDataset\n"
-                "scenario = os.environ['AISBENCH_PREFIX_CACHE_SCENARIO']\n"
-                "datasets = [dict(type=PrefixCacheDataset, abbr='t', requests_path='r', full_path='f', manifest_path='m')]\n"
-                "models = [dict(type=PrefixCacheDataset)]\n"
-                "infer = dict(partitioner=dict(type=PrefixCacheDataset))\n"
-                "summarizer = dict(attr='accuracy', summary_groups=[])\n"
-                "work_dir = os.environ.get('AISBENCH_PREFIX_CACHE_WORK_DIR', 'fallback')\n",
-                encoding="utf-8",
-            )
-            generated = render_aisbench_config(config, load_scenario(scenario))
-            text = generated.read_text(encoding="utf-8")
-            self.assertIn("import PrefixCacheDataset as _ref0", text)
-            self.assertIn("'type': _ref0", text)
-            self.assertIn("datasets =", text)
-            self.assertIn("summarizer =", text)
-            self.assertIn("'attr': 'accuracy'", text)
-            self.assertIn("work_dir =", text)
-            self.assertNotIn("os.environ", text)
-
-    def test_run_rejects_stale_prepared_scenario_before_network(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            scenario = write_case(root)
-            prepare_scenario(scenario, tokenizer_loader=lambda _: FakeTokenizer())
-            data = json.loads(scenario.read_text(encoding="utf-8"))
-            data["prefix_cache"]["target_hit_rate"] = 0.25
-            scenario.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(PrefixCacheError, "different scenario"):
-                run_scenario(scenario)
-
 
 if __name__ == "__main__":
     unittest.main()

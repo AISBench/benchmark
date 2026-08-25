@@ -1,8 +1,8 @@
-# AISBench Prefix Cache Plugin
+# AISBench Prefix Cache 数据集生成插件
 
-这是一个独立的 AISBench 插件，用于构造具有可控公共前缀的数据集，并对 vLLM Prefix Cache 的理论命中率和实际命中率进行压测分析。
+这是一个独立的 AISBench 插件，用于**离线构造**具有可控公共前缀的 Prefix Cache 数据集，并校验产物的完整性。本分支只保留数据生成与校验能力（`inspect` / `prepare` / `validate` 三个命令），不包含任何在线压测（连接 vLLM、跑 AISBench、采集指标）相关功能。
 
-插件只增加 `plugins/prefix_cache` 下的新代码，不修改 AISBench 核心逻辑。当前支持一个 vLLM HTTP 入口及其内部多个 DP rank，不支持多个彼此独立的 vLLM 实例。
+插件只增加 `plugins/prefix_cache` 下的新代码，不修改 AISBench 核心逻辑。
 
 Scenario 示例见 [config_examples/scenario.example.json](config_examples/scenario.example.json)，完整字段说明见 [config_examples/scenario.example.md](config_examples/scenario.example.md)。
 
@@ -13,9 +13,7 @@ Scenario 示例见 [config_examples/scenario.example.json](config_examples/scena
 - Python 3.10 或更高版本；
 - 当前 AISBench 仓库及其依赖可以正常导入；
 - `transformers`：加载与 vLLM 模型一致的 tokenizer；
-- `datasets` 和 `aiohttp`：AISBench 数据集与 API 压测依赖；
-- 一份 GSM8K JSONL 文件，每行至少包含 `question` 字段；
-- 一个已经启用 Prefix Cache 的 vLLM 服务。
+- 一份 GSM8K JSONL 文件，每行至少包含 `question` 字段。
 
 数据生成时使用的 tokenizer 必须与 vLLM 服务端模型一致。否则本地计算的 token 长度、Block 边界和理论命中率会与服务端实际行为不一致。
 
@@ -54,10 +52,7 @@ python -m pip install -e ./plugins/prefix_cache
 这条命令会：
 
 1. 安装 `ais_bench_prefix_cache` Python 包；
-2. 注册 AISBench 插件入口，使其发现自定义 Dataset、Inferencer 和 vLLM API Model；
-3. 安装 `ais-bench-prefix-cache` 命令行入口。
-
-同样使用 editable 模式，修改插件代码后不必重复安装。
+2. 安装 `ais-bench-prefix-cache` 命令行入口。
 
 ### 2.4 验证安装
 
@@ -65,7 +60,7 @@ python -m pip install -e ./plugins/prefix_cache
 ais-bench-prefix-cache --help
 ```
 
-作用：验证命令行入口是否安装成功，并列出 `inspect`、`prepare`、`validate`、`run` 和 `analyze` 子命令。
+作用：验证命令行入口是否安装成功，并列出 `inspect`、`prepare` 和 `validate` 三个子命令。
 
 如果系统找不到该命令，可以使用等价形式：
 
@@ -73,28 +68,9 @@ ais-bench-prefix-cache --help
 python -m ais_bench_prefix_cache.cli --help
 ```
 
-## 3. vLLM 服务要求
+## 3. 首次使用
 
-插件依赖三个服务能力：
-
-- `/v1/completions`：发送 probe、warmup 和正式请求；
-- `/metrics`：读取 Prefix Cache query/hit token 计数及 KV Cache 使用率；
-- `/reset_prefix_cache`：在正式测试前清空缓存。
-
-新版 vLLM 使用 reset 接口时可能要求设置 `VLLM_SERVER_DEV_MODE=1`。如果确实无法 reset，可以在 Scenario 中显式设置 `assume_empty_cache=true`；插件会继续并记录 `ASSUME_EMPTY_CACHE` 告警，但用户必须自行保证测试前缓存为空。
-
-多 DP 还必须满足：
-
-- 所有 DP rank 共用 Scenario 中的一个 HTTP 入口；
-- 服务支持通过 `X-data-parallel-rank` Header 定向请求；
-- `/metrics` 通过 `engine` 标签暴露全部 DP rank；
-- 每个 DP rank 拥有独立 KV Cache。
-
-任一 DP 无法定向或指标缺失时，预检查直接失败，不会降级为概率性预热或单 DP 统计。
-
-## 4. 首次使用
-
-### 4.1 复制并修改配置
+### 3.1 复制并修改配置
 
 ```bash
 cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
@@ -105,12 +81,11 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 - `tokenizer.path`：与 vLLM 一致的 tokenizer；
 - `corpus.path`：本地 GSM8K JSONL；
 - `service.model` 和三个服务 URL；
-- `service.dp_size`：真实 DP 数量；
-- `aisbench.config`：AISBench Python 配置。
+- `service.dp_size`：真实 DP 数量。
 
 各参数含义见 [Scenario 参数说明](config_examples/scenario.example.md)。下面同时列出本插件最关键的数据构造参数，README 本身即可作为快速使用手册。
 
-### 4.2 Prefix Cache 数据构造参数
+### 3.2 Prefix Cache 数据构造参数
 
 #### 输入长度模式
 
@@ -229,12 +204,11 @@ Manifest 的输入和输出长度摘要包含 `min`、`max`、`mean`、`p50`、`
 `analysis.json` 使用 `PASS` 或 `PASS_WITH_WARNING` 展示验证状态：
 
 - 目标超出可达区间时记录 `TARGET_UNREACHABLE`；
-- 理论值与目标相差超过 `target_warning_pp` 时记录 `TARGET_DEVIATION`；
-- 实际值与理论值相差超过 `actual_warning_pp` 时记录 `ACTUAL_DEVIATION`。
+- 理论值与目标相差超过 `target_warning_pp` 时记录 `TARGET_DEVIATION`。
 
-这些状态和差异只用于展示，`warning_only=true` 且 `affects_exit_code=false`。偏差不会改变原本成功的退出码；只有配置、产物、服务能力或 AISBench 执行错误才会失败。
+这些状态和差异只用于展示，`warning_only=true` 且 `affects_exit_code=false`。偏差不会改变原本成功的退出码；只有配置、产物生成或校验错误才会失败。
 
-### 4.3 `inspect`：检查配置和理论范围
+### 3.3 `inspect`：检查配置和理论范围
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
@@ -248,7 +222,7 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 - 展示组分布、输入/输出长度和 cold DP 路由摘要；
 - 不访问 vLLM、不发送请求，也不在 Scenario 的 `output_dir` 留下产物。
 
-### 4.4 `prepare`：生成正式数据产物
+### 3.4 `prepare`：生成正式数据产物
 
 ```bash
 ais-bench-prefix-cache prepare --scenario ./scenario.json
@@ -269,7 +243,7 @@ ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
 
 `--overwrite` 只覆盖该 run 对应的四个确定文件，不会清理整个输出目录。
 
-### 4.5 `validate`：校验已有产物
+### 3.5 `validate`：校验已有产物
 
 ```bash
 ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60/gsm8k-prefix-cache-60.manifest.json
@@ -285,67 +259,20 @@ ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60/gsm8k
 
 它用于发现文件被手工编辑、截断、换序或使用了错误版本。
 
-### 4.6 `run`：执行完整压测
-
-```bash
-ais-bench-prefix-cache run --scenario ./scenario.json
-```
-
-完整流程为：
-
-1. 产物不存在时自动执行 prepare；
-2. 校验产物和 Scenario 哈希；
-3. 探测推理接口、指标和全部 DP；
-4. reset Prefix Cache，或记录显式的空缓存假定；
-5. warmup 模式下逐 `Prefix Group × DP rank` 定向预热；
-6. 预热后采集正式 baseline，使 warmup 不进入正式统计；
-7. 调用 AISBench 执行正式性能压测；
-8. 采集 after，计算分 DP 和全局实际命中率；
-9. 将原始指标快照、差值和 warnings 写入 analysis。
-
-临时覆盖 Scenario 中 AISBench 配置的方法：
-
-```bash
-ais-bench-prefix-cache run --scenario ./scenario.json --config ./my_prefix_cache_perf.py
-```
-
-`--config` 只影响本次执行，不修改 Scenario 文件。
-
-### 4.7 `analyze`：使用离线指标重新分析
-
-```bash
-ais-bench-prefix-cache analyze \
-  --manifest ./outputs/gsm8k-prefix-cache-60/gsm8k-prefix-cache-60.manifest.json \
-  --baseline ./baseline.prom \
-  --after ./after.prom
-```
-
-作用：读取保存好的两份 Prometheus 文本，重新计算正式阶段 query/hit token 增量、分 DP 命中率、全局 token 加权命中率和理论/实际差值。该命令不连接 vLLM，也不重新执行 AISBench。
-
-## 5. 推荐工作流
-
-正式测试建议分阶段执行：
+## 4. 推荐工作流
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
 ais-bench-prefix-cache prepare --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest路径>
-ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-这样可以在发送任何请求前人工审计数据。`run` 发现已有且匹配当前 Scenario 的产物时会直接复用。
+这样可以在任何实际压测前人工审计数据。`prepare` 遇到同名产物时默认拒绝覆盖。
 
-自动化环境可以直接执行：
-
-```bash
-ais-bench-prefix-cache run --scenario ./scenario.json
-```
-
-## 6. cold 与 warmup
+## 5. cold 与 warmup
 
 ### cold
 
-- reset 后立即执行正式请求；
 - 每个 `(group_id, dp_rank)` 从零水位开始；
 - 同一组的请求按组内 round-robin 定向 DP；
 - 插件保证同一 lane 内请求顺序；
@@ -353,13 +280,13 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 ### warmup
 
-- reset 后对每个 Prefix Group、每个 DP rank 分别预热；
-- 全部预热成功后才采集正式 baseline；
-- warmup 不进入 requests JSONL、AISBench 性能数据、理论分母或正式指标增量；
-- 正式请求交给 vLLM 内部负载均衡；
+- 对每个 Prefix Group、每个 DP rank 分别预热；
+- warmup 不进入 requests JSONL、理论分母或正式指标增量；
 - 全局理论命中率有效，分 DP 主要展示实际指标。
 
-## 7. 四类产物
+> 本分支只负责生成 cold / warmup 模式下的数据与预热计划，不实际执行预热请求。预热计划落在 `<run_id>.manifest.json` 的 `warmup.plan` 字段。
+
+## 6. 四类产物
 
 ### `<run_id>.full.jsonl`
 
@@ -367,7 +294,7 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 ### `<run_id>.requests.jsonl`
 
-AISBench 最小输入，每行只包含 `question`、`answer`、`max_tokens`。DP 路由等字段由插件根据 full 文件合并，不污染通用请求格式。
+最小输入，每行只包含 `question`、`answer`、`max_tokens`。DP 路由等字段由插件根据 full 文件合并，不污染通用请求格式。
 
 ### `<run_id>.manifest.json`
 
@@ -375,24 +302,16 @@ AISBench 最小输入，每行只包含 `question`、`answer`、`max_tokens`。D
 
 ### `<run_id>.analysis.json`
 
-保存 requested/effective/theoretical hit rate、目标可达性、带符号/绝对偏差、只展示不控制退出码的验证状态、分组和分 DP 理论结果、baseline/after 原始指标、实际命中率及 warnings。
+保存 requested/effective/theoretical hit rate、目标可达性、带符号/绝对偏差、只展示不控制退出码的验证状态、分组和分 DP 理论结果及 warnings。
 
-## 8. 命中率和退出码
-
-全局实际命中率按 token 汇总：
-
-```text
-sum(所有 DP 的 hit token 增量) / sum(所有 DP 的 query token 增量)
-```
-
-不会对各 DP 百分比做简单平均。
+## 7. 退出码
 
 - 理论与目标差异超过 `target_warning_pp`：`TARGET_DEVIATION`；
-- 实际与理论差异超过 `actual_warning_pp`：`ACTUAL_DEVIATION`；
+- 目标超出可达区间：`TARGET_UNREACHABLE`；
 - 两者始终只告警，不改变原本成功的退出码；
-- 配置错误、产物损坏、服务能力不足或 AISBench 失败会返回非零退出码。
+- 配置错误、产物损坏会返回非零退出码。
 
-## 9. 常见问题
+## 8. 常见问题
 
 ### 目标命中率为什么不完全相等？
 
@@ -402,12 +321,8 @@ sum(所有 DP 的 hit token 增量) / sum(所有 DP 的 query token 增量)
 
 ### warmup 为什么不进入正式统计？
 
-warmup 只负责建立缓存。如果计入请求数、吞吐、时延或命中率，正式结果会混入准备阶段成本。因此全部预热完成后会重新采集 baseline。
+warmup 只负责建立缓存。如果计入请求数、吞吐、时延或命中率，正式结果会混入准备阶段成本。
 
-### 多 DP 为什么必须逐 DP warmup？
+### 修改 Scenario 后为什么 prepare 拒绝旧产物？
 
-每个 DP rank 有独立 KV Cache。仅向入口重复发送无法保证每个 DP 都收到相同 Prefix Group，所以插件通过 Header 明确定向每个 rank。
-
-### 修改 Scenario 后为什么 run 拒绝旧产物？
-
-Manifest 保存 Scenario 哈希。配置与旧产物不一致时复用会破坏可复现性。请执行 `prepare --overwrite`，或设置 `run.overwrite=true` 让 run 自动重建。
+`prepare` 默认拒绝覆盖已存在的产物，防止误破坏历史工件。确认需要重建时请使用 `prepare --overwrite`。

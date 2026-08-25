@@ -334,7 +334,6 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
             "affects_exit_code": False,
         },
         "theory": {"input_tokens": theory.total_input_tokens, "hit_tokens": theory.total_hit_tokens, "groups": theory.group_stats, "dp": theory.dp_stats},
-        "runtime": {},
         "warnings": warnings,
     }
     logger.info("[prepare] analysis=%s", analysis)

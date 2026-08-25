@@ -12,7 +12,3 @@ class ArtifactValidationError(PrefixCacheError):
 
 class PromptRoundTripError(ArtifactValidationError):
     """Composed prompt tokens do not survive decode/re-encode."""
-
-
-class RuntimeCapabilityError(PrefixCacheError):
-    """The configured inference service cannot satisfy the scenario."""

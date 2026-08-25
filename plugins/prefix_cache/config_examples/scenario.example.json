@@ -36,6 +36,5 @@
     "dp_size": 2,
     "assume_empty_cache": false
   },
-  "validation": {"target_warning_pp": 1.0, "actual_warning_pp": 5.0},
-  "aisbench": {"config": "./prefix_cache_perf.py", "work_dir": "./outputs/aisbench", "extra_args": []}
+  "validation": {"target_warning_pp": 1.0, "actual_warning_pp": 5.0}
 }

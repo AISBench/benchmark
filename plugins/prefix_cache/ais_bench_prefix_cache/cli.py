@@ -11,7 +11,6 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 from .artifacts import validate_artifacts
 from .errors import PrefixCacheError
 from .pipeline import inspect_scenario, prepare_scenario
-from .runtime import analyze_snapshots, run_scenario
 from .scenario import load_scenario
 
 logger = logging.getLogger(__name__)
@@ -23,7 +22,7 @@ PLUGIN_LOG_NAME = "ais_bench_prefix_cache"
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """构建命令行参数解析器：prepare / inspect / validate / run / analyze 五个子命令。"""
+    """构建命令行参数解析器：prepare / inspect / validate 三个离线子命令。"""
     parser = argparse.ArgumentParser(prog="ais-bench-prefix-cache")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("prepare", "inspect"):
@@ -34,13 +33,6 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--overwrite", action="store_true")
     validate = sub.add_parser("validate")
     validate.add_argument("--manifest", required=True, type=Path)
-    run = sub.add_parser("run")
-    run.add_argument("--scenario", required=True, type=Path)
-    run.add_argument("--config", type=Path)
-    analyze = sub.add_parser("analyze")
-    analyze.add_argument("--manifest", required=True, type=Path)
-    analyze.add_argument("--baseline", required=True, type=Path)
-    analyze.add_argument("--after", required=True, type=Path)
     return parser
 
 
@@ -86,19 +78,6 @@ def main(argv: list[str] | None = None) -> int:
             result = inspect_scenario(args.scenario)
             logger.info("[cli] inspect_scenario returned result=%s", json.dumps(result, ensure_ascii=False))
             print(json.dumps(result, ensure_ascii=False, indent=2))
-        elif args.command == "run":
-            logger.info("[cli] run scenario=%s config=%s", args.scenario, args.config)
-            result = run_scenario(args.scenario, args.config)
-            logger.info("[cli] run_scenario returned result=%s", json.dumps(result, ensure_ascii=False))
-            # run 的警告打印到 stderr，不污染 stdout 的 JSON 输出。
-            for warning in result.get("warnings", []):
-                print(f"WARNING: {warning}", file=sys.stderr)
-        else:
-            logger.info("[cli] analyze manifest=%s baseline=%s after=%s", args.manifest, args.baseline, args.after)
-            result = analyze_snapshots(args.manifest, args.baseline, args.after)
-            logger.info("[cli] analyze_snapshots returned result=%s", json.dumps(result, ensure_ascii=False))
-            for warning in result.get("warnings", []):
-                print(f"WARNING: {warning}", file=sys.stderr)
         return 0
     except PrefixCacheError as exc:
         # 业务错误统一以 ERROR 输出并返回退出码 2，便于脚本判断。

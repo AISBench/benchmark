@@ -20,9 +20,8 @@
 | `corpus` | 是 | GSM8K 来源及样本选择方式。 |
 | `requests` | 是 | 正式请求数量和输入/输出长度。 |
 | `prefix_cache` | 是 | 缓存模式、目标命中率、组和顺序。 |
-| `service` | 是 | 单个 vLLM HTTP 入口、指标、reset 和 DP。 |
+| `service` | 是 | 校验契约保留的服务段；`dp_size` 用于 cold DP 路由。 |
 | `validation` | 否 | 偏差告警阈值。 |
-| `aisbench` | 否 | AISBench 配置、结果目录和附加参数。 |
 
 ## 3. `schema_version`
 
@@ -47,7 +46,7 @@
 | `run_id` | 是 | 无 | 稳定运行 ID，也是四类产物的文件名前缀。建议使用字母、数字、短横线和下划线。 |
 | `random_seed` | 是 | 无 | 控制 GSM8K 随机选择、长度采样、组分配、顺序和唯一 seed。相同输入与配置应生成相同内容。 |
 | `output_dir` | 是 | 无 | 四类产物目录；不存在时自动创建。 |
-| `overwrite` | 否 | `false` | 一体化 `run` 发现 Scenario 已变化时，是否允许重建旧产物。`prepare --overwrite` 可临时覆盖。 |
+| `overwrite` | 否 | `false` | 兼容保留字段。`prepare` 默认拒绝覆盖同名产物，重建使用 `prepare --overwrite`。 |
 
 示例会生成：
 
@@ -224,7 +223,7 @@ CSV 行数必须等于 `requests.count`，并包含以下任一正整数列：
 
 ### 7.3 `output_length`
 
-该值写入 requests JSONL 的 `max_tokens`，运行时映射为 AISBench `max_out_len`。
+该值写入 requests JSONL 的 `max_tokens`。
 
 #### 固定值
 
@@ -283,10 +282,10 @@ CSV 必须包含正整数 `output_tokens` 列，行数等于 `requests.count`。
 
 ### 8.1 `mode`
 
-- `cold`：reset 后直接执行正式请求，按 `(Prefix Group, DP rank)` 从零维护缓存水位；
-- `warmup`：reset 后先逐 `Prefix Group × DP rank` 预热，再采集正式 baseline。
+- `cold`：正式请求按 `(Prefix Group, DP rank)` lane 路由，理论命中率按 lane 从零水位模拟；
+- `warmup`：为每个 `Prefix Group × DP rank` 生成预热计划（写入 Manifest 的 `warmup.plan`），正式请求本身不固定 DP。
 
-warmup 请求不进入正式请求数、性能统计、理论分母或正式指标增量。
+本分支只生成数据与预热计划，不实际执行预热请求。warmup 请求不进入正式请求数或理论分母。
 
 ### 8.2 `target_hit_rate`
 
@@ -397,36 +396,17 @@ Zipf 分配：
 
 | 字段 | 必填 | 默认值 | 作用 |
 |---|---:|---|---|
-| `inference_url` | 是 | 无 | vLLM Completions API 完整地址，用于 probe、warmup 和正式请求。 |
-| `metrics_url` | 是 | 无 | Prometheus 地址，必须提供 Prefix Cache query/hit 指标。 |
-| `reset_url` | 否 | `null` | Prefix Cache reset 地址。cold 和 warmup 默认都先 reset。 |
-| `model` | 是 | 无 | 写入请求体的模型名称，必须被服务端接受。 |
-| `dp_size` | 否 | `1` | 单入口内部 DP rank 数，必须与实际指标一致。 |
-| `assume_empty_cache` | 否 | `false` | reset 缺失或失败时是否继续；启用后会告警，用户负责保证缓存为空。 |
-| `engine_label_map` | 否 | `{}` | Prometheus `engine` 标签到 DP rank 的显式映射。 |
-| `timeout_seconds` | 否 | `30` | probe、warmup、reset 和指标请求的单次 HTTP 超时秒数。 |
-| `api_key` | 否 | `""` | 可选 Bearer Token。运行时写入 Header，Manifest 不保存明文；Scenario 文件本身仍需限制权限。 |
+| `inference_url` | 是 | 无 | vLLM Completions API 完整地址。离线生成仅作非空校验；cold 多 DP 时必须提供（`scenario.py` 校验）。 |
+| `metrics_url` | 是 | 无 | Prometheus 地址，仅作非空校验字段。 |
+| `reset_url` | 否 | `null` | Prefix Cache reset 地址，仅作可选配置。 |
+| `model` | 是 | 无 | 写入请求体的模型名称，仅作非空校验字段。 |
+| `dp_size` | 否 | `1` | 单入口内部 DP rank 数。**离线用于 cold 模式的 DP 路由**与 warmup 预热计划。 |
+| `assume_empty_cache` | 否 | `false` | 仅作可选配置，离线不消费。 |
+| `engine_label_map` | 否 | `{}` | 仅作可选配置，离线不消费。 |
+| `timeout_seconds` | 否 | `30` | 仅作可选配置，离线不消费。 |
+| `api_key` | 否 | `""` | 仅作可选配置。Manifest 不保存明文，只记录是否配置；Scenario 文件本身仍需限制权限。 |
 
-默认从 `engine` 标签末尾数字推导 rank，例如 `engine_0 → 0`。非数字标签需要配置：
-
-```json
-"engine_label_map": {
-  "worker-east": 0,
-  "worker-west": 1
-}
-```
-
-多 DP 必须完整识别 `0～dp_size-1`，缺少、重复或越界都会失败。
-
-支持的优先指标：
-
-```text
-vllm:prefix_cache_queries
-vllm:prefix_cache_hits
-vllm:kv_cache_usage_perc
-```
-
-同时兼容 `vllm:gpu_prefix_cache_queries[_total]`、`vllm:gpu_prefix_cache_hits[_total]` 和 `vllm:gpu_cache_usage_perc`。
+> 本分支不访问任何服务地址，`inference_url`/`metrics_url`/`model` 仅作为必填校验字段保留，供后续在线流程复用。
 
 ## 10. `validation`
 
@@ -440,37 +420,13 @@ vllm:kv_cache_usage_perc
 | 字段 | 默认值 | 作用 |
 |---|---:|---|
 | `target_warning_pp` | `1.0` | 理论值与请求目标相差超过多少百分点时记录 `TARGET_DEVIATION`。 |
-| `actual_warning_pp` | `5.0` | 实际值与理论值相差超过多少百分点时记录 `ACTUAL_DEVIATION`。 |
+| `actual_warning_pp` | `5.0` | 实际值与理论值相差超过多少百分点时记录 `ACTUAL_DEVIATION`。**在线流程**使用；本离线分支保留该字段但不消费。 |
 
 单位是百分点（pp），不是相对百分比。例如 60% 与 58.5% 相差 1.5 pp。两种偏差始终只 warning，不改变原本成功的退出码。
 
 分析产物同时记录带符号偏差、绝对偏差、目标是否在全局可达范围内，以及 `PASS`/`PASS_WITH_WARNING` 展示状态。该状态只用于展示，不控制退出码。
 
-## 11. `aisbench`
-
-```json
-"aisbench": {
-  "config": "./prefix_cache_perf.py",
-  "work_dir": "./outputs/aisbench",
-  "extra_args": []
-}
-```
-
-| 字段 | 必填 | 默认值 | 作用 |
-|---|---:|---|---|
-| `config` | `run` 时必需 | 无 | AISBench Python 配置；相对 Scenario 目录解析，可被 `run --config` 临时覆盖。 |
-| `work_dir` | 否 | 示例 Python 配置的默认值 | 通过环境变量传给示例配置，决定 AISBench 自身日志和性能结果目录。 |
-| `extra_args` | 否 | `[]` | 原样追加到 AISBench CLI；参数名和值必须各占一个字符串元素。 |
-
-示例：
-
-```json
-"extra_args": ["--debug", "--max-num-workers", "1"]
-```
-
-插件固定使用 `--mode perf`，不要在 `extra_args` 中再传另一个 `--mode`。
-
-## 12. 原示例最终表示的场景
+## 11. 原示例最终表示的场景
 
 - 生成 100 条正式请求；
 - 输入长度在 512～1024 token 闭区间采样；
@@ -481,17 +437,16 @@ vllm:kv_cache_usage_perc
 - 每条请求至少保留 16 token 非共享区；
 - 请求按组交错排列；
 - 使用 warmup 模式；
-- 单个 vLLM HTTP 入口内部有 2 个 DP rank；
-- 每组分别在 DP 0、DP 1 预热，共 8 条不进入正式统计的 warmup 请求；
-- 理论/目标超过 1 pp、理论/实际超过 5 pp 时只告警。
+- 单个 vLLM HTTP 入口内部有 2 个 DP rank（cold 路由 / warmup 计划使用）；
+- 每组分别在 DP 0、DP 1 生成预热计划，共 8 条不进入正式统计的 warmup 请求；
+- 理论/目标超过 1 pp 时只告警（`actual_warning_pp` 字段为在线流程保留）。
 
-## 13. 建议检查顺序
+## 12. 建议检查顺序
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
 ais-bench-prefix-cache prepare --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest路径>
-ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
 重点检查：
@@ -503,6 +458,6 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 - `target_reachable`：目标是否落在全局最大/最小可达区间；
 - `groups`：请求分布与 canonical 前缀；
 - `warmup.plan`：是否覆盖每个 Prefix Group × DP rank；
-- `warnings`：目标偏差、空缓存假定或实际偏差。
+- `warnings`：目标偏差或目标不可达。
 
 Manifest 还会记录输入/输出长度的 min/max/mean/P50/P90/P95/P99 与分桶计数、各组 reachable min/max、每条请求的确定性 `request_random_seed`，以及唯一差异块的碰撞检查状态。
