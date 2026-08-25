@@ -19,10 +19,70 @@ _SEMANTIC_KEYS = ("api_base", "api_key")
 
 # Explicit per-agent mappings: agent name -> semantic key -> (kind, target).
 # kind is "kwarg" (AgentConfig.kwargs[target]) or "env" (AgentConfig.env[target]).
+# Entries here win over descriptor auto-discovery and the fallback map.
 EXPLICIT_MAP: dict[str, dict[str, tuple[str, str]]] = {
+    # internal / sdk agents that take a constructor kwarg
     "terminus-2": {
         "api_base": ("kwarg", "api_base"),
         "api_key": ("kwarg", "api_key"),
+    },
+    # installed agents that read the model service base url / api key from
+    # well-known environment variables
+    "claude-code": {
+        "api_base": ("env", "ANTHROPIC_BASE_URL"),
+        "api_key": ("env", "ANTHROPIC_API_KEY"),
+    },
+    "aider": {
+        "api_base": ("env", "OPENAI_API_BASE"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "openhands": {
+        "api_base": ("env", "LLM_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "openhands-sdk": {
+        "api_base": ("env", "LLM_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "codex": {
+        "api_base": ("env", "OPENAI_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "swe-agent": {
+        "api_base": ("env", "OPENAI_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "qwen-coder": {
+        "api_base": ("env", "OPENAI_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "gemini-cli": {
+        "api_base": ("env", "GOOGLE_GEMINI_BASE_URL"),
+        "api_key": ("env", "GEMINI_API_KEY"),
+    },
+    "kimi-cli": {
+        "api_base": ("env", "OPENAI_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "mini-swe-agent": {
+        "api_base": ("env", "OPENAI_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "hermes": {
+        "api_base": ("env", "OPENAI_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "eve": {
+        "api_base": ("env", "OPENAI_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "nemo-agent": {
+        "api_base": ("env", "OPENAI_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
+    },
+    "vibe": {
+        "api_base": ("env", "OPENAI_BASE_URL"),
+        "api_key": ("env", "OPENAI_API_KEY"),
     },
 }
 

@@ -49,15 +49,16 @@ ais_bench config.py --mode agent
             │     • partitioner(cfg) → clear_repeat_tasks → RUNNERS.build(cfg.eval.runner)(tasks)
             │     • 每个 task = model × dataset 组合 → 一个 HarborJob
             │           └─ HarborRunner.launch(tasks)
-            │                 ├─ HarborAgentTask 子进程（get_command + param file 机制，与 LocalRunner 一致）
-            │                 │     └─ AgentParamAdapter: 统一参数 → 各 agent 私有 kwargs/env
-            │                 │     └─ harbor Job.create(config) + job.run() → 周期落盘 result.json
-            │                 ├─ HarborMonitor（守护线程）
-            │                 │     ├─ 读取 status_tmp/tmp_<task>.json
-            │                 │     ├─ 读取 harbor job_dir/result.json（JobStats 进度）
-            │                 │     └─ 汇总为可扩展的状态快照
-            │                 └─ HarborMonitorServer（守护线程，标准库 http.server）
-            │                       └─ GET /api/health、/api/tasks、/api/tasks/{name}、/api/jobs
+            │                 ├─ 单任务（tasks==1）：进程内直跑
+            │                 │     └─ TASKS.build(HarborAgentTask).run(无子进程，日志直接打印)
+            │                 │           ├─ AgentParamAdapter: 统一参数 → 各 agent 私有 kwargs/env
+            │                 │           └─ harbor Job.create(config) + job.run() → 周期落盘 result.json
+            │                 ├─ 多任务（tasks>1）：子进程拉起 + 主进程看板
+            │                 │     ├─ HarborAgentTask 子进程（get_command + param file 机制）
+            │                 │     ├─ TasksMonitor 看板（守护线程，读 status_tmp 打印每任务进度条）
+            │                 │     └─ HarborMonitor（守护线程）读 status_tmp + job_dir/result.json
+            │                 └─ HarborMonitorServer（守护线程，标准库 http.server，两种模式均启动）
+            │                       └─ GET /api/health、/api/tasks、/api/tasks/{name}、/api/tasks/{name}/cases、/api/jobs
             └─ AccViz: HarborSummarizer 汇总 results/{model}/{dataset}.json
 ```
 
@@ -100,9 +101,54 @@ WORK_FLOW = dict(
 
 #### `HarborRunner(BaseRunner)`（注册到 `RUNNERS` registry）
 
-- 不依赖 GPU 池；将每个 task 以子进程方式拉起（复用 `task.get_command(cfg_path, template)` + 临时 param file + out 日志重定向，与 `LocalRunner._launch` 一致）；
-- 启动 `HarborMonitor`（定时刷新线程）与 `HarborMonitorServer`（HTTP 服务线程，均为守护线程）；
+不依赖 GPU 池。按任务数量分两种执行模式：
+
+**模式 A：单任务（`len(tasks) == 1`）——进程内直接执行**
+
+- **不起子进程**：runner 直接 `TASKS.build` 构建 `HarborAgentTask`，在主进程内调用 `task.run(task_state_manager=None)` 执行 harbor job；
+- **日志直接打印**：harbor 自身日志与 rich 进度（以及 `_run_with_tqdm` 的 tqdm）直接输出到主进程 stdout，不做文件重定向；
+- **每 case 明细仍通过监控服务呈现**：启动 `HarborMonitor` + `HarborMonitorServer`（守护线程），以 `job_dir` 落盘文件为唯一信息源（in-process 无子进程状态文件，故**不注册** `status_tmp`，`job_dir` 仍按 `work_dir/results/{model}/{dataset}/details` 计算）；
+- 不启动 `TasksMonitor` 看板（避免与直接日志输出重复）。
+
+```python
+def _launch_inline(self, task) -> Tuple[str, int]:
+    monitor = HarborMonitor(work_dir, refresh_interval=self.refresh_interval)
+    monitor.register_task(task_name, status_file=None, job_dir=self._task_job_dir(task))
+    monitor.start()
+    server = HarborMonitorServer(monitor, port=self.monitor_port); server.start()
+    try:
+        built = TASKS.build(dict(cfg=task, type=self.task_cfg['type']))
+        built.run(task_state_manager=None)   # 进程内直跑，日志直接打印
+        return built.name, 0
+    except Exception:
+        return built.name, 1
+    finally:
+        server.stop(); monitor.stop()
+```
+
+**模式 B：多任务（`len(tasks) > 1`）——子进程 + 主进程看板**
+
+- 每个 task 以子进程方式拉起（复用 `task.get_command(cfg_path, template)` + 临时 param file + out 日志重定向，与 `LocalRunner._launch` 一致），子进程负责写 `status_tmp`；
+- **主进程启动看板**：复用现有 `TasksMonitor.launch_state_board()`（curses 交互屏，后台模式退化为进度条），读取各子进程 `status_tmp`，打印每个 harbor 任务的进度条；看板在主进程的守护线程中运行，任务结束即退出；
+- 同时启动 `HarborMonitor` + `HarborMonitorServer`：为每个任务注册 `status_file`（进程级状态）+ `job_dir`（case 级明细），对外提供每 case 实时信息；
 - 任务结束统一清理临时文件，返回 `[(task_name, exit_code)]`。
+
+```python
+def launch(self, tasks) -> List[Tuple[str, int]]:
+    if len(tasks) == 1:
+        return [self._launch_inline(tasks[0])]     # 模式 A
+    monitor = HarborMonitor(work_dir, refresh_interval=self.refresh_interval)
+    for task in tasks:
+        monitor.register_task(task_abbr, status_file=..., job_dir=self._task_job_dir(task))
+    monitor.start()
+    server = HarborMonitorServer(monitor, port=self.monitor_port); server.start()
+    board = self._start_task_board(task_names, work_dir, self.debug)  # TasksMonitor 看板线程
+    try:
+        status = self._run_tasks(tasks)            # 子进程并发拉起（模式 B）
+    finally:
+        board.join(); server.stop(); monitor.stop()
+    return status
+```
 
 #### `HarborMonitor`：两级监控快照（任务级 + 每 case 级）
 

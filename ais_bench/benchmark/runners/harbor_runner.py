@@ -1,10 +1,15 @@
-"""Harbor runner: launch multiple harbor agent tasks and monitor them.
+"""Harbor runner: launch harbor agent tasks and monitor them.
 
-Each task is launched as a subprocess (same mechanism as LocalRunner: dump a
-param file, build the command via ``task.get_command``, redirect output to a
-log file). In parallel, a :class:`HarborMonitor` periodically snapshots the
-on-disk status of every running harbor job, and an optional stdlib HTTP
-server exposes the live information to external callers.
+Two execution modes based on the number of tasks:
+
+- single task (len(tasks) == 1): the harbor job runs in-process (no
+  subprocess), its logs print directly to the main stdout, and per-case
+  details are still served through the monitor HTTP service;
+- multiple tasks (len(tasks) > 1): each task runs in a subprocess (same
+  mechanism as LocalRunner: dump a param file, build the command via
+  ``task.get_command``, redirect output to a log file); the main process
+  starts a TasksMonitor board that prints a progress bar per harbor task,
+  and the monitor HTTP service serves live per-case info for all tasks.
 
 No harbor imports at module level so this module stays importable in
 non-agent AISBench environments.
@@ -13,6 +18,7 @@ non-agent AISBench environments.
 import os
 import os.path as osp
 import subprocess
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Tuple
@@ -20,19 +26,19 @@ from typing import Any, Dict, List, Tuple
 import mmengine
 
 from ais_bench.benchmark.registry import RUNNERS, TASKS
-from ais_bench.benchmark.runners.base import BaseRunner
+from ais_bench.benchmark.runners.base import BaseRunner, TasksMonitor
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg
 from ais_bench.benchmark.utils.logging.error_codes import RUNNER_CODES
 
 
 @RUNNERS.register_module()
 class HarborRunner(BaseRunner):
-    """Runner that launches multiple harbor agent tasks as subprocesses.
+    """Runner that launches harbor agent tasks and monitors them.
 
     Args:
         task (ConfigDict): HarborAgentTask type config.
-        max_num_workers (int): Max number of tasks to run in parallel.
-            Defaults to 1 (harbor jobs parallelize trials internally).
+        max_num_workers (int): Max number of tasks to run in parallel
+            (multi-task mode only). Defaults to 1.
         monitor_port (int): Port of the HTTP monitor service. 0 disables it.
             Defaults to 0.
         refresh_interval (float): Monitor refresh interval in seconds.
@@ -58,27 +64,41 @@ class HarborRunner(BaseRunner):
             self.logger.warning(f'Ignored argument in {self.__module__}: {k}={v}')
 
     def launch(self, tasks: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
-        """Launch multiple harbor agent tasks and monitor them.
+        """Launch harbor agent tasks and monitor them.
 
         Returns:
             list[tuple[str, int]]: A list of (task name, exit code).
+        """
+        self.logger.debug(f"HarborRunner.launch called with {len(tasks)} task(s)")
+        if len(tasks) == 1:
+            # Mode A: single task runs in-process with direct log output.
+            return [self._launch_inline(tasks[0])]
+        # Mode B: multiple tasks run in subprocesses with a main-process board.
+        return self._launch_multi(tasks)
+
+    # ------------------------------------------------------------------
+    # Mode A: single task, in-process
+    # ------------------------------------------------------------------
+
+    def _launch_inline(self, task: Dict[str, Any]) -> Tuple[str, int]:
+        """Run a single harbor agent task in the current process.
+
+        The harbor job logs print directly to stdout; per-case details are
+        served through the monitor HTTP service (job_dir is the only info
+        source since there is no subprocess status file).
         """
         from ais_bench.benchmark.runners.harbor_monitor import (
             HarborMonitor,
             HarborMonitorServer,
         )
 
-        self.logger.debug(f"HarborRunner.launch called with {len(tasks)} task(s)")
-        work_dir = tasks[0]['work_dir']
-        monitor = HarborMonitor(work_dir=work_dir, refresh_interval=self.refresh_interval)
-        for task in tasks:
-            task_name = task_abbr_from_cfg(task)
-            status_file = osp.join(
-                work_dir, 'status_tmp', f"tmp_{task_name.replace('/', '_')}.json"
-            )
-            job_dir = self._task_job_dir(task)
-            monitor.register_task(task_name, status_file=status_file, job_dir=job_dir)
-
+        task_name = task_abbr_from_cfg(task)
+        monitor = HarborMonitor(
+            work_dir=task['work_dir'], refresh_interval=self.refresh_interval
+        )
+        monitor.register_task(
+            task_name, status_file=None, job_dir=self._task_job_dir(task)
+        )
         monitor.start()
         server = HarborMonitorServer(monitor, port=self.monitor_port)
         port = server.start()
@@ -87,11 +107,79 @@ class HarborRunner(BaseRunner):
                 f"Harbor monitor server started at http://127.0.0.1:{port}"
             )
         try:
-            status = self._run_tasks(tasks)
+            built = TASKS.build(dict(cfg=task, type=self.task_cfg['type']))
+            self.logger.info(f"Running harbor agent task '{built.name}' in-process")
+            built.run(task_state_manager=None)
+            return built.name, 0
+        except Exception:
+            self.logger.exception(
+                f"Harbor agent task '{task_name}' failed in-process"
+            )
+            return task_name, 1
         finally:
             server.stop()
             monitor.stop()
+
+    # ------------------------------------------------------------------
+    # Mode B: multiple tasks, subprocesses + main-process board
+    # ------------------------------------------------------------------
+
+    def _launch_multi(self, tasks: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
+        from ais_bench.benchmark.runners.harbor_monitor import (
+            HarborMonitor,
+            HarborMonitorServer,
+        )
+
+        work_dir = tasks[0]['work_dir']
+        task_names = [task_abbr_from_cfg(task) for task in tasks]
+
+        monitor = HarborMonitor(work_dir=work_dir, refresh_interval=self.refresh_interval)
+        for task in tasks:
+            task_name = task_abbr_from_cfg(task)
+            status_file = osp.join(
+                work_dir, 'status_tmp', f"tmp_{task_name.replace('/', '_')}.json"
+            )
+            monitor.register_task(
+                task_name, status_file=status_file, job_dir=self._task_job_dir(task)
+            )
+        monitor.start()
+        server = HarborMonitorServer(monitor, port=self.monitor_port)
+        port = server.start()
+        if port:
+            self.logger.info(
+                f"Harbor monitor server started at http://127.0.0.1:{port}"
+            )
+
+        board = self._start_task_board(task_names, work_dir)
+        try:
+            status = self._run_tasks(tasks)
+        finally:
+            if board is not None:
+                board.join(timeout=5)
+            server.stop()
+            monitor.stop()
+            TasksMonitor.rm_tmp_files(work_dir)
         return status
+
+    def _start_task_board(self, task_names: List[str], work_dir: str) -> threading.Thread | None:
+        """Start a TasksMonitor board (daemon thread) printing a progress bar
+        per harbor task, reading each subprocess's status_tmp file."""
+        if self.debug:
+            self.logger.debug("Debug mode, won't launch task state board")
+            return None
+
+        def _run_board():
+            try:
+                tasks_monitor = TasksMonitor(
+                    task_names, work_dir, self.debug, self.refresh_interval
+                )
+                tasks_monitor.launch_state_board()
+            except Exception:
+                self.logger.exception("Harbor task board failed")
+
+        board = threading.Thread(target=_run_board, daemon=True)
+        board.start()
+        return board
 
     def _task_job_dir(self, task: Dict[str, Any]) -> str:
         """Expected harbor job dir for a task (out_detail_dir/details)."""
