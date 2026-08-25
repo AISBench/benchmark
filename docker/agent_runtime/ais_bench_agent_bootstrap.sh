@@ -440,6 +440,48 @@ if [ "${#DATASET_MOUNTS[@]}" -gt 0 ]; then
     DATASET_ENV="-e AISBENCH_AGENT_DATASET_PATH=${DATASET_MOUNTS[0]}"
 fi
 
+# v3 B 批 B3: 拼装 5 层 DinD L5 接入所需的 bind mount + -e 注入
+# 配合 B1 新增参数：--matrix-yaml / --bind-jobs / --bind-tasks / --bind-config
+#                  / --api-key-file / --registry-mirror
+# 不传任意参数 → SWEBENCH_BINDS / SWEBENCH_ENVS 均为空 → 行为退化到 PR #410 原版
+SWEBENCH_BINDS=""
+SWEBENCH_ENVS=""
+if [ -n "${MATRIX_YAML:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${MATRIX_YAML}:/opt/swebench/config/matrix.yaml:ro"
+fi
+if [ -n "${BIND_JOBS:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${BIND_JOBS}:/opt/swebench/jobs"
+fi
+if [ -n "${BIND_TASKS:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${BIND_TASKS}:/opt/swebench/tasks"
+fi
+if [ -n "${BIND_CONFIG:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${BIND_CONFIG}:/opt/swebench/config"
+fi
+if [ -n "${API_KEY_FILE:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${API_KEY_FILE}:/opt/swebench/api_key.env:ro"
+    # source api_key.env 后把 OPENAI_API_KEY / OPENAI_API_BASE 注入 -e
+    # 用 set -a 让 source 进来的变量自动 export，避免 shell 子进程丢失
+    set -a
+    # shellcheck disable=SC1090
+    . "${API_KEY_FILE}" 2>/dev/null || log "  ⚠ source ${API_KEY_FILE} 失败（-e 注入可能不全）"
+    set +a
+    if [ -n "${OPENAI_API_KEY:-}" ]; then
+        SWEBENCH_ENVS="${SWEBENCH_ENVS} -e OPENAI_API_KEY=${OPENAI_API_KEY}"
+    fi
+    if [ -n "${OPENAI_API_BASE:-}" ]; then
+        SWEBENCH_ENVS="${SWEBENCH_ENVS} -e OPENAI_API_BASE=${OPENAI_API_BASE}"
+    fi
+fi
+if [ -n "${REGISTRY_MIRROR:-}" ]; then
+    SWEBENCH_ENVS="${SWEBENCH_ENVS} -e AIS_BENCH_AGENT_REGISTRY_MIRROR=${REGISTRY_MIRROR}"
+fi
+if [ -n "${SWEBENCH_BINDS}" ] || [ -n "${SWEBENCH_ENVS}" ]; then
+    log "  5 层 DinD L5 接入:"
+    [ -n "${SWEBENCH_BINDS}" ] && log "    bind mounts: 容器内 /opt/swebench/{jobs,tasks,config,api_key.env} ← host bind"
+    [ -n "${SWEBENCH_ENVS}" ] && log "    env 注入:   OPENAI_API_KEY/BASE + AIS_BENCH_AGENT_REGISTRY_MIRROR"
+fi
+
 if [ "${MODE}" = "A" ]; then
     # 模式 A：Docker-in-Docker
     # cgroup v2 宿主机 --privileged + --cgroupns=host 必须同时使用
@@ -450,7 +492,10 @@ if [ "${MODE}" = "A" ]; then
         --privileged --cgroupns=host \
         -w /benchmark \
         ${MOUNT_ARGS} \
+        ${DATA_VOLUMES_ARG} \
+        ${SWEBENCH_BINDS} \
         ${DATASET_ENV} \
+        ${SWEBENCH_ENVS} \
         "${RUNTIME_IMAGE}" bash
 else
     # 模式 B：Socket 代理
@@ -473,7 +518,10 @@ else
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v "${HOST_PATH}":"${HOST_PATH}" \
         ${MOUNT_ARGS} \
+        ${DATA_VOLUMES_ARG} \
+        ${SWEBENCH_BINDS} \
         ${DATASET_ENV} \
+        ${SWEBENCH_ENVS} \
         "${RUNTIME_IMAGE}" bash
 fi
 
