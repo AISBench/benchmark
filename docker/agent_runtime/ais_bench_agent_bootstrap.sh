@@ -369,6 +369,11 @@ if [ "${MODE}" = "A" ]; then
     # 详见 docker/OVERVIEW.zh.md 模式 A 步骤二
     docker exec "${CONTAINER_NAME}" bash -c '
         set -e
+        # v3 B 批 B5: 强制 dockerd 选 linux/amd64 manifest
+        # 与 A4 entrypoint.sh 中 export 互为冗余（A4 已设，但 docker exec 新进程可能
+        # 拿不到 PID 1 的 env；这里再次显式 export，noHUP dockerd 一定拿到）
+        # 用于 trial 容器启动时挑对 case 镜像（x86_64 case 镜像跑在 ARM64 host 上靠 qemu）
+        export DOCKER_DEFAULT_PLATFORM=linux/amd64
         mkdir -p /etc/docker
         cat > /etc/docker/daemon.json <<EOF
 {
