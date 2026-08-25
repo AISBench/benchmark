@@ -10,7 +10,11 @@ from mmengine.config import Config
 from ais_bench.benchmark.registry import TASKS
 from ais_bench.benchmark.tasks.base import TaskStateManager
 from ais_bench.benchmark.tasks.custom_tasks.harbor_task import HarborTask
-from ais_bench.benchmark.utils.agent_params import AgentParamAdapter
+from ais_bench.benchmark.utils.agent_params import (
+    AgentParamAdapter,
+    parse_env_strings,
+    parse_kwarg_strings,
+)
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg
 from ais_bench.benchmark.utils.logging import AISLogger
 
@@ -154,9 +158,16 @@ class HarborAgentTask(HarborTask):
         translated = AgentParamAdapter.translate(agent_name, model_cfg)
         raw_kwargs = dict(model_cfg.get("agent_kwargs") or {})
         raw_env = dict(model_cfg.get("agent_env") or {})
+        # CLI-provided agent kwargs/env are merged directly from cli_args so
+        # they always reach the AgentConfig even if the config dump/reload
+        # round-trip dropped the in-model dicts. Merging is idempotent and
+        # CLI values win over config-file values.
+        cli_kwargs = parse_kwarg_strings(self.cli_args.get("agent_kwarg"))
+        cli_env = parse_env_strings(self.cli_args.get("agent_env"))
         # explicit user-provided kwargs / env win over translated values
-        kwargs = {**translated["kwargs"], **raw_kwargs}
-        env = {**translated["env"], **raw_env}
+        kwargs = {**translated["kwargs"], **raw_kwargs, **cli_kwargs}
+        env = {**translated["env"], **raw_env, **cli_env}
+        self.logger.debug(f"Agent '{agent_name}' env keys: {sorted(env.keys())}")
 
         model_names = model_cfg.get("model_names")
         deps_path = model_cfg.get("deps_path")
