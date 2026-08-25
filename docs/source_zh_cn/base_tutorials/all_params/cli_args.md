@@ -125,7 +125,37 @@ response_anomaly = dict(
 
 `all` 保存全部 payload，检测后直接将 staging 原子转为正式归档，不会二次压缩；`anomalies` 只保存已检出异常以及检测失败/不可用 Case；`none` 不保存 payload。三种模式都保留独立检测结果。`--reuse` 必须沿用原工作目录的保留策略。检测结果按批写盘，状态最多每秒刷新一次；msProbe token 分类映射按模型和 EOS token 缓存，避免每个 Case 重复解析大 JSON 文件。
 
-保留的 payload 归档为 `response_anomaly/<模型>/payload/<数据集>/` 目录：内含若干 `part-*.jsonl.zst` 分片（每片最多 `rows_per_shard` 条 Case）与一个 `payload_manifest.json`（记录分片行数、大小与 sha256 校验值）。读取时用 zstandard 解压后逐行解析 JSON 即可。注意：即使无任何需保留的 Case（如全部正常且保留模式为 `anomalies`），归档目录仍会发布一个仅含空 manifest 的目录，表示归档流程已成功完成，不是残留文件。检测中断后残留的 `.<数据集>.payload-build-*` 临时目录会在下次检测启动时自动清理。
+检测相关文件在 `<work_dir>` 下的落盘结构如下：
+
+```text
+<work_dir>/
+├── predictions/<模型 abbr>/<数据集 abbr>.jsonl          # 推理结果（轻量，不含 token/logprobs payload）
+├── response_anomaly/
+│   └── <模型 abbr>/
+│       ├── <数据集 abbr>.jsonl                          # 检测结果，每行一个 Case
+│       ├── payload_staging/<数据集 abbr>/               # 推理期间的临时存放区，检测完成后自动清理
+│       │   └── part-*.jsonl.zst
+│       └── payload/<数据集 abbr>/                       # payload 归档；payload_retention 为 none 时不存在
+│           ├── payload_manifest.json                    # 归档清单（分片行数、大小、sha256）
+│           └── part-*.jsonl.zst                         # 压缩 payload 分片（每片最多 rows_per_shard 条 Case）
+├── response_anomaly_config/                             # 仅配置 model_path 自动生成时存在
+│   └── <模型 abbr>/
+│       ├── configs/
+│       │   ├── config.yaml                              # 检测算法阈值配置（已存在时不覆盖）
+│       │   └── mtype_config.json                        # 模型名与 BOS/EOS token id 映射
+│       └── token2category/
+│           └── <模型名>_<词表大小>.json                  # token id 到字符类别映射
+└── logs/
+    └── response_anomaly/<模型 abbr>/<数据集 abbr>.out   # 检测专属日志
+```
+
+各路径说明：
+
+- **检测结果** `response_anomaly/<模型 abbr>/<数据集 abbr>.jsonl`：每行一个 Case 的检测结果，字段含义见上文 `detection_status` 表与 Case 字段说明。
+- **payload 归档** `response_anomaly/<模型 abbr>/payload/<数据集 abbr>/`：`all` 保留全部 Case，`anomalies` 只保留异常及检测失败/不可用 Case，`none` 不保留（目录不存在）。读取时用 zstandard 解压 `part-*.jsonl.zst` 分片后逐行解析 JSON；`payload_manifest.json` 记录每个分片的行数、大小与 sha256 校验值，可用于完整性校验。注意：`anomalies` 模式下即使无任何需保留的 Case，仍会发布一个仅含空 manifest 的归档目录，表示归档流程已成功完成，不是残留文件。
+- **临时文件**：`payload_staging/` 在推理期间逐条接收 payload 写入，检测完成后自动清理；检测中断后残留的 `.<数据集>.payload-build-*` 构建目录会在下次检测启动时自动清理；`status_tmp/tmp_ResponseAnomaly.json` 为运行期状态文件（检测进度与类型统计），工作流结束后随状态目录一并清理。
+- **自动生成的 msProbe 配置** `response_anomaly_config/<模型 abbr>/`：仅当配置了 `model_path` 且未显式提供 mtype/token2category 路径时生成。`config.yaml` 已存在时不会被覆盖（保留手工调优的阈值）；`mtype_config.json` 支持多模型合并，多次生成不互相覆盖。
+- **检测日志** `logs/response_anomaly/<模型 abbr>/<数据集 abbr>.out`：记录对应模型/数据集组的检测过程，含检测器初始化失败与单 Case 失败的具体原因。
 
 检测通过 msProbe 的 `ILLDetector(config_path, mtype_path, tk2cat_path).run(...)` 完成，三个文件路径均可由 AISBench 配置。请先安装 AISBench 的可选依赖：`pip install 'ais-bench-benchmark[response_anomaly]'`。安装过程中 pip 会从 GitCode 下载并构建已固定提交的 msProbe 源码，因此安装环境需要 Git 和网络访问。服务响应必须包含 `token_ids`（或 `tokens`）和 `topk_logprobs`；缺少这些字段的 Case 会以 `skipped` 状态落盘。`model_name` 需与 msProbe 的 `mtype_config.json` 配置以及 token 分类映射保持一致。使用 `--reuse` 时，已有检测结果按 Case 的 `id` + `uuid` 双键匹配继承（`uuid` 变化说明该 Case 已重新推理，不会错挂旧结果），`completed` 状态的 Case 不会重复检测；`skipped` / `failed` / `unavailable` 状态的 Case 会在续跑中重新检测。
 

@@ -141,6 +141,36 @@ response_anomaly = dict(
 
 `all` keeps every payload and atomically promotes the staging data to the official archive after detection without re-compressing; `anomalies` keeps only detected anomalies plus detection-failed/unavailable Cases; `none` keeps no payload. All three modes keep the standalone detection results. `--reuse` must keep the retention policy of the original work directory. Results are written to disk in batches, and the status is refreshed at most once per second; msProbe token-category maps are cached per model and EOS token to avoid re-parsing large JSON files for every Case.
 
-Retained payloads are archived under `response_anomaly/<model>/payload/<dataset>/`: the directory contains several `part-*.jsonl.zst` shards (each holding at most `rows_per_shard` Cases) and a `payload_manifest.json` recording per-shard row counts, sizes, and sha256 checksums. To read them, decompress with zstandard and parse each line as JSON. Note: even when there is nothing to retain (e.g. all Cases normal under the `anomalies` mode), an archive directory with an empty manifest is still published to indicate the archiving flow completed successfully — it is not a leftover file. Temporary `.<dataset>.payload-build-*` directories left by an interrupted detection run are cleaned up automatically when the next detection starts.
+Files produced by detection are laid out under `<work_dir>` as follows:
+
+```text
+<work_dir>/
+├── predictions/<model abbr>/<dataset abbr>.jsonl        # Inference results (lightweight, no token/logprob payload)
+├── response_anomaly/
+│   └── <model abbr>/
+│       ├── <dataset abbr>.jsonl                          # Detection results, one Case per line
+│       ├── payload_staging/<dataset abbr>/               # Transient staging during inference; cleaned after detection
+│       │   └── part-*.jsonl.zst
+│       └── payload/<dataset abbr>/                       # Payload archive; absent when payload_retention is none
+│           ├── payload_manifest.json                     # Archive manifest (per-shard rows, sizes, sha256)
+│           └── part-*.jsonl.zst                          # Compressed payload shards (at most rows_per_shard Cases each)
+├── response_anomaly_config/                              # Present only when auto-generated via model_path
+│   └── <model abbr>/
+│       ├── configs/
+│       │   ├── config.yaml                               # Detection algorithm thresholds (never overwritten once present)
+│       │   └── mtype_config.json                         # Model name to BOS/EOS token id mapping
+│       └── token2category/
+│           └── <model name>_<vocab size>.json            # Token id to character-category mapping
+└── logs/
+    └── response_anomaly/<model abbr>/<dataset abbr>.out  # Detection-specific log
+```
+
+Path-by-path notes:
+
+- **Detection results** `response_anomaly/<model abbr>/<dataset abbr>.jsonl`: one Case per line; field semantics are described in the `detection_status` table and the Case field notes above.
+- **Payload archive** `response_anomaly/<model abbr>/payload/<dataset abbr>/`: `all` keeps every Case, `anomalies` keeps only anomalous plus detection-failed/unavailable Cases, and `none` keeps nothing (the directory does not exist). To read the data, decompress the `part-*.jsonl.zst` shards with zstandard and parse each line as JSON; `payload_manifest.json` records per-shard row counts, sizes, and sha256 checksums for integrity verification. Note: under `anomalies`, even when there is nothing to retain, an archive directory containing only an empty manifest is still published to indicate the archiving flow completed successfully — it is not a leftover file.
+- **Transient files**: `payload_staging/` receives payload records during inference and is cleaned automatically after detection; `.<dataset>.payload-build-*` build directories left by an interrupted detection are cleaned automatically when the next detection starts; `status_tmp/tmp_ResponseAnomaly.json` is a runtime status file (detection progress and per-type statistics) removed together with the status directory when the workflow ends.
+- **Auto-generated msProbe configs** `response_anomaly_config/<model abbr>/`: generated only when `model_path` is configured and explicit mtype/token2category paths are absent. An existing `config.yaml` is never overwritten (manually tuned thresholds are preserved), and `mtype_config.json` supports multi-model merging across repeated generations.
+- **Detection log** `logs/response_anomaly/<model abbr>/<dataset abbr>.out`: records the detection run for the model/dataset group, including detector initialization failures and per-Case failure reasons.
 
 Detection runs through msProbe's `ILLDetector(config_path, mtype_path, tk2cat_path).run(...)`; all three file paths can be configured in AISBench. Install the optional dependencies first: `pip install 'ais-bench-benchmark[response_anomaly]'`. During installation, pip downloads and builds the pinned msProbe source from GitCode, so the environment needs Git and network access. The service response must contain `token_ids` (or `tokens`) and `topk_logprobs`; Cases missing these fields are recorded with a `skipped` status. `model_name` must be consistent with msProbe's `mtype_config.json` and the token-category mapping. When using `--reuse`, existing detection results are inherited by matching both the Case `id` and `uuid` (a changed `uuid` means the Case was re-inferred, so it never gets a stale result); Cases with `completed` status are not re-detected, while Cases with `skipped` / `failed` / `unavailable` status are re-detected on resume.
