@@ -1,6 +1,6 @@
 # Agent 测评独立依赖集：仅需安装本文件即可运行
-# `ais_bench <config> --mode agent`（harbor 0.21.0 及其依赖由本地源码提供）。
--e ../../harbor
+# `ais_bench <config> --mode agent`（harbor 及其依赖一并安装）。
+harbor
 mmengine-lite
 numpy
 tqdm>=4.64.1
