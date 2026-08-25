@@ -335,6 +335,13 @@ class ArgumentParser():
             default=None,
         )
         parser.add_argument(
+            '--host-network',
+            help='Run all task containers sharing the host network '
+            '(docker-compose network_mode: host)',
+            action='store_true',
+            default=None,
+        )
+        parser.add_argument(
             '--delete/--no-delete',
             help='Whether to delete the environment after completion',
             action=argparse.BooleanOptionalAction,

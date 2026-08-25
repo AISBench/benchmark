@@ -907,6 +907,10 @@ class AgentEval(BaseWorker):
                 value = getattr(args, cli_name, None)
                 if value is not None:
                     dargs[arg_name] = value
+            if getattr(args, "host_network", None):
+                env_kwargs = dict(dargs.get("environment_kwargs") or {})
+                env_kwargs["host_network"] = True
+                dargs["environment_kwargs"] = env_kwargs
             dataset["args"] = dargs
 
 

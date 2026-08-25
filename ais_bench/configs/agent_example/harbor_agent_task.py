@@ -76,6 +76,7 @@ for task in sub_tasks:
                 environment_type="docker",  # -e/--environment: 环境类型
                 environment_force_build=False,  # --force-build/--no-force-build
                 environment_delete=False,  # --delete/--no-delete
+                # environment_kwargs=None,  # 环境附加参数（--host-network 会写入 {"host_network": True}）
                 path="/path/to/terminal-bench-2/",  # -p/--path: 本地数据集路径（也支持单 task 目录）
                 dataset_name_version=None,  # -d/--dataset: 远程数据集 name@version / org/name@ref
                 task_names=None,  # --include-task-name

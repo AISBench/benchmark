@@ -322,6 +322,7 @@ class AgentParamAdapter:
 | `--max-retries` | 最大重试次数 | `datasets[*].args.max_retries` |
 | `--include-task-name` / `--exclude-task-name` / `--n-tasks` | 任务过滤 | `datasets[*].args.*` |
 | `--force-build/--no-force-build`、`--delete/--no-delete` | 环境构建/清理策略 | `datasets[*].args.*` |
+| `--host-network` | 所有 task 容器共享宿主机网络 | `datasets[*].args.environment_kwargs["host_network"]=True` |
 | `--disable-verification` | 禁用验证器 | `datasets[*].args.disable_verification` |
 | `--env-file` | .env 文件路径 | `datasets[*].args.env_file` |
 | `-q/--quiet` | 静默模式 | `datasets[*].args.quiet` |
