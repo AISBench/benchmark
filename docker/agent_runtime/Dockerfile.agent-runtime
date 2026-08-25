@@ -278,6 +278,14 @@ RUN chmod +x ${AGENT_VENVS_ROOT}/swebench_pro/bin/ais_bench
 COPY docker/agent_runtime/doctor.sh /usr/local/bin/ais_bench_agent_doctor.sh
 RUN chmod +x /usr/local/bin/ais_bench_agent_doctor.sh
 
+# v3 C 批: 5 层 DinD L3 调度脚本
+# C1: ais_bench_agent_run.sh — harbor jobs start 包装 + filter
+# C2-C4: watch.sh / summarize.sh / status.sh 在后续 commit
+COPY docker/agent_runtime/ais_bench_agent_run.sh /usr/local/bin/ais_bench_agent_run.sh
+RUN chmod +x /usr/local/bin/ais_bench_agent_run.sh
+COPY docker/agent_runtime/scripts/filter_matrix.py /usr/local/bin/ais_bench_agent_filter_matrix.py
+RUN chmod +x /usr/local/bin/ais_bench_agent_filter_matrix.py
+
 COPY docker/agent_runtime/packs/      ${AGENT_PACKS_ROOT}/
 
 # ============================================================
