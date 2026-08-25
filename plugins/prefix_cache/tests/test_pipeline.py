@@ -37,11 +37,40 @@ class PipelineTest(unittest.TestCase):
             scenario = write_case(Path(folder))
             paths = prepare_scenario(scenario, tokenizer_loader=lambda _: FakeTokenizer())
             self.assertTrue(all(path.exists() for path in paths.__dict__.values()))
+            self.assertTrue(all(path.parent.name == "result" for path in paths.__dict__.values()))
             requests = read_jsonl(paths.requests)
             self.assertEqual(set(requests[0]), {"question", "answer", "max_tokens"})
             first_line = paths.requests.read_text(encoding="utf-8").splitlines()[0]
             self.assertEqual(list(json.loads(first_line)), ["question", "answer", "max_tokens"])
             self.assertTrue(validate_artifacts(paths.manifest)["ok"])
+
+    def test_prepare_reports_each_generated_prompt(self):
+        with tempfile.TemporaryDirectory() as folder:
+            scenario = write_case(Path(folder))
+            events = []
+            prepare_scenario(
+                scenario,
+                tokenizer_loader=lambda _: FakeTokenizer(),
+                progress=lambda completed, total: events.append((completed, total)),
+            )
+            self.assertEqual(events, [(completed, 8) for completed in range(9)])
+
+    def test_prepare_appends_one_timestamp_to_run_id_and_output_dir(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            scenario = write_case(root)
+            timestamp = "20260825_123456"
+            paths = prepare_scenario(
+                scenario,
+                tokenizer_loader=lambda _: FakeTokenizer(),
+                execution_timestamp=timestamp,
+            )
+            expected_root = root / f"out_{timestamp}"
+            self.assertEqual(paths.manifest.parent, expected_root / "result")
+            self.assertEqual(paths.manifest.name, f"pc-test_{timestamp}.manifest.json")
+            manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["run_id"], f"pc-test_{timestamp}")
+            self.assertEqual(manifest["effective_config"]["run"]["output_dir"], str(expected_root))
 
     def test_inspect_reports_reachability_without_persisting_run_artifacts(self):
         with tempfile.TemporaryDirectory() as folder:

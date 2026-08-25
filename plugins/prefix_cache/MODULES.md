@@ -44,7 +44,7 @@
 | `_ALLOWED` | 逐级字段白名单（顶层 `""`、`run`、`tokenizer`、`corpus`、`corpus.selection`、`requests`、`requests.input_length`、`requests.output_length`、`prefix_cache`、`prefix_cache.groups`、`prefix_cache.groups.assignment`、`prefix_cache.order`、`service`、`validation`）。未在白名单内的字段一律报 `unknown field`。 |
 | `_MODES` | 各节合法 mode 集合：`input`（fixed/explicit/range/truncated_normal/csv）、`output`（fixed/uniform/truncated_normal/csv）、`selection`（random/indices/question_sha256/mixed）、`assignment`（uniform/zipf/weights）、`order`（sequential/within_group_shuffle/interleave/global_shuffle/input_len_asc）、`cache`（cold/warmup）。 |
 
-> `service` 段整体保留：`inference_url`/`metrics_url`/`model` 是**必填非空校验字段**，`dp_size` 用于 cold 模式的 DP 路由，其余字段有默认值。离线生成阶段只做校验，不实际访问任何地址。
+> `service` 段整体保留并可完全省略：URL、model、DP 等默认值来自当前 Scenario 示例；用户显式提供时仍执行非空与类型校验。`dp_size` 用于 cold 模式的 DP 路由，离线生成阶段不实际访问任何地址。
 
 ### 函数
 
@@ -58,7 +58,9 @@
 | `_validate_output_config` | `(config, path, base) -> None` | 校验输出长度：`fixed`/`uniform`/`truncated_normal`/`csv`，约束同上（无 expected_count）。 |
 | `_minimum_input_tokens` | `(config, path) -> int` | 计算该输入长度配置的**最小可能 token 数**（csv 模式会实际读 CSV 求最小值）。用于校验能否容纳非共享区。 |
 | `_resolve_path` | `(base, value) -> str` | 相对路径转绝对（相对 Scenario 所在目录）。 |
-| `_validate` | `(raw, source) -> dict` | **主校验入口**：先 `_strict_keys`，再校验必填字段、`schema_version=="1.0"`、run_id/random_seed、注入 `validation` 默认节、解析路径、注入 tokenizer/selection/order/service 默认值，校验 `seed_blocks`、`minimum_non_shared_length >= seed 长度`、最小输入长度 >= 非共享区、组 overrides（ID 合法、字段白名单、覆盖后最小值仍容纳非共享区）、cold 多 DP 需 `service.inference_url`。返回深拷贝后的 `data`。 |
+| `_validate` | `(raw, source) -> dict` | **主校验入口**：先 `_strict_keys`，再按当前 `scenario.example.json` 补全省略值，校验 `schema_version=="1.0"`、run_id/random_seed、解析路径，校验 `seed_blocks`、`minimum_non_shared_length >= seed 长度`、最小输入长度 >= 非共享区、组 overrides、cold 多 DP 等。多态长度配置只给 fixed 模式注入 fixed 默认，避免污染 range/csv 等模式。 |
+| `new_execution_timestamp` | `() -> str` | 生成本地秒级、文件名安全的 `YYYYMMDD_HHMMSS` 时间戳。 |
+| `with_execution_timestamp` | `(scenario, timestamp) -> Scenario` | 同时把一个时间戳追加到 `run_id` 和 `output_dir` 最后一层目录名，返回新 Scenario。 |
 | `load_scenario` | `(path) -> Scenario` | 读取 JSON（utf-8）→ `_require_dict` → `_validate` → 构造 `Scenario`。读写失败或 JSON 非法抛 `ScenarioValidationError`。 |
 
 ### `Scenario`（frozen dataclass）
@@ -89,7 +91,7 @@
 | `write_json` | `(path, value, overwrite) -> None` | 写 JSON（`ensure_ascii=False, indent=2, sort_keys=True`），走 `_atomic_text`。 |
 | `write_jsonl` | `(path, rows, overwrite) -> int` | 先物化行，**保持插入顺序**（requests.jsonl 有公开字段顺序约定 `question,answer,max_tokens`），逐行 `json.dumps` 后原子写，返回行数。 |
 | `read_jsonl` | `(path) -> list[dict]` | 逐行 `json.loads`，跳过空行；IO/JSON 错误抛 `ArtifactValidationError`。 |
-| `artifact_paths` | `(output_dir, run_id) -> ArtifactPaths` | 由 `run_id` 生成四个文件名。 |
+| `artifact_paths` | `(output_dir, run_id) -> ArtifactPaths` | 在 `output_dir/result/` 下由 `run_id` 生成四个文件名。 |
 | `validate_artifacts` | `(manifest_path) -> dict` | 读取 Manifest，校验：full/requests 行数一致且等于 `manifest["requests"]["count"]`；`sequence_index` 连续；requests 每行**严格只含** `question/answer/max_tokens`；requests 与 full 逐行对应；full/requests 的 SHA256 与 Manifest 一致。返回 `{ok, rows, run_id}`。 |
 
 ---
@@ -187,7 +189,7 @@
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `prepare_scenario` | `(path, overwrite=None, tokenizer_loader=None) -> ArtifactPaths` | **prepare 主流程**（详见 ARCHITECTURE 第 3 节）。依次：load_scenario → 生成长度 → 分组 → overrides → 排序 → 路由 → 求解前缀 → 加载 tokenizer → canonical 前缀 → safe ids → 唯一 seed → build prompt → simulate_theory → 组装 full/requests 行 → 写四类产物 → warmup 计划 → warnings（TARGET_UNREACHABLE / TARGET_DEVIATION）→ 写 analysis/manifest → `validate_artifacts` 自检。Manifest 中 `service.api_key` 明文被替换为 `api_key_configured` 布尔。 |
+| `prepare_scenario` | `(path, overwrite=None, tokenizer_loader=None, progress=None, execution_timestamp=None) -> ArtifactPaths` | **prepare 主流程**。加载后追加统一执行时间戳；每生成一条 prompt 调用 `progress(completed,total)`；四类产物写入 `output_dir_时间戳/result/`，再生成 analysis/manifest 并自检。Manifest 中 `service.api_key` 明文被替换为 `api_key_configured` 布尔。 |
 | `inspect_scenario` | `(path, tokenizer_loader=None) -> dict` | 只读检查：把 run_id/output_dir 改写进临时目录后调用 `prepare_scenario`，汇总 requested/effective/theoretical、可达范围、组分布、输入/输出长度摘要、DP 路由计数。不访问 vLLM、不留正式产物、不发请求。 |
 
 > `prepare_scenario` 中各类种子派生顺序见 ARCHITECTURE 第 8 节，是复现性的关键。
@@ -195,6 +197,8 @@
 ---
 
 ## 6. `cli.py` — 命令行入口
+
+`PromptProgress` 使用纯标准库在 stderr 显示 `Generate prompts` 进度，不影响 stdout 最终 JSON。prepare 日志写入 `output_dir_时间戳/log/`。
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
@@ -210,7 +214,7 @@
 
 | 项 | 说明 |
 |---|---|
-| 包名 | `ais-bench-prefix-cache`（版本 0.1.1） |
+| 包名 | `ais-bench-prefix-cache`（版本 0.1.2） |
 | `python_requires` | `>=3.10` |
 | `install_requires` | `ais-bench-benchmark`（运行 AISBench 压测所需）、`transformers`（加载 tokenizer） |
 | `entry_points` | `console_scripts`：`ais-bench-prefix-cache = ais_bench_prefix_cache.cli:console_main`（CLI）。不注册 `ais_bench.benchmark_plugins`，本分支不提供 AISBench 插件集成。 |

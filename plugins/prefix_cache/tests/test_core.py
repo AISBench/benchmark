@@ -64,6 +64,54 @@ def scenario_dict(root: Path, mode: str = "cold", dp_size: int = 2) -> dict:
 
 
 class CoreTest(unittest.TestCase):
+    def test_omitted_values_use_current_example_defaults(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "scenario.json"
+            path.write_text("{}", encoding="utf-8")
+            scenario = load_scenario(path)
+            effective = scenario.to_effective_dict()
+            self.assertEqual(effective["schema_version"], "1.0")
+            self.assertEqual(effective["run"]["run_id"], "gsm8k-prefix-cache-60")
+            self.assertEqual(effective["run"]["random_seed"], 42)
+            self.assertEqual(effective["run"]["output_dir"], str((root / "outputs/gsm8k-prefix-cache-60").resolve()))
+            self.assertEqual(effective["tokenizer"]["path"], "/home/weights/Qwen3.6-27B")
+            self.assertEqual(effective["tokenizer"]["block_size"], 16)
+            self.assertEqual(effective["corpus"]["path"], str((root / "GSM8K.jsonl").resolve()))
+            self.assertEqual(effective["corpus"]["selection"], {"mode": "random"})
+            self.assertEqual(effective["requests"]["count"], 100)
+            self.assertEqual(effective["requests"]["input_length"], {"mode": "fixed", "value": 1024})
+            self.assertEqual(effective["requests"]["output_length"], {"mode": "fixed", "value": 32})
+            self.assertEqual(effective["prefix_cache"]["mode"], "warmup")
+            self.assertEqual(effective["prefix_cache"]["target_hit_rate"], 0.6)
+            self.assertEqual(effective["prefix_cache"]["minimum_non_shared_length"], 16)
+            self.assertEqual(effective["prefix_cache"]["groups"]["count"], 1)
+            self.assertEqual(effective["prefix_cache"]["groups"]["assignment"], {"mode": "uniform"})
+            self.assertEqual(effective["service"]["dp_size"], 2)
+            self.assertEqual(effective["service"]["inference_url"], "http://127.0.0.1:8000/v1/completions")
+            self.assertEqual(effective["validation"], {"target_warning_pp": 1.0, "actual_warning_pp": 5.0})
+
+    def test_partially_empty_sections_receive_nested_defaults(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "scenario.json"
+            path.write_text(json.dumps({
+                "run": {},
+                "tokenizer": {},
+                "corpus": {"selection": {}},
+                "requests": {"input_length": {}, "output_length": {}},
+                "prefix_cache": {"groups": {"assignment": {}}, "order": {}},
+                "service": {},
+                "validation": {},
+            }), encoding="utf-8")
+            effective = load_scenario(path).to_effective_dict()
+            self.assertEqual(effective["corpus"]["selection"]["mode"], "random")
+            self.assertEqual(effective["requests"]["input_length"], {"mode": "fixed", "value": 1024})
+            self.assertEqual(effective["requests"]["output_length"], {"mode": "fixed", "value": 32})
+            self.assertEqual(effective["prefix_cache"]["groups"]["count"], 1)
+            self.assertEqual(effective["prefix_cache"]["groups"]["assignment"]["mode"], "uniform")
+            self.assertEqual(effective["prefix_cache"]["order"]["strategy"], "interleave")
+
     def test_scenario_rejects_unknown_multi_instance_field(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

@@ -30,7 +30,7 @@ from .generation import (
     simulate_theory,
     solve_prefix_lengths,
 )
-from .scenario import Scenario, load_scenario
+from .scenario import Scenario, load_scenario, new_execution_timestamp, with_execution_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,13 @@ def _build_prompt_with_seed_retry(tokenizer: Any, canonical: Any, prefix_len: in
     raise ArtifactValidationError(f"unable to construct a round-trip-safe prompt for {request_id}")
 
 
-def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_loader: Callable[[Scenario], Any] | None = None) -> ArtifactPaths:
+def prepare_scenario(
+    path: Path | str,
+    overwrite: bool | None = None,
+    tokenizer_loader: Callable[[Scenario], Any] | None = None,
+    progress: Callable[[int, int], None] | None = None,
+    execution_timestamp: str | None = None,
+) -> ArtifactPaths:
     """准备阶段：从场景配置生成全部请求工件（full/requests/manifest/analysis）。
 
     流程：解析配置 → 生成输入/输出长度、分组 → 应用 group override → 排序 →
@@ -143,7 +149,7 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
     落盘工件并校验。整个过程不发任何网络请求。
     """
     logger.info("[prepare] prepare_scenario path=%s overwrite=%s tokenizer_loader=%s", path, overwrite, tokenizer_loader)
-    scenario = load_scenario(path)
+    scenario = with_execution_timestamp(load_scenario(path), execution_timestamp or new_execution_timestamp())
     logger.info("[prepare] scenario run_id=%s random_seed=%d cache_mode=%s dp_size=%d block_size=%d output_dir=%s source_path=%s", scenario.run_id, scenario.random_seed, scenario.cache_mode, scenario.dp_size, scenario.block_size, scenario.output_dir, scenario.source_path)
     effective = scenario.to_effective_dict()
     logger.info("[prepare] effective keys=%s", sorted(effective))
@@ -248,6 +254,8 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         logger.info("[prepare] request_id=%s seed=%s used_seeds=%d", request_id, request_seed, len(used_seeds))
     plans: list[RequestPlan] = []
     occurrences: dict[str, int] = {}
+    if progress is not None:
+        progress(0, count)
     for index, request_id in enumerate(request_ids):
         group = groups[index]
         occurrence = occurrences.get(group, 0)
@@ -266,6 +274,8 @@ def prepare_scenario(path: Path | str, overwrite: bool | None = None, tokenizer_
         )
         plans.append(plan)
         logger.info("[prepare] plan request_id=%s sequence_index=%d group=%s occurrence=%d dp_rank=%s lane=%s target_input_tokens=%d actual_input_tokens=%d max_tokens=%d shared_prefix_tokens=%d seed_tokens=%d natural_suffix_tokens=%d seed_sha256=%s", plan.request_id, plan.sequence_index, plan.group_id, plan.occurrence_index_within_group, plan.dp_rank, plan.lane_sequence, plan.target_input_tokens, plan.actual_input_tokens, plan.max_tokens, plan.shared_prefix_tokens, plan.seed_tokens, plan.natural_suffix_tokens, plan.seed_sha256)
+        if progress is not None:
+            progress(index + 1, count)
     warm_watermarks = max_by_group if scenario.cache_mode == "warmup" else None
     logger.info("[prepare] warm_watermarks=%s", warm_watermarks)
     # 阶段8：按缓存水位模拟理论命中率，并生成 full/requests 行。

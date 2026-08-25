@@ -85,6 +85,8 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 
 各参数含义见 [Scenario 参数说明](config_examples/scenario.example.md)。下面同时列出本插件最关键的数据构造参数，README 本身即可作为快速使用手册。
 
+Scenario 中省略的字段会使用 `scenario.example.json` 的当前值作为默认值，包括默认 run、tokenizer、GSM8K 路径、100 条固定 1024-token 请求、warmup 60% 目标、单一 uniform Prefix Group 和 DP 2。`minimum_non_shared_length` 是安全例外：它按 `seed_blocks × block_size` 动态推导；使用示例默认值时仍为 16。
+
 ### 3.2 Prefix Cache 数据构造参数
 
 #### 输入长度模式
@@ -230,10 +232,42 @@ ais-bench-prefix-cache prepare --scenario ./scenario.json
 
 作用：根据 Scenario 确定性生成并校验四个文件：
 
-- `<run_id>.full.jsonl`；
-- `<run_id>.requests.jsonl`；
-- `<run_id>.manifest.json`；
-- `<run_id>.analysis.json`。
+- `result/<run_id_时间戳>.full.jsonl`；
+- `result/<run_id_时间戳>.requests.jsonl`；
+- `result/<run_id_时间戳>.manifest.json`；
+- `result/<run_id_时间戳>.analysis.json`。
+
+执行时会先显示 prompt 生成进度，且每成功生成一条 prompt 增加 1：
+
+```text
+Generate prompts [###############---------------] 50/100  50%
+Generate prompts [##############################] 100/100 100%
+{"full":"...","requests":"...","manifest":"...","analysis":"...","log":"..."}
+```
+
+进度写入 stderr，最后一行结果 JSON 写入 stdout，方便脚本继续解析。
+
+每次 `prepare` 会生成一次精确到秒的本地时间戳，并同时追加到 `run_id` 和 `output_dir` 最后一层目录。例如配置为：
+
+```text
+run_id:    gsm8k-prefix-cache-60
+output_dir: ./outputs/gsm8k-prefix-cache-60
+```
+
+本次实际目录可能为：
+
+```text
+./outputs/gsm8k-prefix-cache-60_20260825_123456/
+├── log/
+│   └── gsm8k-prefix-cache-60_20260825_123456.prepare.log
+└── result/
+    ├── gsm8k-prefix-cache-60_20260825_123456.full.jsonl
+    ├── gsm8k-prefix-cache-60_20260825_123456.requests.jsonl
+    ├── gsm8k-prefix-cache-60_20260825_123456.manifest.json
+    └── gsm8k-prefix-cache-60_20260825_123456.analysis.json
+```
+
+因此连续执行时不需要手动修改 `run_id` 或 `output_dir`。
 
 默认不覆盖同名文件。确定需要重建时使用：
 
@@ -241,12 +275,12 @@ ais-bench-prefix-cache prepare --scenario ./scenario.json
 ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
 ```
 
-`--overwrite` 只覆盖该 run 对应的四个确定文件，不会清理整个输出目录。
+`--overwrite` 只覆盖本次时间戳目录内该 run 对应的四个确定文件，不会清理整个输出目录。正常 CLI 执行每次都会使用新时间戳，因此通常不会遇到重名。
 
 ### 3.5 `validate`：校验已有产物
 
 ```bash
-ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60/gsm8k-prefix-cache-60.manifest.json
+ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60_<时间戳>/result/gsm8k-prefix-cache-60_<时间戳>.manifest.json
 ```
 
 作用：不生成数据、不访问 vLLM，只检查：
@@ -284,9 +318,11 @@ ais-bench-prefix-cache validate --manifest <manifest路径>
 - warmup 不进入 requests JSONL、理论分母或正式指标增量；
 - 全局理论命中率有效，分 DP 主要展示实际指标。
 
-> 本分支只负责生成 cold / warmup 模式下的数据与预热计划，不实际执行预热请求。预热计划落在 `<run_id>.manifest.json` 的 `warmup.plan` 字段。
+> 本分支只负责生成 cold / warmup 模式下的数据与预热计划，不实际执行预热请求。预热计划落在 `result/<run_id_时间戳>.manifest.json` 的 `warmup.plan` 字段。
 
-## 6. 四类产物
+## 6. 分层产物
+
+所有正式数据产物位于实际时间戳输出目录的 `result/` 下，详细日志位于同级 `log/` 下。
 
 ### `<run_id>.full.jsonl`
 
@@ -323,6 +359,6 @@ ais-bench-prefix-cache validate --manifest <manifest路径>
 
 warmup 只负责建立缓存。如果计入请求数、吞吐、时延或命中率，正式结果会混入准备阶段成本。
 
-### 修改 Scenario 后为什么 prepare 拒绝旧产物？
+### 修改 Scenario 后为什么通常不再需要手动改 run_id？
 
-`prepare` 默认拒绝覆盖已存在的产物，防止误破坏历史工件。确认需要重建时请使用 `prepare --overwrite`。
+每次 `prepare` 都会把同一个秒级时间戳追加到 `run_id` 和 `output_dir`，正常连续任务不需要再手动改名。`--overwrite` 仍保留给显式复用同一执行时间戳的程序调用或特殊恢复流程。

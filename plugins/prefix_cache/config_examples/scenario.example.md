@@ -9,18 +9,19 @@
 - 比例使用 `0.0～1.0`，例如 `0.6` 表示 60%；
 - token 长度以 `tokenizer.path` 加载出的 tokenizer 编码结果为准；
 - 示例中的 `{}` 和 `[]` 只是 JSON 对象与列表，不是参数。
+- 所有示例字段都可省略；源码默认值与当前 `scenario.example.json` 一致。未知字段仍会被严格拒绝。
 
 ## 2. 顶层字段
 
 | 字段 | 必填 | 作用 |
 |---|---:|---|
-| `schema_version` | 是 | 配置契约版本，当前只能为字符串 `"1.0"`。 |
-| `run` | 是 | 运行标识、随机种子和产物目录。 |
-| `tokenizer` | 是 | token 计算和 Block 对齐。 |
-| `corpus` | 是 | GSM8K 来源及样本选择方式。 |
-| `requests` | 是 | 正式请求数量和输入/输出长度。 |
-| `prefix_cache` | 是 | 缓存模式、目标命中率、组和顺序。 |
-| `service` | 是 | 校验契约保留的服务段；`dp_size` 用于 cold DP 路由。 |
+| `schema_version` | 否 | 配置契约版本，默认 `"1.0"`，当前只能为该值。 |
+| `run` | 否 | 运行标识、随机种子和产物目录。 |
+| `tokenizer` | 否 | token 计算和 Block 对齐。 |
+| `corpus` | 否 | GSM8K 来源及样本选择方式。 |
+| `requests` | 否 | 正式请求数量和输入/输出长度。 |
+| `prefix_cache` | 否 | 缓存模式、目标命中率、组和顺序。 |
+| `service` | 否 | 校验契约保留的服务段；`dp_size` 用于 cold DP 路由。 |
 | `validation` | 否 | 偏差告警阈值。 |
 
 ## 3. `schema_version`
@@ -43,25 +44,28 @@
 
 | 字段 | 必填 | 默认值 | 作用 |
 |---|---:|---|---|
-| `run_id` | 是 | 无 | 稳定运行 ID，也是四类产物的文件名前缀。建议使用字母、数字、短横线和下划线。 |
-| `random_seed` | 是 | 无 | 控制 GSM8K 随机选择、长度采样、组分配、顺序和唯一 seed。相同输入与配置应生成相同内容。 |
-| `output_dir` | 是 | 无 | 四类产物目录；不存在时自动创建。 |
+| `run_id` | 否 | `"gsm8k-prefix-cache-60"` | 基础运行 ID。每次 prepare 会自动追加执行时间戳，并作为四类产物的文件名前缀。 |
+| `random_seed` | 否 | `42` | 控制 GSM8K 随机选择、长度采样、组分配、顺序和唯一 seed。相同输入与配置应生成相同内容。 |
+| `output_dir` | 否 | `"./outputs/gsm8k-prefix-cache-60"` | 基础产物目录。每次 prepare 会在最后一级目录名后追加与 run ID 相同的时间戳。 |
 | `overwrite` | 否 | `false` | 兼容保留字段。`prepare` 默认拒绝覆盖同名产物，重建使用 `prepare --overwrite`。 |
 
-示例会生成：
+假设执行时间戳为 `20260825_123456`，示例会生成：
 
 ```text
-gsm8k-prefix-cache-60.full.jsonl
-gsm8k-prefix-cache-60.requests.jsonl
-gsm8k-prefix-cache-60.manifest.json
-gsm8k-prefix-cache-60.analysis.json
+outputs/gsm8k-prefix-cache-60_20260825_123456/
+├── log/gsm8k-prefix-cache-60_20260825_123456.prepare.log
+└── result/
+    ├── gsm8k-prefix-cache-60_20260825_123456.full.jsonl
+    ├── gsm8k-prefix-cache-60_20260825_123456.requests.jsonl
+    ├── gsm8k-prefix-cache-60_20260825_123456.manifest.json
+    └── gsm8k-prefix-cache-60_20260825_123456.analysis.json
 ```
 
 ## 5. `tokenizer`
 
 ```json
 "tokenizer": {
-  "path": "/models/example",
+  "path": "/home/weights/Qwen3.6-27B",
   "block_size": 16,
   "trust_remote_code": false
 }
@@ -69,8 +73,8 @@ gsm8k-prefix-cache-60.analysis.json
 
 | 字段 | 必填 | 默认值 | 作用 |
 |---|---:|---|---|
-| `path` | 是 | 无 | 传给 `AutoTokenizer.from_pretrained` 的本地目录或 Hugging Face 标识。必须与 vLLM 服务端 tokenizer 一致。 |
-| `block_size` | 是 | 无 | Prefix Cache Block 的 token 数。公共前缀和 seed 按它对齐，必须与服务端实际值一致。 |
+| `path` | 否 | `"/home/weights/Qwen3.6-27B"` | 传给 `AutoTokenizer.from_pretrained` 的本地目录或 Hugging Face 标识。必须与 vLLM 服务端 tokenizer 一致。 |
+| `block_size` | 否 | `16` | Prefix Cache Block 的 token 数。公共前缀和 seed 按它对齐，必须与服务端实际值一致。 |
 | `revision` | 否 | `null` | tokenizer 的分支、tag 或 commit，用于固定版本。 |
 | `trust_remote_code` | 否 | `false` | 是否执行模型仓库的自定义 tokenizer 代码，只应对可信仓库启用。 |
 
@@ -88,7 +92,7 @@ gsm8k-prefix-cache-60.analysis.json
 
 | 字段 | 必填 | 默认值 | 作用 |
 |---|---:|---|---|
-| `path` | 是 | 无 | GSM8K JSONL 路径，每个非空行必须是 JSON 对象。 |
+| `path` | 否 | `"./GSM8K.jsonl"` | GSM8K JSONL 路径，每个非空行必须是 JSON 对象。 |
 | `field` | 否 | `"question"` | 读取自然语言问题的字段，只使用该字段，不拼接标准答案。 |
 | `selection` | 否 | `{"mode":"random"}` | 为 canonical 前缀和自然后缀选择样本。 |
 
@@ -142,17 +146,14 @@ gsm8k-prefix-cache-60.analysis.json
 ```json
 "requests": {
   "count": 100,
-  "input_length": {
-    "mode": "range",
-    "ranges": [{"min": 512, "max": 1024, "count": 100}]
-  },
+  "input_length": {"mode": "fixed", "value": 1024},
   "output_length": {"mode": "fixed", "value": 32}
 }
 ```
 
 ### 7.1 `count`
 
-正式请求总数，必须是正整数。warmup 请求不计入该数量，也不写入 requests JSONL。
+正式请求总数，默认 `100`，必须是正整数。warmup 请求不计入该数量，也不写入 requests JSONL。
 
 ### 7.2 `input_length`
 
@@ -161,6 +162,8 @@ gsm8k-prefix-cache-60.analysis.json
 ```text
 公共前缀 + 全局唯一 seed + GSM8K 自然后缀
 ```
+
+整个字段省略时默认 `{"mode":"fixed","value":1024}`；fixed 模式省略 `value` 时也默认 1024。
 
 #### 固定长度
 
@@ -225,6 +228,8 @@ CSV 行数必须等于 `requests.count`，并包含以下任一正整数列：
 
 该值写入 requests JSONL 的 `max_tokens`。
 
+整个字段省略时默认 `{"mode":"fixed","value":32}`；fixed 模式省略 `value` 时也默认 32。
+
 #### 固定值
 
 ```json
@@ -273,8 +278,8 @@ CSV 必须包含正整数 `output_tokens` 列，行数等于 `requests.count`。
   "seed_blocks": 1,
   "minimum_non_shared_length": 16,
   "groups": {
-    "count": 4,
-    "assignment": {"mode": "zipf", "exponent": 1.0}
+    "count": 1,
+    "assignment": {"mode": "uniform"}
   },
   "order": {"strategy": "interleave"}
 }
@@ -286,10 +291,12 @@ CSV 必须包含正整数 `output_tokens` 列，行数等于 `requests.count`。
 - `warmup`：为每个 `Prefix Group × DP rank` 生成预热计划（写入 Manifest 的 `warmup.plan`），正式请求本身不固定 DP。
 
 本分支只生成数据与预热计划，不实际执行预热请求。warmup 请求不进入正式请求数或理论分母。
+省略时默认 `warmup`。
 
 ### 8.2 `target_hit_rate`
 
 期望的全局 token 加权命中率，范围 `[0,1]`。它是求解器的主目标，不等于简单地把每条请求的固定百分比设成前缀。
+省略时默认 `0.6`。
 
 求解会考虑 Block 对齐、请求顺序、Prefix Group、水位和 cold DP 路由。目标不可精确达到时，采用最接近的可达值并记录 requested/effective/theoretical 及原因。
 
@@ -317,7 +324,7 @@ seed 位于公共前缀和自然后缀之间，所有正式请求全局唯一，
 
 ### 8.5 `groups.count`
 
-Prefix Group 数量。插件生成 `group-0`、`group-1` 等 ID。每个组独立生成 canonical 前缀、维护水位、统计理论命中率，并在 warmup 时逐 DP 预热。
+Prefix Group 数量，默认 `1`。插件生成 `group-0`、`group-1` 等 ID。每个组独立生成 canonical 前缀、维护水位、统计理论命中率，并在 warmup 时逐 DP 预热。
 
 ### 8.6 `groups.assignment`
 
@@ -396,11 +403,11 @@ Zipf 分配：
 
 | 字段 | 必填 | 默认值 | 作用 |
 |---|---:|---|---|
-| `inference_url` | 是 | 无 | vLLM Completions API 完整地址。离线生成仅作非空校验；cold 多 DP 时必须提供（`scenario.py` 校验）。 |
-| `metrics_url` | 是 | 无 | Prometheus 地址，仅作非空校验字段。 |
-| `reset_url` | 否 | `null` | Prefix Cache reset 地址，仅作可选配置。 |
-| `model` | 是 | 无 | 写入请求体的模型名称，仅作非空校验字段。 |
-| `dp_size` | 否 | `1` | 单入口内部 DP rank 数。**离线用于 cold 模式的 DP 路由**与 warmup 预热计划。 |
+| `inference_url` | 否 | `"http://127.0.0.1:8000/v1/completions"` | vLLM Completions API 完整地址。离线生成仅作非空校验；cold 多 DP 时必须提供。 |
+| `metrics_url` | 否 | `"http://127.0.0.1:8000/metrics"` | Prometheus 地址，仅作非空校验字段。 |
+| `reset_url` | 否 | `"http://127.0.0.1:8000/reset_prefix_cache"` | Prefix Cache reset 地址，仅作可选配置。 |
+| `model` | 否 | `"model-name"` | 写入请求体的模型名称，仅作非空校验字段。 |
+| `dp_size` | 否 | `2` | 单入口内部 DP rank 数。**离线用于 cold 模式的 DP 路由**与 warmup 预热计划。 |
 | `assume_empty_cache` | 否 | `false` | 仅作可选配置，离线不消费。 |
 | `engine_label_map` | 否 | `{}` | 仅作可选配置，离线不消费。 |
 | `timeout_seconds` | 否 | `30` | 仅作可选配置，离线不消费。 |
@@ -429,16 +436,16 @@ Zipf 分配：
 ## 11. 原示例最终表示的场景
 
 - 生成 100 条正式请求；
-- 输入长度在 512～1024 token 闭区间采样；
+- 输入长度固定为 1024 token；
 - 每条最多输出 32 token；
-- 创建 4 个组，按指数 1.0 的 Zipf 热度分配；
+- 创建 1 个 uniform 组；
 - 目标全局命中率为 60%；
 - 使用一个 16-token Block 作为全局唯一 seed；
 - 每条请求至少保留 16 token 非共享区；
 - 请求按组交错排列；
 - 使用 warmup 模式；
 - 单个 vLLM HTTP 入口内部有 2 个 DP rank（cold 路由 / warmup 计划使用）；
-- 每组分别在 DP 0、DP 1 生成预热计划，共 8 条不进入正式统计的 warmup 请求；
+- 该组分别在 DP 0、DP 1 生成预热计划，共 2 条不进入正式统计的 warmup 请求；
 - 理论/目标超过 1 pp 时只告警（`actual_warning_pp` 字段为在线流程保留）。
 
 ## 12. 建议检查顺序

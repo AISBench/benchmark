@@ -63,9 +63,10 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    A["scenario.json"] --> B["load_scenario (scenario.py)<br/>严格校验 + 默认值 + 路径解析"]
-    B --> C["build_input_lengths / build_output_lengths<br/>(generation.py) → 长度列表"]
-    B --> D["load_gsm8k (generation.py)<br/>语料 → GSMRecord 列表"]
+    A["scenario.json"] --> B["load_scenario (scenario.py)<br/>严格校验 + 示例默认值 + 路径解析"]
+    B --> B2["with_execution_timestamp<br/>run_id/output_dir 追加同一时间戳"]
+    B2 --> C["build_input_lengths / build_output_lengths<br/>(generation.py) → 长度列表"]
+    B2 --> D["load_gsm8k (generation.py)<br/>语料 → GSMRecord 列表"]
     C --> E["assign_groups (generation.py)<br/>uniform / zipf / weights"]
     E --> F["组级 overrides：覆盖 input/output/corpus_selection"]
     F --> G["order_indices (generation.py)<br/>sequential / shuffle / interleave / global / input_len_asc"]
@@ -76,7 +77,7 @@ flowchart TB
     I2 --> J
     J --> K["build_canonical_prefixes (generation.py)<br/>每组生成唯一首 block 前缀"]
     J --> L["find_boundary_safe_token_ids<br/>+ build_unique_seed (generation.py)<br/>全局唯一 seed token"]
-    K --> M["build_prompt (generation.py)<br/>前缀 + seed + 自然后缀 + decode/re-encode 往返校验"]
+    K --> M["build_prompt (generation.py)<br/>前缀 + seed + 自然后缀 + decode/re-encode 往返校验<br/>每条完成后 progress +1"]
     L --> M
     M --> N["RequestPlan 列表"]
     N --> O["simulate_theory (generation.py)<br/>cold: (group,dp) 水位 / warmup: group 水位"]

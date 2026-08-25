@@ -17,7 +17,7 @@
   },
   "requests": {
     "count": 100,
-    "input_length": {"mode": "range", "ranges": [{"min": 512, "max": 1024, "count": 100}]},
+    "input_length": {"mode": "fixed", "value": 1024},
     "output_length": {"mode": "fixed", "value": 32}
   },
   "prefix_cache": {
@@ -25,7 +25,7 @@
     "target_hit_rate": 0.6,
     "seed_blocks": 1,
     "minimum_non_shared_length": 16,
-    "groups": {"count": 4, "assignment": {"mode": "zipf", "exponent": 1.0}},
+    "groups": {"count": 1, "assignment": {"mode": "uniform"}},
     "order": {"strategy": "interleave"}
   },
   "service": {

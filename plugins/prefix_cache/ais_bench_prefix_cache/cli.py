@@ -5,11 +5,12 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import TextIO
 
 from .artifacts import validate_artifacts
 from .errors import PrefixCacheError
 from .pipeline import inspect_scenario, prepare_scenario
-from .scenario import load_scenario
+from .scenario import load_scenario, new_execution_timestamp, with_execution_timestamp
 
 # Parent logger name shared by all module loggers (ais_bench_prefix_cache.*).
 PLUGIN_LOG_NAME = "ais_bench_prefix_cache"
@@ -19,6 +20,36 @@ LOG_NORMAL_FORMAT = "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s"
 # 显式挂在 PLUGIN_LOG_NAME 之下（不用 __name__）：python -m 运行时 __name__ 会变成
 # "__main__"，导致日志绕过插件 logger 直接传播到 root。
 logger = logging.getLogger(f"{PLUGIN_LOG_NAME}.cli")
+
+
+class PromptProgress:
+    """Render prompt-generation progress to a text stream without touching stdout."""
+
+    def __init__(self, stream: TextIO | None = None, width: int = 30):
+        self.stream = stream if stream is not None else sys.stderr
+        self.width = max(1, width)
+        self._active = False
+        self._completed = False
+
+    def update(self, completed: int, total: int) -> None:
+        if total < 1:
+            return
+        completed = min(max(0, completed), total)
+        filled = self.width * completed // total
+        percent = 100 * completed // total
+        bar = "#" * filled + "-" * (self.width - filled)
+        end = "\n" if completed == total else "\r"
+        self.stream.write(f"\rGenerate prompts [{bar}] {completed}/{total} {percent:3d}%{end}")
+        self.stream.flush()
+        self._active = completed < total
+        self._completed = completed == total
+
+    def close(self) -> None:
+        """Terminate an unfinished progress line before another stderr message."""
+        if self._active and not self._completed:
+            self.stream.write("\n")
+            self.stream.flush()
+        self._active = False
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,8 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_log_file(command: str, scenario_path: Path | None) -> Path | None:
-    """Per-command log file in the same directory as the run_id artifacts.
+def _resolve_log_file(command: str, scenario_path: Path | None, execution_timestamp: str | None = None) -> Path | None:
+    """Resolve a per-command log under the run output directory's log/ layer.
 
     Falls back to console-only logging when the scenario cannot be loaded
     or the output directory is not writable (the real error surfaces in
@@ -47,7 +78,9 @@ def _resolve_log_file(command: str, scenario_path: Path | None) -> Path | None:
         return None
     try:
         scenario = load_scenario(scenario_path)
-        log_file = scenario.output_dir / f"{scenario.run_id}.{command}.log"
+        if execution_timestamp is not None:
+            scenario = with_execution_timestamp(scenario, execution_timestamp)
+        log_file = scenario.output_dir / "log" / f"{scenario.run_id}.{command}.log"
         log_file.parent.mkdir(parents=True, exist_ok=True)
         return log_file
     except (PrefixCacheError, OSError):
@@ -61,6 +94,8 @@ def _install_logger(log_file: Path | None) -> None:
     真实的错误信息在正常命令流程中抛出。
     """
     plugin_logger = logging.getLogger(PLUGIN_LOG_NAME)
+    for existing in plugin_logger.handlers:
+        existing.close()
     plugin_logger.handlers.clear()
     plugin_logger.propagate = False
     plugin_logger.setLevel(logging.INFO)
@@ -75,15 +110,24 @@ def _install_logger(log_file: Path | None) -> None:
 def main(argv: list[str] | None = None) -> int:
     """CLI 主入口：分发到对应子命令并统一处理错误码。"""
     args = build_parser().parse_args(argv)
-    log_file = _resolve_log_file(args.command, getattr(args, "scenario", None))
+    execution_timestamp = new_execution_timestamp() if args.command == "prepare" else None
+    log_file = _resolve_log_file(args.command, getattr(args, "scenario", None), execution_timestamp)
     # 安装插件自身的 logger（日志只缓存到 .log 文件，不在终端打印）。
     _install_logger(log_file)
     logger.info("[cli] command=%s args=%s log_file=%s", args.command, vars(args), log_file)
+    progress = PromptProgress() if args.command == "prepare" else None
     try:
         if args.command == "prepare":
             logger.info("[cli] prepare scenario=%s overwrite=%s", args.scenario, args.overwrite)
-            paths = prepare_scenario(args.scenario, overwrite=args.overwrite)
+            paths = prepare_scenario(
+                args.scenario,
+                overwrite=args.overwrite,
+                progress=progress.update,
+                execution_timestamp=execution_timestamp,
+            )
             result = {key: str(value) for key, value in paths.__dict__.items()}
+            if log_file is not None:
+                result["log"] = str(log_file)
             logger.info("[cli] prepare_scenario returned paths=%s", result)
             print(json.dumps(result, ensure_ascii=False))
         elif args.command == "validate":
@@ -99,6 +143,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except PrefixCacheError as exc:
         # 业务错误统一以 ERROR 输出并返回退出码 2，便于脚本判断。
+        if progress is not None:
+            progress.close()
         logger.warning("[cli] PrefixCacheError: %s", exc)
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

@@ -80,12 +80,13 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def artifact_paths(output_dir: Path, run_id: str) -> ArtifactPaths:
-    """按 run_id 拼接出本次运行的四个工件文件路径。"""
+    """在 output_dir/result 下按 run_id 拼接四个工件文件路径。"""
+    result_dir = output_dir / "result"
     paths = ArtifactPaths(
-        output_dir / f"{run_id}.full.jsonl",
-        output_dir / f"{run_id}.requests.jsonl",
-        output_dir / f"{run_id}.manifest.json",
-        output_dir / f"{run_id}.analysis.json",
+        result_dir / f"{run_id}.full.jsonl",
+        result_dir / f"{run_id}.requests.jsonl",
+        result_dir / f"{run_id}.manifest.json",
+        result_dir / f"{run_id}.analysis.json",
     )
     logger.info("[artifacts] artifact_paths output_dir=%s run_id=%s full=%s requests=%s manifest=%s analysis=%s", output_dir, run_id, paths.full, paths.requests, paths.manifest, paths.analysis)
     return paths
