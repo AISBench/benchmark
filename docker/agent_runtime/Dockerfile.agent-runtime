@@ -2,7 +2,7 @@
 #
 # 在现有 aisbench_benchmark 基础镜像（已含 docker engine + compose + ais_bench）之上，
 # 追加多 venv 隔离层，解决 agent 测评之间的依赖冲突：
-#   - harbor venv：隔离 harbor==0.6.1 强制升级的 datasets 4.0+，不污染主环境
+#   - harbor venv：隔离 harbor==0.20.0 强制升级的 datasets 4.0+，不污染主环境
 #                  + harbor_task.py 用 subprocess 启动 venv python，所以 venv 内还
 #                    放了一个 ais_bench wrapper（shebang 指向 venv python），
 #                    让用户 `agent_env harbor` 后 which ais_bench 指向 venv 内
@@ -68,7 +68,7 @@ RUN mkdir -p ${AGENT_VENVS_ROOT} \
 
 # ============================================================
 # venv: harbor
-# harbor==0.6.1 会把 datasets 升到 4.0+，必须隔离在独立 venv
+# harbor==0.20.0 会把 datasets 升到 4.0+，必须隔离在独立 venv
 # 否则会污染 ais_bench 主环境，导致其他数据集依赖冲突
 #
 # --system-site-packages: 让 venv 能看到基镜像里已经装好的 ais_bench_benchmark
@@ -94,7 +94,7 @@ RUN python3.12 -m venv ${AGENT_VENVS_ROOT}/harbor --system-site-packages --copie
         -i https://repo.huaweicloud.com/repository/pypi/simple \
         --trusted-host repo.huaweicloud.com \
         --default-timeout=120 --retries=5 \
-        harbor==0.6.1
+        harbor==0.20.0
 
 # ============================================================
 # harbor venv 内放置 ais_bench 命令（关键）
@@ -122,7 +122,7 @@ RUN cat > ${AGENT_VENVS_ROOT}/harbor/bin/ais_bench <<'PYEOF'
 # -*- coding: utf-8 -*-
 """harbor venv 内置 ais_bench wrapper
 启动时使用 harbor venv 的 python，让 subprocess.Popen 启动 harbor venv 的 python，
-从而能正确加载 venv local site-packages（harbor 0.6.1 在此）。
+从而能正确加载 venv local site-packages（harbor 0.20.0 在此）。
 """
 import re
 import sys
@@ -146,7 +146,7 @@ RUN chmod +x ${AGENT_VENVS_ROOT}/harbor/bin/ais_bench
 #   OpenBLAS blas_thread_init: pthread_create failed: Operation not permitted
 # 详见 docker/OVERVIEW.zh.md 模式 B 常见问题
 #
-# harbor 0.6.1 的 compose 模板路径（python3.12 site-packages）：
+# harbor 0.20.0 的 compose 模板路径（python3.12 site-packages）：
 #   harbor/environments/docker/docker-compose-base.yaml
 # 在其中给 main service 补上 security_opt: [seccomp=unconfined]
 # 模式 A（DinD）下此 patch 无副作用（子容器本就用 Docker 官方默认 profile）
