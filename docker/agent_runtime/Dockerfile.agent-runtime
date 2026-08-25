@@ -264,6 +264,10 @@ RUN chmod +x /usr/local/bin/ais_bench_agent_orchestrator_status.sh
 
 COPY docker/agent_runtime/packs/      ${AGENT_PACKS_ROOT}/
 
+# v3 D1: build_l2_baked_image.sh — 一键 build L1 + L2 baked images
+COPY docker/agent_runtime/build_l2_baked_image.sh /usr/local/bin/ais_bench_agent_build_l2_baked_image.sh
+RUN chmod +x /usr/local/bin/ais_bench_agent_build_l2_baked_image.sh
+
 # ============================================================
 # 便捷函数：激活对应 venv
 # 用户在容器内 `agent_env harbor` 即可激活 harbor venv，
