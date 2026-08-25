@@ -67,9 +67,42 @@
 #                               --runtime-image ghcr.io/aisbench/agent-runtime:v3.1-20260522-master-ubuntu24.04-py312-x86_64
 #   --host-path <ABS_PATH>    仅模式 B 生效。/benchmark 的提取目标目录，
 #                             默认 /opt/ais_bench_agent。仅 /opt 不可写的受限环境需要改。
-#   --production              启用 production 模式：runtime 容器加 --restart unless-stopped。
-#                             物理机/docker daemon 重启后容器自动拉起（生产部署期望）。
-#                             默认不加（行为与 PR #410 一致）。J4 决策：仅显式 flag 启用。
+#
+# v3 B 批新增参数（5 层 DinD 接通）:
+#   --matrix-yaml <HOST_PATH>  harbor 矩阵文件 host 路径（绝对路径），
+#                             bind mount 到容器内 /opt/swebench/config/matrix.yaml
+#                             （J2 决策：宿主 mount，非 image 内置）
+#                             例: --matrix-yaml /opt/swebench/config/matrix.yaml
+#   --bind-jobs <HOST_DIR>     5 层 DinD 中 trial 产物目录 host 路径，
+#                             bind mount 到 /opt/swebench/jobs（harbor jobs 写入此目录）
+#                             例: --bind-jobs /opt/swebench/jobs
+#   --bind-tasks <HOST_DIR>    SWE-bench / terminal-bench task.toml 目录 host 路径，
+#                             bind mount 到 /opt/swebench/tasks
+#                             例: --bind-tasks /opt/swebench/tasks
+#   --bind-config <HOST_DIR>   harbor 配置目录 host 路径，
+#                             bind mount 到 /opt/swebench/config
+#                             例: --bind-config /opt/swebench/config
+#   --api-key-file <HOST_PATH> api_key.env host 路径（含 OPENAI_API_KEY / OPENAI_API_BASE），
+#                             bind mount 到 /opt/swebench/api_key.env，
+#                             同时转成 -e OPENAI_API_KEY / -e OPENAI_API_BASE 注入容器
+#                             （替代 inline env var，符合 12-factor）
+#                             例: --api-key-file /opt/swebench/config/api_key.env
+#   --registry-mirror <URL>    DinD inner dockerd 用的 registry mirror，
+#                             注入 -e AIS_BENCH_AGENT_REGISTRY_MIRROR=<URL> 到容器
+#                             （A3 镜像层会用此 env 写 daemon.json）
+#                             多 mirror 用英文逗号分隔
+#                             例: --registry-mirror https://docker.1ms.run
+#   --data-image <IMAGE[:TAG]> 创建只读 data 容器（`docker create`），
+#                             容器启动时 `--volumes-from <data>:ro`
+#                             （B2 batch：替代 image 内置数据集场景）
+#                             例: --data-image swebench/swebench-data:v0.1
+#   --production               启用生产模式：容器加 --restart unless-stopped
+#                             （J4 决策：默认不加，避免 dev 时无法 stop）
+#   --l2-image <IMAGE[:TAG]>   注入 -e AIS_BENCH_AGENT_L2_IMAGE=<tag> 到容器
+#                             （D3 batch：harbor trial 容器直接用 baked image，
+#                              跳过 trial 内 pip/npm install，节省 ~10min/trial）
+#                             例: --l2-image swebench/django-11099-with-aider:latest
+#                             不传 → harbor trial 容器走默认行为（trial 内装 agent）
 
 set -e
 
@@ -104,6 +137,35 @@ DATASET_MOUNTS=()
 RUNTIME_TAR=""
 # 离线模式：用户提供的 case 沙箱镜像 tar（文件或目录，可多个）
 CASE_TAR_PATHS=()
+
+# ============================================================
+# v3 B 批新增参数（B1: bind mount + matrix + api_key + registry mirror）
+#
+# 全部可选，无默认值（J2 决策：用户主动指定 host bind mount 路径）。
+# 用户不传时，对应的 bind mount 跳过，运行时用容器内默认路径或环境变量。
+# ============================================================
+# Harbor 矩阵文件（host bind mount → /opt/swebench/config/matrix.yaml）
+MATRIX_YAML=""
+# 5 层 DinD bind mount 路径（host → 容器内 /opt/swebench/{jobs,tasks,config}）
+BIND_JOBS=""
+BIND_TASKS=""
+BIND_CONFIG=""
+# api_key.env（host bind mount → /opt/swebench/api_key.env，自动 source OPENAI_API_KEY/BASE）
+API_KEY_FILE=""
+# registry-mirror（AIS_BENCH_AGENT_REGISTRY_MIRROR env 注入 A3 image 的 daemon.json）
+REGISTRY_MIRROR=""
+
+# v3 B 批其他新增参数（B2/B4 在后续 commit 启用）
+# --data-image：可选 data container image（创建 volumes-from 只读容器）
+DATA_IMAGE=""
+# --production：仅加 --restart unless-stopped（J4 决策，默认不加）
+PRODUCTION=0
+
+# v3 D 批 D3: --l2-image：harbor trial 容器 baked image tag
+# 注入 -e AIS_BENCH_AGENT_L2_IMAGE=<tag>，harbor trial 容器直接用此 baked image
+# 跳过 trial 内 pip/npm install（D1 build_l2_baked_image.sh 产物）
+# 不传 → harbor trial 容器走默认行为（trial 内装 agent）
+L2_IMAGE=""
 
 # ============ 参数解析 ============
 while [[ $# -gt 0 ]]; do
@@ -153,6 +215,61 @@ while [[ $# -gt 0 ]]; do
             HOST_PATH_CLI="$2"
             shift 2
             ;;
+        # ============================================================
+        # v3 B 批新增参数 (B1): bind mount + matrix + api_key + registry mirror
+        # ============================================================
+        --matrix-yaml)
+            [ -z "${2:-}" ] && { echo "[错误] --matrix-yaml 需要一个绝对路径" >&2; exit 1; }
+            [[ "$2" != /* ]] && { echo "[错误] --matrix-yaml 必须是绝对路径: $2" >&2; exit 1; }
+            [ ! -f "$2" ] && { echo "[错误] --matrix-yaml 文件在宿主上不存在: $2" >&2; exit 1; }
+            MATRIX_YAML="$2"
+            shift 2
+            ;;
+        --bind-jobs)
+            [ -z "${2:-}" ] && { echo "[错误] --bind-jobs 需要一个绝对路径" >&2; exit 1; }
+            [[ "$2" != /* ]] && { echo "[错误] --bind-jobs 必须是绝对路径: $2" >&2; exit 1; }
+            [ ! -d "$2" ] && { echo "[错误] --bind-jobs 路径在宿主上不是目录: $2" >&2; exit 1; }
+            BIND_JOBS="$2"
+            shift 2
+            ;;
+        --bind-tasks)
+            [ -z "${2:-}" ] && { echo "[错误] --bind-tasks 需要一个绝对路径" >&2; exit 1; }
+            [[ "$2" != /* ]] && { echo "[错误] --bind-tasks 必须是绝对路径: $2" >&2; exit 1; }
+            [ ! -d "$2" ] && { echo "[错误] --bind-tasks 路径在宿主上不是目录: $2" >&2; exit 1; }
+            BIND_TASKS="$2"
+            shift 2
+            ;;
+        --bind-config)
+            [ -z "${2:-}" ] && { echo "[错误] --bind-config 需要一个绝对路径" >&2; exit 1; }
+            [[ "$2" != /* ]] && { echo "[错误] --bind-config 必须是绝对路径: $2" >&2; exit 1; }
+            [ ! -d "$2" ] && { echo "[错误] --bind-config 路径在宿主上不是目录: $2" >&2; exit 1; }
+            BIND_CONFIG="$2"
+            shift 2
+            ;;
+        --api-key-file)
+            [ -z "${2:-}" ] && { echo "[错误] --api-key-file 需要一个绝对路径" >&2; exit 1; }
+            [[ "$2" != /* ]] && { echo "[错误] --api-key-file 必须是绝对路径: $2" >&2; exit 1; }
+            [ ! -f "$2" ] && { echo "[错误] --api-key-file 文件在宿主上不存在: $2" >&2; exit 1; }
+            API_KEY_FILE="$2"
+            shift 2
+            ;;
+        --registry-mirror)
+            [ -z "${2:-}" ] && { echo "[错误] --registry-mirror 不能为空" >&2; exit 1; }
+            REGISTRY_MIRROR="$2"
+            shift 2
+            ;;
+        # ============================================================
+        # v3 B 批新增参数 (B2/B4): data-image + production
+        # ============================================================
+        --data-image)
+            [ -z "${2:-}" ] && { echo "[错误] --data-image 不能为空" >&2; exit 1; }
+            DATA_IMAGE="$2"
+            shift 2
+            ;;
+        --production)
+            PRODUCTION=1
+            shift
+            ;;
         -h|--help)
             sed -n '2,80p' "$0" | sed 's/^# *//'
             exit 0
@@ -162,6 +279,13 @@ while [[ $# -gt 0 ]]; do
             # 不需要参数，重复 --production 等价（幂等）
             PRODUCTION_CLI=1
             shift
+            ;;
+        --l2-image)
+            # v3 D 批 D3: 注入 AIS_BENCH_AGENT_L2_IMAGE=<tag> env，harbor trial 容器直接用 baked image
+            # 不传 → L2_IMAGE=""（空字符串表示用 harbor 默认行为，trial 内装 agent）
+            [ -z "${2:-}" ] && { echo "[错误] --l2-image 不能为空" >&2; exit 1; }
+            L2_IMAGE="$2"
+            shift 2
             ;;
         *) echo "[错误] 未知参数: $1" >&2; exit 1 ;;
     esac
@@ -229,6 +353,32 @@ else
     log "  case镜像来源: 容器内手动 docker pull / load（默认行为）"
 fi
 
+# v3 B 批新参数 logging
+if [ -n "${MATRIX_YAML}" ]; then
+    log "  matrix-yaml: ${MATRIX_YAML}  →  /opt/swebench/config/matrix.yaml"
+fi
+if [ -n "${BIND_JOBS}${BIND_TASKS}${BIND_CONFIG}" ]; then
+    log "  Bind mount (5 层 DinD L5 bind):"
+    [ -n "${BIND_JOBS}" ]   && log "    jobs:    ${BIND_JOBS}  →  /opt/swebench/jobs"
+    [ -n "${BIND_TASKS}" ]  && log "    tasks:   ${BIND_TASKS}  →  /opt/swebench/tasks"
+    [ -n "${BIND_CONFIG}" ] && log "    config:  ${BIND_CONFIG}  →  /opt/swebench/config"
+fi
+if [ -n "${API_KEY_FILE}" ]; then
+    log "  api-key-file: ${API_KEY_FILE}  →  /opt/swebench/api_key.env"
+fi
+if [ -n "${REGISTRY_MIRROR}" ]; then
+    log "  registry-mirror: ${REGISTRY_MIRROR}"
+fi
+if [ -n "${DATA_IMAGE}" ]; then
+    log "  data-image: ${DATA_IMAGE}（创建只读 data 容器 + --volumes-from :ro）"
+fi
+[ "${PRODUCTION}" = "1" ] && log "  production: enabled（容器加 --restart unless-stopped）"
+if [ -n "${L2_IMAGE}" ]; then
+    log "  l2-image: ${L2_IMAGE}（harbor trial 容器直接用 baked image，跳过 trial 内装 agent）"
+else
+    log "  l2-image: 未设置（harbor trial 容器走默认行为，trial 内装 agent）"
+fi
+
 # ============ [2/6] 选择 DinD/Socket 模式 ============
 log "=== [2/6] 选择 DinD/Socket 模式 ==="
 
@@ -294,6 +444,24 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     docker rm -f "${CONTAINER_NAME}" >/dev/null
 fi
 
+# v3 B 批 B2: 处理 data container（仅 --data-image 传入时执行）
+# data container 是只读空容器，仅用于携带 image 内置的数据卷
+# runtime 容器 --volumes-from <data>:ro 继承这些数据卷，但运行时不能改
+DATA_VOLUMES_ARG=""
+if [ -n "${DATA_IMAGE}" ]; then
+    DATA_CONTAINER_NAME="${CONTAINER_NAME}-data"
+    if docker ps -a --format '{{.Names}}' | grep -q "^${DATA_CONTAINER_NAME}$"; then
+        log "  ✓ data container 已存在: ${DATA_CONTAINER_NAME}（复用）"
+    else
+        log "  创建 data container: ${DATA_CONTAINER_NAME} ← ${DATA_IMAGE}"
+        if ! docker create --name "${DATA_CONTAINER_NAME}" "${DATA_IMAGE}" >/dev/null 2>&1; then
+            fail "data container 创建失败（镜像不存在或已损坏）: ${DATA_IMAGE}"
+        fi
+        log "    ✓ ${DATA_CONTAINER_NAME} 已创建"
+    fi
+    DATA_VOLUMES_ARG="--volumes-from ${DATA_CONTAINER_NAME}:ro"
+fi
+
 # 拼装数据集挂载参数
 MOUNT_ARGS=""
 for p in "${DATASET_MOUNTS[@]+"${DATASET_MOUNTS[@]}"}"; do
@@ -317,6 +485,52 @@ if [ "${#DATASET_MOUNTS[@]}" -gt 0 ]; then
     DATASET_ENV="-e AISBENCH_AGENT_DATASET_PATH=${DATASET_MOUNTS[0]}"
 fi
 
+# v3 B 批 B3: 拼装 5 层 DinD L5 接入所需的 bind mount + -e 注入
+# 配合 B1 新增参数：--matrix-yaml / --bind-jobs / --bind-tasks / --bind-config
+#                  / --api-key-file / --registry-mirror
+# 不传任意参数 → SWEBENCH_BINDS / SWEBENCH_ENVS 均为空 → 行为退化到 PR #410 原版
+SWEBENCH_BINDS=""
+SWEBENCH_ENVS=""
+if [ -n "${MATRIX_YAML:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${MATRIX_YAML}:/opt/swebench/config/matrix.yaml:ro"
+fi
+if [ -n "${BIND_JOBS:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${BIND_JOBS}:/opt/swebench/jobs"
+fi
+if [ -n "${BIND_TASKS:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${BIND_TASKS}:/opt/swebench/tasks"
+fi
+if [ -n "${BIND_CONFIG:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${BIND_CONFIG}:/opt/swebench/config"
+fi
+if [ -n "${API_KEY_FILE:-}" ]; then
+    SWEBENCH_BINDS="${SWEBENCH_BINDS} -v ${API_KEY_FILE}:/opt/swebench/api_key.env:ro"
+    # source api_key.env 后把 OPENAI_API_KEY / OPENAI_API_BASE 注入 -e
+    # 用 set -a 让 source 进来的变量自动 export，避免 shell 子进程丢失
+    set -a
+    # shellcheck disable=SC1090
+    . "${API_KEY_FILE}" 2>/dev/null || log "  ⚠ source ${API_KEY_FILE} 失败（-e 注入可能不全）"
+    set +a
+    if [ -n "${OPENAI_API_KEY:-}" ]; then
+        SWEBENCH_ENVS="${SWEBENCH_ENVS} -e OPENAI_API_KEY=${OPENAI_API_KEY}"
+    fi
+    if [ -n "${OPENAI_API_BASE:-}" ]; then
+        SWEBENCH_ENVS="${SWEBENCH_ENVS} -e OPENAI_API_BASE=${OPENAI_API_BASE}"
+    fi
+fi
+if [ -n "${REGISTRY_MIRROR:-}" ]; then
+    SWEBENCH_ENVS="${SWEBENCH_ENVS} -e AIS_BENCH_AGENT_REGISTRY_MIRROR=${REGISTRY_MIRROR}"
+fi
+if [ -n "${L2_IMAGE:-}" ]; then
+    # v3 D 批 D3: 注入 baked image tag，harbor trial 容器跳过 trial 内装 agent
+    SWEBENCH_ENVS="${SWEBENCH_ENVS} -e AIS_BENCH_AGENT_L2_IMAGE=${L2_IMAGE}"
+fi
+if [ -n "${SWEBENCH_BINDS}" ] || [ -n "${SWEBENCH_ENVS}" ]; then
+    log "  5 层 DinD L5 接入:"
+    [ -n "${SWEBENCH_BINDS}" ] && log "    bind mounts: 容器内 /opt/swebench/{jobs,tasks,config,api_key.env} ← host bind"
+    [ -n "${SWEBENCH_ENVS}" ] && log "    env 注入:   OPENAI_API_KEY/BASE + AIS_BENCH_AGENT_REGISTRY_MIRROR + (可选) AIS_BENCH_AGENT_L2_IMAGE"
+fi
+
 if [ "${MODE}" = "A" ]; then
     # 模式 A：Docker-in-Docker
     # cgroup v2 宿主机 --privileged + --cgroupns=host 必须同时使用
@@ -328,7 +542,10 @@ if [ "${MODE}" = "A" ]; then
         ${RESTART_ARG} \
         -w /benchmark \
         ${MOUNT_ARGS} \
+        ${DATA_VOLUMES_ARG} \
+        ${SWEBENCH_BINDS} \
         ${DATASET_ENV} \
+        ${SWEBENCH_ENVS} \
         "${RUNTIME_IMAGE}" bash
 else
     # 模式 B：Socket 代理
@@ -352,7 +569,10 @@ else
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v "${HOST_PATH}":"${HOST_PATH}" \
         ${MOUNT_ARGS} \
+        ${DATA_VOLUMES_ARG} \
+        ${SWEBENCH_BINDS} \
         ${DATASET_ENV} \
+        ${SWEBENCH_ENVS} \
         "${RUNTIME_IMAGE}" bash
 fi
 
@@ -553,6 +773,12 @@ cat <<EOF
    ais_bench_agent_run.sh        # 等价于上面的 harbor jobs start，带默认 filter
    ais_bench_agent_watch.sh      # 阻塞等 results.json
    ais_bench_agent_summarize.sh  # 聚合 trial 结果到 md/csv/json
+
+   # v3 D 批：若传了 --l2-image，harbor trial 容器直接用 baked image
+   # 跳过 trial 内 pip/npm install（节省 ~10min/trial）
+   # baked image 由 ais_bench_agent_build_l2_baked_image.sh 一键 build
+   ais_bench_agent_build_l2_baked_image.sh --case 11099 --agent aider
+   docker images | grep 'swebench/.*-with-'  # 确认 baked image 已 build
 
 6. （回退）PR #410 原生 ais_bench 单 config 模式
    # 不推荐，仅在矩阵调度不适用时用：
