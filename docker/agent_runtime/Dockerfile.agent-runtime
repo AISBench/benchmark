@@ -2,7 +2,7 @@
 #
 # 在现有 aisbench_benchmark 基础镜像（已含 docker engine + compose + ais_bench）之上，
 # 追加多 venv 隔离层，解决 agent 测评之间的依赖冲突：
-#   - harbor venv：隔离 harbor==0.20.0 强制升级的 datasets 4.0+，不污染主环境
+#   - harbor venv：隔离 harbor==0.6.1 强制升级的 datasets 4.0+，不污染主环境
 #                  + harbor_task.py 用 subprocess 启动 venv python，所以 venv 内还
 #                    放了一个 ais_bench wrapper（shebang 指向 venv python），
 #                    让用户 `agent_env harbor` 后 which ais_bench 指向 venv 内
@@ -32,29 +32,6 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
-# ============================================================
-# ARM64 host 适配 (A1: build-time 装 qemu-user-static)
-#
-# ARM64 host 跑 SWE-bench / terminal-bench 2 等需要 x86_64 trial 镜像的
-# case 时，trial 容器是 x86_64 ELF，需要 QEMU user-mode 翻译。
-#
-# 仅当 TARGETARCH=arm64 时装 qemu-user-static（amd64 用户零开销）。
-# binfmt 注册放在 runtime entrypoint (A4) —— build context 没有
-# /proc/sys/fs/binfmt_misc，build 期注册无效。
-# ============================================================
-ARG TARGETARCH
-RUN if [ "${TARGETARCH}" = "arm64" ]; then \
-        apt-get update -qq && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            qemu-user-static && \
-        apt-get clean && \
-        rm -rf /var/lib/apt/lists/* && \
-        echo "[A1] qemu-user-static installed (TARGETARCH=${TARGETARCH})" && \
-        which qemu-x86_64-static; \
-    else \
-        echo "[A1] TARGETARCH=${TARGETARCH}, skip qemu-user-static install"; \
-    fi
-
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
@@ -63,27 +40,26 @@ ENV AGENT_VENVS_ROOT=/opt/venvs
 ENV AGENT_PACKS_ROOT=/opt/agent-resources/packs
 
 # ============================================================
-# DinD registry-mirrors 参数化 (A3)
+# swebench 5 层 DinD bind mount 点 (A5)
 #
-# 不同部署环境的镜像仓库可达性差异大：
-#   - 国内部署：https://docker.1ms.run / https://mirror.ccs.tencentyun.com
-#   - 海外部署：默认 DockerHub
-#   - 私有部署：用户内网 registry
+# /opt/swebbench/{jobs,tasks,config,logs,agent-patches} 由 bootstrap.sh 的
+# docker run -v host_path:container_path bind mount 进去。
+# 镜像层预创建这些目录（空目录），否则 docker bind mount 到一个不存在的
+# 路径会失败（或在老 docker 版本下静默建空目录，权限混乱）。
 #
-# 用法（runtime -e 覆盖 build-time ARG）：
-#   docker run -e AIS_BENCH_AGENT_REGISTRY_MIRROR=https://docker.1ms.run ...
-#
-# Build-time ARG 给离线 / 静态构建场景留口子（CI 在 build 时就锁定 mirror）。
-# Runtime ENV 优先级高，覆盖 build-time ARG 默认值。
-#
-# 多个 mirror 用英文逗号分隔；空值表示不写 registry-mirrors 字段（用 DockerHub 默认）。
-# 生成 daemon.json 的逻辑在 A4 entrypoint，本 Dockerfile 只声明 env + 建目录。
+# 5 个目录对应 mini_matrix L5 容器内的 bind mount 布局：
+#   - jobs/      : harbor trial 输出（每个 trial 一个子目录，含 result.json）
+#   - tasks/     : SWE-bench / terminal-bench 任务定义（task.toml）
+#   - config/    : harbor matrix.yaml / 全局配置
+#   - logs/      : harbor dockerd / docker pull / trial 容器日志
+#   - agent-patches/ : harbor agent 的 patched .py（被 A4 entrypoint 注入）
 # ============================================================
-ARG AIS_BENCH_AGENT_REGISTRY_MIRROR=
-ENV AIS_BENCH_AGENT_REGISTRY_MIRROR=${AIS_BENCH_AGENT_REGISTRY_MIRROR}
-
-# 预创建 /etc/docker 供 A4 entrypoint 写 daemon.json
-RUN mkdir -p /etc/docker
+ENV SWEBENCH_ROOT=/opt/swebench
+RUN mkdir -p ${SWEBENCH_ROOT}/jobs \
+             ${SWEBENCH_ROOT}/tasks \
+             ${SWEBENCH_ROOT}/config \
+             ${SWEBENCH_ROOT}/logs \
+             ${SWEBENCH_ROOT}/agent-patches
 
 RUN mkdir -p ${AGENT_VENVS_ROOT} \
              ${AGENT_PACKS_ROOT} \
@@ -91,7 +67,7 @@ RUN mkdir -p ${AGENT_VENVS_ROOT} \
 
 # ============================================================
 # venv: harbor
-# harbor==0.20.0 会把 datasets 升到 4.0+，必须隔离在独立 venv
+# harbor==0.6.1 会把 datasets 升到 4.0+，必须隔离在独立 venv
 # 否则会污染 ais_bench 主环境，导致其他数据集依赖冲突
 #
 # --system-site-packages: 让 venv 能看到基镜像里已经装好的 ais_bench_benchmark
@@ -117,7 +93,7 @@ RUN python3.12 -m venv ${AGENT_VENVS_ROOT}/harbor --system-site-packages --copie
         -i https://repo.huaweicloud.com/repository/pypi/simple \
         --trusted-host repo.huaweicloud.com \
         --default-timeout=120 --retries=5 \
-        harbor==0.20.0
+        harbor==0.6.1
 
 # ============================================================
 # harbor venv 内放置 ais_bench 命令（关键）
@@ -145,7 +121,7 @@ RUN cat > ${AGENT_VENVS_ROOT}/harbor/bin/ais_bench <<'PYEOF'
 # -*- coding: utf-8 -*-
 """harbor venv 内置 ais_bench wrapper
 启动时使用 harbor venv 的 python，让 subprocess.Popen 启动 harbor venv 的 python，
-从而能正确加载 venv local site-packages（harbor 0.20.0 在此）。
+从而能正确加载 venv local site-packages（harbor 0.6.1 在此）。
 """
 import re
 import sys
@@ -169,7 +145,7 @@ RUN chmod +x ${AGENT_VENVS_ROOT}/harbor/bin/ais_bench
 #   OpenBLAS blas_thread_init: pthread_create failed: Operation not permitted
 # 详见 docker/OVERVIEW.zh.md 模式 B 常见问题
 #
-# harbor 0.20.0 的 compose 模板路径（python3.12 site-packages）：
+# harbor 0.6.1 的 compose 模板路径（python3.12 site-packages）：
 #   harbor/environments/docker/docker-compose-base.yaml
 # 在其中给 main service 补上 security_opt: [seccomp=unconfined]
 # 模式 A（DinD）下此 patch 无副作用（子容器本就用 Docker 官方默认 profile）
@@ -302,10 +278,6 @@ RUN chmod +x ${AGENT_VENVS_ROOT}/swebench_pro/bin/ais_bench
 COPY docker/agent_runtime/doctor.sh /usr/local/bin/ais_bench_agent_doctor.sh
 RUN chmod +x /usr/local/bin/ais_bench_agent_doctor.sh
 
-# A4 entrypoint (v3): ARM64 binfmt 注册 + daemon.json 写 + agent-patches 注入
-COPY docker/agent_runtime/ais_bench_agent_entrypoint.sh /usr/local/bin/ais_bench_agent_entrypoint.sh
-RUN chmod +x /usr/local/bin/ais_bench_agent_entrypoint.sh
-
 COPY docker/agent_runtime/packs/      ${AGENT_PACKS_ROOT}/
 
 # ============================================================
@@ -327,18 +299,3 @@ agent_env() {
 EOF
 
 WORKDIR /benchmark
-
-# ============================================================
-# ENTRYPOINT (v3 A4)
-#
-# 设置 runtime container 启动时的 entrypoint：先做 ARM64 binfmt 注册、
-# daemon.json 写、agent-patches 注入，再 exec 默认命令（CMD ["bash"]）。
-# dockerd 启动逻辑不在这里（避免与 bootstrap.sh 的 docker exec 启 dockerd
-# 双启冲突），保留在 bootstrap.sh 的 Mode A 段落。
-#
-# 自定义入口命令仍可覆盖：
-#   docker run ... <image> harbor jobs --help
-# → ENTRYPOINT 跑完 setup，exec harbor jobs --help
-# ============================================================
-ENTRYPOINT ["/usr/local/bin/ais_bench_agent_entrypoint.sh"]
-CMD ["bash"]
