@@ -167,7 +167,11 @@ class HarborAgentTask(HarborTask):
         # explicit user-provided kwargs / env win over translated values
         kwargs = {**translated["kwargs"], **raw_kwargs, **cli_kwargs}
         env = {**translated["env"], **raw_env, **cli_env}
-        self.logger.debug(f"Agent '{agent_name}' env keys: {sorted(env.keys())}")
+        self.logger.info(
+            f"Agent '{agent_name}' built env keys: {sorted(env.keys())} | "
+            f"cli_args.agent_env present: {bool(self.cli_args.get('agent_env'))} | "
+            f"model_cfg.agent_env present: {bool(model_cfg.get('agent_env'))}"
+        )
 
         model_names = model_cfg.get("model_names")
         deps_path = model_cfg.get("deps_path")
