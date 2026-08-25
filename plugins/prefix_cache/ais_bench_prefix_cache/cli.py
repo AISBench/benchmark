@@ -6,19 +6,19 @@ import logging
 import sys
 from pathlib import Path
 
-from ais_bench.benchmark.utils.logging.logger import AISLogger
-
 from .artifacts import validate_artifacts
 from .errors import PrefixCacheError
 from .pipeline import inspect_scenario, prepare_scenario
 from .scenario import load_scenario
 
-logger = logging.getLogger(__name__)
-
-# Parent logger name shared by all module loggers (ais_bench_prefix_cache.*);
-# AISLogger installs the console + file handlers on it, following the same
-# style as ais_bench/benchmark/datasets/hle.py.
+# Parent logger name shared by all module loggers (ais_bench_prefix_cache.*).
 PLUGIN_LOG_NAME = "ais_bench_prefix_cache"
+
+LOG_NORMAL_FORMAT = "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s"
+
+# 显式挂在 PLUGIN_LOG_NAME 之下（不用 __name__）：python -m 运行时 __name__ 会变成
+# "__main__"，导致日志绕过插件 logger 直接传播到 root。
+logger = logging.getLogger(f"{PLUGIN_LOG_NAME}.cli")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,12 +54,30 @@ def _resolve_log_file(command: str, scenario_path: Path | None) -> Path | None:
         return None
 
 
+def _install_logger(log_file: Path | None) -> None:
+    """安装插件自身的 logger handler，不依赖 ais_bench 的 AISLogger。
+
+    解析到 .log 文件时日志只写入文件、不在终端打印；否则回退为仅控制台输出，
+    真实的错误信息在正常命令流程中抛出。
+    """
+    plugin_logger = logging.getLogger(PLUGIN_LOG_NAME)
+    plugin_logger.handlers.clear()
+    plugin_logger.propagate = False
+    plugin_logger.setLevel(logging.INFO)
+    if log_file is not None:
+        handler: logging.Handler = logging.FileHandler(log_file, mode="w")
+    else:
+        handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(LOG_NORMAL_FORMAT))
+    plugin_logger.addHandler(handler)
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI 主入口：分发到对应子命令并统一处理错误码。"""
     args = build_parser().parse_args(argv)
     log_file = _resolve_log_file(args.command, getattr(args, "scenario", None))
-    # 安装统一 logger（写控制台 + 日志文件），错误按子命令分类返回退出码。
-    AISLogger(name=PLUGIN_LOG_NAME, log_file=str(log_file) if log_file else None, file_mode="w")
+    # 安装插件自身的 logger（日志只缓存到 .log 文件，不在终端打印）。
+    _install_logger(log_file)
     logger.info("[cli] command=%s args=%s log_file=%s", args.command, vars(args), log_file)
     try:
         if args.command == "prepare":

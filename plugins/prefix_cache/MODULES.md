@@ -202,7 +202,7 @@
 | `main` | `(argv=None) -> int` | 解析并分发：prepare→`prepare_scenario`（打印产物路径）、validate→`validate_artifacts`、inspect→`inspect_scenario`。捕获 `PrefixCacheError` 打印 `ERROR` 并返回 2，否则 0。 |
 | `console_main` | `() -> None` | `raise SystemExit(main())`，作为 `console_scripts` 入口。 |
 
-> `main` 中 `AISLogger` 依赖 `ais_bench.benchmark`，因此 `setup.py` 的 `install_requires` 保留 `ais-bench-benchmark`。
+> `main` 中通过自带的 `_install_logger` 安装 `ais_bench_prefix_cache` logger（不依赖 `ais_bench` 的 `AISLogger`）：解析到 `.log` 文件时日志只写入文件、不在终端打印；场景无法加载时回退为仅控制台输出。
 
 ---
 
@@ -212,7 +212,7 @@
 |---|---|
 | 包名 | `ais-bench-prefix-cache`（版本 0.1.1） |
 | `python_requires` | `>=3.10` |
-| `install_requires` | `ais-bench-benchmark`（`cli.py` 的 `AISLogger` 依赖）、`transformers`（加载 tokenizer） |
+| `install_requires` | `ais-bench-benchmark`（运行 AISBench 压测所需）、`transformers`（加载 tokenizer） |
 | `entry_points` | `console_scripts`：`ais-bench-prefix-cache = ais_bench_prefix_cache.cli:console_main`（CLI）。不注册 `ais_bench.benchmark_plugins`，本分支不提供 AISBench 插件集成。 |
 
 ---
