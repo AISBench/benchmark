@@ -58,9 +58,9 @@ models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.c
         response_anomaly = dict(    # 可选，msProbe 推理响应异常检测的模型级配置
             model_name="",       # 填写模型名称，如 Qwen3-30B-A3B
             model_path="",       # 填写本地模型目录，如 /home/Qwen3-30B-A3B；可选，用于自动生成配置
-            msprobe_config_path='',  # 可选，算法阈值 config.yaml 路径，用于手工调优检测阈值
-            msprobe_mtype_path='',  # 可选，模型名与 BOS/EOS token id 映射文件 mtype_config.json 路径
-            msprobe_token2category_dir='',  # 可选，token2category 目录，存放各模型的 token id 到字符类别映射
+            msprobe_config_path="",  # 可选，算法阈值 config.yaml 路径，用于手工调优检测阈值
+            msprobe_mtype_path="",  # 可选，模型名与 BOS/EOS token id 映射文件 mtype_config.json 路径
+            msprobe_token2category_dir="",  # 可选，token2category 目录，存放各模型的 token id 到字符类别映射
         )
     )
 ]

@@ -62,9 +62,9 @@ models = [ # Equivalent to the `models` imported via `from ais_bench.benchmark.c
         response_anomaly = dict(    # Optional; model-level config for msProbe response anomaly detection
             model_name="",       # Model name, for example Qwen3-30B-A3B
             model_path="",       # Local model directory, for example /home/Qwen3-30B-A3B; optional, used to auto-generate configs
-            msprobe_config_path='',  # Optional; algorithm-threshold config.yaml path for manual threshold tuning
-            msprobe_mtype_path='',  # Optional; mtype_config.json path mapping model names to BOS/EOS token ids
-            msprobe_token2category_dir='',  # Optional; token2category directory holding per-model token-id-to-character-category maps
+            msprobe_config_path="",  # Optional; algorithm-threshold config.yaml path for manual threshold tuning
+            msprobe_mtype_path="",  # Optional; mtype_config.json path mapping model names to BOS/EOS token ids
+            msprobe_token2category_dir="",  # Optional; token2category directory holding per-model token-id-to-character-category maps
         )
     )
 ]
