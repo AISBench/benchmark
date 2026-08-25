@@ -32,6 +32,29 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
+# ============================================================
+# ARM64 host 适配 (A1: build-time 装 qemu-user-static)
+#
+# ARM64 host 跑 SWE-bench / terminal-bench 2 等需要 x86_64 trial 镜像的
+# case 时，trial 容器是 x86_64 ELF，需要 QEMU user-mode 翻译。
+#
+# 仅当 TARGETARCH=arm64 时装 qemu-user-static（amd64 用户零开销）。
+# binfmt 注册放在 runtime entrypoint (A4) —— build context 没有
+# /proc/sys/fs/binfmt_misc，build 期注册无效。
+# ============================================================
+ARG TARGETARCH
+RUN if [ "${TARGETARCH}" = "arm64" ]; then \
+        apt-get update -qq && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            qemu-user-static && \
+        apt-get clean && \
+        rm -rf /var/lib/apt/lists/* && \
+        echo "[A1] qemu-user-static installed (TARGETARCH=${TARGETARCH})" && \
+        which qemu-x86_64-static; \
+    else \
+        echo "[A1] TARGETARCH=${TARGETARCH}, skip qemu-user-static install"; \
+    fi
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
