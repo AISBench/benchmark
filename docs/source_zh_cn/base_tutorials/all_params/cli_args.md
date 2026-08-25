@@ -95,7 +95,7 @@ ais_bench-gen-response-anomaly-config \
   --output-dir ./msprobe_configs
 ```
 
-`model_name` 未显式配置时自动取模型目录（`model_path` 或模型 `path` 字段）的**目录名**作为模型名——该目录名即事实上的模型名（如 `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`），也是配置生成工具的默认取值；模型 `abbr` 是任务标识、与服务的模型无关，**不会**被用作回退。当既未配置 `model_name`、也没有可用的模型目录（如仅显式配置 msprobe 三件套路径）时，任务启动即报错，要求显式配置 `model_name`，避免以错误的模型名静默运行导致检测失效。
+`model_name` 未显式配置时自动取模型路径（`model_path` 或模型 `path` 字段）中的**模型名称**（如 `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`），与配置生成工具的默认取值一致。当既未配置 `model_name`、也没有可用的模型路径（如仅显式配置 msprobe 三件套路径）时，任务启动即报错，要求显式配置 `model_name`，避免以错误的模型名静默运行导致检测失效。
 
 启用后，AISBench 会在服务推理请求中补充 `logprobs=True` 与固定的 `top_logprobs=20`；该值由检测算法约束，不支持外部配置。对 vLLM 后端还会追加 `return_token_ids=True` 与 `return_tokens_as_token_ids=True` 以获取 token id，服务端版本过低不支持这些参数时请求可能失败，需升级 vLLM。推理阶段将完整 payload 直接写入 `response_anomaly/<模型>/payload_staging/<数据集>/*.jsonl.zst`，prediction 从一开始只保存轻量结果。推理结束后，检测线程流式解压 staging 数据并调用 msProbe，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；每个 Case 包含 `id`、`uuid`、`is_anomaly`、`anomaly_type`（0：正常，1：生僻字，2：乱码，3：重复，4：NaN Value）、`anomaly_type_name`（类型名字符串，如 `normal`/`garbled`/`repetition`，统计时更常用）和 `detection_status`。检测完成后按 `payload_retention` 保留或清理 staging。状态面板会显示配置准备、检测器加载、流式检测和归档收尾阶段。
 
