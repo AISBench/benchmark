@@ -92,6 +92,16 @@ _FALLBACK_MAP: dict[str, tuple[str, str]] = {
     "api_key": ("env", "OPENAI_API_KEY"),
 }
 
+# Per-agent default kwargs injected when the user did not provide them.
+# Explicit user-provided agent_kwargs (e.g. ``--ak config=...``) take
+# precedence via setdefault semantics.
+AGENT_DEFAULT_KWARGS: dict[str, dict[str, Any]] = {
+    # mini-swe-agent requires model.model_class=litellm to call the model
+    # service through litellm; without it the agent starts but never issues
+    # any model request.
+    "mini-swe-agent": {"config": {"model": {"model_class": "litellm"}}},
+}
+
 # Keyword fragments used to auto-discover descriptors for a semantic key.
 _DISCOVERY_HINTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     # (kwarg/env-name fragments that indicate the semantic key)
@@ -194,6 +204,11 @@ class AgentParamAdapter:
 
         if model_cfg.get("model_info") is not None:
             kwargs["model_info"] = model_cfg["model_info"]
+
+        # inject per-agent defaults (e.g. mini-swe-agent's model_class=litellm)
+        # unless the user provided them explicitly
+        for key, value in (AGENT_DEFAULT_KWARGS.get(name) or {}).items():
+            kwargs.setdefault(key, value)
 
         return {"kwargs": kwargs, "env": env}
 

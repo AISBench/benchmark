@@ -298,7 +298,8 @@ class AgentParamAdapter:
 1. **显式映射** `EXPLICIT_MAP`（如 terminus-2 → `kwargs["api_base"]`）；
 2. **动态发现（基于 0.21.0 描述符）**：读取 `harbor.agents.installed.base.BaseInstalledAgent.ENV_VARS`（`EnvVar(kwarg, env, env_fallback, ...)`）与 `CLI_FLAGS`（`CliFlag(kwarg, cli, env_fallback, ...)`），匹配 `kwarg` 含 `api_base/base_url` 或 `env` 含 `BASE_URL` 的项，自动映射到对应环境变量（如 `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL`）；`api_key` 同理匹配 `API_KEY`；
 3. **兜底约定**：`api_base → OPENAI_BASE_URL`、`api_key → OPENAI_API_KEY`；
-4. **向后兼容**：配置已含原始 `agent_kwargs`（如现有示例的 `agent_kwargs.api_base`）时原样直通，不重复转换。
+4. **按 agent 注入默认 kwargs**（`AGENT_DEFAULT_KWARGS`）：如 mini-swe-agent 未提供 `config` 时自动注入 `{"model": {"model_class": "litellm"}}`，用户显式 `--ak config` 仍优先；
+5. **向后兼容**：配置已含原始 `agent_kwargs`（如现有示例的 `agent_kwargs.api_base`）时原样直通，不重复转换。
 
 ### 3.5 命令行常用参数（修改 `cli/argument_parser.py`）
 

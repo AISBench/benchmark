@@ -54,12 +54,36 @@ class HarborAgentTask(HarborTask):
             return self._resume_job(existing_job_dir)
 
         config = self._build_job_config(args)
+        self._dump_job_config_debug(config)
         self.logger.info(f"Harbor Job Config: {config}")
 
         total_tasks = self._get_task_count(config)
         if config.n_attempts > 1:
             total_tasks *= config.n_attempts
         return self._run_with_tqdm(config, total_tasks)
+
+    def _dump_job_config_debug(self, config) -> None:
+        """Dump the resolved JobConfig for external replay/debugging.
+
+        Enabled by setting ``AISBENCH_DUMP_JOB_CONFIG=1``. The dumped config
+        can be replayed with the native CLI: ``harbor run -c <path> -y``, to
+        tell whether a problem comes from the generated config or from the
+        AISBench execution context.
+        """
+        if not os.environ.get("AISBENCH_DUMP_JOB_CONFIG"):
+            return
+        dump_path = Path(self.out_detail_dir) / "aisbench_job_config.json"
+        try:
+            dump_path.write_text(
+                config.model_dump_json(
+                    indent=4,
+                    exclude_defaults=True,
+                    context={"redact_sensitive_env": False},
+                )
+            )
+            self.logger.info(f"Dumped AISBench job config to {dump_path}")
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"Failed to dump job config: {e}")
 
     # ------------------------------------------------------------------
     # JobConfig construction (harbor 0.21.0)
