@@ -62,6 +62,29 @@ ENV PYTHONUNBUFFERED=1
 ENV AGENT_VENVS_ROOT=/opt/venvs
 ENV AGENT_PACKS_ROOT=/opt/agent-resources/packs
 
+# ============================================================
+# DinD registry-mirrors 参数化 (A3)
+#
+# 不同部署环境的镜像仓库可达性差异大：
+#   - 国内部署：https://docker.1ms.run / https://mirror.ccs.tencentyun.com
+#   - 海外部署：默认 DockerHub
+#   - 私有部署：用户内网 registry
+#
+# 用法（runtime -e 覆盖 build-time ARG）：
+#   docker run -e AIS_BENCH_AGENT_REGISTRY_MIRROR=https://docker.1ms.run ...
+#
+# Build-time ARG 给离线 / 静态构建场景留口子（CI 在 build 时就锁定 mirror）。
+# Runtime ENV 优先级高，覆盖 build-time ARG 默认值。
+#
+# 多个 mirror 用英文逗号分隔；空值表示不写 registry-mirrors 字段（用 DockerHub 默认）。
+# 生成 daemon.json 的逻辑在 A4 entrypoint，本 Dockerfile 只声明 env + 建目录。
+# ============================================================
+ARG AIS_BENCH_AGENT_REGISTRY_MIRROR=
+ENV AIS_BENCH_AGENT_REGISTRY_MIRROR=${AIS_BENCH_AGENT_REGISTRY_MIRROR}
+
+# 预创建 /etc/docker 供 A4 entrypoint 写 daemon.json
+RUN mkdir -p /etc/docker
+
 RUN mkdir -p ${AGENT_VENVS_ROOT} \
              ${AGENT_PACKS_ROOT} \
              /opt/src
