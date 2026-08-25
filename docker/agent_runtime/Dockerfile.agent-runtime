@@ -39,28 +39,6 @@ ENV PYTHONUNBUFFERED=1
 ENV AGENT_VENVS_ROOT=/opt/venvs
 ENV AGENT_PACKS_ROOT=/opt/agent-resources/packs
 
-# ============================================================
-# swebench 5 层 DinD bind mount 点 (A5)
-#
-# /opt/swebbench/{jobs,tasks,config,logs,agent-patches} 由 bootstrap.sh 的
-# docker run -v host_path:container_path bind mount 进去。
-# 镜像层预创建这些目录（空目录），否则 docker bind mount 到一个不存在的
-# 路径会失败（或在老 docker 版本下静默建空目录，权限混乱）。
-#
-# 5 个目录对应 mini_matrix L5 容器内的 bind mount 布局：
-#   - jobs/      : harbor trial 输出（每个 trial 一个子目录，含 result.json）
-#   - tasks/     : SWE-bench / terminal-bench 任务定义（task.toml）
-#   - config/    : harbor matrix.yaml / 全局配置
-#   - logs/      : harbor dockerd / docker pull / trial 容器日志
-#   - agent-patches/ : harbor agent 的 patched .py（被 A4 entrypoint 注入）
-# ============================================================
-ENV SWEBENCH_ROOT=/opt/swebench
-RUN mkdir -p ${SWEBENCH_ROOT}/jobs \
-             ${SWEBENCH_ROOT}/tasks \
-             ${SWEBENCH_ROOT}/config \
-             ${SWEBENCH_ROOT}/logs \
-             ${SWEBENCH_ROOT}/agent-patches
-
 RUN mkdir -p ${AGENT_VENVS_ROOT} \
              ${AGENT_PACKS_ROOT} \
              /opt/src
@@ -279,12 +257,10 @@ COPY docker/agent_runtime/doctor.sh /usr/local/bin/ais_bench_agent_doctor.sh
 RUN chmod +x /usr/local/bin/ais_bench_agent_doctor.sh
 
 # v3 C 批: 5 层 DinD L3 调度脚本
-# C1: ais_bench_agent_run.sh — harbor jobs start 包装 + filter
-# C2-C4: watch.sh / summarize.sh / status.sh 在后续 commit
-COPY docker/agent_runtime/ais_bench_agent_run.sh /usr/local/bin/ais_bench_agent_run.sh
-RUN chmod +x /usr/local/bin/ais_bench_agent_run.sh
-COPY docker/agent_runtime/scripts/filter_matrix.py /usr/local/bin/ais_bench_agent_filter_matrix.py
-RUN chmod +x /usr/local/bin/ais_bench_agent_filter_matrix.py
+# C2: ais_bench_agent_watch.sh — 阻塞等 results.json 出现 + 解析统计
+# (C1/C3/C4 在各自 commit 中加入,这里只放 C2)
+COPY docker/agent_runtime/ais_bench_agent_watch.sh /usr/local/bin/ais_bench_agent_watch.sh
+RUN chmod +x /usr/local/bin/ais_bench_agent_watch.sh
 
 COPY docker/agent_runtime/packs/      ${AGENT_PACKS_ROOT}/
 
