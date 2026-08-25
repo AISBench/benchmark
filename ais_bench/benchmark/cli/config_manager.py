@@ -162,10 +162,21 @@ class ConfigManager:
         """Apply CLI overrides and defaults to the global anomaly config."""
         raw_anomaly_cfg = self.cfg.get('response_anomaly') or {}
         global_cfg = dict(raw_anomaly_cfg) if isinstance(raw_anomaly_cfg, dict) else {}
-        cli_enabled = getattr(self.args, 'response_anomaly', None)
-        if isinstance(cli_enabled, bool):
-            global_cfg['enabled'] = cli_enabled
-        global_cfg.setdefault('enabled', False)
+        # The enabled switch is command-line only (--response-anomaly); an
+        # 'enabled' key in the config file is not a supported enable path.
+        # Warn and drop it so it can never silently enable detection.
+        if 'enabled' in global_cfg:
+            self.logger.warning(
+                "response_anomaly.enabled in the config file is not "
+                "supported; use the --response-anomaly command-line switch "
+                "to enable response anomaly detection. The configured "
+                "value is ignored."
+            )
+            global_cfg.pop('enabled')
+        # Strictly a real boolean from the CLI; anything else (missing
+        # attribute, mocks) means the switch was not passed -> disabled.
+        cli_enabled = getattr(self.args, 'response_anomaly', False)
+        global_cfg['enabled'] = cli_enabled if isinstance(cli_enabled, bool) else False
         configured_top_logprobs = global_cfg.pop('top_logprobs', None)
         global_cfg.setdefault('msprobe_config_path', None)
         cli_payload_retention = getattr(

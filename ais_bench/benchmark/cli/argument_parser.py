@@ -124,10 +124,12 @@ class ArgumentParser():
         )
         parser.add_argument(
             '--response-anomaly',
-            action=argparse.BooleanOptionalAction,
-            default=None,
-            help='Enable or disable msProbe response anomaly detection. '
-            'The command-line value overrides response_anomaly.enabled in the config file. '
+            action='store_true',
+            default=False,
+            help='Enable msProbe response anomaly detection. This command-line '
+            'switch is the only way to enable the feature; detection is disabled '
+            'when the flag is absent (response_anomaly.enabled in the config '
+            'file is not supported and is ignored). '
             'Only supported in all/infer/infer_judge modes; perf and Agent modes are unsupported.'
         )
         parser.add_argument(

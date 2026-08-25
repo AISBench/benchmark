@@ -734,6 +734,43 @@ class TestConfigManager(unittest.TestCase):
         with self.assertRaises(AISBenchConfigError):
             config_manager._init_response_anomaly_config()
 
+    def test_response_anomaly_config_enabled_key_is_ignored(self):
+        """配置文件中的 response_anomaly.enabled 不再生效：开关仅支持命令行。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = False  # 命令行未传 --response-anomaly
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'response_anomaly': {'enabled': True},  # 配置文件写 enabled=True
+            'models': [self._service_model()],
+            'datasets': [{'abbr': 'dataset'}],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        # 配置文件的 enabled 被忽略，最终以命令行为准：未启用
+        self.assertFalse(config_manager.cfg['response_anomaly']['enabled'])
+        # 未启用时不注入 logprobs 请求参数
+        generation_kwargs = config_manager.cfg['models'][0]['generation_kwargs']
+        self.assertNotIn('response_anomaly_enabled', generation_kwargs)
+
+    def test_response_anomaly_cli_switch_enables_detection(self):
+        """仅命令行 --response-anomaly 能开启检测（无 --no- 关闭形态）。"""
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'models': [self._service_model()],
+            'datasets': [{'abbr': 'dataset'}],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        self.assertTrue(config_manager.cfg['response_anomaly']['enabled'])
+        generation_kwargs = config_manager.cfg['models'][0]['generation_kwargs']
+        self.assertTrue(generation_kwargs['response_anomaly_enabled'])
+
     def test_response_anomaly_injects_request_kwargs(self):
         """启用响应异常检测时为 service 模型注入 logprobs 与内部开关。"""
         self.args.mode = 'all'
