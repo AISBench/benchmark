@@ -33,6 +33,19 @@ models = [
         # 原始 agent 私有参数/环境变量（优先级高于统一参数转换结果）
         # agent_kwargs={},
         # agent_env=None,          # --ae/--agent-env: 传递给 agent 的环境变量
+        # ---- 以下为可选的高级 agent 参数（均有对应 CLI 或配置项）----
+        # deps_path=None,          # --agent-deps: 离线 agent 依赖包路径
+        # n_concurrent=None,       # --n-concurrent-agents: 每个 agent 并发上限
+        # skills=None,             # skill 目录或 git 源，可多值
+        # mcp_servers=None,        # MCP 服务器配置列表
+        # resume_trajectory=False, # 多步任务跨步恢复 agent 会话
+        # load_trajectory=None,    # 预加载轨迹文件路径
+        # extra_allowed_hosts=None,# 额外允许的 host/IP
+        # include_logs=None,       # 需要保留的 agent 日志 glob
+        # exclude_logs=None,       # 需要排除的 agent 日志 glob
+        # override_timeout_sec=None,
+        # override_setup_timeout_sec=None,
+        # max_timeout_sec=None,
     )
 ]
 

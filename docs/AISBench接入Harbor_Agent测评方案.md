@@ -312,6 +312,7 @@ class AgentParamAdapter:
 | `--api-key` | API key | `models[0].api_key` |
 | `--ak/--agent-kwarg` | agent 私有参数 `key=value`（可多值） | `models[0].agent_kwargs` 追加 |
 | `--ae/--agent-env` | agent 环境变量 `KEY=VALUE`（可多值） | `models[0].agent_env` 追加 |
+| `--agent-deps` | 离线 agent 依赖包路径（`<agent>.tar.gz` 或目录） | `models[0].deps_path` |
 | `-p/--path` | 本地数据集 / 单 task 路径 | `datasets[*].args.path` |
 | `-d/--dataset` | registry 数据集 `name@version` | `datasets[*].args.dataset_name_version` |
 | `-n/--n-concurrent` | 并发 trial 数 | `datasets[*].args.n_concurrent_trials` |

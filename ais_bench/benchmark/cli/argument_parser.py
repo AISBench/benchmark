@@ -249,6 +249,13 @@ class ArgumentParser():
             default=None,
         )
         parser.add_argument(
+            '--agent-deps',
+            help='Path to an offline agent deps bundle (<agent>.tar.gz), or a '
+            'directory of per-base-image bundles auto-matched at runtime',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
             '-p',
             '--path',
             help='Local dataset path (or a single task directory)',

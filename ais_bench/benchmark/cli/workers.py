@@ -859,6 +859,8 @@ class AgentEval(BaseWorker):
                 model["agent_name"] = args.agent
             if getattr(args, "agent_import_path", None):
                 model["agent_import_path"] = args.agent_import_path
+            if getattr(args, "agent_deps", None):
+                model["deps_path"] = args.agent_deps
             if getattr(args, "model", None):
                 model["model_names"] = list(args.model)
             if getattr(args, "api_base", None):

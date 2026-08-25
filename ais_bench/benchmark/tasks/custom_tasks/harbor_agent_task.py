@@ -135,6 +135,11 @@ class HarborAgentTask(HarborTask):
         env = {**translated["env"], **raw_env}
 
         model_names = model_cfg.get("model_names")
+        deps_path = model_cfg.get("deps_path")
+        if deps_path is not None:
+            # resolve now so a stored job config replays from any cwd (parity
+            # with harbor's CLI --agent-deps handling)
+            deps_path = str(Path(deps_path).expanduser().resolve())
         common = {
             "name": agent_name,
             "import_path": agent_import_path,
@@ -149,7 +154,7 @@ class HarborAgentTask(HarborTask):
             "concurrency_group": model_cfg.get("concurrency_group"),
             "resume_trajectory": model_cfg.get("resume_trajectory"),
             "load_trajectory": model_cfg.get("load_trajectory"),
-            "deps_path": model_cfg.get("deps_path"),
+            "deps_path": deps_path,
             "override_timeout_sec": model_cfg.get("override_timeout_sec"),
             "override_setup_timeout_sec": model_cfg.get("override_setup_timeout_sec"),
             "max_timeout_sec": model_cfg.get("max_timeout_sec"),
