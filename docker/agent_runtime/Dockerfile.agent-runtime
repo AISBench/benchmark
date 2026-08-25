@@ -38,9 +38,11 @@ ENV PYTHONUNBUFFERED=1
 # agent runtime 相关路径
 ENV AGENT_VENVS_ROOT=/opt/venvs
 ENV AGENT_PACKS_ROOT=/opt/agent-resources/packs
+ENV SWEBENCH_DOCKERFILES_ROOT=/opt/swebench/dockerfiles
 
 RUN mkdir -p ${AGENT_VENVS_ROOT} \
              ${AGENT_PACKS_ROOT} \
+             ${SWEBENCH_DOCKERFILES_ROOT} \
              /opt/src
 
 # ============================================================
@@ -256,17 +258,14 @@ RUN chmod +x ${AGENT_VENVS_ROOT}/swebench_pro/bin/ais_bench
 COPY docker/agent_runtime/doctor.sh /usr/local/bin/ais_bench_agent_doctor.sh
 RUN chmod +x /usr/local/bin/ais_bench_agent_doctor.sh
 
-# v3 C 批: 5 层 DinD L3 调度脚本
-# C4: ais_bench_agent_orchestrator_status.sh — 容器状态查询(5 段输出)
-# (C1/C2/C3 在各自 commit 中加入,这里只放 C4)
-COPY docker/agent_runtime/ais_bench_agent_orchestrator_status.sh /usr/local/bin/ais_bench_agent_orchestrator_status.sh
-RUN chmod +x /usr/local/bin/ais_bench_agent_orchestrator_status.sh
-
 COPY docker/agent_runtime/packs/      ${AGENT_PACKS_ROOT}/
 
-# v3 D1: build_l2_baked_image.sh — 一键 build L1 + L2 baked images
-COPY docker/agent_runtime/build_l2_baked_image.sh /usr/local/bin/ais_bench_agent_build_l2_baked_image.sh
-RUN chmod +x /usr/local/bin/ais_bench_agent_build_l2_baked_image.sh
+# v3 D 批: L1/L2 baked image Jinja2 模板
+# 让 build_l2_baked_image.sh 在容器内可直接 docker build -f /opt/swebench/dockerfiles/...
+# 模板来源:mini_matrix cli/swebench_dind/dockerfiles/(5 个 j2)
+# - Dockerfile.l1-base.j2           FROM prebuilt → WORKDIR /testbed + /logs
+# - Dockerfile.l2-agent-{aider,msa,oh,qwen}.j2  FROM L1 → 装对应 agent
+COPY docker/agent_runtime/dockerfiles/ ${SWEBENCH_DOCKERFILES_ROOT}/
 
 # ============================================================
 # 便捷函数：激活对应 venv
