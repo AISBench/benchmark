@@ -26,6 +26,9 @@ class Output:
         # In multi-turn dialogue scenarios, all turns of the same sample share the same uuid.
         # In pass@k scenarios, the same sample is sampled k times and each run receives a distinct uuid
         self.turn_id: int = 0
+        # 生成 token 的 logprobs 信息（仅配置了 logprobs=True 时才有数据）
+        # 保留 vLLM 原始结构：[{token, logprob, bytes, top_logprobs: [...]}, ...]
+        self.origin_logprobs: list = []
 
     @abstractmethod
     def get_metrics(self) -> dict:
@@ -147,6 +150,8 @@ class RequestOutput(Output):
         def clean_result(res):
             for key in ["content", "reasoning_content", "perf_mode"]:
                 res.pop(key, None)
+            if not res.get("origin_logprobs"):
+                res.pop("origin_logprobs", None)
             return res
 
         self.prediction = self.get_prediction()

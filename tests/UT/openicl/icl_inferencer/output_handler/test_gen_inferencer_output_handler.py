@@ -249,16 +249,16 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         """Test get_result accuracy mode failure without error_info (lines 82-90)"""
         handler = GenInferencerOutputHandler(perf_mode=False)
         conn = sqlite3.connect(":memory:")
-        
+
         output = Output()
         output.success = False
         output.uuid = "test_uuid"
         output.get_prediction = mock.Mock(return_value="")
-        
+
         # Delete error_info if it exists (Output may have it as default attribute)
         if hasattr(output, "error_info"):
             delattr(output, "error_info")
-        
+
         # Mock get_prediction_result to return failed result
         handler.get_prediction_result = mock.Mock(return_value={
             "success": False,
@@ -267,14 +267,72 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
             "origin_prompt": "input",
             "gold": "gold"
         })
-        
+
         result = handler.get_result(conn, "data_abbr", "input", output, "gold")
         self.assertEqual(result["success"], False)
         self.assertFalse(handler.all_success)
         # Should not have error_info when it doesn't exist
         self.assertNotIn("error_info", result)
-        
+
         conn.close()
+
+    def test_get_prediction_result_with_tokens(self):
+        """测试 get_prediction_result 始终输出 input_tokens 和 output_tokens"""
+        handler = GenInferencerOutputHandler(perf_mode=False)
+
+        output = Output()
+        output.success = True
+        output.uuid = "test_uuid"
+        output.input_tokens = 100
+        output.output_tokens = 50
+        output.get_prediction = mock.Mock(return_value="predicted_text")
+
+        result = handler.get_prediction_result(output, "gold", "input", "data_abbr")
+
+        self.assertEqual(result["input_tokens"], 100)
+        self.assertEqual(result["output_tokens"], 50)
+
+    def test_get_prediction_result_with_logprobs(self):
+        """测试 get_prediction_result 在有 logprobs 数据时输出"""
+        handler = GenInferencerOutputHandler(perf_mode=False)
+
+        output = Output()
+        output.success = True
+        output.uuid = "test_uuid"
+        output.input_tokens = 100
+        output.output_tokens = 50
+        output.origin_logprobs = [{"token": "B", "logprob": -0.5, "top_logprobs": [{"token": "B", "logprob": -0.5}]}]
+        output.get_prediction = mock.Mock(return_value="predicted_text")
+
+        result = handler.get_prediction_result(output, "gold", "input", "data_abbr")
+
+        self.assertEqual(result["origin_logprobs"], [{"token": "B", "logprob": -0.5, "top_logprobs": [{"token": "B", "logprob": -0.5}]}])
+
+    def test_get_prediction_result_without_logprobs(self):
+        """测试 get_prediction_result 在无 logprobs 数据时不输出 logprobs 字段"""
+        handler = GenInferencerOutputHandler(perf_mode=False)
+
+        output = Output()
+        output.success = True
+        output.uuid = "test_uuid"
+        output.input_tokens = 100
+        output.output_tokens = 50
+        output.origin_logprobs = []
+        output.get_prediction = mock.Mock(return_value="predicted_text")
+
+        result = handler.get_prediction_result(output, "gold", "input", "data_abbr")
+
+        self.assertNotIn("origin_logprobs", result)
+
+    def test_get_prediction_result_string_output_no_tokens(self):
+        """测试 get_prediction_result 在 string output 时不输出 token 字段"""
+        handler = GenInferencerOutputHandler(perf_mode=False)
+
+        result = handler.get_prediction_result("predicted_text", "gold", "input", "data_abbr")
+
+        self.assertNotIn("input_tokens", result)
+        self.assertNotIn("output_tokens", result)
+        self.assertNotIn("origin_logprobs", result)
 
 
 if __name__ == '__main__':
