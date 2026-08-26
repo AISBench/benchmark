@@ -314,11 +314,18 @@ class ConfigManager:
         # is a task label (e.g. 'vllm-api-general-chat') unrelated to the
         # served model, so it would silently miss the keys in msProbe's
         # mtype_config.json and token2category. When model_name is not set,
-        # fall back to the model_path directory basename (the de-facto model
-        # name, same default the config generator uses) instead.
+        # derive it from the most specific source available, in order (each
+        # path resolved to its directory basename, the same default the
+        # config generator uses): explicit model_name is handled above by the
+        # ``not model_anomaly_cfg.get('model_name')`` guard; then model-level
+        # model_path, global model_name, global model_path, and finally the
+        # model 'path' field.
         if not model_anomaly_cfg.get('model_name'):
-            fallback = global_cfg.get('model_name') or self._model_name_from_path(
-                model_anomaly_cfg.get('model_path') or model_cfg.get('path')
+            fallback = (
+                self._model_name_from_path(model_anomaly_cfg.get('model_path'))
+                or global_cfg.get('model_name')
+                or self._model_name_from_path(global_cfg.get('model_path'))
+                or self._model_name_from_path(model_cfg.get('path'))
             )
             if fallback:
                 model_anomaly_cfg['model_name'] = fallback

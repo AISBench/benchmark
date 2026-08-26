@@ -1138,6 +1138,59 @@ class TestConfigManager(unittest.TestCase):
         )
         self.assertNotEqual(model_anomaly_cfg['model_name'], 'vllm-api-general-chat')
 
+    def test_response_anomaly_model_name_falls_back_to_global_model_path(self):
+        """顶层全局块 model_path（未填 model_name）也参与 model_name 推导。"""
+        import os as _os
+
+        global_model_dir = _os.path.join(self.tokenizer_dir, 'Qwen3-30B-A3B')
+        _os.makedirs(global_model_dir, exist_ok=True)
+
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'response_anomaly': {'model_path': global_model_dir},
+            'models': [
+                self._service_model(path='', response_anomaly={}),
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
+        self.assertEqual(model_anomaly_cfg['model_name'], 'Qwen3-30B-A3B')
+
+    def test_response_anomaly_model_level_model_path_beats_global(self):
+        """模型级 model_path 优先于全局块 model_path 推导 model_name。"""
+        import os as _os
+
+        global_dir = _os.path.join(self.tokenizer_dir, 'GlobalModel')
+        model_dir = _os.path.join(self.tokenizer_dir, 'ModelLevelModel')
+        _os.makedirs(global_dir, exist_ok=True)
+        _os.makedirs(model_dir, exist_ok=True)
+
+        self.args.mode = 'all'
+        self.args.response_anomaly = True
+        config_manager = ConfigManager(self.args)
+        config_manager.cfg = {
+            'response_anomaly': {'model_path': global_dir},
+            'models': [
+                self._service_model(
+                    path='',
+                    response_anomaly={'model_path': model_dir},
+                ),
+            ],
+            'datasets': [],
+            'cli_args': {},
+        }
+
+        config_manager._init_response_anomaly_config()
+
+        model_anomaly_cfg = config_manager.cfg['models'][0]['response_anomaly']
+        self.assertEqual(model_anomaly_cfg['model_name'], 'ModelLevelModel')
+
     def test_response_anomaly_explicit_paths_require_model_name(self):
         """显式 msprobe 路径但缺 model_name 时应启动报错，而非静默用 abbr 匹配失败。"""
         import os as _os
