@@ -18,7 +18,7 @@ class CLITest(unittest.TestCase):
             scenario = write_case(root)
             for command in ("prepare", "inspect"):
                 with self.subTest(command=command):
-                    log_file = _resolve_log_file(command, scenario, "20260825_123456")
+                    log_file = _resolve_log_file(command, scenario, execution_timestamp="20260825_123456")
                     self.assertEqual(
                         log_file,
                         root / "out_20260825_123456" / "log" / f"pc-test_20260825_123456.{command}.log",
