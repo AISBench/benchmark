@@ -151,11 +151,26 @@ class HarborRunner(BaseRunner):
             )
 
         board = self._start_task_board(task_names, work_dir)
+        interrupted = False
         try:
             status = self._run_tasks(tasks)
+        except KeyboardInterrupt:
+            interrupted = True
+            raise
         finally:
+            if interrupted:
+                # The terminal SIGINT already reached the harbor subprocesses
+                # (same process group); they are recycling containers. Stop
+                # the board so the terminal is restored promptly instead of
+                # showing a stale "running" state that looks stuck.
+                self._stop_board(board)
+                self.logger.warning(
+                    "Interrupted. Task board stopped; harbor subprocesses are "
+                    "recycling their containers and will exit on their own. "
+                    "Container cleanup can take a while."
+                )
             if board is not None:
-                board.join(timeout=5)
+                board.join(timeout=2)
             server.stop()
             monitor.stop()
             TasksMonitor.rm_tmp_files(work_dir)
@@ -168,18 +183,33 @@ class HarborRunner(BaseRunner):
             self.logger.debug("Debug mode, won't launch task state board")
             return None
 
+        holder: Dict[str, Any] = {}
+
         def _run_board():
             try:
                 tasks_monitor = TasksMonitor(
                     task_names, work_dir, self.debug, self.refresh_interval
                 )
+                holder['monitor'] = tasks_monitor
                 tasks_monitor.launch_state_board()
             except Exception:
                 self.logger.exception("Harbor task board failed")
 
         board = threading.Thread(target=_run_board, daemon=True)
+        board._holder = holder  # type: ignore[attr-defined]
         board.start()
         return board
+
+    def _stop_board(self, board: threading.Thread | None) -> None:
+        """Ask the board loop to exit so the terminal is restored promptly."""
+        if board is None:
+            return
+        holder = getattr(board, '_holder', None)
+        if holder and holder.get('monitor') is not None:
+            try:
+                holder['monitor'].stop_state_board()
+            except Exception:  # noqa: BLE001
+                self.logger.debug("Failed to stop task board", exc_info=True)
 
     def _task_job_dir(self, task: Dict[str, Any]) -> str:
         """Expected harbor job dir for a task (out_detail_dir/details)."""
@@ -188,10 +218,20 @@ class HarborRunner(BaseRunner):
         return osp.join(task['work_dir'], 'results', model_abbr, dataset_abbr, 'details')
 
     def _run_tasks(self, tasks: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
-        if self.max_num_workers > 1:
-            with ThreadPoolExecutor(max_workers=self.max_num_workers) as executor:
-                return list(executor.map(self._launch, tasks))
-        return [self._launch(task) for task in tasks]
+        if self.max_num_workers <= 1:
+            return [self._launch(task) for task in tasks]
+        executor = ThreadPoolExecutor(max_workers=self.max_num_workers)
+        futures = [executor.submit(self._launch, task) for task in tasks]
+        try:
+            return [future.result() for future in futures]
+        except KeyboardInterrupt:
+            # Don't block on in-flight subprocesses here: the terminal SIGINT
+            # already reached them and they are recycling containers.
+            for future in futures:
+                future.cancel()
+            raise
+        finally:
+            executor.shutdown(wait=False)
 
     def _launch(self, task: Dict[str, Any]) -> Tuple[str, int]:
         """Launch a single harbor agent task in a subprocess."""
@@ -208,15 +248,21 @@ class HarborRunner(BaseRunner):
             out_path = built.get_log_path(file_extension='out')
             mmengine.mkdir_or_exist(osp.split(out_path)[0])
             with open(out_path, 'w', encoding='utf-8') as stdout:
-                result = subprocess.run(cmd,
-                                        shell=True,
-                                        text=True,
-                                        stdout=stdout,
-                                        stderr=stdout)
-            if result.returncode != 0:
+                # Use Popen + wait() instead of subprocess.run(): on Ctrl+C,
+                # subprocess.run would SIGKILL the child and abort harbor's
+                # container cleanup. The terminal SIGINT already reached the
+                # child (same process group), so wait() lets it recycle its
+                # containers and exit on its own.
+                popen = subprocess.Popen(cmd,
+                                         shell=True,
+                                         text=True,
+                                         stdout=stdout,
+                                         stderr=stdout)
+                returncode = popen.wait()
+            if returncode != 0:
                 self.logger.error(RUNNER_CODES.TASK_FAILED,
-                                  f"{task_name} failed with code {result.returncode}, see\n{out_path}")
+                                  f"{task_name} failed with code {returncode}, see\n{out_path}")
         finally:
             if not self.keep_tmp_file and osp.exists(param_file):
                 os.remove(param_file)
-        return task_name, result.returncode
+        return task_name, returncode
