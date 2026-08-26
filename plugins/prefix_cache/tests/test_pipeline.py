@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from ais_bench_prefix_cache.artifacts import read_jsonl, sha256_file, validate_artifacts
-from ais_bench_prefix_cache.pipeline import inspect_scenario, prepare_scenario
+from ais_bench_prefix_cache.pipeline import _length_summary, inspect_scenario, prepare_scenario
 from tests.test_core import scenario_dict
 
 
@@ -122,6 +122,27 @@ class PipelineTest(unittest.TestCase):
             self.assertIn(analysis["validation"]["status"], {"PASS", "PASS_WITH_WARNING"})
             self.assertFalse(analysis["validation"]["affects_exit_code"])
             self.assertIn("target_signed_difference_pp", analysis)
+
+    def test_length_summary_bins_report_actual_value_min_max(self):
+        # bins 中每项的 min/max 必须是桶内实际取值的最小/最大值，
+        # 而非桶边界：count == 1 时二者必须相等。
+        values = [1024, 2048, 512, 768, 1024]
+        summary = _length_summary(values)
+        self.assertEqual(
+            summary["bins"],
+            [
+                {"min": 512, "max": 512, "count": 1},
+                {"min": 768, "max": 768, "count": 1},
+                {"min": 1024, "max": 1024, "count": 2},
+                {"min": 2048, "max": 2048, "count": 1},
+            ],
+        )
+        for entry in summary["bins"]:
+            if entry["count"] == 1:
+                self.assertEqual(entry["min"], entry["max"])
+        self.assertEqual(sum(entry["count"] for entry in summary["bins"]), len(values))
+        self.assertEqual(summary["min"], 512)
+        self.assertEqual(summary["max"], 2048)
 
     def test_warmup_manifest_has_every_group_rank(self):
         with tempfile.TemporaryDirectory() as folder:

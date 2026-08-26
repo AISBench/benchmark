@@ -74,16 +74,25 @@ def _percentile(sorted_values: list[int], percentile: float) -> float:
 
 
 def _length_summary(values: list[int]) -> dict[str, Any]:
-    """生成长度分布的摘要：min/max/mean/分位数，并分为最多 10 桶直方图。"""
+    """生成长度分布的摘要：min/max/mean/分位数，并分为最多 10 桶直方图。
+
+    每个 bin 的 min/max 是该桶内实际取值的最小/最大值（count == 1 时二者相等）；
+    桶按固定宽度 [bin_low, bin_high] 划分（最多 10 桶），仅输出非空桶。
+    """
     logger.info("[prepare] _length_summary values_count=%d", len(values))
     ordered = sorted(values)
     low, high = ordered[0], ordered[-1]
     width = max(1, math.ceil((high - low + 1) / 10))
-    bins: dict[tuple[int, int], int] = {}
+    bins: dict[tuple[int, int], dict[str, int]] = {}
     for value in ordered:
         bin_low = low + ((value - low) // width) * width
         bounds = (bin_low, min(high, bin_low + width - 1))
-        bins[bounds] = bins.get(bounds, 0) + 1
+        slot = bins.get(bounds)
+        if slot is None:
+            bins[bounds] = slot = {"min": value, "max": value, "count": 0}
+        slot["min"] = min(slot["min"], value)
+        slot["max"] = max(slot["max"], value)
+        slot["count"] += 1
     result = {
         "min": low,
         "max": high,
@@ -93,8 +102,8 @@ def _length_summary(values: list[int]) -> dict[str, Any]:
         "p95": _percentile(ordered, 0.95),
         "p99": _percentile(ordered, 0.99),
         "bins": [
-            {"min": bounds[0], "max": bounds[1], "count": count}
-            for bounds, count in sorted(bins.items())
+            {"min": slot["min"], "max": slot["max"], "count": slot["count"]}
+            for _, slot in sorted(bins.items())
         ],
     }
     logger.info("[prepare] _length_summary result=%s", result)
