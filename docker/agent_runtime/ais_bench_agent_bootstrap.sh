@@ -103,6 +103,10 @@
 #                              跳过 trial 内 pip/npm install，节省 ~10min/trial）
 #                             例: --l2-image swebench/django-11099-with-aider:latest
 #                             不传 → harbor trial 容器走默认行为（trial 内装 agent）
+#   --qemu auto|yes|no         运行时按需装 qemu-user-static（ARM64 host 跑 x86 trial 必须）
+#                             auto（默认）:host arch vs runtime image target arch 不匹配时自动装
+#                             yes:强制装（无视 arch 匹不匹配,debug 用）
+#                             no:不装（host = target arch 时,避免无谓的 x86→x86 翻译开销）
 
 set -e
 
@@ -166,6 +170,10 @@ PRODUCTION=0
 # 跳过 trial 内 pip/npm install（D1 build_l2_baked_image.sh 产物）
 # 不传 → harbor trial 容器走默认行为（trial 内装 agent）
 L2_IMAGE=""
+
+# v3 E 批（增量）: --qemu auto|yes|no
+# 运行时按需装 qemu-user-static,默认 auto（arch 匹配时不装，避免 x86→x86 翻译）
+QEMU_INSTALL="auto"   # auto | yes | no
 
 # ============ 参数解析 ============
 while [[ $# -gt 0 ]]; do
@@ -287,6 +295,18 @@ while [[ $# -gt 0 ]]; do
             L2_IMAGE="$2"
             shift 2
             ;;
+        --qemu)
+            # v3 E 批: 运行时按需装 qemu-user-static
+            # auto: host arch vs image target arch 不匹配则装（默认）
+            # yes: 强制装（debug 用）
+            # no: 明确不装（host=target arch 时避免 x86→x86 翻译）
+            case "${2:-}" in
+                auto|yes|no) QEMU_INSTALL="$2" ;;
+                "") { echo "[错误] --qemu 需要 auto/yes/no" >&2; exit 1; } ;;
+                *) { echo "[错误] --qemu 必须是 auto/yes/no,得到: $2" >&2; exit 1; } ;;
+            esac
+            shift 2
+            ;;
         *) echo "[错误] 未知参数: $1" >&2; exit 1 ;;
     esac
 done
@@ -378,6 +398,7 @@ if [ -n "${L2_IMAGE}" ]; then
 else
     log "  l2-image: 未设置（harbor trial 容器走默认行为，trial 内装 agent）"
 fi
+log "  qemu: ${QEMU_INSTALL}（auto=按 host vs image arch 自动;yes=强制装;no=不装）"
 
 # ============ [2/6] 选择 DinD/Socket 模式 ============
 log "=== [2/6] 选择 DinD/Socket 模式 ==="
@@ -692,6 +713,84 @@ if [ "${#CASE_TAR_PATHS[@]}" -gt 0 ]; then
     fi
 else
     log "  未传 --case-tar，跳过（容器内用户手动 docker pull / docker load）"
+fi
+
+# ============ [6.5/7] qemu-user-static 按需安装 ============
+# 目的:host arch vs runtime image target arch 不匹配时,在 runtime 容器内装 qemu-user-static
+#   ARM64 host + x86_64 runtime image → 必须装 qemu-x86_64-static + binfmt 注册
+#   x86_64 host + x86_64 runtime image → 不装,避免无谓 x86→x86 翻译开销
+#   ARM64 host + ARM64 runtime image → 不装
+#
+# 三种 QEMU_INSTALL 模式:
+#   auto:host arch vs image target arch 不匹配则装
+#   yes :强制装(debug / 确认环境用)
+#   no  :绝不装(用户已用其他方式确保 binfmt)
+log "=== [6.5/7] qemu-user-static 按需安装 (QEMU_INSTALL=${QEMU_INSTALL}) ==="
+
+# 探测 host arch
+HOST_ARCH=$(uname -m)
+# 探测 image target arch（从 tag 解析,如 -x86_64 / -arm64 / -aarch64 后缀）
+IMAGE_ARCH_HINT=""
+case "${RUNTIME_IMAGE}" in
+    *-x86_64*|*-amd64*) IMAGE_ARCH_HINT="x86_64" ;;
+    *-arm64*|*-aarch64*) IMAGE_ARCH_HINT="aarch64" ;;
+esac
+
+# arm64/aarch64 归一化
+case "${HOST_ARCH}" in
+    aarch64) HOST_ARCH_NORM="aarch64" ;;
+    x86_64|amd64) HOST_ARCH_NORM="x86_64" ;;
+    *) HOST_ARCH_NORM="${HOST_ARCH}" ;;
+esac
+
+log "  host arch:  ${HOST_ARCH_NORM}"
+log "  image arch: ${IMAGE_ARCH_HINT:-(无法从 tag 解析,默认不装)}"
+
+# 决定是否装
+SHOULD_INSTALL_QEMU=0
+case "${QEMU_INSTALL}" in
+    yes)
+        SHOULD_INSTALL_QEMU=1
+        log "  qemu: 强制装 (QEMU_INSTALL=yes)"
+        ;;
+    no)
+        SHOULD_INSTALL_QEMU=0
+        log "  qemu: 明确不装 (QEMU_INSTALL=no)"
+        ;;
+    auto)
+        if [ -z "${IMAGE_ARCH_HINT}" ]; then
+            SHOULD_INSTALL_QEMU=0
+            log "  qemu: auto 模式下 image arch 无法解析 → 默认不装"
+        elif [ "${HOST_ARCH_NORM}" != "${IMAGE_ARCH_HINT}" ]; then
+            SHOULD_INSTALL_QEMU=1
+            log "  qemu: host (${HOST_ARCH_NORM}) ≠ image (${IMAGE_ARCH_HINT}) → 装"
+        else
+            SHOULD_INSTALL_QEMU=0
+            log "  qemu: host (${HOST_ARCH_NORM}) = image (${IMAGE_ARCH_HINT}) → 不装(避免无谓翻译)"
+        fi
+        ;;
+esac
+
+if [ "${SHOULD_INSTALL_QEMU}" = "1" ]; then
+    log "  → 容器内装 qemu-user-static + 注册 binfmt_misc"
+    docker exec "${CONTAINER_NAME}" bash -c '
+        set -euo pipefail
+        # 检查是否已装（image build-time 可能装了,arm64 image 默认会装）
+        if command -v qemu-x86_64-static >/dev/null 2>&1 || command -v qemu-aarch64-static >/dev/null 2>&1; then
+            echo "  ✓ qemu-user-static 已装"
+            ls -la /proc/sys/fs/binfmt_misc/ 2>/dev/null | head -5 || echo "  (binfmt_misc 文件系统未挂载,可能不需要)"
+            exit 0
+        fi
+        echo "  → apt-get install -y qemu-user-static"
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq && \
+        apt-get install -y --no-install-recommends qemu-user-static && \
+        rm -rf /var/lib/apt/lists/*
+        echo "  ✓ qemu-user-static 安装完成"
+        which qemu-x86_64-static 2>/dev/null || which qemu-aarch64-static 2>/dev/null || echo "  ⚠ qemu binary 找不到"
+    ' || log "    ⚠ 容器内装 qemu-user-static 失败（请人工 docker exec 进容器检查）"
+else
+    log "  → 跳过 qemu-user-static 安装"
 fi
 
 # ============ [7/7] 自检 + 打印下一步 ============
