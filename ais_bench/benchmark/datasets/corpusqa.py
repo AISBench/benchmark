@@ -184,20 +184,34 @@ class CorpusQAJGDataset(LLMJudgeDataset):
     def _extract_answer(response: str) -> str:
         """Mirror the official ``extract_answer`` helper.
 
-        Looks for ``The answer is: <answer>`` and returns it; otherwise
-        returns the whole (stripped) response.
+        The official script runs this extraction on the model's *final
+        response only* (the API ``content`` field).  aisbench's saved
+        ``prediction`` concatenates ``reasoning_content + "\\n\\n" +
+        content`` (see ``Output.get_prediction``), so a first-match
+        ``re.search`` can hit a draft ``The answer is: ...`` line inside
+        the reasoning, and the judge would compare a reasoning fragment
+        against the gold answer.  Taking the last occurrence preserves the
+        official semantics because the model's final answer line is the
+        last ``The answer is:`` in the concatenated text.
         """
-        match = re.search(r"The answer is: (.*)", response)
-        if match:
-            return match.group(1).strip()
+        if not isinstance(response, str):
+            response = str(response)
+        matches = re.findall(r"The answer is: (.*)", response)
+        if matches:
+            return matches[-1].strip()
         return response.strip()
 
     def _modify_dataset_item(self, dataset_item, pred_item):
         super()._modify_dataset_item(dataset_item, pred_item)
-        # Apply the official rule-based extraction before judging, so the
-        # judge sees the exact same ``model_answer`` as the official script.
-        if dataset_item.get("model_answer") is not None:
-            dataset_item["model_answer"] = self._extract_answer(str(dataset_item["model_answer"]))
+        # Prefer the reasoning-free final content when the prediction file
+        # provides it (see GenInferencerOutputHandler); fall back to the
+        # concatenated prediction for result files produced before that
+        # field existed.
+        raw_answer = pred_item.get("content")
+        if raw_answer is None:
+            raw_answer = dataset_item.get("model_answer")
+        if raw_answer is not None:
+            dataset_item["model_answer"] = self._extract_answer(str(raw_answer))
         return dataset_item
 
     def _get_dataset_class(self):
@@ -261,14 +275,21 @@ class CorpusQAEvaluator(BaseEvaluator):
 
     @staticmethod
     def _is_correct(judge_output: str):
-        """Mirror the official parsing rule exactly:
-        ``[[YES]]`` present and ``[[NO]]`` absent -> True;
-        ``[[NO]]`` present -> False; otherwise None (treated as incorrect).
+        """Mirror the official parsing rule on the judge's *final verdict*.
+
+        The official script parses ``[[YES]]``/``[[NO]]`` from the judge's
+        final content only.  aisbench's saved ``prediction`` concatenates
+        ``reasoning_content + "\\n\\n" + content``, and a thinking judge
+        often mentions both markers while reasoning before settling on
+        one, which breaks the official any-marker substring rule (e.g.
+        reasoning about ``[[NO]]`` then concluding ``[[YES]]`` is scored
+        as incorrect).  Taking the last marker matches the official
+        verdict because the final content comes after the reasoning in the
+        concatenated text.
         """
         if not judge_output:
             return None
-        if "[[YES]]" in judge_output and "[[NO]]" not in judge_output:
-            return True
-        if "[[NO]]" in judge_output:
-            return False
+        markers = re.findall(r"\[\[(YES|NO)\]\]", judge_output)
+        if markers:
+            return markers[-1] == "YES"
         return None
