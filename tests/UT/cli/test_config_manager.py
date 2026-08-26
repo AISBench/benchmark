@@ -511,6 +511,7 @@ class TestConfigManager(unittest.TestCase):
         models = [{'type': VLLMCustomAPI, 'model': ''}]
         mock_config = mock.MagicMock()
         mock_config.get.return_value = models
+        mock_config.__getitem__.return_value = models
         mock_fromfile.return_value = mock_config
         mock_fill_in.return_value = mock_config
         self.args.config = os.path.join(self.args.config_dir, 'test_config.py')
