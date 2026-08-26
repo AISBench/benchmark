@@ -3,6 +3,7 @@ import os
 import time
 from flask import Flask, jsonify, request, Response
 from api import OpenAIChatAPI, OpenAIAPI, TGIAPI, TritonAPI, MindIEOriginAPI, MindIEOriginTokenAPI
+from api.metrics_api import MetricsAPI
 import threading
 
 app = Flask(__name__)
@@ -95,6 +96,19 @@ def mindie_origin_token_api(): # 处理服务的主函数
     if not req_data.get("stream", False): # 非流式场景的处理
         return api.generate_text(req_data)
     return api.generate_stream(req_data)
+
+
+@app.route('/metrics', methods=['GET'])
+def metrics_api():
+    """Prometheus /metrics 端点，用于 spec-decode 异常场景测试。
+
+    行为由 api_config.yaml 的 metrics.mode 配置项控制：
+      - error_http:      返回指定 HTTP 错误码
+      - no_spec:         返回 200 但不含 spec_decode 计数器
+      - static_counters: 返回 200 + 固定 spec_decode 计数器
+    """
+    api = MetricsAPI()
+    return api.handle_metrics()
 
 
 if __name__ == '__main__': # 单进程用python3 直接执行

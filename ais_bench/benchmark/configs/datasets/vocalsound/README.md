@@ -30,7 +30,7 @@ mv vocalsound/subset5/* vocalsound/
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|vocalsound_gen|VocalSound数据集生成式任务，⚠️该数据集任务下会直接将音频路径传入服务化，需确保服务化支持该格式输入并且有权限访问该路径音频。|accuracy|0-shot|列表格式（包含文本和音频两种数据）|[vocalsound_gen.py](vocalsound_gen.py)|
-|vocalsound_gen_base64|VocalSound数据集生成式任务，⚠️该数据集任务下，会将音频数据转化为base64格式再传入服务化，需确保服务化支持该输入格式数据。|accuracy|0-shot|列表格式（包含文本和音频两种数据）|[vocalsound_gen_base64.py](vocalsound_gen_base64.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|vocalsound_gen|VocalSound数据集生成式任务，⚠️该数据集任务下会直接将音频路径传入服务化，需确保服务化支持该格式输入并且有权限访问该路径音频。|accuracy|0-shot|列表格式（包含文本和音频两种数据）|`from ais_bench.benchmark.configs.datasets.vocalsound.vocalsound_gen import vocalsound_datasets as datasets`|[vocalsound_gen.py](vocalsound_gen.py)|
+|vocalsound_gen_base64|VocalSound数据集生成式任务，⚠️该数据集任务下，会将音频数据转化为base64格式再传入服务化，需确保服务化支持该输入格式数据。|accuracy|0-shot|列表格式（包含文本和音频两种数据）|`from ais_bench.benchmark.configs.datasets.vocalsound.vocalsound_gen_base64 import vocalsound_datasets as datasets`|[vocalsound_gen_base64.py](vocalsound_gen_base64.py)|

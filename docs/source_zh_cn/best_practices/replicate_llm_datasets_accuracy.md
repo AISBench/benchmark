@@ -1,4 +1,7 @@
 # 复现大语言模型（LLM）论文（技术报告）中的数据集测评结果（以DeepSeek R1使用的GPQA数据集为例）
+
+> 💡 本文档中的测评命令均可以通过 [自定义配置文件方式](../advanced_tutorials/run_custom_config.md) 实现，将模型、数据集、summarizer 等配置写入一个 Python 文件，一次编写、多次复用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。详见 [自定义配置文件运行AISBench](../advanced_tutorials/run_custom_config.md)。
+
 ## 前言-方法论
 如果想要通过AISBench测评工具复现论文精度，需要对齐模型的技术报告或论文中对此数据集的测试方法，在评测工具这边需要对齐的如下：
 **模型相关配置**：

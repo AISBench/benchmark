@@ -9,7 +9,7 @@
 
     - **模型任务**：📚 [服务化推理后端](../all_params/models.md#服务化推理后端)
 
-    - **数据集任务**：📚 [开源数据集](../all_params/datasets.md#开源数据集) 与 📚 [自定义数据集](../all_params/datasets.md#自定义数据集)
+    - **数据集任务**：📚 [开源数据集](../../get_started/datasets.md#开源数据集) 与 📚 [自定义数据集](../../get_started/datasets.md#自定义数据集)
 
 - 约束：当前PPL模式精度测评任务只支持`vllm_api_general`和`vllm_api_general_chat`两种模型配置，其他均不支持。
 
@@ -24,7 +24,7 @@
 
     - **模型任务**：📚 [本地模型后端](../all_params/models.md#本地模型后端)
 
-    - **数据集任务**：📚 [开源数据集](../all_params/datasets.md#开源数据集) 与 📚 [自定义数据集](../all_params/datasets.md#自定义数据集)
+    - **数据集任务**：📚 [开源数据集](../../get_started/datasets.md#开源数据集) 与 📚 [自定义数据集](../../get_started/datasets.md#自定义数据集)
 
 - 约束：不支持PPL模式测评任务
 
@@ -40,7 +40,7 @@
 
     - **模型任务**：📚 [服务化推理后端](../all_params/models.md#服务化推理后端)中的流式接口类型
 
-    - **数据集任务**：📚 [支持数据集类型](../all_params/datasets.md#支持数据集类型)中的所有数据类型
+    - **数据集任务**：📚 [支持数据集类型](../../get_started/datasets.md#支持数据集类型)中的所有数据类型
 
 - 注意：性能测评所占用的缓存大小与请求的上下文长度以及请求的数量成正比，因此通常与测评时长呈正相关增长
 

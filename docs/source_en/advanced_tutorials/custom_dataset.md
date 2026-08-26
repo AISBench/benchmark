@@ -114,10 +114,10 @@ This method currently only supports **accuracy evaluation scenarios**. Other par
 #### Example Command
 ```shell
 # Use vllm API
-ais_bench ais_bench/configs/api_examples/infer_api_vllm_general.py
+ais_bench ais_bench/configs/api_examples/infer_vllm_api_general.py
 
 # Use mindie API
-ais_bench ais_bench/configs/api_examples/infer_api_mindie_stream_general.py
+ais_bench ais_bench/configs/api_examples/infer_mindie_stream_api_general.py
 ```
 
 
@@ -131,6 +131,9 @@ datasets = [
     ...,  # Standard datasets
 ]
 ```
+
+
+> 💡 The above config file method is essentially a simplified application of the [Custom Config File Method](run_custom_config.md). For more complex scenarios (such as multi-model/multi-dataset combinations, custom model parameters, judge models, etc.), refer to the "Custom Dataset Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-configuration-file-examples-for-each-scenario).
 
 
 ### Guide to Using Dataset Supplementary Info (`.meta.json`)

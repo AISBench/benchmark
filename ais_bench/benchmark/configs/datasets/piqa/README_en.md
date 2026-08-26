@@ -29,8 +29,8 @@ rm physicaliqa-train-dev.zip
 ## Available Dataset Tasks
 ### piqa_gen_0_shot_chat_prompt
 #### Basic Information
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| piqa_gen_0_shot_chat_prompt | Generative task for the piqa dataset | Accuracy | 0-shot | Chat Format | [piqa_gen_0_shot_chat_prompt.py](piqa_gen_0_shot_chat_prompt.py) |
-| piqa_gen_0_shot_str | Generative task for the piqa dataset | Accuracy | 0-shot | String Format | [piqa_gen_0_shot_str.py](piqa_gen_0_shot_str.py) |
-| piqa_ppl_0_shot_str | PPL task for the piqa dataset | Accuracy | 0-shot | String Format | [piqa_ppl_0_shot_str.py](piqa_ppl_0_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| piqa_gen_0_shot_chat_prompt | Generative task for the piqa dataset | Accuracy | 0-shot | Chat Format |`from ais_bench.benchmark.configs.datasets.piqa.piqa_gen_0_shot_chat_prompt import piqa_datasets as datasets`| [piqa_gen_0_shot_chat_prompt.py](piqa_gen_0_shot_chat_prompt.py) |
+| piqa_gen_0_shot_str | Generative task for the piqa dataset | Accuracy | 0-shot | String Format |`from ais_bench.benchmark.configs.datasets.piqa.piqa_gen_0_shot_str import piqa_datasets as datasets`| [piqa_gen_0_shot_str.py](piqa_gen_0_shot_str.py) |
+| piqa_ppl_0_shot_str | PPL task for the piqa dataset | Accuracy | 0-shot | String Format |`from ais_bench.benchmark.configs.datasets.piqa.piqa_ppl_0_shot_str import piqa_datasets as datasets`| [piqa_ppl_0_shot_str.py](piqa_ppl_0_shot_str.py) |

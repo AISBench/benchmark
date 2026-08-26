@@ -43,10 +43,10 @@ RefCOCOg/
 
 ## 可用数据集任务
 
-| Task Name           | Introduction                                                                                                                                                         | Evaluation Metric | Few-Shot | Prompt Format                      | Config File                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------- | ---------------------------------- | ------------------------------------------------ |
-| refcocog_gen        | RefCOCOg 生成式定位任务配置，使用文件路径图像输入（`file://{image}`），导出 `RefCOCOg_val` 和 `RefCOCOg_test` 两个 split 任务                                        | Accuracy@0.5      | 0-shot   | 多模态对话格式（MMPromptTemplate） | [refcocog_gen.py](refcocog_gen.py)               |
-| refcocog_gen_base64 | RefCOCOg 生成式定位任务配置，使用 base64 data URL 图像输入（`data:image/jpeg;base64,{image}`），导出 `RefCOCOg_base64_val` 和 `RefCOCOg_base64_test` 两个 split 任务 | Accuracy@0.5      | 0-shot   | 多模态对话格式（MMPromptTemplate） | [refcocog_gen_base64.py](refcocog_gen_base64.py) |
+| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| refcocog_gen | RefCOCOg 生成式定位任务配置，使用文件路径图像输入（`file://{image}`），导出 `RefCOCOg_val` 和 `RefCOCOg_test` 两个 split 任务 | Accuracy@0.5 | 0-shot | 多模态对话格式（MMPromptTemplate） | `from ais_bench.benchmark.configs.datasets.refcocog.refcocog_gen import refcocog_datasets as datasets` | [refcocog_gen.py](refcocog_gen.py) |
+| refcocog_gen_base64 | RefCOCOg 生成式定位任务配置，使用 base64 data URL 图像输入（`data:image/jpeg;base64,{image}`），导出 `RefCOCOg_base64_val` 和 `RefCOCOg_base64_test` 两个 split 任务 | Accuracy@0.5 | 0-shot | 多模态对话格式（MMPromptTemplate） | `from ais_bench.benchmark.configs.datasets.refcocog.refcocog_gen_base64 import refcocog_datasets as datasets` | [refcocog_gen_base64.py](refcocog_gen_base64.py) |
 
 ## 数据集分类
 

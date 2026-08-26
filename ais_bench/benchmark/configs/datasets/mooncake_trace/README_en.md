@@ -134,9 +134,9 @@ When using `hash_ids`, `input_length` must satisfy:
 
 ## Available Dataset Tasks
 
-| Task Name | Description | Metrics | few-shot | Prompt Format | Config Path |
-| --- | --- | --- | --- | --- | --- |
-| mooncake_trace_gen | Mooncake trace generative task | Performance | 0-shot | String | [mooncake_trace_gen.py](mooncake_trace_gen.py) |
+| Task Name | Description | Metrics | few-shot | Prompt Format | Import Statement | Config Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| mooncake-trace | Mooncake trace generative task | Performance | 0-shot | String | `from ais_bench.benchmark.configs.datasets.mooncake_trace.mooncake_trace_gen import mooncake_trace_datasets as datasets` | [mooncake_trace_gen.py](mooncake_trace_gen.py) |
 
 ## Usage Examples
 

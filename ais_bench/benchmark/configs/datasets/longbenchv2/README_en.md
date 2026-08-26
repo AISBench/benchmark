@@ -21,6 +21,6 @@ It is recommended to download the dataset from Hugging Face: [https://huggingfac
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| longbenchv2_gen | LongBench v2 task | Accuracy | 0-shot | Chat format | [longbenchv2_gen.py](longbenchv2_gen.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| longbenchv2_gen | LongBench v2 task | Accuracy | 0-shot | Chat format | `from ais_bench.benchmark.configs.datasets.longbenchv2.longbenchv2_gen import LongBenchv2_datasets as datasets` | [longbenchv2_gen.py](longbenchv2_gen.py) |

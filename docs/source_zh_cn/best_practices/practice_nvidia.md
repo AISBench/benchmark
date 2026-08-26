@@ -1,6 +1,8 @@
 # 基于英伟达A100加速卡测评DeepSeek-R1-Distill-Qwen-14B的数学能力，100%论文复现
 ### 复现使用的aisbench评测工具版本
 本文复现使用aisbench测评工具版本为[v3.0-20250412](https://github.com/AISBench/benchmark/releases/tag/v3.0-20250412)
+
+> 💡 本文档中的测评命令均可以通过 [自定义配置文件方式](../advanced_tutorials/run_custom_config.md) 实现，将模型、数据集、summarizer 等配置写入一个 Python 文件，一次编写、多次复用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。详见 [自定义配置文件运行AISBench](../advanced_tutorials/run_custom_config.md)。
 ### 一 背景与目标
 
 #### 1. 1 复现意义
@@ -267,7 +269,7 @@ math_datasets = [
 
 ```
 # 确保处于源码最外层路径your/work/dir/benchmark下
-vim ais_bench/benchmark/configs/models/hf_model/hf_chat_model.py
+vim ais_bench/benchmark/configs/models/hf_models/hf_chat_model.py
 ```
 推理后端配置文件内容修改如下:
 ```py

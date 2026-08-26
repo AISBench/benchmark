@@ -23,7 +23,7 @@ rm aime2025.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|aime2025_gen|AIME2025|数据集生成式任务|准确率(accuracy)|0-shot|对话格式|aime2025_gen_0_shot_chat_prompt.py|
-|aime2025_gen_0_shot_llmjudge|AIME2025|数据集生成式任务|准确率(accuracy)， 裁判模型评价的结果|0-shot|对话格式|aime2025_gen_0_shot_llmjudge.py|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|aime2025_gen_0_shot_chat_prompt|AIME2025 数据集生成式任务|准确率(accuracy)|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.aime2025.aime2025_gen_0_shot_chat_prompt import aime2025_datasets as datasets`|[aime2025_gen_0_shot_chat_prompt.py](aime2025_gen_0_shot_chat_prompt.py)|
+|aime2025_gen_0_shot_llmjudge|AIME2025 数据集生成式任务|准确率(accuracy)， 裁判模型评价的结果|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.aime2025.aime2025_gen_0_shot_llmjudge import aime2025_datasets as datasets`|[aime2025_gen_0_shot_llmjudge.py](aime2025_gen_0_shot_llmjudge.py)|

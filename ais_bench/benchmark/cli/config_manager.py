@@ -38,7 +38,6 @@ class CustomConfigChecker:
     def check(self):
         self._check_models_config()
         self._check_datasets_config()
-        self._check_summarizer_config()
 
     def _check_models_config(self):
         models = self.config.get('models', [])
@@ -163,10 +162,21 @@ class ConfigManager:
         """Apply CLI overrides and defaults to the global anomaly config."""
         raw_anomaly_cfg = self.cfg.get('response_anomaly') or {}
         global_cfg = dict(raw_anomaly_cfg) if isinstance(raw_anomaly_cfg, dict) else {}
-        cli_enabled = getattr(self.args, 'response_anomaly', None)
-        if isinstance(cli_enabled, bool):
-            global_cfg['enabled'] = cli_enabled
-        global_cfg.setdefault('enabled', False)
+        # The enabled switch is command-line only (--response-anomaly); an
+        # 'enabled' key in the config file is not a supported enable path.
+        # Warn and drop it so it can never silently enable detection.
+        if 'enabled' in global_cfg:
+            self.logger.warning(
+                "response_anomaly.enabled in the config file is not "
+                "supported; use the --response-anomaly command-line switch "
+                "to enable response anomaly detection. The configured "
+                "value is ignored."
+            )
+            global_cfg.pop('enabled')
+        # Strictly a real boolean from the CLI; anything else (missing
+        # attribute, mocks) means the switch was not passed -> disabled.
+        cli_enabled = getattr(self.args, 'response_anomaly', False)
+        global_cfg['enabled'] = cli_enabled if isinstance(cli_enabled, bool) else False
         configured_top_logprobs = global_cfg.pop('top_logprobs', None)
         global_cfg.setdefault('msprobe_config_path', None)
         cli_payload_retention = getattr(
@@ -288,6 +298,7 @@ class ConfigManager:
         self._validate_response_anomaly_model_resources(
             model_cfg, model_anomaly_cfg
         )
+        self._validate_response_anomaly_model_name(model_cfg, model_anomaly_cfg)
         self._validate_response_anomaly_resource_paths(
             model_cfg, model_anomaly_cfg
         )
@@ -299,10 +310,25 @@ class ConfigManager:
         model_anomaly_cfg = dict(model_cfg.get('response_anomaly') or {})
         configured_top_logprobs = model_anomaly_cfg.pop('top_logprobs', None)
         self._validate_response_anomaly_top_logprobs(configured_top_logprobs)
-        model_anomaly_cfg.setdefault(
-            'model_name',
-            global_cfg.get('model_name') or model_cfg.get('abbr'),
-        )
+        # NOTE: model_name intentionally has no model-abbr fallback. The abbr
+        # is a task label (e.g. 'vllm-api-general-chat') unrelated to the
+        # served model, so it would silently miss the keys in msProbe's
+        # mtype_config.json and token2category. When model_name is not set,
+        # derive it from the most specific source available, in order (each
+        # path resolved to its directory basename, the same default the
+        # config generator uses): explicit model_name is handled above by the
+        # ``not model_anomaly_cfg.get('model_name')`` guard; then model-level
+        # model_path, global model_name, global model_path, and finally the
+        # model 'path' field.
+        if not model_anomaly_cfg.get('model_name'):
+            fallback = (
+                self._model_name_from_path(model_anomaly_cfg.get('model_path'))
+                or global_cfg.get('model_name')
+                or self._model_name_from_path(global_cfg.get('model_path'))
+                or self._model_name_from_path(model_cfg.get('path'))
+            )
+            if fallback:
+                model_anomaly_cfg['model_name'] = fallback
         for key in (
             'model_path',
             'msprobe_config_path',
@@ -312,6 +338,41 @@ class ConfigManager:
             if key not in model_anomaly_cfg:
                 model_anomaly_cfg[key] = global_cfg.get(key)
         return model_anomaly_cfg
+
+    @staticmethod
+    def _model_name_from_path(model_path):
+        """Derive the de-facto model name from the model directory basename."""
+        if not model_path:
+            return None
+        basename = osp.basename(osp.normpath(str(model_path).strip()))
+        return basename or None
+
+    @staticmethod
+    def _validate_response_anomaly_model_name(model_cfg, model_anomaly_cfg):
+        """Fail fast when no reliable msProbe model name can be determined."""
+        if model_anomaly_cfg.get('model_name'):
+            return
+        has_explicit_resources = bool(
+            model_anomaly_cfg.get('msprobe_mtype_path')
+            and model_anomaly_cfg.get('msprobe_token2category_dir')
+        )
+        raise AISBenchConfigError(
+            TMAN_CODES.UNKNOWN_ERROR,
+            f"response_anomaly is enabled for model "
+            f"'{model_cfg.get('abbr', '')}' but response_anomaly.model_name "
+            "is not set and cannot be inferred from a model directory. "
+            + (
+                "Since explicit msProbe resource paths are configured, set "
+                "response_anomaly.model_name to the key used in "
+                "msprobe_mtype_path and in the token2category file names."
+                if has_explicit_resources
+                else "Set response_anomaly.model_name explicitly (it must "
+                "match the keys in msProbe's mtype_config.json and the "
+                "token2category file names), or set model "
+                "'path'/model_path to the local model directory so the "
+                "name can be derived from its basename."
+            ),
+        )
 
     @staticmethod
     def _resolve_response_anomaly_model_path(model_cfg, model_anomaly_cfg):

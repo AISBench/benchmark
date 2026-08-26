@@ -10,20 +10,20 @@ AISBench Benchmark 支持多种服务化推理后端，包括 vLLM、SGLang、Tr
 以在 GPU 上部署的 vLLM 推理服务为例，您可以参考 [vLLM 官方文档](https://docs.vllm.ai/en/stable/getting_started/quickstart.html) 启动服务。
 
 不同服务化后端对应的模型配置如下：
-| 模型配置名称| 简介| 使用前提| 支持的测评模式 | 接口类型 | 支持的数据集 Prompt 格式 | 配置文件路径|
-| ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- |
-| `vllm_api_general` | 通过 vLLM 兼容 OpenAI 的 API 访问推理服务，接口为 `v1/completions`| 基于 vLLM 版本支持 `v1/completions` 子服务| 生成式测评、PPL模式测评 | 文本接口 | 字符串格式| [vllm_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general.py)|
-| `vllm_api_general_stream`| 流式访问 vLLM 推理服务，接口为 `v1/completions`| 基于 vLLM 版本支持 `v1/completions` 子服务 | 生成式测评| 流式接口 | 字符串格式| [vllm_api_general_stream.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_stream.py) |
-| `vllm_api_general_chat`  | 通过 vLLM 兼容 OpenAI 的 API 访问推理服务，接口为 `v1/chat/completions` | 基于 vLLM 版本支持 `v1/chat/completions` 子服务 | 生成式测评、PPL模式测评 | 文本接口 | 字符串格式、对话格式、多模态格式 | [vllm_api_general_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_chat.py)  |
-| `vllm_api_stream_chat`| 流式访问 vLLM 推理服务，接口为 `v1/chat/completions`| 基于 vLLM 版本支持 `v1/chat/completions` 子服务 | 生成式测评 | 流式接口 | 字符串格式、对话格式、多模态格式 | [vllm_api_stream_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py) |
-| `vllm_api_stream_chat_multiturn`| 多轮对话场景的流式访问 vLLM 推理服务，接口为 `v1/chat/completions`| 基于 vLLM 版本支持 `v1/chat/completions` 子服务 | 生成式测评 | 流式接口 | 对话格式 | [vllm_api_stream_chat_multiturn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat_multiturn.py) |
-| `vllm_api_function_call_chat`| function call精度测评场景访问 vLLM 推理服务的API ，接口为 `v1/chat/completions`（只适用于[BFCL](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README.md)测评场景| 基于 vLLM 版本支持 `v1/chat/completions` 子服务 | 生成式测评 | 文本接口 | 对话格式 | [vllm_api_function_call_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_function_call_chat.py) |
-| `vllm_api_old`  | 通过 vLLM 兼容 API 访问推理服务，接口为 `generate`| 基于 vLLM 版本支持 `generate` 子服务 | 生成式测评 | 文本接口 | 字符串格式、多模态格式| [vllm_api_old.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_old.py)|
-| `mindie_stream_api_general` | 通过 MindIE 流式 API 访问推理服务，接口为 `infer`| 基于 MindIE 版本支持 `infer` 子服务 | 生成式测评 | 流式接口 | 字符串格式、多模态格式| [mindie_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/mindie_api/mindie_stream_api_general.py) |
-| `triton_api_general`  | 通过 Triton API 访问推理服务，接口为 `v2/models/{model name}/generate`  | 启动支持 Triton API 的推理服务 | 生成式测评 | 文本接口 | 字符串格式、多模态格式| [triton_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/triton_api/triton_api_general.py) |
-| `triton_stream_api_general` | 通过 Triton 流式 API 访问推理服务，接口为 `v2/models/{model name}/generate_stream` | 启动支持 Triton API 的推理服务 | 生成式测评 | 流式接口 | 字符串格式、多模态格式 | [triton_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/triton_api/triton_stream_api_general.py) |
-| `tgi_api_general`  | 通过 TGI API 访问推理服务，接口为 `generate`| 启动支持 TGI API 的推理服务 | 生成式测评 | 文本接口 | 字符串格式、多模态格式| [tgi_api_general](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/tgi_api/tgi_api_general.py)|
-| `tgi_stream_api_general` | 通过 TGI 流式 API 访问推理服务，接口为 `generate_stream`| 启动支持 TGI API 的推理服务 | 生成式测评 | 流式接口 | 字符串格式、多模态格式| [tgi_stream_api_general](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/tgi_api/tgi_stream_api_general.py) |
+| 模型配置名称| 简介| 使用前提| 支持的测评模式 | 接口类型 | 支持的数据集 Prompt 格式 | 配套文件导入方式 | 配置文件路径|
+| ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- | ---------- |
+| `vllm_api_general` | 通过 vLLM 兼容 OpenAI 的 API 访问推理服务，接口为 `v1/completions`| 基于 vLLM 版本支持 `v1/completions` 子服务| 生成式测评、PPL模式测评 | 文本接口 | 字符串格式|`from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general import models as vllm_api_general`| [vllm_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general.py)|
+| `vllm_api_general_stream`| 流式访问 vLLM 推理服务，接口为 `v1/completions`| 基于 vLLM 版本支持 `v1/completions` 子服务 | 生成式测评| 流式接口 | 字符串格式| `from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_stream import models as vllm_api_general_stream` | [vllm_api_general_stream.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_stream.py) |
+| `vllm_api_general_chat`  | 通过 vLLM 兼容 OpenAI 的 API 访问推理服务，接口为 `v1/chat/completions` | 基于 vLLM 版本支持 `v1/chat/completions` 子服务 | 生成式测评、PPL模式测评 | 文本接口 | 字符串格式、对话格式、多模态格式 | `from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_chat import models as vllm_api_general_chat` | [vllm_api_general_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_chat.py)  |
+| `vllm_api_stream_chat`| 流式访问 vLLM 推理服务，接口为 `v1/chat/completions`| 基于 vLLM 版本支持 `v1/chat/completions` 子服务 | 生成式测评 | 流式接口 | 字符串格式、对话格式、多模态格式 | `from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat` | [vllm_api_stream_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py) |
+| `vllm_api_stream_chat_multiturn`| 多轮对话场景的流式访问 vLLM 推理服务，接口为 `v1/chat/completions`| 基于 vLLM 版本支持 `v1/chat/completions` 子服务 | 生成式测评 | 流式接口 | 对话格式 | `from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat_multiturn import models as vllm_api_stream_chat_multiturn` | [vllm_api_stream_chat_multiturn.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat_multiturn.py) |
+| `vllm_api_function_call_chat`| function call精度测评场景访问 vLLM 推理服务的API ，接口为 `v1/chat/completions`（只适用于[BFCL](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README.md)测评场景| 基于 vLLM 版本支持 `v1/chat/completions` 子服务 | 生成式测评 | 文本接口 | 对话格式 | `from ais_bench.benchmark.configs.models.vllm_api.vllm_api_function_call_chat import models as vllm_api_function_call_chat` | [vllm_api_function_call_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_function_call_chat.py) |
+| `vllm_api_old`  | 通过 vLLM 兼容 API 访问推理服务，接口为 `generate`| 基于 vLLM 版本支持 `generate` 子服务 | 生成式测评 | 文本接口 | 字符串格式、多模态格式| `from ais_bench.benchmark.configs.models.vllm_api.vllm_api_old import models as vllm_api_old` | [vllm_api_old.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_old.py)|
+| `mindie_stream_api_general` | 通过 MindIE 流式 API 访问推理服务，接口为 `infer`| 基于 MindIE 版本支持 `infer` 子服务 | 生成式测评 | 流式接口 | 字符串格式、多模态格式| `from ais_bench.benchmark.configs.models.mindie_api.mindie_stream_api_general import models as mindie_stream_api_general` | [mindie_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/mindie_api/mindie_stream_api_general.py) |
+| `triton_api_general`  | 通过 Triton API 访问推理服务，接口为 `v2/models/{model name}/generate`  | 启动支持 Triton API 的推理服务 | 生成式测评 | 文本接口 | 字符串格式、多模态格式| `from ais_bench.benchmark.configs.models.triton_api.triton_api_general import models as triton_api_general` | [triton_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/triton_api/triton_api_general.py) |
+| `triton_stream_api_general` | 通过 Triton 流式 API 访问推理服务，接口为 `v2/models/{model name}/generate_stream` | 启动支持 Triton API 的推理服务 | 生成式测评 | 流式接口 | 字符串格式、多模态格式 | `from ais_bench.benchmark.configs.models.triton_api.triton_stream_api_general import models as triton_stream_api_general` | [triton_stream_api_general.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/triton_api/triton_stream_api_general.py) |
+| `tgi_api_general`  | 通过 TGI API 访问推理服务，接口为 `generate`| 启动支持 TGI API 的推理服务 | 生成式测评 | 文本接口 | 字符串格式、多模态格式| `from ais_bench.benchmark.configs.models.tgi_api.tgi_api_general import models as tgi_api_general` | [tgi_api_general](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/tgi_api/tgi_api_general.py)|
+| `tgi_stream_api_general` | 通过 TGI 流式 API 访问推理服务，接口为 `generate_stream`| 启动支持 TGI API 的推理服务 | 生成式测评 | 流式接口 | 字符串格式、多模态格式| `from ais_bench.benchmark.configs.models.tgi_api.tgi_stream_api_general import models as tgi_stream_api_general` | [tgi_stream_api_general](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/tgi_api/tgi_stream_api_general.py) |
 
 ### 服务化推理后端配置参数说明
 服务化推理后端配置文件采用Python语法格式配置，示例如下：
@@ -33,7 +33,7 @@ AISBench Benchmark 支持多种服务化推理后端，包括 vLLM、SGLang、Tr
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPI
 
-models = [
+models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general import models as vllm_api_general`中导入的models
     dict(
         attr="service",
         type=VLLMCustomAPI,
@@ -58,8 +58,9 @@ models = [
         response_anomaly = dict(    # 可选，msProbe 推理响应异常检测的模型级配置
             model_name="",       # 填写模型名称，如 Qwen3-30B-A3B
             model_path="",       # 填写本地模型目录，如 /home/Qwen3-30B-A3B；可选，用于自动生成配置
-            msprobe_mtype_path='/path/to/mtype_config.json',
-            msprobe_token2category_dir='/path/to/token2category/',
+            msprobe_config_path="",  # 可选，算法阈值 config.yaml 路径，用于手工调优检测阈值
+            msprobe_mtype_path="",  # 可选，模型名与 BOS/EOS token id 映射文件 mtype_config.json 路径
+            msprobe_token2category_dir="",  # 可选，token2category 目录，存放各模型的 token id 到字符类别映射
         )
     )
 ]
@@ -87,10 +88,10 @@ models = [
 | `max_out_len` | Int | 推理响应的最大输出长度，实际长度可能受服务端限制。 |
 | `batch_size` | Int | 请求的并发批处理大小。合法范围：(0, 64000] |
 | `trust_remote_code` | Boolean | tokenizer是否信任远程代码，默认False; |
-| `generation_kwargs` | Dict | 推理生成参数配置，依赖具体的服务化后端和接口类型。注意：当前不支持 `best_of` 和 `n` 等多次采样参数，但支持通过`num_return_sequences`参数进行多次独立推理(具体请参考🔗[Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences)中`num_return_sequences`的作用) |
+| `generation_kwargs` | Dict | 推理生成参数配置，依赖具体的服务化后端和接口类型。注意：当前不支持 `best_of` 和 `n` 等多次采样参数，但支持通过`num_return_sequences`参数进行多次独立推理(具体请参考🔗[Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences)中`num_return_sequences`的作用)。支持配置 `logprobs` / `top_logprobs` 参数开启 token 概率信息采集，详见 🔗[Logprobs 采集与分析](../../advanced_tutorials/logprobs_collection.md) |
 | `returns_tool_calls` | Bool | 控制函数调用信息的提取方式。当设置为True时，系统从API响应的`tool_calls`字段中提取函数调用信息；当设置为False时，系统从`content`字段中解析函数调用信息 |
 | `pred_postprocessor` | Dict | 模型输出结果的后处理配置。用于对原始模型输出进行格式化、清理或转换，以满足特定评估任务的要求 |
-| `response_anomaly` | Dict | 可选，msProbe 推理响应异常检测的模型级配置，包含 `model_name`（与 msProbe 的 mtype_config.json 名称一致）、`model_path`（本地模型目录，用于自动生成配置，可选）、`msprobe_mtype_path`、`msprobe_token2category_dir`。未提供 mtype/token 分类路径时回退到 msProbe 包内默认文件 |
+| `response_anomaly` | Dict | 可选，msProbe 推理响应异常检测的模型级配置，包含 `model_name`（与 msProbe 的 mtype_config.json 名称一致；未配置时自动取模型路径中的模型名称；既无 `model_name` 也无模型路径时启动报错）、`model_path`（本地模型目录，用于自动生成配置，可选）、`msprobe_config_path`（算法阈值 config.yaml 路径，可选，用于手工调优；自动生成不会覆盖已存在的文件）、`msprobe_mtype_path`、`msprobe_token2category_dir`。未提供 mtype/token 分类路径时回退到 msProbe 包内默认文件 |
 
 **注意事项：**
 - 响应异常检测当前仅支持基于 vLLM Chat API 的 `vllm_api_general_chat`、`vllm_api_stream_chat` 和 `vllm_api_stream_chat_multiturn` 模型配置，其他模型后端暂不支持。
@@ -141,19 +142,19 @@ models = [
 - 启动时加 `--debug`（或在模型配置设 `verbose=True`）即可按 case 打印 `[Multi-LoRA] data_id=... lora_model_name=...` 日志，便于观测路由命中情况。
 
 ## 本地模型后端
-|模型配置名称|简介|使用前提|支持的prompt格式(字符串格式或对话格式)|对应源码配置文件路径|
-| --- | --- | --- | --- | --- |
-|`hf_base_model`|HuggingFace Base 模型后端|已安装评测工具基础依赖，需在配置文件中指定 HuggingFace 模型权重路径（当前不支持自动下载）|字符串格式|[hf_base_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_base_model.py)|
-|`hf_chat_model`|	HuggingFace Chat 模型后端|已安装评测工具基础依赖，需在配置文件中指定 HuggingFace 模型权重路径（当前不支持自动下载）|对话格式|[hf_chat_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_chat_model.py)|
-|`hf_qwenvl_model`|	HuggingFace Chat QwenVL模型后端|已安装评测工具基础依赖，需在配置文件中指定 HuggingFace 模型权重路径（当前不支持自动下载）|对话格式|[hf_qwenvl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_qwenvl_model.py)|
-|`vllm_offline_vl_model`|	vllm Chat QwenVL离线推理模型后端|已安装评测工具基础依赖，需在配置文件中指定模型模型权重路径（当前不支持自动下载）|对话格式|[vllm_offline_vl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_offline_models/vllm_offline_vl_model.py)|
+|模型配置名称|简介|使用前提|支持的prompt格式(字符串格式或对话格式)| 配套文件导入方式 |对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- |
+|`hf_base_model`|HuggingFace Base 模型后端|已安装评测工具基础依赖，需在配置文件中指定 HuggingFace 模型权重路径（当前不支持自动下载）|字符串格式|`from ais_bench.benchmark.configs.models.hf_models.hf_base_model import models as hf_base_model`|[hf_base_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_base_model.py)|
+|`hf_chat_model`|	HuggingFace Chat 模型后端|已安装评测工具基础依赖，需在配置文件中指定 HuggingFace 模型权重路径（当前不支持自动下载）|对话格式|`from ais_bench.benchmark.configs.models.hf_models.hf_chat_model import models as hf_chat_model`|[hf_chat_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_chat_model.py)|
+|`hf_qwenvl_model`|	HuggingFace Chat QwenVL模型后端|已安装评测工具基础依赖，需在配置文件中指定 HuggingFace 模型权重路径（当前不支持自动下载）|对话格式|`from ais_bench.benchmark.configs.models.hf_models.hf_qwenvl_model import models as hf_qwenvl_model`|[hf_qwenvl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/hf_models/hf_qwenvl_model.py)|
+|`vllm_offline_vl_model`|	vllm Chat QwenVL离线推理模型后端|已安装评测工具基础依赖，需在配置文件中指定模型模型权重路径（当前不支持自动下载）|对话格式|`from ais_bench.benchmark.configs.models.vllm_offline_models.vllm_offline_vl_model import models as vllm_offline_vl_model`|[vllm_offline_vl_model](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_offline_models/vllm_offline_vl_model.py)|
 
 ### 本地huggingface模型后端配置参数说明
 本地huggingface模型后端配置文件采用Python语法格式配置，示例如下：
 ```python
 from ais_bench.benchmark.models import HuggingFacewithChatTemplate
 
-models = [
+models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.configs.models.hf_models.hf_chat_model import models as hf_chat_model`中导入的models
     dict(
         attr="local",                       # 后端类型标识
         type=HuggingFacewithChatTemplate,   # 模型类型

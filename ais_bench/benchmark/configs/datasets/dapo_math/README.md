@@ -33,10 +33,10 @@ rm -rf dapo-math-17k/data
    ```
 
 ## 可用数据集任务
-| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 对应源码配置文件路径 |
-| --- | --- | --- | --- | --- | --- |
-| dapo_math_gen_0_shot_str | DAPO-math-17k 数据集生成式任务，使用 Minerva 方式提取答案 | accuracy | 0-shot | 字符串格式 | [dapo_math_gen_0_shot_str.py](dapo_math_gen_0_shot_str.py) |
-| dapo_math_gen_0_shot_cot_str | DAPO-math-17k 数据集生成式任务，使用严格 boxed 方式提取答案 | accuracy | 0-shot | 字符串格式 | [dapo_math_gen_0_shot_cot_str.py](dapo_math_gen_0_shot_cot_str.py) |
+| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| dapo_math_gen_0_shot_str | DAPO-math-17k 数据集生成式任务，使用 Minerva 方式提取答案 | accuracy | 0-shot | 字符串格式 | `from ais_bench.benchmark.configs.datasets.dapo_math.dapo_math_gen_0_shot_str import dapo_math_datasets as datasets` | [dapo_math_gen_0_shot_str.py](dapo_math_gen_0_shot_str.py) |
+| dapo_math_gen_0_shot_cot_str | DAPO-math-17k 数据集生成式任务，使用严格 boxed 方式提取答案 | accuracy | 0-shot | 字符串格式 | `from ais_bench.benchmark.configs.datasets.dapo_math.dapo_math_gen_0_shot_cot_str import dapo_math_datasets as datasets` | [dapo_math_gen_0_shot_cot_str.py](dapo_math_gen_0_shot_cot_str.py) |
 
 ## 评估方式说明
 数据集支持两种答案提取和评估方式：

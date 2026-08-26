@@ -142,10 +142,38 @@ class VLLMCustomAPI(BaseAPIModel):
             output.input_tokens = json_content["usage"].get("prompt_tokens", 0)
             output.output_tokens = json_content["usage"].get("completion_tokens", 0)
 
+    async def _parse_logprobs(self, choice: dict, output: Output) -> None:
+        # completions API 格式：并行数组 {tokens, token_logprobs, top_logprobs}
+        # 转换为与 chat API 一致的嵌套结构：[{token, logprob, top_logprobs}, ...]
+        lp = choice.get("logprobs")
+        if not lp:
+            if self._logprobs_enabled():
+                output.extra_details_data["logprobs_warning"] = (
+                    "logprobs is enabled in generation_kwargs but missing in response"
+                )
+            return
+        tokens = lp.get("tokens", []) or []
+        token_logprobs = lp.get("token_logprobs", []) or []
+        top_logprobs = lp.get("top_logprobs", []) or []
+        result = []
+        for i in range(len(tokens)):
+            # token_logprobs 首项可能为 None（predefined token），保留为 None 项以对齐位置
+            if token_logprobs[i] is None:
+                result.append(None)
+                continue
+            item = {
+                "token": tokens[i],
+                "logprob": token_logprobs[i],
+                "top_logprobs": top_logprobs[i] if i < len(top_logprobs) else [],
+            }
+            result.append(item)
+        output.origin_logprobs = result
+
     async def parse_text_response(self, api_response: dict, output: Output):
         generated_text = api_response.get("choices", [{}])[0].get("text", "")
         output.content = generated_text
         await self._parse_usage(api_response, output)
+        await self._parse_logprobs(api_response.get("choices", [{}])[0], output)
         self.logger.debug(f"Output content: {output.content}")
 
     async def parse_stream_response(self, api_response: dict, output: Output):

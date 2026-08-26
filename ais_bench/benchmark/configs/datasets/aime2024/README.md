@@ -24,7 +24,7 @@ rm aime.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|aime2024_gen_0_shot_str|aime2024数据集生成式任务|accuracy(pass@1)|0-shot|字符串格式|[aime2024_gen_0_shot_str.py](aime2024_gen_0_shot_str.py)|
-|aime2024_gen_0_shot_chat_prompt|aime2024数据集生成式任务（对齐DeepSeek R1精度测试）|accuracy(pass@1)|0-shot|对话格式|[aime2024_gen_0_shot_chat_prompt.py](aime2024_gen_0_shot_chat_prompt.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|aime2024_gen_0_shot_str|aime2024数据集生成式任务|accuracy(pass@1)|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.aime2024.aime2024_gen_0_shot_str import aime2024_datasets as datasets`|[aime2024_gen_0_shot_str.py](aime2024_gen_0_shot_str.py)|
+|aime2024_gen_0_shot_chat_prompt|aime2024数据集生成式任务（对齐DeepSeek R1精度测试）|accuracy(pass@1)|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.aime2024.aime2024_gen_0_shot_chat_prompt import aime2024_datasets as datasets`|[aime2024_gen_0_shot_chat_prompt.py](aime2024_gen_0_shot_chat_prompt.py)|

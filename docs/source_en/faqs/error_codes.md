@@ -113,7 +113,7 @@ If you specified the configuration file folder path via `--config-dir` when exec
 When using the [randomly synthesized dataset](../advanced_tutorials/synthetic_dataset.md) in the `tokenid` scenario, the model configuration file must specify the tokenizer path.
 
 ### Solution
-Assume the ais_bench evaluation tool command is `ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_tokenid --mode perf`. Then, all `path` parameters in the `models` section of the `vllm_api_stream_chat.py` configuration file (refer to [Modifying Configuration Files for Corresponding Tasks](../get_started/quick_start.md#Modifying Configuration Files for Corresponding Tasks) for the configuration file path retrieval method) must be set to the tokenizer path (usually the model weight folder path).
+Assume the ais_bench evaluation tool command is `ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_tokenid --mode perf`. Then, all `path` parameters in the `models` section of the `vllm_api_stream_chat.py` configuration file (refer to [Modifying Configuration Files for Corresponding Tasks](../get_started/quick_start.md#start-evaluation-choose-one-of-two-methods) for the configuration file path retrieval method) must be set to the tokenizer path (usually the model weight folder path).
 
 ```python
 # ......

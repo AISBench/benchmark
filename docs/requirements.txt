@@ -4,3 +4,4 @@ sphinx-intl
 m2r2
 linkify-it-py
 myst_parser
+sphinx_design

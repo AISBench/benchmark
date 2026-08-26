@@ -1,40 +1,97 @@
-# Guide to Service-Oriented Performance Evaluation
-## Introduction
-AISBench Benchmark provides service-oriented performance evaluation capabilities. For streaming inference scenarios, it systematically evaluates key performance indicators of model services in real-world deployment environments—such as response latency (e.g., TTFT, Inter-Token Latency), throughput capacity (e.g., QPS, TPUT), and concurrent processing capability—by accurately recording the send time of each request, the return time of each stage, and the response content.
+# Service-Oriented Performance Evaluation
+Send batch requests to the service through a unified request interface to evaluate the service performance of the model in actual deployment scenarios. The request sending mode and request data can be customized to obtain performance indicators such as throughput and latency. It supports two deployment frameworks: **vLLM** and **vLLM-Ascend**, and provides complete performance analysis reports.
 
-Users can flexibly control request content, request intervals, concurrent quantities, and other parameters by configuring service-oriented backend parameters to adapt to different evaluation scenarios (e.g., low-concurrency latency-sensitive scenarios, high-concurrency throughput-priority scenarios). The evaluation supports automated execution and outputs structured results, facilitating horizontal comparison of service performance differences across different models, deployment solutions, and hardware configurations.
+## Quick Start
 
+### Prerequisite
 
-## Quick Start for Service-Oriented Performance Evaluation
+The performance evaluation requires **first preparing a service environment** (i.e., a service program that provides OpenAI-compatible interfaces).
+
+Here is the reference service startup method (vLLM OpenAI-compatible service):
+
+```bash
+vllm serve Qwen/Qwen2.5-7B-Instruct --port 8080 --max-model-len 4096
+```
+
+Wait for the service to start successfully (the port shows that the service process is listening), then use the following configuration file for evaluation.
+
+:::{admonition} Recommended Practice
+:class: tip
+
+For details on how to write the following custom configuration file, please refer to [Custom Configuration Files](../../advanced_tutorials/run_custom_config.md#custom-configuration-file-examples-for-each-scenario). Using a custom configuration file can support richer custom parameter configurations, such as supporting `num_prompts`, `request_rate` (QPS sending mode), etc.
+:::
+
+### One-Click Evaluation
+
+After the service is started, the following **custom configuration file** can be used to send the `ShareGPT` dataset to the service at `request_rate=1` (QPS) for performance evaluation.
+
+- Configuration file content:
+  ```python
+  from mmengine.config import read_base
+
+  with read_base():
+      from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+      from ais_bench.benchmark.configs.datasets.sharegpt.sharegpt_gen import sharegpt_datasets as datasets
+      from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+  models = vllm_api_stream_chat
+  models[0]["host_ip"] = "localhost"
+  models[0]["host_port"] = 8080
+  models[0]["max_out_len"] = 1024
+  models[0]["batch_size"] = 50
+  models[0]["request_rate"] = 1  # Request sending frequency: send 1 request to the server every 1/request_rate seconds; if less than 0.001, all requests are sent at once
+  models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)  # When testing performance and needing to limit the output length, ignore_eos must be set to True
+
+  work_dir = "outputs/default/"
+  ```
+
+- Execution command (you can also append `--num-prompts N` to limit the number of requests sent):
+  ```bash
+  ais_bench ais_bench/configs/performance_benchmark/performance_qwen2_7b_sharegpt.py
+  ```
+
+After the task is completed, you can view the performance result report in the `summary/` directory under the task output directory.
+
 ### Command Meaning
-The meaning of the AISBench service-oriented performance evaluation command is the same as explained in 📚 [Tool Quick Start/Command Meaning](../../get_started/quick_start.md#command-meaning). On this basis, you need to add `--mode perf` or `-m perf` to enter the performance evaluation scenario. Take the following AISBench command as an example:
+
+The meaning of the AISBench service-oriented performance evaluation command is the same as explained in 📚 [Tool Quick Start/Command Meaning](../../get_started/quick_start.md#start-evaluation-choose-one-of-two-methods). On this basis, you need to add `--mode perf` or `-m perf` to enter the performance evaluation scenario. Take the following AISBench command as an example:
+
 ```shell
 ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer default_perf --mode perf
 ```
+
 Among them:
+
 - `--models` specifies the model task, i.e., the `vllm_api_stream_chat` model task.
 - `--datasets` specifies the dataset task, i.e., the `demo_gsm8k_gen_4_shot_cot_chat_prompt` dataset task.
-- `--summarizer` specifies the result presentation task, i.e., the `default_perf` result presentation task (if `--summarizer` is not specified, the `default_perf` task is used by default in accuracy evaluation scenarios). It is generally used by default and does not need to be specified in the command line; subsequent commands will omit this parameter.
+- `--summarizer` specifies the result presentation task, i.e., the `default_perf` result presentation task (if `--summarizer` is not specified, the `default_perf` task is used by default in performance evaluation scenarios). It is generally used by default and does not need to be specified in the command line; subsequent commands will omit this parameter.
 
 ### Task Meaning Query (Optional)
+
 Specific information (introduction, usage constraints, etc.) about the selected model task `vllm_api_stream_chat`, dataset task `demo_gsm8k_gen_4_shot_cot_chat_prompt`, and result presentation task `default_perf` can be queried from the following links:
+
 - `--models`: 📚 [Service-Oriented Inference Backend](../all_params/models.md#service-oriented-inference-backend)
-- `--datasets`: 📚 [Open-Source Datasets](../all_params/datasets.md#open-source-datasets) → 📚 [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README_en.md)
+- `--datasets`: 📚 [Open-Source Datasets](../../get_started/datasets.md#open-source-datasets) → 📚 [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README_en.md)
 - `--summarizer`: 📚 [Result Summary Tasks](../all_params/summarizer.md#supported-result-summary-tasks)
 
 ### Preparations Before Running the Command
+
 - `--models`: To use the `vllm_api_stream_chat` model task, you need to prepare an inference service that supports the `v1/chat/completions` sub-service. You can refer to 🔗 [VLLM Launch OpenAI-Compatible Server](https://docs.vllm.com.cn/en/latest/getting_started/quickstart.html#openai-compatible-server) to start the inference service.
 - `--datasets`: To use the `demo_gsm8k_gen_4_shot_cot_chat_prompt` dataset task, you need to prepare the GSM8K dataset, which can be downloaded from 🔗 [GSM8K Dataset Compressed Package Provided by OpenCompass](http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/gsm8k.zip). Deploy the unzipped `gsm8k/` folder to the `ais_bench/datasets` folder in the root path of the AISBench evaluation tool.
 
-# Modification of Configuration Files Corresponding to Tasks
+### Modification of Configuration Files Corresponding to Tasks
+
 Each model task, dataset task, and result presentation task corresponds to a configuration file. The content of these configuration files must be modified before executing commands. The paths of these configuration files can be queried by adding `--search` to the original AISBench command. For example:
+
 ```shell
 # Note: Whether to add "--mode perf" to the search command does not affect the search results
 ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --mode perf --search
 ```
+
 > ⚠️ **Note**: Executing a command with the `search` option will print the absolute path of the configuration file corresponding to the task.
 
 Executing the query command will yield the following results:
+
 ```shell
 ╒══════════════╤═══════════════════════════════════════╤════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╕
 │ Task Type    │ Task Name                             │ Config File Path                                                                                                               │
@@ -43,12 +100,12 @@ Executing the query command will yield the following results:
 ├──────────────┼───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ --datasets   │ demo_gsm8k_gen_4_shot_cot_chat_prompt │ /your_workspace/benchmark/ais_bench/benchmark/configs/datasets/demo/demo_gsm8k_gen_4_shot_cot_chat_prompt.py                   │
 ╘══════════════╧═══════════════════════════════════════╧════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╛
-
 ```
 
-- The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in the quick start does not require additional modifications. For an introduction to the content of the dataset task configuration file, please refer to 📚 [Configure Open-Source Datasets](../all_params/datasets.md#configure-open-source-datasets)
+- The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in the quick start does not require additional modifications. For an introduction to the content of the dataset task configuration file, please refer to 📚 [Configure Open-Source Datasets](../../get_started/datasets.md#configuring-open-source-datasets)
 
 The model configuration file `vllm_api_stream_chat.py` contains configuration content related to model operation and needs to be modified according to actual conditions. The content that needs to be modified in the quick start is marked with comments.
+
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPIChatStream
 
@@ -79,14 +136,14 @@ models = [
 ```
 
 
-# Execute Commands
+### Execute Commands
 After modifying the configuration files, execute the command to start the service performance evaluation:
 ```bash
 ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt -m perf
 ```
 
-## View Task Execution Details
 After executing the AISBench command, the status of the ongoing task will be displayed on a real-time refreshing dashboard in the command line (press the "P" key on the keyboard to stop refreshing for copying dashboard information, and press "P" again to resume refreshing). For example:
+
 ```
 Base path of result&log : outputs/default/20251106_103326
 Task Progress Table (Updated at: 2025-11-06 10:34:41)
@@ -98,21 +155,24 @@ Press Up/Down arrow to page,  'P' to PAUZE/RESUME screen refresh, 'Ctrl + C' to 
 +=================================+===========+=================================================+=============+=============+================================================+================================================+
 | vllm-api-stream-chat/demo_gsm8k |    744887 | [###########                   ] 3/8 [0.1 it/s] | 0:00:54     | inferencing | logs/infer/vllm-api-stream-chat/demo_gsm8k.out | {'POST': 4, 'RECV': 3, 'FINISH': 3, 'FAIL': 0} |
 +---------------------------------+-----------+-------------------------------------------------+-------------+-------------+------------------------------------------------+------------------------------------------------+
-`
-
 ```
 
 Detailed logs of task execution will be continuously saved to the default output path, which is displayed on the real-time refreshing dashboard as `Log Path`. The `Log Path` (`logs/infer/vllm-api-stream-chat/demo_gsm8k.out`) is a subpath under the `Base path` (`outputs/default/20251106_103326`). Taking the above dashboard information as an example, the path to the detailed logs of task execution is:
+
 ```shell
 # {Base path}/{Log Path}
 outputs/default/20251106_103326/logs/infer/vllm-api-stream-chat/demo_gsm8k.out
 ```
 
 > 💡 If you want detailed logs to be printed directly during execution, you can add `--debug` to the command:
-`ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt -m perf --debug`
+>
+> ```bash
+> ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt -m perf --debug
+> ```
 
-# View Performance Results
-An example of performance results printed on the screen is as follows:
+### View Performance Results
+
+The on-screen performance results are displayed as follows:
 
 ```bash
 [2025-11-06 10:35:43,667] [ais_bench] [INFO] Performance Results of task: vllm-api-stream-chat/demo_gsm8k:
@@ -164,245 +224,611 @@ An example of performance results printed on the screen is as follows:
 ╘══════════════════════════╧═════════╧══════════════════╛
 [2025-11-06 10:35:43,672] [ais_bench] [INFO] Performance Result files located in outputs/default/20251106_103326/performances/vllm-api-stream-chat.
 ```
-💡 For the meaning of specific performance parameters, please refer to 📚 [Explanation of Performance Evaluation Results](../results_intro/performance_metric.md)
 
-# View Performance Details
-After executing the AISBench command, more details of task execution will eventually be saved to the `Base path` (`outputs/default/20251106_103326`)
+💡 For the meaning of specific performance parameters, refer to 📚 [Performance Evaluation Results Description](../results_intro/performance_metric.md)
 
-After the command execution is completed, the details of task execution in `outputs/default/20250628_151326` are as follows:
+### Performance Details View
+
+After executing the AISBench command, more details of task execution will eventually be saved to the `Base path` (`outputs/default/20251106_103326`).
+
+After the command execution ends, the task execution details in `outputs/default/20250628_151326` are as follows:
+
 ```shell
 20251106_103326          # Unique directory generated based on timestamp for each experiment
-├── configs               # Automatically stored all dumped configuration files
-├── logs                  # Logs during execution; if --debug is added to the command, no process logs will be saved to disk (all will be printed directly)
-│   └── performance/      # Log files of the inference phase
+├── configs               # Automatically stored configuration files of all dumped configurations
+├── logs                  # Logs during execution; if --debug is added to the command, there will be no on-disk logs (all printed directly)
+│   └── performance/      # Log files from the inference phase
 └── performance           # Performance evaluation results
-│    └── vllm-api-stream-chat/          # Name of "service model configuration", corresponding to the abbr parameter of models in the model task configuration file
-│         ├── demo_gsm8k.csv          # Single-request performance output (CSV), consistent with the Performance Parameters table in the on-screen performance results
-│         ├── demo_gsm8k.json         # End-to-end performance output (JSON), consistent with the Common Metric table in the on-screen performance results
-│         ├── demo_gsm8k_plot.html    # Request concurrency visualization report (HTML)
-│         └── ......
+    └── vllm-api-stream-chat/          # "Service-oriented model configuration" name, corresponding to the abbr parameter of models in the model task configuration file
+        ├── demo_gsm8k.csv          # Single-request performance output (CSV), consistent with the Performance Parameters table in the on-screen performance results
+        ├── demo_gsm8k.json         # End-to-end performance output (JSON), consistent with the Common Metric table in the on-screen performance results
+        ├── demo_gsm8k_plot.html    # Request concurrency visualization report (HTML)
+        └── ......
 ```
-💡 It is recommended to open the request concurrency visualization report `demo_gsm8k_plot.html` using browsers such as Chrome or Edge. You can view the latency of each request and the number of concurrent service times perceived by the client at each moment:
-  ![full_plot_example.img](../../img/request_concurrency/full_plot_example.png)
+
+💡 The `demo_gsm8k_plot.html` request concurrency visualization report is recommended to be opened with browsers such as Chrome or Edge, where you can see the latency of each request and the number of concurrent service requests perceived by the client at each moment:
+![full_plot_example](../../img/request_concurrency/full_plot_example.png)
+
 For instructions on using this HTML visualization file, please refer to 📚 [Instructions for Using Performance Test Visualization Concurrency Graphs](../results_intro/performance_visualization.md)
 
-# Preconditions for Service-Oriented Performance Evaluation
-Before conducting service-oriented inference, the following conditions must be met:
+## Test Preparation
 
-- **Accessible Service-Oriented Model Service**: Ensure the service process can be directly accessed in the current environment.
-- **Dataset Preparation**:
-  - **Open-Source Dataset**: Select a dataset from 📚 [Open-Source Datasets](../all_params/datasets.md#开源数据集), and choose the dataset task to execute from the "Detailed Introduction" document corresponding to the dataset. Prepare the dataset files by referring to the "Detailed Introduction" document of the selected dataset task. It is recommended to manually place the open-source dataset in the default directory `ais_bench/datasets/`; the program will automatically load the dataset files during task execution.
-  - **Randomly Synthesized Dataset**: Select `synthetic_gen` as the dataset task, and refer to 📚 [Randomly Synthesized Dataset](../../advanced_tutorials/synthetic_dataset.md) for other configurations.
-  - **Custom Dataset**: No need to specify a dataset task; refer to 📚 [Custom Dataset](../../advanced_tutorials/custom_dataset.md) for other configurations.
-- **Service-Oriented Model Backend Configuration**: From [Service-Oriented Inference Backend](../all_params/models.md#服务化推理后端), select a sub-service with the interface type of `Streaming Interface` (⚠️ Other types are not supported).
+Before performing service-oriented inference, the following conditions must be met:
 
+- Available model weights: Ensure that the model weight files to be tested are already available locally. Open-source weights can be obtained from 🔗 [Hugging Face Community](https://huggingface.co/models).
+- Service environment preparation: Ensure that the model inference service is started through inference engines such as vLLM/vLLM-Ascend. The startup parameters need to ensure that the server's `max-model-len` and other configurations can accommodate the length of the prompt and output to be sent.
+- Dataset preparation: Select a dataset suitable for performance evaluation scenarios, such as `ShareGPT`. For details, refer to 📚 [Datasets](../../get_started/datasets.md#open-source-datasets). The user can also prepare a custom dataset, see [Custom Dataset Evaluation](../../advanced_tutorials/custom_dataset.md).
+- Model task preparation: Select the model task to execute from 📚 [vLLM Model Backend](../all_params/models.md#service-oriented-inference-backend).
 
-# Main Functional Scenarios
-## Single-Task Evaluation
-Refer to [Quick Start for Service-Oriented Performance Evaluation](#服务化性能测评快速入门)
+:::{admonition} Service Startup Precautions
+:class: warning
 
-## Multi-Task Evaluation
-Supports simultaneous configuration of multiple models or multiple dataset tasks, enabling batch evaluation through a single command. This is suitable for serial execution of multiple test commands.
+- It is recommended to ensure that the service is fully started before starting the evaluation task, otherwise the task may fail due to connection failure.
+- When the service fails, the tool will record the failure cause in the logs, and the user can troubleshoot based on the error information.
+:::
 
-### Command Description
-Users can specify multiple configuration tasks via the `--models` and `--datasets` parameters. The number of subtasks is the product of the number of tasks configured in `--models` and `--datasets`—that is, one model configuration and one dataset configuration form a subtask. Example:
+## Main Functional Scenarios
+
+### Single-Task Performance Evaluation
+
+#### Using a Custom Configuration File (Recommended)
+
+:::{tab-set}
+:::{tab-item} ⭐ Custom Configuration File
+
+The configuration file content is consistent with the [Quick Start One-Click Evaluation](#one-click-evaluation).
+
+Execution command:
+
 ```bash
-ais_bench --models vllm_api_general_stream vllm_api_stream_chat --datasets gsm8k_gen_4_shot_cot_str aime2024_gen_0_shot_str --mode perf
+ais_bench ais_bench/configs/performance_benchmark/performance_qwen2_7b_sharegpt.py
 ```
-The above command specifies 2 model tasks (`vllm_api_general_stream` `vllm_api_stream_chat`) and 2 dataset tasks (`gsm8k_gen_4_shot_cot_str` `aime2024_gen_0_shot_str`), and will execute the following 4 combined performance test tasks:
+
+:::
+:::{tab-item} Alternative: Command-Line Parameters
+
+You can also use the preset configuration file for one-click evaluation (the service address needs to be configured in the model configuration file [vllm_api_stream_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py)):
+
+```bash
+ais_bench --models vllm_api_stream_chat --datasets sharegpt_gen -m perf
+```
+
+:::
+:::
+
+#### Specifying Custom Performance Dimensions
+
+AISBench supports users in customizing the statistical items of performance reports. In the custom configuration file, you can customize the `summarizer` and modify the `stats_list` field of its calculator to control which statistical dimensions (e.g., `Average`, `Min`, `Max`, `Median`, `P75`, `P90`, `P99`) are computed for each performance parameter (E2EL, TTFT, TPOT, etc.) in the summary report.
+
+Commonly used statistical items include:
+
+| Statistic | Description |
+| --- | --- |
+| `Average` | Average value |
+| `Min` | Minimum value |
+| `Max` | Maximum value |
+| `Median` | Median value |
+| `P75` | 75th percentile |
+| `P90` | 90th percentile |
+| `P95` | 95th percentile |
+| `P99` | 99th percentile |
+
+The following is an example configuration that contains the most commonly used statistical items:
+
+```python
+from mmengine.config import read_base
+from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
+from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
+
+with read_base():
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+# Key: customize the stats_list of the performance summarizer calculator
+summarizer = dict(
+    attr="performance",
+    type=DefaultPerfSummarizer,
+    calculator=dict(
+        type=DefaultPerfMetricCalculator,
+        stats_list=["Average", "Min", "Max", "Median", "P75", "P90", "P95", "P99"],
+    ),
+)
+
+models = vllm_api_stream_chat
+```
+
+For a complete runnable example, refer to [performance_re_eval.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_re_eval.py).
+
+### Multi-Task Performance Evaluation
+
+Supports simultaneous configuration of multiple datasets or multiple sending parameter combinations (such as different `request_rate`s) for performance evaluation through a single command, facilitating the comparison of performance indicators of different sending strategies.
+
+#### Description of Sub-task Combinations
+
+In multi-task evaluation scenarios, the number of subtasks is the product of the number of tasks configured by `models` and the number of tasks configured by `datasets`—that is, one model configuration and one dataset configuration form a subtask.
+
+The following example simultaneously evaluates 2 model tasks (`vllm_api_general_stream`, `vllm_api_stream_chat`) and 2 dataset tasks (`gsm8k_gen_4_shot_cot_str`, `aime2024_gen_0_shot_str`), and will execute the following 4 combined performance test tasks:
+
 + [vllm_api_general_stream](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_stream.py) Model Task + [gsm8k_gen_4_shot_cot_str](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/gsm8k/gsm8k_gen_4_shot_cot_str.py) Dataset Task
 + [vllm_api_general_stream](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_stream.py) Model Task + [aime2024_gen_0_shot_str](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2024/aime2024_gen_0_shot_str) Dataset Task
 + [vllm_api_stream_chat](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py) Model Task + [gsm8k_gen_4_shot_cot_str](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/gsm8k/gsm8k_gen_4_shot_cot_str.py) Dataset Task
 + [vllm_api_stream_chat](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py) Model Task + [aime2024_gen_0_shot_str](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2024/aime2024_gen_0_shot_str.py) Dataset Task
 
-### Modify Configuration Files Corresponding to Tasks
-The actual paths of the configuration files corresponding to model tasks and dataset tasks can be queried by executing the command with the `--search` parameter:
-```bash
-ais_bench --models vllm_api_general_stream vllm_api_stream_chat --datasets gsm8k_gen_4_shot_cot_str aime2024_gen_0_shot_str --mode perf --search
-```
-The following configuration files to be modified will be displayed:
-```bash
-╒═════════════╤══════════════════════════╤═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╕
-│ Task Type   │ Task Name                │ Config File Path                                                                                                          │
-╞═════════════╪══════════════════════════╪═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
-│ --models    │ vllm_api_general_stream  │ /your_workspace/benchmark_test/ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_stream.py                     │
-├─────────────┼──────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ --models    │ vllm_api_stream_chat     │ /your_workspace/benchmark_test/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py                        │
-├─────────────┼──────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ --datasets  │ gsm8k_gen_4_shot_cot_str │ /your_workspace/benchmark_test/ais_bench/benchmark/configs/datasets/gsm8k/gsm8k_gen_4_shot_cot_str.py                     │
-├─────────────┼──────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ --datasets  │ aime2024_gen_0_shot_str  │ /your_workspace/benchmark_test/ais_bench/benchmark/configs/datasets/aime2024/aime2024_gen_0_shot_str.py                   │
-╘═════════════╧══════════════════════════╧═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╛
-```
-- Refer to 📚 [Description of Service-Oriented Inference Backend Configuration Parameters](../all_params/models.md#服务化推理后端配置参数说明) to configure the configuration files corresponding to the model tasks `vllm_api_general_stream` and `vllm_api_stream_chat` according to the actual situation.
-- Refer to 📚 [Configure Open-Source Dataset](../all_params/datasets.md#配置开源数据集) to configure the configuration files corresponding to the dataset tasks `gsm8k_gen_4_shot_cot_str` and `aime2024_gen_0_shot_str` according to the actual situation. **Note**: If the dataset is placed in the default directory `ais_bench/datasets/`, no configuration is generally required.
+#### Custom Model-Dataset Pairings (Optional)
 
-### Execute the Evaluation Command
-Execute the command:
-```bash
-ais_bench --models vllm_api_general_stream vllm_api_stream_chat --datasets gsm8k_gen_4_shot_cot_str aime2024_gen_0_shot_str --mode perf
-```
+By default, the `models` list and `datasets` list in the configuration file are automatically combined as a Cartesian product, with the number of subtasks equal to the number of models × the number of datasets (in this example, 2 × 2 = 4). If you want to precisely control which models are paired with which datasets (e.g., letting some models only run on some datasets to avoid meaningless combinations), you can explicitly declare the pairing relationship in the configuration file via the `model_dataset_combinations` field:
 
-During execution, a timestamp directory will be created under the path specified by 📚 [`--work-dir`](../all_params/cli_args.md#公共参数) (the default path is `outputs/default/`) to save execution details.
-After the 4 performance evaluation tasks are completed, the performance results of all 4 tasks will be printed at once:
-```bash
-[2025-11-06 10:35:43,667] [ais_bench] [INFO] Performance Results of task: vllm-api-stream-chat/demo_gsm8k:
-╒══════════════════════════╤═════════╤═════════════════╤═══════════════╤═════════════════╤═════════════════╤═════════════════╤═════════════════╤═════════════════╤══════╕
-│ Performance Parameters   │ Stage   │ Average         │ Min           │ Max             │ Median          │ P75             │ P90             │ P99             │  N   │
-╞══════════════════════════╪═════════╪═════════════════╪═══════════════╪═════════════════╪═════════════════╪═════════════════╪═════════════════╪═════════════════╪══════╡
-│ E2EL                     │ total   │ 2754.0929 ms    │ 2189.0804 ms  │ 3366.1463 ms    │ 2753.1668 ms    │ 3048.2929 ms    │ 3222.573 ms     │ 3303.3894 ms    │ 1319 │
-......
-╒══════════════════════════╤═════════╤═══════════════════╕
-│ Common Metric            │ Stage   │ Value             │
-╞══════════════════════════╪═════════╪═══════════════════╡
-│ Benchmark Duration       │ total   │ 38039.9928 ms      │
-......
-[2025-11-06 11:11:33,468] [ais_bench] [INFO] Performance Result files located in outputs/default/20251106_110904/performances/vllm-api-general-stream.
-[2025-11-06 11:11:33,468] [ais_bench] [INFO] Performance Results of task: vllm-api-general-stream/aime2024:
-╒══════════════════════════╤═════════╤═════════════════╤════════════════╤════════════════╤═══════════════╤═════════════════╤═════════════════╤═════════════════╤═════╕
-│ Performance Parameters   │ Stage   │ Average         │ Min            │ Max            │ Median        │ P75             │ P90             │ P99             │  N  │
-╞══════════════════════════╪═════════╪═════════════════╪════════════════╪════════════════╪═══════════════╪═════════════════╪═════════════════╪═════════════════╪═════╡
-│ E2EL                     │ total   │ 2868.1822 ms    │ 2277.1049 ms   │ 3307.2084 ms   │ 2941.6767 ms  │ 3158.5361 ms    │ 3220.2141 ms    │ 3307.0174 ms    │ 30  │
-......
-╒══════════════════════════╤═════════╤═══════════════════╕
-│ Common Metric            │ Stage   │ Value             │
-╞══════════════════════════╪═════════╪═══════════════════╡
-│ Benchmark Duration       │ total   │ 3346.9782 ms      │
-......
-[2025-11-06 11:11:33,471] [ais_bench] [INFO] Performance Result files located in outputs/default/20251106_110904/performances/vllm-api-general-stream.
-[2025-11-06 11:11:33,471] [ais_bench] [INFO] Performance Results of task: vllm-api-stream-chat/gsm8k:
-╒══════════════════════════╤═════════╤═════════════════╤════════════════╤═════════════════╤═════════════════╤═════════════════╤════════════════╤═════════════════╤══════╕
-│ Performance Parameters   │ Stage   │ Average         │ Min            │ Max             │ Median          │ P75             │ P90            │ P99             │  N   │
-╞══════════════════════════╪═════════╪═════════════════╪════════════════╪═════════════════╪═════════════════╪═════════════════╪════════════════╪═════════════════╪══════╡
-│ E2EL                     │ total   │ 2753.3518 ms    │ 2189.5185 ms   │ 3339.4463 ms    │ 2755.8153 ms    │ 3039.7431 ms    │ 3219.6642 ms   │ 3313.0408 ms    │ 1319 │
-......
-╒══════════════════════════╤═════════╤═══════════════════╕
-│ Common Metric            │ Stage   │ Value             │
-╞══════════════════════════╪═════════╪═══════════════════╡
-│ Benchmark Duration       │ total   │ 38101.2396 ms      │
-......
-[2025-11-06 11:11:33,474] [ais_bench] [INFO] Performance Result files located in outputs/default/20251106_110904/performances/vllm-api-stream-chat.
-[2025-11-06 11:11:33,474] [ais_bench] [INFO] Performance Results of task: vllm-api-stream-chat/aime2024:
-╒══════════════════════════╤═════════╤═════════════════╤═══════════════╤════════════════╤═════════════════╤═════════════════╤═════════════════╤═════════════════╤═════╕
-│ Performance Parameters   │ Stage   │ Average         │ Min           │ Max            │ Median          │ P75             │ P90             │ P99             │  N  │
-╞══════════════════════════╪═════════╪═════════════════╪═══════════════╪════════════════╪═════════════════╪═════════════════╪═════════════════╪═════════════════╪═════╡
-│ E2EL                     │ total   │ 2745.4115 ms    │ 2187.5882 ms  │ 3288.4635 ms   │ 2820.7541 ms    │ 2988.8338 ms    │ 3188.436 ms     │ 3273.7475 ms    │ 30  │
-......
-╒══════════════════════════╤═════════╤═══════════════════╕
-│ Common Metric            │ Stage   │ Value             │
-╞══════════════════════════╪═════════╪═══════════════════╡
-│ Benchmark Duration       │ total   │ 3335.7672 ms      │
-......
-[2025-11-06 11:11:33,477] [ais_bench] [INFO] Performance Result files located in outputs/default/20251106_110904/performances/vllm-api-stream-chat.
-```
-
-At the same time, the final generated directory structure is as follows:
-```bash
-# Under output/default
-20251106_110904/     # Output directory corresponding to the task creation time
-├── configs          # A combined configuration file integrating configs for model tasks, dataset tasks, and structure presentation tasks
-├── logs             # Contains logs from the inference and accuracy evaluation phases; when the --debug command is added, logs will be printed directly to the screen without generating disk-stored files
-│   └── performance  # Log files from the inference phase
-└── performances     # Performance evaluation results
-    ├── vllm-api-general-stream            # Name of the "service-oriented model configuration", corresponding to the abbr parameter in the models section of the model task configuration file
-    │   ├── aime2024.csv            # Single-request performance output (CSV), consistent with the Performance Parameters table in the on-screen performance results display
-    │   ├── aime2024.json           # End-to-end performance output (JSON), consistent with the Common Metric table in the on-screen performance results display
-    │   ├── aime2024_plot.html      # Request concurrency visualization report (HTML)
-    │   ├── gsm8k.csv
-    │   ├── gsm8k.json
-    │   ├── gsm8k_plot.html
-    │   └── ......
-    └── vllm-api-stream-chat
-        ├── aime2024.csv
-        ├── aime2024.json
-        ├── aime2024_plot.html
-        ├── gsm8k.csv
-        ├── gsm8k.json
-        ├── gsm8k_plot.html
-        └── ......
-
-```
-> ⚠️ Note:
-> - In multi-task performance evaluation scenarios, the dataset tasks specified by `--datasets` must belong to different dataset types. Otherwise, performance data may be missing due to overwriting. For example, you cannot use `--datasets` to specify both the `aime2024_gen_0_shot_str` and `aime2024_gen_0_shot_chat_prompt` dataset tasks simultaneously.
-
-
-### Custom Sequence Length Evaluation
-#### 1 Configure Input and Output Distribution for Custom Sequence Datasets
-To perform custom sequence length evaluation, you need to specify the special dataset task `synthetic_gen_string`. Execute the following command to retrieve the path of the configuration file corresponding to `synthetic_gen_string`:
-```bash
-ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_string --search
-```
-The result will be:
-```
-╒══════════════╤═══════════════════════════════════════╤════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╕
-│ Task Type    │ Task Name                             │ Config File Path                                                                                                               │
-╞══════════════╪═══════════════════════════════════════╪════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
-│ --models     │ vllm_api_stream_chat                  │ /your_workspace/benchmark/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py                                 │
-├──────────────┼───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ --datasets   │ synthetic_gen_string                  │ /your_workspace/benchmark/ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen_string.py                               │
-╘══════════════╧═══════════════════════════════════════╧════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╛
-```
-
-Modify the `synthetic_config` in `/your_workspace/benchmark/ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen_string.py`. The configuration content is as follows:
 ```python
-synthetic_config = {
-    "Type": "string",
-    "RequestCount": 1000, # Number of requests (number of dataset entries)
-    "StringConfig": {
-        "Input": {
-            "Method": "uniform",
-            "Params": {"MinValue": 50, "MaxValue": 500}  # Input length: 50-500
-        },
-        "Output": {
-            "Method": "uniform",
-            "Params": {"MinValue": 20, "MaxValue": 200}  # Output length: 20-200
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local import LocalRunner
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.example import summarizer
+    from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_4_shot_cot_str import gsm8k_datasets
+    from ais_bench.benchmark.configs.datasets.aime2024.aime2024_gen_0_shot_str import aime2024_datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_stream import models as vllm_api_general_stream
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+datasets = gsm8k_datasets + aime2024_datasets
+models = vllm_api_general_stream + vllm_api_stream_chat
+
+# Key: Precisely control pairings via model_dataset_combinations
+# The following example generates only 2 subtasks (the Cartesian product would generate 4):
+#   - vllm_api_general_stream + gsm8k_gen_4_shot_cot_str
+#   - vllm_api_stream_chat + aime2024_gen_0_shot_str
+model_dataset_combinations = [
+    dict(models=[models[0]], datasets=[datasets[0]]),
+    dict(models=[models[1]], datasets=[datasets[1]]),
+]
+```
+
+> ⚠️ **Note**: The unique identifier for models and datasets is determined by the `abbr` field. In the same configuration file, repeated combinations of models or datasets with the same `abbr` will be treated as duplicate tasks and skipped. When reusing model/dataset configurations via methods such as `.copy()`, the `abbr` must be explicitly modified to ensure uniqueness. See 📚 [Custom Model and Dataset Combinations](../../advanced_tutorials/run_custom_config.md#custom-model-and-dataset-combinations) for details.
+
+#### Multi-Task Parallel
+
+Supports multi-task parallelism through the [`--max-num-workers`](../all_params/cli_args.md#common-parameters) command-line parameter. Different sub-tasks will be distributed to different processes for parallel execution.
+
+#### Specifying Multiple Datasets for Performance Evaluation
+
+:::{tab-set}
+:::{tab-item} ⭐ Custom Configuration File
+
+```python
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local import LocalRunner
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_4_shot_cot_str import gsm8k_datasets
+    from ais_bench.benchmark.configs.datasets.aime2024.aime2024_gen_0_shot_chat_prompt import aime2024_datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+datasets = gsm8k_datasets + aime2024_datasets
+
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+work_dir = "outputs/default/"
+```
+
+Execution command:
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/performance_multi_dataset.py
+```
+
+:::
+:::{tab-item} Alternative: Command-Line Parameters
+
+Use the `--datasets` parameter to specify multiple datasets:
+
+```bash
+ais_bench --models vllm_api_stream_chat --datasets gsm8k_gen_4_shot_cot_str,aime2024_gen_0_shot_chat_prompt -m perf
+```
+
+:::
+:::
+
+#### Specifying Multiple Sending Rates for Performance Evaluation
+
+The following configuration file example sends the `ShareGPT` dataset to the service at `request_rate=1, 2, 4, 8` respectively for performance evaluation.
+
+:::{tab-set}
+:::{tab-item} ⭐ Custom Configuration File
+
+```python
+import copy
+from mmengine.config import read_base
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.sharegpt.sharegpt_gen import sharegpt_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as base_vllm_api_stream_chat
+
+# In AISBench, `request_rate` is a field of the model configuration, so build one
+# model configuration per rate via `copy.deepcopy` and combine them with one dataset.
+models = []
+for rate in [1, 2, 4, 8]:
+    model_cfg = copy.deepcopy(base_vllm_api_stream_chat[0])
+    model_cfg["abbr"] = f"vllm-api-stream-chat-rate-{rate}"
+    model_cfg["host_ip"] = "localhost"
+    model_cfg["host_port"] = 8080
+    model_cfg["max_out_len"] = 1024
+    model_cfg["batch_size"] = 50
+    model_cfg["request_rate"] = rate
+    model_cfg["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+    models.append(model_cfg)
+
+work_dir = "outputs/default/"
+```
+
+Execution command:
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/performance_multi_rate.py
+```
+
+:::
+:::{tab-item} Alternative: Command-Line Parameters
+
+It is not supported to specify multiple sending rates for one dataset in a single command. It is recommended to use a custom configuration file.
+
+:::
+:::
+
+#### Specifying Multiple Models for Performance Evaluation
+
+Supports simultaneous evaluation of multiple models on the same dataset, suitable for comparing the performance of different models.
+
+:::{tab-set}
+:::{tab-item} ⭐ Custom Configuration File
+
+```python
+from mmengine.config import read_base
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.sharegpt.sharegpt_gen import sharegpt_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_stream import models as vllm_api_general_stream
+
+# Rename the abbr of each model so that the results are distinguishable
+vllm_api_stream_chat[0]["abbr"] = "vllm-qwen2.5-7b"
+vllm_api_general_stream[0]["abbr"] = "vllm-qwen2.5-14b"
+
+vllm_api_stream_chat[0]["host_ip"] = "localhost"
+vllm_api_stream_chat[0]["host_port"] = 8080
+vllm_api_stream_chat[0]["max_out_len"] = 1024
+vllm_api_stream_chat[0]["batch_size"] = 50
+vllm_api_stream_chat[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+vllm_api_general_stream[0]["host_ip"] = "localhost"
+vllm_api_general_stream[0]["host_port"] = 8081
+vllm_api_general_stream[0]["max_out_len"] = 1024
+vllm_api_general_stream[0]["batch_size"] = 50
+vllm_api_general_stream[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+models = vllm_api_stream_chat + vllm_api_general_stream
+
+work_dir = "outputs/default/"
+```
+
+Execution command:
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/performance_multi_model.py
+```
+
+:::
+:::{tab-item} Alternative: Command-Line Parameters
+
+```bash
+ais_bench --models vllm_api_stream_chat,vllm_api_general_stream --datasets sharegpt_gen -m perf
+```
+
+:::
+:::
+
+### Synthetic Dataset Multi-Task Combinations
+
+In actual performance evaluation, it is sometimes necessary to simulate the input load in production environments, such as fixed-length inputs, Poisson-distributed request arrival, etc. AISBench supports users in defining custom performance evaluation datasets through the `SyntheticDataset`, and supports configuring the distribution of input sequence lengths, the distribution of output sequence lengths, the request arrival rate (QPS), etc. through parameters. The model-dataset sub-tasks generated by the synthetic dataset support combinations with each other.
+
+The following configuration file example sends synthetic datasets of different input lengths to the service for performance evaluation at `request_rate=2`:
+
+:::{tab-set}
+:::{tab-item} ⭐ Custom Configuration File
+
+```python
+from mmengine.config import read_base
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.synthetic.synthetic_gen_string import synthetic_datasets as base_synthetic_datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+# Define multiple sub-datasets with different input/output lengths via the `config` field
+datasets = []
+for input_len in [256, 512, 1024]:
+    for output_len in [256, 512]:
+        ds = dict(base_synthetic_datasets[0])
+        ds["abbr"] = f"syn_in{input_len}_out{output_len}"
+        ds["config"] = {
+            "Type": "string",
+            "RequestCount": 100,
+            "TrustRemoteCode": False,
+            "StringConfig": {
+                "Input": {
+                    "Method": "uniform",
+                    "Params": {"MinValue": input_len, "MaxValue": input_len},
+                },
+                "Output": {
+                    "Method": "uniform",
+                    "Params": {"MinValue": output_len, "MaxValue": output_len},
+                },
+            },
         }
-    }
-}
+        datasets.append(ds)
+
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["request_rate"] = 2
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+work_dir = "outputs/default/"
 ```
-💡 For more custom input and output distributions, refer to 📚 [Random Synthetic Dataset](../../advanced_tutorials/synthetic_dataset.md)
 
-#### 2 Ensure the Inference Service Reaches the Set Maximum Output
-To ensure the inference service achieves the set maximum output, you need to configure the special post-processing parameter `ignore_eos = True` in `generation_kwargs` of the 📚 [Service-Oriented Model Configuration](../all_params/models.md#Service-Oriented Inference Backend Configuration Parameter Description) to control the maximum output length of requests (preventing early termination).
+Execution command:
 
-For example, modify the content of the configuration file [vllm_api_stream_chat.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/models/vllm_api/vllm_api_stream_chat.py) corresponding to the `vllm_api_stream_chat` model task:
+```bash
+ais_bench ais_bench/configs/performance_benchmark/performance_synthetic.py
+```
+
+:::
+:::{tab-item} Alternative: Command-Line Parameters
+
+It is not supported to specify multiple synthetic datasets with different lengths in a single command. It is recommended to use a custom configuration file.
+
+:::
+:::
+
+> 💡 For more configuration details of `SyntheticDataset`, please refer to 📚 [Datasets](../../get_started/datasets.md#randomly-synthesized-datasets).
+
+### Custom Sequence Length Usage through Custom Config File Approach
+
+:::{admonition} Why use a custom config file?
+:class: tip
+
+For the synthetic dataset scenario, in order to fully support the user's combination of multiple different input/output lengths, multiple different QPS sending rates, etc., it is **strongly recommended to use a custom configuration file**, because the command-line parameters can only support a single fixed length and a single QPS, and cannot satisfy the combinatorial requirements.
+:::
+
+For detailed instructions on writing custom configuration files, please refer to [Custom Configuration Files](../../advanced_tutorials/run_custom_config.md#4-synthetic-dataset-performance-evaluation).
+
+### Custom Sequence Multi-Task Combinations
+
+For multi-task combinations based on custom sequence lengths, the user can combine different models and datasets for evaluation through the `model_dataset_combinations` field.
+
+:::{tab-set}
+:::{tab-item} ⭐ Custom Configuration File
+
 ```python
-from ais_bench.benchmark.models import VLLMCustomAPIChatStream
-models = [
-    dict(
-        attr="service",
-        type=VLLMCustomAPIChatStream,
-        abbr='vllm-api-stream-chat',
-        # Configure other model task parameters such as port and IP by yourself
-        generation_kwargs = dict(
-            # .....
-            ignore_eos = True,      # The inference service output ignores EOS (output length will definitely reach max_out_len)
-        )
-    )
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local import LocalRunner
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.synthetic.synthetic_gen_string import synthetic_datasets as base_synthetic_datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+datasets = []
+for input_len in [256, 512]:
+    for output_len in [256, 512]:
+        ds = dict(base_synthetic_datasets[0])
+        ds["abbr"] = f"syn_in{input_len}_out{output_len}"
+        ds["config"] = {
+            "Type": "string",
+            "RequestCount": 100,
+            "TrustRemoteCode": False,
+            "StringConfig": {
+                "Input": {
+                    "Method": "uniform",
+                    "Params": {"MinValue": input_len, "MaxValue": input_len},
+                },
+                "Output": {
+                    "Method": "uniform",
+                    "Params": {"MinValue": output_len, "MaxValue": output_len},
+                },
+            },
+        }
+        datasets.append(ds)
+
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+# Key: Only specify partial models for partial datasets
+model_dataset_combinations = [
+    dict(models=[models[0]], datasets=[datasets[0], datasets[1]]),
+    dict(models=[models[0]], datasets=[datasets[2]]),
 ]
 
+work_dir = "outputs/default/"
 ```
 
-#### 3 Start Performance Evaluation
-Execute the following command:
+Execution command:
+
 ```bash
-ais_bench --models  vllm_api_stream_chat --datasets synthetic_gen_string -m perf
+ais_bench ais_bench/configs/performance_benchmark/performance_seq_combinations.py
 ```
-After completion, the output directory structure is the same as that described in the [Multi-Task Evaluation](#Multi-Task Evaluation) section. Corresponding CSV/JSON/HTML files will be generated under performance/vllm-api-stream-chat/synthetic*.
-> ⚠️ Note:
-> - Some service-oriented backends do not support the `ignore_eos` post-processing parameter. In such cases, the actual number of output `Tokens` may not reach the configured maximum output length. You need to configure other post-processing parameters (e.g., parameters for limiting minimum output) to achieve the maximum output length.
 
+:::
+:::{tab-item} Alternative: Command-Line Parameters
+
+Not supported.
+
+:::
+::::
 
 ### Fixed Request Count Evaluation
-When the dataset scale is too large and you only want to perform performance testing on a subset of samples, you can use the 📚 [`--num-prompts`](../all_params/cli_args.md#Performance Evaluation Parameters) parameter to specify the number of data entries to read. An example is as follows:
-```bash
-ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt -m perf --num-prompts 1
-```
-The above command only performs inference on the first entry in the sample dataset and measures its performance.
-> ⚠️ Note: Currently, the dataset is read sequentially in the default queue order; random sampling or shuffling is not supported.
 
+When the dataset scale is too large and you only want to perform performance testing on a subset of samples, you can use either of the following two approaches to control the data reading range. They achieve the same goal, so just pick the one that fits your habit:
+
+- **Basic approach**: Specify the number of data entries to read directly via the command-line parameter 📚 [`--num-prompts`](../all_params/cli_args.md#common-parameters). No configuration file modification is required, and it is the simplest to use.
+- **Advanced approach (more powerful)**: Set the `reader_cfg.test_range` field of the dataset in the custom configuration file, which supports a more flexible sampling range (e.g., specifying a start index and custom step). For detailed usage, refer to 📚 [Custom Configuration Files](../../advanced_tutorials/run_custom_config.md).
+
+Example as follows:
+
+::::{tab-set}
+:::{tab-item} ⭐ Recommended: Using a Custom Configuration File
+
+**Method 1: Basic approach — Use `--num-prompts` to specify the number of entries to read**
+
+For a complete example, refer to [performance_fixed_request.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_fixed_request.py):
+
+```python
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local import LocalRunner
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+models = vllm_api_stream_chat
+# ...For other parameter configurations, please refer to the configuration file
+```
+
+Execute the command (specify reading only 1 sample via `--num-prompts 1`):
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/performance_fixed_request.py --mode perf --num-prompts 1
+```
+
+**Method 2: Advanced approach — Use `test_range` to flexibly specify the reading range**
+
+If you need more flexible range control (e.g., specifying a start index and custom step), you can set the `reader_cfg.test_range` field of the dataset directly in the custom configuration file, without passing any command-line parameter. For a complete example, refer to [performance_fixed_request.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_fixed_request.py):
+
+```python
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local import LocalRunner
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+# Key: control the sampling range flexibly via reader_cfg.test_range
+# For example, '[0:8]' reads the first 8 samples; '[10:20]' reads samples from index 10 to 20
+datasets[0]['reader_cfg']['test_range'] = '[0:8]'
+
+models = vllm_api_stream_chat
+# ...For other parameter configurations, please refer to the configuration file
+```
+
+Execute the command (test_range has been specified in the configuration file, no need to pass `--num-prompts`):
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/performance_fixed_request.py --mode perf
+```
+
+:::
+:::{tab-item} Alternative: Using Command-Line Parameters
+
+```bash
+ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --mode perf --num-prompts 1
+```
+The above command only performs inference on the first entry in the sample dataset and only measures the performance of this one entry.
+
+:::
+::::
+
+> ⚠️ Note: Currently, the dataset is read sequentially in the default queue order; random sampling or shuffling is not supported. When `reader_cfg.test_range` in the configuration file and the command-line `--num-prompts` are both specified, the command-line parameter `--num-prompts` takes precedence.
+
+### Fixed Request Count Performance Evaluation
+
+In some scenarios, the user wants to fix the total number of requests sent without limiting the sending rate, that is, to send requests at the maximum throughput. In this case, `request_rate` needs to be set to `-1`, indicating that requests are sent concurrently without rate limiting.
+
+:::{tab-set}
+:::{tab-item} ⭐ Custom Configuration File
+
+```python
+from mmengine.config import read_base
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local import LocalRunner
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
+
+with read_base():
+    from ais_bench.benchmark.configs.summarizers.perf.default_perf import summarizer
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["request_rate"] = -1  # -1 indicates concurrent sending without rate limiting
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+work_dir = "outputs/default/"
+```
+
+Execution command (you can append `--num-prompts 100` to fix the total number of requests):
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/performance_fixed_request.py --mode perf
+```
+
+:::
+:::{tab-item} Alternative: Command-Line Parameters
+
+```bash
+ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --mode perf --num-prompts 100
+```
+
+:::
+:::
+
+## Implementation via Custom Configuration Files
+
+> 💡 All the above functional scenarios (multi-task evaluation, multi-task parallel, fixed request count, etc.) can be implemented through the [Custom Configuration File](../../advanced_tutorials/run_custom_config.md) approach. The configuration file is essentially a Python script, which supports all Python syntaxes such as loops, conditional judgments, and list comprehensions. Model, dataset, summarizer, and other configurations can be written into one file for one-time writing and multiple reuse.
+
+All custom configuration file examples involved in this section are uniformly stored in the `ais_bench/configs/performance_benchmark/` directory for easy reference and reuse:
+
+| File Name | Corresponding Scenario |
+| --- | --- |
+| [performance_qwen2_7b_sharegpt.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_qwen2_7b_sharegpt.py) | Single-Task Performance Evaluation |
+| [performance_multi_dataset.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_multi_dataset.py) | Multi-Dataset Performance Evaluation |
+| [performance_multi_rate.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_multi_rate.py) | Multi-Rate Performance Evaluation |
+| [performance_multi_model.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_multi_model.py) | Multi-Model Performance Evaluation |
+| [performance_synthetic.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_synthetic.py) | Synthetic Dataset Multi-Task Combinations |
+| [performance_seq_combinations.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_seq_combinations.py) | Custom Sequence Multi-Task Combinations |
+| [performance_fixed_request.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_fixed_request.py) | Fixed Request Count Performance Evaluation |
+| [performance_re_eval.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_re_eval.py) | Performance Result Recalculation |
+
+For details, refer to the "Service-Oriented Performance Evaluation" example in [Running AISBench via Custom Configuration Files](../../advanced_tutorials/run_custom_config.md#custom-configuration-file-examples-for-each-scenario).
 
 ## Other Functional Scenarios
+
 ### Speculative Decoding Metrics Collection
 
 When running performance evaluation against a vLLM inference server with speculative decoding enabled, you can append `--spec-decode` to collect spec decode performance metrics (acceptance rate, acceptance length, etc.) from the server's Prometheus `/metrics` endpoint. The metrics are displayed alongside the standard performance results and saved to `spec_decode_*.json` under the `performances/` directory.
@@ -414,94 +840,60 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 For prerequisites, configuration details, and metric explanations, see 📚 [Speculative Decoding Metrics Collection](../../advanced_tutorials/spec_decode.md).
 
 ### Performance Result Recalculation
-The main functional scenario evaluation tool for performance testing executes a complete workflow of performance sampling → calculation → aggregation:
-```mermaid
-graph LR;
-  A[Execute inference based on the given dataset] --> B((Performance打点数据))
-  B --> C[Calculate metrics based on the打点数据]
-  C --> D((Performance data))
-  D --> E[Generate an aggregated report based on the performance data]
-  E --> F((Present results))
-```
-*Note: "打点数据" (dǎdiǎn shùjù) refers to "instrumented data" or "sampled performance metrics" in this technical context.*
 
-Each link in the execution workflow is independently decoupled. Calculation and aggregation can be repeatedly performed based on the results of performance sampling. If the directly printed performance data does not include data for relevant dimensions (e.g., missing 95th percentile data), you need to modify some configurations for recalculation. The specific operations are as follows:
+In the actual evaluation process, the user may want to update the performance summary based on the existing inference results, for example, after modifying the `stats_list` configuration, recalculate the summary report without re-running the inference.
 
-Assume the command used for the previous performance evaluation was:
-```bash
-ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --mode perf
-```
-The printed `Performance Parameters` table is as follows:
-```bash
-[2025-11-06 11:11:33,463] [ais_bench] [INFO] Performance Results of task: vllm-api-general-stream/gsm8k:
-╒══════════════════════════╤═════════╤═════════════════╤════════════════╤═════════════════╤═════════════════╤═════════════════╤════════════════╤═════════════════╤══════╕
-│ Performance Parameters   │ Stage   │ Average         │ Min            │ Max             │ Median          │ P75             │ P90            │ P99             │  N   │
-╞══════════════════════════╪═════════╪═════════════════╪════════════════╪═════════════════╪═════════════════╪═════════════════╪════════════════╪═════════════════╪══════╡
-│ E2EL                     │ total   │ 2753.3518 ms    │ 2189.5185 ms   │ 3339.4463 ms    │ 2755.8153 ms    │ 3039.7431 ms    │ 3219.6642 ms   │ 3313.0408 ms    │ 1319 │
-......
-```
-*Note: "E2EL" stands for "End-to-End Latency" in this performance context.*
+AISBench supports recalculating performance summaries based on existing inference results through the `--mode perf` and `--reuse` parameters.
 
-If you want to view performance data for the "P95" (95th percentile) dimension, you need to modify the content of the configuration file corresponding to the default result presentation task `default_perf` for `--summarizer`. The path of `default_perf` can be queried using the `--search` command:
-```bash
-╒══════════════╤══════════════╤═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╕
-│ Task Type    │ Task Name    │ Config File Path                                                                                              │
-╞══════════════╪══════════════╪═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
-│ --summarizer │ default_perf │ /your_workspace/benchmark/ais_bench/benchmark/configs/summarizers/perf/default_perf.py                                  │
-╘══════════════╧══════════════╧═══════════════════════════════════════════════════════════════════════════════════════════════════════════════╛
+For a complete example, refer to [performance_re_eval.py](https://github.com/AISBench/benchmark/tree/master/ais_bench/configs/performance_benchmark/performance_re_eval.py):
 
-```
-
-Modify the content of `default_perf.py`:
-```py
+```python
 from mmengine.config import read_base
 from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
+from ais_bench.benchmark.partitioners import NaivePartitioner
+from ais_bench.benchmark.runners.local import LocalRunner
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
+with read_base():
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+
+# Key: customize the stats_list of the performance summarizer to control the
+# statistical dimensions of the performance summary
 summarizer = dict(
+    attr="performance",
     type=DefaultPerfSummarizer,
     calculator=dict(
         type=DefaultPerfMetricCalculator,
-        stats_list=["Average", "Min", "Max", "Median", "P95"],
-    )
+        stats_list=["Average", "Min", "Max", "Median", "P75", "P90", "P95", "P99"],
+    ),
 )
-```
-Among them, the `stats_list` can hold data for up to 8 performance dimensions at the same time.
 
-After the modification is completed, you can execute the following command to recalculate the performance metrics:
+models = vllm_api_stream_chat
+models[0]["host_ip"] = "localhost"
+models[0]["host_port"] = 8080
+models[0]["max_out_len"] = 512
+models[0]["batch_size"] = 1
+models[0]["generation_kwargs"] = dict(temperature=0.01, ignore_eos=True)
+
+work_dir = "outputs/default/"
+```
+
+Execution command (`--mode perf` and `--reuse` are common parameters, and can still be appended through the command line when using a custom configuration file):
 
 ```bash
-## Note: --summarizer default_perf must be specified
-ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer default_perf --mode perf_viz --pressure --debug --reuse 20250628_151326
+ais_bench ais_bench/configs/performance_benchmark/performance_re_eval.py --mode perf --reuse 20250628_151326
 ```
-The on-screen performance results will be as follows:
-```bash
-[2025-11-06 11:11:33,463] [ais_bench] [INFO] Performance Results of task: vllm-api-general-stream/gsm8k:
-╒══════════════════════════╤═════════╤════════════════╤═════════════════╤═════════════════╤════════════════╤═════════════════╤═════╕
-│ Performance Parameters   │ Stage   │ Average        │ Min             │ Max             │ Median         │ P95             │  N  │
-╞══════════════════════════╪═════════╪════════════════╪═════════════════╪═════════════════╪════════════════╪═════════════════╪═════╡
-│ E2EL                     │ total   │ 2761.6153 ms   │ 2493.8016 ms    │ 3086.0523 ms    │ 2848.9603 ms   │ 3021.0043 ms    │  8  │
-......
-╒══════════════════════════╤═════════╤═══════════════════╕
-│ Common Metric            │ Stage   │ Value             │
-╞══════════════════════════╪═════════╪═══════════════════╡
-│ Benchmark Duration       │ total   │ 3090.7835 ms      │
-......
-[2025-11-06 11:11:33,468] [ais_bench] [INFO] Performance Result files located in outputs/default/20251106_110904/performances/vllm-api-general-stream.
 
-```
-> ⚠️ The files `gsm8kdataset.csv`, `gsm8kdataset_details.json`, and `gsm8kdataset_plot.html` under `20251106_110904/performance/` will be regenerated (overwriting the original ones).
+## Specifications
 
+The following specifications are required when using AISBench for performance evaluation:
 
-## Specifications for Service-Oriented Performance Testing
-The scale of service-oriented performance testing determines the resource usage of the AISBench evaluation tool. Taking [Custom Sequence Length Evaluation](#Custom Sequence Length Evaluation) as an example, the test scale is mainly determined by the total number of requests (`RequestCount`), dataset input token length (`Input`), and output token length (`Output`). When tested on a CPU of model `Intel(R) Xeon(R) Platinum 8480P`, the resource usage under typical test scales is approximately as follows:
-
-| Total Number of Requests (`RequestCount`) | Dataset Input Token Length (`Input`) | Output Token Length (`Output`) | Maximum Memory Usage (GB) | Maximum Disk Usage (GB) | Performance Data Calculation Time (s) | Remarks |
-|-------------------------------------------|--------------------------------------|---------------------------------|---------------------------|--------------------------|----------------------------------------|---------|
-| 10,000                                    | 1024                                 | 1024                            | < 16                      | 0.12                     | 3                                      |         |
-| 10,000                                    | 1024                                 | 4096                            | < 16                      | 0.16                     | 4                                      |         |
-| 10,000                                    | 4096                                 | 4096                            | < 16                      | 0.17                     | 6                                      |         |
-| 50,000                                    | 4096                                 | 4096                            | < 32                      | 0.80                     | 30                                     |         |
-| 250,000                                   | 4096                                 | 4096                            | < 64                      | 4.00                     | 150                                    | Maximum specification |
-
-> ⚠️ The maximum memory usage, maximum disk usage, and calculation time of performance data are roughly proportional to the value of (`RequestCount × (Input + Output)`). The maximum specification supported by a single machine in AISBench is `RequestCount × (Input + Output) = 250,000 × (4096 + 4096) = 2,024,000,000`.
+| Item | Specification |
+| --- | --- |
+| Service Status | The service must be running normally, and the listening port is consistent with the `url` field in the configuration |
+| `max-model-len` | Must be greater than or equal to `prompt length + output length`, otherwise the service will reject the request |
+| Network | The evaluation machine needs to be able to access the service address normally |
+| Concurrency | The number of concurrent evaluations should not exceed the service's processing capacity to avoid request timeout/failure |
+| Output Directory | Each task generates a timestamp directory containing `configs/`, `logs/`, `predictions/`, `results/`, `summary/`, `performances/` |

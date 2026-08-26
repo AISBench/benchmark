@@ -26,7 +26,7 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| lcsts_gen_0_shot_chat | Generative task for the LCSTS dataset | Accuracy | 0-shot | Chat format | [lcsts_gen_0_shot_chat.py](lcsts_gen_0_shot_chat.py) |
-| lcsts_gen_0_shot_str | Generative task for the LCSTS dataset | Accuracy | 0-shot | String format | [lcsts_gen_0_shot_str.py](lcsts_gen_0_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| lcsts_gen_0_shot_chat | Generative task for the LCSTS dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.lcsts.lcsts_gen_0_shot_chat import lcsts_datasets as datasets`| [lcsts_gen_0_shot_chat.py](lcsts_gen_0_shot_chat.py) |
+| lcsts_gen_0_shot_str | Generative task for the LCSTS dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.lcsts.lcsts_gen_0_shot_str import lcsts_datasets as datasets`| [lcsts_gen_0_shot_str.py](lcsts_gen_0_shot_str.py) |

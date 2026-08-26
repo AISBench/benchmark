@@ -2,7 +2,9 @@
 
 **VBench**（VBench: Comprehensive Benchmark Suite for Video Generative Models）是面向视频生成模型的评测基准套件，围绕主体一致性、运动平滑度、时序闪烁、空间关系等与感知相关的指标组织评测（官方 Standard 套件为 **16 个维度**），并提供与各维度匹配的 prompt、流程与校验方式。
 
-AISBench **已适配 VBench 1.0**。仓库目录 `ais_bench/configs/vbench_examples/` 下放的是 **独立配置文件** 示例，在 **GPU** 或 **NPU** 上对**生成视频**做质量/语义类维度测评。**当前 AISBench 不包含多模态视频生成**，请先完成视频生成后再进行测评(Standard模式参考[数据集生成](#数据集生成)章节)。
+AISBench **已适配 VBench 1.0**。仓库目录 `ais_bench/configs/vbench_examples/` 下放的是 **独立配置文件** 示例，在 **GPU** 或 **NPU** 上对**生成视频**做质量/语义类维度测评。**当前 AISBench 不包含多模态视频生成**，请先完成视频生成后再进行测评(Standard模式参考[数据集生成](#推理结果视频生成)章节)。
+
+> 💡 上述 `vbench_examples/` 下的示例配置文件即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考这些示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
 
 ## 目录
 
@@ -11,7 +13,7 @@ AISBench **已适配 VBench 1.0**。仓库目录 `ais_bench/configs/vbench_examp
 - [配置与输出](#配置与输出)
 - [评分汇总（Quality / Semantic / Total）](#评分汇总quality--semantic--total)
 - [Prompt Suite（官方 prompt 结构）](#prompt-suite官方-prompt-结构)
-- [数据集生成](#数据集生成)
+- [数据集生成](#推理结果视频生成)
 - [采样伪代码（参考官方）](#采样伪代码参考官方)
 - [格式要求](#格式要求)
 - [VBench-1.0-mini（AISBench 官方采样子集）](#vbench-10-miniaisbench-官方采样子集)
@@ -45,7 +47,7 @@ python3 setup.py install --user
 ## 快速开始
 
 1. **准备视频目录**
-   Standard / Custom 均需在对应配置中将 `DATA_PATH` 设为生成视频的根目录（绝对或相对路径）。也可复制配置文件后改 `DATA_PATH`，再执行 `ais_bench <your_config.py> --mode eval`。（视频采样说明参考：[数据集生成](#数据集生成)）
+   Standard / Custom 均需在对应配置中将 `DATA_PATH` 设为生成视频的根目录（绝对或相对路径）。也可复制配置文件后改 `DATA_PATH`，再执行 `ais_bench <your_config.py> --mode eval`。（视频采样说明参考：[数据集生成](#推理结果视频生成)）
 
 2. **下载第三方依赖本地缓存**
    VBench 会加载多种小模型权重用于视频生成质量评测，建议提前手动下载，默认测评过程中会自动下载相关依赖，但存在下载失败导致测评任务失败；细节见 [`vbench_cache_dependencies.md`](./vbench_cache_dependencies.md)。

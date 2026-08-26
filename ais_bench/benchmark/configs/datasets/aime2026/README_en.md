@@ -40,7 +40,7 @@ Remember to put your answer inside \boxed{}.
 ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| aime2026_gen | Generative task for the AIME2026 dataset | Accuracy | 0-shot | Chat format | aime2026_gen_0_shot_chat_prompt.py |
-| aime2026_gen_0_shot_str | Generative task for the AIME2026 dataset | Accuracy | 0-shot | String format | aime2026_gen_0_shot_str.py |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| aime2026_gen_0_shot_chat_prompt | Generative task for the AIME2026 dataset | Accuracy | 0-shot | Chat format | `from ais_bench.benchmark.configs.datasets.aime2026.aime2026_gen_0_shot_chat_prompt import aime2026_datasets as datasets` | [aime2026_gen_0_shot_chat_prompt.py](aime2026_gen_0_shot_chat_prompt.py) |
+| aime2026_gen_0_shot_str | Generative task for the AIME2026 dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.aime2026.aime2026_gen_0_shot_str import aime2026_datasets as datasets`|[aime2026_gen_0_shot_str.py](aime2026_gen_0_shot_str.py) |

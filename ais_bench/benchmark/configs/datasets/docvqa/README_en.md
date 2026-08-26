@@ -24,6 +24,6 @@ wget https://opencompass.openxlab.space/utils/VLMEval/DocVQA_VAL.tsv
 
 ## Available Dataset Tasks
 #### Basic Information
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-|docvqa_gen|docvqa dataset generative task|anls|0-shot|String format|[docvqa_gen.py](docvqa_gen.py)|
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+|docvqa_gen|docvqa dataset generative task|anls|0-shot|String format|`from ais_bench.benchmark.configs.datasets.docvqa.docvqa_gen import docvqa_datasets as datasets`|[docvqa_gen.py](docvqa_gen.py)|

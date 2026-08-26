@@ -32,6 +32,6 @@ mathvision
 ```
 
 ## 可用数据集任务
-| 任务名称 | 简介 | 评估指标 | few-shot | prompt 格式 | 对应源码配置文件路径 |
-| --- | --- | --- | --- | --- | --- |
-| mathvision_gen | MathVision 数据集生成式多模态数学推理任务，支持选择题和自由作答题；选择题要求最后一行输出 `ANSWER: [LETTER]`，自由作答题要求最终答案放在 `\boxed{}` 中 | Accuracy | 0-shot | 多模态对话格式（文本 + 图片） | [mathvision_gen.py](mathvision_gen.py) |
+| 任务名称 | 简介 | 评估指标 | few-shot | prompt 格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| mathvision_gen | MathVision 数据集生成式多模态数学推理任务，支持选择题和自由作答题；选择题要求最后一行输出 `ANSWER: [LETTER]`，自由作答题要求最终答案放在 `\boxed{}` 中 | Accuracy | 0-shot | 多模态对话格式（文本 + 图片） | `from ais_bench.benchmark.configs.datasets.mathvision.mathvision_gen import mathvision_datasets as datasets` | [mathvision_gen.py](mathvision_gen.py) |

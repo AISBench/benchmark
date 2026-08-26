@@ -15,7 +15,7 @@ def load_yaml_config():
     config_path = os.path.join(cur_dir, 'api_config.yaml')
     if not os.path.exists(config_path):
         raise FileExistsError(f"Can't find api_config.yaml in {cur_dir}")
-    with open(config_path, 'r') as file:
+    with open(config_path, 'r', encoding='utf-8') as file:
         return yaml.safe_load(file)
 
 class BaseAPI(ABC):
