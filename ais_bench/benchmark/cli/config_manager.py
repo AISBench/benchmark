@@ -360,9 +360,7 @@ class ConfigManager:
             TMAN_CODES.UNKNOWN_ERROR,
             f"response_anomaly is enabled for model "
             f"'{model_cfg.get('abbr', '')}' but response_anomaly.model_name "
-            "is not set and cannot be inferred from a model directory. The "
-            "model abbr is a task label unrelated to the served model and "
-            "is not used as a fallback. "
+            "is not set and cannot be inferred from a model directory. "
             + (
                 "Since explicit msProbe resource paths are configured, set "
                 "response_anomaly.model_name to the key used in "
