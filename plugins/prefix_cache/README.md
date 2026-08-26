@@ -222,7 +222,9 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 - 在临时目录构造数据并计算目标可达范围；
 - 展示 requested/effective/theoretical hit rate；
 - 展示组分布、输入/输出长度和 cold DP 路由摘要；
-- 不访问 vLLM、不发送请求，也不在 Scenario 的 `output_dir` 留下产物。
+- 不访问 vLLM、不发送请求，也不在 Scenario 的 `output_dir` 留下四类正式数据产物；
+- 与 `prepare` 一样生成 `_YYYYMMDD_HHMMSS` 时间戳，并把详细日志缓存到 `output_dir_时间戳/log/<run_id_时间戳>.inspect.log`；
+- 输出的 JSON 摘要包含 `log` 字段，可直接定位该日志。
 
 ### 3.4 `prepare`：生成正式数据产物
 
@@ -292,6 +294,8 @@ ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60_<时�
 - full 和 requests 的 SHA-256 是否匹配 Manifest。
 
 它用于发现文件被手工编辑、截断、换序或使用了错误版本。
+
+与 `inspect`/`prepare` 一样，validate 的详细日志写入 Manifest 所在时间戳输出目录的 `log/<run_id_时间戳>.validate.log`，终端只打印校验结果 JSON。
 
 ## 4. 推荐工作流
 

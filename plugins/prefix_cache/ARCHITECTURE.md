@@ -123,7 +123,7 @@ flowchart TB
     end
 ```
 
-- `inspect`：不访问 vLLM、不发送请求、不在 `output_dir` 留产物；临时目录用完即销毁。
+- `inspect`：不访问 vLLM、不发送请求、不在 `output_dir` 留四类正式数据产物；临时生成目录用完即销毁，但 CLI 详细日志会缓存到时间戳 `output_dir/log/`。
 - `validate`：只校验已有产物完整性，用于发现手工编辑/截断/换序/错误版本。
 
 ---

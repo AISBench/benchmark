@@ -190,7 +190,7 @@
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `prepare_scenario` | `(path, overwrite=None, tokenizer_loader=None, progress=None, execution_timestamp=None) -> ArtifactPaths` | **prepare 主流程**。加载后追加统一执行时间戳；每生成一条 prompt 调用 `progress(completed,total)`；四类产物写入 `output_dir_时间戳/result/`，再生成 analysis/manifest 并自检。Manifest 中 `service.api_key` 明文被替换为 `api_key_configured` 布尔。 |
-| `inspect_scenario` | `(path, tokenizer_loader=None) -> dict` | 只读检查：把 run_id/output_dir 改写进临时目录后调用 `prepare_scenario`，汇总 requested/effective/theoretical、可达范围、组分布、输入/输出长度摘要、DP 路由计数。不访问 vLLM、不留正式产物、不发请求。 |
+| `inspect_scenario` | `(path, tokenizer_loader=None) -> dict` | 只读检查：把 run_id/output_dir 改写进临时目录后调用 `prepare_scenario`，汇总 requested/effective/theoretical、可达范围、组分布、输入/输出长度摘要、DP 路由计数。不访问 vLLM、不留四类正式产物、不发请求；CLI 层仍会在时间戳 `log/` 目录缓存 inspect 日志并在输出中返回路径。 |
 
 > `prepare_scenario` 中各类种子派生顺序见 ARCHITECTURE 第 8 节，是复现性的关键。
 
@@ -198,15 +198,15 @@
 
 ## 6. `cli.py` — 命令行入口
 
-`PromptProgress` 使用纯标准库在 stderr 显示 `Generate prompts` 进度，不影响 stdout 最终 JSON。prepare 日志写入 `output_dir_时间戳/log/`。
+`PromptProgress` 使用纯标准库在 stderr 显示 `Generate prompts` 进度，不影响 stdout 最终 JSON。prepare / inspect 日志写入 `output_dir_时间戳/log/<run_id_时间戳>.<command>.log`。
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `build_parser` | `() -> argparse.ArgumentParser` | 定义 3 个子命令：`prepare/--scenario/--overwrite`、`inspect/--scenario`、`validate/--manifest`。 |
-| `main` | `(argv=None) -> int` | 解析并分发：prepare→`prepare_scenario`（打印产物路径）、validate→`validate_artifacts`、inspect→`inspect_scenario`。捕获 `PrefixCacheError` 打印 `ERROR` 并返回 2，否则 0。 |
+| `main` | `(argv=None) -> int` | 解析并分发：prepare→`prepare_scenario`（打印产物及日志路径）、validate→`validate_artifacts`（打印校验结果 JSON）、inspect→`inspect_scenario`（打印摘要及时间戳日志路径）。捕获 `PrefixCacheError` 打印 `ERROR` 并返回 2，否则 0。 |
 | `console_main` | `() -> None` | `raise SystemExit(main())`，作为 `console_scripts` 入口。 |
 
-> `main` 中通过自带的 `_install_logger` 安装 `ais_bench_prefix_cache` logger（不依赖 `ais_bench` 的 `AISLogger`）：解析到 `.log` 文件时日志只写入文件、不在终端打印；场景无法加载时回退为仅控制台输出。
+> `main` 中通过自带的 `_install_logger` 安装 `ais_bench_prefix_cache` logger（不依赖 `ais_bench` 的 `AISLogger`）：`_resolve_log_file` 解析到 `.log` 文件时日志只写入文件、不在终端打印；场景/Manifest 无法加载时回退为仅控制台输出。prepare / inspect 从 scenario 解析 `output_dir/log/<run_id_时间戳>.<command>.log`；validate 只有 `--manifest`，日志路径改从 Manifest 的 `run_id` 与 `effective_config.run.output_dir` 解析为 `<output_dir>/log/<run_id>.validate.log`，与 prepare 保持同一目录约定。
 
 ---
 

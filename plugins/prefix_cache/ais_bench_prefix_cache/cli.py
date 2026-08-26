@@ -67,13 +67,33 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_log_file(command: str, scenario_path: Path | None, execution_timestamp: str | None = None) -> Path | None:
+def _resolve_log_file(
+    command: str,
+    scenario_path: Path | None = None,
+    manifest_path: Path | None = None,
+    execution_timestamp: str | None = None,
+) -> Path | None:
     """Resolve a per-command log under the run output directory's log/ layer.
 
-    Falls back to console-only logging when the scenario cannot be loaded
+    prepare / inspect 从 scenario 解析 output_dir 与 run_id；
+    validate 从 manifest 的 run_id 与 effective_config.run.output_dir 解析。
+
+    Falls back to console-only logging when the config cannot be loaded
     or the output directory is not writable (the real error surfaces in
     the normal command flow).
     """
+    if command == "validate":
+        if manifest_path is None:
+            return None
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            run_id = manifest["run_id"]
+            output_dir = Path(manifest["effective_config"]["run"]["output_dir"])
+            log_file = output_dir / "log" / f"{run_id}.validate.log"
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            return log_file
+        except (KeyError, TypeError, OSError, json.JSONDecodeError):
+            return None
     if scenario_path is None:
         return None
     try:
@@ -110,8 +130,13 @@ def _install_logger(log_file: Path | None) -> None:
 def main(argv: list[str] | None = None) -> int:
     """CLI 主入口：分发到对应子命令并统一处理错误码。"""
     args = build_parser().parse_args(argv)
-    execution_timestamp = new_execution_timestamp() if args.command == "prepare" else None
-    log_file = _resolve_log_file(args.command, getattr(args, "scenario", None), execution_timestamp)
+    execution_timestamp = new_execution_timestamp() if args.command in {"prepare", "inspect"} else None
+    log_file = _resolve_log_file(
+        args.command,
+        scenario_path=getattr(args, "scenario", None),
+        manifest_path=getattr(args, "manifest", None),
+        execution_timestamp=execution_timestamp,
+    )
     # 安装插件自身的 logger（日志只缓存到 .log 文件，不在终端打印）。
     _install_logger(log_file)
     logger.info("[cli] command=%s args=%s log_file=%s", args.command, vars(args), log_file)
@@ -138,6 +163,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "inspect":
             logger.info("[cli] inspect scenario=%s", args.scenario)
             result = inspect_scenario(args.scenario)
+            if log_file is not None:
+                result["log"] = str(log_file)
             logger.info("[cli] inspect_scenario returned result=%s", json.dumps(result, ensure_ascii=False))
             print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
