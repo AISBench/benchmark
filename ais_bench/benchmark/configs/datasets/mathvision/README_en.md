@@ -33,5 +33,5 @@ mathvision
 
 ## Available Dataset Tasks
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-|| mathvision_gen | Generative multimodal mathematical reasoning task for MathVision. It supports both multiple-choice and open-answer questions. Multiple-choice questions require the final line to be `ANSWER: [LETTER]`, while open-answer questions require the final answer in `\boxed{}` | Accuracy | 0-shot | Multimodal chat format (text + image) |`from ais_bench.benchmark.configs.datasets.mathvision.mathvision_gen import mathvision_datasets as datasets`| [mathvision_gen.py](mathvision_gen.py) |
+| --- | --- | --- | --- | --- | --- | --- |
+| mathvision_gen | Generative multimodal mathematical reasoning task for MathVision. It supports both multiple-choice and open-answer questions. Multiple-choice questions require the final line to be `ANSWER: [LETTER]`, while open-answer questions require the final answer in `\boxed{}` | Accuracy | 0-shot | Multimodal chat format (text + image) |`from ais_bench.benchmark.configs.datasets.mathvision.mathvision_gen import mathvision_datasets as datasets`| [mathvision_gen.py](mathvision_gen.py) |

@@ -13,7 +13,7 @@ Video-MME is a Video understanding evaluation benchmark for multimodal large lan
     Video-MME
     ├── videomme
     │   └── test-00000-of-00001.parquet
-    │   
+    │
     ├── subtitle
     │   ├── 068rdc75mHM.srt
     │   └── 08km9Y1bt-A.srt
@@ -31,5 +31,5 @@ Video-MME is a Video understanding evaluation benchmark for multimodal large lan
 - Currently, the evaluation of the Video-MME dataset does not support the input of subtitle data for the time being
 
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-||videomme_gen|Generative task for the videomme dataset|acc|0-shot|String format|`from ais_bench.benchmark.configs.datasets.videomme.videomme_gen import videomme_datasets as datasets`|[videomme_gen.py](videomme_gen.py)|
+| --- | --- | --- | --- | --- | --- | --- |
+|videomme_gen|Generative task for the videomme dataset|acc|0-shot|String format|`from ais_bench.benchmark.configs.datasets.videomme.videomme_gen import videomme_datasets as datasets`|[videomme_gen.py](videomme_gen.py)|

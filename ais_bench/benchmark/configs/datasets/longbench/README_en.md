@@ -53,8 +53,8 @@ It is recommended to download the dataset from Hugging Face: [https://huggingfac
 
 ## Available Dataset Tasks
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-|| longbench | LongBench main task | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.longbench.longbench import longbench_datasets as datasets`| [longbench.py](longbench.py) |
+| --- | --- | --- | --- | --- | --- | --- |
+| longbench | LongBench main task | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.longbench.longbench import longbench_datasets as datasets`| [longbench.py](longbench.py) |
 | longbench_2wikimqa_gen | LongBench 2WikiMQA generative task | Accuracy | 0-shot | Chat format | [longbench_2wikimqa_gen.py](longbench2wikimqa/longbench_2wikimqa_gen.py) |
 | longbench_dureader_gen | LongBench DuReader generative task | Accuracy | 0-shot | Chat format | [longbench_dureader_gen.py](longbenchdureader/longbench_dureader_gen.py) |
 | longbench_gov_report_gen | LongBench GovReport generative task | Accuracy | 0-shot | Chat format | [longbench_gov_report_gen.py](longbenchgov_report/longbench_gov_report_gen.py) |

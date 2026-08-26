@@ -25,6 +25,6 @@ HLE (Humanity's Last Exam) is a frontier multimodal benchmark dataset released b
 ## Available Dataset Tasks
 
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- | --- |
 | hle | HLE dataset | Accuracy, Calibration Error | 0-shot | Chat format | `from ais_bench.benchmark.configs.datasets.hle.hle_llmjudge import hle_datasets as datasets` | [hle_llmjudge.py](hle_llmjudge.py) |
 

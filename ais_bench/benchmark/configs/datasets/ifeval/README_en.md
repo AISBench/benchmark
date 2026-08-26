@@ -30,5 +30,5 @@ rm ifeval.zip
 ## Available Dataset Tasks
 ### ifeval_0_shot_gen_str
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-|| ifeval_0_shot_gen_str | Generative task for the IFEval dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.ifeval.ifeval_0_shot_gen_str import ifeval_datasets as datasets`| [ifeval_0_shot_gen_str.py](ifeval_0_shot_gen_str.py) |
+| --- | --- | --- | --- | --- | --- | --- |
+| ifeval_0_shot_gen_str | Generative task for the IFEval dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.ifeval.ifeval_0_shot_gen_str import ifeval_datasets as datasets`| [ifeval_0_shot_gen_str.py](ifeval_0_shot_gen_str.py) |

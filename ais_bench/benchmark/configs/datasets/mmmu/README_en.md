@@ -30,5 +30,5 @@ git clone https://www.modelscope.cn/datasets/AI-ModelScope/MMMU.git mmmu
 ### mmmu_gen
 #### Basic Information
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-||mmmu_gen|Generative MMMU task: multiple-choice questions use the CoT single-answer template, while open questions use the `ANSWER: [ANSWER]` template|acc|0-shot|Multimodal chat format|`from ais_bench.benchmark.configs.datasets.mmmu.mmmu_gen import mmmu_datasets as datasets`|[mmmu_gen.py](mmmu_gen.py)|
+| --- | --- | --- | --- | --- | --- | --- |
+|mmmu_gen|Generative MMMU task: multiple-choice questions use the CoT single-answer template, while open questions use the `ANSWER: [ANSWER]` template|acc|0-shot|Multimodal chat format|`from ais_bench.benchmark.configs.datasets.mmmu.mmmu_gen import mmmu_datasets as datasets`|[mmmu_gen.py](mmmu_gen.py)|

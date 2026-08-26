@@ -40,6 +40,6 @@ rm -r OpenCompassData-core-20240207.zip
 
 ## Available Dataset Tasks
 | Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-|| FewCLUE_tnews_ppl_0_shot_chat | PPL task for the FewCLUE_tnews dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.FewCLUE_tnews.FewCLUE_tnews_ppl_0_shot_chat import tnews_datasets as datasets`| [FewCLUE_tnews_ppl_0_shot_chat.py](FewCLUE_tnews_ppl_0_shot_chat.py) |
+| --- | --- | --- | --- | --- | --- | --- |
+| FewCLUE_tnews_ppl_0_shot_chat | PPL task for the FewCLUE_tnews dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.FewCLUE_tnews.FewCLUE_tnews_ppl_0_shot_chat import tnews_datasets as datasets`| [FewCLUE_tnews_ppl_0_shot_chat.py](FewCLUE_tnews_ppl_0_shot_chat.py) |
 
