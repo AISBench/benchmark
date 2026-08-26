@@ -1,0 +1,14 @@
+【AISBench】支持prefix cache场景数据集生成及性能测评能力
+
+AISBench Prefix Cache专项评测能力建设的核心目标是补齐从数据构造、理论分析到实际测评与结果对比的完整闭环，以系统化评估不同推理框架、缓存策略和部署形态下的Prefix Cache实际收益。
+核心目标
+当前AISBench主要面向通用模型性能评测，缺少针对Prefix Cache优化能力的专项评测。该需求旨在补齐以下能力：
+系统评估不同推理框架、缓存策略和部署形态下Prefix Cache的实际收益
+覆盖从测试数据构造到性能分析的完整流程
+解决现有方案在数据生成、理论分析和指标采集方面的不足
+需求拆解
+1. Prefix Cache测试数据生成能力
+支持固定长度、变长长度、用户自定义区间分布等请求数据生成方式
+支持根据目标Prefix Cache命中率（如50%、60%、90%）自动规划公共Prefix长度
+支持随机Token、GSM8K等真实文本数据作为Prefix/Suffix来源
+支持单Prefix、多Prefix Group数据构造
