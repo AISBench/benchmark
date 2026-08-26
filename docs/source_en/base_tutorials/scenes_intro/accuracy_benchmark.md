@@ -322,6 +322,8 @@ After the resumption is completed, the accuracy results of all requests will be 
 
 > ⚠️ Note: Resumption after interruption and retesting of failed cases may change the order of requests, which may cause slight fluctuations in results.
 
+> 💡 When [response anomaly detection](../all_params/cli_args.md#response-anomaly-detection-configuration) is enabled, resumption also inherits existing detection results: Cases with `completed` status are not re-detected by msProbe, while Cases with `skipped` / `failed` / `unavailable` status are re-detected on resume; existing anomaly counts are accumulated into the final statistics.
+
 💡[Multi-Task Evaluation](#multi-task-evaluation) also supports resumption after interruption and retesting of failed cases for all or part of the tasks.
 
 ::::{tab-set}
@@ -371,7 +373,6 @@ ais_bench ais_bench/configs/accuracy_benchmark/multi_task_resume_partial_en.py -
 
 :::
 :::{tab-item} Alternative: Using Command-Line Parameters
-
 ```bash
 ais_bench --models vllm_api_general_chat vllm_api_stream_chat --datasets gsm8k_gen_4_shot_cot_str aime2024_gen_0_shot_chat_prompt
 ```

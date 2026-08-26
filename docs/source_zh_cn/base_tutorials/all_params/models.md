@@ -58,8 +58,9 @@ models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.c
         response_anomaly = dict(    # 可选，msProbe 推理响应异常检测的模型级配置
             model_name="",       # 填写模型名称，如 Qwen3-30B-A3B
             model_path="",       # 填写本地模型目录，如 /home/Qwen3-30B-A3B；可选，用于自动生成配置
-            msprobe_mtype_path='/path/to/mtype_config.json',
-            msprobe_token2category_dir='/path/to/token2category/',
+            msprobe_config_path="",  # 可选，算法阈值 config.yaml 路径，用于手工调优检测阈值
+            msprobe_mtype_path="",  # 可选，模型名与 BOS/EOS token id 映射文件 mtype_config.json 路径
+            msprobe_token2category_dir="",  # 可选，token2category 目录，存放各模型的 token id 到字符类别映射
         )
     )
 ]
@@ -90,7 +91,7 @@ models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.c
 | `generation_kwargs` | Dict | 推理生成参数配置，依赖具体的服务化后端和接口类型。注意：当前不支持 `best_of` 和 `n` 等多次采样参数，但支持通过`num_return_sequences`参数进行多次独立推理(具体请参考🔗[Text Generation 文档](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences)中`num_return_sequences`的作用)。支持配置 `logprobs` / `top_logprobs` 参数开启 token 概率信息采集，详见 🔗[Logprobs 采集与分析](../../advanced_tutorials/logprobs_collection.md) |
 | `returns_tool_calls` | Bool | 控制函数调用信息的提取方式。当设置为True时，系统从API响应的`tool_calls`字段中提取函数调用信息；当设置为False时，系统从`content`字段中解析函数调用信息 |
 | `pred_postprocessor` | Dict | 模型输出结果的后处理配置。用于对原始模型输出进行格式化、清理或转换，以满足特定评估任务的要求 |
-| `response_anomaly` | Dict | 可选，msProbe 推理响应异常检测的模型级配置，包含 `model_name`（与 msProbe 的 mtype_config.json 名称一致）、`model_path`（本地模型目录，用于自动生成配置，可选）、`msprobe_mtype_path`、`msprobe_token2category_dir`。未提供 mtype/token 分类路径时回退到 msProbe 包内默认文件 |
+| `response_anomaly` | Dict | 可选，msProbe 推理响应异常检测的模型级配置，包含 `model_name`（与 msProbe 的 mtype_config.json 名称一致；未配置时自动取模型路径中的模型名称；既无 `model_name` 也无模型路径时启动报错）、`model_path`（本地模型目录，用于自动生成配置，可选）、`msprobe_config_path`（算法阈值 config.yaml 路径，可选，用于手工调优；自动生成不会覆盖已存在的文件）、`msprobe_mtype_path`、`msprobe_token2category_dir`。未提供 mtype/token 分类路径时回退到 msProbe 包内默认文件 |
 
 **注意事项：**
 - 响应异常检测当前仅支持基于 vLLM Chat API 的 `vllm_api_general_chat`、`vllm_api_stream_chat` 和 `vllm_api_stream_chat_multiturn` 模型配置，其他模型后端暂不支持。

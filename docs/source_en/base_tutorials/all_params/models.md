@@ -62,8 +62,9 @@ models = [ # Equivalent to the `models` imported via `from ais_bench.benchmark.c
         response_anomaly = dict(    # Optional; model-level config for msProbe response anomaly detection
             model_name="",       # Model name, for example Qwen3-30B-A3B
             model_path="",       # Local model directory, for example /home/Qwen3-30B-A3B; optional, used to auto-generate configs
-            msprobe_mtype_path='/path/to/mtype_config.json',
-            msprobe_token2category_dir='/path/to/token2category/',
+            msprobe_config_path="",  # Optional; algorithm-threshold config.yaml path for manual threshold tuning
+            msprobe_mtype_path="",  # Optional; mtype_config.json path mapping model names to BOS/EOS token ids
+            msprobe_token2category_dir="",  # Optional; token2category directory holding per-model token-id-to-character-category maps
         )
     )
 ]
@@ -95,7 +96,7 @@ The description of configurable parameters for the service-oriented inference ba
 | `generation_kwargs` | Dict | Configuration of inference generation parameters, depending on the specific service-oriented backend and interface type. Note: Currently, multi-sampling parameters such as `best_of` and `n` are not supported, but multiple independent inferences can be performed using the `num_return_sequences` parameter (for details, refer to 🔗 [the role of `num_return_sequences` in the Text Generation Documentation](https://huggingface.co/docs/transformers/v4.18.0/en/main_classes/text_generation#transformers.generation_utils.GenerationMixin.generate.num_return_sequences\(int,)). Supports configuring `logprobs` / `top_logprobs` parameters to enable token probability information collection; see 🔗[Logprobs Collection and Analysis](../../advanced_tutorials/logprobs_collection.md) |
 | `returns_tool_calls` | Bool | Controls the extraction method of function call information. When set to `True`, the system extracts function call information from the `tool_calls` field of the API response; when set to `False`, the system parses function call information from the `content` field |
 | `pred_postprocessor` | Dict | Post-processing configuration for model output results. It is used to format, clean, or convert the original model output to meet the requirements of specific evaluation tasks |
-| `response_anomaly` | Dict | Optional; model-level config for msProbe response anomaly detection, including `model_name` (must match the name in msProbe's mtype_config.json), `model_path` (local model directory, optional, used to auto-generate configs), `msprobe_mtype_path`, and `msprobe_token2category_dir`. When mtype/token-category paths are not provided, the default files inside the msProbe package are used |
+| `response_anomaly` | Dict | Optional; model-level config for msProbe response anomaly detection, including `model_name` (must match the name in msProbe's mtype_config.json; when unset, the model name is taken from the model path; startup fails when neither `model_name` nor a model path is available), `model_path` (local model directory, optional, used to auto-generate configs), `msprobe_config_path` (algorithm-threshold config.yaml path, optional, for manual tuning; auto-generation never overwrites an existing file), `msprobe_mtype_path`, and `msprobe_token2category_dir`. When mtype/token-category paths are not provided, the default files inside the msProbe package are used |
 
 
 **Precautions**:
