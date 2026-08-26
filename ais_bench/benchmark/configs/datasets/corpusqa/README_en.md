@@ -22,6 +22,6 @@ CorpusQA is a benchmark for evaluating million-token (1M) long-context question-
 
 ## Available Dataset Tasks
 
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| corpusqa_1m_gen | CorpusQA 1M long-context Q&A dataset | Accuracy (based on ORM LLM judge) | 0-shot | Chat format (raw multi-turn prompt) | corpusqa_1m_gen.py |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| corpusqa_1m_gen | CorpusQA 1M long-context Q&A dataset | Accuracy (based on ORM LLM judge) | 0-shot | Chat format (raw multi-turn prompt) | `from ais_bench.benchmark.configs.datasets.corpusqa.corpusqa_1m_gen import corpusqa_1m_datasets as datasets` | corpusqa_1m_gen.py |

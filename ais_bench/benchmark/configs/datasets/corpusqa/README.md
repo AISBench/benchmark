@@ -22,6 +22,6 @@ CorpusQA 是一个用于评估语言模型百万级（1M）长上下文问答能
 
 ## 可用数据集任务
 
-| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 对应源码配置文件路径 |
-| --- | --- | --- | --- | --- | --- |
-| corpusqa_1m_gen | CorpusQA 1M 长上下文问答数据集 | 准确率 (accuracy，基于 ORM LLM 裁判) | 0-shot | 对话格式（原始多轮 prompt） | corpusqa_1m_gen.py |
+| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| corpusqa_1m_gen | CorpusQA 1M 长上下文问答数据集 | 准确率 (accuracy，基于 ORM LLM 裁判) | 0-shot | 对话格式（原始多轮 prompt） | `from ais_bench.benchmark.configs.datasets.corpusqa.corpusqa_1m_gen import corpusqa_1m_datasets as datasets` | corpusqa_1m_gen.py |
