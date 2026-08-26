@@ -116,6 +116,8 @@ Place the dataset in the `${PATH_TO_WORKSPACE}/benchmark/ais_bench/datasets` dir
 
 In the container, navigate to the `${PATH_TO_WORKSPACE}/benchmark/ais_bench/configs/lmm_example` directory, open the `multi_device_run_qwen_image_edit.py` file, and edit the following content to set the model configuration:
 
+> 💡 The above `multi_device_run_qwen_image_edit.py` is a concrete application of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to this example file to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
+
 ```python
 # ......
 # ====== User configuration parameters =========
@@ -134,7 +136,7 @@ Execute the following command to find the path where the `gedit_gen_0_shot_llmju
 ais_bench --datasets gedit_gen_0_shot_llmjudge --search
 ```
 
-Edit the judge model related configuration in the `gedit_gen_0_shot_llmjudge.py` file. The judge model configuration is the same as the regular API model configuration (you can refer to the relevant configuration tutorial in Quick Start [Model Configuration Introduction](../../get_started/quick_start.md#task-corresponding-configuration-file-modification)), but in the `judge_model` field:
+Edit the judge model related configuration in the `gedit_gen_0_shot_llmjudge.py` file. The judge model configuration is the same as the regular API model configuration (you can refer to the relevant configuration tutorial in Quick Start [Model Configuration Introduction](../../get_started/quick_start.md#start-evaluation-choose-one-of-two-methods)), but in the `judge_model` field:
 
 ```python
 # ......

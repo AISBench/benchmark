@@ -44,10 +44,10 @@ RefCOCOplus/
 
 ## 可用数据集任务
 
-| Task Name               | Introduction                                                                                                                                                                                          | Evaluation Metric | Few-Shot | Prompt Format                      | Config File                                              |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------- | ---------------------------------- | -------------------------------------------------------- |
-| refcoco_plus_gen        | RefCOCO+ 生成式定位任务配置，使用文件路径图像输入（`file://{image}`），导出 `RefCOCOPlus_val`、`RefCOCOPlus_testA`、`RefCOCOPlus_testB` 三个 split 任务                                               | Accuracy@0.5      | 0-shot   | 多模态对话格式（MMPromptTemplate） | [refcoco_plus_gen.py](refcoco_plus_gen.py)               |
-| refcoco_plus_gen_base64 | RefCOCO+ 生成式定位任务配置，使用 base64 data URL 图像输入（`data:image/jpeg;base64,{image}`），导出 `RefCOCOPlus_base64_val`、`RefCOCOPlus_base64_testA`、`RefCOCOPlus_base64_testB` 三个 split 任务 | Accuracy@0.5      | 0-shot   | 多模态对话格式（MMPromptTemplate） | [refcoco_plus_gen_base64.py](refcoco_plus_gen_base64.py) |
+| 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| refcoco_plus_gen | RefCOCO+ 生成式定位任务配置，使用文件路径图像输入（`file://{image}`），导出 `RefCOCOPlus_val`、`RefCOCOPlus_testA`、`RefCOCOPlus_testB` 三个 split 任务 | Accuracy@0.5 | 0-shot | 多模态对话格式（MMPromptTemplate） | `from ais_bench.benchmark.configs.datasets.refcoco_plus.refcoco_plus_gen import refcoco_plus_datasets as datasets` | [refcoco_plus_gen.py](refcoco_plus_gen.py) |
+| refcoco_plus_gen_base64 | RefCOCO+ 生成式定位任务配置，使用 base64 data URL 图像输入（`data:image/jpeg;base64,{image}`），导出 `RefCOCOPlus_base64_val`、`RefCOCOPlus_base64_testA`、`RefCOCOPlus_base64_testB` 三个 split 任务 | Accuracy@0.5 | 0-shot | 多模态对话格式（MMPromptTemplate） | `from ais_bench.benchmark.configs.datasets.refcoco_plus.refcoco_plus_gen_base64 import refcoco_plus_datasets as datasets` | [refcoco_plus_gen_base64.py](refcoco_plus_gen_base64.py) |
 
 ## 数据集分类
 

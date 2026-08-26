@@ -27,7 +27,7 @@ rm -r OpenCompassData-core-20240207.zip
     ├── train-labels.lst
     ```
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|siqa_gen_0_shot_chat|siqa数据集生成式任务；`EDAccEvaluator`精度评估方式会通过`Levenshtein距离算法`选取最接近的答案，可能会造成误判，导致精度得分结果偏高。|accuracy|0-shot|对话格式|[siqa_gen_0_shot_chat.py](siqa_gen_0_shot_chat.py)|
-|siqa_ppl_0_shot_chat|siqa数据集PPL任务|accuracy|0-shot|对话格式|[siqa_ppl_0_shot_chat.py](siqa_ppl_0_shot_chat.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|siqa_gen_0_shot_chat|siqa数据集生成式任务；`EDAccEvaluator`精度评估方式会通过`Levenshtein距离算法`选取最接近的答案，可能会造成误判，导致精度得分结果偏高。|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.siqa.siqa_gen_0_shot_chat import siqa_datasets as datasets`|[siqa_gen_0_shot_chat.py](siqa_gen_0_shot_chat.py)|
+|siqa_ppl_0_shot_chat|siqa数据集PPL任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.siqa.siqa_ppl_0_shot_chat import siqa_datasets as datasets`|[siqa_ppl_0_shot_chat.py](siqa_ppl_0_shot_chat.py)|

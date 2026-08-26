@@ -21,6 +21,8 @@ Directory `ais_bench/configs/swe_bench_examples/` provides the following example
 - `mini_swe_agent_swe_bench_multilingual.py`: SWE-bench Multilingual (`SWE-bench/SWE-bench_Multilingual`) — multilingual issue statements.
 - `mini_swe_agent_swe_bench_multilingual_mini.py`: SWE-bench Multilingual Mini (**15**/**30**/**60** instances) — an AISBench-constructed Multilingual subset designed to significantly reduce evaluation cost; see the dataset card and construction repository: `https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini` and `https://github.com/AISBench/datasets/tree/main/mini_datasets/swe_bench_multiligual_mini`.
 
+> 💡 The example configuration files mentioned above are concrete applications of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to these example files to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
+
 ## 2. Prerequisites
 
 Before running, make sure the following dependencies are available:

@@ -28,6 +28,6 @@ rm humaneval.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|humaneval_gen_0_shot|humaneval数据集生成式任务|pass@1|0-shot|字符串格式|[humaneval_gen_0_shot.py](humaneval_gen_0_shot.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|humaneval_gen_0_shot|humaneval数据集生成式任务|pass@1|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.humaneval.humaneval_gen_0_shot import humaneval_datasets as datasets`|[humaneval_gen_0_shot.py](humaneval_gen_0_shot.py)|

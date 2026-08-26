@@ -78,6 +78,6 @@ rm BBH.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|bbh_gen_3_shot_cot_chat|BBH数据集生成式任务|score(accuracy)|3-shot|对话格式|[bbh_gen_3_shot_cot_chat.py](bbh_gen_3_shot_cot_chat.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|bbh_gen_3_shot_cot_chat|BBH数据集生成式任务|score(accuracy)|3-shot|对话格式|`from ais_bench.benchmark.configs.datasets.bbh.bbh_gen_3_shot_cot_chat import bbh_datasets as datasets`|[bbh_gen_3_shot_cot_chat.py](bbh_gen_3_shot_cot_chat.py)|

@@ -34,7 +34,7 @@ git clone https://huggingface.co/datasets/juletxara/mgsm
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| mgsm_gen_0_shot_cot_chat_prompt | Generative task for the mgsm dataset, with a logical chain in the prompt | Accuracy | 0-shot | Chat format | [mgsm_gen_0_shot_cot_chat_prompt.py](mgsm_gen_0_shot_cot_chat_prompt.py) |
-| mgsm_gen_8_shot_cot_chat_prompt | Generative task for the mgsm dataset, with a logical chain in the prompt | Accuracy | 8-shot | Chat format | [mgsm_gen_8_shot_cot_chat_prompt.py](mgsm_gen_8_shot_cot_chat_prompt.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| mgsm_gen_0_shot_cot_chat_prompt | Generative task for the mgsm dataset, with a logical chain in the prompt | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.mgsm.mgsm_gen_0_shot_cot_chat_prompt import mgsm_datasets as datasets`| [mgsm_gen_0_shot_cot_chat_prompt.py](mgsm_gen_0_shot_cot_chat_prompt.py) |
+| mgsm_gen_8_shot_cot_chat_prompt | Generative task for the mgsm dataset, with a logical chain in the prompt | Accuracy | 8-shot | Chat format |`from ais_bench.benchmark.configs.datasets.mgsm.mgsm_gen_8_shot_cot_chat_prompt import mgsm_datasets as datasets`| [mgsm_gen_8_shot_cot_chat_prompt.py](mgsm_gen_8_shot_cot_chat_prompt.py) |

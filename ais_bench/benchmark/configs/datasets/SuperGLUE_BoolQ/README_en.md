@@ -23,12 +23,12 @@ rm SuperGLUE.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code File Path |
-| --- | --- | --- | --- | --- | --- |
-| SuperGLUE_BoolQ_gen_883d50_str | Generative task for the BoolQ dataset | Accuracy (naive_average) | 0-shot | String | [SuperGLUE_BoolQ_gen_883d50_str.py](SuperGLUE_BoolQ_gen_883d50_str.py) |
-| SuperGLUE_BoolQ_gen_0_shot_cot_str | Generative task for the BoolQ dataset, with a chain-of-thought in the prompt | Accuracy (naive_average) | 0-shot | String | [SuperGLUE_BoolQ_gen_0_shot_cot_str.py](SuperGLUE_BoolQ_gen_0_shot_cot_str.py) |
-| SuperGLUE_BoolQ_gen_5_shot_str | Generative task for the BoolQ dataset (few-shot setting) | Accuracy (naive_average) | 5-shot | String | [SuperGLUE_BoolQ_gen_5_shot_str.py](SuperGLUE_BoolQ_gen_5_shot_str.py) |
-| SuperGLUE_BoolQ_gen_0_shot_str | Generative task for the BoolQ dataset (note: there is a possible inconsistency between the "Few-Shot" setting and the task name; the "Few-Shot" column shows 5-shot, while the task name indicates 0-shot) | Accuracy (naive_average) | 5-shot | String | [SuperGLUE_BoolQ_gen_0_shot_str.py](SuperGLUE_BoolQ_gen_0_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| SuperGLUE_BoolQ_gen_0_shot_noncot_str | Generative task for the BoolQ dataset | Accuracy (naive_average) | 0-shot | String | `from ais_bench.benchmark.configs.datasets.SuperGLUE_BoolQ.SuperGLUE_BoolQ_gen_0_shot_noncot_str import BoolQ_datasets as datasets` | [SuperGLUE_BoolQ_gen_0_shot_noncot_str.py](SuperGLUE_BoolQ_gen_0_shot_noncot_str.py) |
+| SuperGLUE_BoolQ_gen_0_shot_cot_str | Generative task for the BoolQ dataset, with a chain-of-thought in the prompt | Accuracy (naive_average) | 0-shot | String |`from ais_bench.benchmark.configs.datasets.SuperGLUE_BoolQ.SuperGLUE_BoolQ_gen_0_shot_cot_str import BoolQ_datasets as datasets`| [SuperGLUE_BoolQ_gen_0_shot_cot_str.py](SuperGLUE_BoolQ_gen_0_shot_cot_str.py) |
+| SuperGLUE_BoolQ_gen_5_shot_str | Generative task for the BoolQ dataset (few-shot setting) | Accuracy (naive_average) | 5-shot | String |`from ais_bench.benchmark.configs.datasets.SuperGLUE_BoolQ.SuperGLUE_BoolQ_gen_5_shot_str import BoolQ_datasets as datasets`| [SuperGLUE_BoolQ_gen_5_shot_str.py](SuperGLUE_BoolQ_gen_5_shot_str.py) |
+| SuperGLUE_BoolQ_gen_0_shot_str | Generative task for the BoolQ dataset (note: there is a possible inconsistency between the "Few-Shot" setting and the task name; the "Few-Shot" column shows 5-shot, while the task name indicates 0-shot) | Accuracy (naive_average) | 5-shot | String |`from ais_bench.benchmark.configs.datasets.SuperGLUE_BoolQ.SuperGLUE_BoolQ_gen_0_shot_str import BoolQ_datasets as datasets`| [SuperGLUE_BoolQ_gen_0_shot_str.py](SuperGLUE_BoolQ_gen_0_shot_str.py) |
 
 
 ### Note

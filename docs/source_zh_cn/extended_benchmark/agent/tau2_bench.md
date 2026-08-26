@@ -64,6 +64,8 @@
 
 ### 3. 配置τ²-Bench任务的自定义配置文件
 1. 在AISBench工具根目录下修改`ais_bench/configs/agent_example/tau2_bench_task.py`中必要的配置（主要是配置被测推理服务和模拟用户的推理服务的信息）
+
+> 💡 上述 `tau2_bench_task.py` 即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考此示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
 ```python
 # ......
 models = [

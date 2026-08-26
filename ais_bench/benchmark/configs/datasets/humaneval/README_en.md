@@ -28,6 +28,6 @@ rm humaneval.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| humaneval_gen_0_shot | Generative task for the HumanEval dataset | pass@1 | 0-shot | String format | [humaneval_gen_0_shot.py](humaneval_gen_0_shot.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| humaneval_gen_0_shot | Generative task for the HumanEval dataset | pass@1 | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.humaneval.humaneval_gen_0_shot import humaneval_datasets as datasets`| [humaneval_gen_0_shot.py](humaneval_gen_0_shot.py) |

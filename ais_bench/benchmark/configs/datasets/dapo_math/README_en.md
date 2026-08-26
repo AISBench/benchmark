@@ -33,10 +33,10 @@ rm -rf dapo-math-17k/data
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| dapo_math_gen_0_shot_str | Generative task for DAPO-math-17k dataset, using Minerva method to extract answers | accuracy | 0-shot | String Format | [dapo_math_gen_0_shot_str.py](dapo_math_gen_0_shot_str.py) |
-| dapo_math_gen_0_shot_cot_str | Generative task for DAPO-math-17k dataset, using strict boxed method to extract answers | accuracy | 0-shot | String Format | [dapo_math_gen_0_shot_cot_str.py](dapo_math_gen_0_shot_cot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| dapo_math_gen_0_shot_str | Generative task for DAPO-math-17k dataset, using Minerva method to extract answers | accuracy | 0-shot | String Format |`from ais_bench.benchmark.configs.datasets.dapo_math.dapo_math_gen_0_shot_str import dapo_math_datasets as datasets`| [dapo_math_gen_0_shot_str.py](dapo_math_gen_0_shot_str.py) |
+| dapo_math_gen_0_shot_cot_str | Generative task for DAPO-math-17k dataset, using strict boxed method to extract answers | accuracy | 0-shot | String Format |`from ais_bench.benchmark.configs.datasets.dapo_math.dapo_math_gen_0_shot_cot_str import dapo_math_datasets as datasets`| [dapo_math_gen_0_shot_cot_str.py](dapo_math_gen_0_shot_cot_str.py) |
 
 ## Evaluation Method Description
 The dataset supports two answer extraction and evaluation methods:

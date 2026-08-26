@@ -1,8 +1,8 @@
 from mmengine.config import read_base
 from ais_bench.benchmark.models import VLLMCustomAPIChatStream
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners.local_api import LocalAPIRunner
-from ais_bench.benchmark.tasks import OpenICLInferTask
+from ais_bench.benchmark.runners.local import LocalRunner
+from ais_bench.benchmark.tasks import OpenICLApiInferTask
 
 with read_base():
     from ais_bench.benchmark.configs.summarizers.example import summarizer
@@ -18,9 +18,7 @@ models = [
         type=VLLMCustomAPIChatStream,
         abbr='vllm-api-stream-chat',
         model="",
-        max_seq_len = 4096,
         request_rate = 0,
-        rpm_verbose = False,
         retry = 2,
         host_ip = "localhost",
         host_port = 8080,
@@ -40,8 +38,8 @@ models = [
 
 infer = dict(partitioner=dict(type=NaivePartitioner),
              runner=dict(
-                 type=LocalAPIRunner,
+                 type=LocalRunner,
                  max_num_workers=2,
-                 task=dict(type=OpenICLInferTask)), )
+                 task=dict(type=OpenICLApiInferTask)), )
 
 work_dir = 'outputs/api-vllm-stream-chat/'

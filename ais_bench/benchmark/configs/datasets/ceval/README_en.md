@@ -184,9 +184,9 @@ rm ceval-exam.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| ceval_gen_0_shot_str | Generative task for the C-Eval dataset | Accuracy | 0-shot | String format | [ceval_gen_0_shot_str.py](ceval_gen_0_shot_str.py) |
-| ceval_gen_5_shot_str | Generative task for the C-Eval dataset | Accuracy | 5-shot | String format | [ceval_gen_5_shot_str.py](ceval_gen_5_shot_str.py) |
-| ceval_gen_0_shot_cot_chat_prompt | Generative task for the C-Eval dataset with logical chain in prompt (aligned with DeepSeek R1 accuracy test) | Accuracy | 0-shot | Chat format | [ceval_gen_0_shot_cot_chat_prompt.py](ceval_gen_0_shot_cot_chat_prompt.py) |
-| ceval_ppl_0_shot_str | PPL task for the C-Eval dataset | Accuracy | 0-shot | String format | [ceval_ppl_0_shot_str.py](ceval_ppl_0_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| ceval_gen_0_shot_str | Generative task for the C-Eval dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.ceval.ceval_gen_0_shot_str import ceval_datasets as datasets`| [ceval_gen_0_shot_str.py](ceval_gen_0_shot_str.py) |
+| ceval_gen_5_shot_str | Generative task for the C-Eval dataset | Accuracy | 5-shot | String format |`from ais_bench.benchmark.configs.datasets.ceval.ceval_gen_5_shot_str import ceval_datasets as datasets`| [ceval_gen_5_shot_str.py](ceval_gen_5_shot_str.py) |
+| ceval_gen_0_shot_cot_chat_prompt | Generative task for the C-Eval dataset with logical chain in prompt (aligned with DeepSeek R1 accuracy test) | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.ceval.ceval_gen_0_shot_cot_chat_prompt import ceval_datasets as datasets`| [ceval_gen_0_shot_cot_chat_prompt.py](ceval_gen_0_shot_cot_chat_prompt.py) |
+| ceval_ppl_0_shot_str | PPL task for the C-Eval dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.ceval.ceval_ppl_0_shot_str import ceval_datasets as datasets`| [ceval_ppl_0_shot_str.py](ceval_ppl_0_shot_str.py) |

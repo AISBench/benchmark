@@ -28,9 +28,9 @@ wget https://opencompass.openxlab.space/utils/VLMEval/MMMU_Pro_V.tsv
 
 ## Available Dataset Tasks
 #### Basic Information
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-|mmmu_pro_options10_cot_gen|mmmu_pro options10 dataset thinking chain generative task|acc|0-shot|String format|[mmmu_pro_options10_cot_gen.py](mmmu_pro_options10_cot_gen.py)|
-|mmmu_pro_options10_gen|mmmu_pro options10 dataset generative task|acc|0-shot|String format|[mmmu_pro_options10_gen.py](mmmu_pro_options10_gen.py)|
-|mmmu_pro_vision_cot_gen|mmmu_pro vision dataset thinking chain generative task|acc|0-shot|String format|[mmmu_pro_vision_cot_gen.py](mmmu_pro_vision_cot_gen.py)|
-|mmmu_pro_vision_gen|mmmu_pro vision dataset generative task|acc|0-shot|String format|[mmmu_pro_vision_gen.py](mmmu_pro_vision_gen.py)|
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+|mmmu_pro_options10_cot_gen|mmmu_pro options10 dataset thinking chain generative task|acc|0-shot|String format|`from ais_bench.benchmark.configs.datasets.mmmu_pro.mmmu_pro_options10_cot_gen import mmmu_pro_datasets as datasets`|[mmmu_pro_options10_cot_gen.py](mmmu_pro_options10_cot_gen.py)|
+|mmmu_pro_options10_gen|mmmu_pro options10 dataset generative task|acc|0-shot|String format|`from ais_bench.benchmark.configs.datasets.mmmu_pro.mmmu_pro_options10_gen import mmmu_pro_datasets as datasets`|[mmmu_pro_options10_gen.py](mmmu_pro_options10_gen.py)|
+|mmmu_pro_vision_cot_gen|mmmu_pro vision dataset thinking chain generative task|acc|0-shot|String format|`from ais_bench.benchmark.configs.datasets.mmmu_pro.mmmu_pro_vision_cot_gen import mmmu_pro_datasets as datasets`|[mmmu_pro_vision_cot_gen.py](mmmu_pro_vision_cot_gen.py)|
+|mmmu_pro_vision_gen|mmmu_pro vision dataset generative task|acc|0-shot|String format|`from ais_bench.benchmark.configs.datasets.mmmu_pro.mmmu_pro_vision_gen import mmmu_pro_datasets as datasets`|[mmmu_pro_vision_gen.py](mmmu_pro_vision_gen.py)|

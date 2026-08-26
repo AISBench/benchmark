@@ -48,9 +48,9 @@ LongBench包含14个英文任务、5个中文任务和2个代码任务，大部�
     └── LongBench.py
     ```
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|longbench|longbench|准确率(accuracy)|0-shot|对话格式|[longbench.py](longbench.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|longbench|longbench|准确率(accuracy)|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.longbench.longbench import longbench_datasets as datasets`|[longbench.py](longbench.py)|
 |longbench_2wikimqa_gen|longbench_2wikimqa_gen|准确率(accuracy)|0-shot|对话格式|[longbench_2wikimqa_gen.py](longbench2wikimqa/longbench_2wikimqa_gen.py)|
 |longbench_dureader_gen|longbench_dureader_gen|准确率(accuracy)|0-shot|对话格式|[longbench_dureader_gen.py](longbenchdureader/longbench_dureader_gen.py)|
 |longbench_gov_report_gen|longbench_gov_report_gen|准确率(accuracy)|0-shot|对话格式|[longbench_gov_report_gen.py](longbenchgov_report/longbench_gov_report_gen.py)|
@@ -66,7 +66,7 @@ LongBench包含14个英文任务、5个中文任务和2个代码任务，大部�
 |longbench_passage_retrieval_en_gen|longbench_passage_retrieval_en_gen|准确率(accuracy)|0-shot|对话格式|[longbench_passage_retrieval_en_gen.py](longbenchpassage_retrieval_en/longbench_passage_retrieval_en_gen.py)|
 |longbench_passage_retrieval_zh_gen|longbench_passage_retrieval_zh_gen|准确率(accuracy)|0-shot|对话格式|[longbench_passage_retrieval_zh_gen.py](longbenchpassage_retrieval_zh/longbench_passage_retrieval_zh_gen.py)|
 |longbench_qasper_gen|longbench_qasper_gen|准确率(accuracy)|0-shot|对话格式|[longbench_qasper_gen.py](longbenchqasper/longbench_qasper_gen.py)|
-|longbench_qmsum_gen|longbench_qmsum_gen|准确率(accuracy)|0-shot|对话格式|[longbench_qmsum_gen.py](longbenchqmsum/longbenchqmsum_gen.py)|
+|longbench_qmsum_gen|longbench_qmsum_gen|准确率(accuracy)|0-shot|对话格式|[longbench_qmsum_gen.py](longbenchqmsum/longbench_qmsum_gen.py)|
 |longbench_repobench_gen|longbench_repobench_gen|准确率(accuracy)|0-shot|对话格式|[longbench_repobench_gen.py](longbenchrepobench/longbench_repobench_gen.py)|
 |longbench_samsum_gen|longbench_samsum_gen|准确率(accuracy)|0-shot|对话格式|[longbench_samsum_gen.py](longbenchsamsum/longbench_samsum_gen.py)|
 |longbench_trec_gen|longbench_trec_gen|准确率(accuracy)|0-shot|对话格式|[longbench_trec_gen.py](longbenchtrec/longbench_trec_gen.py)|

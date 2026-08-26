@@ -25,10 +25,10 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| lambada_gen_0_shot_chat | Generative task for the LAMBADA dataset | Accuracy | 0-shot | Chat format | [lambada_gen_0_shot_chat.py](lambada_gen_0_shot_chat.py) |
-| lambada_gen_0_shot_str | Generative task for the LAMBADA dataset | Accuracy | 0-shot | String format | [lambada_gen_0_shot_str.py](lambada_gen_0_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| lambada_gen_0_shot_chat | Generative task for the LAMBADA dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.lambada.lambada_gen_0_shot_chat import lambada_datasets as datasets`| [lambada_gen_0_shot_chat.py](lambada_gen_0_shot_chat.py) |
+| lambada_gen_0_shot_str | Generative task for the LAMBADA dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.lambada.lambada_gen_0_shot_str import lambada_datasets as datasets`| [lambada_gen_0_shot_str.py](lambada_gen_0_shot_str.py) |
 
 
 ### Translation Notes

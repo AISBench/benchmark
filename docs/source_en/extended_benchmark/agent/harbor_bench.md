@@ -163,6 +163,8 @@ AISBench modified dataset repository: [https://github.com/AISBench/terminal-benc
 
 Modify `ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py` under AISBench tool root directory:
 
+> 💡 The above `harbor_terminal_bench_2_task.py` is a concrete application of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to this example file to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
+
 ```python
 models = [
     dict(
@@ -204,7 +206,7 @@ datasets.append(
             # ......
         ),
     )
-)
+
 # ......
 ```
 

@@ -24,7 +24,7 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|lambada_gen_0_shot_chat|lambada数据集生成式任务|accuracy|0-shot|对话格式|[lambada_gen_0_shot_chat.py](lambada_gen_0_shot_chat.py)|
-|lambada_gen_0_shot_str|lambada数据集生成式任务|accuracy|0-shot|字符串格式|[lambada_gen_0_shot_str.py](lambada_gen_0_shot_str.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|lambada_gen_0_shot_chat|lambada数据集生成式任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.lambada.lambada_gen_0_shot_chat import lambada_datasets as datasets`|[lambada_gen_0_shot_chat.py](lambada_gen_0_shot_chat.py)|
+|lambada_gen_0_shot_str|lambada数据集生成式任务|accuracy|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.lambada.lambada_gen_0_shot_str import lambada_datasets as datasets`|[lambada_gen_0_shot_str.py](lambada_gen_0_shot_str.py)|

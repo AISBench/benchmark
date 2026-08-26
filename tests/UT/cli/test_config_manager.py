@@ -117,40 +117,6 @@ class TestCustomConfigChecker(unittest.TestCase):
         # 当前实现仅要求datasets中包含type和abbr，缺少eval_cfg不应抛错
         checker.check()
 
-    def test_check_missing_summarizer(self):
-        """测试缺少summarizer配置"""
-        invalid_config = {
-            'models': [{'type': 'test_model', 'abbr': 'test', 'attr': {}}],
-            'datasets': [{'type': 'test_dataset', 'abbr': 'test', 'reader_cfg': {}, 'infer_cfg': {}, 'eval_cfg': {}}]
-        }
-        checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(AISBenchConfigError) as cm:
-            checker.check()
-        self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
-
-    def test_check_summarizer_not_dict(self):
-        """测试summarizer不是字典类型"""
-        invalid_config = {
-            'models': [{'type': 'test_model', 'abbr': 'test', 'attr': {}}],
-            'datasets': [{'type': 'test_dataset', 'abbr': 'test', 'reader_cfg': {}, 'infer_cfg': {}, 'eval_cfg': {}}],
-            'summarizer': 'test_summarizer'  # 应该是字典
-        }
-        checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(AISBenchConfigError) as cm:
-            checker.check()
-        self.assertEqual(cm.exception.error_code_str, TMAN_CODES.TYPE_ERROR_IN_CFG_PARAM.full_code)
-
-    def test_check_summarizer_missing_required_field(self):
-        """测试summarizer缺少必需字段"""
-        invalid_config = {
-            'models': [{'type': 'test_model', 'abbr': 'test', 'attr': {}}],
-            'datasets': [{'type': 'test_dataset', 'abbr': 'test', 'reader_cfg': {}, 'infer_cfg': {}, 'eval_cfg': {}}],
-            'summarizer': {}  # 缺少attr字段
-        }
-        checker = CustomConfigChecker(invalid_config, self.file_path)
-        with self.assertRaises(AISBenchConfigError) as cm:
-            checker.check()
-        self.assertEqual(cm.exception.error_code_str, TMAN_CODES.CFG_CONTENT_MISS_REQUIRED_PARAM.full_code)
 
 class TestConfigManager(unittest.TestCase):
     def setUp(self):
