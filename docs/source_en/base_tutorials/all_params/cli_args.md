@@ -40,6 +40,31 @@ Applicable to all modes and can be used in combination with accuracy or performa
 | `--response-anomaly` | Enables msProbe response anomaly detection. This switch is **command-line only**: adding `--response-anomaly` to the command enables detection; omitting it disables detection (there is no `--no-response-anomaly` form). Detection is serially bound to the inference stage: after inference finishes, the workflow starts detection and waits for it to complete (the dedicated status board prints the final result) before entering the subsequent Judge / Eval / Summary stages; requires the service to return token ids and top-k logprobs. Only supported in `all`, `infer`, and `infer_judge` generation chains; performance mode and Agent evaluation modes are unsupported. | `--response-anomaly` |
 | `--response-anomaly-payload-retention` | Payload retention mode after anomaly detection: `all` keeps everything, `anomalies` keeps anomalous and detection-failed/unavailable Cases, `none` keeps nothing. The command-line value overrides the config file; defaults to `anomalies`. | `--response-anomaly-payload-retention anomalies` |
 
+### API Model Common Override Parameters
+
+Applicable to service-oriented inference backends (API models such as vLLM, Triton, MindIE, TGI, etc.), used to directly override common fields in the model configuration via the command line without modifying the model configuration files.
+
+> ⚠️ **Coverage Notes**:
+> - Only fields **already present** in the model config are overridden; no new keys are added (so model classes that do not support a given field do not receive unexpected keywords, preserving backward compatibility).
+> - An explicitly specified parameter overrides the corresponding field in **all executed model configs** (effective across multiple model tasks in the same command).
+> - Parameters not explicitly specified are ignored (default `None`), keeping the original values in the config files.
+> - The model-name field is written to `model` or `model_name` depending on the model `type` constructor signature: VLLM classes use `model`, Triton uses `model_name`; when the type accepts neither (e.g. MindIE, TGI), a warning is printed and the value is skipped.
+
+| Parameter | Description | Example |
+| ---- | ---- | ---- |
+| `--path` | Overrides the `path` field (Tokenizer/model vocabulary path) | `--path /weight/Qwen` |
+| `--model-name` | Overrides the model name, written to `model` or `model_name` based on the model `type` (VLLM→`model`, Triton→`model_name`; warning+skip for MindIE/TGI) | `--model-name Qwen` |
+| `--request-rate` | Overrides `request_rate` (request sending rate) | `--request-rate 10` |
+| `--retry` | Overrides `retry` (max retries per request) | `--retry 3` |
+| `--api-key` | Overrides `api_key` (custom API key) | `--api-key sk-xxx` |
+| `--host-ip` | Overrides `host_ip` (inference service IP) | `--host-ip 127.0.0.1` |
+| `--host-port` | Overrides `host_port` (inference service port) | `--host-port 8000` |
+| `--url` | Overrides `url` (custom URL path for the inference service) | `--url http://x.x.x.x:8000/v1` |
+| `--max-out-len` | Overrides `max_out_len` (max output tokens) | `--max-out-len 1024` |
+| `--batch-size` | Overrides `batch_size` (max request concurrency) | `--batch-size 4` |
+| `--trust-remote-code` | Overrides `trust_remote_code` (whether the tokenizer trusts remote code); supports `--trust-remote-code` / `--no-trust-remote-code` | `--no-trust-remote-code` |
+| `--generation-kwargs` | Overrides `generation_kwargs` (generation parameters) as a JSON object, **replacing** the config dict entirely | `--generation-kwargs '{"temperature": 0.5}'` |
+
 
 ### Accuracy Evaluation Parameters
 Valid only when the mode is `all`, `infer`, `eval`, or `viz`.
