@@ -19,6 +19,7 @@ import os
 import os.path as osp
 import subprocess
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Tuple
@@ -60,6 +61,10 @@ class HarborRunner(BaseRunner):
         self.refresh_interval = refresh_interval
         self.jobs_dir = jobs_dir
         self.keep_tmp_file = keep_tmp_file
+        # Subprocesses launched by _launch() that are still running (used to
+        # wait for container cleanup after an interruption).
+        self._active_popens: List[subprocess.Popen] = []
+        self._popen_lock = threading.Lock()
         for k, v in kwargs.items():
             self.logger.warning(f'Ignored argument in {self.__module__}: {k}={v}')
 
@@ -151,30 +156,50 @@ class HarborRunner(BaseRunner):
             )
 
         board = self._start_task_board(task_names, work_dir)
-        interrupted = False
         try:
             status = self._run_tasks(tasks)
         except KeyboardInterrupt:
-            interrupted = True
-            raise
+            # The terminal SIGINT already reached the harbor subprocesses
+            # (same process group); they are recycling containers. Stop the
+            # board so the terminal is restored, then wait for the cleanup so
+            # the process exits cleanly on the FIRST Ctrl+C (no second one).
+            self._stop_board(board)
+            self.logger.warning(
+                "Interrupted. Harbor subprocesses received SIGINT and are "
+                "recycling their containers; waiting for cleanup..."
+            )
+            self._wait_for_cleanup()
+            self.logger.warning("Harbor cleanup finished, exiting.")
+            raise SystemExit(130)
         finally:
-            if interrupted:
-                # The terminal SIGINT already reached the harbor subprocesses
-                # (same process group); they are recycling containers. Stop
-                # the board so the terminal is restored promptly instead of
-                # showing a stale "running" state that looks stuck.
-                self._stop_board(board)
-                self.logger.warning(
-                    "Interrupted. Task board stopped; harbor subprocesses are "
-                    "recycling their containers and will exit on their own. "
-                    "Container cleanup can take a while."
-                )
             if board is not None:
                 board.join(timeout=2)
             server.stop()
             monitor.stop()
             TasksMonitor.rm_tmp_files(work_dir)
         return status
+
+    def _wait_for_cleanup(self) -> None:
+        """Poll the still-running subprocesses until they exit.
+
+        On Ctrl+C the subprocesses recycle their harbor containers and then
+        terminate on their own; this prints a heartbeat so the wait is visible
+        instead of looking stuck.
+        """
+        start = time.time()
+        last_report = time.time()
+        while True:
+            with self._popen_lock:
+                alive = [p for p in self._active_popens if p.poll() is None]
+            if not alive:
+                return
+            if time.time() - last_report >= 5:
+                self.logger.warning(
+                    f"Waiting for harbor cleanup ({len(alive)} subprocess(es), "
+                    f"{int(time.time() - start)}s)..."
+                )
+                last_report = time.time()
+            time.sleep(0.5)
 
     def _start_task_board(self, task_names: List[str], work_dir: str) -> threading.Thread | None:
         """Start a TasksMonitor board (daemon thread) printing a progress bar
@@ -258,7 +283,16 @@ class HarborRunner(BaseRunner):
                                          text=True,
                                          stdout=stdout,
                                          stderr=stdout)
-                returncode = popen.wait()
+                with self._popen_lock:
+                    self._active_popens.append(popen)
+                try:
+                    returncode = popen.wait()
+                except KeyboardInterrupt:
+                    # Keep the popen in _active_popens: the runner-level
+                    # cleanup waits for it to finish recycling containers.
+                    raise
+                with self._popen_lock:
+                    self._active_popens.remove(popen)
             if returncode != 0:
                 self.logger.error(RUNNER_CODES.TASK_FAILED,
                                   f"{task_name} failed with code {returncode}, see\n{out_path}")
