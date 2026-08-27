@@ -13,24 +13,14 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 class HarborSummarizer:
     """Harbor agent benchmark summarizer: prints one table, writes one csv.
 
-    Columns are data-driven through ``COLUMNS`` / ``HEADERS``: to add a column,
-    append its key to ``COLUMNS``, add a display header to ``HEADERS``, and
-    fill the key in ``_build_row``.
+    Columns are data-driven via ``COLUMNS`` (key = short english header). To
+    add a column, append its key to ``COLUMNS`` and fill it in ``_build_row``.
     """
 
     COLUMNS = [
         'model', 'dataset', 'avg_score', 'correct', 'wrong', 'exception',
         'total_time',
     ]
-    HEADERS = {
-        'model': '模型',
-        'dataset': '数据集',
-        'avg_score': '平均得分',
-        'correct': '正确个数',
-        'wrong': '错误个数',
-        'exception': '异常个数',
-        'total_time': '总耗时',
-    }
 
     def __init__(self, config) -> None:
         self.cfg = config
@@ -50,9 +40,8 @@ class HarborSummarizer:
             self.logger.warning('No harbor results found to summarize.')
             return
 
-        header = [self.HEADERS[c] for c in self.COLUMNS]
-        table = [header] + [[str(r.get(c, '-')) for c in self.COLUMNS]
-                            for r in rows]
+        table = [list(self.COLUMNS)] + [[str(r.get(c, '-')) for c in self.COLUMNS]
+                                        for r in rows]
         print(tabulate.tabulate(table, headers='firstrow', tablefmt='grid'))
 
         time_str = time_str or datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -61,7 +50,7 @@ class HarborSummarizer:
         csv_path = osp.join(summary_dir, f'summary_{time_str}.csv')
         with open(csv_path, 'w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(header)
+            writer.writerow(self.COLUMNS)
             for r in rows:
                 writer.writerow([r.get(c, '-') for c in self.COLUMNS])
         self.logger.info(f'write summary csv to {osp.abspath(csv_path)}')
@@ -92,15 +81,9 @@ class HarborSummarizer:
         if not osp.exists(path):
             return '-'
         data = mmengine.load(path) or {}
-        starts, ends = [], []
-        for t in data.get('trial_results') or []:
-            try:
-                if t.get('started_at'):
-                    starts.append(datetime.fromisoformat(t['started_at']))
-                if t.get('finished_at'):
-                    ends.append(datetime.fromisoformat(t['finished_at']))
-            except (TypeError, ValueError):
-                continue
-        if not starts or not ends:
+        try:
+            start = datetime.fromisoformat(data['started_at'])
+            finish = datetime.fromisoformat(data['finished_at'])
+        except (TypeError, KeyError, ValueError):
             return '-'
-        return f'{(max(ends) - min(starts)).total_seconds():.1f}s'
+        return f'{(finish - start).total_seconds():.1f}s'
