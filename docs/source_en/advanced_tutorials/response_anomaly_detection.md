@@ -65,7 +65,7 @@ models = [
 ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --response-anomaly
 ```
 
-> ⚠️ The **feature switch is command-line only**: add `--response-anomaly` to the command to enable detection (omit it to disable). The `response_anomaly` entry in the config file carries only non-switch settings (`payload_retention`, `payload_storage`, etc.).
+> ⚠️ The **feature switch is command-line only**: add `--response-anomaly` to the command to enable detection (omitting it leaves detection off by default). The `response_anomaly` entry in the config file carries only non-switch settings (`payload_retention`, `payload_storage`, etc.).
 
 **3. Inspect the detection results**: after inference and detection finish, the results are written to `<work_dir>/response_anomaly/<model abbr>/<dataset abbr>.jsonl`, one Case per line (see [Runtime Flow and On-Disk Layout](#runtime-flow-and-on-disk-layout) for the full layout).
 

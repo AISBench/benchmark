@@ -65,7 +65,7 @@ models = [
 ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --response-anomaly
 ```
 
-> ⚠️ 异常检测的**功能开关仅支持命令行**：在命令中增加 `--response-anomaly` 开启（不增加即关闭）；配置文件中的 `response_anomaly` 仅用于非开关类配置（`payload_retention`、`payload_storage` 等）。
+> ⚠️ 异常检测的**功能开关仅支持命令行**：在命令中增加 `--response-anomaly` 开启（不增加默认不开启）；配置文件中的 `response_anomaly` 仅用于非开关类配置（`payload_retention`、`payload_storage` 等）。
 
 **3. 查看检测结果**：推理与检测结束后，检测结果位于 `<work_dir>/response_anomaly/<模型 abbr>/<数据集 abbr>.jsonl`，每行一个 Case（完整落盘结构见[运行流程与落盘结构](#运行流程与落盘结构)）。
 
