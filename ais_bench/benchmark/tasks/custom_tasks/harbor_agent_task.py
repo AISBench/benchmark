@@ -89,6 +89,12 @@ class HarborAgentTask(HarborTask):
             return
         self._last_metrics_ts = now
         metrics = self._job_metrics(job_dir)
+        if not getattr(self, "_metrics_reported", False):
+            self._metrics_reported = True
+            self.logger.info(
+                f"[board-metrics] job_dir={job_dir} result_json_exists="
+                f"{(job_dir / 'result.json').exists()} metrics={metrics}"
+            )
         if metrics:
             self.task_state_manager.update_task_state({"other_kwargs": metrics})
 
