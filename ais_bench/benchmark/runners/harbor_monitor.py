@@ -145,6 +145,47 @@ class HarborMonitor:
             )
         return jobs
 
+    def task_info(self, task_name: str) -> dict | None:
+        """Registered task info (status_file / job_dir)."""
+        with self._lock:
+            info = self._tasks.get(task_name)
+            return dict(info) if info else None
+
+    def raw_job_result(self, task_name: str) -> dict | None:
+        """Full raw content of ``job_dir/result.json`` for a task."""
+        info = self.task_info(task_name)
+        if not info or not info.get("job_dir"):
+            return None
+        return _read_json(Path(info["job_dir"]) / "result.json")
+
+    def raw_case_result(self, task_name: str, case: str) -> dict | None:
+        """Raw content of a case's ``result.json``.
+
+        ``case`` may be a trial dir name (``trial_00000``), a numeric index
+        (``0``), or the harbor task name (e.g. ``astropy__astropy-12907``).
+        """
+        info = self.task_info(task_name)
+        if not info or not info.get("job_dir"):
+            return None
+        job_path = Path(info["job_dir"])
+        if not job_path.is_dir():
+            return None
+        candidate = job_path / case
+        if candidate.is_dir():
+            result = _read_json(candidate / "result.json")
+            if result is not None:
+                return result
+        for trial_dir in job_path.glob("trial_*"):
+            if not trial_dir.is_dir():
+                continue
+            if self._task_name_from_config(trial_dir) == case:
+                return _read_json(trial_dir / "result.json")
+        if case.isdigit():
+            candidate = job_path / f"trial_{int(case):05d}"
+            if candidate.is_dir():
+                return _read_json(candidate / "result.json")
+        return None
+
     # ------------------------------------------------------------------
     # task-level snapshot
     # ------------------------------------------------------------------
@@ -428,14 +469,16 @@ def _dir_mtime_iso(trial_dir: Path) -> str | None:
 
 
 class HarborMonitorServer:
-    """Stdlib HTTP server exposing live monitor snapshots.
+    """Stdlib HTTP server exposing live monitor snapshots and raw results.
 
     Read-only endpoints (no write support, no CORS)::
 
         GET /api/health
         GET /api/tasks
-        GET /api/tasks/{task_name}
-        GET /api/tasks/{task_name}/cases
+        GET /api/tasks/{model}/{dataset}/              raw job result.json
+        GET /api/tasks/{model}/{dataset}/{case}        raw case result.json
+        GET /api/tasks/{model}/{dataset}/cases         derived case summaries
+        GET /api/tasks/{model}/{dataset}               derived task snapshot
         GET /api/jobs
     """
 
@@ -473,12 +516,56 @@ class HarborMonitorServer:
                     self._json({"error": "internal error"}, status=500)
 
             def _handle_task(self, path: str) -> None:
-                name = unquote(path[len("/api/tasks/") :])
-                if name.endswith("/cases"):
-                    name = name[: -len("/cases")]
-                    self._json({"task_name": name, "cases": monitor.cases(name)})
+                rest = unquote(path[len("/api/tasks/") :])
+                trailing_slash = rest.endswith("/")
+                segments = [s for s in rest.rstrip("/").split("/") if s]
+                if len(segments) < 2:
+                    self._json({"error": "task not found"}, status=404)
                     return
-                snap = monitor.snapshot(name)
+                task_name = f"{segments[0]}/{segments[1]}"
+                case = segments[2] if len(segments) >= 3 else None
+                if len(segments) > 3:
+                    self._json({"error": "bad path"}, status=404)
+                    return
+
+                if case is None and trailing_slash:
+                    # /api/tasks/{model}/{dataset}/ → raw job result.json
+                    result = monitor.raw_job_result(task_name)
+                    if result is None:
+                        self._json(
+                            {
+                                "error": f"result.json not available for "
+                                f"'{task_name}'"
+                            },
+                            status=404,
+                        )
+                    else:
+                        self._json(result)
+                    return
+
+                if case == "cases":
+                    self._json(
+                        {"task_name": task_name, "cases": monitor.cases(task_name)}
+                    )
+                    return
+
+                if case is not None:
+                    # /api/tasks/{model}/{dataset}/{case} → raw case result.json
+                    result = monitor.raw_case_result(task_name, case)
+                    if result is None:
+                        self._json(
+                            {
+                                "error": f"case '{case}' result not available "
+                                f"for '{task_name}'"
+                            },
+                            status=404,
+                        )
+                    else:
+                        self._json(result)
+                    return
+
+                # /api/tasks/{model}/{dataset} → derived snapshot
+                snap = monitor.snapshot(task_name)
                 if not isinstance(snap, dict):
                     self._json({"error": "task not found"}, status=404)
                     return

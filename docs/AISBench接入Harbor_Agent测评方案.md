@@ -281,13 +281,16 @@ def launch(self, tasks) -> List[Tuple[str, int]]:
 |---|---|
 | `GET /api/health` | 存活探测 |
 | `GET /api/tasks` | 全部 task 任务级快照列表 |
-| `GET /api/tasks/{name}` | 单个 task 任务级详情 |
-| `GET /api/tasks/{name}/cases` | 单个 task 的每 case 执行状态与成败原因明细 |
+| `GET /api/tasks/{模型}/{数据集}/` | **任务总览 = `job_dir/result.json` 原文**（尾斜杠触发） |
+| `GET /api/tasks/{模型}/{数据集}/{case}` | **单个 case 的 `trial_*/result.json` 原文**（case 可为 trial 目录名 `trial_00000`、数字序号 `0`、或 harbor task 名如 `astropy__astropy-12907`） |
+| `GET /api/tasks/{模型}/{数据集}/cases` | 单个 task 的每 case 执行状态与成败原因明细（派生快照） |
+| `GET /api/tasks/{模型}/{数据集}` | 单个 task 的任务级派生快照（向后兼容） |
 | `GET /api/jobs` | 各 harbor job 进度（聚合计数 + case 状态统计） |
 
 - 端口由 `--monitor-port` 指定（默认 `0` = 不启动服务）；
 - 只读服务，无写入端点，不跨域写请求；
-- 采用标准库实现，零新增依赖。
+- 采用标准库实现，零新增依赖；
+- `{模型}/{数据集}` 即任务名 `task_abbr_from_cfg`（`模型abbr/数据集abbr`），case 结果未落盘时返回 404。
 
 ### 3.3 支持全部 agent 的新 Task（新增 `tasks/custom_tasks/harbor_agent_task.py`）
 
