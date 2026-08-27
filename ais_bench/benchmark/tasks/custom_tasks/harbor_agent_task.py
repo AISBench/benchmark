@@ -59,7 +59,6 @@ class HarborAgentTask(HarborTask):
             return self._resume_job(existing_job_dir)
 
         config = self._build_job_config(args)
-        self._dump_job_config_debug(config)
         self.logger.info(f"Harbor Job Config: {config}")
 
         total_tasks = self._get_task_count(config)
@@ -72,6 +71,32 @@ class HarborAgentTask(HarborTask):
     # ------------------------------------------------------------------
 
     _PROGRESS_METRICS_INTERVAL = 2.0
+
+    def _set_api_key(self):
+        super()._set_api_key()
+        # Agents whose model calls run inside the harbor process (e.g.
+        # terminus-2 via litellm) read the proxy/network env vars from
+        # os.environ; AgentConfig.env only reaches the in-container session.
+        # Propagate the merged agent env so the model service stays reachable
+        # without requiring the user to export proxies in the shell first.
+        for key, value in self._agent_env().items():
+            os.environ.setdefault(key, str(value))
+
+    def _agent_env(self) -> dict:
+        """Merged agent env: translated + config agent_env + CLI --ae."""
+        model_cfg = self.model_cfg
+        agent_name = model_cfg.get("agent_name")
+        translated = AgentParamAdapter.translate(agent_name, model_cfg)
+        env = {
+            **translated["env"],
+            **dict(model_cfg.get("agent_env") or {}),
+            **parse_env_strings(self.cli_args.get("agent_env")),
+        }
+        for var in ("http_proxy", "https_proxy", "no_proxy",
+                    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"):
+            if var not in env and os.environ.get(var):
+                env[var] = os.environ[var]
+        return env
 
     def _refresh_progress_metrics(self):
         """Periodically push live 正确/错误/异常/平均分 into the task state so
@@ -90,12 +115,6 @@ class HarborAgentTask(HarborTask):
             return
         self._last_metrics_ts = now
         metrics = self._job_metrics(job_dir)
-        if not getattr(self, "_metrics_reported", False):
-            self._metrics_reported = True
-            self.logger.info(
-                f"[board-metrics] job_dir={job_dir} result_json_exists="
-                f"{(job_dir / 'result.json').exists()} metrics={metrics}"
-            )
         if metrics:
             self.task_state_manager.update_task_state({"other_kwargs": metrics})
 
@@ -151,29 +170,6 @@ class HarborAgentTask(HarborTask):
             "exception": n_exception,
             "avg_score": round(sum(rewards) / len(rewards), 4) if rewards else None,
         }
-
-    def _dump_job_config_debug(self, config) -> None:
-        """Dump the resolved JobConfig for external replay/debugging.
-
-        Enabled by setting ``AISBENCH_DUMP_JOB_CONFIG=1``. The dumped config
-        can be replayed with the native CLI: ``harbor run -c <path> -y``, to
-        tell whether a problem comes from the generated config or from the
-        AISBench execution context.
-        """
-        if not os.environ.get("AISBENCH_DUMP_JOB_CONFIG"):
-            return
-        dump_path = Path(self.out_detail_dir) / "aisbench_job_config.json"
-        try:
-            dump_path.write_text(
-                config.model_dump_json(
-                    indent=4,
-                    exclude_defaults=True,
-                    context={"redact_sensitive_env": False},
-                )
-            )
-            self.logger.info(f"Dumped AISBench job config to {dump_path}")
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning(f"Failed to dump job config: {e}")
 
     # ------------------------------------------------------------------
     # JobConfig construction (harbor 0.21.0)
@@ -243,23 +239,15 @@ class HarborAgentTask(HarborTask):
 
         translated = AgentParamAdapter.translate(agent_name, model_cfg)
         raw_kwargs = dict(model_cfg.get("agent_kwargs") or {})
-        raw_env = dict(model_cfg.get("agent_env") or {})
         # CLI-provided agent kwargs/env are merged directly from cli_args so
         # they always reach the AgentConfig even if the config dump/reload
         # round-trip dropped the in-model dicts. Merging is idempotent and
         # CLI values win over config-file values.
         cli_kwargs = parse_kwarg_strings(self.cli_args.get("agent_kwarg"))
-        cli_env = parse_env_strings(self.cli_args.get("agent_env"))
         # explicit user-provided kwargs / env win over translated values
         kwargs = {**translated["kwargs"], **raw_kwargs, **cli_kwargs}
-        env = {**translated["env"], **raw_env, **cli_env}
-        # inherit proxy env vars from the host process when not explicitly set,
-        # so agents can reach model services through the same proxy as the CLI
-        for var in ("http_proxy", "https_proxy", "no_proxy",
-                    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"):
-            if var not in env and os.environ.get(var):
-                env[var] = os.environ[var]
-        self.logger.info(
+        env = self._agent_env()
+        self.logger.debug(
             f"Agent '{agent_name}' built env keys: {sorted(env.keys())} | "
             f"cli_args.agent_env present: {bool(self.cli_args.get('agent_env'))} | "
             f"model_cfg.agent_env present: {bool(model_cfg.get('agent_env'))}"
