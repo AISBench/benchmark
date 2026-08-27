@@ -54,6 +54,7 @@ class HarborRunner(BaseRunner):
                  jobs_dir: str = None,
                  keep_tmp_file: bool = False,
                  debug: bool = False,
+                 cleanup_timeout: float = 120.0,
                  **kwargs):
         super().__init__(task=task, debug=debug)
         self.max_num_workers = max_num_workers
@@ -61,6 +62,7 @@ class HarborRunner(BaseRunner):
         self.refresh_interval = refresh_interval
         self.jobs_dir = jobs_dir
         self.keep_tmp_file = keep_tmp_file
+        self.cleanup_timeout = cleanup_timeout
         # Subprocesses launched by _launch() that are still running (used to
         # wait for container cleanup after an interruption).
         self._active_popens: List[subprocess.Popen] = []
@@ -168,7 +170,7 @@ class HarborRunner(BaseRunner):
                 "Interrupted. Harbor subprocesses received SIGINT and are "
                 "recycling their containers; waiting for cleanup..."
             )
-            self._wait_for_cleanup()
+            self._wait_for_cleanup(timeout=self.cleanup_timeout)
             self.logger.warning("Harbor cleanup finished, exiting.")
             raise SystemExit(130)
         finally:
@@ -179,12 +181,14 @@ class HarborRunner(BaseRunner):
             TasksMonitor.rm_tmp_files(work_dir)
         return status
 
-    def _wait_for_cleanup(self) -> None:
+    def _wait_for_cleanup(self, timeout: float = 120.0) -> None:
         """Poll the still-running subprocesses until they exit.
 
         On Ctrl+C the subprocesses recycle their harbor containers and then
         terminate on their own; this prints a heartbeat so the wait is visible
-        instead of looking stuck.
+        instead of looking stuck. If cleanup exceeds ``timeout`` seconds, the
+        stuck subprocesses are terminated (SIGTERM, then SIGKILL) so the parent
+        always exits.
         """
         start = time.time()
         last_report = time.time()
@@ -193,13 +197,40 @@ class HarborRunner(BaseRunner):
                 alive = [p for p in self._active_popens if p.poll() is None]
             if not alive:
                 return
+            elapsed = time.time() - start
+            if elapsed >= timeout:
+                self.logger.warning(
+                    f"Harbor cleanup did not finish within {int(timeout)}s "
+                    f"({len(alive)} subprocess(es) still running); terminating "
+                    "them and exiting."
+                )
+                self._terminate_popens(alive)
+                return
             if time.time() - last_report >= 5:
                 self.logger.warning(
                     f"Waiting for harbor cleanup ({len(alive)} subprocess(es), "
-                    f"{int(time.time() - start)}s)..."
+                    f"{int(elapsed)}s)..."
                 )
                 last_report = time.time()
             time.sleep(0.5)
+
+    def _terminate_popens(self, popens: List[subprocess.Popen]) -> None:
+        """SIGTERM the stuck subprocesses, then SIGKILL after a short grace."""
+        for popen in popens:
+            if popen.poll() is None:
+                try:
+                    popen.terminate()
+                except OSError:
+                    pass
+        deadline = time.time() + 10
+        while any(p.poll() is None for p in popens) and time.time() < deadline:
+            time.sleep(0.2)
+        for popen in popens:
+            if popen.poll() is None:
+                try:
+                    popen.kill()
+                except OSError:
+                    pass
 
     def _start_task_board(self, task_names: List[str], work_dir: str) -> threading.Thread | None:
         """Start a TasksMonitor board (daemon thread) printing a progress bar

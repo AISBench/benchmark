@@ -383,7 +383,11 @@ if __name__ == "__main__":
     try:
         inferencer = HarborTask(cfg)
         inferencer.run(task_state_manager)
-    except Exception as e:
+    except BaseException as e:
+        # BaseException (not just Exception): on Ctrl+C (KeyboardInterrupt)
+        # the task state must still be flipped to "error" so the non-daemon
+        # TaskStateManager thread exits and the process can terminate after
+        # harbor recycles its containers.
         task_state_manager.update_task_state({"status": "error"})
         raise e
 
