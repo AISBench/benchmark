@@ -310,6 +310,14 @@ def launch(self, tasks) -> List[Tuple[str, int]]:
     - 过滤：`task_names / exclude_task_names / n_tasks`；
   - **环境类型**以当前 `EnvironmentType` 枚举为准（docker / daytona / e2b / modal / runloop / gke / novita 等）。
 
+#### `HarborSummarizer`（重设计，独立类，不再继承 `DefaultSummarizer`）
+
+- **输出**：运行结束仅打印**一张大表格** + 落盘**一个 csv**（`work_dir/summary/summary_<time_str>.csv`），不再生成 txt/md 多格式；
+- **列定义数据驱动**：`COLUMNS`（列 key 顺序）+ `HEADERS`（列中文表头），`_build_row` 填充各 key → **加列 = 追加 key + 填值**，天然支持自由拓展；
+- **默认列**：`模型` / `数据集` / `平均得分` / `正确个数`（reward≥1）/ `错误个数`（reward<1）/ `异常个数`（`n_errors`）/ `总耗时`；
+  - 前六项读自 `results/{model}/{dataset}.json`（`_dump_eval_results` 落盘）；`总耗时` 读自 `results/{model}/{dataset}/details/result.json` 的 trial `started_at`/`finished_at` 极差，不可用时显示 `-`；
+- 接口保持 `HarborSummarizer(config=cfg)` + `summarize(time_str=...)`，AccViz 流程不变。
+
 ### 3.4 参数适配器（新增 `utils/agent_params.py`）
 
 `AgentParamAdapter`：把统一语义参数 → 各 agent 的 `AgentConfig.kwargs` / `AgentConfig.env`。
@@ -418,7 +426,7 @@ ais_bench configs/agent_example/harbor_agent_task.py --mode agent
 
 ## 4. 兼容性保障清单
 
-1. **结果格式**：`HarborAgentTask` 复用 `_dump_eval_results`，落盘字段与 [harbor_task.py#L326-L344](file:///d:/group_dev/adapt_harbor/benchmark/ais_bench/benchmark/tasks/custom_tasks/harbor_task.py#L326-L344) 一致（`total_count / n_errors / avg_score / reward_distribution / exception_distribution / n_total_trials / pass_at_k`），`HarborSummarizer` 无需改动。
+1. **结果格式**：`HarborAgentTask` 复用 `_dump_eval_results`，落盘字段与 [harbor_task.py#L326-L344](file:///d:/group_dev/adapt_harbor/benchmark/ais_bench/benchmark/tasks/custom_tasks/harbor_task.py#L326-L344) 一致（`total_count / n_errors / avg_score / reward_distribution / exception_distribution / n_total_trials / pass_at_k`）；`HarborSummarizer` 已重设计为单表 + 单 csv（见 3.3）。
 2. **配置格式**：沿用 `models` / `datasets` 划分；原 `agent_kwargs.api_base` 写法继续可用（适配器直通），新增统一字段为可选增强。
 3. **其他功能零影响**：`runtime.txt`、默认安装、`all/infer/eval/perf` 等既有 workflow 完全不动；新增组件均通过 `RUNNERS` / `TASKS` registry 注册并按需 lazy import。
 4. **断点续跑**：沿用 harbor job 目录 `config.json` 检测 → `_resume_job`。
