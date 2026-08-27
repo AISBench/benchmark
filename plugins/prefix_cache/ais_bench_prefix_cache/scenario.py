@@ -383,6 +383,17 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     validation = _require_dict(data["validation"], "validation")
     validation.setdefault("target_warning_pp", 1.0)
     validation.setdefault("actual_warning_pp", 5.0)
+    aisbench = _require_dict(data["aisbench"], "aisbench")
+    aisbench.setdefault("config", "./plugins/prefix_cache/config_examples/prefix_cache_perf.py")
+    aisbench.setdefault("work_dir", "./outputs/aisbench-prefix-cache-60")
+    aisbench.setdefault("extra_args", [])
+    for field in ("config", "work_dir"):
+        if not isinstance(aisbench[field], str) or not aisbench[field]:
+            raise ScenarioValidationError(f"aisbench.{field} must be a non-empty string")
+    if not isinstance(aisbench["extra_args"], list) or any(
+        not isinstance(value, str) for value in aisbench["extra_args"]
+    ):
+        raise ScenarioValidationError("aisbench.extra_args must be a list of strings")
     # cold 多 DP 必须显式提供推理地址，否则无法路由。
     if cache_mode == "cold" and service["dp_size"] > 1 and not service["inference_url"]:
         raise ScenarioValidationError("cold multi-DP requires inference_url")

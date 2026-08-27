@@ -1,16 +1,18 @@
-# Prefix Cache 数据集生成与理论命中率分析
+# Prefix Cache 数据生成、压测与命中率分析
 
 ## 概述
 
-AISBench Prefix Cache 插件用于离线构造具有可控公共前缀的数据集，并在发送请求前计算理论 Prefix Cache 命中率。它适用于验证不同输入长度、公共前缀比例、Prefix Group、请求顺序以及单入口多 DP 对缓存命中率的影响。
+AISBench Prefix Cache 插件用于构造具有可控公共前缀的数据集，先计算理论 Prefix Cache 命中率，再通过 AISBench 和 vLLM 采集实际命中率。它适用于验证不同输入长度、公共前缀比例、Prefix Group、请求顺序以及单入口多 DP 对缓存命中率的影响。
 
-当前插件提供三个离线命令：
+当前插件提供五个命令：
 
 - `inspect`：预览场景、可达范围和长度分布；
 - `prepare`：生成正式请求、Manifest 和理论分析；
-- `validate`：校验已有产物是否被修改、截断或换序。
+- `validate`：校验已有产物是否被修改、截断或换序；
+- `run`：探活、reset、按组逐 DP 预热并运行 AISBench 正式压测；
+- `analyze`：使用两份 Prometheus 快照离线复算实际命中率。
 
-本分支不连接 vLLM、不发送正式请求，也不采集在线 Prometheus 指标。它生成可供后续 AISBench 压测使用的数据和审计信息。
+`inspect`、`prepare`、`validate` 完全离线；只有 `run` 连接 vLLM。当前支持一个 HTTP 入口及其内部单 DP 或多 DP，不支持多个独立推理服务实例。
 
 ---
 
@@ -21,6 +23,7 @@ AISBench Prefix Cache 插件用于离线构造具有可控公共前缀的数据�
 3. **与目标 vLLM 服务一致的 tokenizer**。tokenizer 不一致会造成 token 长度、Block 边界和理论命中率偏差。
 4. **GSM8K JSONL 语料**。每个非空行必须是 JSON 对象，并包含 Scenario 中 `corpus.field` 指定的文本字段，默认是 `question`。
 5. **正确的 Prefix Cache Block 大小**。`tokenizer.block_size` 必须与目标服务实际值一致。
+6. **在线 run 所需服务能力**：`/v1/completions`、`/metrics`、可选 `/reset_prefix_cache`，多 DP 时还需支持 `X-data-parallel-rank` 和分 DP `engine` 指标标签。
 
 ---
 
@@ -49,6 +52,7 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 ```
 
 至少检查 `tokenizer.path`、`tokenizer.block_size` 和 `corpus.path`。需要模拟 cold 多 DP 路由或生成 warmup 计划时，还应让 `service.dp_size` 与目标服务一致。
+执行在线压测前还要核对 `service` 下的 URL、`model` 以及 `aisbench.config`。
 
 一个最小示例：
 
@@ -92,6 +96,16 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 ais-bench-prefix-cache prepare --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest \
   ./outputs/gsm8k-prefix-cache-60_<时间戳>/result/gsm8k-prefix-cache-60_<时间戳>.manifest.json
+ais-bench-prefix-cache run --scenario ./scenario.json
+```
+
+已有 Prometheus 快照时，可在不连接 vLLM 的情况下复算：
+
+```shell
+ais-bench-prefix-cache analyze \
+  --manifest <manifest路径> \
+  --baseline ./baseline.prom \
+  --after ./after.prom
 ```
 
 ---
@@ -153,9 +167,9 @@ plugins/prefix_cache/config_examples/scenario.example.md
 | `prefix_cache.order` | `strategy` |
 | `service` | `inference_url`、`metrics_url`、`reset_url`、`model`、`dp_size`、`assume_empty_cache`、`engine_label_map`、`timeout_seconds`、`api_key` |
 | `validation` | `target_warning_pp`、`actual_warning_pp` |
-| `aisbench` | `config`、`work_dir`、`extra_args`；当前离线流程不消费 |
+| `aisbench` | `config`、`work_dir`、`extra_args`；`run` 消费，离线命令不消费 |
 
-Scenario 会拒绝白名单之外的字段。`service` 中当前真正参与离线计算的是 `dp_size`；`inference_url`、`metrics_url` 和 `model` 只要求最终有效值非空，其余服务字段以及整个 `aisbench` 段仅兼容保留。
+Scenario 会拒绝白名单之外的字段。离线计算使用 `service.dp_size`；`run` 使用服务 URL、model、reset/空缓存策略、指标映射、超时、API key 以及整个 `aisbench` 段。
 
 ### 输入和输出长度
 
@@ -258,14 +272,15 @@ Block 对齐、唯一 seed、自然后缀、Prefix Group、顺序和 cold DP lan
 
 ## 输出目录和时间戳
 
-时间戳格式为 `_YYYYMMDD_HHMMSS`。推荐工作流中，`inspect` 创建时间戳和复用指针，紧接着的 `prepare` 复用该时间戳：
+时间戳格式为 `_YYYYMMDD_HHMMSS`。推荐工作流中，inspect 创建时间戳，prepare 与 run 复用该任务指针：
 
 ```text
 outputs/gsm8k-prefix-cache-60_20260825_123456/
 ├── log/
 │   ├── gsm8k-prefix-cache-60_20260825_123456.inspect.log
 │   ├── gsm8k-prefix-cache-60_20260825_123456.prepare.log
-│   └── gsm8k-prefix-cache-60_20260825_123456.validate.log
+│   ├── gsm8k-prefix-cache-60_20260825_123456.validate.log
+│   └── gsm8k-prefix-cache-60_20260825_123456.run.log
 └── result/
     ├── gsm8k-prefix-cache-60_20260825_123456.full.jsonl
     ├── gsm8k-prefix-cache-60_20260825_123456.requests.jsonl
@@ -273,7 +288,7 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
     └── gsm8k-prefix-cache-60_20260825_123456.analysis.json
 ```
 
-基础输出目录旁还会生成 `<output_dir>.inspect.json`。当前指针只匹配基础 `run_id`、`output_dir` 和目录有效性，不比较 Scenario 哈希；修改其他参数后需要新目录时，应重新执行 `inspect`。
+基础输出目录旁还会生成兼容指针 `<output_dir>.inspect.json`。指针匹配基础 `run_id`、`output_dir` 和目录有效性；run 还会校验 Manifest 的 Scenario SHA-256。修改其他参数后需要新目录时，应重新执行 inspect。
 
 ---
 
@@ -284,7 +299,7 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 | `full.jsonl` | 完整审计数据，包括组、DP lane、输入长度、公共前缀、唯一 seed、GSM8K 来源、理论水位和碰撞状态。 |
 | `requests.jsonl` | 最小 AISBench 请求，每行严格为 `question`、`answer`、`max_tokens`。 |
 | `manifest.json` | 有效配置、输入哈希、tokenizer 指纹、长度分布、可达范围、组、DP、warmup 和产物哈希。 |
-| `analysis.json` | requested/effective/theoretical 命中率、偏差、验证状态、分组/分 DP 理论统计和 warnings。 |
+| `analysis.json` | requested/effective/theoretical/actual 命中率、baseline/after、分组/分 DP 统计、偏差与 warnings。 |
 
 `service.api_key` 明文不会写入 Manifest，只记录 `api_key_configured`。
 
@@ -293,7 +308,7 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 - `requests.jsonl`：`question`、`answer`、`max_tokens`；
 - `full.jsonl`：`request_id`、`sequence_index`、`group_id`、`occurrence_index_within_group`、`dp_rank`、`lane_sequence`、`target_input_tokens`、`actual_input_tokens`、`max_tokens`、`shared_prefix_tokens`、`seed_tokens`、`natural_suffix_tokens`、`question`、`answer`、`gsm_indices`、`gsm_hashes`、`canonical_prefix_sha256`、`seed_sha256`、`request_random_seed`、`watermark_before`、`theoretical_hit_tokens`、`watermark_after`、`theoretical_hit_rate`、`divergence_block_sha256`、`divergence_unique`、`collision_status`；
 - Manifest 顶层：`schema_version`、`plugin_version`、`run_id`、`scenario_path`、`scenario_sha256`、`effective_config`、`effective_config_sha256`、`corpus_sha256`、`tokenizer`、`requests`、`prefix_cache`、`groups`、`dp`、`warmup`、`divergence`、`artifacts`；
-- `analysis.json`：`schema_version`、`run_id`、`status`、`requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`、`target_difference_pp`、`target_signed_difference_pp`、`target_absolute_difference_pp`、`validation`、`theory`、`warnings`；
+- `analysis.json`：prepare 阶段包含 `schema_version`、`run_id`、`status`、requested/effective/theoretical、目标偏差、`validation`、`theory`、`warnings`；run/analyze 进一步加入 `runtime`、`actual` 和 `theory_actual_*_difference_pp`；
 - inspect stdout：`run_id`、`mode`、`requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`、`reachable_min`、`reachable_max`、`target_reachable`、`group_reachability`、`groups`、`input_tokens`、`output_tokens`、`dp_route_counts`、`sends_requests`、`log`。
 
 各字段类型和嵌套含义以插件 README 与 Scenario 完整字段说明为准。
@@ -306,8 +321,9 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 |---|---|
 | `TARGET_UNREACHABLE` | 请求目标不在 `[reachable_min, reachable_max]` 内。 |
 | `TARGET_DEVIATION` | 理论值与请求目标的绝对差超过 `validation.target_warning_pp`。 |
+| `ACTUAL_DEVIATION` | 实际值与理论值的绝对差超过 `validation.actual_warning_pp`。 |
 
-这些告警只把展示状态改为 `PASS_WITH_WARNING`；`warning_only=true`、`affects_exit_code=false`，不会改变成功退出码。只有 Scenario、生成或产物校验错误才返回非零退出码。
+这些告警只把展示状态改为 `PASS_WITH_WARNING`；`warning_only=true`、`affects_exit_code=false`，不会改变成功退出码。Scenario、产物、服务能力或 AISBench 执行错误才返回非零退出码。
 
 ---
 
@@ -339,5 +355,6 @@ ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
 
 - 支持单个 HTTP 入口对应的多 DP 数据规划；
 - 不支持多个独立推理服务实例；
-- 不执行在线 warmup、正式压测或 Prometheus 指标采集；
+- `run` 支持每个 Prefix Group × 每个 DP 独立预热、正式 AISBench 压测与 Prometheus 指标采集；warmup 在 baseline 之前完成，不进入正式统计；
+- `analyze` 支持用保存的 baseline/after `.prom` 文件离线复算；
 - 详细配置和全部 JSON 字段契约以 `plugins/prefix_cache/README.md` 与 `plugins/prefix_cache/config_examples/scenario.example.md` 为准。

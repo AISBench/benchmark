@@ -10,6 +10,7 @@ from typing import TextIO
 from .artifacts import validate_artifacts
 from .errors import PrefixCacheError
 from .pipeline import inspect_scenario, prepare_scenario
+from .runtime import analyze_snapshots, run_scenario
 from .scenario import Scenario, load_scenario, new_execution_timestamp, with_execution_timestamp
 
 # Parent logger name shared by all module loggers (ais_bench_prefix_cache.*).
@@ -53,17 +54,23 @@ class PromptProgress:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """构建命令行参数解析器：prepare / inspect / validate 三个离线子命令。"""
+    """构建 Prefix Cache 数据准备、运行与分析子命令。"""
     parser = argparse.ArgumentParser(prog="ais-bench-prefix-cache")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("prepare", "inspect"):
+    for name in ("prepare", "inspect", "run"):
         # prepare 生成请求工件；inspect 只预览不发请求（共用 --scenario）。
         item = sub.add_parser(name)
         item.add_argument("--scenario", required=True, type=Path)
     prepare = sub.choices["prepare"]
     prepare.add_argument("--overwrite", action="store_true")
+    run = sub.choices["run"]
+    run.add_argument("--config", type=Path)
     validate = sub.add_parser("validate")
     validate.add_argument("--manifest", required=True, type=Path)
+    analyze = sub.add_parser("analyze")
+    analyze.add_argument("--manifest", required=True, type=Path)
+    analyze.add_argument("--baseline", required=True, type=Path)
+    analyze.add_argument("--after", required=True, type=Path)
     return parser
 
 
@@ -83,7 +90,7 @@ def _resolve_log_file(
     or the output directory is not writable (the real error surfaces in
     the normal command flow).
     """
-    if command == "validate":
+    if command in {"validate", "analyze"}:
         if manifest_path is None:
             return None
         try:
@@ -186,6 +193,14 @@ def _install_logger(log_file: Path | None) -> None:
     plugin_logger.addHandler(handler)
 
 
+def _close_logger() -> None:
+    """Close command-scoped handlers so repeated CLI calls do not leak files."""
+    plugin_logger = logging.getLogger(PLUGIN_LOG_NAME)
+    for handler in plugin_logger.handlers:
+        handler.close()
+    plugin_logger.handlers.clear()
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI 主入口：分发到对应子命令并统一处理错误码。"""
     args = build_parser().parse_args(argv)
@@ -195,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     reused_inspect_timestamp = False
     if args.command == "inspect":
         execution_timestamp = new_execution_timestamp()
-    elif args.command == "prepare":
+    elif args.command in {"prepare", "run"}:
         try:
             reusable = _reusable_inspect_timestamp(load_scenario(args.scenario))
         except PrefixCacheError:
@@ -214,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     # 安装插件自身的 logger（日志只缓存到 .log 文件，不在终端打印）。
     _install_logger(log_file)
     logger.info("[cli] command=%s args=%s log_file=%s reused_inspect_timestamp=%s", args.command, vars(args), log_file, reused_inspect_timestamp)
-    progress = PromptProgress() if args.command == "prepare" else None
+    progress = PromptProgress() if args.command in {"prepare", "run"} else None
     try:
         if args.command == "prepare":
             logger.info("[cli] prepare scenario=%s overwrite=%s", args.scenario, args.overwrite)
@@ -228,6 +243,8 @@ def main(argv: list[str] | None = None) -> int:
             if log_file is not None:
                 result["log"] = str(log_file)
             logger.info("[cli] prepare_scenario returned paths=%s", result)
+            if log_file is not None and execution_timestamp is not None:
+                _persist_inspect_pointer(args.scenario, log_file, execution_timestamp)
             print(json.dumps(result, ensure_ascii=False))
         elif args.command == "validate":
             logger.info("[cli] validate manifest=%s", args.manifest)
@@ -243,6 +260,28 @@ def main(argv: list[str] | None = None) -> int:
                 _persist_inspect_pointer(args.scenario, log_file, execution_timestamp)
             logger.info("[cli] inspect_scenario returned result=%s", json.dumps(result, ensure_ascii=False))
             print(json.dumps(result, ensure_ascii=False, indent=2))
+        elif args.command == "run":
+            logger.info("[cli] run scenario=%s config=%s", args.scenario, args.config)
+            result = run_scenario(
+                args.scenario,
+                args.config,
+                execution_timestamp=execution_timestamp,
+                progress=progress.update,
+            )
+            if log_file is not None and execution_timestamp is not None:
+                _persist_inspect_pointer(args.scenario, log_file, execution_timestamp)
+            logger.info("[cli] run_scenario returned status=%s", result.get("status"))
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        elif args.command == "analyze":
+            logger.info(
+                "[cli] analyze manifest=%s baseline=%s after=%s",
+                args.manifest,
+                args.baseline,
+                args.after,
+            )
+            result = analyze_snapshots(args.manifest, args.baseline, args.after)
+            logger.info("[cli] analyze_snapshots returned status=%s", result.get("status"))
+            print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except PrefixCacheError as exc:
         # 业务错误统一以 ERROR 输出并返回退出码 2，便于脚本判断。
@@ -251,6 +290,8 @@ def main(argv: list[str] | None = None) -> int:
         logger.warning("[cli] PrefixCacheError: %s", exc)
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+    finally:
+        _close_logger()
 
 
 def console_main() -> None:

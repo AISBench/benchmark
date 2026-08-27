@@ -156,8 +156,8 @@ class InstallLoggerTest(unittest.TestCase):
             _install_logger(log_path)
             plugin_logger = logging.getLogger("ais_bench_prefix_cache")
             self.assertIsInstance(plugin_logger.handlers[0], logging.FileHandler)
-        # 清理 FileHandler，避免句柄泄漏影响后续用例。
-        _install_logger(None)
+            # Windows 删除临时目录前必须先关闭 FileHandler。
+            _install_logger(None)
 
 
 class MainFlowTest(unittest.TestCase):
@@ -284,6 +284,74 @@ class MainFlowTest(unittest.TestCase):
             with self.assertRaises(SystemExit) as context:
                 console_main()
         self.assertEqual(context.exception.code, 3)
+
+    def test_run_passes_reused_timestamp_and_prints_analysis(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            scenario = write_case(root)
+            (root / "out_20260825_123456").mkdir(parents=True)
+            (root / "out.inspect.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "timestamp": "20260825_123456",
+                        "run_id": "pc-test",
+                        "output_dir": str(root / "out"),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with (
+                patch(
+                    "ais_bench_prefix_cache.cli.run_scenario",
+                    return_value={"status": "complete", "actual": {"global_hit_rate": 0.5}},
+                ) as run,
+                redirect_stdout(stdout),
+            ):
+                self.assertEqual(main(["run", "--scenario", str(scenario)]), 0)
+            self.assertEqual(json.loads(stdout.getvalue())["status"], "complete")
+            self.assertEqual(run.call_args.kwargs["execution_timestamp"], "20260825_123456")
+
+    def test_analyze_prints_recomputed_analysis(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            manifest = root / "manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "run_id": "pc-test",
+                        "effective_config": {"run": {"output_dir": str(root / "out")}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            baseline = root / "before.prom"
+            after = root / "after.prom"
+            stdout = io.StringIO()
+            with (
+                patch(
+                    "ais_bench_prefix_cache.cli.analyze_snapshots",
+                    return_value={"status": "analyzed"},
+                ) as analyze,
+                redirect_stdout(stdout),
+            ):
+                self.assertEqual(
+                    main(
+                        [
+                            "analyze",
+                            "--manifest",
+                            str(manifest),
+                            "--baseline",
+                            str(baseline),
+                            "--after",
+                            str(after),
+                        ]
+                    ),
+                    0,
+                )
+            self.assertEqual(json.loads(stdout.getvalue())["status"], "analyzed")
+            analyze.assert_called_once_with(manifest, baseline, after)
 
 
 if __name__ == "__main__":
