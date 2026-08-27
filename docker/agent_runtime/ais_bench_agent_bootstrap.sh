@@ -7,7 +7,7 @@
 #   1. 探测宿主 docker / cgroup / arch
 #   2. 自动选择 DinD（模式 A）或 Socket 代理（模式 B）
 #   3. 拉取 agent-runtime 镜像（dockerhub 优先，OBS tar 回退）
-#   4. 启动 runtime 容器（自动带 --privileged / --cgroupns=host / daemon.json）
+#   4. 启动 runtime 容器（自动带 --privileged / daemon.json cgroupfs）
 #   5. 容器内启动 dockerd（模式 A）或重链 ais_bench（模式 B）
 #   6. （可选）把宿主的数据集目录挂载进容器（--datasets <PATH>）
 #   7. 自检并打印下一步（doctor → harbor jobs start 矩阵调度）
@@ -554,12 +554,18 @@ fi
 
 if [ "${MODE}" = "A" ]; then
     # 模式 A：Docker-in-Docker
-    # cgroup v2 宿主机 --privileged + --cgroupns=host 必须同时使用
-    # 缺少 --cgroupns=host 会报 "cannot enter cgroupv2 ... invalid state"
-    # 详见 docker/OVERVIEW.zh.md 模式 A
+    # v3 F 批（增量）：移除 --cgroupns=host
+    #   - 原方案：--privileged + --cgroupns=host 让容器内 binfmt_misc mount 传播到 host
+    #   - 风险：x86_64 host 上，容器内 qemu-x86_64-static 被泄漏到 host
+    #          → host 的 ELF (如 /usr/bin/sleep) 被路由到 qemu → ELOOP
+    #   - 新方案：依赖 daemon.json "exec-opts": ["native.cgroupdriver=cgroupfs"]
+    #            + --net=host --ipc=host 让 dockerd 用 cgroupfs 文件直接管理 cgroup
+    #            （不依赖 systemd，不依赖 host cgroup namespace 共享）
+    #   - 配合 v3 A4 entrypoint.sh arch 检测：x86_64 host 不装 qemu，binfmt 无泄漏源
+    #   - 详见 docker/OVERVIEW.zh.md 模式 A
     docker run --name "${CONTAINER_NAME}" -it -d \
         --net=host --ipc=host \
-        --privileged --cgroupns=host \
+        --privileged \
         ${RESTART_ARG} \
         -w /benchmark \
         ${MOUNT_ARGS} \
