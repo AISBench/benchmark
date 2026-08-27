@@ -14,7 +14,7 @@ AISBench 集成 msProbe 的 `ILLDetector`，支持在推理评测的同时自动
 
 **异常检测结果不影响原有评测指标**：异常 Case 不会被改写为推理失败，精度/性能指标照常计算，异常信息是独立的审计结果。
 
-检测通过 msProbe 的 `ILLDetector(config_path, mtype_path, tk2cat_path).run(...)` 完成，三个文件路径均可由 AISBench 配置（见[配置说明](#配置说明)）。
+功能**开箱即用，无需修改配置文件**：命令行增加 `--response-anomaly` 即可开启检测，payload 保留模式通过 `--response-anomaly-payload-retention` 控制（见[快速使用](#快速使用)）。检测所需的模型名与 msProbe 算法配置由 AISBench 根据模型 `path`（本地模型目录）自动推导与生成。
 
 ---
 
@@ -45,51 +45,21 @@ pip install 'ais-bench-benchmark[response_anomaly]'
 
 ## 快速使用
 
-**1. 在模型配置中添加 `response_anomaly` 字段**（最小配置只需提供 `model_name` 或 `model_path` 之一）：
-
-```python
-models = [
-    dict(
-        abbr='qwen3-30b',
-        attr='service',
-        response_anomaly=dict(
-            model_name='Qwen3-30B-A3B',   # 或仅提供 model_path，自动取其中的模型名称
-        ),
-    ),
-]
-```
-
-**2. 在命令行增加 `--response-anomaly` 运行评测**：
+无需修改任何配置文件，在原有评测命令上增加 `--response-anomaly` 即可开启：
 
 ```bash
 ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --response-anomaly
 ```
 
-> ⚠️ 异常检测的**功能开关仅支持命令行**：在命令中增加 `--response-anomaly` 开启（不增加默认不开启）；配置文件中的 `response_anomaly` 仅用于非开关类配置（`payload_retention`、`payload_storage` 等）。
+> ⚠️ 异常检测的**功能开关仅支持命令行**：在命令中增加 `--response-anomaly` 开启（不增加默认不开启）。
 
-**3. 查看检测结果**：推理与检测结束后，检测结果位于 `<work_dir>/response_anomaly/<模型 abbr>/<数据集 abbr>.jsonl`，每行一个 Case（完整落盘结构见[运行流程与落盘结构](#运行流程与落盘结构)）。
+如需调整检测完成后 payload 的保留范围，增加第二个命令行参数 `--response-anomaly-payload-retention`：
 
----
-
-## 配置说明
-
-### 全局配置
-
-全局 `response_anomaly` 配置控制 payload 的保留策略与存储格式：
-
-```python
-response_anomaly = dict(
-    payload_retention='anomalies',  # all | anomalies | none
-    payload_storage=dict(
-        format='jsonl',
-        compression='zstd',
-        compression_level=3,
-        rows_per_shard=2000,
-    ),
-)
+```bash
+ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt \
+  --response-anomaly \
+  --response-anomaly-payload-retention anomalies
 ```
-
-`payload_retention` 决定检测完成后 payload 的保留范围：
 
 | 取值 | 行为 |
 | ---- | ---- |
@@ -97,46 +67,11 @@ response_anomaly = dict(
 | `anomalies`（默认） | 只保存已检出异常以及检测失败/不可用 Case |
 | `none` | 不保存 payload |
 
-三种模式都保留独立检测结果。命令行参数 `--response-anomaly-payload-retention` 可覆盖配置文件取值。
+三种模式都保留独立检测结果。
 
-> 💡 运行期细节：检测结果按批写盘，状态最多每秒刷新一次；msProbe token 分类映射按模型和 EOS token 缓存，避免每个 Case 重复解析大 JSON 文件。
+> 💡 **msProbe 资源全自动准备**：模型名自动取模型 `path`（本地模型目录）的目录名（如 `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`）；msProbe 阈值配置、模型映射与 token 分类词表自动生成到 `<work_dir>/response_anomaly_config/<模型 abbr>/`，已存在的 `config.yaml` 不会被覆盖，便于保留手工调优的阈值。若模型配置未提供 `path`，任务会在启动时报错并给出明确的解决指引。
 
-### 模型级配置（msProbe）
-
-模型相关的 msProbe 配置放在模型配置中：
-
-```python
-models = [
-    dict(
-        abbr='qwen3-30b',
-        attr='service',
-        response_anomaly=dict(
-            model_name="",   # 填写模型名称，如 Qwen3-30B-A3B
-            model_path="",   # 填写本地模型目录，如 /home/Qwen3-30B-A3B；可选，用于自动生成配置
-            msprobe_config_path="",  # 可选，msProbe 算法阈值配置 config.yaml 路径，用于手工调优检测阈值
-            msprobe_mtype_path="",  # 可选，msProbe 模型名与 BOS/EOS token id 映射文件 mtype_config.json 路径
-            msprobe_token2category_dir="",  # 可选，msProbe token2category 目录，存放各模型的 token id 到字符类别映射
-        ),
-    ),
-]
-```
-
-**`model_name` 的取值规则**：未显式配置时自动取模型路径（`model_path` 或模型 `path` 字段）中的**模型名称**（如 `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`），与配置生成工具的默认取值一致。当既未配置 `model_name`、也没有可用的模型路径（如仅显式配置 msProbe 三件套路径）时，任务启动即报错，要求显式配置 `model_name`，避免以错误的模型名静默运行导致检测失效。
-
-`model_name` 需与 msProbe 的 `mtype_config.json` 配置以及 token 分类映射保持一致。
-
-未提供 `msprobe_mtype_path` / `msprobe_token2category_dir` 时回退到 msProbe 包内默认文件。
-
-### msProbe 配置的自动生成与手动生成
-
-配置了 `model_path` 时，msProbe 配置会自动生成到 `<work_dir>/response_anomaly_config/<模型 abbr>/`（自动生成不会覆盖已存在的 `config.yaml`，便于保留手工调优的阈值）。也可手动生成：
-
-```bash
-ais_bench-gen-response-anomaly-config \
-  --model-path /home/Qwen3-30B-A3B \
-  --model-name Qwen3-30B-A3B \
-  --output-dir ./msprobe_configs
-```
+**查看检测结果**：推理与检测结束后，检测结果位于 `<work_dir>/response_anomaly/<模型 abbr>/<数据集 abbr>.jsonl`，每行一个 Case（完整落盘结构见[运行流程与落盘结构](#运行流程与落盘结构)）。
 
 ---
 
@@ -150,9 +85,11 @@ ais_bench-gen-response-anomaly-config \
 
 1. **推理阶段**：完整 payload 直接写入 `response_anomaly/<模型>/payload_staging/<数据集>/*.jsonl.zst`，prediction 从一开始只保存轻量结果；
 2. **检测阶段**：推理结束后，检测线程流式解压 staging 数据并调用 msProbe，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；
-3. **归档收尾**：检测完成后按 `payload_retention` 保留或清理 staging。
+3. **归档收尾**：检测完成后按 `--response-anomaly-payload-retention` 保留或清理 staging。
 
 状态面板会显示配置准备、检测器加载、流式检测和归档收尾阶段。
+
+> 💡 运行期细节：检测结果按批写盘，状态最多每秒刷新一次；msProbe token 分类映射按模型和 EOS token 缓存，避免每个 Case 重复解析大 JSON 文件。
 
 ### 落盘结构
 
@@ -166,10 +103,10 @@ ais_bench-gen-response-anomaly-config \
 │       ├── <数据集 abbr>.jsonl                          # 检测结果，每行一个 Case
 │       ├── payload_staging/<数据集 abbr>/               # 推理期间的临时存放区，检测完成后自动清理
 │       │   └── part-*.jsonl.zst
-│       └── payload/<数据集 abbr>/                       # payload 归档；payload_retention 为 none 时不存在
+│       └── payload/<数据集 abbr>/                       # payload 归档；payload 保留模式为 none 时不存在
 │           ├── payload_manifest.json                    # 归档清单（分片行数、大小、sha256）
-│           └── part-*.jsonl.zst                         # 压缩 payload 分片（每片最多 rows_per_shard 条 Case）
-├── response_anomaly_config/                             # 仅配置 model_path 自动生成时存在
+│           └── part-*.jsonl.zst                         # 压缩 payload 分片（每片最多 2000 条 Case）
+├── response_anomaly_config/                             # 由模型 path 自动生成
 │   └── <模型 abbr>/
 │       ├── configs/
 │       │   ├── config.yaml                              # 检测算法阈值配置（已存在时不覆盖）
@@ -185,7 +122,7 @@ ais_bench-gen-response-anomaly-config \
 - **检测结果** `response_anomaly/<模型 abbr>/<数据集 abbr>.jsonl`：每行一个 Case 的检测结果，字段含义见[检测结果说明](#检测结果说明)。
 - **payload 归档** `response_anomaly/<模型 abbr>/payload/<数据集 abbr>/`：`all` 保留全部 Case，`anomalies` 只保留异常及检测失败/不可用 Case，`none` 不保留（目录不存在）。读取时用 zstandard 解压 `part-*.jsonl.zst` 分片后逐行解析 JSON；`payload_manifest.json` 记录每个分片的行数、大小与 sha256 校验值，可用于完整性校验。注意：`anomalies` 模式下即使无任何需保留的 Case，仍会发布一个仅含空 manifest 的归档目录，表示归档流程已成功完成，不是残留文件。
 - **临时文件**：`payload_staging/` 在推理期间逐条接收 payload 写入，检测完成后自动清理；检测中断后残留的 `.<数据集>.payload-build-*` 构建目录会在下次检测启动时自动清理；`status_tmp/tmp_ResponseAnomaly.json` 为运行期状态文件（检测进度与类型统计），工作流结束后随状态目录一并清理。
-- **自动生成的 msProbe 配置** `response_anomaly_config/<模型 abbr>/`：仅当配置了 `model_path` 且未显式提供 mtype/token2category 路径时生成。`config.yaml` 已存在时不会被覆盖（保留手工调优的阈值）；`mtype_config.json` 支持多模型合并，多次生成不互相覆盖。
+- **自动生成的 msProbe 配置** `response_anomaly_config/<模型 abbr>/`：由模型 `path`（本地模型目录）自动生成。`config.yaml` 已存在时不会被覆盖（保留手工调优的阈值）；`mtype_config.json` 支持多模型合并，多次生成不互相覆盖。
 - **检测日志** `logs/response_anomaly/<模型 abbr>/<数据集 abbr>.out`：记录对应模型/数据集组的检测过程，含检测器初始化失败与单 Case 失败的具体原因。
 
 ---
