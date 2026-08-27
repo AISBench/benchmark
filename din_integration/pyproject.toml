@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swebench-dind"
+version = "0.1.0"
+description = "Unified CLI for SWE-bench DinD multi-agent trials"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "zengziyu"}]
+
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+    "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+]
+
+[project.scripts]
+swebench-dind = "swebench_dind.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["swebench_dind*"]
+
+[tool.setuptools.package-data]
+swebench_dind = ["dockerfiles/*.j2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

@@ -1,0 +1,116 @@
+# ============================================================================
+# Multi-Bench × Multi-Agent Matrix Configuration
+# ============================================================================
+#
+# 这是 Harbor 0.20.x 的 JobConfig 格式(harbor.models.job.config.JobConfig)。
+# 一份 yaml 即可驱动 N 个 dataset × M 个 agent × K 个 model 的笛卡尔积评测。
+#
+# 引用:
+#   - Harbor CLI: harbor jobs start -c <this.yaml>
+#   - Schema: harbor/src/harbor/models/job/config.py
+#
+# 重新跑矩阵:
+#   bash scripts/run_matrix.sh
+#
+# ============================================================================
+
+job_name: matrix-mini-001
+
+# ---------------------------------------------------------------------------
+# 全局超时(harbor 0.20.x 单位:秒,multiplier 是相对默认值)
+# ---------------------------------------------------------------------------
+timeout_multiplier: 2.0           # 整体 ×2(覆盖 default)
+agent_setup_timeout_multiplier: 4.0   # agent install 段 ×4(aider 装要 17 分钟)
+verifier_timeout_multiplier: 2.0     # verifier 跑测试 ×2
+environment_build_timeout_multiplier: 8.0  # 首次 image build ×8
+
+# ---------------------------------------------------------------------------
+# 路径(env vars 注入到 trial container,harbor 不会自动传 orchestrator 的 env)
+# ---------------------------------------------------------------------------
+environment:
+  env:
+    OPENAI_API_BASE: "https://api.siliconflow.cn/v1"
+    OPENAI_API_KEY: "${OPENAI_API_KEY}"
+    LLM_BASE_URL: "https://api.siliconflow.cn/v1"
+    LLM_MODEL: "openai/Qwen/Qwen3-Coder-30B-A3B-Instruct"
+
+verifier:
+  env:
+    OPENAI_API_KEY: "${OPENAI_API_KEY}"
+
+# ---------------------------------------------------------------------------
+# 并发(默认 harbor 串行,本矩阵 n_concurrent_trials=2 = 2 个 trial 并行)
+# ---------------------------------------------------------------------------
+n_concurrent_trials: 2
+
+# ---------------------------------------------------------------------------
+# Datasets: 当前 baked 矩阵覆盖的 6 个 SWE-bench Django case
+# 路径指向 /opt/swebench/data/tasks/<task-name>(容器内)/
+# ---------------------------------------------------------------------------
+datasets:
+  - path: /opt/swebench/data/tasks/django__django-10097-aider
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-10097-msa
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-10554-aider
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-10554-msa
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-10880-aider
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-10880-msa
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-11099-aider
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-11099-msa
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-11099-oh
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-12308-aider
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-12308-msa
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-12308-oh
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-13741-aider
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-13741-msa
+    n_tasks: 1
+  - path: /opt/swebench/data/tasks/django__django-13741-oh
+    n_tasks: 1
+
+# ---------------------------------------------------------------------------
+# Agents: 4 个 agent × 1 个 LLM
+# Harbor 自动按 tasks × agents 生成笛卡尔积,= 15 × 4 = 60 trials
+# ---------------------------------------------------------------------------
+agents:
+  - name: oracle
+    model_name: null            # oracle 不调 LLM
+    n_concurrent: 2
+
+  - name: aider
+    model_name: "openai/Qwen/Qwen3-Coder-30B-A3B-Instruct"
+    env:
+      AIDER_API_KEY: "${OPENAI_API_KEY}"
+      LITELLM_API_KEY: "${OPENAI_API_KEY}"
+      LLM_API_KEY: "${OPENAI_API_KEY}"
+    n_concurrent: 1
+
+  - name: mini-swe-agent
+    model_name: "openai/Qwen/Qwen3-Coder-30B-A3B-Instruct"
+    env:
+      MSWEA_API_KEY: "${OPENAI_API_KEY}"
+      LITELLM_API_KEY: "${OPENAI_API_KEY}"
+      LLM_API_KEY: "${OPENAI_API_KEY}"
+    n_concurrent: 1
+
+  - name: openhands-sdk
+    model_name: "openai/Qwen/Qwen3-Coder-30B-A3B-Instruct"
+    env:
+      LLM_API_KEY: "${OPENAI_API_KEY}"
+    n_concurrent: 1
+
+# ---------------------------------------------------------------------------
+# 重试(每 trial 失败后跑几次)
+# ---------------------------------------------------------------------------
+n_attempts: 1
