@@ -74,22 +74,22 @@ class HarborAgentTask(HarborTask):
 
     def _set_api_key(self):
         super()._set_api_key()
-        # Agents whose model calls run inside the harbor process (e.g.
-        # terminus-2 via litellm) read the proxy/network env vars from
-        # os.environ; AgentConfig.env only reaches the in-container session.
-        # Propagate the merged agent env so the model service stays reachable
-        # without requiring the user to export proxies in the shell first.
-        for key, value in self._agent_env().items():
+        # Inject the configured agent env into the process environment BEFORE
+        # harbor/litellm get imported: translate()/_build_agents() import
+        # harbor, which imports litellm, and litellm may snapshot proxy env
+        # vars at import time. Agents whose model calls run in-process
+        # (terminus-2 via litellm) read these from os.environ.
+        for key, value in self._process_agent_env().items():
             os.environ.setdefault(key, str(value))
 
-    def _agent_env(self) -> dict:
-        """Merged agent env: translated + config agent_env + CLI --ae."""
-        model_cfg = self.model_cfg
-        agent_name = model_cfg.get("agent_name")
-        translated = AgentParamAdapter.translate(agent_name, model_cfg)
+    def _process_agent_env(self) -> dict:
+        """Env vars to inject into the process env (no harbor import).
+
+        Config-file ``agent_env`` + CLI ``--ae`` + host proxy inheritance.
+        This deliberately does NOT call the adapter (which imports harbor).
+        """
         env = {
-            **translated["env"],
-            **dict(model_cfg.get("agent_env") or {}),
+            **dict(self.model_cfg.get("agent_env") or {}),
             **parse_env_strings(self.cli_args.get("agent_env")),
         }
         for var in ("http_proxy", "https_proxy", "no_proxy",
@@ -97,6 +97,13 @@ class HarborAgentTask(HarborTask):
             if var not in env and os.environ.get(var):
                 env[var] = os.environ[var]
         return env
+
+    def _agent_env(self) -> dict:
+        """Merged agent env (translated + config agent_env + CLI --ae)."""
+        translated = AgentParamAdapter.translate(
+            self.model_cfg.get("agent_name"), self.model_cfg
+        )
+        return {**translated["env"], **self._process_agent_env()}
 
     def _refresh_progress_metrics(self):
         """Periodically push live 正确/错误/异常/平均分 into the task state so
