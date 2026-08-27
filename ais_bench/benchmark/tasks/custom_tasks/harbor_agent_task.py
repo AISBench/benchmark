@@ -72,39 +72,6 @@ class HarborAgentTask(HarborTask):
 
     _PROGRESS_METRICS_INTERVAL = 2.0
 
-    def _set_api_key(self):
-        super()._set_api_key()
-        # Inject the configured agent env into the process environment BEFORE
-        # harbor/litellm get imported: translate()/_build_agents() import
-        # harbor, which imports litellm, and litellm may snapshot proxy env
-        # vars at import time. Agents whose model calls run in-process
-        # (terminus-2 via litellm) read these from os.environ.
-        for key, value in self._process_agent_env().items():
-            os.environ.setdefault(key, str(value))
-
-    def _process_agent_env(self) -> dict:
-        """Env vars to inject into the process env (no harbor import).
-
-        Config-file ``agent_env`` + CLI ``--ae`` + host proxy inheritance.
-        This deliberately does NOT call the adapter (which imports harbor).
-        """
-        env = {
-            **dict(self.model_cfg.get("agent_env") or {}),
-            **parse_env_strings(self.cli_args.get("agent_env")),
-        }
-        for var in ("http_proxy", "https_proxy", "no_proxy",
-                    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"):
-            if var not in env and os.environ.get(var):
-                env[var] = os.environ[var]
-        return env
-
-    def _agent_env(self) -> dict:
-        """Merged agent env (translated + config agent_env + CLI --ae)."""
-        translated = AgentParamAdapter.translate(
-            self.model_cfg.get("agent_name"), self.model_cfg
-        )
-        return {**translated["env"], **self._process_agent_env()}
-
     def _refresh_progress_metrics(self):
         """Periodically push live 正确/错误/异常/平均分 into the task state so
         the TasksMonitor board can show them under "Extend Parameters"."""
@@ -246,14 +213,22 @@ class HarborAgentTask(HarborTask):
 
         translated = AgentParamAdapter.translate(agent_name, model_cfg)
         raw_kwargs = dict(model_cfg.get("agent_kwargs") or {})
+        raw_env = dict(model_cfg.get("agent_env") or {})
         # CLI-provided agent kwargs/env are merged directly from cli_args so
         # they always reach the AgentConfig even if the config dump/reload
         # round-trip dropped the in-model dicts. Merging is idempotent and
         # CLI values win over config-file values.
         cli_kwargs = parse_kwarg_strings(self.cli_args.get("agent_kwarg"))
+        cli_env = parse_env_strings(self.cli_args.get("agent_env"))
         # explicit user-provided kwargs / env win over translated values
         kwargs = {**translated["kwargs"], **raw_kwargs, **cli_kwargs}
-        env = self._agent_env()
+        env = {**translated["env"], **raw_env, **cli_env}
+        # inherit proxy env vars from the host process when not explicitly set,
+        # so agents can reach model services through the same proxy as the CLI
+        for var in ("http_proxy", "https_proxy", "no_proxy",
+                    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"):
+            if var not in env and os.environ.get(var):
+                env[var] = os.environ[var]
         self.logger.debug(
             f"Agent '{agent_name}' built env keys: {sorted(env.keys())} | "
             f"cli_args.agent_env present: {bool(self.cli_args.get('agent_env'))} | "
