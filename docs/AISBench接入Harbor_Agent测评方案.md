@@ -150,6 +150,35 @@ def launch(self, tasks) -> List[Tuple[str, int]]:
     return status
 ```
 
+#### 看板实时指标（正确/错误/异常/平均分）
+
+模式 B 的 `TasksMonitor` 看板 "Extend Parameters" 列实时显示每个 harbor 任务的四项指标，数据由任务子进程定时从 `job_dir/result.json` 读取并写入 `status_tmp` 的 `other_kwargs` 字段（看板直接展示该字段，数据流不变）：
+
+| 指标 | 口径（读自 `result.json` 的 `trial_results`） |
+|---|---|
+| `correct` 正确 | `reward >= 1.0` 的条数 |
+| `wrong` 错误 | `reward < 1.0` 且无异常的条数 |
+| `exception` 异常 | 带 `exception_info` 的条数 |
+| `avg_score` 平均分 | 已完成 trial 的 reward 均值（4 位小数） |
+
+实现：
+- `HarborTask._refresh_progress_metrics()`：无操作钩子，在 `_run_with_tqdm` 的 `monitor_progress` 线程中每轮调用（对旧 HarborTask 流程零影响）；
+- `HarborAgentTask._refresh_progress_metrics()`：覆盖实现，**每 2s** 调 `_job_metrics()` 读 `result.json`，结果写入 `task_state["other_kwargs"]`（`update_task_state` 合并进状态文件，看板每 `refresh_interval` 刷新展示）。
+- 模式 A（in-process，`task_state_manager=None`）不写入，模式 A 本无看板。
+
+#### 中断处理（Ctrl+C 优雅回收）
+
+模式 B 下 Ctrl+C 的完整处理链路（进程组内子进程同样收到 SIGINT，自行回收容器）：
+
+1. **立即停看板**：`_launch_multi` 捕获 `KeyboardInterrupt` → `_stop_board(board)`（`TasksMonitor.stop_state_board()` 设置停止标志，curses/后台循环退出，终端恢复）；
+2. **等待回收 + 心跳**：`_wait_for_cleanup(timeout=cleanup_timeout)` 轮询 `_active_popens`，首条心跳**立即打印**，之后每 5s 一条 `Waiting for harbor cleanup (N subprocess(es), Xs)...`，避免误以为卡死；
+3. **超时兜底**：超过 `cleanup_timeout`（默认 120s，可用 runner 配置 `cleanup_timeout` 调整）→ 对残留子进程 SIGTERM → 10s 宽限 → SIGKILL，父进程必然退出；
+4. **干净退出**：`raise SystemExit(130)`，不打印 KeyboardInterrupt 调用栈。
+
+子进程侧配套修复（否则容器已回收、子进程却因线程卡死不退）：`harbor_agent_task.py` / `harbor_task.py` 的 `__main__` 中 `except Exception` 改为 `except BaseException`，使 Ctrl+C（KeyboardInterrupt）时同样把 `task_state_manager` 状态置为 `"error"`，令非 daemon 的 `manager_t` 线程退出循环，子进程在容器回收后立即正常退出。
+
+> 备注：`_launch` 使用 `Popen + wait()` 而非 `subprocess.run()`，避免中断时被 SIGKILL 打断容器回收；并行模式 `_run_tasks` 中断时不阻塞等待（`executor.shutdown(wait=False)`）。
+
 #### `HarborMonitor`：两级监控快照（任务级 + 每 case 级）
 
 除 harbor 进程本身的状态外，harbor job 落盘文件携带大量执行信息。监控按「任务级聚合 + 每 case（trial）明细」两级结构组织，全部信息只读自落盘文件。
@@ -265,6 +294,8 @@ def launch(self, tasks) -> List[Tuple[str, int]]:
 `HarborAgentTask(HarborTask)`（继承 [harbor_task.py](file:///d:/group_dev/adapt_harbor/benchmark/ais_bench/benchmark/tasks/custom_tasks/harbor_task.py)）：
 
 - **复用**：`get_command / run / _run_with_tqdm / _resume_job / _dump_eval_results`（保证结果落盘格式与断点续跑行为与现有实现完全一致）；
+- **看板实时指标**：覆盖 `_refresh_progress_metrics()`，每 2s 读 `job_dir/result.json` 汇总 正确/错误/异常/平均分 写入状态文件 `other_kwargs`（详见 3.2「看板实时指标」）；
+- **中断可退出**：`__main__` 的 `except Exception` 改为 `except BaseException`，Ctrl+C 时也置状态 `"error"`，非 daemon 的 `TaskStateManager` 线程正常退出（详见 3.2「中断处理」）；
 - **重写** `_run_harbor_job` 的 `JobConfig` 构建（严格对齐 harbor **0.21.0** 的 `JobConfig` / `AgentConfig` / `DatasetConfig` 定义）：
   - **Agent 构建（不再直接构造 `AgentName` 枚举）**：`AgentConfig.name` 传原始字符串（任意 `AgentName` 值或 `module:ClassName` 自定义 agent），`AgentConfig.import_path` 单独透传；仅当值不含 `:` 时校验其属于 `AgentName.values()`，非法值报清晰错误；
   - **0.21.0 `AgentConfig` 字段透传**：`name / import_path / model_name / n_concurrent / concurrency_group / skills / override_timeout_sec / override_setup_timeout_sec / max_timeout_sec / resume_trajectory / load_trajectory / extra_allowed_hosts / include_logs / exclude_logs / kwargs / env / deps_path / mcp_servers`（按配置可选）；

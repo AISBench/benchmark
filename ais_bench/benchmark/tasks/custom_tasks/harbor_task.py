@@ -233,6 +233,12 @@ class HarborTask(BaseTask):
         pbar = tqdm(total=total_tasks, desc="Running Harbor Job", unit="task")
         completed = 0
         stop_event = threading.Event()
+        # The job dir is known from the config before the job starts. The
+        # progress monitor must use it (not self.job) because self.job is only
+        # assigned after the whole job completes, which would make the board's
+        # finish_count and live metrics stay empty during the run.
+        job_dir = Path(config.jobs_dir) / config.job_name
+        self._progress_job_dir = job_dir
 
         if self.task_state_manager:
             self.task_state_manager.update_task_state(
@@ -247,8 +253,8 @@ class HarborTask(BaseTask):
         def monitor_progress():
             nonlocal completed
             while not stop_event.is_set():
-                if self.job and self.job.job_dir:
-                    trial_count = len(list(self.job.job_dir.glob("trial_*")))
+                if job_dir.is_dir():
+                    trial_count = len(list(job_dir.glob("trial_*")))
                     if trial_count > completed:
                         pbar.update(trial_count - completed)
                         completed = trial_count

@@ -77,15 +77,22 @@ class HarborAgentTask(HarborTask):
         the TasksMonitor board can show them under "Extend Parameters"."""
         if not self.task_state_manager:
             return
+        job_dir = getattr(self, "_progress_job_dir", None)
+        if job_dir is None:
+            # fallback for paths that don't go through _run_with_tqdm
+            if self.job and self.job.job_dir:
+                job_dir = Path(self.job.job_dir)
+            else:
+                return
         now = time.time()
         if now - getattr(self, "_last_metrics_ts", 0.0) < self._PROGRESS_METRICS_INTERVAL:
             return
         self._last_metrics_ts = now
-        metrics = self._job_metrics()
+        metrics = self._job_metrics(job_dir)
         if metrics:
             self.task_state_manager.update_task_state({"other_kwargs": metrics})
 
-    def _job_metrics(self) -> dict | None:
+    def _job_metrics(self, job_dir: Path) -> dict | None:
         """Real-time aggregate of the running harbor job, read from
         ``job_dir/result.json``:
 
@@ -94,9 +101,7 @@ class HarborAgentTask(HarborTask):
         - exception: trials with an exception
         - avg_score: mean reward over the completed trials
         """
-        if not (self.job and self.job.job_dir):
-            return None
-        result_path = Path(self.job.job_dir) / "result.json"
+        result_path = job_dir / "result.json"
         if not result_path.exists():
             return None
         try:
