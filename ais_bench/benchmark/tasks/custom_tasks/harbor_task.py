@@ -256,6 +256,7 @@ class HarborTask(BaseTask):
                             self.task_state_manager.update_task_state(
                                 {"finish_count": completed}
                             )
+                    self._refresh_progress_metrics()
                 stop_event.wait(0.5)
             pbar.close()
 
@@ -285,6 +286,11 @@ class HarborTask(BaseTask):
                 )
 
         return self.job, self.job_result
+
+    def _refresh_progress_metrics(self):
+        """Hook for subclasses to push live per-task metrics (e.g. harbor
+        result.json stats) into the task state while a job is running."""
+        return
 
     def _dump_eval_results(self, job, job_result):
         dataset_cfg = self.dataset_cfgs[0]

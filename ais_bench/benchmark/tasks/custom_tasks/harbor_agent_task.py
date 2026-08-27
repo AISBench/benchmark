@@ -66,6 +66,80 @@ class HarborAgentTask(HarborTask):
             total_tasks *= config.n_attempts
         return self._run_with_tqdm(config, total_tasks)
 
+    # ------------------------------------------------------------------
+    # live progress metrics for the state board
+    # ------------------------------------------------------------------
+
+    _PROGRESS_METRICS_INTERVAL = 2.0
+
+    def _refresh_progress_metrics(self):
+        """Periodically push live 正确/错误/异常/平均分 into the task state so
+        the TasksMonitor board can show them under "Extend Parameters"."""
+        if not self.task_state_manager:
+            return
+        now = time.time()
+        if now - getattr(self, "_last_metrics_ts", 0.0) < self._PROGRESS_METRICS_INTERVAL:
+            return
+        self._last_metrics_ts = now
+        metrics = self._job_metrics()
+        if metrics:
+            self.task_state_manager.update_task_state({"other_kwargs": metrics})
+
+    def _job_metrics(self) -> dict | None:
+        """Real-time aggregate of the running harbor job, read from
+        ``job_dir/result.json``:
+
+        - correct:   completed trials with reward >= 1.0
+        - wrong:     completed trials with reward < 1.0 (no exception)
+        - exception: trials with an exception
+        - avg_score: mean reward over the completed trials
+        """
+        if not (self.job and self.job.job_dir):
+            return None
+        result_path = Path(self.job.job_dir) / "result.json"
+        if not result_path.exists():
+            return None
+        try:
+            data = json.loads(result_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            return None
+        if not isinstance(data, dict):
+            return None
+
+        n_correct = n_wrong = n_exception = 0
+        rewards: list[float] = []
+        for tr in data.get("trial_results") or []:
+            if not isinstance(tr, dict):
+                continue
+            if tr.get("exception_info") is not None:
+                n_exception += 1
+                continue
+            verifier = tr.get("verifier_result")
+            if not isinstance(verifier, dict):
+                continue
+            rewards_map = verifier.get("rewards")
+            if not isinstance(rewards_map, dict):
+                continue
+            reward = rewards_map.get("reward")
+            if reward is None:
+                continue
+            try:
+                value = float(reward)
+            except (TypeError, ValueError):
+                continue
+            rewards.append(value)
+            if value >= 1.0:
+                n_correct += 1
+            else:
+                n_wrong += 1
+
+        return {
+            "correct": n_correct,
+            "wrong": n_wrong,
+            "exception": n_exception,
+            "avg_score": round(sum(rewards) / len(rewards), 4) if rewards else None,
+        }
+
     def _dump_job_config_debug(self, config) -> None:
         """Dump the resolved JobConfig for external replay/debugging.
 
