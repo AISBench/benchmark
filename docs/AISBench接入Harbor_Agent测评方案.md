@@ -314,9 +314,9 @@ def launch(self, tasks) -> List[Tuple[str, int]]:
 
 - **输出**：运行结束仅打印**一张大表格** + 落盘**一个 csv**（`work_dir/summary/summary_<time_str>.csv`），不再生成 txt/md 多格式；
 - **列定义数据驱动**：`COLUMNS` 即列顺序与**英文表头**（key 直接作表头），`_build_row` 填充各 key → **加列 = 追加 key + 填值**，天然支持自由拓展；
-- **默认列**（简短英文）：`agent` / `model_name` / `dataset` / `avg_score` / `correct` / `wrong` / `exception` / `total_time`；
+- **默认列**（简短英文）：`agent` / `model_name` / `dataset` / `avg_score` / `correct` / `wrong` / `exception`；
   - `agent` 取 `models[].agent_name`、`model_name` 取 `models[].model_names`（多值逗号连接）、`dataset` 取 `datasets[].abbr`；
-  - `avg_score` / `correct` / `wrong` / `exception` 读自 `results/{model}/{dataset}.json`（`_dump_eval_results` 落盘：`avg_score`、`reward_distribution` 计数、`n_errors`）；`total_time` = **各 trial 自身耗时之和**（`results/{model}/{dataset}/details/result.json` 的 `trial_results[*].started_at/finished_at` 差值累加）——不用 job 级 `finished_at`（harbor 每次写/续跑都会用当前时间覆盖，导致重复展示时长增长），保证多次展示数值稳定，无 per-trial 时间戳时显示 `-`；
+  - `avg_score` / `correct` / `wrong` / `exception` 读自 `results/{model}/{dataset}.json`（`_dump_eval_results` 落盘：`avg_score`、`reward_distribution` 计数、`n_errors`）；
 - 接口保持 `HarborSummarizer(config=cfg)` + `summarize(time_str=...)`，AccViz 流程不变。
 
 ### 3.4 参数适配器（新增 `utils/agent_params.py`）

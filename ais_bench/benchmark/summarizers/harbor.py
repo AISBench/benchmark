@@ -19,7 +19,7 @@ class HarborSummarizer:
 
     COLUMNS = [
         'agent', 'model_name', 'dataset', 'avg_score', 'correct', 'wrong',
-        'exception', 'total_time',
+        'exception',
     ]
 
     def __init__(self, config) -> None:
@@ -75,29 +75,4 @@ class HarborSummarizer:
             'correct': correct,
             'wrong': wrong,
             'exception': result.get('n_errors', 0),
-            'total_time': self._total_time(model_abbr, dataset_abbr),
         }
-
-    def _total_time(self, model_abbr, dataset_abbr):
-        path = osp.join(self.work_dir, 'results', model_abbr, dataset_abbr,
-                        'details', 'result.json')
-        if not osp.exists(path):
-            return '-'
-        data = mmengine.load(path) or {}
-        # Total execution time = sum of each trial's own wall duration. Using
-        # per-trial timestamps (not the job-level finished_at, which harbor
-        # overwrites with "now" on every write/resume) keeps the value stable
-        # across repeated display.
-        total = 0.0
-        counted = False
-        for t in data.get('trial_results') or []:
-            try:
-                start = datetime.fromisoformat(t['started_at'])
-                finish = datetime.fromisoformat(t['finished_at'])
-            except (TypeError, KeyError, ValueError):
-                continue
-            total += (finish - start).total_seconds()
-            counted = True
-        if not counted:
-            return '-'
-        return f'{total:.1f}s'
