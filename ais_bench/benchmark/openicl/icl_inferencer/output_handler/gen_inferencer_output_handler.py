@@ -77,6 +77,15 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
             if output.origin_logprobs:
                 result_data["origin_logprobs"] = output.origin_logprobs
 
+        # When the model emits reasoning, ``prediction`` concatenates
+        # ``reasoning_content + "\n\n" + content`` (see Output.get_prediction).
+        # Keep the reasoning-free final content separately so downstream
+        # judge datasets (e.g. CorpusQA) can evaluate exactly the answer
+        # the official evaluation scripts would see (the API ``content``
+        # field).
+        if isinstance(output, Output) and output.reasoning_content:
+            result_data["content"] = output.content
+
         if gold:
             result_data["gold"] = gold
         return result_data
