@@ -314,8 +314,9 @@ def launch(self, tasks) -> List[Tuple[str, int]]:
 
 - **输出**：运行结束仅打印**一张大表格** + 落盘**一个 csv**（`work_dir/summary/summary_<time_str>.csv`），不再生成 txt/md 多格式；
 - **列定义数据驱动**：`COLUMNS` 即列顺序与**英文表头**（key 直接作表头），`_build_row` 填充各 key → **加列 = 追加 key + 填值**，天然支持自由拓展；
-- **默认列**（简短英文）：`model` / `dataset` / `avg_score` / `correct` / `wrong` / `exception` / `total_time`；
-  - 前六项读自 `results/{model}/{dataset}.json`（`_dump_eval_results` 落盘：`avg_score`、`reward_distribution` 计数、`n_errors`）；`total_time` 读自 `results/{model}/{dataset}/details/result.json` 的 **job 级 `started_at`/`finished_at` 差值**（`JobResult` 必填字段，可靠），不可用时显示 `-`；
+- **默认列**（简短英文）：`agent` / `model_name` / `dataset` / `avg_score` / `correct` / `wrong` / `exception` / `total_time`；
+  - `agent` 取 `models[].agent_name`、`model_name` 取 `models[].model_names`（多值逗号连接）、`dataset` 取 `datasets[].abbr`；
+  - `avg_score` / `correct` / `wrong` / `exception` 读自 `results/{model}/{dataset}.json`（`_dump_eval_results` 落盘：`avg_score`、`reward_distribution` 计数、`n_errors`）；`total_time` 读自 `results/{model}/{dataset}/details/result.json` 的 **job 级 `started_at`/`finished_at` 差值**（`JobResult` 必填字段，可靠），不可用时显示 `-`；
 - 接口保持 `HarborSummarizer(config=cfg)` + `summarize(time_str=...)`，AccViz 流程不变。
 
 ### 3.4 参数适配器（新增 `utils/agent_params.py`）

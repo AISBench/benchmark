@@ -18,8 +18,8 @@ class HarborSummarizer:
     """
 
     COLUMNS = [
-        'model', 'dataset', 'avg_score', 'correct', 'wrong', 'exception',
-        'total_time',
+        'agent', 'model_name', 'dataset', 'avg_score', 'correct', 'wrong',
+        'exception', 'total_time',
     ]
 
     def __init__(self, config) -> None:
@@ -33,7 +33,7 @@ class HarborSummarizer:
         rows = []
         for model in self.model_cfgs:
             for dataset in self.dataset_cfgs:
-                row = self._build_row(model['abbr'], dataset['abbr'])
+                row = self._build_row(model, dataset['abbr'])
                 if row:
                     rows.append(row)
         if not rows:
@@ -55,7 +55,8 @@ class HarborSummarizer:
                 writer.writerow([r.get(c, '-') for c in self.COLUMNS])
         self.logger.info(f'write summary csv to {osp.abspath(csv_path)}')
 
-    def _build_row(self, model_abbr, dataset_abbr):
+    def _build_row(self, model_cfg, dataset_abbr):
+        model_abbr = model_cfg['abbr']
         result_path = osp.join(self.work_dir, 'results', model_abbr,
                                f'{dataset_abbr}.json')
         if not osp.exists(result_path):
@@ -65,8 +66,10 @@ class HarborSummarizer:
         correct = sum(d.get('count', 0) for d in dist if d.get('score', 0) >= 1.0)
         wrong = sum(d.get('count', 0) for d in dist
                     if 0 <= d.get('score', 0) < 1.0)
+        model_names = model_cfg.get('model_names') or []
         return {
-            'model': model_abbr,
+            'agent': model_cfg.get('agent_name', model_abbr),
+            'model_name': ', '.join(model_names) or '-',
             'dataset': dataset_abbr,
             'avg_score': result.get('avg_score', '-'),
             'correct': correct,
