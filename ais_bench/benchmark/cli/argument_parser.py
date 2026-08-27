@@ -305,6 +305,14 @@ class ArgumentParser():
             default=None,
         )
         parser.add_argument(
+            '--retry-exceptions',
+            help='Only effective with --reuse: before resuming a job, delete '
+            'the case (trial) directories that ended with an exception so they '
+            'are automatically re-run. Ignored when --reuse is not set.',
+            action='store_true',
+            default=None,
+        )
+        parser.add_argument(
             '--include-task-name',
             help='Task name to include (supports glob, can be used multiple times)',
             nargs='+',
