@@ -378,8 +378,8 @@ class AgentParamAdapter:
 
 **`--retry-exceptions` 实现**（`HarborAgentTask`）：
 - `args_retry_exceptions()`：`cli_args` 中 `reuse` 且 `retry_exceptions` 同时为真才生效（`--reuse` 未指定则不触发）；
-- `_remove_exception_trials(job_dir)`：在 resume 判断命中（`details/config.json` 存在）之后、`_resume_job` 之前调用，扫描 `trial_*/result.json`，`exception_info` 非空的 trial 目录整体删除（`shutil.rmtree`），随后正常 resume → 已删除的 case 被 harbor 重新执行；
-- 日志分别提示「removed N exception trial(s) for re-run」或「no exception-finished trials to re-run」。
+- `_remove_exception_trials(job_dir)`：在 resume 判断命中（`details/config.json` 存在）之后、`_resume_job` 之前调用，**从 job 级 `result.json` 的 `stats.evals.*.exception_stats` 收集所有异常 case 名（`trial_name`，含全部异常类型）**，再遍历 `trial_*/config.json` 解析各 trial 的 case 名（`task.path` 的 basename 或 `task.name`），命中的 trial 目录整体删除（`shutil.rmtree`），随后正常 resume → 被删 case 由 harbor 重新执行；
+- 日志区分三种情况：无异常 case / 删除 N 个 / 有异常 case 但无匹配目录未删除。
 
 ### 3.6 依赖隔离（新增 `requirements/agent.txt`，修改 `setup.py`、`runners/local.py`）
 

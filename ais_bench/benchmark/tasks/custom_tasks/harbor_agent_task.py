@@ -83,20 +83,35 @@ class HarborAgentTask(HarborTask):
         return bool(cli.get("reuse") and cli.get("retry_exceptions"))
 
     def _remove_exception_trials(self, job_dir: Path) -> None:
-        """Delete trial dirs that ended with an exception so the resumed job
-        re-runs them."""
+        """Delete trial dirs matching exception-finished cases (read from the
+        job-level result.json ``stats.evals.*.exception_stats``), so the
+        resumed job re-runs them."""
+        names = set()
+        result_path = job_dir / "result.json"
+        if result_path.exists():
+            try:
+                data = json.loads(result_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+                data = None
+            for eval_stats in ((data or {}).get("stats", {}) or {}).get(
+                "evals", {}
+            ).values():
+                for case_list in (eval_stats or {}).get(
+                    "exception_stats", {}
+                ).values():
+                    if isinstance(case_list, list):
+                        names.update(str(n) for n in case_list)
+        if not names:
+            self.logger.info(
+                "--retry-exceptions: no exception-finished cases in result.json."
+            )
+            return
+
         removed = []
         for trial_dir in job_dir.glob("trial_*"):
             if not trial_dir.is_dir():
                 continue
-            result_path = trial_dir / "result.json"
-            if not result_path.exists():
-                continue
-            try:
-                data = json.loads(result_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-                continue
-            if (data or {}).get("exception_info") is not None:
+            if self._trial_case_name(trial_dir) in names:
                 try:
                     shutil.rmtree(trial_dir)
                 except OSError as e:
@@ -112,8 +127,24 @@ class HarborAgentTask(HarborTask):
             )
         else:
             self.logger.info(
-                "--retry-exceptions: no exception-finished trials to re-run."
+                "--retry-exceptions: exception cases found but no trial dir "
+                "matched; nothing removed."
             )
+
+    @staticmethod
+    def _trial_case_name(trial_dir: Path) -> str | None:
+        """Resolve a trial dir's case (task) name from its config.json."""
+        try:
+            data = json.loads(
+                (trial_dir / "config.json").read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            return None
+        task = (data or {}).get("task") or {}
+        path = task.get("path")
+        if path:
+            return Path(path).name
+        return task.get("name")
 
     # ------------------------------------------------------------------
     # live progress metrics for the state board
