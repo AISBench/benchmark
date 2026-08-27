@@ -215,6 +215,7 @@ synthetic_config = {
 }
 ```
 
+------
 
 ### 4.2 TokenId Type Examples
 
@@ -225,7 +226,8 @@ synthetic_config = {
     "Type": "tokenid",
     "RequestCount": 1000,
     "TokenIdConfig": {
-        "RequestSize": 2048   # 2048 tokens per request
+        "RequestSize": 2048,   # 2048 tokens per request
+        "PrefixLen": 0
     }
 }
 ```
@@ -237,12 +239,13 @@ synthetic_config = {
     "Type": "tokenid",
     "RequestCount": 5000,
     "TokenIdConfig": {
-        "RequestSize": 128    # Short text processing scenario
+        "RequestSize": 128,    # Short text processing scenario
+        "PrefixLen": 0
     }
 }
 ```
 
-#### prefix Cache Performance Testing
+#### Prefix Cache Performance Testing
 
 ```python
 synthetic_config = {
@@ -255,6 +258,8 @@ synthetic_config = {
 }
 ```
 
+------
+
 ## V. Frequently Asked Questions
 
 ### Q1: How to choose a distribution type?
@@ -266,6 +271,7 @@ synthetic_config = {
   - **Stress testing**: Use zipf distribution for Input and uniform distribution for Output.
   - **Stability testing**: Use gaussian distribution for both Input and Output.
 
+------
 
 ### Q2: Why does the performance evaluation result matrix show unexpected values even after specifying the *input length*?
 
@@ -273,13 +279,19 @@ synthetic_config = {
 - **`string` mode**: The input length here refers to the length of the input string, not the number of tokens.
 - **Preprocessing stage**: Additional string concatenation may be performed before/after using chat-related APIs.
 
+------
 
 ### Q3: Why does the performance evaluation result matrix show unexpected values even after specifying the *output length* in String mode?
 
 - **Significant discrepancy**: Check if the `ignore_eos` parameter in `generation_kwargs` of the model API configuration file is correctly set to `True` (this ensures the service ignores the end-of-sequence token until the preset output length is reached).
 
+------
 
 ## VI. Notes
 
 1. **`tokenid` mode**: The value range of `tokenid` depends on the vocabulary range of the model specified in the model configuration file.
 2. **`string` mode**: A fixed-length sequence is generated when MinValue=MaxValue.
+
+## VII. Implement via Custom Config Files
+
+> 💡 The above synthetic dataset evaluation scenario can also be implemented through the [Custom Config File Method](run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax such as loops, conditional judgments, list comprehensions, etc. You can write models, datasets, summarizer, and other configurations into a single file, write once and reuse multiple times. See the "Synthetic Dataset Performance Evaluation" example in [Running AISBench with Custom Config Files](run_custom_config.md#custom-configuration-file-examples-for-each-scenario).

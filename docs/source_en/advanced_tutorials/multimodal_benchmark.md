@@ -28,6 +28,9 @@ Supported Model backend
 
 
 ## Quick Start
+
+> 💡 The multimodal evaluation scenario can also be implemented through the [Custom Config File Method](run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax such as loops, conditional judgments, list comprehensions, etc. You can write multimodal models, multimodal datasets, summarizer, and other configurations into a single file, write once and reuse multiple times. See [Running AISBench with Custom Config Files](run_custom_config.md).
+
 ### Multimodal input format
 There are various formats for service-oriented multimodal data input. Taking image + text input as an example, it is as follows:
 - Method 1: Local file format, default method

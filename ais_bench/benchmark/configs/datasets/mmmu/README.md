@@ -29,6 +29,6 @@ git clone https://www.modelscope.cn/datasets/AI-ModelScope/MMMU.git mmmu
 ## 可用数据集任务
 ### mmmu_gen
 #### 基本信息
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|mmmu_gen|MMMU 数据集生成式任务：选择题使用CoT单选模板，开放题使用 `ANSWER: [ANSWER]` 模板|acc|0-shot|多模态对话格式|[mmmu_gen.py](mmmu_gen.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|mmmu_gen|MMMU 数据集生成式任务：选择题使用CoT单选模板，开放题使用 `ANSWER: [ANSWER]` 模板|acc|0-shot|多模态对话格式|`from ais_bench.benchmark.configs.datasets.mmmu.mmmu_gen import mmmu_datasets as datasets`|[mmmu_gen.py](mmmu_gen.py)|

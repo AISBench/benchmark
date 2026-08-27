@@ -34,9 +34,9 @@ pip3 install -r requirements/datasets/ocrbench_v2.txt
 ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| ocrbench_v2_gen_0_shot_chat | Generative task for OCRBench_v2 dataset, supporting multimodal input (image + text) | Multiple metrics (depending on task type) | 0-shot | Chat format (multimodal) | [ocrbench_v2_gen_0_shot_chat.py](ocrbench_v2_gen_0_shot_chat.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| ocrbench_v2_gen_0_shot_chat | Generative task for OCRBench_v2 dataset, supporting multimodal input (image + text) | Multiple metrics (depending on task type) | 0-shot | Chat format (multimodal) |`from ais_bench.benchmark.configs.datasets.ocrbench_v2.ocrbench_v2_gen_0_shot_chat import ocrbench_v2_datasets as datasets`| [ocrbench_v2_gen_0_shot_chat.py](ocrbench_v2_gen_0_shot_chat.py) |
 
 ## Supported Task Types
 The OCRBench_v2 dataset covers the following task types:

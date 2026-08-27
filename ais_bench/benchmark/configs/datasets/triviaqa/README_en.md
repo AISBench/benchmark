@@ -25,6 +25,6 @@ rm triviaqa.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code File Path |
-| --- | --- | --- | --- | --- | --- |
-| triviaqa_gen_5_shot_chat_prompt | Generative task for the TriviaQA dataset | Accuracy | 5-shot | Chat Format | [triviaqa_gen_5_shot_chat_prompt.py](triviaqa_gen_5_shot_chat_prompt.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| triviaqa_gen_5_shot_chat_prompt | Generative task for the TriviaQA dataset | Accuracy | 5-shot | Chat Format |`from ais_bench.benchmark.configs.datasets.triviaqa.triviaqa_gen_5_shot_chat_prompt import triviaqa_datasets as datasets`| [triviaqa_gen_5_shot_chat_prompt.py](triviaqa_gen_5_shot_chat_prompt.py) |

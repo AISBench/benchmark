@@ -76,6 +76,7 @@ _DATASET_MODULES = [
     "ais_bench.benchmark.datasets.realworldqa",
     "ais_bench.benchmark.datasets.oneig",
     "ais_bench.benchmark.datasets.geometry3k",
+    "ais_bench.benchmark.datasets.corpusqa",
 ]
 
 for _mod_name in _DATASET_MODULES:

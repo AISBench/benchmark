@@ -217,6 +217,72 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.custom_dataset_data_type, 'qa')
         self.assertEqual(args.custom_dataset_infer_method, 'gen')
 
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_api_model_options(self, mock_get_current_time_str):
+        """测试API模型通用覆盖选项参数解析"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+
+        sys.argv = [
+            'benchmark.py',
+            '--path', '/tmp/model',
+            '--model-name', 'Qwen',
+            '--request-rate', '10',
+            '--retry', '3',
+            '--api-key', 'sk-test',
+            '--host-ip', '127.0.0.1',
+            '--host-port', '8000',
+            '--url', 'http://example.com/v1',
+            '--max-out-len', '256',
+            '--batch-size', '4',
+            '--trust-remote-code',
+            '--generation-kwargs', '{"temperature": 0.5, "ignore_eos": false}',
+        ]
+
+        parser = ArgumentParser()
+        args = parser.parse_args()
+
+        self.assertEqual(args.path, '/tmp/model')
+        self.assertEqual(args.model_name, 'Qwen')
+        self.assertEqual(args.request_rate, 10.0)
+        self.assertEqual(args.retry, 3)
+        self.assertEqual(args.api_key, 'sk-test')
+        self.assertEqual(args.host_ip, '127.0.0.1')
+        self.assertEqual(args.host_port, 8000)
+        self.assertEqual(args.url, 'http://example.com/v1')
+        self.assertEqual(args.max_out_len, 256)
+        self.assertEqual(args.batch_size, 4)
+        self.assertTrue(args.trust_remote_code)
+        self.assertEqual(args.generation_kwargs,
+                         {'temperature': 0.5, 'ignore_eos': False})
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_api_model_options_default_none(self, mock_get_current_time_str):
+        """未显式指定时 api_model 覆盖参数默认均为 None"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+
+        sys.argv = ['benchmark.py']
+        args = ArgumentParser().parse_args()
+
+        for attr in ('path', 'model_name', 'request_rate', 'retry', 'api_key',
+                     'host_ip', 'host_port', 'url', 'max_out_len', 'batch_size',
+                     'trust_remote_code', 'generation_kwargs'):
+            self.assertIsNone(getattr(args, attr))
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_api_model_no_trust_remote_code(self, mock_get_current_time_str):
+        """测试 --no-trust-remote-code 关闭信任远程代码"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+
+        sys.argv = ['benchmark.py', '--no-trust-remote-code']
+        args = ArgumentParser().parse_args()
+        self.assertFalse(args.trust_remote_code)
+
+    def test_parse_args_api_model_invalid_generation_kwargs_json(self):
+        """非法 JSON 的 --generation-kwargs 应导致解析失败"""
+        sys.argv = ['benchmark.py', '--generation-kwargs', '{bad json']
+        with self.assertRaises(SystemExit):
+            ArgumentParser().parse_args()
+
     def test_init_method_creates_parser(self):
         """测试初始化方法创建了解析器并添加了所有参数组"""
         parser = ArgumentParser()
@@ -233,6 +299,10 @@ class TestArgumentParser(unittest.TestCase):
             self.assertTrue(hasattr(args, 'merge_ds'))  # accuracy_args
             self.assertTrue(hasattr(args, 'pressure'))  # perf_args
             self.assertTrue(hasattr(args, 'custom_dataset_path'))  # custom_dataset_args
+            self.assertTrue(hasattr(args, 'model_name'))  # api_model_args
+            self.assertTrue(hasattr(args, 'host_port'))  # api_model_args
+            self.assertTrue(hasattr(args, 'generation_kwargs'))  # api_model_args
+            self.assertTrue(hasattr(args, 'trust_remote_code'))  # api_model_args
 
 
 if __name__ == '__main__':

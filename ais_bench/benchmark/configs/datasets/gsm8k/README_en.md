@@ -25,10 +25,10 @@ rm gsm8k.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| gsm8k_gen_4_shot_cot_str | Generative task for the GSM8K dataset with logical chain | Accuracy | 4-shot | String format | [gsm8k_gen_4_shot_cot_str.py](gsm8k_gen_4_shot_cot_str.py) |
-| gsm8k_gen_4_shot_cot_chat_prompt | Generative task for the GSM8K dataset with logical chain | Accuracy | 4-shot | Chat format | [gsm8k_gen_4_shot_cot_chat_prompt.py](gsm8k_gen_4_shot_cot_chat_prompt.py) |
-| gsm8k_gen_0_shot_cot_str | Generative task for the GSM8K dataset | Accuracy | 0-shot | String format | [gsm8k_gen_0_shot_cot_str.py](gsm8k_gen_0_shot_cot_str.py) |
-| gsm8k_gen_0_shot_cot_chat_prompt | Generative task for the GSM8K dataset | Accuracy | 0-shot | Chat format | [gsm8k_gen_0_shot_cot_chat_prompt.py](gsm8k_gen_0_shot_cot_chat_prompt.py) |
-| gsm8k_gen_0_shot_cot_str_perf | Generative task for the GSM8K dataset (for performance evaluation) | Performance Evaluation | 0-shot | String format | [gsm8k_gen_0_shot_cot_str_perf.py](gsm8k_gen_0_shot_cot_str_perf.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| gsm8k_gen_4_shot_cot_str | Generative task for the GSM8K dataset with logical chain | Accuracy | 4-shot | String format |`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_4_shot_cot_str import gsm8k_datasets as datasets`| [gsm8k_gen_4_shot_cot_str.py](gsm8k_gen_4_shot_cot_str.py) |
+| gsm8k_gen_4_shot_cot_chat_prompt | Generative task for the GSM8K dataset with logical chain | Accuracy | 4-shot | Chat format |`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets`| [gsm8k_gen_4_shot_cot_chat_prompt.py](gsm8k_gen_4_shot_cot_chat_prompt.py) |
+| gsm8k_gen_0_shot_cot_str | Generative task for the GSM8K dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_0_shot_cot_str import gsm8k_datasets as datasets`| [gsm8k_gen_0_shot_cot_str.py](gsm8k_gen_0_shot_cot_str.py) |
+| gsm8k_gen_0_shot_cot_chat_prompt | Generative task for the GSM8K dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_0_shot_cot_chat_prompt import gsm8k_datasets as datasets`| [gsm8k_gen_0_shot_cot_chat_prompt.py](gsm8k_gen_0_shot_cot_chat_prompt.py) |
+| gsm8k_gen_0_shot_cot_str_perf | Generative task for the GSM8K dataset (for performance evaluation) | Performance Evaluation | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_0_shot_cot_str_perf import gsm8k_datasets as datasets`| [gsm8k_gen_0_shot_cot_str_perf.py](gsm8k_gen_0_shot_cot_str_perf.py) |

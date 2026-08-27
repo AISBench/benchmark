@@ -19,6 +19,8 @@ Directory `ais_bench/configs/swe_bench_pro_examples/` provides the following exa
 - `mini_swe_agent_swe_bench_pro_mini.py`: SWE-bench Pro Mini — commonly used for quick iterations.
 - `mini_swe_agent_swe_bench_pro_full.py`: SWE-bench Pro Full — the full test set.
 
+> 💡 The example configuration files mentioned above are concrete applications of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to these example files to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
+
 ## 2. Prerequisites
 
 Before running, make sure the following dependencies are available:

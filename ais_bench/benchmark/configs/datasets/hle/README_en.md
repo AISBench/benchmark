@@ -6,7 +6,7 @@
 HLE (Humanity's Last Exam) is a frontier multimodal benchmark dataset released by the Center for AI Safety, designed to be the last widely covering closed-book academic benchmark across multiple subject domains. The dataset contains 2,500 high-quality questions covering multiple subject areas including mathematics, humanities, and natural sciences. The questions are carefully designed by domain experts, ensuring professional quality and challenging difficulty. HLE supports both pure text and image inputs, and uses the LLM Judge evaluation protocol for automatic scoring while providing confidence calibration metrics. It is suitable for comprehensive evaluation of models' capabilities in multidisciplinary knowledge and multimodal understanding.
 
 > 🔗 Dataset Homepage Link: [https://huggingface.co/datasets/cais/hle](https://huggingface.co/datasets/cais/hle)
-> 
+>
 > 🔗 Official GitHub Repository: [https://github.com/centerforaisafety/hle](https://github.com/centerforaisafety/hle)
 
 
@@ -24,7 +24,7 @@ HLE (Humanity's Last Exam) is a frontier multimodal benchmark dataset released b
 
 ## Available Dataset Tasks
 
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| hle_llmjudge | HLE dataset | Accuracy, Calibration Error | 0-shot | Chat format | hle_llmjudge.py |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| hle | HLE dataset | Accuracy, Calibration Error | 0-shot | Chat format | `from ais_bench.benchmark.configs.datasets.hle.hle_llmjudge import hle_datasets as datasets` | [hle_llmjudge.py](hle_llmjudge.py) |
 

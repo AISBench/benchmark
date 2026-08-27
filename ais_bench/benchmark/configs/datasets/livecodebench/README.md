@@ -33,8 +33,8 @@ git clone https://huggingface.co/datasets/livecodebench/code_generation_lite
 > ⚠️ **重要**：`code_generation_lite.py` 是数据集仓库自带的加载脚本，包含了数据集的**版本信息**与**数据导入逻辑**（数据集按版本区分，版本信息即来自此文件）。**该文件缺失将导致数据集加载失败**。通过 `git lfs install && git clone https://huggingface.co/datasets/livecodebench/code_generation_lite` 完整克隆仓库即可自动获得该文件，请勿删除或遗漏。
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|livecodebench_0_shot_chat_v4_v5|code_generation_lite数据集的生成式任务，与DeepSeek-R1测评使用数据集一致：LiveCodeBench(2024-08 – 2025-01)|pass@1|0-shot|对话格式|[livecodebench_0_shot_chat_v4_v5.py](livecodebench_0_shot_chat_v4_v5.py)|
-|livecodebench_0_shot_chat_v4_v5_v6|code_generation_lite数据集的生成式任务, 与DeepSeek-V3.1和DeepSeek-V3.2测评使用数据集一致：LiveCodeBench(2024-08 – 2025-05)|pass@1|0-shot|对话格式|[livecodebench_0_shot_chat_v4_v5_v6.py](livecodebench_0_shot_chat_v4_v5_v6.py)|
-|livecodebench_0_shot_chat_v6|code_generation_lite数据集的生成式任务, 与Qwen3测评使用数据集一致：LiveCodeBench(2025-05)|pass@1|0-shot|对话格式|[livecodebench_0_shot_chat_v6.py](livecodebench_0_shot_chat_v6.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|livecodebench_0_shot_chat_v4_v5|code_generation_lite数据集的生成式任务，与DeepSeek-R1测评使用数据集一致：LiveCodeBench(2024-08 – 2025-01)|pass@1|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.livecodebench.livecodebench_0_shot_chat_v4_v5 import LCB_datasets as datasets`|[livecodebench_0_shot_chat_v4_v5.py](livecodebench_0_shot_chat_v4_v5.py)|
+|livecodebench_0_shot_chat_v4_v5_v6|code_generation_lite数据集的生成式任务, 与DeepSeek-V3.1和DeepSeek-V3.2测评使用数据集一致：LiveCodeBench(2024-08 – 2025-05)|pass@1|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.livecodebench.livecodebench_0_shot_chat_v4_v5_v6 import LCB_datasets as datasets`|[livecodebench_0_shot_chat_v4_v5_v6.py](livecodebench_0_shot_chat_v4_v5_v6.py)|
+|livecodebench_0_shot_chat_v6|code_generation_lite数据集的生成式任务, 与Qwen3测评使用数据集一致：LiveCodeBench(2025-05)|pass@1|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.livecodebench.livecodebench_0_shot_chat_v6 import LCB_datasets as datasets`|[livecodebench_0_shot_chat_v6.py](livecodebench_0_shot_chat_v6.py)|

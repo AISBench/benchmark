@@ -32,8 +32,8 @@ mv textvqa/*.jsonl textvqa/textvqa_json/
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|textvqa_gen|TextVQA数据集生成式任务, ⚠️该数据集任务下，会直接将图片路径传入服务化，需确保服务化支持该格式输入并且有权限访问该路径图片。|VQA|0-shot|列表格式（包含文本和图片两种数据）|[textvqa_gen.py](textvqa_gen.py)|
-|textvqa_gen_base64|TextVQA数据集生成式任务，⚠️该数据集任务下，会将图片数据转化为base64格式再传入服务化，需确保服务化支持该输入格式数据|VQA|0-shot|列表格式（包含文本和图片两种数据）|[textvqa_gen_base64.py](textvqa_gen_base64.py)|
-|glm4v_textvqa_gen_base64|Glm4.1v-Thinking模型专用TextVQA数据集生成式任务，以适配该模型特殊的输出文本格式，⚠️该数据集任务下，会将图片数据转化为base64格式再传入服务化，需确保服务化支持该输入格式数据|VQA|0-shot|列表格式（包含文本和图片两种数据）|[glm4v_textvqa_gen_base64.py](glm4v_textvqa_gen_base64.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|textvqa_gen|TextVQA数据集生成式任务, ⚠️该数据集任务下，会直接将图片路径传入服务化，需确保服务化支持该格式输入并且有权限访问该路径图片。|VQA|0-shot|列表格式（包含文本和图片两种数据）|`from ais_bench.benchmark.configs.datasets.textvqa.textvqa_gen import textvqa_datasets as datasets`|[textvqa_gen.py](textvqa_gen.py)|
+|textvqa_gen_base64|TextVQA数据集生成式任务，⚠️该数据集任务下，会将图片数据转化为base64格式再传入服务化，需确保服务化支持该输入格式数据|VQA|0-shot|列表格式（包含文本和图片两种数据）|`from ais_bench.benchmark.configs.datasets.textvqa.textvqa_gen_base64 import textvqa_datasets as datasets`|[textvqa_gen_base64.py](textvqa_gen_base64.py)|
+|glm4v_textvqa_gen_base64|Glm4.1v-Thinking模型专用TextVQA数据集生成式任务，以适配该模型特殊的输出文本格式，⚠️该数据集任务下，会将图片数据转化为base64格式再传入服务化，需确保服务化支持该输入格式数据|VQA|0-shot|列表格式（包含文本和图片两种数据）|`from ais_bench.benchmark.configs.datasets.textvqa.glm4v_textvqa_gen_base64 import textvqa_datasets as datasets`|[glm4v_textvqa_gen_base64.py](glm4v_textvqa_gen_base64.py)|

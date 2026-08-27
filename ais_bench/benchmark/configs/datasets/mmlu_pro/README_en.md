@@ -25,10 +25,10 @@ rm mmlu_pro.zip
 ## Available Dataset Tasks
 ### mmlu_pro_gen_0_shot_str
 #### Basic Information
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| mmlu_pro_gen_0_shot_str | Generative task for the mmlu-pro dataset | pass@1 | 0-shot | String format | [mmlu_pro_gen_0_shot_str.py](mmlu_pro_gen_0_shot_str.py) |
-| mmlu_pro_gen_5_shot_str | Generative task for the mmlu-pro dataset | pass@1 | 5-shot | String format | [mmlu_pro_gen_5_shot_str.py](mmlu_pro_gen_5_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| mmlu_pro_gen_0_shot_str | Generative task for the mmlu-pro dataset | pass@1 | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.mmlu_pro.mmlu_pro_gen_0_shot_str import mmlu_pro_datasets as datasets`| [mmlu_pro_gen_0_shot_str.py](mmlu_pro_gen_0_shot_str.py) |
+| mmlu_pro_gen_5_shot_str | Generative task for the mmlu-pro dataset | pass@1 | 5-shot | String format |`from ais_bench.benchmark.configs.datasets.mmlu_pro.mmlu_pro_gen_5_shot_str import mmlu_pro_datasets as datasets`| [mmlu_pro_gen_5_shot_str.py](mmlu_pro_gen_5_shot_str.py) |
 
 
 ### Note on Accuracy Correction

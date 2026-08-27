@@ -78,6 +78,6 @@ rm BBH.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| bbh_gen_3_shot_cot_chat | Generative task for the BBH dataset | Score (Accuracy) | 3-shot | Chat format | [bbh_gen_3_shot_cot_chat.py](bbh_gen_3_shot_cot_chat.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| bbh_gen_3_shot_cot_chat | Generative task for the BBH dataset | Score (Accuracy) | 3-shot | Chat format |`from ais_bench.benchmark.configs.datasets.bbh.bbh_gen_3_shot_cot_chat import bbh_datasets as datasets`| [bbh_gen_3_shot_cot_chat.py](bbh_gen_3_shot_cot_chat.py) |

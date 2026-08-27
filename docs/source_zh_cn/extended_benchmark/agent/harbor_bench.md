@@ -163,6 +163,8 @@ AISBench修改的数据集获取链接：https://github.com/AISBench/terminal-be
 
 在 AISBench 工具根目录下修改 `ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py`：
 
+> 💡 上述 `harbor_terminal_bench_2_task.py` 即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考此示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
+
 ```python
 models = [
     dict(

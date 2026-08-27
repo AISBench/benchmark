@@ -24,7 +24,7 @@ wget https://www.modelscope.cn/datasets/evalscope/MMStar/resolve/master/MMStar.t
 ## Available Dataset Tasks
 ### mmstar_gen
 #### Basic Information
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-|mmstar_gen|Generative task for the mmstar dataset|acc|0-shot|String format|[mmstar_gen.py](mmstar_gen.py)|
-|mmstar_gen_cot|COT Generative task for the mmstar dataset|acc|0-shot|String format|[mmstar_gen_cot.py](mmstar_gen_cot.py)|
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+|mmstar_gen|Generative task for the mmstar dataset|acc|0-shot|String format|`from ais_bench.benchmark.configs.datasets.mmstar.mmstar_gen import mmstar_datasets as datasets`|[mmstar_gen.py](mmstar_gen.py)|
+|mmstar_gen_cot|COT Generative task for the mmstar dataset|acc|0-shot|String format|`from ais_bench.benchmark.configs.datasets.mmstar.mmstar_gen_cot import mmstar_datasets as datasets`|[mmstar_gen_cot.py](mmstar_gen_cot.py)|

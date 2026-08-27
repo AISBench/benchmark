@@ -17,6 +17,6 @@ LongBench v2包含503道富有挑战性的多项选择题，涵盖六大任务�
     └── data.json
     ```
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|longbenchv2_gen|longbenchv2|准确率(accuracy)|0-shot|对话格式|[longbenchv2_gen.py](longbenchv2_gen.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|longbenchv2_gen|longbenchv2|准确率(accuracy)|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.longbenchv2.longbenchv2_gen import LongBenchv2_datasets as datasets`|[longbenchv2_gen.py](longbenchv2_gen.py)|

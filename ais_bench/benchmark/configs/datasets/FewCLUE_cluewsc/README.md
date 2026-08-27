@@ -41,6 +41,6 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|FewCLUE_cluewsc_ppl_0_shot_chat|FewCLUE_cluewsc数据集PPL任务|accuracy|0-shot|对话格式|[FewCLUE_cluewsc_ppl_0_shot_chat.py](FewCLUE_cluewsc_ppl_0_shot_chat.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|FewCLUE_cluewsc_ppl_0_shot_chat|FewCLUE_cluewsc数据集PPL任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.FewCLUE_cluewsc.FewCLUE_cluewsc_ppl_0_shot_chat import cluewsc_datasets as datasets`|[FewCLUE_cluewsc_ppl_0_shot_chat.py](FewCLUE_cluewsc_ppl_0_shot_chat.py)|

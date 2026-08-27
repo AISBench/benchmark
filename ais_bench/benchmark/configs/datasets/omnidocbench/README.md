@@ -33,9 +33,9 @@ git lfs pull
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|omnidocbench_gen|OmniDocBench数据集生成式任务|accuracy (pass@1)|0-shot|字符串格式|[omnidocbench_gen.py](omnidocbench_gen.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|omnidocbench_gen|OmniDocBench数据集生成式任务|accuracy (pass@1)|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.omnidocbench.omnidocbench_gen import omnidocbench_datasets as datasets`|[omnidocbench_gen.py](omnidocbench_gen.py)|
 
 ## 使用约束
 - 当前仅支持Edit_dist指标（用于测评DeepSeek-OCR模型），其他指标暂不支持，overall为各个维度的Edit_dist评分的均值
