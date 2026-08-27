@@ -107,7 +107,7 @@ The description of configurable parameters for the service-oriented inference ba
 - Setting `batch_size` too large may result in high CPU usage. Please configure it reasonably based on hardware conditions.
 - The default service address used by the service-oriented inference evaluation API is `localhost:8080`. In actual use, you need to modify it to the IP and port of the service-oriented backend according to the actual deployment.
 - When using an IPv6 literal (such as `::1` or `2001:db8::1`) as `host_ip`, the tool will automatically wrap it in brackets in the generated URL (for example, `http://[2001:db8::1]:8080/`), so you do not need to manually add brackets in the configuration.
-- When response anomaly detection (`response_anomaly`) is enabled, the service must return token ids and top-k logprobs; AISBench automatically adds `logprobs=True` and a fixed `top_logprobs=20` to the inference requests, and Cases whose responses lack these fields are marked as `skipped` in the detection results. See [Response Anomaly Detection Configuration](./cli_args.md#response-anomaly-detection-configuration) for details.
+- When response anomaly detection (`response_anomaly`) is enabled, the service must return token ids and top-k logprobs; AISBench automatically adds `logprobs=True` and a fixed `top_logprobs=20` to the inference requests, and Cases whose responses lack these fields are marked as `skipped` in the detection results. See [Response Anomaly Detection](../../advanced_tutorials/response_anomaly_detection.md) for details.
 
 
 ### Multi-LoRA Routing

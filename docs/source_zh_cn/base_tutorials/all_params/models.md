@@ -98,7 +98,7 @@ models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.c
 - `request_rate` 受硬件性能影响，可通过增加  📚 [WORKERS_NUM](./cli_args.md#配置常量文件参数) 提高并发能力。
 - `request_rate` 功能可能被`traffic_cfg`项覆盖，具体原因请参考 🔗 [请求速率(RPS)分布控制及可视化说明中的参数解读章节](../../advanced_tutorials/rps_distribution.md#参数解读)。
 - 当数据集含 timestamp 且模型配置中 **use_timestamp** 为 True 时，请求按 timestamp 发送，**request_rate** 与 **traffic_cfg** 将被忽略。
-- 使用响应异常检测（`response_anomaly`）时，服务端必须返回 token id 与 top-k logprobs；启用检测后 AISBench 会自动在推理请求中补充 `logprobs=True` 与固定的 `top_logprobs=20`，服务响应缺少这些字段的 Case 检测结果标记为 `skipped`。详细配置请参考 [推理响应异常检测配置](./cli_args.md#推理响应异常检测配置)。
+- 使用响应异常检测（`response_anomaly`）时，服务端必须返回 token id 与 top-k logprobs；启用检测后 AISBench 会自动在推理请求中补充 `logprobs=True` 与固定的 `top_logprobs=20`，服务响应缺少这些字段的 Case 检测结果标记为 `skipped`。详细配置请参考 [推理响应异常检测](../../advanced_tutorials/response_anomaly_detection.md)。
 - `batch_size` 设置过大可能导致 CPU 占用过高，请根据硬件条件合理配置。
 - 服务化推理评测 API 默认使用的服务地址为 `localhost:8080`。实际使用时需根据实际部署修改为服务化后端的 IP 和端口。
 - 当使用 IPv6 字面量（如 `::1`、`2001:db8::1`）作为 `host_ip` 时，工具会在生成的访问 URL 中自动为其添加方括号（例如 `http://[2001:db8::1]:8080/`），无需在配置中手动编写方括号。

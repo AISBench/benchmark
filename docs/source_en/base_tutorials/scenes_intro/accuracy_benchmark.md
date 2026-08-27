@@ -322,7 +322,7 @@ After the resumption is completed, the accuracy results of all requests will be 
 
 > ⚠️ Note: Resumption after interruption and retesting of failed cases may change the order of requests, which may cause slight fluctuations in results.
 
-> 💡 When [response anomaly detection](../all_params/cli_args.md#response-anomaly-detection-configuration) is enabled, resumption also inherits existing detection results: Cases with `completed` status are not re-detected by msProbe, while Cases with `skipped` / `failed` / `unavailable` status are re-detected on resume; existing anomaly counts are accumulated into the final statistics.
+> 💡 When [response anomaly detection](../../advanced_tutorials/response_anomaly_detection.md) is enabled, resumption also inherits existing detection results: Cases with `completed` status are not re-detected by msProbe, while Cases with `skipped` / `failed` / `unavailable` status are re-detected on resume; existing anomaly counts are accumulated into the final statistics.
 
 💡[Multi-Task Evaluation](#multi-task-evaluation) also supports resumption after interruption and retesting of failed cases for all or part of the tasks.
 
