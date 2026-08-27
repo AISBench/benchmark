@@ -5,6 +5,7 @@ on:
     paths:
       - 'ais_bench/**'
       - 'tests/**'
+      - 'plugins/**'
   workflow_dispatch:
   schedule:
     - cron:  '0 1 * * *'
@@ -29,10 +30,17 @@ jobs:
           pip3 install -r requirements/extra.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
           pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
           pip3 install -r requirements/datasets/geometry3k.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
+          # 安装 prefix_cache 插件（--no-deps：ais-bench-benchmark 已由上一步安装，
+          # 插件测试通过注入 FakeTokenizer 不依赖 transformers）
+          pip3 install -e plugins/prefix_cache --no-deps -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com --use-pep517
       - name: Run Test
         run: |
           pip3 install pytest pytest-cov pytest-xdist -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
           python3 tests/run_tests.py tests/UT -p 16
+
+      - name: Run Prefix Cache Test
+        run: |
+          python3 tests/run_tests.py plugins/prefix_cache/tests --source-dirs plugins/prefix_cache/ais_bench_prefix_cache --output test_reports/prefix_cache
 
       - name: Check Result
         run: |
@@ -74,6 +82,43 @@ jobs:
           else
             echo "[INFO] Code branch coverage is higher than 60.0%, current coverage is ${branch_coverage}%. "
           fi
+          pc_summary_path=${cur_dir}/test_reports/prefix_cache/test_summary.txt
+          echo "pc_summary_path: ${pc_summary_path}"
+          if [ -f ${pc_summary_path} ]; then
+            echo "[INFO] prefix cache test_summary.txt exists. "
+          else
+            echo "[ERROR] prefix cache test_summary.txt not exists. "
+            exit 1
+          fi
+          grep -q "Failed: 0" ${pc_summary_path}
+          if [ $? -ne 0 ]; then
+            pc_failed_count=$(cat ${pc_summary_path} | grep "Failed:" | awk '{print $2}')
+            echo "[ERROR] Not all prefix cache test case passed, failed count is ${pc_failed_count}. "
+            exit 1
+          else
+            echo "[INFO] All prefix cache test case passed. "
+          fi
+          pc_total_coverage=$(cat ${pc_summary_path} | grep "Total coverage" | cut -d' ' -f3 | tr -d '%')
+          if python3 -c "exit(0 if float('$pc_total_coverage') < 80 else 1)"; then
+            echo "[ERROR] Prefix cache code total coverage is lower than 80.0%, current coverage is ${pc_total_coverage}%. "
+            exit 1
+          else
+            echo "[INFO] Prefix cache code total coverage is higher than 80.0%, current coverage is ${pc_total_coverage}%. "
+          fi
+          pc_line_coverage=$(cat ${pc_summary_path} | grep "Line coverage" | cut -d' ' -f3 | tr -d '%')
+          if python3 -c "exit(0 if float('$pc_line_coverage') < 80 else 1)"; then
+            echo "[ERROR] Prefix cache code line coverage is lower than 80.0%, current coverage is ${pc_line_coverage}%. "
+            exit 1
+          else
+            echo "[INFO] Prefix cache code line coverage is higher than 80.0%, current coverage is ${pc_line_coverage}%. "
+          fi
+          pc_branch_coverage=$(cat ${pc_summary_path} | grep "Branch coverage" | cut -d' ' -f3 | tr -d '%')
+          if python3 -c "exit(0 if float('$pc_branch_coverage') < 60 else 1)"; then
+            echo "[ERROR] Prefix cache code branch coverage is lower than 60.0%, current coverage is ${pc_branch_coverage}%. "
+            exit 1
+          else
+            echo "[INFO] Prefix cache code branch coverage is higher than 60.0%, current coverage is ${pc_branch_coverage}%. "
+          fi
       - name:  Uninstall benchmark
         if: always()
         run: |
@@ -83,4 +128,11 @@ jobs:
             exit 1
           else
             echo "[INFO] Uninstall benchmark success. "
+          fi
+          pip3 uninstall ais-bench-prefix-cache -y
+          if [ $? -ne 0 ]; then
+            echo "[ERROR] Uninstall prefix cache plugin failed. "
+            exit 1
+          else
+            echo "[INFO] Uninstall prefix cache plugin success. "
           fi
