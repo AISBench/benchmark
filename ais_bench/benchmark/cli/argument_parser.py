@@ -305,14 +305,6 @@ class ArgumentParser():
             default=None,
         )
         parser.add_argument(
-            '--retry-exceptions',
-            help='Only effective with --reuse: before resuming a job, delete '
-            'the case (trial) directories that ended with an exception so they '
-            'are automatically re-run. Ignored when --reuse is not set.',
-            action='store_true',
-            default=None,
-        )
-        parser.add_argument(
             '--include-task-name',
             help='Task name to include (supports glob, can be used multiple times)',
             nargs='+',
@@ -356,6 +348,14 @@ class ArgumentParser():
             help='Whether to delete the environment after completion',
             action=argparse.BooleanOptionalAction,
             default=None,
+        )
+        parser.add_argument(
+            '--purge-exception-cases',
+            help='Before execution, delete all case dirs that ended with an '
+            'exception (from each job result.json exception_stats), to '
+            'automatically retry them. Only effective when --reuse is set.',
+            action='store_true',
+            default=False,
         )
         parser.add_argument(
             '-q',

@@ -15,8 +15,10 @@ No harbor imports at module level so this module stays importable in
 non-agent AISBench environments.
 """
 
+import json
 import os
 import os.path as osp
+import shutil
 import subprocess
 import threading
 import time
@@ -55,6 +57,7 @@ class HarborRunner(BaseRunner):
                  keep_tmp_file: bool = False,
                  debug: bool = False,
                  cleanup_timeout: float = 120.0,
+                 purge_exception_cases: bool = False,
                  **kwargs):
         super().__init__(task=task, debug=debug)
         self.max_num_workers = max_num_workers
@@ -63,6 +66,7 @@ class HarborRunner(BaseRunner):
         self.jobs_dir = jobs_dir
         self.keep_tmp_file = keep_tmp_file
         self.cleanup_timeout = cleanup_timeout
+        self.purge_exception_cases = purge_exception_cases
         # Subprocesses launched by _launch() that are still running (used to
         # wait for container cleanup after an interruption).
         self._active_popens: List[subprocess.Popen] = []
@@ -77,6 +81,9 @@ class HarborRunner(BaseRunner):
             list[tuple[str, int]]: A list of (task name, exit code).
         """
         self.logger.debug(f"HarborRunner.launch called with {len(tasks)} task(s)")
+        if self.purge_exception_cases:
+            for task in tasks:
+                self._purge_exception_cases(self._task_job_dir(task))
         if len(tasks) == 1:
             # Mode A: single task runs in-process with direct log output.
             return [self._launch_inline(tasks[0])]
@@ -272,6 +279,47 @@ class HarborRunner(BaseRunner):
         model_abbr = task['models'][0]['abbr']
         dataset_abbr = task['datasets'][0][0]['abbr']
         return osp.join(task['work_dir'], 'results', model_abbr, dataset_abbr, 'details')
+
+    def _purge_exception_cases(self, job_dir: str) -> None:
+        """Delete case dirs that ended with an exception before rerunning.
+
+        Exception case names come from the job ``result.json`` (co-located
+        with the case dirs): ``stats.evals[*].exception_stats`` plus any
+        per-trial ``trial_results[*].exception_info``. Enabled via
+        ``--purge-exception-cases`` (only effective under ``--reuse``) so a
+        rerun automatically retries the exception-finished cases.
+        """
+        result_path = osp.join(job_dir, 'result.json')
+        if not job_dir or not osp.exists(result_path):
+            return
+        try:
+            with open(result_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            return
+        if not isinstance(data, dict):
+            return
+
+        names: set[str] = set()
+        eval_stats = (data.get('stats') or {}).get('evals') or {}
+        for eval_data in eval_stats.values() if isinstance(eval_stats, dict) else []:
+            for exc_list in (eval_data.get('exception_stats') or {}).values():
+                if isinstance(exc_list, list):
+                    names.update(n for n in exc_list if isinstance(n, str))
+        for trial in data.get('trial_results') or []:
+            if isinstance(trial, dict) and trial.get('exception_info') is not None:
+                for key in ('trial_name', 'task_name'):
+                    name = trial.get(key)
+                    if isinstance(name, str) and name:
+                        names.add(name)
+
+        if not names:
+            return
+        for name in names:
+            case_dir = osp.join(job_dir, name)
+            if osp.isdir(case_dir):
+                shutil.rmtree(case_dir)
+                self.logger.info(f"Purged exception case dir: {case_dir}")
 
     def _run_tasks(self, tasks: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
         if self.max_num_workers <= 1:

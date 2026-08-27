@@ -1,7 +1,6 @@
 import argparse
 import json
 import os
-import shutil
 import sys
 import threading
 import time
@@ -57,8 +56,6 @@ class HarborAgentTask(HarborTask):
         # means the previous run is resumed instead of re-created.
         existing_job_dir = Path(self.out_detail_dir) / "details"
         if (existing_job_dir / "config.json").exists():
-            if self.args_retry_exceptions():
-                self._remove_exception_trials(existing_job_dir)
             return self._resume_job(existing_job_dir)
 
         config = self._build_job_config(args)
@@ -68,83 +65,6 @@ class HarborAgentTask(HarborTask):
         if config.n_attempts > 1:
             total_tasks *= config.n_attempts
         return self._run_with_tqdm(config, total_tasks)
-
-    # ------------------------------------------------------------------
-    # retry-exceptions (only effective with --reuse)
-    # ------------------------------------------------------------------
-
-    def args_retry_exceptions(self) -> bool:
-        """Whether to re-run exception-finished cases.
-
-        Effective only when the job is being resumed (--reuse) and the
-        --retry-exceptions flag is on.
-        """
-        cli = self.cli_args or {}
-        return bool(cli.get("reuse") and cli.get("retry_exceptions"))
-
-    def _remove_exception_trials(self, job_dir: Path) -> None:
-        """Delete trial dirs matching exception-finished cases (read from the
-        job-level result.json ``stats.evals.*.exception_stats``), so the
-        resumed job re-runs them."""
-        names = set()
-        result_path = job_dir / "result.json"
-        if result_path.exists():
-            try:
-                data = json.loads(result_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-                data = None
-            for eval_stats in ((data or {}).get("stats", {}) or {}).get(
-                "evals", {}
-            ).values():
-                for case_list in (eval_stats or {}).get(
-                    "exception_stats", {}
-                ).values():
-                    if isinstance(case_list, list):
-                        names.update(str(n) for n in case_list)
-        if not names:
-            self.logger.info(
-                "--retry-exceptions: no exception-finished cases in result.json."
-            )
-            return
-
-        removed = []
-        for trial_dir in job_dir.glob("trial_*"):
-            if not trial_dir.is_dir():
-                continue
-            if self._trial_case_name(trial_dir) in names:
-                try:
-                    shutil.rmtree(trial_dir)
-                except OSError as e:
-                    self.logger.warning(
-                        f"Failed to remove exception trial {trial_dir}: {e}"
-                    )
-                else:
-                    removed.append(trial_dir.name)
-        if removed:
-            self.logger.info(
-                f"--retry-exceptions: removed {len(removed)} exception trial(s) "
-                f"for re-run: {removed}"
-            )
-        else:
-            self.logger.info(
-                "--retry-exceptions: exception cases found but no trial dir "
-                "matched; nothing removed."
-            )
-
-    @staticmethod
-    def _trial_case_name(trial_dir: Path) -> str | None:
-        """Resolve a trial dir's case (task) name from its config.json."""
-        try:
-            data = json.loads(
-                (trial_dir / "config.json").read_text(encoding="utf-8")
-            )
-        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-            return None
-        task = (data or {}).get("task") or {}
-        path = task.get("path")
-        if path:
-            return Path(path).name
-        return task.get("name")
 
     # ------------------------------------------------------------------
     # live progress metrics for the state board

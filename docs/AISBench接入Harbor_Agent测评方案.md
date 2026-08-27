@@ -370,16 +370,11 @@ class AgentParamAdapter:
 | `--disable-verification` | 禁用验证器 | `datasets[*].args.disable_verification` |
 | `--env-file` | .env 文件路径 | `datasets[*].args.env_file` |
 | `-q/--quiet` | 静默模式 | `datasets[*].args.quiet` |
+| `--purge-exception-cases` | 执行前删除因 exception 结束的 case 目录（自动重试），**仅在 `--reuse` 时生效** | `eval.runner.purge_exception_cases=True` |
 | `-y/--yes` | 自动确认 | `datasets[*].args.yes` |
 | `--monitor-port` | 监控服务端口（0=关闭，默认 0） | runner 参数 |
-| `--retry-exceptions` | **仅配合 `--reuse` 生效**：resume 前删除因异常（exception）结束的 case 目录，自动重跑异常退出用例；未加 `--reuse` 时忽略 | `cli_args`（HarborAgentTask 读取） |
 
 `AgentEval.update_cfg` 统一将上述 CLI 值合并进 cfg，CLI 优先于配置文件。
-
-**`--retry-exceptions` 实现**（`HarborAgentTask`）：
-- `args_retry_exceptions()`：`cli_args` 中 `reuse` 且 `retry_exceptions` 同时为真才生效（`--reuse` 未指定则不触发）；
-- `_remove_exception_trials(job_dir)`：在 resume 判断命中（`details/config.json` 存在）之后、`_resume_job` 之前调用，**从 job 级 `result.json` 的 `stats.evals.*.exception_stats` 收集所有异常 case 名（`trial_name`，含全部异常类型）**，再遍历 `trial_*/config.json` 解析各 trial 的 case 名（`task.path` 的 basename 或 `task.name`），命中的 trial 目录整体删除（`shutil.rmtree`），随后正常 resume → 被删 case 由 harbor 重新执行；
-- 日志区分三种情况：无异常 case / 删除 N 个 / 有异常 case 但无匹配目录未删除。
 
 ### 3.6 依赖隔离（新增 `requirements/agent.txt`，修改 `setup.py`、`runners/local.py`）
 

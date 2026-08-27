@@ -811,6 +811,11 @@ class AgentEval(BaseWorker):
             runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
             runner_cfg['monitor_port'] = getattr(self.args, 'monitor_port', 0)
             runner_cfg['refresh_interval'] = 0.5
+            # purge exception-finished cases before rerunning; only with --reuse
+            runner_cfg['purge_exception_cases'] = bool(
+                getattr(self.args, 'purge_exception_cases', False)
+                and getattr(self.args, 'reuse', None)
+            )
 
         if cfg.get('eval'):
             new_cfg = dict(eval=cfg.eval)
