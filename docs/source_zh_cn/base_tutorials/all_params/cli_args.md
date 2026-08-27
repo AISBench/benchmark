@@ -39,6 +39,31 @@ ais_bench [OPTIONS]
 | `--response-anomaly` | 开启 msProbe 推理响应异常检测。该开关**仅支持命令行配置**：命令行增加 `--response-anomaly` 即开启，不增加则关闭（无 `--no-response-anomaly` 形态）。检测串行绑定在推理阶段内：推理结束后启动检测并等待其完成（专属状态面板打印最终结果后）才进入后续 Judge / Eval / 汇总流程；需服务返回 token id 与 top-k logprobs。仅支持 `all`、`infer`、`infer_judge` 普通生成链路，不支持性能模式与 Agent 测评模式。 | `--response-anomaly` |
 | `--response-anomaly-payload-retention` | 异常检测完成后的 payload 保存模式：`all` 保存全部，`anomalies` 保存异常及检测失败/不可用 Case，`none` 不保存。命令行配置优先于配置文件，默认 `anomalies`。 | `--response-anomaly-payload-retention anomalies` |
 
+### API 模型通用覆盖参数
+
+适用于服务化推理后端（API 模型，如 vLLM、Triton、MindIE、TGI 等），用于在不修改模型配置文件的前提下，通过命令行直接覆盖模型配置中的常用字段。
+
+> ⚠️ **覆盖范围说明**：
+> - 仅覆盖模型配置中**已存在的字段**，不新增字段（避免向不支持某字段的模型类传入多余参数，保证向后兼容）。
+> - 命令行显式指定的参数会覆盖**执行的所有模型配置**中对应的字段（同一命令下多个模型任务均生效）。
+> - 未显式指定的参数不生效（默认 `None`），配置文件中保持原值。
+> - `model` / `model_name` 字段按模型 `type` 的构造签名自动选择写入目标：VLLM 系列写入 `model`，Triton 写入 `model_name`；模型类型两者都不接收（如 MindIE、TGI）时打印 warning 并跳过。
+
+| 参数 | 说明 | 示例 |
+| ---- | ---- | ---- |
+| `--path` | 覆盖模型配置的 `path` 字段（Tokenizer/模型序列化词表文件路径） | `--path /weight/Qwen` |
+| `--model-name` | 覆盖模型名。按模型 `type` 自动写入 `model` 或 `model_name` 字段（VLLM→`model`，Triton→`model_name`；MindIE/TGI 不接收时 warning 跳过） | `--model-name Qwen` |
+| `--request-rate` | 覆盖 `request_rate`（请求发送速率） | `--request-rate 10` |
+| `--retry` | 覆盖 `retry`（每个请求最大重试次数） | `--retry 3` |
+| `--api-key` | 覆盖 `api_key`（自定义 API key） | `--api-key sk-xxx` |
+| `--host-ip` | 覆盖 `host_ip`（推理服务 IP） | `--host-ip 127.0.0.1` |
+| `--host-port` | 覆盖 `host_port`（推理服务端口） | `--host-port 8000` |
+| `--url` | 覆盖 `url`（自定义访问推理服务的 URL 路径） | `--url http://x.x.x.x:8000/v1` |
+| `--max-out-len` | 覆盖 `max_out_len`（推理输出最大 token 数） | `--max-out-len 1024` |
+| `--batch-size` | 覆盖 `batch_size`（请求最大并发数） | `--batch-size 4` |
+| `--trust-remote-code` | 覆盖 `trust_remote_code`（tokenizer 是否信任远程代码），支持 `--trust-remote-code` / `--no-trust-remote-code` 两种形态 | `--no-trust-remote-code` |
+| `--generation-kwargs` | 覆盖 `generation_kwargs`（推理生成参数），以 JSON 对象形式传入，**整体替换**配置中的 dict | `--generation-kwargs '{"temperature": 0.5}'` |
+
 ### 精度测评参数
 仅在模式为 `all、infer、eval` 或 `viz` 时有效。
 | 参数| 说明  | 示例|

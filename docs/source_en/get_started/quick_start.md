@@ -125,6 +125,14 @@ Executing the query command will yield the following results:
 
 The model configuration file `vllm_api_general_chat.py` contains configuration content related to model operation and needs to be modified according to the actual situation. The content that needs to be modified in the quick start is marked with comments.
 
+> 💡 **Tip**: Some parameters in the model config above (e.g. `host_ip`, `host_port`, `model`, `url`, `max_out_len`, `generation_kwargs`, etc.) can be overridden directly on the command line without editing the config file. For example:
+>
+> ```bash
+> ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --host-ip 127.0.0.1 --host-port 8000
+> ```
+>
+> An explicitly specified parameter overrides the corresponding field in **all executed model configs**; only fields **already present** in the config are overridden, and unspecified parameters keep their config-file values. For the full overridable parameter list and coverage notes, refer to 📚 [User Configuration Parameters - API Model Common Override Parameters](../base_tutorials/all_params/cli_args.md#api-model-common-override-parameters).
+
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 
