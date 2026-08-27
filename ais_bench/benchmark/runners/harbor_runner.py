@@ -191,7 +191,7 @@ class HarborRunner(BaseRunner):
         always exits.
         """
         start = time.time()
-        last_report = time.time()
+        last_report = None  # print the first heartbeat immediately
         while True:
             with self._popen_lock:
                 alive = [p for p in self._active_popens if p.poll() is None]
@@ -206,7 +206,7 @@ class HarborRunner(BaseRunner):
                 )
                 self._terminate_popens(alive)
                 return
-            if time.time() - last_report >= 5:
+            if last_report is None or time.time() - last_report >= 5:
                 self.logger.warning(
                     f"Waiting for harbor cleanup ({len(alive)} subprocess(es), "
                     f"{int(elapsed)}s)..."
