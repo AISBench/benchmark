@@ -84,9 +84,20 @@ class HarborSummarizer:
         if not osp.exists(path):
             return '-'
         data = mmengine.load(path) or {}
-        try:
-            start = datetime.fromisoformat(data['started_at'])
-            finish = datetime.fromisoformat(data['finished_at'])
-        except (TypeError, KeyError, ValueError):
+        # Total execution time = sum of each trial's own wall duration. Using
+        # per-trial timestamps (not the job-level finished_at, which harbor
+        # overwrites with "now" on every write/resume) keeps the value stable
+        # across repeated display.
+        total = 0.0
+        counted = False
+        for t in data.get('trial_results') or []:
+            try:
+                start = datetime.fromisoformat(t['started_at'])
+                finish = datetime.fromisoformat(t['finished_at'])
+            except (TypeError, KeyError, ValueError):
+                continue
+            total += (finish - start).total_seconds()
+            counted = True
+        if not counted:
             return '-'
-        return f'{(finish - start).total_seconds():.1f}s'
+        return f'{total:.1f}s'
