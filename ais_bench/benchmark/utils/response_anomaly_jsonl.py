@@ -115,7 +115,7 @@ class ResponseAnomalyJsonlWriter:
                 "file": final_path.name,
                 "rows": self.shard_rows,
                 "size_bytes": final_path.stat().st_size,
-                "sha256": f"sha256:{_sha256_file(final_path)}",
+                "sha256": _sha256_file(final_path),
             }
         )
         self.shard_index += 1
@@ -186,7 +186,7 @@ def build_jsonl_zstd_manifest(
                 "file": shard.name,
                 "rows": rows,
                 "size_bytes": shard.stat().st_size,
-                "sha256": f"sha256:{_sha256_file(shard)}",
+                "sha256": _sha256_file(shard),
             }
         )
     manifest = {
