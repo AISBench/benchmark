@@ -30,6 +30,11 @@
 # BASE_IMAGE 必须通过 --build-arg 传入，无默认值，避免基镜像 tag 写死导致过期。
 
 ARG BASE_IMAGE
+# [v3 wrapper] 允许通过 build-arg 注入本地 harbor wheel 文件路径，
+# 替换硬编码的 harbor==0.6.1。不传则走默认 PyPI 版本。
+# 占位文件 .harbor_wheel_cache.whl 由 build_image_agent_runtime.sh 保证存在
+# （空文件时回退到 harbor==0.6.1）。
+ARG HARBOR_WHEEL_FILE=""
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -64,16 +69,33 @@ RUN mkdir -p ${AGENT_VENVS_ROOT} \
 #   - 用 --copies 后 venv python 是真实二进制，python 通过真实路径识别 venv 身份，
 #     正确加载 venv local site-packages
 # ============================================================
+# [v3 wrapper] 占位文件由 build_image_agent_runtime.sh 保证存在：
+#   - 传了 --harbor-wheel 时 cp 真实 wheel 到此
+#   - 未传时 touch 创建空文件（0 字节）
+# Docker COPY 对空文件正常，RUN 中 [ -s ... ] 检测非空才安装自定义 wheel。
+COPY .harbor_wheel_cache.whl /tmp/harbor_wheel_cache.whl
+
 RUN python3.12 -m venv ${AGENT_VENVS_ROOT}/harbor --system-site-packages --copies && \
     ${AGENT_VENVS_ROOT}/harbor/bin/pip install --no-cache-dir --upgrade pip \
         -i https://repo.huaweicloud.com/repository/pypi/simple \
         --trusted-host repo.huaweicloud.com \
         --default-timeout=120 --retries=5 && \
-    ${AGENT_VENVS_ROOT}/harbor/bin/pip install --no-cache-dir \
-        -i https://repo.huaweicloud.com/repository/pypi/simple \
-        --trusted-host repo.huaweicloud.com \
-        --default-timeout=120 --retries=5 \
-        harbor==0.6.1
+    if [ -s /tmp/harbor_wheel_cache.whl ]; then \
+        echo "[ais_bench_agent] 使用本地 harbor wheel: /tmp/harbor_wheel_cache.whl"; \
+        ${AGENT_VENVS_ROOT}/harbor/bin/pip install --no-cache-dir \
+            -i https://repo.huaweicloud.com/repository/pypi/simple \
+            --trusted-host repo.huaweicloud.com \
+            --default-timeout=120 --retries=5 \
+            /tmp/harbor_wheel_cache.whl; \
+    else \
+        echo "[ais_bench_agent] 使用默认 harbor==0.6.1"; \
+        ${AGENT_VENVS_ROOT}/harbor/bin/pip install --no-cache-dir \
+            -i https://repo.huaweicloud.com/repository/pypi/simple \
+            --trusted-host repo.huaweicloud.com \
+            --default-timeout=120 --retries=5 \
+            harbor==0.6.1; \
+    fi && \
+    rm -f /tmp/harbor_wheel_cache.whl
 
 # ============================================================
 # harbor venv 内放置 ais_bench 命令（关键）

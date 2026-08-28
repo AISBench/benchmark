@@ -84,6 +84,7 @@ push=0
 upload=0
 use_cache=0
 multi_arch=0
+harbor_wheel=""
 
 # ============ 参数解析 ============
 while [[ $# -gt 0 ]]; do
@@ -130,6 +131,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --multi-arch)
             multi_arch="$2"
+            shift 2
+            ;;
+        --harbor-wheel)
+            harbor_wheel="$2"
             shift 2
             ;;
         -h|--help)
@@ -214,6 +219,25 @@ if [ -f "${offline_pkg_full_path}" ]; then
     rm -f "${offline_pkg_full_path}" || true
     echo "  已删除本地旧离线包：${offline_pkg_full_path}"
 fi
+
+# ============ [v3 wrapper] harbor wheel 占位文件 ============
+# Dockerfile.agent-runtime 期望 repo root 有 .harbor_wheel_cache.whl
+# 传了 --harbor-wheel → cp 真实 wheel；未传 → touch 空文件（回退到 harbor==0.6.1）
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+WHEEL_PLACEHOLDER="${REPO_ROOT}/.harbor_wheel_cache.whl"
+
+if [ -n "${harbor_wheel}" ]; then
+    if [ ! -f "${harbor_wheel}" ]; then
+        echo "错误：--harbor-wheel 指定的文件不存在: ${harbor_wheel}"
+        exit 1
+    fi
+    echo "  使用本地 harbor wheel: ${harbor_wheel}"
+    cp "${harbor_wheel}" "${WHEEL_PLACEHOLDER}"
+else
+    touch "${WHEEL_PLACEHOLDER}"
+fi
+# 构建后无论成功或失败都清理占位文件
+trap "rm -f ${WHEEL_PLACEHOLDER}" EXIT
 
 # ============ 构建镜像 ============
 BUILD_ARGS="--build-arg BASE_IMAGE=${base_image}"
