@@ -799,6 +799,38 @@ def test_resume_backfills_only_inherited_payloads_missing_from_archive(
     assert len(archived_ids) == len(set(archived_ids))
 
 
+def test_detection_removes_payload_staging_shell(tmp_path, monkeypatch):
+    """检测收尾后 payload_staging 目录本体一并移除，不留空壳目录。"""
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    _write_jsonl(
+        prediction_file,
+        [{"data_abbr": "ds", "id": 1, "uuid": "u1", "prediction": "ok"}],
+    )
+    source_dir = (
+        tmp_path / "response_anomaly" / "modelA" / "payload_staging" / "ds"
+    )
+    source_writer = ResponseAnomalyJsonlWriter(source_dir, 3, 10)
+    source_writer.write(_payload_record(1))
+    source_writer.close(write_manifest=False)
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_detect_case",
+        lambda prediction, anomaly_cfg, detector=None, init_error=None: (
+            _completed_anomaly_result(prediction["id"])
+        ),
+    )
+
+    coordinator._detect(_anomaly_cfg(tmp_path))
+
+    assert not source_dir.exists()
+    assert not source_dir.parent.exists()
+
+
 def test_resume_backfills_inherited_legacy_prediction_payload(
     tmp_path, monkeypatch
 ):

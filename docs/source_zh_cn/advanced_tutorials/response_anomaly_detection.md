@@ -101,7 +101,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 ├── response_anomaly/
 │   └── <模型 abbr>/
 │       ├── <数据集 abbr>.jsonl                          # 检测结果，每行一个 Case
-│       ├── payload_staging/<数据集 abbr>/               # 推理期间的临时存放区，检测完成后自动清理
+│       ├── payload_staging/<数据集 abbr>/               # 推理期间的临时存放区，检测完成后连同目录一并清理
 │       │   └── part-*.jsonl.zst
 │       └── payload/<数据集 abbr>/                       # payload 归档；payload 保留模式为 none 时不存在
 │           ├── payload_manifest.json                    # 归档清单（分片行数、大小、sha256）
@@ -121,7 +121,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 - **检测结果** `response_anomaly/<模型 abbr>/<数据集 abbr>.jsonl`：每行一个 Case 的检测结果，字段含义见[检测结果说明](#检测结果说明)。
 - **payload 归档** `response_anomaly/<模型 abbr>/payload/<数据集 abbr>/`：`all` 保留全部 Case，`anomalies` 只保留异常及检测失败/不可用 Case，`none` 不保留（目录不存在）。读取时用 zstandard 解压 `part-*.jsonl.zst` 分片后逐行解析 JSON；`payload_manifest.json` 记录每个分片的行数、大小与 sha256 校验值，可用于完整性校验。注意：`anomalies` 模式下即使无任何需保留的 Case，仍会发布一个仅含空 manifest 的归档目录，表示归档流程已成功完成，不是残留文件。
-- **临时文件**：`payload_staging/` 在推理期间逐条接收 payload 写入，检测完成后自动清理；检测中断后残留的 `.<数据集>.payload-build-*` 构建目录会在下次检测启动时自动清理；`status_tmp/tmp_ResponseAnomaly.json` 为运行期状态文件（检测进度与类型统计），工作流结束后随状态目录一并清理。
+- **临时文件**：`payload_staging/` 在推理期间逐条接收 payload 写入，检测完成后连同目录一并清理；检测中断后残留的 `.<数据集>.payload-build-*` 构建目录会在下次检测启动时自动清理；`status_tmp/tmp_ResponseAnomaly.json` 为运行期状态文件（检测进度与类型统计），工作流结束后随状态目录一并清理。
 - **自动生成的检测配置** `response_anomaly_config/<模型 abbr>/`：由模型 `path`（本地模型目录）自动生成。`config.yaml` 已存在时不会被覆盖（保留手工调优的阈值）；`mtype_config.json` 支持多模型合并，多次生成不互相覆盖。
 - **检测日志** `logs/response_anomaly/<模型 abbr>/<数据集 abbr>.out`：记录对应模型/数据集组的检测过程，含检测器初始化失败与单 Case 失败的具体原因。
 

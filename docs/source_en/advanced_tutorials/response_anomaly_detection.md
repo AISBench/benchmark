@@ -101,7 +101,7 @@ Files produced by detection are laid out under `<work_dir>` as follows:
 ├── response_anomaly/
 │   └── <model abbr>/
 │       ├── <dataset abbr>.jsonl                          # Detection results, one Case per line
-│       ├── payload_staging/<dataset abbr>/               # Transient staging during inference; cleaned after detection
+│       ├── payload_staging/<dataset abbr>/               # Transient staging during inference; removed (including the directory) after detection
 │       │   └── part-*.jsonl.zst
 │       └── payload/<dataset abbr>/                       # Payload archive; absent when payload retention is none
 │           ├── payload_manifest.json                     # Archive manifest (per-shard rows, sizes, sha256)
@@ -121,7 +121,7 @@ Path-by-path notes:
 
 - **Detection results** `response_anomaly/<model abbr>/<dataset abbr>.jsonl`: one Case per line; field semantics are described in [Detection Results](#detection-results).
 - **Payload archive** `response_anomaly/<model abbr>/payload/<dataset abbr>/`: `all` keeps every Case, `anomalies` keeps only anomalous plus detection-failed/unavailable Cases, and `none` keeps nothing (the directory does not exist). To read the data, decompress the `part-*.jsonl.zst` shards with zstandard and parse each line as JSON; `payload_manifest.json` records per-shard row counts, sizes, and sha256 checksums for integrity verification. Note: under `anomalies`, even when there is nothing to retain, an archive directory containing only an empty manifest is still published to indicate the archiving flow completed successfully — it is not a leftover file.
-- **Transient files**: `payload_staging/` receives payload records during inference and is cleaned automatically after detection; `.<dataset>.payload-build-*` build directories left by an interrupted detection are cleaned automatically when the next detection starts; `status_tmp/tmp_ResponseAnomaly.json` is a runtime status file (detection progress and per-type statistics) removed together with the status directory when the workflow ends.
+- **Transient files**: `payload_staging/` receives payload records during inference and is removed automatically (including the directory) after detection; `.<dataset>.payload-build-*` build directories left by an interrupted detection are cleaned automatically when the next detection starts; `status_tmp/tmp_ResponseAnomaly.json` is a runtime status file (detection progress and per-type statistics) removed together with the status directory when the workflow ends.
 - **Auto-generated detection configs** `response_anomaly_config/<model abbr>/`: auto-generated from the model `path` (local model directory). An existing `config.yaml` is never overwritten (manually tuned thresholds are preserved), and `mtype_config.json` supports multi-model merging across repeated generations.
 - **Detection log** `logs/response_anomaly/<model abbr>/<dataset abbr>.out`: records the detection run for the model/dataset group, including detector initialization failures and per-Case failure reasons.
 

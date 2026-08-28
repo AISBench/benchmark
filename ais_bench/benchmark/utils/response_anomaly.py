@@ -868,6 +868,10 @@ class ResponseAnomalyCoordinator:
             shutil.rmtree(payload.payload_dir)
         if payload.source_dir.exists():
             shutil.rmtree(payload.source_dir)
+        try:
+            payload.source_dir.parent.rmdir()
+        except OSError:
+            pass
         if any(
             "response_anomaly_payload" in prediction
             for prediction in task.predictions
