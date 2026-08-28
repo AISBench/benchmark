@@ -733,7 +733,8 @@ def _finalize_response_anomaly_detection(
     TasksMonitor.rm_tmp_files(work_dir)
     if coordinator.summary:
         logger.info(
-            "Response anomaly detection completed: %s",
+            "Response anomaly detection summary across %d task(s): %s",
+            len(coordinator.anomaly_report),
             coordinator.summary,
         )
     for task_name, info in coordinator.anomaly_report.items():
