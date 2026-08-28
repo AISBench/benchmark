@@ -85,7 +85,7 @@ When enabled, AISBench adds `logprobs=True` and a fixed `top_logprobs=20` to the
 
 1. **Inference stage**: the full payload is written directly to `response_anomaly/<model>/payload_staging/<dataset>/*.jsonl.zst`;
 2. **Detection stage**: after inference finishes, the detection thread streams and decompresses the staging data and runs anomaly detection; detection results are written to `response_anomaly/<model>/<dataset>.jsonl`;
-3. **Archive finalization**: after detection, the staging data is retained or cleaned according to `--response-anomaly-payload-retention`.
+3. **Archive finalization**: after detection, the staging data is retained and cleaned according to `--response-anomaly-payload-retention`.
 
 The status panel shows the config preparation, detector loading, streaming detection, and archive finalization stages.
 

@@ -85,7 +85,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 1. **推理阶段**：完整 payload 直接写入 `response_anomaly/<模型>/payload_staging/<数据集>/*.jsonl.zst`；
 2. **检测阶段**：推理结束后，检测线程流式解压 staging 数据并执行异常检测，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；
-3. **归档收尾**：检测完成后按 `--response-anomaly-payload-retention` 保留或清理 staging。
+3. **归档收尾**：检测完成后按 `--response-anomaly-payload-retention` 保留及清理 staging。
 
 状态面板会显示配置准备、检测器加载、流式检测和归档收尾阶段。
 
