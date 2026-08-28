@@ -222,7 +222,7 @@ fi
 
 # ============ [v3 wrapper] harbor wheel 占位文件 ============
 # Dockerfile.agent-runtime 期望 repo root 有 .harbor_wheel_cache.whl
-# 传了 --harbor-wheel → cp 真实 wheel；未传 → touch 空文件（回退到 harbor==0.6.1）
+# 传了 --harbor-wheel → cp 真实 wheel；未传 → touch 空文件（回退到 harbor==0.20.0）
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WHEEL_PLACEHOLDER="${REPO_ROOT}/.harbor_wheel_cache.whl"
 

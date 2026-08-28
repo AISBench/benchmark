@@ -64,7 +64,7 @@ build 参数:
   --upload                  上传离线 tar 到 OBS
   --multi-arch              多架构构建
   --use-cache               使用 Docker 缓存
-  --harbor-wheel <PATH>     本地 harbor wheel 文件（替换默认 harbor==0.6.1）
+  --harbor-wheel <PATH>     本地 harbor wheel 文件（替换默认 harbor==0.20.0）
   --l2                      同时构建 L2 baked images
   --l2-cases <LIST>         L2 case ID 列表，逗号分隔（默认 11099,12308,13741）
   --l2-agents <LIST>        L2 agent 列表，逗号分隔（默认 aider,msa,oh）
