@@ -33,7 +33,7 @@ pip3 install -r requirements/extra.txt
 
 ⚙️ Response Anomaly Detection Support (Optional)
 
-If you need to use msProbe response anomaly detection (`--response-anomaly`), install the additional dependencies:
+If you need to use response anomaly detection (`--response-anomaly`), install the additional dependencies:
 ```shell
 pip3 install -r requirements/response_anomaly.txt
 ```
@@ -42,7 +42,7 @@ Or install them via the extra:
 pip3 install 'ais-bench-benchmark[response_anomaly]'
 ```
 
-**Note**: These dependencies include building the `mindstudio-probe` source code from a pinned commit on GitCode, so the installation environment needs Git and network access. Without them, the AISBench main workflow is not affected; the affected Cases are marked as `unavailable` in the detection results.
+**Note**: These dependencies include building the detector source code from a pinned commit on GitCode, so the installation environment needs Git and network access. Without them, the AISBench main workflow is not affected; the affected Cases are marked as `unavailable` in the detection results.
 
 ⚙️ Huggingface Multi-modal Model / vLLM Multi-modal Offline Inference Support (Optional)
 

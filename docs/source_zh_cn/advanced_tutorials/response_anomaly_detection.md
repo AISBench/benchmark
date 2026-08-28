@@ -2,7 +2,7 @@
 
 ## 概述
 
-AISBench 集成 msProbe 的 `ILLDetector`，支持在推理评测的同时自动检测大模型响应中的生成异常。检测结果覆盖以下类型：
+AISBench 内置异常检测能力，支持在推理评测的同时自动检测大模型响应中的生成异常。检测结果覆盖以下类型：
 
 | `anomaly_type` | `anomaly_type_name` | 含义 |
 | -------------- | ------------------- | ---- |
@@ -14,7 +14,7 @@ AISBench 集成 msProbe 的 `ILLDetector`，支持在推理评测的同时自动
 
 **异常检测结果不影响原有评测指标**：异常 Case 不会被改写为推理失败，精度/性能指标照常计算，异常信息是独立的审计结果。
 
-功能**开箱即用，无需修改配置文件**：命令行增加 `--response-anomaly` 即可开启检测，payload 保留模式通过 `--response-anomaly-payload-retention` 控制（见[快速使用](#快速使用)）。检测所需的模型名与 msProbe 算法配置由 AISBench 根据模型 `path`（本地模型目录）自动推导与生成。
+功能**开箱即用，无需修改配置文件**：命令行增加 `--response-anomaly` 即可开启检测，payload 保留模式通过 `--response-anomaly-payload-retention` 控制（见[快速使用](#快速使用)）。检测所需的模型名与算法配置由 AISBench 根据模型 `path`（本地模型目录）自动推导与生成。
 
 ---
 
@@ -31,13 +31,13 @@ AISBench 集成 msProbe 的 `ILLDetector`，支持在推理评测的同时自动
 
 ## 安装依赖
 
-响应异常检测依赖可选包 `mindstudio-probe`，通过 AISBench 的 extra 安装：
+该功能依赖可选组件，通过 AISBench 的 extra 安装：
 
 ```bash
 pip install 'ais-bench-benchmark[response_anomaly]'
 ```
 
-安装过程中 pip 会从 GitCode 下载并构建已固定提交的 msProbe 源码，因此安装环境需要 Git 和网络访问。
+安装过程中 pip 会从 GitCode 下载并构建已固定提交的检测器源码，因此安装环境需要 Git 和网络访问。
 
 未安装该依赖时评测流程仍可正常运行，但所有 Case 的检测结果会标记为 `unavailable` 状态（见[检测结果说明](#检测结果说明)）；安装后重跑即可恢复检测。
 
@@ -69,7 +69,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 三种模式都保留独立检测结果。
 
-> 💡 **msProbe 资源全自动准备**：模型名自动取模型 `path`（本地模型目录）的目录名（如 `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`）；msProbe 阈值配置、模型映射与 token 分类词表自动生成到 `<work_dir>/response_anomaly_config/<模型 abbr>/`，已存在的 `config.yaml` 不会被覆盖，便于保留手工调优的阈值。若模型配置未提供 `path`，任务会在启动时报错并给出明确的解决指引。
+> 💡 **检测资源全自动准备**：模型名自动取模型 `path`（本地模型目录）的目录名（如 `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`）；检测阈值配置、模型映射与 token 分类词表自动生成到 `<work_dir>/response_anomaly_config/<模型 abbr>/`，已存在的 `config.yaml` 不会被覆盖，便于保留手工调优的阈值。若模型配置未提供 `path`，任务会在启动时报错并给出明确的解决指引。
 
 **查看检测结果**：推理与检测结束后，检测结果位于 `<work_dir>/response_anomaly/<模型 abbr>/<数据集 abbr>.jsonl`，每行一个 Case（完整落盘结构见[运行流程与落盘结构](#运行流程与落盘结构)）。
 
@@ -84,12 +84,12 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 ### 检测流程
 
 1. **推理阶段**：完整 payload 直接写入 `response_anomaly/<模型>/payload_staging/<数据集>/*.jsonl.zst`，prediction 从一开始只保存轻量结果；
-2. **检测阶段**：推理结束后，检测线程流式解压 staging 数据并调用 msProbe，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；
+2. **检测阶段**：推理结束后，检测线程流式解压 staging 数据并执行异常检测，检测结果写入 `response_anomaly/<模型>/<数据集>.jsonl`；
 3. **归档收尾**：检测完成后按 `--response-anomaly-payload-retention` 保留或清理 staging。
 
 状态面板会显示配置准备、检测器加载、流式检测和归档收尾阶段。
 
-> 💡 运行期细节：检测结果按批写盘，状态最多每秒刷新一次；msProbe token 分类映射按模型和 EOS token 缓存，避免每个 Case 重复解析大 JSON 文件。
+> 💡 运行期细节：检测结果按批写盘，状态最多每秒刷新一次；token 分类映射按模型和 EOS token 缓存，避免每个 Case 重复解析大 JSON 文件。
 
 ### 落盘结构
 
@@ -122,7 +122,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 - **检测结果** `response_anomaly/<模型 abbr>/<数据集 abbr>.jsonl`：每行一个 Case 的检测结果，字段含义见[检测结果说明](#检测结果说明)。
 - **payload 归档** `response_anomaly/<模型 abbr>/payload/<数据集 abbr>/`：`all` 保留全部 Case，`anomalies` 只保留异常及检测失败/不可用 Case，`none` 不保留（目录不存在）。读取时用 zstandard 解压 `part-*.jsonl.zst` 分片后逐行解析 JSON；`payload_manifest.json` 记录每个分片的行数、大小与 sha256 校验值，可用于完整性校验。注意：`anomalies` 模式下即使无任何需保留的 Case，仍会发布一个仅含空 manifest 的归档目录，表示归档流程已成功完成，不是残留文件。
 - **临时文件**：`payload_staging/` 在推理期间逐条接收 payload 写入，检测完成后自动清理；检测中断后残留的 `.<数据集>.payload-build-*` 构建目录会在下次检测启动时自动清理；`status_tmp/tmp_ResponseAnomaly.json` 为运行期状态文件（检测进度与类型统计），工作流结束后随状态目录一并清理。
-- **自动生成的 msProbe 配置** `response_anomaly_config/<模型 abbr>/`：由模型 `path`（本地模型目录）自动生成。`config.yaml` 已存在时不会被覆盖（保留手工调优的阈值）；`mtype_config.json` 支持多模型合并，多次生成不互相覆盖。
+- **自动生成的检测配置** `response_anomaly_config/<模型 abbr>/`：由模型 `path`（本地模型目录）自动生成。`config.yaml` 已存在时不会被覆盖（保留手工调优的阈值）；`mtype_config.json` 支持多模型合并，多次生成不互相覆盖。
 - **检测日志** `logs/response_anomaly/<模型 abbr>/<数据集 abbr>.out`：记录对应模型/数据集组的检测过程，含检测器初始化失败与单 Case 失败的具体原因。
 
 ---
@@ -135,9 +135,9 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 | 状态 | 含义 | 排查建议 |
 | --- | --- | --- |
-| `completed` | 已调用 msProbe 并得到检测结果 | 无需处理 |
+| `completed` | 检测器已执行并得到检测结果 | 无需处理 |
 | `skipped` | 推理响应未携带 token id 或 top-k logprobs | 检查服务端是否支持并返回 `logprobs` / `top_logprobs` / token id 字段 |
-| `unavailable` | 未安装 `mindstudio-probe`（response_anomaly extra） | 参考[安装指南](../get_started/install.md)安装可选依赖后重跑 |
+| `unavailable` | 未安装异常检测可选依赖（response_anomaly extra） | 参考[安装指南](../get_started/install.md)安装可选依赖后重跑 |
 | `failed` | 调用或输入转换发生异常 | 查看该 Case 结果中的 `reason` 字段（保存错误类型与摘要）及检测日志 |
 
 检测专属日志位于 `<work_dir>/logs/response_anomaly/<模型>/<数据集>.out`，检测进度与类型统计也可在 `<work_dir>/status_tmp/tmp_ResponseAnomaly.json` 状态文件中查看。

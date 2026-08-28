@@ -324,7 +324,7 @@ ais_bench --models vllm_api_general --datasets gsm8k_gen --reuse 20250628_151326
 
 > ⚠️ 注意：中断续测与失败重测可能改变请求顺序，可能引发结果微小波动。
 
-> 💡 启用了[推理响应异常检测](../../advanced_tutorials/response_anomaly_detection.md)时，续测同样继承已有检测结果：`completed` 状态的 Case 不会重复调用 msProbe，`skipped` / `failed` / `unavailable` 状态的 Case 会重新检测；已有异常计数累加进最终统计。
+> 💡 启用了[推理响应异常检测](../../advanced_tutorials/response_anomaly_detection.md)时，续测同样继承已有检测结果：`completed` 状态的 Case 不会重复执行检测，`skipped` / `failed` / `unavailable` 状态的 Case 会重新检测；已有异常计数累加进最终统计。
 
 💡[多任务测评](#多任务测评) 也支持全量和部分任务的中断续测 & 失败用例重测。
 
