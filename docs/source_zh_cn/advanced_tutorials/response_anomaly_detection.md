@@ -69,7 +69,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 三种模式都保留独立检测结果。
 
-> 💡 **检测资源全自动准备**：模型名自动取模型 `path`（本地模型目录）的目录名（如 `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`）；检测阈值配置、模型映射与 token 分类词表自动生成到 `<work_dir>/response_anomaly_config/<模型 abbr>/`，已存在的 `config.yaml` 不会被覆盖，便于保留手工调优的阈值。若模型配置未提供 `path`，任务会在启动时报错并给出明确的解决指引。
+> 💡 **检测资源全自动准备**：模型名自动取模型 `path`（本地模型目录）的目录名（如 `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`）；检测阈值配置、模型映射与 token 分类词表自动生成到 `<work_dir>/response_anomaly_config/<模型 abbr>/`，已存在的 `config.yaml` 不会被覆盖，便于保留手工调优的阈值。若模型配置未提供 `path`，任务会在启动时报错并给出明确的解决指引。注意：`path` 末级目录名需与 Hugging Face、ModelScope、Modelers 等模型仓库中的模型名称保持一致，请勿随意改动，否则可能导致模型名称解析失败、检测无法正确执行。
 
 **查看检测结果**：推理与检测结束后，检测结果位于 `<work_dir>/response_anomaly/<模型 abbr>/<数据集 abbr>.jsonl`，每行一个 Case（完整落盘结构见[运行流程与落盘结构](#运行流程与落盘结构)）。
 

@@ -66,7 +66,7 @@ models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.c
 | `attr` | String | 推理后端类型标识，固定为 `service`（服务化推理）或 `local`（本地模型），不可配置 |
 | `type` | Python Class | API 类型类名，由系统自动关联，用户无需手动配置，参考 [服务化推理后端](#服务化推理后端) |
 | `abbr` | String | 服务化任务的唯一标识，用于区分不同任务，英文字符与短横线组合，例如：`vllm-api-general-chat` |
-| `path` | String | Tokenizer 路径，通常与模型路径相同，使用 `AutoTokenizer.from_pretrained(path)` 加载。指定可访问的本地路径，例如：`/weight/DeepSeek-R1` |
+| `path` | String | Tokenizer 路径，通常与模型路径相同，使用 `AutoTokenizer.from_pretrained(path)` 加载。指定可访问的本地路径，例如：`/weight/DeepSeek-R1`。路径末级的目录名需与 Hugging Face、ModelScope、Modelers 等模型仓库中的模型名称保持一致，请勿随意改动，否则可能导致模型名称解析失败（如[推理响应异常检测](../../advanced_tutorials/response_anomaly_detection.md)依赖该路径解析模型名称） |
 | `model` | String | 服务端可访问的模型名称，必须与服务化部署时指定的名称一致 |
 | `model_name` | String | 仅适用于 Triton 服务，拼接为 endpoint 的 URI `/v2/models/{modelname}/{infer、generate、generate_stream}`，应与部署时名称一致 |
 | `stream` | Boolean | API模型推理接口类型，默认为False，表示非流式接口，当为True时表示流式接口（具体请参考🔗[服务化推理后端](#服务化推理后端)）|

@@ -69,7 +69,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 All three modes keep the standalone detection results.
 
-> 💡 **Detection resources are prepared fully automatically**: the model name is taken from the basename of the model `path` (local model directory; e.g. `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`); the detection threshold config, model mapping, and token-category vocabulary are auto-generated into `<work_dir>/response_anomaly_config/<model abbr>/`, and an existing `config.yaml` is never overwritten, so manually tuned thresholds are preserved. If the model config provides no `path`, the task fails fast at startup with explicit guidance.
+> 💡 **Detection resources are prepared fully automatically**: the model name is taken from the basename of the model `path` (local model directory; e.g. `/home/Qwen3-30B-A3B` → `Qwen3-30B-A3B`); the detection threshold config, model mapping, and token-category vocabulary are auto-generated into `<work_dir>/response_anomaly_config/<model abbr>/`, and an existing `config.yaml` is never overwritten, so manually tuned thresholds are preserved. If the model config provides no `path`, the task fails fast at startup with explicit guidance. Note: the final directory name of `path` must stay consistent with the model name in model repositories such as Hugging Face, ModelScope, or Modelers; do not rename it arbitrarily, otherwise the model name may fail to be parsed and detection may not run correctly.
 
 **Inspect the detection results**: after inference and detection finish, the results are written to `<work_dir>/response_anomaly/<model abbr>/<dataset abbr>.jsonl`, one Case per line (see [Runtime Flow and On-Disk Layout](#runtime-flow-and-on-disk-layout) for the full layout).
 
