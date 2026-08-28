@@ -61,7 +61,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
   --response-anomaly-payload-retention anomalies
 ```
 
-| Value | Behavior |
+| `--response-anomaly-payload-retention` value | Behavior |
 | ----- | -------- |
 | `all` | Keeps every payload and atomically promotes the staging data to the official archive after detection without re-compressing |
 | `anomalies` (default) | Keeps only detected anomalies plus detection-failed/unavailable Cases |

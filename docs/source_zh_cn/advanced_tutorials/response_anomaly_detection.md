@@ -61,7 +61,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
   --response-anomaly-payload-retention anomalies
 ```
 
-| 取值 | 行为 |
+| `--response-anomaly-payload-retention` 取值 | 行为 |
 | ---- | ---- |
 | `all` | 保存全部 payload，检测后直接将 staging 原子转为正式归档，不会二次压缩 |
 | `anomalies`（默认） | 只保存已检出异常以及检测失败/不可用 Case |
