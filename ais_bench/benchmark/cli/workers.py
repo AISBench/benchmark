@@ -871,8 +871,8 @@ class AgentEval(BaseWorker):
                 model["model_names"] = list(args.model)
             if getattr(args, "api_base", None):
                 model["api_base"] = args.api_base
-            if getattr(args, "api_key", None):
-                model["api_key"] = args.api_key
+            if getattr(args, "agent_api_key", None):
+                model["api_key"] = args.agent_api_key
             if getattr(args, "agent_kwarg", None):
                 model["agent_kwargs"] = {
                     **(model.get("agent_kwargs") or {}),

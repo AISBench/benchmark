@@ -489,7 +489,7 @@ class TestConfigManager(unittest.TestCase):
         self.assertEqual(result, mock_config)
 
     @mock.patch('ais_bench.benchmark.cli.config_manager.match_cfg_file')
-    @mock.patch('ais_bench.benchmark.cli.config_manager.make_custom_dataset_config')
+    @mock.patch('ais_bench.benchmark.datasets.custom.make_custom_dataset_config')
     def test_load_datasets_config_custom_dataset(self, mock_make_config, mock_match_cfg_file):
         """测试加载自定义数据集配置"""
         # 设置参数

@@ -229,8 +229,8 @@ class ArgumentParser():
             default=None,
         )
         parser.add_argument(
-            '--api-key',
-            help='API key for the model service',
+            '--agent-api-key',
+            help='API key for the model service (agent semantic parameter)',
             type=str,
             default=None,
         )
