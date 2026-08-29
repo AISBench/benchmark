@@ -283,7 +283,8 @@ class TestHarborRunnerInline(unittest.TestCase):
         srv.start.return_value = 0  # port 0 -> no server log
         mock_srv.return_value = srv
         name, code = self._runner()._launch_inline(self._make_task())
-        self.assertEqual((name, code), ("agenttask", 1))
+        # on failure the exit-code tuple uses the derived task abbr ("m/d")
+        self.assertEqual((name, code), ("m/d", 1))
 
 
 class TestHarborRunnerMulti(unittest.TestCase):
@@ -450,8 +451,9 @@ class TestHarborRunnerLaunchSubprocess(unittest.TestCase):
     @mock.patch("subprocess.Popen")
     @mock.patch("ais_bench.benchmark.runners.harbor_runner.TASKS")
     @mock.patch("ais_bench.benchmark.runners.harbor_runner.mmengine.mkdir_or_exist")
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.osp.exists", return_value=True)
     @mock.patch("os.remove")
-    def test_success(self, mock_remove, mock_mkdir, mock_tasks, mock_popen):
+    def test_success(self, mock_remove, mock_exists, mock_mkdir, mock_tasks, mock_popen):
         built = self._built()
         mock_tasks.build.return_value = built
         proc = mock.MagicMock()

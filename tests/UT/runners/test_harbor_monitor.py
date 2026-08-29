@@ -364,7 +364,10 @@ class TestHarborMonitor(unittest.TestCase):
             ],
         }
         t = HarborMonitor._tokens_from_result(result)
-        self.assertEqual(t, {"input": 11, "cache": 2, "output": 4, "cost_usd": 0.3})
+        self.assertEqual(t["input"], 11)
+        self.assertEqual(t["cache"], 2)
+        self.assertEqual(t["output"], 4)
+        self.assertAlmostEqual(t["cost_usd"], 0.3)
         self.assertIsNone(HarborMonitor._tokens_from_result({}))
         self.assertIsNone(HarborMonitor._tokens_from_result({"agent_result": "nope"}))
 
