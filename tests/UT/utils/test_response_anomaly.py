@@ -632,6 +632,56 @@ def test_detect_writes_separate_status_and_log_for_each_dataset(
         )
 
 
+def test_detect_summary_aggregates_across_tasks(tmp_path, monkeypatch):
+    """多数据集检测：summary 为全量聚合，单任务日志只含本任务统计。"""
+    for dataset_abbr, token_sets in (("ds1", [[1]]), ("ds2", [[2], [1]])):
+        prediction_file = (
+            tmp_path / "predictions" / "modelA" / f"{dataset_abbr}.jsonl"
+        )
+        _write_jsonl(
+            prediction_file,
+            [
+                {
+                    "data_abbr": dataset_abbr,
+                    "id": idx + 1,
+                    "uuid": f"{dataset_abbr}-u{idx + 1}",
+                    "prediction": "ok",
+                    "response_anomaly_payload": {
+                        "tokens": token_tokens,
+                        "topk_logprobs": [
+                            {str(t): -0.1} for t in token_tokens
+                        ],
+                    },
+                }
+                for idx, token_tokens in enumerate(token_sets)
+            ],
+        )
+    cfg = {
+        "work_dir": str(tmp_path),
+        "models": [{"abbr": "modelA", "attr": "service"}],
+        "datasets": [{"abbr": "ds1"}, {"abbr": "ds2"}],
+        "response_anomaly": {},
+    }
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+
+    coordinator._detect(cfg)
+
+    assert coordinator.summary == {"normal": 2, "rare_character": 1}
+    ds1_log = (
+        tmp_path / "logs" / "response_anomaly" / "modelA" / "ds1.out"
+    ).read_text(encoding="utf-8")
+    ds2_log = (
+        tmp_path / "logs" / "response_anomaly" / "modelA" / "ds2.out"
+    ).read_text(encoding="utf-8")
+    assert "Response anomaly detection completed: {'normal': 1}" in ds1_log
+    assert "'rare_character': 1" in ds2_log
+    assert "'normal': 1" in ds2_log
+    assert "'normal': 2" not in ds2_log
+
+
 @pytest.mark.parametrize(
     ("retention", "expected_ids"),
     [("all", [1, 2]), ("anomalies", [2]), ("none", [])],
@@ -797,6 +847,38 @@ def test_resume_backfills_only_inherited_payloads_missing_from_archive(
     ]
     assert sorted(archived_ids) == [1, 2]
     assert len(archived_ids) == len(set(archived_ids))
+
+
+def test_detection_removes_payload_staging_shell(tmp_path, monkeypatch):
+    """检测收尾后 payload_staging 目录本体一并移除，不留空壳目录。"""
+    prediction_file = tmp_path / "predictions" / "modelA" / "ds.jsonl"
+    _write_jsonl(
+        prediction_file,
+        [{"data_abbr": "ds", "id": 1, "uuid": "u1", "prediction": "ok"}],
+    )
+    source_dir = (
+        tmp_path / "response_anomaly" / "modelA" / "payload_staging" / "ds"
+    )
+    source_writer = ResponseAnomalyJsonlWriter(source_dir, 3, 10)
+    source_writer.write(_payload_record(1))
+    source_writer.close(write_manifest=False)
+
+    coordinator = ResponseAnomalyCoordinator()
+    monkeypatch.setattr(
+        coordinator, "_build_detector", lambda cfg: (TokenDetector(), None)
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_detect_case",
+        lambda prediction, anomaly_cfg, detector=None, init_error=None: (
+            _completed_anomaly_result(prediction["id"])
+        ),
+    )
+
+    coordinator._detect(_anomaly_cfg(tmp_path))
+
+    assert not source_dir.exists()
+    assert not source_dir.parent.exists()
 
 
 def test_resume_backfills_inherited_legacy_prediction_payload(

@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -50,7 +51,9 @@ def test_jsonl_zstd_writer_round_trips_and_shards(tmp_path):
     assert len(shards) == 2
     assert manifest["total_rows"] == 3
     assert [item["rows"] for item in manifest["shards"]] == [2, 1]
-    assert manifest["shards"][0]["sha256"].startswith("sha256:")
+    assert manifest["shards"][0]["sha256"] == hashlib.sha256(
+        shards[0].read_bytes()
+    ).hexdigest()
     restored = [item for shard in shards for item in _read_shard(shard)]
     assert restored == records
     assert not list(tmp_path.glob("*.inprogress"))
