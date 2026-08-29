@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Tuple
 import mmengine
 import numpy as np
 from mmengine.config import ConfigDict
+from mmengine.device import is_npu_available
 
 from ais_bench.benchmark.registry import RUNNERS, TASKS
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg
