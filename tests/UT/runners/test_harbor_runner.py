@@ -189,5 +189,308 @@ class TestHarborRunnerWaitForCleanup(unittest.TestCase):
         self.assertTrue(p.killed)
 
 
+class TestHarborRunnerPurgeMore(unittest.TestCase):
+    def setUp(self):
+        self.runner = HarborRunner(task={"type": "X"})
+        self.runner.logger = mock.MagicMock()
+        self.temp_dir = tempfile.mkdtemp()
+        self.job_dir = Path(self.temp_dir) / "details"
+        self.job_dir.mkdir(parents=True)
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def test_data_not_dict(self):
+        _write_json(self.job_dir / "result.json", [1, 2])
+        self.runner._purge_exception_cases(str(self.job_dir))
+
+    def test_filters_non_string_names(self):
+        _write_json(
+            self.job_dir / "result.json",
+            {
+                "stats": {
+                    "evals": {
+                        "e": {"exception_stats": {"Timeout": ["a", "b", 123]}}
+                    }
+                },
+                "trial_results": [
+                    {"task_name": "x", "exception_info": {"type": "E"}},
+                    {"trial_name": None, "exception_info": {"type": "E"}},
+                    {"exception_info": None},
+                    "notadict",
+                ],
+            },
+        )
+        for name in ("a", "b", "x"):
+            (self.job_dir / name).mkdir()
+        self.runner._purge_exception_cases(str(self.job_dir))
+        self.assertFalse((self.job_dir / "a").exists())
+        self.assertFalse((self.job_dir / "b").exists())
+        self.assertFalse((self.job_dir / "x").exists())
+
+    def test_no_names_noop(self):
+        _write_json(
+            self.job_dir / "result.json",
+            {"stats": {"evals": {}}, "trial_results": [{"exception_info": None}]},
+        )
+        self.runner._purge_exception_cases(str(self.job_dir))
+
+
+class TestHarborRunnerInit(unittest.TestCase):
+    def test_unexpected_kwargs_logged(self):
+        runner = HarborRunner(task={"type": "X"}, extra_param=1)
+        self.assertTrue(hasattr(runner, "logger"))
+
+
+class TestHarborRunnerInline(unittest.TestCase):
+    def _make_task(self):
+        return {
+            "work_dir": "/wd",
+            "models": [{"abbr": "m"}],
+            "datasets": [[{"abbr": "d"}]],
+        }
+
+    def _runner(self):
+        runner = HarborRunner(task={"type": "X"})
+        runner.logger = mock.MagicMock()
+        return runner
+
+    @mock.patch("ais_bench.benchmark.runners.harbor_monitor.HarborMonitorServer")
+    @mock.patch("ais_bench.benchmark.runners.harbor_monitor.HarborMonitor")
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.TASKS")
+    def test_inline_success(self, mock_tasks, mock_mon, mock_srv):
+        built = mock.MagicMock()
+        built.name = "agenttask"
+        mock_tasks.build.return_value = built
+        srv = mock.MagicMock()
+        srv.start.return_value = 8080
+        mock_srv.return_value = srv
+        name, code = self._runner()._launch_inline(self._make_task())
+        self.assertEqual((name, code), ("agenttask", 0))
+        built.run.assert_called_once()
+        srv.stop.assert_called_once()
+
+    @mock.patch("ais_bench.benchmark.runners.harbor_monitor.HarborMonitorServer")
+    @mock.patch("ais_bench.benchmark.runners.harbor_monitor.HarborMonitor")
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.TASKS")
+    def test_inline_failure(self, mock_tasks, mock_mon, mock_srv):
+        built = mock.MagicMock()
+        built.name = "agenttask"
+        built.run.side_effect = RuntimeError("boom")
+        mock_tasks.build.return_value = built
+        srv = mock.MagicMock()
+        srv.start.return_value = 0  # port 0 -> no server log
+        mock_srv.return_value = srv
+        name, code = self._runner()._launch_inline(self._make_task())
+        self.assertEqual((name, code), ("agenttask", 1))
+
+
+class TestHarborRunnerMulti(unittest.TestCase):
+    def _make_task(self):
+        return {
+            "work_dir": "/wd",
+            "models": [{"abbr": "m"}],
+            "datasets": [[{"abbr": "d"}]],
+        }
+
+    def _runner(self, **kw):
+        runner = HarborRunner(task={"type": "X"}, **kw)
+        runner.logger = mock.MagicMock()
+        return runner
+
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.TasksMonitor.rm_tmp_files")
+    @mock.patch("ais_bench.benchmark.runners.harbor_monitor.HarborMonitorServer")
+    @mock.patch("ais_bench.benchmark.runners.harbor_monitor.HarborMonitor")
+    @mock.patch.object(HarborRunner, "_start_task_board")
+    @mock.patch.object(HarborRunner, "_run_tasks")
+    def test_multi_success(self, mock_run, mock_board, mock_mon, mock_srv, mock_rm):
+        mock_board.return_value = None
+        mock_run.return_value = [("t", 0)]
+        srv = mock.MagicMock()
+        srv.start.return_value = 8080
+        mock_srv.return_value = srv
+        tasks = [self._make_task(), self._make_task()]
+        result = self._runner()._launch_multi(tasks)
+        self.assertEqual(result, [("t", 0)])
+        mock_rm.assert_called_once_with("/wd")
+        srv.stop.assert_called_once()
+
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.TasksMonitor.rm_tmp_files")
+    @mock.patch("ais_bench.benchmark.runners.harbor_monitor.HarborMonitorServer")
+    @mock.patch("ais_bench.benchmark.runners.harbor_monitor.HarborMonitor")
+    @mock.patch.object(HarborRunner, "_start_task_board")
+    @mock.patch.object(HarborRunner, "_wait_for_cleanup")
+    @mock.patch.object(HarborRunner, "_run_tasks")
+    def test_multi_interrupt(self, mock_run, mock_wait, mock_board, mock_mon, mock_srv, mock_rm):
+        mock_board.return_value = None
+        mock_run.side_effect = KeyboardInterrupt()
+        srv = mock.MagicMock()
+        srv.start.return_value = 0
+        mock_srv.return_value = srv
+        tasks = [self._make_task()]
+        with self.assertRaises(SystemExit) as cm:
+            self._runner()._launch_multi(tasks)
+        self.assertEqual(cm.exception.code, 130)
+        mock_wait.assert_called_once()
+
+
+class TestHarborRunnerBoard(unittest.TestCase):
+    def _runner(self, **kw):
+        runner = HarborRunner(task={"type": "X"}, **kw)
+        runner.logger = mock.MagicMock()
+        return runner
+
+    def test_start_board_debug_returns_none(self):
+        self.assertIsNone(self._runner(debug=True)._start_task_board(["t"], "/wd"))
+
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.TasksMonitor")
+    def test_start_board_launches(self, mock_tm):
+        inst = mock.MagicMock()
+        mock_tm.return_value = inst
+        runner = self._runner()
+        board = runner._start_task_board(["t"], "/wd")
+        self.assertIsNotNone(board)
+        for _ in range(200):
+            if getattr(board, "_holder", {}).get("monitor") is not None:
+                break
+            time.sleep(0.005)
+        self.assertIs(inst, board._holder.get("monitor"))
+        inst.launch_state_board.assert_called()
+        board.join(timeout=2)
+
+    def test_stop_board_none(self):
+        self._runner()._stop_board(None)
+
+    def test_stop_board_stops_monitor(self):
+        mon = mock.MagicMock()
+        board = mock.MagicMock()
+        board._holder = {"monitor": mon}
+        self._runner()._stop_board(board)
+        mon.stop_state_board.assert_called()
+
+
+class TestHarborRunnerRunTasks(unittest.TestCase):
+    def _make_task(self):
+        return {
+            "work_dir": "/wd",
+            "models": [{"abbr": "m"}],
+            "datasets": [[{"abbr": "d"}]],
+        }
+
+    @mock.patch.object(HarborRunner, "_launch")
+    def test_sequential(self, mock_launch):
+        mock_launch.side_effect = [("a", 0), ("b", 1)]
+        runner = HarborRunner(task={"type": "X"})
+        runner.logger = mock.MagicMock()
+        self.assertEqual(
+            runner._run_tasks([self._make_task(), self._make_task()]),
+            [("a", 0), ("b", 1)],
+        )
+
+    @mock.patch.object(HarborRunner, "_launch")
+    def test_threadpool(self, mock_launch):
+        mock_launch.side_effect = [("a", 0), ("b", 1)]
+        runner = HarborRunner(task={"type": "X"}, max_num_workers=2)
+        runner.logger = mock.MagicMock()
+        self.assertEqual(
+            runner._run_tasks([self._make_task(), self._make_task()]),
+            [("a", 0), ("b", 1)],
+        )
+
+
+class TestHarborRunnerCleanup(unittest.TestCase):
+    def setUp(self):
+        self.runner = HarborRunner(task={"type": "X"})
+        self.runner.logger = mock.MagicMock()
+
+    @mock.patch("time.sleep")
+    def test_heartbeat_then_exit(self, mock_sleep):
+        calls = {"n": 0}
+
+        def fake_poll():
+            calls["n"] += 1
+            return None if calls["n"] == 1 else 0
+
+        class P:
+            def poll(self):
+                return fake_poll()
+
+        self.runner._active_popens = [P()]
+        with mock.patch("time.time", side_effect=lambda: 0.0):
+            self.runner._wait_for_cleanup(timeout=100)
+        self.assertEqual(mock_sleep.call_count, 1)
+
+
+class TestHarborRunnerLaunchSubprocess(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.temp_dir, True)
+
+    def _make_task(self):
+        return {
+            "work_dir": "/wd",
+            "models": [{"abbr": "m"}],
+            "datasets": [[{"abbr": "d"}]],
+        }
+
+    def _built(self):
+        built = mock.MagicMock()
+        built.name = "agenttask"
+        built.cfg.dump = mock.MagicMock()
+        built.get_command.return_value = "echo hi"
+        built.get_log_path.return_value = os.path.join(self.temp_dir, "t.out")
+        return built
+
+    def _run(self, **kw):
+        runner = HarborRunner(task={"type": "X"}, **kw)
+        runner.logger = mock.MagicMock()
+        return runner, self._make_task()
+
+    @mock.patch("subprocess.Popen")
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.TASKS")
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.mmengine.mkdir_or_exist")
+    @mock.patch("os.remove")
+    def test_success(self, mock_remove, mock_mkdir, mock_tasks, mock_popen):
+        built = self._built()
+        mock_tasks.build.return_value = built
+        proc = mock.MagicMock()
+        proc.wait.return_value = 0
+        mock_popen.return_value = proc
+        runner, task = self._run()
+        name, code = runner._launch(task)
+        self.assertEqual((name, code), ("agenttask", 0))
+        mock_remove.assert_called_once()
+
+    @mock.patch("subprocess.Popen")
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.TASKS")
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.mmengine.mkdir_or_exist")
+    @mock.patch("os.remove")
+    def test_failure(self, mock_remove, mock_mkdir, mock_tasks, mock_popen):
+        built = self._built()
+        mock_tasks.build.return_value = built
+        proc = mock.MagicMock()
+        proc.wait.return_value = 3
+        mock_popen.return_value = proc
+        runner, task = self._run()
+        name, code = runner._launch(task)
+        self.assertEqual((name, code), ("agenttask", 3))
+        runner.logger.error.assert_called_once()
+
+    @mock.patch("subprocess.Popen")
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.TASKS")
+    @mock.patch("ais_bench.benchmark.runners.harbor_runner.mmengine.mkdir_or_exist")
+    @mock.patch("os.remove")
+    def test_keep_tmp_file(self, mock_remove, mock_mkdir, mock_tasks, mock_popen):
+        built = self._built()
+        mock_tasks.build.return_value = built
+        proc = mock.MagicMock()
+        proc.wait.return_value = 0
+        mock_popen.return_value = proc
+        runner, task = self._run(keep_tmp_file=True)
+        runner._launch(task)
+        mock_remove.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

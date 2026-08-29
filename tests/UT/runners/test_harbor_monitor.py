@@ -2,12 +2,16 @@ import json
 import os
 import shutil
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ais_bench.benchmark.runners.harbor_monitor import (
     HarborMonitor,
     HarborMonitorServer,
+    _dir_mtime_iso,
     _tail,
     _read_json,
     _fromiso,
@@ -66,6 +70,30 @@ class TestFromIso(unittest.TestCase):
 
     def test_invalid(self):
         self.assertIsNone(_fromiso("not-a-date"))
+
+
+class TestTailMore(unittest.TestCase):
+    def test_os_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "f.txt"
+            p.write_text("hello", encoding="utf-8")
+            with mock.patch.object(Path, "read_text", side_effect=OSError):
+                self.assertIsNone(_tail(p))
+
+
+class TestReadJsonMore(unittest.TestCase):
+    def test_os_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "x.json"
+            p.write_text("{}", encoding="utf-8")
+            with mock.patch.object(Path, "read_text", side_effect=OSError):
+                self.assertIsNone(_read_json(p))
+
+
+class TestDirMtimeIso(unittest.TestCase):
+    def test_os_error(self):
+        with mock.patch.object(Path, "stat", side_effect=OSError):
+            self.assertIsNone(_dir_mtime_iso(Path("/no/x")))
 
 
 class TestHarborMonitor(unittest.TestCase):
@@ -220,6 +248,142 @@ class TestHarborMonitor(unittest.TestCase):
         key = str(self.job_dir / "trial_00000" / "result.json")
         self.assertIn(key, self.monitor._case_cache)
 
+    def test_snapshot_with_status_file(self):
+        sf = Path(self.temp_dir) / "status.json"
+        _write_json(
+            sf,
+            [
+                {"process_id": 123, "status": "running", "total_count": 5,
+                 "finish_count": 2, "progress_description": "p",
+                 "start_time": "now", "log_path": "/x"}
+            ],
+        )
+        monitor = HarborMonitor(self.temp_dir)
+        monitor.register_task("m/d", status_file=str(sf), job_dir=None)
+        monitor.refresh()
+        snap = monitor.snapshot("m/d")
+        self.assertEqual(snap["process_id"], 123)
+        self.assertEqual(snap["status"], "running")
+
+    def test_read_status_file_invalid(self):
+        p = Path(self.temp_dir) / "bad.json"
+        p.write_text("{broken", encoding="utf-8")
+        self.assertEqual(self.monitor._read_status_file(str(p)), {})
+
+    def test_read_status_file_not_list(self):
+        p = Path(self.temp_dir) / "notlist.json"
+        _write_json(p, {"a": 1})
+        self.assertEqual(self.monitor._read_status_file(str(p)), {})
+
+    def test_raw_case_result_job_not_dir(self):
+        f = Path(self.temp_dir) / "afile"
+        f.write_text("x", encoding="utf-8")
+        monitor = HarborMonitor(self.temp_dir)
+        monitor.register_task("m/d", status_file=None, job_dir=str(f))
+        self.assertIsNone(monitor.raw_case_result("m/d", "x"))
+
+    def test_raw_case_result_candidate_no_result(self):
+        d = self.job_dir / "trial_00000"
+        d.mkdir()
+        (d / "result.json").write_text("{broken", encoding="utf-8")
+        self.assertIsNone(self.monitor.raw_case_result("m/d", "trial_00000"))
+
+    def test_scan_cache_reuse(self):
+        self._make_job_result()
+        self.monitor.refresh()
+        self.monitor.refresh()
+        snap = self.monitor.snapshot("m/d")
+        self.assertEqual(snap["harbor"]["n_total_trials"], 3)
+
+    def test_case_running_with_exception_txt(self):
+        tdir = self.job_dir / "trial_00000"
+        tdir.mkdir()
+        (tdir / "exception.txt").write_text("  boom  ", encoding="utf-8")
+        self.monitor.refresh()
+        case = self.monitor.cases("m/d")[0]
+        self.assertEqual(case["status"], "running")
+        self.assertEqual(case["exception"]["message"], "boom")
+
+    def test_task_name_from_config_path(self):
+        tdir = self.job_dir / "trial_00000"
+        _write_json(tdir / "config.json", {"task": {"path": "/repo/astropy/astropy-12907"}})
+        self.monitor.refresh()
+        case = self.monitor.cases("m/d")[0]
+        self.assertEqual(case["task_name"], "astropy-12907")
+
+    def test_verifier_and_ctrf_info(self):
+        tdir = self.job_dir / "trial_00000"
+        _write_json(tdir / "result.json", {"trial_name": "a", "verifier_result": {"rewards": {"reward": 1.0}}})
+        verifier = tdir / "verifier"
+        _write_json(verifier / "reward.json", {"reward": 1.0})
+        _write_json(
+            verifier / "ctrf.json",
+            {"results": [
+                {"status": "passed", "name": "a"},
+                {"status": "failed", "name": "b", "message": "m"},
+                {"status": "skipped", "name": "c"},
+                {"status": "pending", "name": "d"},
+                {"status": "weird", "name": "e"},
+                "notadict",
+            ]},
+        )
+        self.monitor.refresh()
+        case = self.monitor.cases("m/d")[0]
+        self.assertTrue(case["verifier"]["has_reward_json"])
+        self.assertEqual(
+            case["verifier"]["ctrf"],
+            {"passed": 1, "failed": 1, "skipped": 2,
+             "failures": [{"name": "b", "message": "m"}]},
+        )
+
+    def test_ctrf_summary_invalid(self):
+        p = Path(self.temp_dir) / "ctrf.json"
+        _write_json(p, {"results": "notalist"})
+        self.assertIsNone(HarborMonitor._ctrf_summary(p))
+
+    def test_timings(self):
+        result = {
+            "started_at": "2026-01-01T00:00:00",
+            "agent_execution": {
+                "started_at": "2026-01-01T00:00:00",
+                "finished_at": "2026-01-01T00:00:05",
+            },
+            "verifier": {"started_at": "bad", "finished_at": "worse"},
+        }
+        t = HarborMonitor._timings(result)
+        self.assertEqual(t["agent_execution_sec"], 5.0)
+        self.assertIsNone(t["verifier_sec"])
+
+    def test_tokens_from_result(self):
+        result = {
+            "agent_result": {"n_input_tokens": 10, "n_cache_tokens": 2,
+                             "n_output_tokens": 3, "cost_usd": 0.1},
+            "step_results": [
+                {"agent_result": {"n_input_tokens": 1, "n_output_tokens": 1, "cost_usd": 0.2}},
+                {"not_agent": 1},
+            ],
+        }
+        t = HarborMonitor._tokens_from_result(result)
+        self.assertEqual(t, {"input": 11, "cache": 2, "output": 4, "cost_usd": 0.3})
+        self.assertIsNone(HarborMonitor._tokens_from_result({}))
+        self.assertIsNone(HarborMonitor._tokens_from_result({"agent_result": "nope"}))
+
+    def test_start_and_loop(self):
+        monitor = HarborMonitor(self.temp_dir)
+        monitor.start()
+        self.assertTrue(monitor._thread is not None and monitor._thread.is_alive())
+        monitor.stop()
+        monitor._thread.join(timeout=1)
+
+    def test_loop_swallows_exception(self):
+        monitor = HarborMonitor(self.temp_dir)
+        with mock.patch.object(monitor, "refresh", side_effect=RuntimeError):
+            t = threading.Thread(target=monitor._loop)
+            t.start()
+            time.sleep(0.05)
+            monitor.stop()
+            t.join(timeout=1)
+
 
 class TestHarborMonitorServer(unittest.TestCase):
     def setUp(self):
@@ -281,6 +445,57 @@ class TestHarborMonitorServer(unittest.TestCase):
             # raw job result for a registered task -> 404 (no result.json)
             status, _ = self._get(port, "/api/tasks/m/d/")
             self.assertEqual(status, 404)
+        finally:
+            server.stop()
+
+    def test_server_task_snapshot_and_cases(self):
+        tdir = self.job_dir / "trial_00000"
+        _write_json(tdir / "result.json", {"trial_name": "a", "x": 1})
+        self.monitor.refresh()
+        server = HarborMonitorServer(self.monitor, port=self._free_port())
+        port = server.start()
+        self.assertIsNotNone(port)
+        try:
+            status, body = self._get(port, "/api/jobs")
+            self.assertEqual(status, 200)
+            self.assertIn("jobs", body)
+
+            status, body = self._get(port, "/api/tasks/m/d")
+            self.assertEqual(status, 200)
+            self.assertIn("task_name", body)
+
+            status, body = self._get(port, "/api/tasks/m/d/cases")
+            self.assertEqual(status, 200)
+            self.assertIn("cases", body)
+
+            status, body = self._get(port, "/api/tasks/m/d/trial_00000")
+            self.assertEqual(status, 200)
+            self.assertIn("x", body)
+
+            # no result.json yet -> 404 on the raw job endpoint
+            status, _ = self._get(port, "/api/tasks/m/d/")
+            self.assertEqual(status, 404)
+
+            # too many path segments
+            status, _ = self._get(port, "/api/tasks/a/b/c/d")
+            self.assertEqual(status, 404)
+
+            # fewer than two segments
+            status, _ = self._get(port, "/api/tasks/onlyone")
+            self.assertEqual(status, 404)
+        finally:
+            server.stop()
+
+    def test_server_raw_job_result_ok(self):
+        _write_json(self.job_dir / "result.json", {"n_total_trials": 4})
+        self.monitor.refresh()
+        server = HarborMonitorServer(self.monitor, port=self._free_port())
+        port = server.start()
+        self.assertIsNotNone(port)
+        try:
+            status, body = self._get(port, "/api/tasks/m/d/")
+            self.assertEqual(status, 200)
+            self.assertIn("n_total_trials", body)
         finally:
             server.stop()
 
