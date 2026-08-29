@@ -1,6 +1,7 @@
 # Agent 测评独立依赖集：仅需安装本文件即可运行
 # `ais_bench <config> --mode agent`（harbor 及其依赖一并安装）。
-harbor
+# harbor 以可编辑方式从源码仓库安装 main 分支（含 AISBench 定制修改）。
+-e git+https://github.com/AISBench/harbor@main#egg=harbor
 mmengine-lite
 numpy
 Pillow
