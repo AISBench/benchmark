@@ -9,13 +9,14 @@ AISBench Benchmark 支持通过 [**命令行参数（CLI）**](#命令行参数
 ais_bench [OPTIONS]
 ```
 ### 参数说明
-根据执行场景，命令行参数分为三大类：
+根据执行场景，命令行参数分为四大类：
 
 - 公共参数
 - 精度测评参数（仅在 `--mode` 为 `all、infer、eval` 或 `viz` 时生效）
 - 性能测评参数（仅在 `--mode` 为 `perf` 或 `perf_viz` 时生效）
+- Agent 测评参数（仅在 `--mode` 为 `agent` 或 `agent_viz` 时生效）
 
-`精度测评参数`只有在`--mode`参数指定为`"all", "infer", "eval", "viz"`时生效，`性能测评参数`只有在`--mode`参数指定为`"perf", "perf_viz"`时生效，`公共参数`则不区分任务执行模式，在所有模式下均可指定。
+`精度测评参数`只有在`--mode`参数指定为`"all", "infer", "eval", "viz"`时生效，`性能测评参数`只有在`--mode`参数指定为`"perf", "perf_viz"`时生效，`Agent测评参数`只有在`--mode`参数指定为`"agent", "agent_viz"`时生效，`公共参数`则不区分任务执行模式，在所有模式下均可指定。
 
 ### 公共参数
 适用于所有模式，可同时与精度或性能参数联合使用。
@@ -25,7 +26,7 @@ ais_bench [OPTIONS]
 | `--models`| 指定模型推理后端任务名称（对应 `ais_bench/benchmark/configs/models` 路径下一个已经实现的默认模型配置文件），支持传入多个任务名称。详情参考📚 [支持的模型](./models.md)。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--models vllm_api_general`  |
 | `--datasets`   | 指定数据集任务名称（对应 `ais_bench/benchmark/configs/datasets` 路径下一个已经实现的默认数据集配置文件），可传入多个。详情参考📚 [支持的数据集类型](../../get_started/datasets.md)。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--datasets gsm8k_gen`    |
 | `--summarizer` | 指定结果总结任务名称（对应 `ais_bench/benchmark/configs/summarizers` 路径下一个已经实现的默认模型配置文件）。详情参考📚 [支持的结果汇总任务](./summarizer.md) 。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--summarizer medium`|
-| `--mode` 或 `-m`| 运行模式，可选：`all`、`infer`、`eval`、`viz`、`perf`、`perf_viz`；默认 `all`。<br>详细请见 📚 [运行模式说明](./mode.md)。 | `--mode infer`<br>`-m all`|
+| `--mode` 或 `-m`| 运行模式，可选：`all`、`infer`、`eval`、`viz`、`perf`、`perf_viz`、`agent`、`agent_viz`；默认 `all`。<br>详细请见 📚 [运行模式说明](./mode.md)。 | `--mode infer`<br>`-m all`|
 | `--reuse` 或 `-r`| 指定已有工作目录下的时间戳，继续执行并覆盖原有结果。结合`--mode`参数值，可用于推理中断续推，或基于已有推理结果执行精度计算、可视化结果打印。若不加参，则自动选取 `--work-dir` 下最新时间戳。| `--reuse 20250126_144254`<br>`-r 20250126_144254` |
 | `--work-dir` 或 `-w`     | 指定评测工作目录，用于保存输出结果。默认 `outputs/default`。| `--work-dir /path/to/work`<br>`-w /path/to/work` |
 | `--config-dir` | `models`，`datasets`和`summarizers`配置文件所在的文件夹路径，默认 `ais_bench/benchmark/configs`。    | `--config-dir /xxx/xxx`   |
@@ -78,6 +79,39 @@ ais_bench [OPTIONS]
 | `--pressure`   | 	是否开启性能压测方式的开关，仅当 `--mode perf` 时有效，配置该参数表示开启，未配置表示关闭，默认未配置。压力测试详情可参考:📚 [压力测试使能稳态测试](../../advanced_tutorials/stable_stage.md#压力测试使能稳态测试)。| `--pressure`|
 |`--pressure-time`|压测持续时间，仅在指定 `--pressure` 模式时生效。单位为秒，默认15秒，取值范围为 `[1, 86400]`（即 1 秒 至 24 小时）。| `--pressure-time 30`|
 |`--spec-decode`|启用投机推理（Speculative Decoding）指标采集，从推理服务的 Prometheus `/metrics` 端点拉取指标。仅在 `--mode perf` 时有效。详细用法见 📚 [投机推理指标采集](../../advanced_tutorials/spec_decode.md)。| `--spec-decode` |
+
+### Agent 测评参数
+仅在模式为 `agent` 或 `agent_viz` 时有效。AISBench 通过 [Harbor](https://github.com/harbor-framework/harbor) 执行 Agent 测评，统一语义参数（模型服务 base url / API key / LLM 调用参数等）会由 `AgentParamAdapter` 自动转换为各 Agent 私有的 kwargs / 环境变量传入方式。详细用法见 📚 [Agent 测评](../../base_tutorials/scenes_intro/agent_benchmark.md)。
+
+| 参数 | 说明 | 示例 |
+| ---- | ---- | ---- |
+| `-a` / `--agent` | Agent 名称（Harbor `AgentName`，如 `terminus-2`、`claude-code`）或自定义 Agent 的导入路径 `module.path:ClassName` | `-a terminus-2` |
+| `--agent-import-path` | 自定义 Agent 的导入路径（`module.path:ClassName`） | `--agent-import-path my.pkg:MyAgent` |
+| `--model` | Agent 所使用模型的名称（可多次传入，对应配置 `model_names`） | `--model hosted_vllm/qwen3` |
+| `--api-base` | 模型服务 base url（统一语义，Agent 适配器自动转换） | `--api-base http://0.0.0.0:8080/v1` |
+| `--agent-api-key` | 模型服务 API key（统一语义，Agent 适配器自动转换） | `--agent-api-key sk-xxx` |
+| `--ak` / `--agent-kwarg` | 附加的 Agent 入参，`key=value` 格式（可多次传入） | `--ak max_tokens=4096` |
+| `--ae` / `--agent-env` | 传递给 Agent 的环境变量，`KEY=VALUE` 格式（可多次传入） | `--ae OPENAI_API_KEY=sk-xxx` |
+| `--agent-deps` | 离线 Agent 依赖包路径（`<agent>.tar.gz`，或按基础镜像自动匹配的目录） | `--agent-deps /path/to/agent.tar.gz` |
+| `-p` / `--agent-dataset-path` | 本地数据集路径（也支持单一 task 目录） | `-p /path/to/terminal-bench-2` |
+| `-d` / `--dataset` | 远程数据集 `name@version`（registry 或 package `org/name@ref`） | `-d my_dataset@v1` |
+| `-n` / `--n-concurrent` | 并发运行的 trial 数量 | `-n 5` |
+| `-k` / `--n-attempts` | 每个 trial 的尝试次数 | `-k 1` |
+| `-e` / `--environment` | Harbor 环境类型（`docker`、`daytona`、`e2b`、`modal` 等） | `-e docker` |
+| `--timeout-multiplier` | 任务超时倍数 | `--timeout-multiplier 1.0` |
+| `--max-retries` | 任务最大重试次数 | `--max-retries 0` |
+| `--include-task-name` | 需要包含的任务名（支持 glob，可多次传入） | `--include-task-name '*astropy*'` |
+| `--exclude-task-name` | 需要排除的任务名（支持 glob，可多次传入） | `--exclude-task-name '*failed*'` |
+| `--n-tasks` | 从数据集选取的最大任务数量 | `--n-tasks 10` |
+| `--disable-verification` | 禁用 verifier | `--disable-verification` |
+| `--force-build` / `--no-force-build` | 是否强制重建环境 | `--no-force-build` |
+| `--host-network` | 所有任务容器共享宿主网络（docker-compose network_mode: host） | `--host-network` |
+| `--delete` / `--no-delete` | 完成后是否删除环境 | `--no-delete` |
+| `--purge-exception-cases` | 执行前删除所有因异常结束的 case 目录，实现自动重试；**仅在 `--reuse` 指定时生效** | `--reuse <ts> --purge-exception-cases` |
+| `-q` / `--quiet` | 抑制单个 trial 的进度显示 | `--quiet` |
+| `-y` / `--yes` | 自动确认环境变量提示 | `--yes` |
+| `--env-file` | `.env` 文件路径 | `--env-file /path/to/.env` |
+| `--monitor-port` | Harbor 监控 HTTP 服务端口（`0` = 关闭，默认 `0`） | `--monitor-port 8788` |
 
 ## 配置常量文件参数
 
