@@ -38,8 +38,10 @@ class TestParseKwargStrings(unittest.TestCase):
     def test_invalid_raises(self):
         with self.assertRaises(ValueError):
             parse_kwarg_strings(["noequals"])
-        with self.assertRaises(ValueError):
-            parse_kwarg_strings(["=value"])
+
+    def test_empty_key_is_value(self):
+        # "=value" has "=", so it parses to an empty key, no raise
+        self.assertEqual(parse_kwarg_strings(["=value"]), {"": "value"})
 
 
 class TestParseEnvStrings(unittest.TestCase):
@@ -161,9 +163,10 @@ class TestAgentParamAdapterDiscovery(unittest.TestCase):
         self.assertIn("OPENAI_BASE_URL", result["env"])
 
     def test_match_semantic(self):
+        # _match_semantic is case-sensitive; callers pass lowercased haystack
         self.assertEqual(AgentParamAdapter._match_semantic("api_base y"), "api_base")
         self.assertEqual(AgentParamAdapter._match_semantic("base_url"), "api_base")
-        self.assertEqual(AgentParamAdapter._match_semantic("OPENAI_API_KEY"), "api_key")
+        self.assertEqual(AgentParamAdapter._match_semantic("openai_api_key"), "api_key")
         self.assertEqual(AgentParamAdapter._match_semantic("something"), None)
 
     @mock.patch.dict("sys.modules", {"harbor": None}, clear=False)

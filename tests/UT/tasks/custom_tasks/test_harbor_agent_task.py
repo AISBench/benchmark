@@ -17,6 +17,24 @@ def _write_json(path: Path, data) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")
 
 
+class _FakeAgentName:
+    """Deterministic substitute for harbor's AgentName enum .values()."""
+    _values = ["oracle", "claude-code", "terminus-2"]
+
+    @classmethod
+    def values(cls):
+        return list(cls._values)
+
+
+class _FakeTaskModel:
+    """Deterministic substitute for harbor Task.is_valid_dir()."""
+    is_valid_dir_result = True
+
+    @classmethod
+    def is_valid_dir(cls, *args, **kwargs):
+        return cls.is_valid_dir_result
+
+
 _HARBOR_MODULES = {
     "harbor": mock.MagicMock(),
     "harbor.models": mock.MagicMock(),
@@ -30,6 +48,9 @@ _HARBOR_MODULES = {
     "harbor.models.trial.config": mock.MagicMock(),
     "harbor.models.environment_type": mock.MagicMock(),
 }
+# deterministic fakes for the parts whose return values our tests must control
+_HARBOR_MODULES["harbor.models.agent.name"].AgentName = _FakeAgentName
+_HARBOR_MODULES["harbor.models.task.task"].Task = _FakeTaskModel
 
 
 def _make_cfg(temp_dir, model=None, dataset=None):
@@ -174,6 +195,8 @@ class TestHarborAgentTaskBuildAgents(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
+        # reset deterministic fakes per test
+        _FakeAgentName._values = ["oracle", "claude-code", "terminus-2"]
 
     def tearDown(self):
         if os.path.exists(self.temp_dir):
@@ -181,8 +204,6 @@ class TestHarborAgentTaskBuildAgents(unittest.TestCase):
 
     @mock.patch.dict("sys.modules", _HARBOR_MODULES)
     def test_unknown_agent_raises(self):
-        import harbor.models.agent.name as name_mod
-        name_mod.AgentName.values.return_value = ["oracle", "claude-code"]
         model = {"abbr": "m", "agent_name": "bogus-agent", "model_names": ["x"]}
         task = HarborAgentTask(_make_cfg(self.temp_dir, model=model))
         task.logger = mock.MagicMock()
@@ -191,11 +212,11 @@ class TestHarborAgentTaskBuildAgents(unittest.TestCase):
 
     @mock.patch.dict("sys.modules", _HARBOR_MODULES)
     def test_custom_import_path_passes(self):
-        import harbor.models.agent.name as name_mod
-        name_mod.AgentName.values.return_value = ["oracle"]
+        # an agent name without a colon must be a known AgentName; a custom
+        # agent is expressed as an import path (contains ':') plus import_path
         model = {
             "abbr": "m",
-            "agent_name": "custom",
+            "agent_name": "my.module:Agent",
             "agent_import_path": "my.module:Agent",
             "model_names": ["x"],
         }
@@ -207,8 +228,6 @@ class TestHarborAgentTaskBuildAgents(unittest.TestCase):
 
     @mock.patch.dict("sys.modules", _HARBOR_MODULES)
     def test_oracle_default_when_no_agent(self):
-        import harbor.models.agent.name as name_mod
-        name_mod.AgentName.values.return_value = ["oracle"]
         model = {"abbr": "m", "model_names": ["x"]}
         task = HarborAgentTask(_make_cfg(self.temp_dir, model=model))
         task.logger = mock.MagicMock()
@@ -220,6 +239,7 @@ class TestHarborAgentTaskDatasetSource(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
+        _FakeTaskModel.is_valid_dir_result = True
 
     def tearDown(self):
         if os.path.exists(self.temp_dir):
@@ -229,24 +249,31 @@ class TestHarborAgentTaskDatasetSource(unittest.TestCase):
         dataset = {"abbr": "d", "args": args}
         return HarborAgentTask(_make_cfg(self.temp_dir, dataset=dataset))
 
+    def _real_path(self):
+        p = Path(self.temp_dir) / "taskdir"
+        p.mkdir(exist_ok=True)
+        return str(p)
+
     @mock.patch.dict("sys.modules", _HARBOR_MODULES)
     def test_path_single_task(self):
-        import harbor.models.task.task as task_mod
-        task_mod.TaskModel.is_valid_dir.return_value = True
+        _FakeTaskModel.is_valid_dir_result = True
         config = mock.MagicMock()
         config.verifier.disable = False
-        self._task({"path": "/some/task"})._apply_dataset_source(config, {"path": "/some/task"})
+        self._task({"path": self._real_path()})._apply_dataset_source(
+            config, {"path": self._real_path()}
+        )
         # single task -> datasets empty, tasks set
         self.assertEqual(config.datasets, [])
         self.assertNotEqual(config.tasks, [])
 
     @mock.patch.dict("sys.modules", _HARBOR_MODULES)
     def test_path_dataset_dir(self):
-        import harbor.models.task.task as task_mod
-        task_mod.TaskModel.is_valid_dir.return_value = False
+        _FakeTaskModel.is_valid_dir_result = False
         config = mock.MagicMock()
         config.verifier.disable = False
-        self._task({"path": "/some/dir"})._apply_dataset_source(config, {"path": "/some/dir"})
+        self._task({"path": self._real_path()})._apply_dataset_source(
+            config, {"path": self._real_path()}
+        )
         self.assertNotEqual(config.datasets, [])
         self.assertEqual(config.tasks, [])
 

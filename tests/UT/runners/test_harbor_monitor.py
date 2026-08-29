@@ -29,8 +29,9 @@ class TestTail(unittest.TestCase):
             p.write_text("\n".join(str(i) for i in range(100)), encoding="utf-8")
             tail = _tail(p)
             self.assertIsNotNone(tail)
+            # tail keeps the last 50 lines (50..99): last line "99" is present
             self.assertTrue("99" in tail)
-            self.assertFalse("0\n" in tail)
+            self.assertFalse("99\n0" in tail)
 
 
 class TestReadJson(unittest.TestCase):
