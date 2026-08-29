@@ -263,7 +263,7 @@ class ArgumentParser():
         )
         parser.add_argument(
             '-p',
-            '--path',
+            '--agent-dataset-path',
             help='Local dataset path (or a single task directory)',
             type=str,
             default=None,

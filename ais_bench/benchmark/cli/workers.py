@@ -885,7 +885,7 @@ class AgentEval(BaseWorker):
                 }
 
         cli_to_dataset_args = {
-            "path": "path",
+            "agent_dataset_path": "path",
             "dataset": "dataset_name_version",
             "n_concurrent": "n_concurrent_trials",
             "n_attempts": "n_attempts",

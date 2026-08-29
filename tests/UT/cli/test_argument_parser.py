@@ -178,6 +178,25 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.pressure_time, 30)
 
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_agent_dataset_path(self, mock_get_current_time_str):
+        """测试 agent 的 --agent-dataset-path 参数（与 api_model 的 --path 不冲突）"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py', '--agent-dataset-path', '/tmp/agent-ds']
+        parser = ArgumentParser()
+        args = parser.parse_args()
+        self.assertEqual(args.agent_dataset_path, '/tmp/agent-ds')
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_agent_and_api_path_coexist(self, mock_get_current_time_str):
+        """agent 与 api_model 两套 path 参数可同时存在（不再冲突）"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        parser = ArgumentParser()  # 若能构造且不抛错即证明选项不冲突
+        sys.argv = ['benchmark.py', '--agent-dataset-path', '/a', '--path', '/b']
+        args = parser.parse_args()
+        self.assertEqual(args.agent_dataset_path, '/a')
+        self.assertEqual(args.path, '/b')
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
     def test_parse_args_custom_dataset_options(self, mock_get_current_time_str):
         """测试自定义数据集相关选项参数解析"""
         # 模拟返回值
