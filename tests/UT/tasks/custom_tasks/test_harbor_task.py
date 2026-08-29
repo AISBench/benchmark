@@ -685,6 +685,8 @@ class TestHarborTaskRunWithProgress(unittest.TestCase):
         run_async.return_value = (mock_job, mock_job_result)
 
         mock_config = mock.MagicMock()
+        mock_config.jobs_dir = Path(self.temp_dir)
+        mock_config.job_name = "details"
         job, result = task._run_with_tqdm(mock_config, 10)
         self.assertEqual(job, mock_job)
         self.assertEqual(result, mock_job_result)
@@ -719,6 +721,8 @@ class TestHarborTaskRunWithProgress(unittest.TestCase):
         run_async.return_value = (mock_job, mock_job_result)
 
         mock_config = mock.MagicMock()
+        mock_config.jobs_dir = Path(self.temp_dir)
+        mock_config.job_name = "details"
         job, result = task._run_with_tqdm(mock_config, 10)
         self.assertEqual(job, mock_job)
 
