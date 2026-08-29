@@ -140,6 +140,13 @@ class TestHarborAgentTaskJobMetrics(unittest.TestCase):
         m = self.task._job_metrics(self.job_dir)
         self.assertEqual(m["exception"], 1)
 
+    def test_rewards_not_dict_skipped(self):
+        self._write_result([{"verifier_result": {"rewards": "nope"}}])
+        m = self.task._job_metrics(self.job_dir)
+        self.assertEqual(m["correct"], 0)
+        self.assertEqual(m["wrong"], 0)
+        self.assertEqual(m["avg_score"], None)
+
 
 class TestHarborAgentTaskRefreshMetrics(unittest.TestCase):
     def setUp(self):
@@ -189,6 +196,30 @@ class TestHarborAgentTaskRefreshMetrics(unittest.TestCase):
         mgr.update_task_state.assert_called_once()
         args = mgr.update_task_state.call_args[0][0]
         self.assertEqual(args["other_kwargs"]["correct"], 1)
+
+    def test_job_dir_from_job(self):
+        import time
+        _write_json(
+            self.job_dir / "result.json",
+            {"trial_results": [{"verifier_result": {"rewards": {"reward": 1.0}}}]},
+        )
+        mgr = mock.MagicMock()
+        self.task.task_state_manager = mgr
+        self.task._progress_job_dir = None
+        self.task.job = mock.MagicMock()
+        self.task.job.job_dir = str(self.job_dir)
+        self.task._last_metrics_ts = 0.0
+        self.task._refresh_progress_metrics()
+        mgr.update_task_state.assert_called_once()
+
+    def test_metrics_empty_updates_nothing(self):
+        import time
+        mgr = mock.MagicMock()
+        self.task.task_state_manager = mgr
+        self.task._progress_job_dir = Path(self.temp_dir) / "noresult"
+        self.task._last_metrics_ts = 0.0
+        self.task._refresh_progress_metrics()
+        mgr.update_task_state.assert_not_called()
 
 
 class TestHarborAgentTaskBuildAgents(unittest.TestCase):
@@ -335,6 +366,198 @@ class TestHarborAgentTaskRunResume(unittest.TestCase):
         job, result = self.task._run_harbor_job()
         self.assertEqual(job, "job")
         mock_build.assert_called_once()
+
+
+class TestHarborAgentTaskCommand(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.task = HarborAgentTask(_make_cfg(self.temp_dir))
+        self.task.logger = mock.MagicMock()
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def test_get_command(self):
+        cmd = self.task.get_command("/tmp/cfg.py", template="{task_cmd}")
+        self.assertIn("/tmp/cfg.py", cmd)
+
+    def test_parse_args(self):
+        import sys
+        from ais_bench.benchmark.tasks.custom_tasks import harbor_agent_task as mod
+        with mock.patch.object(mod.sys, "argv", ["prog", "myconfig.yaml"]):
+            ns = mod.parse_args()
+            self.assertEqual(ns.config, "myconfig.yaml")
+
+
+class TestHarborAgentTaskRunMore(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.task = HarborAgentTask(_make_cfg(self.temp_dir))
+        self.task.logger = mock.MagicMock()
+        self.task.out_detail_dir = Path(self.temp_dir) / "out"
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    @mock.patch.object(HarborAgentTask, "_run_with_tqdm")
+    @mock.patch.object(HarborAgentTask, "_get_task_count", return_value=3)
+    @mock.patch.object(HarborAgentTask, "_build_job_config")
+    def test_n_attempts_multiplies(self, mock_build, mock_count, mock_run):
+        mock_config = mock.MagicMock()
+        mock_config.n_attempts = 2
+        mock_build.return_value = mock_config
+        self.task._run_harbor_job()
+        mock_run.assert_called_once_with(mock_config, 6)
+
+
+class TestHarborAgentTaskJobConfig(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.task = HarborAgentTask(_make_cfg(self.temp_dir))
+        self.task.logger = mock.MagicMock()
+        self.task.out_detail_dir = Path(self.temp_dir) / "out"
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    @mock.patch.dict("sys.modules", _HARBOR_MODULES)
+    def test_build_job_config(self):
+        cfg_cls = _HARBOR_MODULES["harbor.models.job.config"].JobConfig
+        config = mock.MagicMock()
+        cfg_cls.return_value = config
+        with mock.patch.object(HarborAgentTask, "_apply_job_settings") as _1, \
+                mock.patch.object(HarborAgentTask, "_build_agents",
+                                  return_value=["ag"]) as _2, \
+                mock.patch.object(HarborAgentTask, "_apply_environment") as _3, \
+                mock.patch.object(HarborAgentTask, "_apply_verifier") as _4, \
+                mock.patch.object(HarborAgentTask, "_apply_dataset_source") as _5:
+            result = self.task._build_job_config({"k": 1})
+        self.assertIs(result, config)
+        self.assertEqual(config.job_name, "details")
+        self.assertEqual(config.jobs_dir, Path(self.task.out_detail_dir))
+        self.assertEqual(config.agents, ["ag"])
+
+    def test_apply_job_settings(self):
+        config = mock.MagicMock()
+        config.retry = mock.MagicMock()
+        args = {
+            "n_attempts": 2,
+            "quiet": True,
+            "max_retries": 3,
+            "retry_include_exceptions": ["a", "b"],
+            "retry_exclude_exceptions": ["c"],
+            "metrics": ["m1"],
+            "artifacts": ["f1", "f2"],
+            "extra_instruction_paths": ["/x", "/y"],
+        }
+        self.task._apply_job_settings(config, args)
+        self.assertEqual(config.n_attempts, 2)
+        self.assertEqual(config.quiet, True)
+        self.assertEqual(config.retry.max_retries, 3)
+        self.assertEqual(config.metrics, ["m1"])
+        self.assertEqual(config.extra_instruction_paths, [Path("/x"), Path("/y")])
+
+    @mock.patch.dict("sys.modules", _HARBOR_MODULES)
+    def test_apply_environment(self):
+        config = mock.MagicMock()
+        config.environment = mock.MagicMock()
+        config.environment.env = {}
+        config.environment.kwargs = {}
+        args = {
+            "environment_type": "docker",
+            "environment_force_build": True,
+            "environment_delete": False,
+            "environment_env": {"K": "V"},
+            "environment_kwargs": {"cpu": 1},
+            "override_cpus": 2,
+            "override_memory_mb": 3,
+        }
+        self.task._apply_environment(config, args)
+        self.assertEqual(config.environment.env, {"K": "V"})
+
+    @mock.patch.dict("sys.modules", _HARBOR_MODULES)
+    def test_apply_verifier(self):
+        config = mock.MagicMock()
+        config.verifier = mock.MagicMock()
+        config.verifier.env = {}
+        args = {
+            "disable_verification": True,
+            "verifier_env": ["A=1", "B=2", "C"],
+            "verifier_import_path": "pkg:V",
+            "verifier_kwargs": {"x": 1},
+        }
+        self.task._apply_verifier(config, args)
+        self.assertEqual(config.verifier.disable, True)
+        self.assertEqual(config.verifier.env, {"A": "1", "B": "2"})
+
+    @mock.patch.dict("sys.modules", _HARBOR_MODULES)
+    def test_build_agents_with_deps_and_no_model_names(self):
+        _FakeAgentName._values = ["oracle"]
+        model = {
+            "abbr": "m",
+            "agent_name": "oracle",
+            "deps_path": "~/deps",
+            "skills": ["s"],
+            "mcp_servers": ["m"],
+            "include_logs": [],
+            "exclude_logs": [],
+            "extra_allowed_hosts": [],
+        }
+        task = HarborAgentTask(_make_cfg(self.temp_dir, model=model))
+        task.logger = mock.MagicMock()
+        agents = task._build_agents()
+        self.assertEqual(len(agents), 1)
+
+    @mock.patch.dict("sys.modules", _HARBOR_MODULES)
+    def test_get_task_count(self):
+        import asyncio
+
+        class FakeDC:
+            def __init__(self, n):
+                self._n = n
+
+            async def get_task_configs(self, disable_verification=False):
+                return [None] * self._n
+
+        config = mock.MagicMock()
+        config.tasks = ["a", "b"]
+        config.datasets = [FakeDC(3), FakeDC(1)]
+        config.verifier.disable = False
+
+        sys_mods = dict(_HARBOR_MODULES)
+        utils = mock.MagicMock()
+        utils.run_async.side_effect = lambda coro: asyncio.run(coro)
+        sys_mods["harbor.cli"] = mock.MagicMock()
+        sys_mods["harbor.cli.utils"] = utils
+        with mock.patch.dict("sys.modules", sys_mods):
+            task = HarborAgentTask(_make_cfg(self.temp_dir))
+            task.logger = mock.MagicMock()
+            self.assertEqual(task._get_task_count(config), 6)
+
+
+class TestHarborAgentTaskDatasetSourceMore(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def _task(self, args):
+        dataset = {"abbr": "d", "args": args}
+        return HarborAgentTask(_make_cfg(self.temp_dir, dataset=dataset))
+
+    @mock.patch.dict("sys.modules", _HARBOR_MODULES)
+    def test_registry_no_version(self):
+        config = mock.MagicMock()
+        config.verifier.disable = False
+        self._task({"dataset_name_version": "plainname"})._apply_dataset_source(
+            config, {"dataset_name_version": "plainname"}
+        )
+        self.assertEqual(config.tasks, [])
 
 
 if __name__ == "__main__":
