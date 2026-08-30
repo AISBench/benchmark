@@ -48,6 +48,8 @@
 
 ## 快速拉起流程
 
+> 📘 端到端复现手册（含 harbor offline + mini-swe-agent tarball + 真实 trial 验证 + 失败诚实声明）见 [REPRODUCE.md](REPRODUCE.md)。
+
 ### 1. 构建 runtime 镜像（宿主机）
 
 ```bash

@@ -4,6 +4,8 @@
 
 > 本仓库目录是 AISBench/benchmark 的社区运行时补充，不属于 benchmark 核心评测逻辑。用户使用本目录的脚本和镜像准备好 runtime 容器后，仍用原生 `ais_bench` 命令执行测评，原理与各 benchmark 文档完全一致。
 
+> 📘 想从零跑通本 PR（含 harbor offline + mini-swe-agent tarball + 真实 trial 验证）？看 [REPRODUCE.md](REPRODUCE.md) — 618 行端到端复现手册，含失败原因诚实声明与 LLM 算力方案 gap 说明。
+
 ## 解决什么问题
 
 Agent 测评的环境准备存在三大痛点：
