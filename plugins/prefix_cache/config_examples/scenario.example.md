@@ -314,7 +314,9 @@ CSV 必须包含正整数 `output_tokens` 列，行数等于 `requests.count`。
 期望的全局 token 加权命中率，范围 `[0,1]`。它是求解器的主目标，不等于简单地把每条请求的固定百分比设成前缀。
 省略时默认 `0.6`。
 
-求解会考虑 Block 对齐、请求顺序、Prefix Group、水位和 cold DP 路由。目标不可精确达到时，采用最接近的可达值并记录 requested/effective/theoretical 及原因。
+求解会考虑 Block 对齐、请求顺序、Prefix Group、水位和 cold DP 路由。最终命中 token 总量优先匹配最近可达目标；在总量相同的解中，优先让累计理论命中率低超调、少回落并逐步贴近目标。warmup 会按累计输入比例均衡分配，cold 会按 `(Prefix Group, DP rank)` 独立水位搜索。目标不可精确达到时，采用最接近的可达值并记录 requested/effective/theoretical 及原因。
+
+累计命中率严格单调不是配置契约：后置 lane 的首次 cold miss、请求容量不足或 Block 离散性可能造成不可避免的小幅波动。求解器会最小化这些波动，而不会牺牲最终 target-driven 精度。
 
 ### 8.3 `seed_blocks`
 

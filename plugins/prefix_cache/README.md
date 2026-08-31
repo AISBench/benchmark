@@ -225,7 +225,9 @@ Scenario 加载阶段会检查每种输入长度模式的最小值是否能容�
 - requested、effective 和 theoretical hit rate；
 - 理论值减目标值的带符号偏差和绝对偏差。
 
-目标高于 `reachable_max` 或低于 `reachable_min` 时，求解器直接选择对应边界解；目标位于区间内时，按 Block 单位选择最近可达命中量。cold 模式按 `(Prefix Group, DP rank)` lane 精确构造，不使用可能停在局部最优的爬山搜索。
+目标高于 `reachable_max` 或低于 `reachable_min` 时，求解器直接选择对应边界解；目标位于区间内时，按 Block 单位选择最近可达命中量。最终 hit token 精度是硬约束，在此基础上再优化请求过程：warmup 按累计输入比例均衡分配前缀；cold 按 `(Prefix Group, DP rank)` 独立水位搜索，依次最小化累计命中率的最大超调、总超调和回落，再尽快贴近目标。因此不会再把大部分前缀集中到前几条、最后用零/短前缀回调。
+
+严格单调并非所有顺序都可实现，例如后置 Prefix Group/DP lane 的首次 cold 请求必然 miss，或某条请求没有足够前缀容量。此时求解器仍优先选择超调和回落最小的精确总量解；极端搜索空间下会回退到确定性的 exact lane construction，确保最终 effective/theoretical 命中率不被轨迹优化破坏。
 
 Manifest 的输入和输出长度摘要包含 `min`、`max`、`mean`、`p50`、`p90`、`p95`、`p99` 以及最多十个长度分桶。`inspect` 也会展示这些摘要和组级可达范围。
 

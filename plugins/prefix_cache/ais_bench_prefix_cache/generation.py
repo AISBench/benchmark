@@ -8,6 +8,7 @@ import logging
 import math
 import random
 from dataclasses import asdict, dataclass, replace
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Protocol, Sequence
 
@@ -428,14 +429,155 @@ def _plans_for_prefixes(input_lengths: Sequence[int], output_lengths: Sequence[i
     return plans
 
 
+def _balanced_warmup_prefixes(
+    input_lengths: Sequence[int],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+) -> list[int]:
+    """Distribute warmup hits along the request stream instead of front-loading them."""
+    total_input = sum(input_lengths)
+    suffix_capacity = [0] * (len(caps) + 1)
+    for index in range(len(caps) - 1, -1, -1):
+        suffix_capacity[index] = suffix_capacity[index + 1] + caps[index]
+    prefixes: list[int] = []
+    cumulative_input = 0
+    cumulative_units = 0
+    for index, (length, cap) in enumerate(zip(input_lengths, caps)):
+        cumulative_input += length
+        # Track the final effective rate at every prefix.  The lower bound keeps
+        # enough work in the current request to ensure the exact final total is
+        # still reachable after respecting all remaining request capacities.
+        ideal_units = int(desired_hit_units * cumulative_input / total_input + 0.5) if total_input else 0
+        minimum_units = max(cumulative_units, desired_hit_units - suffix_capacity[index + 1])
+        maximum_units = min(desired_hit_units, cumulative_units + cap)
+        next_units = min(max(ideal_units, minimum_units), maximum_units)
+        prefixes.append((next_units - cumulative_units) * block_size)
+        cumulative_units = next_units
+    if cumulative_units != desired_hit_units:
+        return []
+    return prefixes
+
+
+def _target_convergent_cold_prefixes(
+    input_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+    beam_width: int = 256,
+) -> list[int] | None:
+    """Find an exact cold schedule with low cumulative-rate overshoot.
+
+    States retain independent watermarks for every ``(group, rank)`` lane.
+    The lexicographic objective first minimizes peak/total overshoot above the
+    final effective target, then cumulative-rate declines, then distance from
+    the target.  Final hit tokens remain an exact hard constraint.
+    """
+    lane_keys: list[tuple[str, int]] = []
+    lane_index: dict[tuple[str, int], int] = {}
+    request_lanes: list[int] = []
+    for group, rank in zip(group_ids, ranks):
+        key = (group, int(rank or 0))
+        if key not in lane_index:
+            lane_index[key] = len(lane_keys)
+            lane_keys.append(key)
+        request_lanes.append(lane_index[key])
+
+    total_input = sum(input_lengths)
+    target_rate = desired_hit_units * block_size / total_input if total_input else 0.0
+    cumulative_inputs = list(itertools.accumulate(input_lengths))
+
+    @lru_cache(maxsize=65_536)
+    def maximum_future_units(start: int, watermarks: tuple[int, ...]) -> int:
+        future_watermarks = list(watermarks)
+        future_hits = 0
+        for index in range(start, len(caps)):
+            lane = request_lanes[index]
+            cap = caps[index]
+            future_hits += min(cap, future_watermarks[lane])
+            future_watermarks[lane] = max(future_watermarks[lane], cap)
+        return future_hits
+
+    # key=(lane watermarks, cumulative hit units), value=(objective, prefixes).
+    # Objective values are rates, so scenarios with different token lengths use
+    # the same semantics and deterministic tuple comparison.
+    initial_watermarks = (0,) * len(lane_keys)
+    states: dict[
+        tuple[tuple[int, ...], int],
+        tuple[tuple[float, float, float, float], tuple[int, ...]],
+    ] = {(initial_watermarks, 0): ((0.0, 0.0, 0.0, 0.0), ())}
+
+    for index, cap in enumerate(caps):
+        next_states: dict[
+            tuple[tuple[int, ...], int],
+            tuple[tuple[float, float, float, float], tuple[int, ...]],
+        ] = {}
+        lane = request_lanes[index]
+        cumulative_input = cumulative_inputs[index]
+        previous_input = cumulative_inputs[index - 1] if index else 0
+        for (watermarks, hit_units), (objective, prefixes) in states.items():
+            watermark = watermarks[lane]
+            previous_rate = hit_units * block_size / previous_input if previous_input else 0.0
+            for prefix_units in range(cap + 1):
+                hit_increment = min(prefix_units, watermark)
+                next_hit_units = hit_units + hit_increment
+                if next_hit_units > desired_hit_units:
+                    continue
+                next_watermarks_list = list(watermarks)
+                next_watermarks_list[lane] = max(watermark, prefix_units)
+                next_watermarks = tuple(next_watermarks_list)
+                if next_hit_units + maximum_future_units(index + 1, next_watermarks) < desired_hit_units:
+                    continue
+
+                current_rate = next_hit_units * block_size / cumulative_input if cumulative_input else 0.0
+                overshoot = max(0.0, current_rate - target_rate)
+                decline = max(0.0, previous_rate - current_rate)
+                gap = abs(current_rate - target_rate)
+                next_objective = (
+                    max(objective[0], overshoot),
+                    objective[1] + overshoot,
+                    objective[2] + decline,
+                    objective[3] + gap,
+                )
+                key = (next_watermarks, next_hit_units)
+                next_prefixes = prefixes + (prefix_units,)
+                previous = next_states.get(key)
+                if previous is None or (next_objective, next_prefixes) < previous:
+                    next_states[key] = (next_objective, next_prefixes)
+
+        if not next_states:
+            return None
+        if len(next_states) > beam_width:
+            ranked = sorted(
+                next_states.items(),
+                key=lambda item: (
+                    item[1][0],
+                    -sum(item[0][0]),
+                    item[1][1],
+                ),
+            )[:beam_width]
+            states = dict(ranked)
+        else:
+            states = next_states
+
+    exact = [value for (_, hit_units), value in states.items() if hit_units == desired_hit_units]
+    if not exact:
+        return None
+    _, chosen_units = min(exact)
+    return [units * block_size for units in chosen_units]
+
+
 def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[int], group_ids: Sequence[str], ranks: Sequence[int | None], lane_sequences: Sequence[int | None], block_size: int, minimum_non_shared_tokens: int, mode: str, target_hit_rate: float) -> SolveResult:
     """求解每条请求的共享前缀长度（shared_prefix_tokens）。
 
     目标：让整体理论命中率尽量逼近配置的 target_hit_rate。由于共享前缀必须按
     block_size 对齐、且必须为每条请求保留 minimum_non_shared_tokens 的非共享区
     （seed + 自然后缀），再叠加 KV cache 水位约束，目标值不一定能精确达到。
-    求解器先计算可达性区间（min/max），再将目标钳制到最近的 Block 对齐命中量：
-    warmup 按请求容量分配，cold 按 (Prefix Group, DP rank) lane 线性构造精确解。
+    求解器先计算可达性区间（min/max），再将目标钳制到最近的 Block 对齐命中量。
+    在最终命中 token 精确的前提下，warmup 按累计输入比例均衡分配；cold 使用
+    lane 水位感知搜索，优先减少累计命中率超调与回落。搜索受限时回退精确构造。
     """
     logger.info("[gen] solve_prefix_lengths requests=%d block_size=%d minimum_non_shared_tokens=%d mode=%s target_hit_rate=%.4f", len(input_lengths), block_size, minimum_non_shared_tokens, mode, target_hit_rate)
     logger.info("[gen] solve_prefix_lengths input_lengths=%s output_lengths=%s group_ids=%s ranks=%s lane_sequences=%s", list(input_lengths), list(output_lengths), list(group_ids), list(ranks), list(lane_sequences))
@@ -485,41 +627,66 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     )
     desired_hit_tokens = desired_hit_units * block_size
 
-    prefixes = [0] * len(candidates)
     caps = [values[-1] // block_size for values in candidates]
-    remaining_units = desired_hit_units
+    strategy = "target_convergent"
     if mode == "warmup":
-        # warmup 后每个前缀 token 都命中；因此把目标 Block 数按请求容量依次分配即可。
-        for index, cap in enumerate(caps):
-            assigned = min(cap, remaining_units)
-            prefixes[index] = assigned * block_size
-            remaining_units -= assigned
+        # warmup 后每个前缀 token 都命中。按累计输入比例分摊目标 Block，
+        # 让累计命中率从第一条开始贴近目标并保持稳定，不再先填满前几条。
+        prefixes = _balanced_warmup_prefixes(
+            input_lengths, caps, desired_hit_units, block_size,
+        )
     else:
-        # cold 模式按 (group, DP rank) 独立维护水位。对任一 lane：
-        #   lane_hit = sum(prefix_i) - max(prefix_i)
-        # 选容量最大的请求作为 anchor；把所需 hit Block 分配给其余请求，再让
-        # anchor 等于这些请求中的最大前缀。于是 anchor 的前缀恰好抵消 max 项，
-        # lane_hit 精确等于已分配 Block 数。每个 0..lane_max 区间都可构造，无需爬山。
-        lanes: dict[tuple[str, int], list[int]] = {}
-        for index, (group, rank) in enumerate(zip(group_ids, ranks)):
-            lanes.setdefault((group, int(rank or 0)), []).append(index)
-        for lane_indices in lanes.values():
-            anchor = max(lane_indices, key=lambda index: (caps[index], -index))
-            lane_capacity = sum(caps[index] for index in lane_indices if index != anchor)
-            lane_units = min(lane_capacity, remaining_units)
-            lane_remaining = lane_units
-            for index in lane_indices:
-                if index == anchor:
-                    continue
-                assigned = min(caps[index], lane_remaining)
+        prefixes = _target_convergent_cold_prefixes(
+            input_lengths, group_ids, ranks, caps,
+            desired_hit_units, block_size,
+        )
+
+    if not prefixes and desired_hit_units:
+        # 极端多 lane/大状态空间下 beam 可能无法保留精确路径。此时回退旧的
+        # 精确 lane 构造，宁可牺牲轨迹平滑，也不能牺牲最终 target-driven 精度。
+        strategy = "exact_lane_fallback"
+        prefixes = [0] * len(candidates)
+        remaining_units = desired_hit_units
+        if mode == "warmup":
+            for index, cap in enumerate(caps):
+                assigned = min(cap, remaining_units)
                 prefixes[index] = assigned * block_size
-                lane_remaining -= assigned
-            if lane_remaining:
-                raise ArtifactValidationError("cold Prefix Cache lane construction did not consume its target")
-            prefixes[anchor] = max((prefixes[index] for index in lane_indices if index != anchor), default=0)
-            remaining_units -= lane_units
-    if remaining_units:
-        raise ArtifactValidationError("Prefix Cache solver could not construct the selected reachable target")
+                remaining_units -= assigned
+        else:
+            # cold 模式按 (group, DP rank) 独立维护水位。对任一 lane：
+            # lane_hit = sum(prefix_i) - max(prefix_i)。选容量最大的请求作为
+            # anchor，即可精确构造任意 0..lane_max 的 Block 命中量。
+            lanes: dict[tuple[str, int], list[int]] = {}
+            for index, (group, rank) in enumerate(zip(group_ids, ranks)):
+                lanes.setdefault((group, int(rank or 0)), []).append(index)
+            for lane_indices in lanes.values():
+                anchor = max(lane_indices, key=lambda index: (caps[index], -index))
+                lane_capacity = sum(caps[index] for index in lane_indices if index != anchor)
+                lane_units = min(lane_capacity, remaining_units)
+                lane_remaining = lane_units
+                for index in lane_indices:
+                    if index == anchor:
+                        continue
+                    assigned = min(caps[index], lane_remaining)
+                    prefixes[index] = assigned * block_size
+                    lane_remaining -= assigned
+                if lane_remaining:
+                    raise ArtifactValidationError("cold Prefix Cache lane construction did not consume its target")
+                prefixes[anchor] = max((prefixes[index] for index in lane_indices if index != anchor), default=0)
+                remaining_units -= lane_units
+        if remaining_units:
+            raise ArtifactValidationError("Prefix Cache solver could not construct the selected reachable target")
+
+    if not prefixes:
+        prefixes = [0] * len(candidates)
+
+    # The trajectory solver is a secondary objective only.  Verify its exact
+    # total below with the same cache simulator used by the generated Manifest.
+    if any(prefix > values[-1] for prefix, values in zip(prefixes, candidates)):
+        raise ArtifactValidationError("Prefix Cache trajectory solver exceeded a request prefix capacity")
+
+    if strategy == "target_convergent" and mode == "cold":
+        logger.info("[gen] solve_prefix_lengths target-convergent cold schedule selected")
 
     best_error, best_hit = score(prefixes)
     if best_hit != desired_hit_tokens:
@@ -527,8 +694,8 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
             f"Prefix Cache solver constructed {best_hit} hit tokens; expected {desired_hit_tokens}"
         )
     logger.info(
-        "[gen] solve_prefix_lengths strategy=exact_lane_construction desired_hit=%d chosen_prefixes=%s best_error=%d best_hit=%d",
-        desired_hit_tokens, prefixes, best_error, best_hit,
+        "[gen] solve_prefix_lengths strategy=%s desired_hit=%d chosen_prefixes=%s best_error=%d best_hit=%d",
+        strategy, desired_hit_tokens, prefixes, best_error, best_hit,
     )
     # 实际/最低/最高可达的命中率。
     effective_rate = best_hit / total_input if total_input else 0.0

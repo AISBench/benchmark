@@ -112,7 +112,7 @@ flowchart TB
 5. 组级 `overrides` 覆盖该组的输入/输出长度与语料选择；`select_gsm8k` 为每组生成 `group_pools`。
 6. `order_indices` 按 `order.strategy` 重排（`input_len_asc` 需要传入 `input_lengths` 参与组内排序）。
 7. cold 模式下 `assign_cold_routes` 组内轮转分配 `dp_rank`，并为每个 `(group, rank)` lane 编号 `lane_sequence`；warmup 下两者均为 `None`（交给 vLLM 内部负载均衡）。
-8. `solve_prefix_lengths` 对每条请求求解 `shared_prefix_tokens`：先计算全局/分组可达边界，再把目标钳制到最近的 Block 对齐命中量；warmup 直接按请求容量分配，cold 按 `(Prefix Group, DP rank)` lane 利用 `lane_hit = Σprefix - max(prefix)` 线性构造精确解，输出 `SolveResult`（含 effective/min/max/reachable）。
+8. `solve_prefix_lengths` 对每条请求求解 `shared_prefix_tokens`：先计算全局/分组可达边界，再把最终目标钳制到最近的 Block 对齐命中量；在最终 hit token 精确的硬约束下，warmup 按累计输入比例均衡分配，cold 用各 `(Prefix Group, DP rank)` lane 水位状态搜索累计率低超调/少回落的轨迹。搜索受限时回退 `lane_hit = Σprefix - max(prefix)` exact 构造，输出 `SolveResult`（含 effective/min/max/reachable）。
 9. `build_canonical_prefixes` 为每组构造唯一首 block 的 canonical 前缀（首 block 碰撞时轮换语料、仍碰撞则加确定性组标记）。
 10. `find_boundary_safe_token_ids` 选边界安全 token，`build_unique_seed` 按请求派生全局唯一 seed（长度 = `seed_blocks × block_size`）。
 11. `build_prompt` 拼接 `前缀 + seed + 自然后缀`，做 decode/re-encode 往返校验，产出每条请求的最终 prompt 与 token。

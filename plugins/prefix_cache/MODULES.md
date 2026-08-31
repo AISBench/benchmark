@@ -146,12 +146,14 @@
 | `assign_cold_routes` | `(group_ids, dp_size, explicit=None) -> (ranks, lane_sequences)` | cold 路由：组内按出现次序对 `dp_size` 取模轮转（显式传入时校验合法性）；`lane_sequence` 是每个 `(group, rank)` lane 内的递增序号。 |
 | `simulate_theory` | `(plans, mode, warmup_watermarks=None) -> TheorySummary` | 按最终顺序模拟缓存水位：warmup 用 `group_id` 为水位键（初值=各组最大前缀），cold 用 `(group_id, dp_rank)` 为键（从 0 开始）。对每条 `hit=min(prefix, before)`、`after=max(before, prefix)`，产出带 `watermark_before/hit/after` 的 rows 及全局/分组/分 DP 统计。 |
 | `_plans_for_prefixes` | `(input_lengths, output_lengths, group_ids, ranks, lane_sequences, prefixes) -> list[RequestPlan]` | 内部辅助：按给定前缀序列快速构造 RequestPlan 列表，供求解器评分。 |
+| `_balanced_warmup_prefixes` | `(input_lengths, caps, desired_hit_units, block_size) -> list[int]` | warmup 轨迹构造：按累计输入比例跟踪最终有效目标，并用剩余容量下界保证最终 Block 总量精确，避免前置填满、尾部归零。 |
+| `_target_convergent_cold_prefixes` | `(input_lengths, group_ids, ranks, caps, desired_hit_units, block_size, beam_width=256) -> list[int]` | cold 轨迹构造：beam 状态保存各 `(group,rank)` 水位和累计 hit；按最大/总超调、累计率回落、目标距离的字典序选择精确总量解。 |
 
 ### 4.5 前缀求解器
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `solve_prefix_lengths` | `(input_lengths, output_lengths, group_ids, ranks, lane_sequences, block_size, minimum_non_shared_tokens, mode, target_hit_rate) -> SolveResult` | **核心求解器**。① 对每条请求构造 block 对齐候选 `[0, block, 2b, …, floor((len−min_non_shared)/b)*b]`；② 先用全 0 与全最大前缀计算全局/组级 `min/max reachable rate`；③ 将目标命中 token 钳制到可达区间内最近的 Block 整数倍；④ warmup 按请求容量直接分配目标 Block；⑤ cold 按 `(Prefix Group, DP rank)` lane 使用 `lane_hit = Σprefix − max(prefix)`，以最大容量请求为 anchor，在线性时间内构造精确目标，不再使用可能陷入局部最优的爬山搜索；⑥ 返回 `target_reachable`、`adjusted` 和明确的越界/对齐原因。 |
+| `solve_prefix_lengths` | `(input_lengths, output_lengths, group_ids, ranks, lane_sequences, block_size, minimum_non_shared_tokens, mode, target_hit_rate) -> SolveResult` | **核心求解器**。① 构造 block 对齐候选；② 计算全局/组级可达区间；③ 把最终目标钳制到最近可达 Block 总量；④ warmup 均衡跟踪目标，cold 做 lane 水位感知轨迹搜索；⑤ 搜索受限时回退 `lane_hit = Σprefix − max(prefix)` 的 exact anchor 构造；⑥ 用同一 simulator 强校验最终 hit token，并返回 reachable/adjusted/reason。 |
 
 ### 4.6 唯一 seed 与边界安全 token
 

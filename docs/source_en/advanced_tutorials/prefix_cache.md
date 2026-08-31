@@ -136,7 +136,7 @@ shared prefix + globally unique seed + natural GSM8K suffix
 - The seed length is `seed_blocks × block_size`. It is globally unique for every request, preventing accidental sharing beyond the intended prefix.
 - The natural suffix is selected, concatenated, and truncated from GSM8K questions so the non-shared region remains natural-language content.
 
-The plugin solves for the shared-prefix length of every request from the target global hit rate, then simulates cache watermarks in final request order.
+The plugin solves for the shared-prefix length of every request from the target global hit rate, then simulates cache watermarks in final request order. The nearest reachable final hit-token total remains the hard constraint. Among schedules with the same final total, warmup balances prefixes across cumulative input, while cold mode uses Prefix Group/DP-lane watermarks to minimize cumulative-rate overshoot and decline before tracking the target. A strictly monotonic path can be impossible when a late lane has a compulsory first miss or insufficient capacity, but the solver no longer defaults to front-loading hits and compensating with short tail prefixes.
 
 ---
 
