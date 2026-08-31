@@ -4,8 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ais_bench_prefix_cache.artifacts import read_jsonl, sha256_file, validate_artifacts
+from ais_bench_prefix_cache.artifacts import artifact_paths, read_jsonl, sha256_file, validate_artifacts
 from ais_bench_prefix_cache.pipeline import _length_summary, inspect_scenario, prepare_scenario
+from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
 from tests.test_core import scenario_dict
 
 
@@ -71,6 +72,39 @@ class PipelineTest(unittest.TestCase):
             manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
             self.assertEqual(manifest["run_id"], f"pc-test_{timestamp}")
             self.assertEqual(manifest["effective_config"]["run"]["output_dir"], str(expected_root))
+
+    def test_prepare_upgrades_matching_inspect_manifest_in_place(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = write_case(root)
+            timestamp = "20260825_123456"
+            stamped = with_execution_timestamp(load_scenario(source), timestamp)
+            paths = artifact_paths(stamped.output_dir, stamped.run_id)
+            paths.manifest.parent.mkdir(parents=True, exist_ok=True)
+            paths.manifest.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "status": "inspected",
+                        "run_id": stamped.run_id,
+                        "scenario_sha256": sha256_file(source),
+                        "effective_config": stamped.to_effective_dict(),
+                        "inspect": {"summary": {"sends_requests": False}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            prepared = prepare_scenario(
+                source,
+                tokenizer_loader=lambda _: FakeTokenizer(),
+                execution_timestamp=timestamp,
+            )
+
+            manifest = json.loads(prepared.manifest.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["status"], "prepared")
+            self.assertIn("artifacts", manifest)
+            self.assertNotIn("inspect", manifest)
 
     def test_inspect_reports_reachability_without_persisting_run_artifacts(self):
         with tempfile.TemporaryDirectory() as folder:

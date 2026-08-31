@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 import logging
 import tempfile
@@ -7,19 +8,38 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from ais_bench_prefix_cache.artifacts import ArtifactPaths
+from ais_bench_prefix_cache.artifacts import ArtifactPaths, artifact_paths
 from ais_bench_prefix_cache.cli import (
     PromptProgress,
     _install_logger,
-    _persist_inspect_pointer,
-    _reusable_inspect_timestamp,
+    _persist_inspect_manifest,
+    _reusable_execution_timestamp,
     _resolve_log_file,
     console_main,
     main,
 )
 from ais_bench_prefix_cache.errors import PrefixCacheError
-from ais_bench_prefix_cache.scenario import load_scenario
+from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
 from tests.test_pipeline import write_case
+
+
+def _write_execution_manifest(source: Path, timestamp: str, status: str = "inspected", **overrides):
+    scenario = load_scenario(source)
+    stamped = with_execution_timestamp(scenario, timestamp)
+    paths = artifact_paths(stamped.output_dir, stamped.run_id)
+    paths.manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "schema_version": "1.0",
+        "status": status,
+        "run_id": stamped.run_id,
+        "scenario_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "effective_config": stamped.to_effective_dict(),
+    }
+    if status == "prepared":
+        manifest["artifacts"] = {}
+    manifest.update(overrides)
+    paths.manifest.write_text(json.dumps(manifest), encoding="utf-8")
+    return paths.manifest
 
 
 class PromptProgressTest(unittest.TestCase):
@@ -67,80 +87,75 @@ class LogResolverTest(unittest.TestCase):
 
 
 class ReusableTimestampTest(unittest.TestCase):
-    def _pointer(self, root, **overrides):
-        record = {
-            "schema_version": "1.0",
-            "timestamp": "20260825_123456",
-            "run_id": "pc-test",
-            "output_dir": str(root / "out"),
-        }
-        record.update(overrides)
-        pointer = root / "out.inspect.json"
-        pointer.write_text(json.dumps(record), encoding="utf-8")
-        return pointer
-
-    def test_none_without_pointer(self):
+    def test_none_without_manifest(self):
         with tempfile.TemporaryDirectory() as folder:
             scenario = load_scenario(write_case(Path(folder)))
-            self.assertIsNone(_reusable_inspect_timestamp(scenario))
+            self.assertIsNone(_reusable_execution_timestamp(scenario, inspected_only=True))
 
     def test_none_when_schema_version_mismatch(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            scenario = load_scenario(write_case(root))
-            self._pointer(root, schema_version="2.0")
-            self.assertIsNone(_reusable_inspect_timestamp(scenario))
+            source = write_case(root)
+            scenario = load_scenario(source)
+            _write_execution_manifest(source, "20260825_123456", schema_version="2.0")
+            self.assertIsNone(_reusable_execution_timestamp(scenario, inspected_only=True))
 
-    def test_none_when_run_id_mismatch(self):
+    def test_none_when_scenario_hash_mismatch(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            scenario = load_scenario(write_case(root))
-            self._pointer(root, run_id="other")
-            self.assertIsNone(_reusable_inspect_timestamp(scenario))
+            source = write_case(root)
+            scenario = load_scenario(source)
+            _write_execution_manifest(source, "20260825_123456", scenario_sha256="bad")
+            self.assertIsNone(_reusable_execution_timestamp(scenario, inspected_only=True))
 
     def test_none_when_timestamp_malformed(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             scenario = load_scenario(write_case(root))
-            self._pointer(root, timestamp="bad")
-            self.assertIsNone(_reusable_inspect_timestamp(scenario))
+            (root / "out_bad" / "result").mkdir(parents=True)
+            self.assertIsNone(_reusable_execution_timestamp(scenario, inspected_only=True))
 
-    def test_none_when_timestamp_not_a_string(self):
+    def test_reuses_valid_inspect_manifest(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            scenario = load_scenario(write_case(root))
-            self._pointer(root, timestamp=123)
-            self.assertIsNone(_reusable_inspect_timestamp(scenario))
+            source = write_case(root)
+            scenario = load_scenario(source)
+            _write_execution_manifest(source, "20260825_123456")
+            self.assertEqual(
+                _reusable_execution_timestamp(scenario, inspected_only=True),
+                "20260825_123456",
+            )
 
-    def test_none_when_stamped_dir_missing(self):
+    def test_prepare_ignores_prepared_but_run_can_reuse_it(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            scenario = load_scenario(write_case(root))
-            self._pointer(root)
-            self.assertIsNone(_reusable_inspect_timestamp(scenario))
+            source = write_case(root)
+            scenario = load_scenario(source)
+            _write_execution_manifest(source, "20260825_123456", status="prepared")
+            self.assertIsNone(_reusable_execution_timestamp(scenario, inspected_only=True))
+            self.assertEqual(
+                _reusable_execution_timestamp(scenario, inspected_only=False),
+                "20260825_123456",
+            )
 
-    def test_reuses_valid_pointer(self):
+
+class PersistInspectManifestTest(unittest.TestCase):
+    def test_persists_summary_without_standalone_pointer_or_api_key(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            scenario = load_scenario(write_case(root))
-            self._pointer(root)
-            (root / "out_20260825_123456").mkdir(parents=True)
-            self.assertEqual(_reusable_inspect_timestamp(scenario), "20260825_123456")
-
-
-class PersistPointerTest(unittest.TestCase):
-    def test_load_failure_is_best_effort(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            _persist_inspect_pointer(root / "missing.json", root / "x.log", "20260825_123456")
+            source = write_case(root)
+            scenario = load_scenario(source)
+            path = _persist_inspect_manifest(
+                source,
+                {"run_id": scenario.run_id, "sends_requests": False},
+                root / "out_20260825_123456" / "log" / "inspect.log",
+                "20260825_123456",
+            )
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["status"], "inspected")
+            self.assertFalse(manifest["inspect"]["summary"]["sends_requests"])
+            self.assertNotIn("api_key", manifest["effective_config"]["service"])
             self.assertFalse((root / "out.inspect.json").exists())
-
-    def test_write_failure_is_best_effort(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            scenario = write_case(root)
-            with patch("pathlib.Path.write_text", side_effect=OSError("boom")):
-                _persist_inspect_pointer(scenario, root / "out_ts" / "log" / "x.log", "20260825_123456")
 
 
 class InstallLoggerTest(unittest.TestCase):
@@ -219,18 +234,7 @@ class MainFlowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             scenario = write_case(root)
-            (root / "out_20260825_123456").mkdir(parents=True)
-            (root / "out.inspect.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": "1.0",
-                        "timestamp": "20260825_123456",
-                        "run_id": "pc-test",
-                        "output_dir": str(root / "out"),
-                    }
-                ),
-                encoding="utf-8",
-            )
+            _write_execution_manifest(scenario, "20260825_123456")
             calls = []
 
             def fake_prepare(path, overwrite, progress, execution_timestamp):
@@ -278,6 +282,9 @@ class MainFlowTest(unittest.TestCase):
                 self.assertEqual(main(["inspect", "--scenario", str(scenario)]), 0)
             output = json.loads(stdout.getvalue())
             self.assertNotIn("log", output)
+            self.assertIn("manifest", output)
+            self.assertTrue(Path(output["manifest"]).is_file())
+            self.assertFalse((Path(folder) / "out.inspect.json").exists())
 
     def test_console_main_raises_system_exit(self):
         with patch("ais_bench_prefix_cache.cli.main", return_value=3):
@@ -289,18 +296,7 @@ class MainFlowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             scenario = write_case(root)
-            (root / "out_20260825_123456").mkdir(parents=True)
-            (root / "out.inspect.json").write_text(
-                json.dumps(
-                    {
-                        "schema_version": "1.0",
-                        "timestamp": "20260825_123456",
-                        "run_id": "pc-test",
-                        "output_dir": str(root / "out"),
-                    }
-                ),
-                encoding="utf-8",
-            )
+            _write_execution_manifest(scenario, "20260825_123456")
             stdout = io.StringIO()
             with (
                 patch(

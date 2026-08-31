@@ -4,8 +4,8 @@ import json
 import os
 from pathlib import Path
 
-from .errors import PrefixCacheError
-from .scenario import load_scenario, with_execution_timestamp
+from .artifacts import find_latest_execution_manifest
+from .scenario import load_scenario
 
 
 def _manifest(scenario):
@@ -17,17 +17,12 @@ def _manifest(scenario):
     configured = os.environ.get("AISBENCH_PREFIX_CACHE_MANIFEST")
     path = Path(configured).resolve() if configured else scenario.output_dir / "result" / f"{scenario.run_id}.manifest.json"
     if not configured and not path.is_file():
-        # 支持用户直接执行 config_examples/prefix_cache_perf.py：沿用 CLI
-        # 维护的任务指针找到最近一次时间戳产物。run 正常路径始终使用上面的
-        # 精确环境变量，不依赖这个兼容回退。
-        pointer = scenario.output_dir.with_name(f"{scenario.output_dir.name}.inspect.json")
-        try:
-            record = json.loads(pointer.read_text(encoding="utf-8"))
-            if record.get("run_id") == scenario.run_id and record.get("output_dir") == str(scenario.output_dir):
-                stamped = with_execution_timestamp(scenario, record["timestamp"])
-                path = stamped.output_dir / "result" / f"{stamped.run_id}.manifest.json"
-        except (KeyError, OSError, TypeError, PrefixCacheError, json.JSONDecodeError):
-            pass
+        # 支持用户直接执行 config_examples/prefix_cache_perf.py：从时间戳
+        # 结果目录中发现最近一次正式 prepare Manifest。inspect-only Manifest
+        # 没有请求工件，不能用于组装 AISBench 数据集。
+        found = find_latest_execution_manifest(scenario, {"prepared"})
+        if found is not None:
+            _, path, _ = found
     return path, json.loads(path.read_text(encoding="utf-8"))
 
 

@@ -272,7 +272,9 @@
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `build_parser` | `() -> argparse.ArgumentParser` | 定义 5 个子命令：`prepare/--scenario/--overwrite`、`inspect/--scenario`、`validate/--manifest`、`run/--scenario/--config`、`analyze/--manifest/--baseline/--after`。 |
-| `main` | `(argv=None) -> int` | 解析并分发五个命令，维护时间戳任务指针、分层日志和 prepare/run 进度；捕获 `PrefixCacheError` 打印 `ERROR` 并返回 2，否则输出 JSON 并返回 0。 |
+| `_reusable_execution_timestamp` | `(scenario, *, inspected_only) -> str | None` | 从匹配的时间戳 Manifest 发现可复用时间戳；prepare 只接受 `inspected`，run 接受 `inspected/prepared`。 |
+| `_persist_inspect_manifest` | `(scenario_path, result, log_file, timestamp) -> Path` | 把 inspect 摘要、脱敏有效配置和 Scenario SHA 写入 `status="inspected"` 的轻量 Manifest。 |
+| `main` | `(argv=None) -> int` | 解析并分发五个命令，维护 Manifest 驱动的时间戳复用、分层日志和 prepare/run 进度；捕获 `PrefixCacheError` 打印 `ERROR` 并返回 2，否则输出 JSON 并返回 0。 |
 | `console_main` | `() -> None` | `raise SystemExit(main())`，作为 `console_scripts` 入口。 |
 
 ---
@@ -283,7 +285,7 @@
 
 | 函数 | 签名 | 职责 |
 |---|---|---|
-| `_manifest` | `(scenario) -> (Path, dict)` | 优先读取 `AISBENCH_PREFIX_CACHE_MANIFEST` 指向的本次时间戳 Manifest；直接调用时先尝试 `output_dir/result/<run_id>.manifest.json`，再通过任务指针定位最近时间戳产物。 |
+| `_manifest` | `(scenario) -> (Path, dict)` | 优先读取 `AISBENCH_PREFIX_CACHE_MANIFEST` 指向的本次时间戳 Manifest；直接调用时先尝试 `output_dir/result/<run_id>.manifest.json`，再扫描并校验最近的 `status="prepared"` 时间戳 Manifest。 |
 | `build_dataset_config` | `(scenario_path) -> dict` | 返回 dataset 配置：`type=PrefixCacheDataset`、`requests_path/full_path/manifest_path`、`reader_cfg`（input `question/max_out_len`，output `answer`）、`infer_cfg`（`PromptTemplate "{question}"`、`ZeroRetriever`、`PrefixCacheGenInferencer`）、`eval_cfg`（`AccEvaluator`、`pred_role=BOT`）。 |
 | `build_model_config` | `(scenario_path) -> dict` | 返回 model 配置：`type=VLLMPrefixCacheAPI`、`path=tokenizer.path`、`model/inference_url/api_key`、`max_out_len=1`、`retry=2`、`generation_kwargs(temperature=0, ignore_eos=True)`、`batch_size=1`。 |
 

@@ -272,7 +272,7 @@ Block alignment, unique seeds, natural suffixes, Prefix Groups, ordering, and co
 
 ## Output Layout and Timestamps
 
-Timestamps use `_YYYYMMDD_HHMMSS`. In the recommended workflow, `inspect` creates the timestamp, and `prepare` plus `run` reuse the task pointer:
+Timestamps use `_YYYYMMDD_HHMMSS`. In the recommended workflow, `inspect` creates the timestamp and a lightweight Manifest; `prepare` and `run` reuse the task through that Manifest:
 
 ```text
 outputs/gsm8k-prefix-cache-60_20260825_123456/
@@ -288,7 +288,7 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
     └── gsm8k-prefix-cache-60_20260825_123456.analysis.json
 ```
 
-A compatibility pointer named `<output_dir>.inspect.json` is written beside the base output directory. It matches the base `run_id`, `output_dir`, and directory validity; `run` additionally verifies the Manifest Scenario SHA-256. Run `inspect` again after changing other parameters when a fresh directory is required.
+No standalone `<output_dir>.inspect.json` is created. `inspect` stores its summary in `result/<timestamped_run_id>.manifest.json` with `status="inspected"`. When the Scenario SHA-256, timestamped run/output values, and status match, `prepare` upgrades that file in place to `status="prepared"`; `run` can then reuse it. A Scenario content change automatically makes the old Manifest ineligible.
 
 ---
 
@@ -307,9 +307,9 @@ Fixed field index:
 
 - `requests.jsonl`: `question`, `answer`, `max_tokens`;
 - `full.jsonl`: `request_id`, `sequence_index`, `group_id`, `occurrence_index_within_group`, `dp_rank`, `lane_sequence`, `target_input_tokens`, `actual_input_tokens`, `max_tokens`, `shared_prefix_tokens`, `seed_tokens`, `natural_suffix_tokens`, `question`, `answer`, `gsm_indices`, `gsm_hashes`, `canonical_prefix_sha256`, `seed_sha256`, `request_random_seed`, `watermark_before`, `theoretical_hit_tokens`, `watermark_after`, `theoretical_hit_rate`, `divergence_block_sha256`, `divergence_unique`, `collision_status`;
-- Manifest top level: `schema_version`, `plugin_version`, `run_id`, `scenario_path`, `scenario_sha256`, `effective_config`, `effective_config_sha256`, `corpus_sha256`, `tokenizer`, `requests`, `prefix_cache`, `groups`, `dp`, `warmup`, `divergence`, `artifacts`;
+- prepared Manifest top level: `schema_version`, `plugin_version`, `status`, `run_id`, `scenario_path`, `scenario_sha256`, `effective_config`, `effective_config_sha256`, `corpus_sha256`, `tokenizer`, `requests`, `prefix_cache`, `groups`, `dp`, `warmup`, `divergence`, `artifacts`; an inspect-only Manifest uses `status="inspected"` and stores the preview under `inspect.summary`;
 - `analysis.json`: prepare writes schema/run/status, requested/effective/theoretical values, target differences, `validation`, `theory`, and `warnings`; run/analyze add `runtime`, `actual`, and `theory_actual_*_difference_pp`;
-- `inspect` stdout: `run_id`, `mode`, `requested_target_hit_rate`, `effective_target_hit_rate`, `theoretical_hit_rate`, `reachable_min`, `reachable_max`, `target_reachable`, `group_reachability`, `groups`, `input_tokens`, `output_tokens`, `dp_route_counts`, `sends_requests`, `log`.
+- `inspect` stdout: `run_id`, `mode`, `requested_target_hit_rate`, `effective_target_hit_rate`, `theoretical_hit_rate`, `reachable_min`, `reachable_max`, `target_reachable`, `group_reachability`, `groups`, `input_tokens`, `output_tokens`, `dp_route_counts`, `sends_requests`, `log`, `manifest`.
 
 See the plugin README and complete Scenario reference for field types and nested semantics.
 

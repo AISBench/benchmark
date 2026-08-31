@@ -221,7 +221,7 @@ flowchart TB
 
 ## 7. 数据流五：离线命令 `inspect` / `validate` / `analyze`
 
-这三个命令都不发请求、不改正式产物（`inspect` 用临时目录）。
+这三个命令都不发请求。`pipeline.inspect_scenario()` 用临时目录且不改正式数据产物；CLI `inspect` 另行写本次日志和 `status="inspected"` 的轻量 Manifest。
 
 ```mermaid
 flowchart TB
@@ -240,7 +240,7 @@ flowchart TB
     end
 ```
 
-- `inspect`：不访问 vLLM、不发送请求、不在 `output_dir` 留产物；临时目录用完即销毁。
+- `inspect`：不访问 vLLM、不发送请求；临时构造目录用完即销毁。CLI 在时间戳目录保留 inspect 日志和轻量 Manifest，但不保留 full/requests/analysis。
 - `validate`：只校验已有产物完整性，用于发现手工编辑/截断/换序/错误版本。
 - `analyze`：用离线保存的 baseline/after Prometheus 文本重算命中率，不连接 vLLM、不重跑 AISBench。
 

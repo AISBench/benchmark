@@ -56,7 +56,7 @@
 |---|---:|---|---|
 | `run_id` | 否 | `"gsm8k-prefix-cache-60"` | 基础运行 ID。执行时追加时间戳，并作为四类产物的文件名前缀。prepare/run 可复用最近一次有效任务时间戳。 |
 | `random_seed` | 否 | `42` | 控制 GSM8K 随机选择、长度采样、组分配、顺序和唯一 seed。相同输入与配置应生成相同内容。 |
-| `output_dir` | 否 | `"./outputs/gsm8k-prefix-cache-60"` | 基础产物目录。执行时在最后一级目录名后追加与 run ID 相同的时间戳；prepare/run 可复用任务指针指向的目录。 |
+| `output_dir` | 否 | `"./outputs/gsm8k-prefix-cache-60"` | 基础产物目录。执行时在最后一级目录名后追加与 run ID 相同的时间戳；prepare/run 可复用匹配 Manifest 所在目录。 |
 | `overwrite` | 否 | `false` | 兼容保留字段。`prepare` 默认拒绝覆盖同名产物，重建使用 `prepare --overwrite`。 |
 
 假设执行时间戳为 `20260825_123456`，示例会生成：
@@ -71,7 +71,7 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
     └── gsm8k-prefix-cache-60_20260825_123456.analysis.json
 ```
 
-时间戳采用 `_YYYYMMDD_HHMMSS`。`inspect` 每次创建新时间戳；成功的 inspect/prepare/run 会在基础输出目录旁维护兼容指针 `<output_dir>.inspect.json`，后续 prepare/run 在指针匹配且时间戳目录仍存在时复用，否则创建新时间戳。指针只比较基础 `run_id` 和 `output_dir`；run 还会校验 Manifest 的 Scenario SHA-256。
+时间戳采用 `_YYYYMMDD_HHMMSS`。`inspect` 每次创建新时间戳并在时间戳目录的 `result/` 下写轻量 Manifest，不再创建 `<output_dir>.inspect.json`。prepare/run 会扫描时间戳 Manifest，并校验状态、时间戳化 run/output 和 Scenario SHA-256；匹配时复用，否则创建新时间戳。
 
 ## 5. `tokenizer`
 
@@ -511,16 +511,16 @@ Manifest 还会记录输入/输出长度的 min/max/mean/P50/P90/P95/P99 与分�
 
 ### 14.1 `inspect`
 
-`inspect` 会加载 tokenizer 和 GSM8K，在临时目录复用完整 prepare 流程计算可达范围，但不发送请求，也不在正式 `result/` 目录保留四类数据产物。
+`inspect` 会加载 tokenizer 和 GSM8K，在临时目录复用完整 prepare 流程计算可达范围，但不发送请求，也不保留 full/requests/analysis 三类正式数据产物；只在正式 `result/` 目录写入轻量 Manifest。
 
 - 每次执行生成新时间戳；
 - 日志写入 `output_dir_时间戳/log/<run_id_时间戳>.inspect.log`；
-- 成功后写入 `<基础output_dir>.inspect.json`；
-- stdout JSON 包含 `log` 路径。
+- 成功后写入 `output_dir_时间戳/result/<run_id_时间戳>.manifest.json`，`status="inspected"`；
+- stdout JSON 包含 `log` 和 `manifest` 路径。
 
 ### 14.2 `prepare`
 
-`prepare` 优先复用最近一次有效任务指针的时间戳；没有有效指针时生成新时间戳，成功后更新指针。生成 prompt 时进度条写入 stderr，每完成一条 prompt 增加 1；最后一行 stdout JSON 固定包含：
+`prepare` 优先复用最近一次与当前 Scenario 匹配的 inspect Manifest 时间戳；没有匹配项时生成新时间戳。匹配的轻量 Manifest 会原位升级为正式 `status="prepared"` Manifest。生成 prompt 时进度条写入 stderr，每完成一条 prompt 增加 1；最后一行 stdout JSON 固定包含：
 
 | 字段 | 含义 |
 |---|---|
@@ -607,6 +607,7 @@ Manifest 顶层字段：
 |---|---|
 | `schema_version` | Manifest 契约版本，当前为 `"1.0"`。 |
 | `plugin_version` | 生成产物的插件版本。 |
+| `status` | Manifest 生命周期状态；inspect-only 为 `"inspected"`，正式数据产物为 `"prepared"`。 |
 | `run_id` | 已追加执行时间戳的运行 ID。 |
 | `scenario_path` | 原 Scenario 绝对路径。 |
 | `scenario_sha256` | 原 Scenario 文件 SHA-256。 |
@@ -714,7 +715,7 @@ Manifest 不保存 `service.api_key` 明文；它会被替换为 `effective_conf
 
 `run` 和 `analyze` 在实际/理论绝对差超过 `actual_warning_pp` 时添加 `ACTUAL_DEVIATION`；该告警始终不改变成功退出码。
 
-## 18. `inspect` 摘要与复用指针字段
+## 18. `inspect` 摘要与轻量 Manifest 字段
 
 inspect stdout JSON 字段：
 
@@ -732,15 +733,20 @@ inspect stdout JSON 字段：
 | `dp_route_counts` | cold 下各 DP rank 请求数；warmup 通常为空对象。 |
 | `sends_requests` | 固定为 `false`，表示不访问推理服务。 |
 | `log` | inspect 日志路径。 |
+| `manifest` | 本次 inspect 轻量 Manifest 路径。 |
 
-`<基础output_dir>.inspect.json` 字段：
+inspect 轻量 Manifest 顶层字段：
 
 | 字段 | 含义 |
 |---|---|
-| `schema_version` | 指针契约版本，当前为 `"1.0"`。 |
-| `timestamp` | 可复用时间戳，格式 `YYYYMMDD_HHMMSS`。 |
-| `run_id` | 基础运行 ID，不含时间戳。 |
-| `output_dir` | 基础输出目录。 |
-| `output_dir_with_timestamp` | inspect 日志所在的时间戳目录。 |
+| `schema_version`、`plugin_version` | Manifest 契约版本和插件版本。 |
+| `status` | 固定为 `"inspected"`。 |
+| `run_id` | 已追加时间戳的运行 ID。 |
+| `scenario_path`、`scenario_sha256` | 原 Scenario 路径与内容指纹。 |
+| `effective_config` | 补齐默认值并追加时间戳后的有效配置；API key 只记录是否配置。 |
+| `inspect.timestamp` | 可复用时间戳，格式 `YYYYMMDD_HHMMSS`。 |
+| `inspect.base_run_id`、`inspect.base_output_dir` | 未追加时间戳的基础运行 ID 和输出目录。 |
+| `inspect.sends_requests` | 固定为 `false`。 |
+| `inspect.summary` | inspect stdout 摘要的落盘副本（写入时不包含随后追加的 `manifest` 路径）。 |
 
-prepare/run 复用前会检查指针版本、基础 run/output、时间戳格式及时间戳目录是否存在；指针本身不比较 Scenario SHA-256，但 run 会进一步校验 Manifest 指纹。
+prepare/run 复用前会检查 Manifest 版本、状态、时间戳格式、时间戳化 run/output 与 Scenario SHA-256。prepare 只复用 `inspected`，run 可复用 `inspected` 或 `prepared`；直接组装 AISBench 配置只接受 `prepared`。

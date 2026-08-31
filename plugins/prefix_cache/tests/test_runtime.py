@@ -16,7 +16,7 @@ from tests.test_pipeline import write_case
 
 
 class RuntimeIntegrationTest(unittest.TestCase):
-    def test_config_falls_back_to_timestamp_pointer(self):
+    def test_config_falls_back_to_latest_prepared_manifest(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             source = write_case(root)
@@ -24,13 +24,15 @@ class RuntimeIntegrationTest(unittest.TestCase):
             stamped = with_execution_timestamp(scenario, "20260827_123456")
             paths = artifact_paths(stamped.output_dir, stamped.run_id)
             paths.manifest.parent.mkdir(parents=True)
-            paths.manifest.write_text(json.dumps({"run_id": stamped.run_id}), encoding="utf-8")
-            (root / "out.inspect.json").write_text(
+            paths.manifest.write_text(
                 json.dumps(
                     {
-                        "timestamp": "20260827_123456",
-                        "run_id": scenario.run_id,
-                        "output_dir": str(scenario.output_dir),
+                        "schema_version": "1.0",
+                        "status": "prepared",
+                        "run_id": stamped.run_id,
+                        "scenario_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                        "effective_config": stamped.to_effective_dict(),
+                        "artifacts": {},
                     }
                 ),
                 encoding="utf-8",

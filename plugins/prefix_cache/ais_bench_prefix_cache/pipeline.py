@@ -364,6 +364,7 @@ def prepare_scenario(
     manifest = {
         "schema_version": "1.0",
         "plugin_version": __version__,
+        "status": "prepared",
         "run_id": scenario.run_id,
         "scenario_path": str(scenario.source_path),
         "scenario_sha256": sha256_file(scenario.source_path),
@@ -420,7 +421,20 @@ def prepare_scenario(
         },
     }
     logger.info("[prepare] manifest=%s", json.dumps(manifest, ensure_ascii=False))
-    write_json(paths.manifest, manifest, overwrite)
+    manifest_overwrite = overwrite
+    if paths.manifest.is_file() and not overwrite:
+        try:
+            existing_manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing_manifest = {}
+        manifest_overwrite = (
+            existing_manifest.get("status") == "inspected"
+            and existing_manifest.get("run_id") == scenario.run_id
+            and existing_manifest.get("scenario_sha256") == manifest["scenario_sha256"]
+        )
+        if manifest_overwrite:
+            logger.info("[prepare] upgrading inspect Manifest in place: %s", paths.manifest)
+    write_json(paths.manifest, manifest, manifest_overwrite)
     validate_artifacts(paths.manifest)
     logger.info("[prepare] prepare_scenario done paths=%s", {key: str(value) for key, value in paths.__dict__.items()})
     return paths

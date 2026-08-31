@@ -72,6 +72,23 @@ class ValidateArtifactsTest(unittest.TestCase):
         with self.assertRaisesRegex(ArtifactValidationError, "cannot read Manifest"):
             validate_artifacts(Path("/nonexistent/x.manifest.json"))
 
+    def test_inspect_manifest_requests_prepare_first(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manifest_path = Path(folder) / "x.manifest.json"
+            manifest_path.write_text(
+                json.dumps({"status": "inspected", "inspect": {"summary": {}}}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ArtifactValidationError, "run prepare first"):
+                validate_artifacts(manifest_path)
+
+    def test_missing_prepared_artifacts_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manifest_path = Path(folder) / "x.manifest.json"
+            manifest_path.write_text(json.dumps({"status": "prepared"}), encoding="utf-8")
+            with self.assertRaisesRegex(ArtifactValidationError, "required prepared artifacts"):
+                validate_artifacts(manifest_path)
+
     def test_row_count_mismatch_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             manifest_path = self._write_artifacts(folder, self._row(), self._row(), count=5)

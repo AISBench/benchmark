@@ -252,8 +252,8 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 - 展示组分布、输入/输出长度和 cold DP 路由摘要；
 - 不访问 vLLM、不发送请求，也不在 Scenario 的 `output_dir` 留下四类正式数据产物；
 - 与 `prepare` 一样生成 `_YYYYMMDD_HHMMSS` 时间戳，并把详细日志缓存到 `output_dir_时间戳/log/<run_id_时间戳>.inspect.log`；
-- 成功后在基础输出目录旁写入 `<output_dir>.inspect.json` 任务指针，供下一次匹配的 `prepare` 或 `run` 复用同一目录；
-- 输出的 JSON 摘要包含 `log` 字段，可直接定位该日志。
+- 成功后在 `output_dir_时间戳/result/` 写入同名轻量 `manifest.json`，其 `status="inspected"`，并把 inspect 摘要保存在 `inspect.summary`；不会再生成 `<output_dir>.inspect.json`；
+- 输出的 JSON 摘要包含 `log` 和 `manifest` 路径，可直接定位日志与检查结果。
 
 ### 3.4 `prepare`：生成正式数据产物
 
@@ -278,7 +278,7 @@ Generate prompts [##############################] 100/100 100%
 
 进度写入 stderr，最后一行结果 JSON 写入 stdout，方便脚本继续解析。
 
-时间戳采用 `_YYYYMMDD_HHMMSS`。单独执行 `prepare` 且没有可复用指针时会生成新时间戳；成功的 `inspect` 或 `prepare` 会保存指针，后续 `prepare` / `run` 复用该时间戳，使预览、生成、压测和校验位于同一个时间戳目录。
+时间戳采用 `_YYYYMMDD_HHMMSS`。单独执行 `prepare` 且没有可复用 inspect Manifest 时会生成新时间戳；`prepare` 会发现最近一次与当前 Scenario SHA-256 匹配的 `status="inspected"` Manifest，并在同一路径把它安全升级为正式 `status="prepared"` Manifest。`run` 可复用匹配的 inspected/prepared Manifest，使预览、生成、压测和校验位于同一个时间戳目录。
 
 例如配置为：
 
@@ -300,9 +300,7 @@ output_dir: ./outputs/gsm8k-prefix-cache-60
     └── gsm8k-prefix-cache-60_20260825_123456.analysis.json
 ```
 
-因此正常工作流不需要手动修改 `run_id` 或 `output_dir`。执行指针仍使用兼容文件名 `./outputs/gsm8k-prefix-cache-60.inspect.json`，字段为 `schema_version`、`timestamp`、`run_id`、`output_dir` 和 `output_dir_with_timestamp`。
-
-只有当指针版本、基础 `run_id`、基础 `output_dir`、时间戳格式和对应目录都有效时才会复用。指针本身不比较 Scenario 内容哈希；`run` 会额外校验 Manifest 的 `scenario_sha256`，不一致时默认报错，只有 Scenario 中 `run.overwrite=true` 才重建。修改其他参数后需要全新目录时，可重新执行 `inspect` 或删除旧指针。
+因此正常工作流不需要手动修改 `run_id` 或 `output_dir`，基础输出目录旁也不会出现额外的 `.inspect.json` 文件。插件直接扫描 `<output_dir>_时间戳/result/<run_id_时间戳>.manifest.json`，并校验 Manifest 版本、状态、时间戳化 run/output 以及 `scenario_sha256`；修改 Scenario 后旧 Manifest 会自动失配并创建新时间戳。
 
 默认不覆盖同名文件。确定需要重建时使用：
 
@@ -310,7 +308,7 @@ output_dir: ./outputs/gsm8k-prefix-cache-60
 ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
 ```
 
-`--overwrite` 只覆盖本次时间戳目录内该 run 对应的四个确定文件，不会清理整个输出目录。若 `prepare` 复用了已经存在正式产物的 inspect 时间戳，则默认会因同名文件失败；此时应重新执行 `inspect` 获得新时间戳，只有明确要重建同一目录时才使用 `--overwrite`。
+`--overwrite` 只覆盖本次时间戳目录内该 run 对应的四个确定文件，不会清理整个输出目录。匹配的 inspect-only Manifest 可由 prepare 自动升级，不需要 `--overwrite`；正式 prepared Manifest 不会被后续 prepare 当作 inspect 占位复用。
 
 ### 3.5 `validate`：校验已有产物
 
@@ -366,7 +364,7 @@ ais-bench-prefix-cache validate --manifest <manifest路径>
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-这样可以在实际压测前人工审计数据。`prepare` 和 `run` 会复用该任务指针的时间戳；`run` 发现同一时间戳下已有且与 Scenario 匹配的产物时直接复用。
+这样可以在实际压测前人工审计数据。`prepare` 和 `run` 会通过匹配 Manifest 复用时间戳；`run` 发现同一时间戳下已有且与 Scenario 匹配的正式产物时直接复用。
 
 ## 5. cold 与 warmup
 
@@ -478,16 +476,16 @@ DP 路由等字段只存在于 full 文件，不污染通用请求格式。
 
 成功生成时 `status="prepared"`；`run` 完成后为 `"complete"`，`analyze` 复算后为 `"analyzed"`。在线阶段新增 `runtime.metrics_baseline/metrics_after`（含原始 Prometheus 文本和分 DP 累计值）、`actual`、`theory_actual_*_difference_pp` 及 `validation.actual_status`。偏差告警只改变展示值，不改变成功退出码。
 
-### `inspect`、指针和 CLI 返回字段
+### `inspect` Manifest 和 CLI 返回字段
 
-`inspect` 终端 JSON 包含：`run_id`、`mode`、`requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`、`reachable_min`、`reachable_max`、`target_reachable`、`group_reachability`、`groups`、`input_tokens`、`output_tokens`、`dp_route_counts`、`sends_requests`、`log`。其中 `sends_requests` 固定为 `false`。
+`inspect` 终端 JSON 包含：`run_id`、`mode`、`requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`、`reachable_min`、`reachable_max`、`target_reachable`、`group_reachability`、`groups`、`input_tokens`、`output_tokens`、`dp_route_counts`、`sends_requests`、`log`、`manifest`。其中 `sends_requests` 固定为 `false`。
 
-`<output_dir>.inspect.json` 包含：`schema_version`、`timestamp`、`run_id`、`output_dir`、`output_dir_with_timestamp`。
+inspect 写出的轻量 Manifest 顶层包含 `schema_version`、`plugin_version`、`status`、`run_id`、`scenario_path`、`scenario_sha256`、`effective_config` 和 `inspect`。`status` 固定为 `"inspected"`；`inspect` 包含 `timestamp`、`base_run_id`、`base_output_dir`、`sends_requests` 与 `summary`。prepare 原位升级后，该文件变为完整正式 Manifest，`status="prepared"`，并包含请求、组、DP、warmup 和 artifacts 等正式字段。
 
 CLI 最后一段 JSON 的固定字段为：
 
 - `prepare`：`full`、`requests`、`manifest`、`analysis`、`log`；
-- `inspect`：上述 inspect 摘要和 `log`；
+- `inspect`：上述 inspect 摘要、`log` 和 `manifest`；
 - `validate`：`ok`、`rows`、`run_id`；
 - `run`：更新后的完整 analysis JSON；
 - `analyze`：离线复算后的完整 analysis JSON。validate/run/analyze 均写日志，返回 JSON 当前不单独添加 `log` 字段。
@@ -514,4 +512,4 @@ warmup 只负责建立缓存。如果计入请求数、吞吐、时延或命中�
 
 ### 修改 Scenario 后为什么通常不再需要手动改 run_id？
 
-单独执行 `prepare` 时会使用新的秒级时间戳并保存任务指针；执行推荐的 `inspect → prepare → run` 工作流时，后续命令复用同一时间戳。时间戳同时追加到 `run_id` 和 `output_dir`，因此不需要手动改名。`--overwrite` 仅用于明确重建同一时间戳目录。
+单独执行 `prepare` 时会使用新的秒级时间戳；执行推荐的 `inspect → prepare → run` 工作流时，后续命令通过匹配的 Manifest 复用同一时间戳。时间戳同时追加到 `run_id` 和 `output_dir`，因此不需要手动改名。`--overwrite` 仅用于明确重建同一时间戳目录。
