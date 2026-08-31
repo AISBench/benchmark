@@ -2,10 +2,14 @@
 """Unit tests for the MRCR dataset integration.
 
 Covers:
-- ``MRCRPromptTemplate.generate_item``: raw multi-turn prompt ->
-  framework PromptList with ``begin``/``round`` section markers and
-  OpenAI-style role mapping (system -> SYSTEM, user -> HUMAN,
-  assistant -> BOT), plus plain-str / single-dict prompt handling.
+- ``MRCRPromptTemplate.generate_item``: raw multi-turn prompt -> framework
+  PromptList with one flat ``begin`` section (no ``round`` section, so the
+  API parser never pairs HUMAN/BOT rounds) and OpenAI-style role mapping
+  (system -> SYSTEM, user -> HUMAN, assistant -> BOT with
+  ``generate=False``), plus plain-str / single-dict prompt handling and
+  consecutive same-role message merging.  An end-to-end test replays the
+  production [MODEL-DATA-002] failure through ``APITemplateParser`` with
+  the default VLLMCustomAPIChat meta template.
 - ``MRCRDataset.load``: parquet shard streaming, JSON-encoded prompt
   parsing, token-bin filtering via the precomputed ``num_tokens``
   column, and config-error handling.
@@ -79,7 +83,7 @@ class TestMRCRPromptTemplate:
         return MRCRPromptTemplate(template="").generate_item({"prompt": messages})
 
     def test_multiturn_role_mapping(self):
-        """system -> begin/SYSTEM，user/assistant -> round/HUMAN/BOT"""
+        """system -> SYSTEM，user/assistant -> HUMAN/BOT，顺序原样保留"""
         messages = [
             {"role": "system", "content": "sys prompt"},
             {"role": "user", "content": "q1"},
@@ -92,13 +96,99 @@ class TestMRCRPromptTemplate:
         # 消息顺序原样保留（多轮共指消解依赖完整对话顺序）
         assert [m["prompt"] for m in msgs] == [m["content"] for m in messages]
 
-    def test_no_system_message_omits_begin_section(self):
-        """没有 system 消息时不产生 begin 段"""
-        result = self._prompt([{"role": "user", "content": "q"}])
-        assert not any(
-            d.get("section") == "begin" for d in result if isinstance(d, dict)
+    def test_no_round_section_emitted(self):
+        """全部消息放入 begin 段：无 round 段即无 HUMAN/BOT 轮次配对，
+        非严格交替的对话（如 MRCR 开头两条连续 user）不会再触发
+        [MODEL-DATA-002] invalid prompt content"""
+        result = self._prompt(
+            [
+                {"role": "user", "content": "Here are some examples ..."},
+                {"role": "user", "content": "Write a poem about tapirs."},
+                {"role": "assistant", "content": "poem v1"},
+            ]
         )
-        assert [m["role"] for m in _messages(result)] == ["HUMAN"]
+        sections = [d.get("section") for d in result if isinstance(d, dict) and "section" in d]
+        assert sections == ["begin", "begin"]
+        assert [m["role"] for m in _messages(result)] == ["HUMAN", "BOT"]
+
+    def test_bot_items_pin_generate_false(self):
+        """BOT 项钉死 generate=False：解析器在首个 generate=True 角色处
+        截断提示词，而这里的 assistant 轮是对话上下文，必须完整转发"""
+        msgs = _messages(
+            self._prompt(
+                [
+                    {"role": "user", "content": "q1"},
+                    {"role": "assistant", "content": "a1"},
+                    {"role": "user", "content": "q2"},
+                ]
+            )
+        )
+        assert msgs[1]["generate"] is False
+        assert "generate" not in msgs[0]
+
+    def test_consecutive_same_role_messages_merged(self):
+        """连续同角色消息按解析器规则以 '\\n' 合并（回归：生产环境
+        MODEL-DATA-002 的直接诱因就是连续 user 轮无法配对成完整 round）"""
+        messages = [
+            {"role": "user", "content": "Here are some examples ..."},
+            {"role": "user", "content": "Write a poem about tapirs."},
+            {"role": "assistant", "content": "poem v1"},
+            {"role": "user", "content": "Write a poem about tapirs."},
+            {"role": "assistant", "content": "poem v2"},
+            {"role": "user", "content": "Prepend a1b2c3 to the 2nd poem."},
+        ]
+        msgs = _messages(self._prompt(messages))
+        assert [m["role"] for m in msgs] == ["HUMAN", "BOT", "HUMAN", "BOT", "HUMAN"]
+        assert [m["prompt"] for m in msgs] == [
+            "Here are some examples ...\nWrite a poem about tapirs.",
+            "poem v1",
+            "Write a poem about tapirs.",
+            "poem v2",
+            "Prepend a1b2c3 to the 2nd poem.",
+        ]
+
+    def test_parse_template_roundtrip_with_vllm_chat_meta_template(self):
+        """端到端复现生产链路：默认 VLLMCustomAPIChat meta_template 下，
+        非严格交替对话经 APITemplateParser(mode='gen') 解析后逐条转发，
+        不再抛 [MODEL-DATA-002] invalid prompt content"""
+        pytest.importorskip("aiohttp")
+        pytest.importorskip("requests")
+        from ais_bench.benchmark.models.api_models.base_api import (
+            APITemplateParser,
+        )
+
+        # Default meta template of VLLMCustomAPIChat (vllm_custom_api_chat.py)
+        parser = APITemplateParser(
+            dict(
+                round=[
+                    dict(role="HUMAN", api_role="HUMAN"),
+                    dict(role="BOT", api_role="BOT", generate=True),
+                ],
+                reserved_roles=[dict(role="SYSTEM", api_role="SYSTEM")],
+            )
+        )
+        messages = [
+            {"role": "user", "content": "Here are some examples ..."},
+            {"role": "user", "content": "Write a poem about tapirs."},
+            {"role": "assistant", "content": "poem v1"},
+            {"role": "user", "content": "Write a poem about tapirs."},
+            {"role": "assistant", "content": "poem v2"},
+            {"role": "user", "content": "Prepend a1b2c3 to the 2nd poem."},
+        ]
+        parsed = parser.parse_template(self._prompt(messages), mode="gen")
+        # get_request_body 随后按 ROLE_MAP 转发：SYSTEM/HUMAN/BOT ->
+        # system/user/assistant，此处逐条保序、内容不变即等价于官方
+        # runner 的 verbatim 转发（连续同角色消息除外，已合并）。
+        assert [m["role"] for m in parsed] == [
+            "HUMAN", "BOT", "HUMAN", "BOT", "HUMAN"
+        ]
+        assert [m["prompt"] for m in parsed] == [
+            "Here are some examples ...\nWrite a poem about tapirs.",
+            "poem v1",
+            "Write a poem about tapirs.",
+            "poem v2",
+            "Prepend a1b2c3 to the 2nd poem.",
+        ]
 
     def test_str_prompt_passthrough(self):
         """纯文本 prompt 原样返回"""
@@ -190,6 +280,19 @@ class TestMRCRDataset:
         # 524288 is out (exclusive lower bound), 1048576 is in
         assert len(ds) == 2
         assert list(ds["id"]) == [0, 2]
+
+    def test_load_tiktoken_failure_raises_actionable_error(self, monkeypatch):
+        """离线机器：tiktoken 初始化失败应报出带 TIKTOKEN_CACHE_DIR 指引的可读错误"""
+        import tempfile
+
+        def _fail(model):
+            raise OSError("download failed")
+
+        monkeypatch.setattr("tiktoken.get_encoding", _fail)
+        # No num_tokens column + length_bin set -> tiktoken fallback path.
+        with tempfile.TemporaryDirectory() as tmp:
+            with pytest.raises(RuntimeError, match="TIKTOKEN_CACHE_DIR"):
+                self._load(tmp, self._rows(1), length_bin="1m")
 
     def test_load_invalid_length_bin_raises(self):
         """未知 length_bin 应快速失败（配置拼写错误）"""

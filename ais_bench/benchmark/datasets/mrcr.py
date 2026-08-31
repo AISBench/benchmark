@@ -53,6 +53,7 @@ from ais_bench.benchmark.registry import (
     TEXT_POSTPROCESSORS,
 )
 from ais_bench.benchmark.utils.logging import AISLogger
+from ais_bench.benchmark.utils.prompt import PromptList
 
 logger = AISLogger()
 
@@ -88,11 +89,25 @@ class MRCRPromptTemplate(BasePromptTemplate):
 
     MRCR stores the conversation as a JSON-encoded list of ``{role,
     content}`` messages that must reach the chat API unchanged (the
-    official runner posts ``json.loads(row['prompt'])`` verbatim).  This
-    template converts that list into a framework :class:`PromptList`:
-    system messages live in the ``begin`` section, user/assistant turns in
-    the ``round`` section, following the standard section emission used by
-    the built-in chat templates of other gen datasets.
+    official runner posts ``json.loads(row['prompt'])`` verbatim).
+
+    The whole conversation is emitted inside one flat ``begin`` section,
+    in dataset order, with ``generate=False`` pinned on assistant turns:
+
+    - A flat ``begin`` section bypasses the API parser's round splitting
+      (``_split_rounds``), which requires strictly alternating
+      HUMAN/BOT turns and raises MODEL-DATA-002 on conversations that
+      deviate -- e.g. MRCR's instruction preamble followed by the first
+      writing request, i.e. two consecutive user turns.  Inside ``begin``
+      every message is forwarded one by one regardless of role order.
+    - The parser stops emitting at the first role whose ``generate`` flag
+      is set (the model's BOT entry).  Every assistant turn here is
+      conversation *context*, not the turn to be generated, so the flag
+      is overridden to keep the full conversation intact.
+
+    The API parser merges consecutive messages of the same role with a
+    ``"\\n"`` separator, so this template pre-merges them the same way to
+    keep the grouping deterministic and testable.
     """
 
     def __init__(
@@ -120,33 +135,48 @@ class MRCRPromptTemplate(BasePromptTemplate):
 
         # Map the released OpenAI-style roles onto the internal roles the
         # API chat model understands (see ROLE_MAP in vllm_custom_api_chat):
-        #   system -> SYSTEM (begin section)
-        #   user / assistant -> HUMAN / BOT (round section)
-        template: Dict[str, list] = {}
-        system_items = []
-        round_items = []
+        #   system -> SYSTEM, user -> HUMAN, assistant -> BOT
+        items: List[Dict] = []
         for msg in messages:
             if not isinstance(msg, dict):
                 msg = {'role': 'user', 'content': str(msg)}
             raw_role = msg.get('role', 'user')
-            if raw_role == 'system':
-                role = 'SYSTEM'
-            elif raw_role == 'assistant':
+            if raw_role == 'assistant':
                 role = 'BOT'
+            elif raw_role == 'system':
+                role = 'SYSTEM'
             else:
                 role = 'HUMAN'
-            item = {'role': role, 'prompt': msg.get('content', '')}
+            content = msg.get('content', '')
+            if (
+                items
+                and items[-1]['role'] == role
+                and isinstance(items[-1].get('prompt'), str)
+                and isinstance(content, str)
+            ):
+                # Same behaviour as the parser's consecutive-role merge.
+                items[-1]['prompt'] = items[-1]['prompt'] + '\n' + content
+                continue
+            item = {'role': role, 'prompt': content}
+            if role == 'BOT':
+                # Keep emitting subsequent rounds: the parser stops at the
+                # first generate=True role, but here the whole
+                # conversation is context, only the final user turn
+                # awaits a reply.
+                item['generate'] = False
             for key, value in msg.items():
                 if key not in ('role', 'content'):
                     item[key] = value
-            if role == 'SYSTEM':
-                system_items.append(item)
-            else:
-                round_items.append(item)
-        if system_items:
-            template['begin'] = system_items
-        template['round'] = round_items
-        return self._encode_template(template, ice=False)
+            items.append(item)
+
+        # NOTE: built directly instead of _encode_template, which always
+        # requires a 'round' key; a flat begin-only structure is exactly
+        # what this pass-through needs.
+        prompt = PromptList()
+        prompt.append(dict(section='begin', pos='begin'))
+        prompt += items
+        prompt.append(dict(section='begin', pos='end'))
+        return prompt
 
 
 @LOAD_DATASET.register_module()
@@ -214,7 +244,24 @@ class MRCRDataset(BaseDataset):
                 (c for c in _TOKEN_COUNT_COLUMNS if c in schema_names), None)
             if token_column is None:
                 import tiktoken
-                tokenizer = tiktoken.get_encoding(tokenizer_model)
+                try:
+                    tokenizer = tiktoken.get_encoding(tokenizer_model)
+                except Exception as exc:
+                    # Offline hosts cannot fetch the BPE ranks file from
+                    # openaipublic.blob.core.windows.net; surface actionable
+                    # guidance instead of the raw requests traceback.
+                    snippet = ('python -c "import tiktoken; '
+                               "tiktoken.get_encoding('o200k_base')\"")
+                    raise RuntimeError(
+                        f'Failed to load tiktoken encoding '
+                        f'{tokenizer_model!r} (required for length_bin '
+                        f'filtering, parquet has no precomputed token-count '
+                        f'column): {exc}. Offline machine: pre-seed the '
+                        f'tiktoken cache -- on a networked host run '
+                        f'`{snippet}`, copy the cache dir here and export '
+                        f'TIKTOKEN_CACHE_DIR, or set length_bin=None to '
+                        f'skip bin filtering.'
+                    ) from exc
                 logger.info(
                     'No precomputed token-count column found; counting '
                     f'tokens with tiktoken {tokenizer_model!r} for bin '
