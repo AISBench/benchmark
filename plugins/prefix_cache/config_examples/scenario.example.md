@@ -20,6 +20,7 @@
 | `tokenizer` | 否 | token 计算和 Block 对齐。 |
 | `corpus` | 否 | GSM8K 来源及样本选择方式。 |
 | `requests` | 否 | 正式请求数量和输入/输出长度。 |
+| `output` | 否 | 控制最小 `requests.jsonl` 是否输出第三个长度字段。 |
 | `prefix_cache` | 否 | 缓存模式、目标命中率、组和顺序。 |
 | `service` | 否 | vLLM 推理、指标、reset、多 DP 路由与超时配置；离线阶段也使用 `dp_size` 建模。 |
 | `validation` | 否 | 偏差告警阈值。 |
@@ -30,6 +31,7 @@
 - `corpus.selection`：`mode`、`values`、`indices`、`question_sha256`；
 - `requests.input_length`：`mode`、`value`、`values`、`ranges`、`min`、`max`、`mean`、`std`、`path`；每个 range 项只允许 `min`、`max`、`count`；
 - `requests.output_length`：`mode`、`value`、`min`、`max`、`mean`、`std`、`path`；
+- `output`：`output_key`；
 - `prefix_cache.groups`：`count`、`assignment`、`overrides`；assignment 内允许 `mode`、`exponent`、`weights`；
 - `prefix_cache.order`（即 `order` 对象）：`strategy`；
 - 其余对象的允许字段由下文对应字段表完整列出。
@@ -285,6 +287,22 @@ CSV 行数必须等于 `requests.count`，并包含以下任一正整数列：
 
 CSV 必须包含正整数 `output_tokens` 列，行数等于 `requests.count`。
 
+### 7.3 顶层 `output`
+
+```json
+"output": {"output_key": null}
+```
+
+| 字段 | 必填 | 默认值 | 作用 |
+|---|---:|---|---|
+| `output_key` | 否 | `null` | 控制 `requests.jsonl` 的可选第三字段。允许 `null`、`"max_tokens"`、`"output_tokens"`。 |
+
+- `null`：只写 `question`、`answer`；
+- `"max_tokens"`：第三字段名为 `max_tokens`；
+- `"output_tokens"`：第三字段名为 `output_tokens`，值仍取本请求的最大输出 token 数。
+
+该语义与参考脚本 `extract_qa.py --output-key` 一致。`full.jsonl.max_tokens` 永远保留，AISBench 在线执行也从 full 审计行读取输出长度，所以省略第三字段不会影响压测。
+
 ## 8. `prefix_cache`
 
 ```json
@@ -406,7 +424,7 @@ Zipf 分配：
 - `global_shuffle`：全局确定性打乱。
 - `input_len_asc`：每个 Prefix Group 内按输入长度从短到长排列，再按组轮转交错；相同长度保持原始稳定顺序。
 
-理论水位总是按最终发送顺序重新模拟。
+理论水位总是按最终发送顺序重新模拟。若要模拟无预热时 Cache 从短请求到长请求逐步建立，配置 `prefix_cache.mode="cold"` 与 `order.strategy="input_len_asc"`。prepare 会按该顺序生成并落盘，run 阶段即使存在并发任务，也会按每个 `(group_id, dp_rank)` lane 的 `lane_sequence` 严格串行发送；前一条完成后才放行下一条。不同 Group/DP 的 Cache 独立，可彼此并行。
 
 ## 9. `service`
 
@@ -560,13 +578,16 @@ validate 日志写入 Manifest 对应时间戳目录的 `log/<run_id>.validate.l
 
 ### 15.1 `<run_id>.requests.jsonl`
 
-每行严格只包含以下三个字段，且落盘顺序固定：
+每行固定以 `question`、`answer` 开头，并由 `output.output_key` 决定是否追加第三字段：
 
 | 字段 | 类型 | 含义 |
 |---|---|---|
 | `question` | string | 最终完整 prompt。 |
 | `answer` | string | AISBench 兼容占位值，当前固定为 `"none"`。 |
-| `max_tokens` | integer | 最大输出 token 数，来自 `requests.output_length` 或组级覆盖。 |
+| `max_tokens` | integer | 可选；`output_key="max_tokens"` 时输出，值来自 `requests.output_length` 或组级覆盖。 |
+| `output_tokens` | integer | 可选；`output_key="output_tokens"` 时输出，值与内部 `max_tokens` 相同。 |
+
+默认 `output_key=null`，因此每行只有 `question`、`answer`。两个可选长度键不会同时出现。
 
 ### 15.2 `<run_id>.full.jsonl`
 

@@ -135,8 +135,8 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]], overwrite: bool) -> 
     """把多行记录写成 JSONL（每行一个对象），返回写入行数。"""
     materialized = list(rows)
     logger.info("[artifacts] write_jsonl path=%s overwrite=%s rows=%d", path, overwrite, len(materialized))
-    # Preserve insertion order: requests.jsonl has a documented public field
-    # order (question, answer, max_tokens).
+    # Preserve insertion order: requests.jsonl always starts with question and
+    # answer, followed by the optional configured output key.
     text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in materialized)
     _atomic_text(path, text, overwrite)
     return len(materialized)
@@ -188,13 +188,26 @@ def validate_artifacts(manifest_path: Path) -> dict[str, Any]:
     logger.info("[artifacts] validate_artifacts full_rows=%d request_rows=%d expected_count=%s", len(full_rows), len(request_rows), manifest["requests"]["count"])
     if len(full_rows) != len(request_rows) or len(full_rows) != manifest["requests"]["count"]:
         raise ArtifactValidationError("artifact row counts do not match")
+    effective_config = manifest.get("effective_config")
+    if isinstance(effective_config, dict) and isinstance(effective_config.get("output"), dict):
+        output_key = effective_config["output"].get("output_key")
+    else:
+        # 兼容 0.2.0 及更早版本：旧 Manifest 没有 output 配置，requests 固定带 max_tokens。
+        output_key = "max_tokens"
+    if output_key not in (None, "max_tokens", "output_tokens"):
+        raise ArtifactValidationError("Manifest output.output_key is invalid")
+    expected_request_fields = ["question", "answer"]
+    if output_key is not None:
+        expected_request_fields.append(output_key)
     for index, (full, request) in enumerate(zip(full_rows, request_rows)):
-        # 校验顺序一致、requests 字段集合严格为 {question, answer, max_tokens} 且与 full 对齐。
+        # 校验顺序一致、requests 字段集合符合 output 配置且值与 full 对齐。
         if full["sequence_index"] != index:
             raise ArtifactValidationError(f"full row {index} has invalid sequence_index")
-        if set(request) != {"question", "answer", "max_tokens"}:
+        if list(request) != expected_request_fields:
             raise ArtifactValidationError(f"requests row {index} has unexpected fields")
-        if any(request[key] != full[key] for key in request):
+        if request["question"] != full["question"] or request["answer"] != full["answer"]:
+            raise ArtifactValidationError(f"requests row {index} differs from full row")
+        if output_key is not None and request[output_key] != full["max_tokens"]:
             raise ArtifactValidationError(f"requests row {index} differs from full row")
     for key, path in (("full", full_path), ("requests", requests_path)):
         expected = files[key]["sha256"]

@@ -211,6 +211,14 @@ Scenario 会拒绝白名单之外的字段。离线计算使用 `service.dp_size
 
 每个 Prefix Group 独立生成 canonical 前缀、维护缓存水位并统计理论命中率。`groups.overrides.group-N` 可以独立覆盖输入长度、输出长度和语料选择方式。
 
+### requests.jsonl 输出字段
+
+```json
+"output": {"output_key": null}
+```
+
+默认 `null` 时每行只有 `question`、`answer`。也可配置 `"max_tokens"` 或 `"output_tokens"` 作为第三字段名；两者的值都来自内部最大输出 token 数。`full.jsonl.max_tokens` 始终保留，AISBench 从 full 读取生成长度，因此默认省略不影响运行。
+
 ### 请求顺序
 
 `prefix_cache.order.strategy` 支持：
@@ -221,7 +229,7 @@ Scenario 会拒绝白名单之外的字段。离线计算使用 `service.dp_size
 - `global_shuffle`；
 - `input_len_asc`。
 
-理论命中率始终按重排后的最终发送顺序计算。
+理论命中率始终按重排后的最终发送顺序计算。要模拟“无预热、短请求到长请求逐步建立 Cache”，请同时使用 `prefix_cache.mode="cold"` 和 `order.strategy="input_len_asc"`。prepare 会先按组内输入长度升序生成产物；run 时 `LaneSequencer` 保证每个 `(group_id, dp_rank)` lane 只有在前一条请求完成后才放行下一条。不同 Group/DP 的独立 Cache 仍可并行。
 
 ---
 
@@ -297,7 +305,7 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 | 产物 | 作用 |
 |---|---|
 | `full.jsonl` | 完整审计数据，包括组、DP lane、输入长度、公共前缀、唯一 seed、GSM8K 来源、理论水位和碰撞状态。 |
-| `requests.jsonl` | 最小 AISBench 请求，每行严格为 `question`、`answer`、`max_tokens`。 |
+| `requests.jsonl` | 最小 AISBench 请求；默认只有 `question`、`answer`，可由 `output.output_key` 追加 `max_tokens` 或 `output_tokens`。 |
 | `manifest.json` | 有效配置、输入哈希、tokenizer 指纹、长度分布、可达范围、组、DP、warmup 和产物哈希。 |
 | `analysis.json` | requested/effective/theoretical/actual 命中率、baseline/after、分组/分 DP 统计、偏差与 warnings。 |
 
@@ -305,7 +313,7 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 
 固定字段索引：
 
-- `requests.jsonl`：`question`、`answer`、`max_tokens`；
+- `requests.jsonl`：固定 `question`、`answer`；`output.output_key` 默认为 `null`，也可选择追加 `max_tokens` 或 `output_tokens`；
 - `full.jsonl`：`request_id`、`sequence_index`、`group_id`、`occurrence_index_within_group`、`dp_rank`、`lane_sequence`、`target_input_tokens`、`actual_input_tokens`、`max_tokens`、`shared_prefix_tokens`、`seed_tokens`、`natural_suffix_tokens`、`question`、`answer`、`gsm_indices`、`gsm_hashes`、`canonical_prefix_sha256`、`seed_sha256`、`request_random_seed`、`watermark_before`、`theoretical_hit_tokens`、`watermark_after`、`theoretical_hit_rate`、`divergence_block_sha256`、`divergence_unique`、`collision_status`；
 - 正式 Manifest 顶层：`schema_version`、`plugin_version`、`status`、`run_id`、`scenario_path`、`scenario_sha256`、`effective_config`、`effective_config_sha256`、`corpus_sha256`、`tokenizer`、`requests`、`prefix_cache`、`groups`、`dp`、`warmup`、`divergence`、`artifacts`；inspect-only Manifest 的 `status="inspected"`，并以 `inspect.summary` 保存摘要；
 - `analysis.json`：prepare 阶段包含 `schema_version`、`run_id`、`status`、requested/effective/theoretical、目标偏差、`validation`、`theory`、`warnings`；run/analyze 进一步加入 `runtime`、`actual` 和 `theory_actual_*_difference_pp`；

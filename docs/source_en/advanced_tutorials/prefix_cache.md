@@ -211,6 +211,14 @@ When fewer records are specified than required, the selected sequence is reused 
 
 Each Prefix Group has its own canonical prefix, cache watermark, and theoretical statistics. `groups.overrides.group-N` can override input lengths, output lengths, and corpus selection for one group.
 
+### requests.jsonl Output Field
+
+```json
+"output": {"output_key": null}
+```
+
+With the default `null`, each row contains only `question` and `answer`. Set the value to `"max_tokens"` or `"output_tokens"` to append that third key; both carry the internal maximum output-token value. `full.jsonl.max_tokens` is always retained, and AISBench reads the generation length from full, so omitting the public field does not affect execution.
+
 ### Request Ordering
 
 `prefix_cache.order.strategy` supports:
@@ -221,7 +229,7 @@ Each Prefix Group has its own canonical prefix, cache watermark, and theoretical
 - `global_shuffle`;
 - `input_len_asc`.
 
-The theoretical hit rate is always recomputed using the final reordered request sequence.
+The theoretical hit rate is always recomputed using the final reordered request sequence. To model an unwarmed cache growing from short to long requests, combine `prefix_cache.mode="cold"` with `order.strategy="input_len_asc"`. Prepare writes requests in ascending input-length order within each group, and at run time `LaneSequencer` releases the next request on a `(group_id, dp_rank)` lane only after its predecessor finishes. Independent Group/DP caches may still run concurrently.
 
 ---
 
@@ -297,7 +305,7 @@ No standalone `<output_dir>.inspect.json` is created. `inspect` stores its summa
 | Artifact | Purpose |
 |---|---|
 | `full.jsonl` | Complete audit rows: group, DP lane, input lengths, shared prefix, unique seed, GSM8K sources, theoretical watermark, and collision state. |
-| `requests.jsonl` | Minimal AISBench requests. Each row contains exactly `question`, `answer`, and `max_tokens`. |
+| `requests.jsonl` | Minimal AISBench requests. Rows contain `question` and `answer` by default; `output.output_key` may append `max_tokens` or `output_tokens`. |
 | `manifest.json` | Effective configuration, input hashes, tokenizer fingerprint, length distributions, reachable ranges, groups, DP, warmup plan, and artifact hashes. |
 | `analysis.json` | Requested/effective/theoretical/actual rates, baseline/after snapshots, group/DP statistics, differences, validation state, and warnings. |
 
@@ -305,7 +313,7 @@ The plaintext `service.api_key` is not stored in the Manifest; only `api_key_con
 
 Fixed field index:
 
-- `requests.jsonl`: `question`, `answer`, `max_tokens`;
+- `requests.jsonl`: always `question` and `answer`; `output.output_key` defaults to `null` and may append `max_tokens` or `output_tokens`;
 - `full.jsonl`: `request_id`, `sequence_index`, `group_id`, `occurrence_index_within_group`, `dp_rank`, `lane_sequence`, `target_input_tokens`, `actual_input_tokens`, `max_tokens`, `shared_prefix_tokens`, `seed_tokens`, `natural_suffix_tokens`, `question`, `answer`, `gsm_indices`, `gsm_hashes`, `canonical_prefix_sha256`, `seed_sha256`, `request_random_seed`, `watermark_before`, `theoretical_hit_tokens`, `watermark_after`, `theoretical_hit_rate`, `divergence_block_sha256`, `divergence_unique`, `collision_status`;
 - prepared Manifest top level: `schema_version`, `plugin_version`, `status`, `run_id`, `scenario_path`, `scenario_sha256`, `effective_config`, `effective_config_sha256`, `corpus_sha256`, `tokenizer`, `requests`, `prefix_cache`, `groups`, `dp`, `warmup`, `divergence`, `artifacts`; an inspect-only Manifest uses `status="inspected"` and stores the preview under `inspect.summary`;
 - `analysis.json`: prepare writes schema/run/status, requested/effective/theoretical values, target differences, `validation`, `theory`, and `warnings`; run/analyze add `runtime`, `actual`, and `theory_actual_*_difference_pp`;

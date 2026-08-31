@@ -49,7 +49,7 @@
 
 | 常量 | 作用 |
 |---|---|
-| `_ALLOWED` | 逐级字段白名单（顶层 `""`、`run`、`tokenizer`、`corpus`、`corpus.selection`、`requests`、`requests.input_length`、`requests.output_length`、`prefix_cache`、`prefix_cache.groups`、`prefix_cache.groups.assignment`、`prefix_cache.order`、`service`、`validation`、`aisbench`）。未在白名单内的字段一律报 `unknown field`。 |
+| `_ALLOWED` | 逐级字段白名单（顶层 `""`、`run`、`tokenizer`、`corpus`、`corpus.selection`、`requests`、`requests.input_length`、`requests.output_length`、`output`、`prefix_cache`、`prefix_cache.groups`、`prefix_cache.groups.assignment`、`prefix_cache.order`、`service`、`validation`、`aisbench`）。`output` 只允许 `output_key`；其他未在白名单内的字段一律报 `unknown field`。 |
 | `_MODES` | 各节合法 mode 集合：`input`（fixed/explicit/range/truncated_normal/csv）、`output`（fixed/uniform/truncated_normal/csv）、`selection`（random/indices/question_sha256/mixed）、`assignment`（uniform/zipf/weights）、`order`（sequential/within_group_shuffle/interleave/global_shuffle/input_len_asc）、`cache`（cold/warmup）。 |
 
 ### 函数
@@ -93,10 +93,10 @@
 | `sha256_file` | `(path) -> str` | 流式（1MB 块）计算文件 SHA256。 |
 | `_atomic_text` | `(path, text, overwrite) -> None` | 原子写：先建父目录；若文件已存在且 `overwrite=False` 抛 `ArtifactValidationError`（拒绝覆盖）；写临时文件 `.name.tmp-pid` 后 `os.replace` 原子替换；失败清理临时文件。 |
 | `write_json` | `(path, value, overwrite) -> None` | 写 JSON（`ensure_ascii=False, indent=2, sort_keys=True`），走 `_atomic_text`。 |
-| `write_jsonl` | `(path, rows, overwrite) -> int` | 先物化行，**保持插入顺序**（requests.jsonl 有公开字段顺序约定 `question,answer,max_tokens`），逐行 `json.dumps` 后原子写，返回行数。 |
+| `write_jsonl` | `(path, rows, overwrite) -> int` | 先物化行并保持插入顺序；requests.jsonl 固定先写 `question,answer`，随后是 `output.output_key` 指定的可选字段。逐行 `json.dumps` 后原子写，返回行数。 |
 | `read_jsonl` | `(path) -> list[dict]` | 逐行 `json.loads`，跳过空行；IO/JSON 错误抛 `ArtifactValidationError`。 |
 | `artifact_paths` | `(output_dir, run_id) -> ArtifactPaths` | 在 `output_dir/result/` 下由 `run_id` 生成四个文件名。 |
-| `validate_artifacts` | `(manifest_path) -> dict` | 读取 Manifest，校验：full/requests 行数一致且等于 `manifest["requests"]["count"]`；`sequence_index` 连续；requests 每行**严格只含** `question/answer/max_tokens`；requests 与 full 逐行对应；full/requests 的 SHA256 与 Manifest 一致。返回 `{ok, rows, run_id}`。 |
+| `validate_artifacts` | `(manifest_path) -> dict` | 读取 Manifest，校验：full/requests 行数一致且等于 `manifest["requests"]["count"]`；`sequence_index` 连续；requests 每行严格匹配 `output.output_key` 的两/三字段契约；可选 `output_tokens` 映射到 full 的 `max_tokens`；full/requests 的 SHA256 与 Manifest 一致。旧 Manifest 继续按固定 `max_tokens` 校验。返回 `{ok, rows, run_id}`。 |
 
 ---
 

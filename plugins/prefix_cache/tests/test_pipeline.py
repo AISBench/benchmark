@@ -40,10 +40,26 @@ class PipelineTest(unittest.TestCase):
             self.assertTrue(all(path.exists() for path in paths.__dict__.values()))
             self.assertTrue(all(path.parent.name == "result" for path in paths.__dict__.values()))
             requests = read_jsonl(paths.requests)
-            self.assertEqual(set(requests[0]), {"question", "answer", "max_tokens"})
+            self.assertEqual(set(requests[0]), {"question", "answer"})
             first_line = paths.requests.read_text(encoding="utf-8").splitlines()[0]
-            self.assertEqual(list(json.loads(first_line)), ["question", "answer", "max_tokens"])
+            self.assertEqual(list(json.loads(first_line)), ["question", "answer"])
             self.assertTrue(validate_artifacts(paths.manifest)["ok"])
+
+    def test_requests_optional_output_key_matches_extract_qa_semantics(self):
+        for output_key in ("max_tokens", "output_tokens"):
+            with self.subTest(output_key=output_key), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                scenario = write_case(root)
+                data = json.loads(scenario.read_text(encoding="utf-8"))
+                data["output"] = {"output_key": output_key}
+                scenario.write_text(json.dumps(data), encoding="utf-8")
+
+                paths = prepare_scenario(scenario, tokenizer_loader=lambda _: FakeTokenizer())
+                requests = read_jsonl(paths.requests)
+                full = read_jsonl(paths.full)
+                self.assertEqual(list(requests[0]), ["question", "answer", output_key])
+                self.assertEqual(requests[0][output_key], full[0]["max_tokens"])
+                self.assertTrue(validate_artifacts(paths.manifest)["ok"])
 
     def test_prepare_reports_each_generated_prompt(self):
         with tempfile.TemporaryDirectory() as folder:

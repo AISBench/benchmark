@@ -20,6 +20,9 @@
     "input_length": {"mode": "fixed", "value": 1024},
     "output_length": {"mode": "fixed", "value": 32}
   },
+  "output": {
+    "output_key": null
+  },
   "prefix_cache": {
     "mode": "warmup",
     "target_hit_rate": 0.6,

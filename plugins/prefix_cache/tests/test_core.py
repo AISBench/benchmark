@@ -82,6 +82,7 @@ class CoreTest(unittest.TestCase):
             self.assertEqual(effective["requests"]["count"], 100)
             self.assertEqual(effective["requests"]["input_length"], {"mode": "fixed", "value": 1024})
             self.assertEqual(effective["requests"]["output_length"], {"mode": "fixed", "value": 32})
+            self.assertEqual(effective["output"], {"output_key": None})
             self.assertEqual(effective["prefix_cache"]["mode"], "warmup")
             self.assertEqual(effective["prefix_cache"]["target_hit_rate"], 0.6)
             self.assertEqual(effective["prefix_cache"]["minimum_non_shared_length"], 16)
@@ -100,6 +101,7 @@ class CoreTest(unittest.TestCase):
                 "tokenizer": {},
                 "corpus": {"selection": {}},
                 "requests": {"input_length": {}, "output_length": {}},
+                "output": {},
                 "prefix_cache": {"groups": {"assignment": {}}, "order": {}},
                 "service": {},
                 "validation": {},
@@ -108,6 +110,7 @@ class CoreTest(unittest.TestCase):
             self.assertEqual(effective["corpus"]["selection"]["mode"], "random")
             self.assertEqual(effective["requests"]["input_length"], {"mode": "fixed", "value": 1024})
             self.assertEqual(effective["requests"]["output_length"], {"mode": "fixed", "value": 32})
+            self.assertEqual(effective["output"], {"output_key": None})
             self.assertEqual(effective["prefix_cache"]["groups"]["count"], 1)
             self.assertEqual(effective["prefix_cache"]["groups"]["assignment"]["mode"], "uniform")
             self.assertEqual(effective["prefix_cache"]["order"]["strategy"], "interleave")

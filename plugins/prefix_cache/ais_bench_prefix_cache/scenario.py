@@ -12,7 +12,7 @@ from .errors import ScenarioValidationError
 
 
 _ALLOWED = {
-    "": {"schema_version", "run", "tokenizer", "corpus", "requests", "prefix_cache", "service", "validation", "aisbench"},
+    "": {"schema_version", "run", "tokenizer", "corpus", "requests", "output", "prefix_cache", "service", "validation", "aisbench"},
     "run": {"run_id", "random_seed", "output_dir", "overwrite"},
     "tokenizer": {"path", "block_size", "revision", "trust_remote_code"},
     "corpus": {"path", "field", "selection"},
@@ -20,6 +20,7 @@ _ALLOWED = {
     "requests": {"count", "input_length", "output_length"},
     "requests.input_length": {"mode", "value", "values", "ranges", "min", "max", "mean", "std", "path"},
     "requests.output_length": {"mode", "value", "min", "max", "mean", "std", "path"},
+    "output": {"output_key"},
     "prefix_cache": {"mode", "target_hit_rate", "seed_blocks", "minimum_non_shared_length", "groups", "order"},
     "prefix_cache.groups": {"count", "assignment", "overrides"},
     "prefix_cache.groups.assignment": {"mode", "exponent", "weights"},
@@ -254,6 +255,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     data.setdefault("tokenizer", {})
     data.setdefault("corpus", {})
     data.setdefault("requests", {})
+    data.setdefault("output", {})
     data.setdefault("prefix_cache", {})
     data.setdefault("service", {})
     data.setdefault("validation", {})
@@ -262,6 +264,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     tokenizer = _require_dict(data["tokenizer"], "tokenizer")
     corpus = _require_dict(data["corpus"], "corpus")
     requests = _require_dict(data["requests"], "requests")
+    output = _require_dict(data["output"], "output")
     pc = _require_dict(data["prefix_cache"], "prefix_cache")
     service = _require_dict(data["service"], "service")
     run.setdefault("run_id", "gsm8k-prefix-cache-60")
@@ -281,6 +284,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
         output_cfg.setdefault("mode", "fixed")
         if output_cfg["mode"] == "fixed":
             output_cfg.setdefault("value", 32)
+    output.setdefault("output_key", None)
     pc.setdefault("mode", "warmup")
     pc.setdefault("target_hit_rate", 0.6)
     pc.setdefault("seed_blocks", 1)
@@ -321,6 +325,10 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     output_cfg = _require_dict(output_cfg, "requests.output_length")
     _validate_input_config(input_cfg, "requests.input_length", source.parent, count)
     _validate_output_config(output_cfg, "requests.output_length", source.parent)
+    if output["output_key"] not in (None, "max_tokens", "output_tokens"):
+        raise ScenarioValidationError(
+            "output.output_key must be null, 'max_tokens', or 'output_tokens'"
+        )
     cache_mode = _mode(pc, _MODES["cache"], "prefix_cache")
     target = pc.get("target_hit_rate")
     if isinstance(target, bool) or not isinstance(target, (int, float)) or not 0 <= target <= 1:

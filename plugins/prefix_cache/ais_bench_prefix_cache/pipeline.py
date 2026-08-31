@@ -300,7 +300,13 @@ def prepare_scenario(
         }
         for row in theory.rows
     ]
-    request_rows = [{"question": row.question, "answer": row.answer, "max_tokens": row.max_tokens} for row in theory.rows]
+    request_output_key = effective["output"]["output_key"]
+    request_rows = []
+    for row in theory.rows:
+        request_row = {"question": row.question, "answer": row.answer}
+        if request_output_key is not None:
+            request_row[request_output_key] = row.max_tokens
+        request_rows.append(request_row)
     logger.info("[prepare] full_rows=%d request_rows=%d first_full_row=%s", len(full_rows), len(request_rows), full_rows[0])
     paths = artifact_paths(scenario.output_dir, scenario.run_id)
     logger.info("[prepare] paths full=%s requests=%s manifest=%s analysis=%s", paths.full, paths.requests, paths.manifest, paths.analysis)

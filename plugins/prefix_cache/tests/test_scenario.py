@@ -311,6 +311,9 @@ class LoadScenarioErrorTest(unittest.TestCase):
     def test_order_strategy_rejected(self):
         self._expect({"prefix_cache": {"order": {"strategy": "bogus"}}}, "order.strategy")
 
+    def test_output_key_rejected(self):
+        self._expect({"output": {"output_key": "bogus"}}, "output.output_key")
+
     def test_service_fields_rejected(self):
         for field in ("inference_url", "metrics_url", "model"):
             self._expect({"service": {field: ""}}, f"service.{field}")

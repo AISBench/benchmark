@@ -93,7 +93,7 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 
 各参数的默认值、约束和模式见 [Scenario 参数说明](config_examples/scenario.example.md)。下面给出完整字段索引和最关键的数据构造参数，README 本身可作为快速使用手册。
 
-Scenario 中省略的字段会使用 `scenario.example.json` 的当前值作为默认值，包括默认 run、tokenizer、GSM8K 路径、100 条固定 1024-token 请求、warmup 60% 目标、单一 uniform Prefix Group 和 DP 2。`minimum_non_shared_length` 是安全例外：它按 `seed_blocks × block_size` 动态推导；使用示例默认值时仍为 16。
+Scenario 中省略的字段会使用 `scenario.example.json` 的当前值作为默认值，包括默认 run、tokenizer、GSM8K 路径、100 条固定 1024-token 请求、`output.output_key=null`（requests 不带输出长度字段）、warmup 60% 目标、单一 uniform Prefix Group 和 DP 2。`minimum_non_shared_length` 是安全例外：它按 `seed_blocks × block_size` 动态推导；使用示例默认值时仍为 16。
 
 ### 3.2 Prefix Cache 数据构造参数
 
@@ -106,6 +106,7 @@ Scenario 采用严格白名单，完整配置层级如下；未列出的字段�
 - `requests`：`count`、`input_length`、`output_length`；
   - `input_length` 支持 `mode`、`value`、`values`、`ranges`、`min`、`max`、`mean`、`std`、`path`，其中 `ranges` 项只允许 `min`、`max`、`count`；
   - `output_length` 支持 `mode`、`value`、`min`、`max`、`mean`、`std`、`path`；
+- `output`：`output_key`，允许 `null`、`"max_tokens"`、`"output_tokens"`；
 - `prefix_cache`：`mode`、`target_hit_rate`、`seed_blocks`、`minimum_non_shared_length`、`groups`、`order`；
   - `groups` 支持 `count`、`assignment`、`overrides`；
   - `assignment` 支持 `mode`、`exponent`、`weights`；
@@ -116,6 +117,20 @@ Scenario 采用严格白名单，完整配置层级如下；未列出的字段�
 - `aisbench`：`config`、`work_dir`、`extra_args`；离线命令不消费，`run` 用于渲染配置并启动 AISBench perf。
 
 各字段逐项含义见 [Scenario 完整字段说明](config_examples/scenario.example.md)。
+
+#### requests.jsonl 输出字段
+
+```json
+"output": {"output_key": null}
+```
+
+该配置参考 `extract_qa.py --output-key`：
+
+- `null`：默认，只输出 `question`、`answer`；
+- `"max_tokens"`：追加 `max_tokens`；
+- `"output_tokens"`：追加 `output_tokens`，值仍来自本请求生成的 `max_tokens`。
+
+无论公开的 requests 文件是否带第三字段，完整审计文件 `full.jsonl` 都保留 `max_tokens`，AISBench Dataset 也从 full 文件读取 `max_out_len`，因此默认省略不会改变实际生成长度。
 
 #### 输入长度模式
 
@@ -213,7 +228,7 @@ Scenario 加载阶段会检查每种输入长度模式的最小值是否能容�
 - `global_shuffle`：所有请求全局确定性打乱；
 - `input_len_asc`：每个 Prefix Group 内按输入长度从短到长排序，再按组轮转交错；相同长度保持原始顺序。
 
-理论命中率始终按照最终发送顺序重新模拟。cold 模式下，同一个 `(Prefix Group, DP rank)` lane 的正式请求会保持该顺序，即使 AISBench 并发发送也不会破坏理论缓存水位。
+理论命中率始终按照最终发送顺序重新模拟。使用 `input_len_asc` + `cold` 时，短到长顺序会贯穿四个阶段：prepare 先重排长度和 Group，`requests.jsonl` / `full.jsonl` 按该顺序落盘，Dataset 校验 `sequence_index` 与行号一致，Inferencer 最后用 `LaneSequencer` 按 `(Prefix Group, DP rank)` 的 `lane_sequence` 串行放行。只有前一条请求完成后才发送同一 lane 的下一条，因此即使 AISBench 并发创建任务，也能模拟“首次请求无缓存，后续短请求到长请求逐步建立 Cache”。不同 Group 或 DP 的缓存彼此独立，仍可并发，不要求全局串行。
 
 #### 可达性与长度统计
 
@@ -322,7 +337,7 @@ ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60_<时�
 
 - Manifest、full 和 requests 行数是否一致；
 - `sequence_index` 是否连续；
-- requests 是否严格只含 `question`、`answer`、`max_tokens`；
+- requests 是否严格只含 `question`、`answer` 以及 `output.output_key` 指定的可选第三字段；
 - requests 与 full 是否逐行对应；
 - full 和 requests 的 SHA-256 是否匹配 Manifest。
 
@@ -424,13 +439,13 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 ### `<run_id>.requests.jsonl`
 
-最小输入，每行字段顺序严格为 `question`、`answer`、`max_tokens`：
+最小输入，每行固定先写 `question`、`answer`，再按 `output.output_key` 决定是否追加第三字段：
 
 - `question`：最终完整 prompt；
 - `answer`：当前固定为 `"none"`；
-- `max_tokens`：该请求最大输出 token 数。
+- `max_tokens` 或 `output_tokens`：可选；值为该请求最大输出 token 数。默认 `output_key=null`，两者都不写。
 
-DP 路由等字段只存在于 full 文件，不污染通用请求格式。
+`full.jsonl` 始终保留 `max_tokens`。DP 路由等字段也只存在于 full 文件，不污染通用请求格式。
 
 ### `<run_id>.manifest.json`
 
