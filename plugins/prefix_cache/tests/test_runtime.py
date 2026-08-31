@@ -1,13 +1,15 @@
 import hashlib
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import patch
 
 from ais_bench_prefix_cache.artifacts import artifact_paths
-from ais_bench_prefix_cache.config import _manifest
+from ais_bench_prefix_cache.config import _manifest, build_model_config
 from ais_bench_prefix_cache.metrics import MetricSnapshot, RankMetrics
 from ais_bench_prefix_cache.runtime import render_aisbench_config, run_aisbench_with_polling, run_scenario
 from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
@@ -15,6 +17,35 @@ from tests.test_pipeline import write_case
 
 
 class RuntimeIntegrationTest(unittest.TestCase):
+    def test_model_config_enables_streaming_metrics(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = write_case(root)
+            scenario = load_scenario(source)
+            paths = artifact_paths(scenario.output_dir, scenario.run_id)
+            paths.manifest.parent.mkdir(parents=True, exist_ok=True)
+            paths.manifest.write_text(
+                json.dumps({"run_id": scenario.run_id}),
+                encoding="utf-8",
+            )
+
+            class FakeVLLMPrefixCacheAPI:
+                pass
+
+            models_module = ModuleType("ais_bench_prefix_cache.models")
+            models_module.VLLMPrefixCacheAPI = FakeVLLMPrefixCacheAPI
+            with (
+                patch.dict(sys.modules, {models_module.__name__: models_module}),
+                patch.dict(
+                    os.environ,
+                    {"AISBENCH_PREFIX_CACHE_MANIFEST": str(paths.manifest)},
+                ),
+            ):
+                model_config = build_model_config(source)
+
+            self.assertIs(model_config["type"], FakeVLLMPrefixCacheAPI)
+            self.assertIs(model_config["stream"], True)
+
     def test_config_falls_back_to_latest_prepared_manifest(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

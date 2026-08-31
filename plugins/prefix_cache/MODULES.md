@@ -290,7 +290,7 @@
 |---|---|---|
 | `_manifest` | `(scenario) -> (Path, dict)` | 优先读取 `AISBENCH_PREFIX_CACHE_MANIFEST` 指向的本次时间戳 Manifest；直接调用时先尝试 `output_dir/result/<run_id>.manifest.json`，再扫描并校验最近的 `status="prepared"` 时间戳 Manifest。 |
 | `build_dataset_config` | `(scenario_path) -> dict` | 返回 dataset 配置：`type=PrefixCacheDataset`、`requests_path/full_path/manifest_path`、`reader_cfg`（input `question/max_out_len`，output `answer`）、`infer_cfg`（`PromptTemplate "{question}"`、`ZeroRetriever`、`PrefixCacheGenInferencer`）、`eval_cfg`（`AccEvaluator`、`pred_role=BOT`）。 |
-| `build_model_config` | `(scenario_path) -> dict` | 返回 model 配置：`type=VLLMPrefixCacheAPI`、`path=tokenizer.path`、`model/inference_url/api_key`、`max_out_len=1`、`retry=2`、`generation_kwargs(temperature=0, ignore_eos=True)`、`batch_size=1`。 |
+| `build_model_config` | `(scenario_path) -> dict` | 返回 model 配置：`type=VLLMPrefixCacheAPI`、`path=tokenizer.path`、`model/inference_url/api_key`、`stream=True`、`max_out_len=1`、`retry=2`、`generation_kwargs(temperature=0, ignore_eos=True)`、`batch_size=1`。显式流式模式保证 AISBench 能按 chunk 时间点计算 TTFT、TPOT 和 ITL。 |
 
 ---
 
@@ -319,7 +319,7 @@
 | `get_request_body(input_data, max_out_len, output, dp_rank=None, **args)` | 调父类构造 body 后，把 `dp_rank` 写入 `body[_DP_KEY]`。 |
 | `_payload_and_headers(request_body)` | 从 body 剥离 `_DP_KEY` 生成 payload，若有 rank 则写 `X-data-parallel-rank` 头。 |
 | `text_infer(request_body, output)` | 非流式推理：`_payload_and_headers` → POST → 状态码校验 → `parse_text_response`；JSON 非法抛 `AISBenchValueError(PARSE_TEXT_RSP_INVALID_FORMAT)`。 |
-| `stream_infer(request_body, output)` | 流式推理：POST 后逐行解析 SSE（`data:`/`[DONE]`），调 `parse_stream_response`。 |
+| `stream_infer(request_body, output)` | 正式 perf 使用的流式推理：POST 后逐行解析 SSE（`data:`/`[DONE]`），为每个有效 chunk 记录时间点并调 `parse_stream_response`，用于 TTFT、TPOT 和 ITL 计算。 |
 
 ---
 

@@ -99,6 +99,8 @@ ais-bench-prefix-cache validate --manifest \
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
+Formal AISBench requests issued by `run` always use vLLM SSE streaming. Request-start, first-chunk, and subsequent chunk timestamps are used to produce TTFT, TPOT, ITL, E2EL, and throughput metrics. Precheck and warmup use separate non-streaming requests before the baseline and are excluded from formal performance statistics.
+
 With saved Prometheus snapshots, recompute without contacting vLLM:
 
 ```shell
@@ -247,7 +249,7 @@ The theoretical hit rate is always recomputed using the final reordered request 
 - One warmup item is generated for every `Prefix Group × DP rank`.
 - The plan is written to `warmup.plan` in the Manifest.
 - Warmup requests are not written to `requests.jsonl` and are excluded from the formal request count and theoretical denominator.
-- The current plugin generates the plan but does not send warmup requests.
+- `prepare` only generates the plan; `run` sends every item to its designated `Prefix Group × DP rank` before the formal baseline.
 
 ---
 

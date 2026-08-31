@@ -99,6 +99,8 @@ ais-bench-prefix-cache validate --manifest \
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
+`run` 的正式 AISBench 请求固定使用 vLLM SSE 流式响应，按请求开始、首个响应 chunk 和后续 chunk 的时间点生成 TTFT、TPOT、ITL、E2EL 与吞吐量指标。探活和 warmup 使用 baseline 前的独立非流式请求，不进入正式性能统计。
+
 已有 Prometheus 快照时，可在不连接 vLLM 的情况下复算：
 
 ```shell
@@ -247,7 +249,7 @@ Scenario 会拒绝白名单之外的字段。离线计算使用 `service.dp_size
 - 为每个 `Prefix Group × DP rank` 生成一条预热计划；
 - 预热计划写入 Manifest 的 `warmup.plan`；
 - warmup 请求不写入 `requests.jsonl`，不进入正式请求数量和理论统计分母；
-- 当前插件只生成预热计划，不实际发送预热请求。
+- `prepare` 只生成预热计划；`run` 会在正式 baseline 之前把计划逐 `Prefix Group × DP rank` 定向发送。
 
 ---
 

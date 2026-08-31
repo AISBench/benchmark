@@ -182,7 +182,7 @@ flowchart TB
     D --> D1["get_data_list：把 dp_rank/group_id/lane_sequence/cache_mode 注入每条 data"]
     D1 --> D2{"cache_mode == cold?"}
     D2 -- 是 --> D3["LaneSequencer.wait_turn(lane, seq)<br/>保证 (group,dp) lane 内顺序"]
-    D3 --> D4["do_request → VLLMPrefixCacheAPI.text_infer/stream_infer"]
+    D3 --> D4["do_request → VLLMPrefixCacheAPI.stream_infer"]
     D2 -- 否 --> D4
     D4 --> D5["_payload_and_headers：剥离 _DP_KEY，写入 X-data-parallel-rank 头"]
     D5 --> D6["POST /v1/completions → vLLM"]
@@ -192,6 +192,7 @@ flowchart TB
 
 - **`PrefixCacheDataset.load`**：把 `requests.jsonl`（最小字段）与 `full.jsonl`（审计字段）逐行合并，输出 `question/answer/max_out_len` 外加 `dp_rank/group_id/lane_sequence/cache_mode` 五列元数据。
 - **`VLLMPrefixCacheAPI.__init__`**：解析 `inference_url` 提取 base URL（供父类），同时保存完整 URL 供自己 POST；`get_request_body` 把 `dp_rank` 塞进 body 的 `_DP_KEY`；`_payload_and_headers` 再把它剥离并转为 `X-data-parallel-rank` 头，避免污染请求 payload。
+- **流式性能采集**：`build_model_config` 固定设置 `stream=True`，正式 perf 通过 SSE 为请求开始和每个有效响应 chunk 记录时间点，从而生成 TTFT、TPOT、ITL、E2EL 与吞吐量；precheck/warmup 使用 runtime 的独立非流式客户端，且在 baseline 前完成。
 - **`PrefixCacheGenInferencer`**：cold 模式下用 `LaneSequencer`（`asyncio.Condition` 实现的逐 lane 屏障）保证同一 `(group_id, dp_rank)` lane 内的请求按 `lane_sequence` 顺序发出，即使 AISBench 并发发送也不破坏理论水位。
 - warmup 模式跳过 lane 序列化，交给 vLLM 内部负载均衡。
 

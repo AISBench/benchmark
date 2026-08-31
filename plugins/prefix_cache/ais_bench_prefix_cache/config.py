@@ -64,8 +64,8 @@ def build_model_config(scenario_path: str | Path) -> dict:
     """构造 AISBench 的模型（推理服务）配置字典。
 
     从场景的 service/tokenizer 段取出模型名、推理地址、api_key 等，
-    封装为 VLLMPrefixCacheAPI；max_out_len=1 表示本基准只关心
-    前缀命中，不关心实际生成内容。
+    封装为 VLLMPrefixCacheAPI，并显式启用流式响应，以便 AISBench
+    按首 token 和后续 token 到达时间计算 TTFT、TPOT 与 ITL。
     """
     from .models import VLLMPrefixCacheAPI
 
@@ -80,6 +80,7 @@ def build_model_config(scenario_path: str | Path) -> dict:
         model=service["model"],
         inference_url=service["inference_url"],
         api_key=service.get("api_key", ""),
+        stream=True,
         max_out_len=1,
         retry=2,
         generation_kwargs=dict(temperature=0, ignore_eos=True),
