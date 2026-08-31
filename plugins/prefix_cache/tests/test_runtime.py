@@ -4,13 +4,12 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from ais_bench_prefix_cache.artifacts import artifact_paths
 from ais_bench_prefix_cache.config import _manifest
 from ais_bench_prefix_cache.metrics import MetricSnapshot, RankMetrics
-from ais_bench_prefix_cache.runtime import render_aisbench_config, run_scenario
+from ais_bench_prefix_cache.runtime import render_aisbench_config, run_aisbench_with_polling, run_scenario
 from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
 from tests.test_pipeline import write_case
 
@@ -121,19 +120,62 @@ class RuntimeIntegrationTest(unittest.TestCase):
                 def snapshot(self):
                     return next(self.snapshots)
 
+            class FakePopen:
+                def __init__(self, command, env=None):
+                    pass
+
+                def poll(self):
+                    return 0
+
+                def wait(self):
+                    return 0
+
             with (
                 patch("ais_bench_prefix_cache.runtime.prepare_scenario", side_effect=fake_prepare) as prepare,
                 patch("ais_bench_prefix_cache.runtime.validate_artifacts"),
                 patch("ais_bench_prefix_cache.runtime.VLLMClient", FakeClient),
                 patch("ais_bench_prefix_cache.runtime.render_aisbench_config", return_value=root / "generated.py"),
-                patch("ais_bench_prefix_cache.runtime.subprocess.run", return_value=SimpleNamespace(returncode=0)),
+                patch("ais_bench_prefix_cache.runtime.subprocess.Popen", FakePopen),
             ):
                 result = run_scenario(source, execution_timestamp=timestamp)
 
             prepare.assert_called_once()
             self.assertEqual(result["status"], "complete")
             self.assertEqual(result["actual"]["global_hit_rate"], 0.5)
+            self.assertEqual(result["runtime"]["kv_cache_polling"]["count"], 0)
+            self.assertIn("global_kv_cache_usage_peak", result["actual"])
             self.assertTrue(paths.analysis.is_file())
+
+    def test_run_aisbench_with_polling_samples_kv_until_exit(self):
+        class FakeProcess:
+            def __init__(self, command, env=None):
+                self.calls = 0
+
+            def poll(self):
+                self.calls += 1
+                return None if self.calls < 4 else 0
+
+            def wait(self):
+                return 0
+
+        snapshots = iter([
+            MetricSnapshot({0: RankMetrics(1, 0, 0.5)}, {"queries": "q", "hits": "h"}, ""),
+            MetricSnapshot({0: RankMetrics(2, 0, 0.8)}, {"queries": "q", "hits": "h"}, ""),
+            MetricSnapshot({0: RankMetrics(3, 0, 0.4)}, {"queries": "q", "hits": "h"}, ""),
+        ])
+
+        class FakeClient:
+            def snapshot(self):
+                return next(snapshots)
+
+        with (
+            patch("ais_bench_prefix_cache.runtime.subprocess.Popen", FakeProcess),
+            patch("ais_bench_prefix_cache.runtime.time.sleep"),
+        ):
+            returncode, samples = run_aisbench_with_polling(["cmd"], {}, FakeClient(), 0.1)
+
+        self.assertEqual(returncode, 0)
+        self.assertEqual([list(row.values())[0] for _, row in samples], [0.5, 0.8, 0.4])
 
 
 if __name__ == "__main__":

@@ -139,6 +139,32 @@ def metrics_to_dict(actual: ActualMetrics) -> dict[str, Any]:
     }
 
 
+def summarize_kv_usage(samples: list[dict[int, float | None]]) -> dict[str, Any]:
+    """聚合跑分期间轮询得到的 KV 用量样本。
+
+    每个样本是 {rank: 用量占比}；None 表示该次抓取缺失该 rank 的 kv 指标。
+    返回每个 rank 的峰值/均值/有效样本数，以及跨 rank 的全局峰值与均值。
+    """
+    ranks = sorted({rank for sample in samples for rank in sample})
+    by_dp: dict[str, dict[str, Any]] = {}
+    global_values: list[float] = []
+    for rank in ranks:
+        values = [sample[rank] for sample in samples if rank in sample and sample[rank] is not None]
+        if values:
+            global_values.extend(values)
+        by_dp[str(rank)] = {
+            "peak": max(values) if values else None,
+            "avg": sum(values) / len(values) if values else None,
+            "sample_count": len(values),
+        }
+    return {
+        "count": len(samples),
+        "by_dp": by_dp,
+        "global_peak": max(global_values) if global_values else None,
+        "global_avg": sum(global_values) / len(global_values) if global_values else None,
+    }
+
+
 def snapshot_to_dict(snapshot: MetricSnapshot, include_raw: bool = True) -> dict[str, Any]:
     """把 MetricSnapshot 序列化为字典（可选附带原始 Prometheus 文本用于审计）。"""
     result: dict[str, Any] = {

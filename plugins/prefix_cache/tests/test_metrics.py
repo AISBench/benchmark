@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 
 from ais_bench_prefix_cache.errors import RuntimeCapabilityError
-from ais_bench_prefix_cache.metrics import diff_metrics, parse_metrics
+from ais_bench_prefix_cache.metrics import diff_metrics, parse_metrics, summarize_kv_usage
 from ais_bench_prefix_cache.runtime import VLLMClient
 from ais_bench_prefix_cache.scenario import Scenario
 
@@ -45,6 +45,26 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(snapshot.by_rank[0].queries, 20)
         self.assertEqual(snapshot.by_rank[0].hits, 10)
         self.assertEqual(snapshot.by_rank[0].kv_cache_usage, 0.25)
+
+    def test_summarize_kv_usage_skips_missing_values(self):
+        samples = [
+            {0: 0.5, 1: 0.1},
+            {0: 0.9, 1: None},
+            {0: None, 1: 0.3},
+        ]
+        summary = summarize_kv_usage(samples)
+        self.assertEqual(summary["count"], 3)
+        self.assertEqual(summary["by_dp"]["0"], {"peak": 0.9, "avg": 0.7, "sample_count": 2})
+        self.assertEqual(summary["by_dp"]["1"], {"peak": 0.3, "avg": 0.2, "sample_count": 2})
+        self.assertEqual(summary["global_peak"], 0.9)
+        self.assertEqual(summary["global_avg"], (0.5 + 0.9 + 0.1 + 0.3) / 4)
+
+    def test_summarize_kv_usage_empty(self):
+        summary = summarize_kv_usage([])
+        self.assertEqual(summary["count"], 0)
+        self.assertEqual(summary["by_dp"], {})
+        self.assertIsNone(summary["global_peak"])
+        self.assertIsNone(summary["global_avg"])
 
     def test_missing_rank_fails(self):
         one = BASE.replace('vllm:prefix_cache_queries{engine="engine_1",model_name="m"} 200\n', "").replace('vllm:prefix_cache_hits{engine="engine_1",model_name="m"} 100\n', "").replace('vllm:kv_cache_usage_perc{engine="engine_1",model_name="m"} 0.3\n', "")

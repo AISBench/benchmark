@@ -112,7 +112,7 @@ Scenario 采用严格白名单，完整配置层级如下；未列出的字段�
   - `assignment` 支持 `mode`、`exponent`、`weights`；
   - 每个 `overrides.group-N` 支持 `input_length`、`output_length`、`corpus_selection`；
   - `order` 支持 `strategy`；
-- `service`：`inference_url`、`metrics_url`、`reset_url`、`model`、`dp_size`、`assume_empty_cache`、`engine_label_map`、`timeout_seconds`、`api_key`；
+- `service`：`inference_url`、`metrics_url`、`reset_url`、`model`、`dp_size`、`assume_empty_cache`、`engine_label_map`、`timeout_seconds`、`api_key`、`poll_interval_seconds`；
 - `validation`：`target_warning_pp`、`actual_warning_pp`；
 - `aisbench`：`config`、`work_dir`、`extra_args`；离线命令不消费，`run` 用于渲染配置并启动 AISBench perf。
 
@@ -492,6 +492,8 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 - `warnings`：零个或多个告警。`TARGET_UNREACHABLE` 包含 requested target 和可达上下界，`TARGET_DEVIATION` 包含 `difference_pp`。
 
 成功生成时 `status="prepared"`；`run` 完成后为 `"complete"`，`analyze` 复算后为 `"analyzed"`。在线阶段新增 `runtime.metrics_baseline/metrics_after`（含原始 Prometheus 文本和分 DP 累计值）、`actual`、`theory_actual_*_difference_pp` 及 `validation.actual_status`。偏差告警只改变展示值，不改变成功退出码。
+
+`run` 在正式跑分期间按 `service.poll_interval_seconds` 周期轮询 `metrics_url` 采样 KV 用量（kv 是瞬时 gauge，跑分结束后会归零，必须在跑分期间采样），结果写入 `runtime.kv_cache_polling`：`interval_seconds`、`count`、`summary`（每 DP 的 `peak`/`avg`/`sample_count` 及 `global_peak`/`global_avg`）与逐样本明细 `samples`（`elapsed_seconds` + 每 DP 用量）。同时把峰值/均值合并进 `actual`：`actual.by_dp.*.kv_cache_usage_peak`、`kv_cache_usage_avg`、`actual.global_kv_cache_usage_peak`、`global_kv_cache_usage_avg`；`actual.by_dp.*.kv_cache_usage` 仍为 after 快照的瞬时值。`poll_interval_seconds` 设为 0 可关闭轮询；单次抓取失败只跳过该样本，不中断跑分。
 
 ### `inspect` Manifest 和 CLI 返回字段
 

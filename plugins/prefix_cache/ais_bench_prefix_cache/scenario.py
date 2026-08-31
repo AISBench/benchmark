@@ -25,7 +25,7 @@ _ALLOWED = {
     "prefix_cache.groups": {"count", "assignment", "overrides"},
     "prefix_cache.groups.assignment": {"mode", "exponent", "weights"},
     "prefix_cache.order": {"strategy"},
-    "service": {"inference_url", "metrics_url", "reset_url", "model", "dp_size", "assume_empty_cache", "engine_label_map", "timeout_seconds", "api_key"},
+    "service": {"inference_url", "metrics_url", "reset_url", "model", "dp_size", "assume_empty_cache", "engine_label_map", "timeout_seconds", "api_key", "poll_interval_seconds"},
     "validation": {"target_warning_pp", "actual_warning_pp"},
     "aisbench": {"config", "work_dir", "extra_args"},
 }
@@ -385,6 +385,10 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     service.setdefault("engine_label_map", {})
     service.setdefault("timeout_seconds", 30)
     service.setdefault("api_key", "")
+    service.setdefault("poll_interval_seconds", 5.0)
+    poll_interval = service.get("poll_interval_seconds")
+    if isinstance(poll_interval, bool) or not isinstance(poll_interval, (int, float)) or poll_interval < 0:
+        raise ScenarioValidationError("service.poll_interval_seconds must be a non-negative number")
     for field in ("inference_url", "metrics_url", "model"):
         if not isinstance(service.get(field), str) or not service[field]:
             raise ScenarioValidationError(f"service.{field} must be a non-empty string")

@@ -14,7 +14,7 @@ from typing import Any
 
 from .artifacts import artifact_paths, validate_artifacts, write_json
 from .errors import PrefixCacheError, RuntimeCapabilityError
-from .metrics import MetricSnapshot, diff_metrics, metrics_to_dict, parse_metrics, snapshot_to_dict
+from .metrics import MetricSnapshot, diff_metrics, metrics_to_dict, parse_metrics, snapshot_to_dict, summarize_kv_usage
 from .pipeline import prepare_scenario
 from .scenario import Scenario, load_scenario, new_execution_timestamp, with_execution_timestamp
 
@@ -198,6 +198,36 @@ def render_aisbench_config(config_path: Path, scenario: Scenario) -> Path:
                 os.environ[key] = value
 
 
+def run_aisbench_with_polling(
+    command: list[str],
+    env: dict[str, str],
+    client: VLLMClient,
+    poll_interval_seconds: float,
+) -> tuple[int, list[tuple[float, dict[int, float | None]]]]:
+    """以子进程运行 AISBench，期间周期性轮询 KV 用量。
+
+    返回 (退出码, 样本列表)；样本为 (相对开始时间的秒数, {rank: 用量占比})。
+    轮询尽力而为：单次抓取失败只跳过，不中断正式跑分。
+    """
+    process = subprocess.Popen(command, env=env)
+    if poll_interval_seconds <= 0:
+        return process.wait(), []
+    started = time.perf_counter()
+    samples: list[tuple[float, dict[int, float | None]]] = []
+    while True:
+        returncode = process.poll()
+        if returncode is not None:
+            break
+        time.sleep(poll_interval_seconds)
+        try:
+            snapshot = client.snapshot()
+        except RuntimeCapabilityError:
+            continue
+        elapsed = time.perf_counter() - started
+        samples.append((elapsed, {rank: row.kv_cache_usage for rank, row in snapshot.by_rank.items()}))
+    return returncode, samples
+
+
 def run_scenario(
     scenario_path: Path | str,
     aisbench_config: Path | str | None = None,
@@ -271,16 +301,33 @@ def run_scenario(
         env["AISBENCH_PREFIX_CACHE_WORK_DIR"] = str(work_dir_path)
     command = [sys.executable, "-m", "ais_bench.benchmark.cli.main", str(generated), "--mode", "perf"]
     command.extend(map(str, scenario.section("aisbench").get("extra_args", [])))
-    completed = subprocess.run(command, check=False, env=env)
-    runtime["aisbench_exit_code"] = completed.returncode
+    poll_interval = float(scenario.section("service")["poll_interval_seconds"])
+    returncode, kv_samples = run_aisbench_with_polling(command, env, client, poll_interval)
+    runtime["aisbench_exit_code"] = returncode
     runtime["phases"].append("formal")
-    if completed.returncode != 0:
-        raise PrefixCacheError(f"AISBench failed with exit code {completed.returncode}")
+    if returncode != 0:
+        raise PrefixCacheError(f"AISBench failed with exit code {returncode}")
     after = client.snapshot()
     runtime["metrics_after"] = snapshot_to_dict(after)
     runtime["phases"].append("after")
     actual = diff_metrics(baseline, after)
     actual_dict = metrics_to_dict(actual)
+    # 跑分期间轮询采样的 KV 用量：峰值/均值合并进 actual，原始样本留在 runtime 供审计。
+    kv_summary = summarize_kv_usage([row for _, row in kv_samples])
+    runtime["kv_cache_polling"] = {
+        "interval_seconds": poll_interval,
+        "count": len(kv_samples),
+        "summary": kv_summary,
+        "samples": [
+            {"elapsed_seconds": round(elapsed, 3), "by_dp": {str(rank): value for rank, value in row.items()}}
+            for elapsed, row in kv_samples
+        ],
+    }
+    for rank, stats in kv_summary["by_dp"].items():
+        actual_dict["by_dp"][rank]["kv_cache_usage_peak"] = stats["peak"]
+        actual_dict["by_dp"][rank]["kv_cache_usage_avg"] = stats["avg"]
+    actual_dict["global_kv_cache_usage_peak"] = kv_summary["global_peak"]
+    actual_dict["global_kv_cache_usage_avg"] = kv_summary["global_avg"]
     theory_rate = float(analysis["theoretical_hit_rate"])
     # 真实命中率与理论命中率做差（百分点），超阈值则追加 ACTUAL_DEVIATION 告警。
     signed_difference_pp = ((actual.global_hit_rate or 0.0) - theory_rate) * 100 if actual.global_hit_rate is not None else None

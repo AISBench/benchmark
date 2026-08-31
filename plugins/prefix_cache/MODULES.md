@@ -231,6 +231,7 @@
 | `parse_metrics` | `(text, dp_size, engine_label_map=None) -> MetricSnapshot` | 逐行解析样本，按逻辑名选中指标，逐 rank 校验（缺 queries/hits 报错、rank 越界/重复报错、hits>queries 报错、缺 rank 报错），产出 `MetricSnapshot`。 |
 | `diff_metrics` | `(before, after) -> ActualMetrics` | 要求前后 rank 集合一致；每 rank 做 after−before 增量，回归（负增量）或 hits>queries 报错；全局命中率 = `Σhits/Σqueries`（token 加权，非简单平均）。 |
 | `metrics_to_dict` | `(actual) -> dict` | `ActualMetrics` → JSON 友好 dict（by_dp 含每 rank hit_rate）。 |
+| `summarize_kv_usage` | `(samples) -> dict` | 聚合跑分期间轮询的 KV 用量样本（`{rank: 占比}` 列表，None 表示缺失）：返回每 rank `peak`/`avg`/`sample_count` 与 `global_peak`/`global_avg`。 |
 | `snapshot_to_dict` | `(snapshot, include_raw=True) -> dict` | `MetricSnapshot` → dict，可选附 `raw_prometheus` 原文。 |
 
 ---
