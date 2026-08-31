@@ -60,14 +60,19 @@ logger = AISLogger()
 # Official bin boundaries (tokens of prompt + answer, tiktoken o200k_base).
 # See the dataset card: "Bins are determined by number of tokens used by
 # prompt + answer in the sample."
+# Keys follow the official/DeepSeek chart labels (each bin is named by its
+# UPPER bound): [4096, 8192] is "8K" and the largest (524288, 1048576] is
+# "1024K"/"1M".  DeepSeek-V4's reported "MRCR 1M" score is 8needle
+# averaged over ALL 8 bins (8K..1024K), i.e. subset='8needle' with
+# length_bin=None.
 MRCR_BIN_BOUNDARIES: Dict[str, Tuple[int, int]] = {
-    '4k': (4096, 8192),
-    '8k': (8192, 16384),
-    '16k': (16384, 32768),
-    '32k': (32768, 65536),
-    '64k': (65536, 131072),
-    '128k': (131072, 262144),
-    '256k': (262144, 524288),
+    '8k': (4096, 8192),
+    '16k': (8192, 16384),
+    '32k': (16384, 32768),
+    '64k': (32768, 65536),
+    '128k': (65536, 131072),
+    '256k': (131072, 262144),
+    '512k': (262144, 524288),
     '1m': (524288, 1048576),
 }
 

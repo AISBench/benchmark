@@ -217,10 +217,13 @@ class TestMRCRDataset:
                 self._load(tmp, rows, length_bin="1m")
 
     def test_bin_boundaries_cover_official_bins(self):
-        """官方 bin 边界完整注册"""
+        """官方 bin 边界完整注册（键 = 官方图表标签，即 bin 上界）"""
         assert set(MRCR_BIN_BOUNDARIES) == {
-            "4k", "8k", "16k", "32k", "64k", "128k", "256k", "1m"
+            "8k", "16k", "32k", "64k", "128k", "256k", "512k", "1m"
         }
+        # 官方 "8K" bin 实际是 [4096, 8192]
+        assert MRCR_BIN_BOUNDARIES["8k"] == (4096, 8192)
+        assert MRCR_BIN_BOUNDARIES["512k"] == (262144, 524288)
         assert MRCR_BIN_BOUNDARIES["1m"] == (524288, 1048576)
 
 

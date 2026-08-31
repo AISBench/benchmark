@@ -15,10 +15,15 @@ from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 #
 # Deploy openai/mrcr under ``ais_bench/datasets/MRCR`` with one
 # sub-directory per needle-count subset (``2needle/`` ``4needle/``
-# ``8needle/`` containing the parquet shards).  Switch subset via
-# ``subset`` and the token bin via ``length_bin`` (see
-# MRCR_BIN_BOUNDARIES in datasets/mrcr.py); ``length_bin=None`` disables
-# bin filtering (fast smoke-test path).
+# ``8needle/`` containing the parquet shards).  Bin keys follow the
+# official chart labels (bin upper bound): 8k..512k, 1m (see
+# MRCR_BIN_BOUNDARIES in datasets/mrcr.py).
+#
+# DeepSeek-V4's reported "MRCR 1M" methodology (per its technical report):
+# subset='8needle' averaged over ALL 8 token bins (8K/16K/32K/64K/128K/
+# 256K/512K/1024K), which is exactly ``length_bin=None`` -- the full
+# 8needle split (~100 samples per bin, ~800 total).  The evaluator mean
+# over all samples equals the per-bin macro average for uniform bins.
 
 mrcr_reader_cfg = dict(
     input_columns=['prompt'],
@@ -56,8 +61,8 @@ mrcr_1m_datasets = [
         abbr='mrcr_1m',
         type=MRCRDataset,
         path='ais_bench/datasets/MRCR',
-        subset='2needle',
-        length_bin='1m',
+        subset='8needle',
+        length_bin=None,
         reader_cfg=mrcr_reader_cfg,
         infer_cfg=mrcr_infer_cfg,
         eval_cfg=mrcr_eval_cfg,
