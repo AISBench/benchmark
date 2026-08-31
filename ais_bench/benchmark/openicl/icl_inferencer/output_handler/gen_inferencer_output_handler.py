@@ -69,6 +69,15 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
             ),
         }
 
+        # When the model emits reasoning, ``prediction`` concatenates
+        # ``reasoning_content + "\n\n" + content`` (see
+        # ``Output.get_prediction``).  Keep the reasoning-free final content
+        # separately so downstream evaluators that must grade exactly the
+        # answer text returned by the chat API (e.g. MRCR's prefix gate +
+        # SequenceMatcher grading) are not confused by reasoning drafts.
+        if isinstance(output, Output) and output.reasoning_content:
+            result_data["content"] = output.content
+
         if gold:
             result_data["gold"] = gold
         return result_data
