@@ -36,6 +36,7 @@
 
 ## 🔥 最新进展
 
+- **\[2026.8.19]** 新增**推理响应异常检测**功能：在推理评测的同时自动检测大模型响应中的生成异常，覆盖**重复、乱码、生僻字、NaN** 四类异常；命令行增加 `--response-anomaly` 即可零配置开启，检测结果按数据集落盘为 JSONL 供独立审计，**不影响原有精度与性能指标**。🔥🔥🔥 配置与使用详见 [推理响应异常检测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/response_anomaly_detection.html)。
 - **\[2026.6.29]** 接入文生图模型多维评测基准 **OneIG-Benchmark**：围绕**对齐性、文本渲染、推理能力、风格表现、多样性**五个维度对生成图片进行综合评估，支持 EN/ZH 双语言模式，采用 **LLM-as-Judge + 专用小模型** 的混合评测方式，与官方评测方法精度差异 < 1%。🔥🔥🔥 示例与说明见 [在AISBench中测评OneIG-Benchmark](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/lmm_generate/oneig.html)。
 - **\[2026.6.15]** 新增 **Docker 镜像多架构支持**：AISBench Benchmark 镜像同步支持 **x86_64** 与 **aarch64 (ARM)** 架构，覆盖 Ubuntu 22.04/24.04、openEuler 22.03/24.03 与 Python 3.10/3.11/3.12 多种组合；同时 AISBench 已发布到 **PyPI**，可通过 `pip install ais_bench_benchmark` / `pip install ais_bench_benchmark[full]` 一键安装。镜像说明见 [Docker 镜像概览](docker/OVERVIEW.zh.md)。🚀🚀🚀
 - **\[2026.6.11]** 接入长时域软件工程智能体评测基准 **SWE-Bench Pro**：支持在 x86 环境下对智能体模型在长时域软件工程任务上的表现进行评测，提供 `full` / `mini` 数据集以及 `mini-swe-agent` infer 与 SWE-Bench Pro harness eval 的端到端流程。示例与说明见 [在AISBench中测评SWE-Bench Pro](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/swe_bench_pro.html)。🔥🔥🔥
