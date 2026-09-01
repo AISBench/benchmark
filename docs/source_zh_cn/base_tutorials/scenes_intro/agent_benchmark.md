@@ -1,6 +1,7 @@
-# Agent 测评（Harbor）
+# 基于Harbor框架的Agent 测评
 
 AISBench 原生集成了 [Harbor](https://github.com/harbor-framework/harbor) 作为 Agent 测评引擎，通过 `--mode agent` 一条命令即可拉起 Harbor 评测、实时查看每个 case 状态，并输出单表 + CSV 汇总结果。该链路完全独立于 AISBench 原生的推理/精度链路，**不改变 AISBench 其他任何功能**。
+> 👉注意：AISBench对harbor做了一些离线化部署的改造，并会持续接入新的agent，实际依赖的harbor为[fork主仓改造后的Harbor](https://github.com/AISBench/harbor)
 
 与既有 [Harbor Terminal-Bench](../../extended_benchmark/agent/harbor_bench.md) 的接入不同，本章为通用化 Agent 测评，具备以下能力：
 
@@ -20,7 +21,7 @@ AISBench 原生集成了 [Harbor](https://github.com/harbor-framework/harbor) �
 ### 安装 Agent 独立依赖集
 
 ```bash
-pip install -e "agent"@PATH_TO_BENCHMARK  # 或按 requirements/agent.txt 直装
+pip install -r requirements/agent.txt
 ```
 
 > ⚠️ **安装过程中的无关紧要报错说明**：执行 Agent 依赖安装（尤其是从源码以可编辑方式安装 Harbor 及其传递依赖）时，`pip` 可能会输出一些**不影响 Agent 测评使用**的报错或告警，主要包括：
@@ -28,7 +29,65 @@ pip install -e "agent"@PATH_TO_BENCHMARK  # 或按 requirements/agent.txt 直装
 > - 个别包编译/构建的 warning，或依赖解析时的 `yanked` / `deprecated` 提示等。
 > 这些告警只要**未导致安装失败（pip 报 `error` 并中断）**，即可直接忽略，继续安装后的 Harbor Agent 测评即可正常使用。若确需判断是否安装成功，可在安装后执行 `pip show harbor` 确认 Harbor 已正确就位。
 
-> 💡 若需离线数据集与预制镜像，参见 📚 [Harbor Terminal-Bench](../../extended_benchmark/agent/harbor_bench.md) 中 terminal-bench 2 / 2.1 的数据集与镜像准备方式。
+
+## 资源准备
+### harbor格式数据集准备
+AISBench 理论上支持全量Harbor适配的数据集，具体支持的数据集参考[Harbor 数据集适配器列表](https://github.com/AISBench/harbor/tree/main/adapters/datasets)
+。这些数据集需要参考harbor的文档自行构建。
+
+🔍**AISBench直接提供了如下数据集资源**：
+
+|数据集名称|全量数据集资源|小规模采样数据集资源| 备注 |
+| ----- | ------ | ------ | ----- |
+| SWEBench Verified |https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/swebench-verified-offline.zip | https://modelers.cn/datasets/AISBench/SWE-Bench_Verified_mini | 小规模采样数据集资源中 `harbor_adapt`开头的文件夹是Harbor格式的数据集 |
+| SWEBench Multilingual |https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/swebench-multilingual-offline.zip | https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini | 小规模采样数据集资源中 `harbor_adapt`开头的文件夹是Harbor格式的数据集  |
+| SWEBench Pro | https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/swebench-pro-offline.zip | https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini | 小规模采样数据集资源中 `harbor_adapt`开头的文件夹是Harbor格式的数据集 |
+| terminal-bench 2.0 | https://github.com/AISBench/terminal-bench-2 | https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini | ⚠️执行过程中agent需要访问外网 |
+| terminal-bench 2.1 | https://github.com/AISBench/terminal-bench-2-1 | https://modelers.cn/datasets/AISBench/terminal-bench-2-1-mini | ⚠️执行过程中需要agent访问外网 |
+
+### 数据集对应镜像准备
+agent数据集的测评每一个case都有对应的镜像，这些镜像名称在数据集中定义，如果在x86_64服务器上，网络条件良好且能够访问外网，执行过程中会自动拉取并构建对应的镜像。但是这个过程往往比较漫长。
+
+🔍**AISBench直接提供了如下镜像打包资源**：
+
+以下打包镜像资源可通过`docker load -i <镜像打包资源>`命令加载到测试环境中。
+
+|数据集名称|全量数据集镜像打包资源|小规模采样数据集镜像打包资源 | 基础os | 备注 |
+| ----- | ------ | ------ | ------ | ----- |
+| SWEBench Verified | x86_64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/SWEBenchData/verified.tar | NA | ubuntu:22.04 | 不支持aarch64 |
+| SWEBench Multilingual | x86_64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/SWEBenchData/multilingual.tar | NA | debian:12 | 不支持aarch64 |
+| SWEBench Pro | NA | x86_64: https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini  | ubuntu:24.04 | 不支持aarch64 |
+| terminal-bench 2.0 | x86_64: <br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_x86_64.tar <br> aarch64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_aarch64.tar | x86_64: <br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.10_x86_64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.14_x86_64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.20_x86_64.tar <br> aarch64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.10_aarch64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.14_aarch64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.20_aarch64.tar | ubuntu:24.04, debian:11, debian:12, debian:13 | NA |
+|terminal-bench 2.1| x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar <br>aarch64:<br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-aarch64.tar | NA | ubuntu:24.04, debian:11, debian:12, debian:13 |  NA |
+
+### Agent 支持列表
+
+AISBench 支持 Harbor 定义的全量 Agent（`-a/--agent` 直接传名称），也支持通过 `--agent-import-path` 指定自定义 `module.path:ClassName` Agent。以下为 Harbor `AgentName` 内置全部 Agent：
+
+| Agent（AgentName） | Agent（AgentName） |
+| --- | --- |
+| `oracle`、`nop`、`acp` | `claude-code`、`cline-cli`、`cortex-code` |
+| `terminus`、`terminus-1`、`terminus-2` | `aider`、`codex`、`cursor-cli` |
+| `gemini-cli`、`antigravity-cli`、`antigravity-sdk` | `rovodev-cli`、`goose`、`grok-build` |
+| `hermes`、`mini-swe-agent`、`nemo-agent` | `swe-agent`、`opencode`、`openclaw` |
+| `openhands`、`openhands-sdk`、`kimi-code` | `kimi-cli`、`langgraph`、`deerflow` |
+| `mimo`、`pi`、`qwen-coder` | `copilot-cli`、`devin`、`trae-agent` |
+| `computer-1`、`eve`、`fx` | `dsh`、`dspy-rlm`、`vibe` |
+
+> 💡 不同 Agent 对同一含义参数（模型服务 base url / API key 等）的传入方式不同，AISBench 的 `AgentParamAdapter` 会自动转换：走环境变量的（如 `claude-code`→`ANTHROPIC_*`、`dsh`→`DSH_*`、`openhands`→`LLM_*`/`OPENAI_*`）与走构造函数 kwarg 的（如 `terminus-2`→`api_base`）均使用同一套统一语义参数（`--api-base` / `--agent-api-key`）即可，无需区分。
+
+在测评任务执行过程中，harbor会在每个case的容器中安装对应agent的依赖，包括agent的代码、依赖库、配置文件等，如果你的环境没有网络条件：
+
+🔍**AISBench直接提供了如下agent依赖打包资源**：
+
+> ⚠️注意：依据数据集镜像的基础os，选择对应的agent打包资源。
+
+|Agent| 依赖打包资源| 备注 |
+| ----- | ------ | ------ |
+|mini-swe-agent|x86_64: <br>ubuntu:22.04 https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-22.04-x86_64.tar.gz<br>ubuntu:24.04 https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-24.04-x86_64.tar.gz<br>debian:12 https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-12-x86_64.tar.gz||
+|terminus-2|x86_64: <br>ubuntu22.04 https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-22.04-x86_64.tar.gz<br>ubuntu24.04 https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-24.04-x86_64.tar.gz<br>debian:11 https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-11-x86_64.tar.gz<br>debian:12 https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-12-x86_64.tar.gz<br>debian:13 https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-13-x86_64.tar.gz||
+|dsh|x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-22.04-x86_64.tar.gz||
+
 
 ## 快速入门（两种方式任选其一）
 
@@ -51,6 +110,7 @@ ais_bench --mode agent \
     --api-base http://0.0.0.0:8080/v1 \     # 模型服务 base url（统一语义）
     --agent-api-key sk-xxx \                # 模型服务 API key（统一语义）
     -p /path/to/terminal-bench-2 \          # 本地数据集路径
+    # --agent-deps /path/to/terminus-2-offline-pack/ \ # （可选，推荐）Agent 依赖打包资源路径, 里面放置各种os的tar.gz文件
     -n 5 \                                  # 并发 trial 数
     -k 1 \                                  # 每个 trial 尝试次数
     -e docker \                             # 环境类型
@@ -97,7 +157,7 @@ models = [
             "max_input_tokens": 128000,
             "max_output_tokens": 4096,
         },
-        # deps_path=None,                   # --agent-deps: 离线 agent 依赖包路径
+        # deps_path=None,                  # （可选，推荐）--agent-deps: 离线 agent 依赖包路径, 里面放置各种os的tar.gz文件
     )
 ]
 
@@ -184,16 +244,19 @@ ais_bench ... --mode agent_viz --reuse 20260530_012601
 
 ### 执行结果含义
 
-任务结束后会打印 summarizer 汇总表，其中的核心指标含义如下：
+任务结束后 `HarborSummarizer` 会打印一张汇总表并落盘一个 CSV，每行对应一个（模型 × 数据集）任务，列即如下指标：
 
-| 指标 | 含义 |
+| 列 | 含义 |
 | --- | --- |
-| `total_count` / `n_total_trials` | 本次测评的 trial 总数 |
-| `n_errors` | 执行过程中出现异常的 trial 数量 |
-| `avg_score` | 所有已完成 trial 的平均得分（无 reward 时显示 `-`） |
-| `reward_distribution` | 得分分布（`score → count`） |
-| `exception_distribution` | 异常类型分布（如 `AgentTimeoutError` 等） |
-| `pass@k` | 当 `n_attempts > 1` 时，`k` 次尝试中至少成功一次的比例 |
+| `agent` | 本次使用的 Agent 名称 |
+| `model_name` | 模型名称（`model_names`，多个以 `,` 分隔） |
+| `dataset` | 数据集任务简称（`dataset.abbr`） |
+| `avg_score` | 该任务平均得分（读取聚合 `result.json` 的 `avg_score`） |
+| `correct` | 得分 `>= 1.0` 的完成 trial 数（由 `reward_distribution` 统计） |
+| `wrong` | 得分 `0 ~ 1.0`（不含 1.0）的完成 trial 数（由 `reward_distribution` 统计） |
+| `exception` | 执行中出现异常的 trial 数（对应 `n_errors`） |
+
+> 💡 更多原始指标（`total_count` / `n_errors` / `reward_distribution` / `exception_distribution` / `pass@k` 等）保留在逐任务落盘的 `results/{模型}/{数据集}.json` 与 `details/result.json` 中，如需查看可叠加 `--monitor-port` 端点或直接读取落盘文件。
 
 ### 落盘文件结构与含义
 
