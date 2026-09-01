@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -285,7 +286,7 @@ class RuntimeIntegrationTest(unittest.TestCase):
                     return next(self.snapshots)
 
             class FakePopen:
-                def __init__(self, command, env=None):
+                def __init__(self, command, **kwargs):
                     pass
 
                 def poll(self):
@@ -316,9 +317,12 @@ class RuntimeIntegrationTest(unittest.TestCase):
             self.assertIn("run_scenario complete", log_text)
 
     def test_run_aisbench_with_polling_samples_kv_until_exit(self):
+        popen_kwargs = {}
+
         class FakeProcess:
-            def __init__(self, command, env=None):
+            def __init__(self, command, **kwargs):
                 self.calls = 0
+                popen_kwargs.update(kwargs)
 
             def poll(self):
                 self.calls += 1
@@ -337,14 +341,20 @@ class RuntimeIntegrationTest(unittest.TestCase):
             def snapshot(self):
                 return next(snapshots)
 
-        with (
-            patch("ais_bench_prefix_cache.runtime.subprocess.Popen", FakeProcess),
-            patch("ais_bench_prefix_cache.runtime.time.sleep"),
-        ):
-            returncode, samples = run_aisbench_with_polling(["cmd"], {}, FakeClient(), 0.1)
+        with tempfile.TemporaryDirectory() as folder:
+            log_path = Path(folder) / "run.log"
+            with (
+                patch("ais_bench_prefix_cache.runtime.subprocess.Popen", FakeProcess),
+                patch("ais_bench_prefix_cache.runtime.time.sleep"),
+            ):
+                returncode, samples = run_aisbench_with_polling(
+                    ["cmd"], {}, FakeClient(), 0.1, log_path=log_path
+                )
 
         self.assertEqual(returncode, 0)
         self.assertEqual([list(row.values())[0] for _, row in samples], [0.5, 0.8, 0.4])
+        self.assertIsNotNone(popen_kwargs["stdout"])
+        self.assertEqual(popen_kwargs["stderr"], subprocess.STDOUT)
 
 
 if __name__ == "__main__":

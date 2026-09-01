@@ -368,46 +368,59 @@ def run_aisbench_with_polling(
     env: dict[str, str],
     client: VLLMClient,
     poll_interval_seconds: float,
+    log_path: Path | None = None,
 ) -> tuple[int, list[tuple[float, dict[int, float | None]]]]:
     """以子进程运行 AISBench，期间周期性轮询 KV 用量。
 
     返回 (退出码, 样本列表)；样本为 (相对开始时间的秒数, {rank: 用量占比})。
-    轮询尽力而为：单次抓取失败只跳过，不中断正式跑分。
+    轮询尽力而为：单次抓取失败只跳过，不中断正式跑分。log_path 存在时，
+    AISBench 子进程 stdout/stderr 全部追加写入该文件，不回显到 CLI 终端。
     """
     logger.info(
-        "[runtime] phase=formal launch command=%s poll_interval_seconds=%.3f",
+        "[runtime] phase=formal launch command=%s poll_interval_seconds=%.3f child_log_path=%s",
         _safe_command(command),
         poll_interval_seconds,
+        log_path,
     )
-    process = subprocess.Popen(command, env=env)
-    logger.info("[runtime] phase=formal process_started pid=%s", getattr(process, "pid", None))
-    if poll_interval_seconds <= 0:
-        returncode = process.wait()
-        logger.info("[runtime] phase=formal process_complete exit_code=%d kv_polling=disabled", returncode)
-        return returncode, []
-    started = time.perf_counter()
-    samples: list[tuple[float, dict[int, float | None]]] = []
-    while True:
-        returncode = process.poll()
-        if returncode is not None:
-            break
-        time.sleep(poll_interval_seconds)
-        try:
-            snapshot = client.snapshot()
-        except RuntimeCapabilityError as exc:
-            logger.warning("[runtime] phase=formal kv_poll_failed elapsed_seconds=%.3f error=%s", time.perf_counter() - started, exc)
-            continue
-        elapsed = time.perf_counter() - started
-        sample = {rank: row.kv_cache_usage for rank, row in snapshot.by_rank.items()}
-        samples.append((elapsed, sample))
-        logger.info(
-            "[runtime] phase=formal kv_poll sample_index=%d elapsed_seconds=%.3f by_dp=%s",
-            len(samples),
-            elapsed,
-            sample,
-        )
-    logger.info("[runtime] phase=formal process_complete exit_code=%d kv_samples=%d", returncode, len(samples))
-    return returncode, samples
+    child_log = None
+    popen_kwargs: dict[str, Any] = {"env": env}
+    if log_path is not None:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        child_log = log_path.open("a", encoding="utf-8")
+        popen_kwargs.update({"stdout": child_log, "stderr": subprocess.STDOUT})
+    try:
+        process = subprocess.Popen(command, **popen_kwargs)
+        logger.info("[runtime] phase=formal process_started pid=%s", getattr(process, "pid", None))
+        if poll_interval_seconds <= 0:
+            returncode = process.wait()
+            logger.info("[runtime] phase=formal process_complete exit_code=%d kv_polling=disabled", returncode)
+            return returncode, []
+        started = time.perf_counter()
+        samples: list[tuple[float, dict[int, float | None]]] = []
+        while True:
+            returncode = process.poll()
+            if returncode is not None:
+                break
+            time.sleep(poll_interval_seconds)
+            try:
+                snapshot = client.snapshot()
+            except RuntimeCapabilityError as exc:
+                logger.warning("[runtime] phase=formal kv_poll_failed elapsed_seconds=%.3f error=%s", time.perf_counter() - started, exc)
+                continue
+            elapsed = time.perf_counter() - started
+            sample = {rank: row.kv_cache_usage for rank, row in snapshot.by_rank.items()}
+            samples.append((elapsed, sample))
+            logger.info(
+                "[runtime] phase=formal kv_poll sample_index=%d elapsed_seconds=%.3f by_dp=%s",
+                len(samples),
+                elapsed,
+                sample,
+            )
+        logger.info("[runtime] phase=formal process_complete exit_code=%d kv_samples=%d", returncode, len(samples))
+        return returncode, samples
+    finally:
+        if child_log is not None:
+            child_log.close()
 
 
 def run_scenario(
@@ -538,7 +551,14 @@ def run_scenario(
         _safe_command(list(map(str, scenario.section("aisbench").get("extra_args", [])))),
         poll_interval,
     )
-    returncode, kv_samples = run_aisbench_with_polling(command, env, client, poll_interval)
+    run_log_path = scenario.output_dir / "log" / f"{scenario.run_id}.run.log"
+    returncode, kv_samples = run_aisbench_with_polling(
+        command,
+        env,
+        client,
+        poll_interval,
+        log_path=run_log_path,
+    )
     runtime["aisbench_exit_code"] = returncode
     runtime["phases"].append("formal")
     if returncode != 0:

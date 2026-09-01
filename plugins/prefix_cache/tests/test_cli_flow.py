@@ -174,23 +174,18 @@ class InstallLoggerTest(unittest.TestCase):
             # Windows 删除临时目录前必须先关闭 FileHandler。
             _install_logger(None)
 
-    def test_run_logger_can_write_file_and_echo_stderr(self):
+    def test_file_logger_does_not_echo_stderr(self):
         with tempfile.TemporaryDirectory() as folder:
             log_path = Path(folder) / "run.log"
             stderr = io.StringIO()
             with redirect_stderr(stderr):
-                _install_logger(log_path, echo_console=True)
+                _install_logger(log_path)
                 logging.getLogger("ais_bench_prefix_cache.runtime").info(
                     "[runtime] phase=precheck start dp_size=2"
                 )
-                logging.getLogger("ais_bench_prefix_cache.generation").info(
-                    "[gen] verbose candidate list"
-                )
                 _install_logger(None)
-            self.assertIn("phase=precheck start dp_size=2", stderr.getvalue())
-            self.assertNotIn("verbose candidate list", stderr.getvalue())
+            self.assertEqual(stderr.getvalue(), "")
             self.assertIn("phase=precheck start dp_size=2", log_path.read_text(encoding="utf-8"))
-            self.assertIn("verbose candidate list", log_path.read_text(encoding="utf-8"))
 
 
 class MainFlowTest(unittest.TestCase):
@@ -316,15 +311,18 @@ class MainFlowTest(unittest.TestCase):
             scenario = write_case(root)
             _write_execution_manifest(scenario, "20260825_123456")
             stdout = io.StringIO()
+            stderr = io.StringIO()
             with (
                 patch(
                     "ais_bench_prefix_cache.cli.run_scenario",
                     return_value={"status": "complete", "actual": {"global_hit_rate": 0.5}},
                 ) as run,
                 redirect_stdout(stdout),
+                redirect_stderr(stderr),
             ):
                 self.assertEqual(main(["run", "--scenario", str(scenario)]), 0)
             self.assertEqual(json.loads(stdout.getvalue())["status"], "complete")
+            self.assertEqual(stderr.getvalue(), "")
             self.assertEqual(run.call_args.kwargs["execution_timestamp"], "20260825_123456")
 
     def test_analyze_prints_recomputed_analysis(self):

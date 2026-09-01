@@ -25,18 +25,10 @@ from .scenario import Scenario, load_scenario, new_execution_timestamp, with_exe
 PLUGIN_LOG_NAME = "ais_bench_prefix_cache"
 
 LOG_NORMAL_FORMAT = "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s"
-RUN_CONSOLE_PREFIXES = ("[cli]", "[runtime]", "[metrics]", "[aisbench-config]")
 
 # 显式挂在 PLUGIN_LOG_NAME 之下（不用 __name__）：python -m 运行时 __name__ 会变成
 # "__main__"，导致日志绕过插件 logger 直接传播到 root。
 logger = logging.getLogger(f"{PLUGIN_LOG_NAME}.cli")
-
-
-class _RunConsoleFilter(logging.Filter):
-    """Keep run stderr readable while the complete detail remains in run.log."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        return record.levelno >= logging.WARNING or record.getMessage().startswith(RUN_CONSOLE_PREFIXES)
 
 
 class PromptProgress:
@@ -175,11 +167,11 @@ def _persist_inspect_manifest(
     return path
 
 
-def _install_logger(log_file: Path | None, *, echo_console: bool = False) -> None:
+def _install_logger(log_file: Path | None) -> None:
     """安装插件自身的 logger handler，不依赖 ais_bench 的 AISLogger。
 
-    解析到 .log 文件时默认只写入文件；run 可用 echo_console 同步写 stderr。
-    无法解析日志路径时回退为仅控制台输出，真实错误仍由正常命令流程抛出。
+    解析到 .log 文件时只写入文件；无法解析日志路径时回退为仅控制台输出，
+    真实错误仍由正常命令流程抛出。
     """
     plugin_logger = logging.getLogger(PLUGIN_LOG_NAME)
     for existing in plugin_logger.handlers:
@@ -189,14 +181,12 @@ def _install_logger(log_file: Path | None, *, echo_console: bool = False) -> Non
     plugin_logger.setLevel(logging.INFO)
     formatter = logging.Formatter(LOG_NORMAL_FORMAT)
     if log_file is not None:
-        handler: logging.Handler = logging.FileHandler(log_file, mode="w")
+        # 先清空上一轮同名日志，再以 append 模式打开。run 的 AISBench 子进程
+        # 也会追加写入同一文件，O_APPEND 可避免父子进程使用独立文件偏移时覆盖。
+        log_file.write_text("", encoding="utf-8")
+        handler: logging.Handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
         handler.setFormatter(formatter)
         plugin_logger.addHandler(handler)
-        if echo_console:
-            console = logging.StreamHandler()
-            console.setFormatter(formatter)
-            console.addFilter(_RunConsoleFilter())
-            plugin_logger.addHandler(console)
     else:
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
@@ -238,10 +228,8 @@ def main(argv: list[str] | None = None) -> int:
         manifest_path=getattr(args, "manifest", None),
         execution_timestamp=execution_timestamp,
     )
-    # 安装插件自身的 logger；除 run 外默认只缓存到 .log 文件。
-    # run 的在线阶段关键日志同时写入 run.log 和 stderr，便于实时观察；
-    # stdout 仍只输出最终 JSON，prepare/inspect/validate 保持原有文件日志行为。
-    _install_logger(log_file, echo_console=args.command == "run")
+    # 安装插件自身的 logger；日志路径可用时只写文件，不回显到 CLI 终端。
+    _install_logger(log_file)
     logger.info("[cli] command=%s args=%s log_file=%s reused_execution_timestamp=%s", args.command, vars(args), log_file, reused_execution_timestamp)
     progress = PromptProgress() if args.command in {"prepare", "run"} else None
     try:
