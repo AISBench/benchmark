@@ -1,7 +1,6 @@
 import hashlib
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -341,20 +340,15 @@ class RuntimeIntegrationTest(unittest.TestCase):
             def snapshot(self):
                 return next(snapshots)
 
-        with tempfile.TemporaryDirectory() as folder:
-            log_path = Path(folder) / "run.log"
-            with (
-                patch("ais_bench_prefix_cache.runtime.subprocess.Popen", FakeProcess),
-                patch("ais_bench_prefix_cache.runtime.time.sleep"),
-            ):
-                returncode, samples = run_aisbench_with_polling(
-                    ["cmd"], {}, FakeClient(), 0.1, log_path=log_path
-                )
+        with (
+            patch("ais_bench_prefix_cache.runtime.subprocess.Popen", FakeProcess),
+            patch("ais_bench_prefix_cache.runtime.time.sleep"),
+        ):
+            returncode, samples = run_aisbench_with_polling(["cmd"], {}, FakeClient(), 0.1)
 
         self.assertEqual(returncode, 0)
         self.assertEqual([list(row.values())[0] for _, row in samples], [0.5, 0.8, 0.4])
-        self.assertIsNotNone(popen_kwargs["stdout"])
-        self.assertEqual(popen_kwargs["stderr"], subprocess.STDOUT)
+        self.assertEqual(popen_kwargs, {"env": {}})
 
 
 if __name__ == "__main__":
