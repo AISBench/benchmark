@@ -92,6 +92,15 @@ class TestAgentParamAdapterTranslate(unittest.TestCase):
         self.assertEqual(out["env"]["ANTHROPIC_API_KEY"], "sk")
         self.assertEqual(out["kwargs"], {})
 
+    def test_dsh_env_mapping(self):
+        out = AgentParamAdapter.translate(
+            "dsh",
+            {"api_base": "http://x/v1", "api_key": "sk"},
+        )
+        self.assertEqual(out["env"]["DSH_BASE_URL"], "http://x/v1")
+        self.assertEqual(out["env"]["DSH_API_KEY"], "sk")
+        self.assertEqual(out["kwargs"], {})
+
     def test_fallback_for_unknown_agent(self):
         out = AgentParamAdapter.translate(
             "not-a-real-agent",

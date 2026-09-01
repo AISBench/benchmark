@@ -48,6 +48,10 @@ EXPLICIT_MAP: dict[str, dict[str, tuple[str, str]]] = {
         "api_base": ("env", "OPENAI_BASE_URL"),
         "api_key": ("env", "OPENAI_API_KEY"),
     },
+    "dsh": {
+        "api_base": ("env", "DSH_BASE_URL"),
+        "api_key": ("env", "DSH_API_KEY"),
+    },
     "swe-agent": {
         "api_base": ("env", "OPENAI_BASE_URL"),
         "api_key": ("env", "OPENAI_API_KEY"),
