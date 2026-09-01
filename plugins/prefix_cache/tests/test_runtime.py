@@ -11,12 +11,24 @@ from unittest.mock import patch
 from ais_bench_prefix_cache.artifacts import artifact_paths
 from ais_bench_prefix_cache.config import _manifest, build_dataset_config, build_model_config
 from ais_bench_prefix_cache.metrics import MetricSnapshot, RankMetrics
-from ais_bench_prefix_cache.runtime import render_aisbench_config, run_aisbench_with_polling, run_scenario
+from ais_bench_prefix_cache.runtime import _safe_command, _safe_url, render_aisbench_config, run_aisbench_with_polling, run_scenario
 from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
 from tests.test_pipeline import write_case
 
 
 class RuntimeIntegrationTest(unittest.TestCase):
+    def test_log_url_redacts_credentials_query_and_fragment(self):
+        self.assertEqual(
+            _safe_url("https://user:secret@example.com:8443/v1/completions?token=secret#part"),
+            "https://example.com:8443/v1/completions",
+        )
+
+    def test_logged_command_redacts_sensitive_option_values(self):
+        self.assertEqual(
+            _safe_command(["ais-bench", "--api-key", "secret", "--token=abc", "--mode", "perf"]),
+            ["ais-bench", "--api-key", "<redacted>", "--token=<redacted>", "--mode", "perf"],
+        )
+
     def test_dataset_config_reads_user_settings_only_from_scenario(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -282,14 +294,15 @@ class RuntimeIntegrationTest(unittest.TestCase):
                 def wait(self):
                     return 0
 
-            with (
-                patch("ais_bench_prefix_cache.runtime.prepare_scenario", side_effect=fake_prepare) as prepare,
-                patch("ais_bench_prefix_cache.runtime.validate_artifacts"),
-                patch("ais_bench_prefix_cache.runtime.VLLMClient", FakeClient),
-                patch("ais_bench_prefix_cache.runtime.render_aisbench_config", return_value=root / "generated.py"),
-                patch("ais_bench_prefix_cache.runtime.subprocess.Popen", FakePopen),
-            ):
-                result = run_scenario(source, execution_timestamp=timestamp)
+            with self.assertLogs("ais_bench_prefix_cache.runtime", level="INFO") as captured:
+                with (
+                    patch("ais_bench_prefix_cache.runtime.prepare_scenario", side_effect=fake_prepare) as prepare,
+                    patch("ais_bench_prefix_cache.runtime.validate_artifacts"),
+                    patch("ais_bench_prefix_cache.runtime.VLLMClient", FakeClient),
+                    patch("ais_bench_prefix_cache.runtime.render_aisbench_config", return_value=root / "generated.py"),
+                    patch("ais_bench_prefix_cache.runtime.subprocess.Popen", FakePopen),
+                ):
+                    result = run_scenario(source, execution_timestamp=timestamp)
 
             prepare.assert_called_once()
             self.assertEqual(result["status"], "complete")
@@ -297,6 +310,10 @@ class RuntimeIntegrationTest(unittest.TestCase):
             self.assertEqual(result["runtime"]["kv_cache_polling"]["count"], 0)
             self.assertIn("global_kv_cache_usage_peak", result["actual"])
             self.assertTrue(paths.analysis.is_file())
+            log_text = "\n".join(captured.output)
+            self.assertIn("phase=baseline complete", log_text)
+            self.assertIn("phase=formal process_complete", log_text)
+            self.assertIn("run_scenario complete", log_text)
 
     def test_run_aisbench_with_polling_samples_kv_until_exit(self):
         class FakeProcess:

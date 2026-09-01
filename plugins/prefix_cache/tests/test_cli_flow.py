@@ -174,6 +174,24 @@ class InstallLoggerTest(unittest.TestCase):
             # Windows 删除临时目录前必须先关闭 FileHandler。
             _install_logger(None)
 
+    def test_run_logger_can_write_file_and_echo_stderr(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log_path = Path(folder) / "run.log"
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                _install_logger(log_path, echo_console=True)
+                logging.getLogger("ais_bench_prefix_cache.runtime").info(
+                    "[runtime] phase=precheck start dp_size=2"
+                )
+                logging.getLogger("ais_bench_prefix_cache.generation").info(
+                    "[gen] verbose candidate list"
+                )
+                _install_logger(None)
+            self.assertIn("phase=precheck start dp_size=2", stderr.getvalue())
+            self.assertNotIn("verbose candidate list", stderr.getvalue())
+            self.assertIn("phase=precheck start dp_size=2", log_path.read_text(encoding="utf-8"))
+            self.assertIn("verbose candidate list", log_path.read_text(encoding="utf-8"))
+
 
 class MainFlowTest(unittest.TestCase):
     def _fake_paths(self, scenario: Path) -> ArtifactPaths:

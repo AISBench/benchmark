@@ -104,6 +104,7 @@ class CoreTest(unittest.TestCase):
                 },
                 "model": {
                     "abbr": None,
+                    "attr": "service",
                     "stream": True,
                     "max_out_len": 1,
                     "retry": 2,

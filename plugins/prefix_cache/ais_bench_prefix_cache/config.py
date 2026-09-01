@@ -2,11 +2,27 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from .artifacts import find_latest_execution_manifest
 from .scenario import load_scenario
+
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_url(value: str) -> str:
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname or ""
+        if parsed.port is not None:
+            hostname = f"{hostname}:{parsed.port}"
+        return urlunsplit((parsed.scheme, hostname, parsed.path, "", ""))
+    except (TypeError, ValueError):
+        return "<invalid-url>"
 
 
 def _manifest(scenario):
@@ -17,6 +33,12 @@ def _manifest(scenario):
     """
     configured = os.environ.get("AISBENCH_PREFIX_CACHE_MANIFEST")
     path = Path(configured).resolve() if configured else scenario.output_dir / "result" / f"{scenario.run_id}.manifest.json"
+    logger.info(
+        "[aisbench-config] resolve_manifest run_id=%s configured_by_env=%s initial_path=%s",
+        scenario.run_id,
+        bool(configured),
+        path,
+    )
     if not configured and not path.is_file():
         # 支持用户直接执行 config_examples/prefix_cache_perf.py：从时间戳
         # 结果目录中发现最近一次正式 prepare Manifest。inspect-only Manifest
@@ -24,7 +46,15 @@ def _manifest(scenario):
         found = find_latest_execution_manifest(scenario, {"prepared"})
         if found is not None:
             _, path, _ = found
-    return path, json.loads(path.read_text(encoding="utf-8"))
+            logger.info("[aisbench-config] resolve_manifest fallback_latest_prepared path=%s", path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    logger.info(
+        "[aisbench-config] resolve_manifest complete path=%s manifest_run_id=%s status=%s",
+        path,
+        manifest.get("run_id"),
+        manifest.get("status"),
+    )
+    return path, manifest
 
 
 def build_dataset_config(scenario_path: str | Path) -> dict:
@@ -42,11 +72,12 @@ def build_dataset_config(scenario_path: str | Path) -> dict:
     from .datasets import PrefixCacheDataset
     from .openicl.icl_inferencer import PrefixCacheGenInferencer
 
+    logger.info("[aisbench-config] build_dataset_config start scenario=%s", scenario_path)
     scenario = load_scenario(scenario_path)
     manifest_path, manifest = _manifest(scenario)
     artifacts = manifest["artifacts"]
     dataset_cfg = scenario.section("aisbench")["dataset"]
-    return dict(
+    result = dict(
         abbr=dataset_cfg["abbr"] or manifest["run_id"],
         type=PrefixCacheDataset,
         requests_path=str(Path(artifacts["requests"]["path"])),
@@ -63,6 +94,19 @@ def build_dataset_config(scenario_path: str | Path) -> dict:
         ),
         eval_cfg=dict(evaluator=dict(type=AccEvaluator), pred_role=dataset_cfg["pred_role"]),
     )
+    logger.info(
+        "[aisbench-config] build_dataset_config complete abbr=%s run_id=%s requests_path=%s full_path=%s manifest_path=%s input_columns=%s output_column=%s prompt_template=%s pred_role=%s",
+        result["abbr"],
+        manifest["run_id"],
+        result["requests_path"],
+        result["full_path"],
+        result["manifest_path"],
+        result["reader_cfg"]["input_columns"],
+        result["reader_cfg"]["output_column"],
+        dataset_cfg["prompt_template"],
+        dataset_cfg["pred_role"],
+    )
+    return result
 
 
 def build_model_config(scenario_path: str | Path) -> dict:
@@ -74,12 +118,13 @@ def build_model_config(scenario_path: str | Path) -> dict:
     """
     from .models import VLLMPrefixCacheAPI
 
+    logger.info("[aisbench-config] build_model_config start scenario=%s", scenario_path)
     scenario = load_scenario(scenario_path)
     _, manifest = _manifest(scenario)
     service = scenario.section("service")
     tokenizer = scenario.section("tokenizer")
     model_cfg = scenario.section("aisbench")["model"]
-    return dict(
+    result = dict(
         type=VLLMPrefixCacheAPI,
         # attr 是 ais_bench 区分 service/local 模型的类型字段：DefaultPerfSummarizer
         # 只汇总 attr=="service" 的模型（且此处不带默认值），缺失会导致汇总（含
@@ -96,3 +141,18 @@ def build_model_config(scenario_path: str | Path) -> dict:
         generation_kwargs=copy.deepcopy(model_cfg["generation_kwargs"]),
         batch_size=model_cfg["batch_size"],
     )
+    logger.info(
+        "[aisbench-config] build_model_config complete abbr=%s attr=%s model=%s tokenizer_path=%s inference_url=%s stream=%s max_out_len=%d retry=%d batch_size=%d generation_kwargs_keys=%s api_key_configured=%s",
+        result["abbr"],
+        result["attr"],
+        result["model"],
+        result["path"],
+        _safe_url(result["inference_url"]),
+        result["stream"],
+        result["max_out_len"],
+        result["retry"],
+        result["batch_size"],
+        sorted(result["generation_kwargs"]),
+        bool(service.get("api_key")),
+    )
+    return result

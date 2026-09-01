@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
 
 from .errors import RuntimeCapabilityError
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,13 @@ def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | No
     并检查计数自洽（hits <= queries）。
     """
     mapping = engine_label_map or {}
+    logger.info(
+        "[metrics] parse_metrics start text_bytes=%d text_lines=%d dp_size=%d engine_label_map=%s",
+        len(text.encode("utf-8")),
+        len(text.splitlines()),
+        dp_size,
+        mapping,
+    )
     samples: dict[str, list[tuple[dict[str, str], float]]] = {}
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -85,6 +96,7 @@ def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | No
             raise RuntimeCapabilityError(f"missing vLLM Prefix Cache {logical} metric")
         if selected_name:
             selected[logical] = selected_name
+    logger.info("[metrics] parse_metrics selected_metric_names=%s", selected)
     # 按 rank 聚合各逻辑指标的取值。
     values: dict[int, dict[str, float]] = {}
     for logical, name in selected.items():
@@ -108,11 +120,29 @@ def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | No
         if hits > queries:
             raise RuntimeCapabilityError(f"Prefix Cache hits exceed queries for DP rank {rank}")
         by_rank[rank] = RankMetrics(queries, hits, row.get("kv"))
+    logger.info(
+        "[metrics] parse_metrics complete by_dp=%s",
+        {
+            str(rank): {
+                "queries": row.queries,
+                "hits": row.hits,
+                "kv_cache_usage": row.kv_cache_usage,
+            }
+            for rank, row in by_rank.items()
+        },
+    )
     return MetricSnapshot(by_rank, selected, text)
 
 
 def diff_metrics(before: MetricSnapshot, after: MetricSnapshot) -> ActualMetrics:
     """用两次快照求差得到本次运行的命中统计，并校验计数未回退、hits<=queries。"""
+    logger.info(
+        "[metrics] diff_metrics start before_ranks=%s after_ranks=%s before_names=%s after_names=%s",
+        sorted(before.by_rank),
+        sorted(after.by_rank),
+        before.metric_names,
+        after.metric_names,
+    )
     if set(before.by_rank) != set(after.by_rank):
         raise RuntimeCapabilityError("metric snapshots contain different DP ranks")
     by_rank: dict[int, RankMetrics] = {}
@@ -124,9 +154,28 @@ def diff_metrics(before: MetricSnapshot, after: MetricSnapshot) -> ActualMetrics
         if hits > queries:
             raise RuntimeCapabilityError(f"Prefix Cache hit delta exceeds query delta for DP rank {rank}")
         by_rank[rank] = RankMetrics(queries, hits, new.kv_cache_usage)
+        logger.info(
+            "[metrics] diff_metrics rank=%d before_queries=%d after_queries=%d query_delta=%d before_hits=%d after_hits=%d hit_delta=%d hit_rate=%s kv_cache_usage_after=%s",
+            rank,
+            old.queries,
+            new.queries,
+            queries,
+            old.hits,
+            new.hits,
+            hits,
+            hits / queries if queries else None,
+            new.kv_cache_usage,
+        )
     total_queries = sum(value.queries for value in by_rank.values())
     total_hits = sum(value.hits for value in by_rank.values())
-    return ActualMetrics(by_rank, total_queries, total_hits, total_hits / total_queries if total_queries else None)
+    result = ActualMetrics(by_rank, total_queries, total_hits, total_hits / total_queries if total_queries else None)
+    logger.info(
+        "[metrics] diff_metrics complete global_queries=%d global_hits=%d global_hit_rate=%s",
+        result.global_queries,
+        result.global_hits,
+        result.global_hit_rate,
+    )
+    return result
 
 
 def metrics_to_dict(actual: ActualMetrics) -> dict[str, Any]:
@@ -145,6 +194,7 @@ def summarize_kv_usage(samples: list[dict[int, float | None]]) -> dict[str, Any]
     每个样本是 {rank: 用量占比}；None 表示该次抓取缺失该 rank 的 kv 指标。
     返回每个 rank 的峰值/均值/有效样本数，以及跨 rank 的全局峰值与均值。
     """
+    logger.info("[metrics] summarize_kv_usage start sample_count=%d", len(samples))
     ranks = sorted({rank for sample in samples for rank in sample})
     by_dp: dict[str, dict[str, Any]] = {}
     global_values: list[float] = []
@@ -157,12 +207,14 @@ def summarize_kv_usage(samples: list[dict[int, float | None]]) -> dict[str, Any]
             "avg": sum(values) / len(values) if values else None,
             "sample_count": len(values),
         }
-    return {
+    result = {
         "count": len(samples),
         "by_dp": by_dp,
         "global_peak": max(global_values) if global_values else None,
         "global_avg": sum(global_values) / len(global_values) if global_values else None,
     }
+    logger.info("[metrics] summarize_kv_usage complete summary=%s", result)
+    return result
 
 
 def snapshot_to_dict(snapshot: MetricSnapshot, include_raw: bool = True) -> dict[str, Any]:
@@ -180,5 +232,10 @@ def snapshot_to_dict(snapshot: MetricSnapshot, include_raw: bool = True) -> dict
     }
     if include_raw:
         result["raw_prometheus"] = snapshot.raw_text
+    logger.info(
+        "[metrics] snapshot_to_dict ranks=%s include_raw=%s raw_bytes=%d",
+        sorted(snapshot.by_rank),
+        include_raw,
+        len(snapshot.raw_text.encode("utf-8")) if include_raw else 0,
+    )
     return result
-

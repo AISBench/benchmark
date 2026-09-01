@@ -610,7 +610,7 @@ validate 日志写入 Manifest 对应时间戳目录的 `log/<run_id>.validate.l
 
 ### 14.4 `run`
 
-`run --scenario` 复用任务时间戳；若该目录还没有工件则自动 prepare。随后依次执行逐 DP probe、reset、可选的每组每 DP warmup、baseline、AISBench perf、after 和指标差分。`--config <path>` 可仅覆盖本次 AISBench 配置。stdout 返回更新后的完整 analysis，日志写入 `log/<run_id>.run.log`。
+`run --scenario` 复用任务时间戳；若该目录还没有工件则自动 prepare。随后依次执行逐 DP probe、reset、可选的每组每 DP warmup、baseline、AISBench perf、after 和指标差分。`--config <path>` 可仅覆盖本次 AISBench 配置。stdout 返回更新后的完整 analysis；关键日志同时写入 `log/<run_id>.run.log` 和 stderr，便于实时观察。日志包含阶段状态、Group/DP 路由、baseline/after、KV 采样及理论/实际差值，但不输出 Prompt 正文、API key 或 Authorization Header。
 
 ### 14.5 `analyze`
 

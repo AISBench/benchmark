@@ -356,6 +356,8 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 完整流程为：校验或自动生成本时间戳的产物；逐 DP 探活；reset Prefix Cache（或按配置记录 `ASSUME_EMPTY_CACHE`）；warmup 模式按每个 `Prefix Group × DP rank` 定向预热；预热完成后采集正式 baseline；运行 AISBench `perf`；采集 after 并计算每 DP、全局实际命中率；最后把 `runtime`、`actual`、理论/实际差值和告警写回 `result/<run_id>.analysis.json`。warmup 在 baseline 之前完成，因此不进入正式吞吐、时延或命中率统计。
 
+`run` 的关键流程日志会同时写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log` 和终端 stderr，stdout 仍只输出最终 analysis JSON。日志覆盖执行上下文、产物复用/自动 prepare、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警。AISBench 子进程还会记录 Dataset 行合并、cold lane 等待/放行、逐请求 DP 路由和流式响应 chunk 摘要。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
+
 正式 AISBench 请求固定使用 vLLM SSE 流式响应。插件会在请求开始、首个响应 chunk 以及后续 chunk 到达时记录时间点，供 `DefaultPerfSummarizer` 计算 TTFT、TPOT、ITL、E2EL 和吞吐量；这些性能汇总文件位于 `aisbench.work_dir/performances/<model-abbr>/`。逐 DP 探活和 warmup 使用独立的非流式请求，它们发生在正式 baseline 之前，不会混入上述性能指标。
 
 临时覆盖 Scenario 中的 AISBench 配置：

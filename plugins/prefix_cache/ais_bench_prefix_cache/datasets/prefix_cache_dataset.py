@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from datasets import Dataset
@@ -10,6 +11,9 @@ from ais_bench.benchmark.registry import LOAD_DATASET
 
 from ..artifacts import read_jsonl, validate_artifacts
 from ..errors import ArtifactValidationError
+
+
+logger = logging.getLogger(__name__)
 
 
 @LOAD_DATASET.register_module()
@@ -23,19 +27,34 @@ class PrefixCacheDataset(BaseDataset):
         供推理器按 prefix cache 的冷/热路由语义执行。
         """
         manifest_file = Path(manifest_path).resolve()
-        validate_artifacts(manifest_file)
+        logger.info(
+            "[aisbench-dataset] load start requests_path=%s full_path=%s manifest_path=%s extra_kwargs=%s",
+            requests_path,
+            full_path,
+            manifest_file,
+            sorted(kwargs),
+        )
+        validation = validate_artifacts(manifest_file)
+        logger.info("[aisbench-dataset] artifacts validated result=%s", validation)
         manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
         requests = read_jsonl(Path(requests_path).resolve())
         full = read_jsonl(Path(full_path).resolve())
         if len(requests) != len(full):
             raise ArtifactValidationError("requests/full row count mismatch")
         mode = manifest["prefix_cache"]["mode"]
+        logger.info(
+            "[aisbench-dataset] artifacts loaded run_id=%s cache_mode=%s request_rows=%d full_rows=%d",
+            manifest.get("run_id"),
+            mode,
+            len(requests),
+            len(full),
+        )
         rows = []
         for index, (request, audit) in enumerate(zip(requests, full)):
             # 审计行的 sequence_index 必须与行号一致，保证路由元数据对齐。
             if audit["sequence_index"] != index:
                 raise ArtifactValidationError(f"route metadata order mismatch at row {index}")
-            rows.append({
+            row = {
                 "question": request["question"],
                 "answer": request["answer"],
                 # requests.jsonl 的输出长度字段可省略或改名；在线执行始终使用
@@ -45,5 +64,26 @@ class PrefixCacheDataset(BaseDataset):
                 "group_id": audit["group_id"],
                 "lane_sequence": audit.get("lane_sequence"),
                 "cache_mode": mode,
-            })
-        return Dataset.from_list(rows)
+            }
+            rows.append(row)
+            logger.info(
+                "[aisbench-dataset] row merged index=%d request_id=%s group_id=%s dp_rank=%s lane_sequence=%s cache_mode=%s input_tokens=%s shared_prefix_tokens=%s theoretical_hit_tokens=%s max_out_len=%s question_chars=%d",
+                index,
+                audit.get("request_id"),
+                audit.get("group_id"),
+                audit.get("dp_rank"),
+                audit.get("lane_sequence"),
+                mode,
+                audit.get("actual_input_tokens"),
+                audit.get("shared_prefix_tokens"),
+                audit.get("theoretical_hit_tokens"),
+                audit.get("max_tokens"),
+                len(request["question"]),
+            )
+        dataset = Dataset.from_list(rows)
+        logger.info(
+            "[aisbench-dataset] load complete rows=%d columns=%s",
+            len(rows),
+            dataset.column_names,
+        )
+        return dataset
