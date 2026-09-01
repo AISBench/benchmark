@@ -88,6 +88,7 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 - `service.dp_size`：需要模拟 cold 多 DP 路由或生成 warmup 计划时，应与目标服务的 DP 数量一致。
 - `service.inference_url`、`metrics_url`、`reset_url` 和 `model`：在线 `run` 使用；
 - `aisbench.config`：正式压测使用的 AISBench Python 配置。
+- `aisbench.dataset`、`aisbench.model`：AISBench Dataset/Model 的全部用户可见配置；包括 abbr、reader 契约、prompt、pred_role、stream、retry、batch_size 和 generation_kwargs。用户无需编辑插件 `config.py`。
 
 `inspect`、`prepare` 和 `validate` 不访问服务；`run` 会使用 `service` 段完成探活、reset、逐 DP warmup、正式压测和指标采集。当前只支持一个 HTTP 入口后面的单 DP 或多 DP，不支持多个彼此独立的 vLLM 实例。
 
@@ -114,7 +115,9 @@ Scenario 采用严格白名单，完整配置层级如下；未列出的字段�
   - `order` 支持 `strategy`；
 - `service`：`inference_url`、`metrics_url`、`reset_url`、`model`、`dp_size`、`assume_empty_cache`、`engine_label_map`、`timeout_seconds`、`api_key`、`poll_interval_seconds`；
 - `validation`：`target_warning_pp`、`actual_warning_pp`；
-- `aisbench`：`config`、`work_dir`、`extra_args`；离线命令不消费，`run` 用于渲染配置并启动 AISBench perf。
+- `aisbench`：`config`、`work_dir`、`extra_args`、`dataset`、`model`；离线命令不消费，`run` 用于渲染配置并启动 AISBench perf。
+  - `dataset`：`abbr`、`input_columns`、`output_column`、`prompt_template`、`pred_role`；为保证理论 token 与实际 prompt 一致，前三个数据契约字段必须保持示例值，abbr/pred_role 可改。
+  - `model`：`abbr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs`；旧 Scenario 省略时自动使用示例默认值。
 
 各字段逐项含义见 [Scenario 完整字段说明](config_examples/scenario.example.md)。
 

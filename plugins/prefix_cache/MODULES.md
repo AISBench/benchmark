@@ -49,7 +49,7 @@
 
 | 常量 | 作用 |
 |---|---|
-| `_ALLOWED` | 逐级字段白名单（顶层 `""`、`run`、`tokenizer`、`corpus`、`corpus.selection`、`requests`、`requests.input_length`、`requests.output_length`、`output`、`prefix_cache`、`prefix_cache.groups`、`prefix_cache.groups.assignment`、`prefix_cache.order`、`service`、`validation`、`aisbench`）。`output` 只允许 `output_key`；其他未在白名单内的字段一律报 `unknown field`。 |
+| `_ALLOWED` | 逐级字段白名单（顶层 `""`、`run`、`tokenizer`、`corpus`、`corpus.selection`、`requests`、`requests.input_length`、`requests.output_length`、`output`、`prefix_cache`、`prefix_cache.groups`、`prefix_cache.groups.assignment`、`prefix_cache.order`、`service`、`validation`、`aisbench`、`aisbench.dataset`、`aisbench.model`）。`output` 只允许 `output_key`；其他未在白名单内的字段一律报 `unknown field`。 |
 | `_MODES` | 各节合法 mode 集合：`input`（fixed/explicit/range/truncated_normal/csv）、`output`（fixed/uniform/truncated_normal/csv）、`selection`（random/indices/question_sha256/mixed）、`assignment`（uniform/zipf/weights）、`order`（sequential/within_group_shuffle/interleave/global_shuffle/input_len_asc）、`cache`（cold/warmup）。 |
 
 ### 函数
@@ -289,8 +289,8 @@
 | 函数 | 签名 | 职责 |
 |---|---|---|
 | `_manifest` | `(scenario) -> (Path, dict)` | 优先读取 `AISBENCH_PREFIX_CACHE_MANIFEST` 指向的本次时间戳 Manifest；直接调用时先尝试 `output_dir/result/<run_id>.manifest.json`，再扫描并校验最近的 `status="prepared"` 时间戳 Manifest。 |
-| `build_dataset_config` | `(scenario_path) -> dict` | 返回 dataset 配置：`type=PrefixCacheDataset`、`requests_path/full_path/manifest_path`、`reader_cfg`（input `question/max_out_len`，output `answer`）、`infer_cfg`（`PromptTemplate "{question}"`、`ZeroRetriever`、`PrefixCacheGenInferencer`）、`eval_cfg`（`AccEvaluator`、`pred_role=BOT`）。 |
-| `build_model_config` | `(scenario_path) -> dict` | 返回 model 配置：`type=VLLMPrefixCacheAPI`、`path=tokenizer.path`、`model/inference_url/api_key`、`stream=True`、`max_out_len=1`、`retry=2`、`generation_kwargs(temperature=0, ignore_eos=True)`、`batch_size=1`。显式流式模式保证 AISBench 能按 chunk 时间点计算 TTFT、TPOT 和 ITL。 |
+| `build_dataset_config` | `(scenario_path) -> dict` | 返回 dataset 配置：类型和工件路径由插件固定；`abbr/reader_cfg/prompt_template/pred_role` 从 `aisbench.dataset` 读取。 |
+| `build_model_config` | `(scenario_path) -> dict` | 返回 model 配置：类型、tokenizer 和服务连接由插件/Scenario 对应节装配；`abbr/stream/max_out_len/retry/batch_size/generation_kwargs` 从 `aisbench.model` 读取。stream=true 时 AISBench 可按 chunk 时间点计算 TTFT、TPOT 和 ITL。 |
 
 ---
 

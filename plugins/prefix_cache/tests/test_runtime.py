@@ -9,7 +9,7 @@ from types import ModuleType
 from unittest.mock import patch
 
 from ais_bench_prefix_cache.artifacts import artifact_paths
-from ais_bench_prefix_cache.config import _manifest, build_model_config
+from ais_bench_prefix_cache.config import _manifest, build_dataset_config, build_model_config
 from ais_bench_prefix_cache.metrics import MetricSnapshot, RankMetrics
 from ais_bench_prefix_cache.runtime import render_aisbench_config, run_aisbench_with_polling, run_scenario
 from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
@@ -17,6 +17,77 @@ from tests.test_pipeline import write_case
 
 
 class RuntimeIntegrationTest(unittest.TestCase):
+    def test_dataset_config_reads_user_settings_only_from_scenario(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = write_case(root)
+            raw = json.loads(source.read_text(encoding="utf-8"))
+            raw["aisbench"] = {
+                "dataset": {
+                    "abbr": "custom-dataset",
+                    "input_columns": ["question", "max_out_len"],
+                    "output_column": "answer",
+                    "prompt_template": "{question}",
+                    "pred_role": "ASSISTANT",
+                }
+            }
+            source.write_text(json.dumps(raw), encoding="utf-8")
+            scenario = load_scenario(source)
+            paths = artifact_paths(scenario.output_dir, scenario.run_id)
+            paths.manifest.parent.mkdir(parents=True, exist_ok=True)
+            paths.manifest.write_text(
+                json.dumps({
+                    "run_id": scenario.run_id,
+                    "artifacts": {
+                        "requests": {"path": str(paths.requests)},
+                        "full": {"path": str(paths.full)},
+                    },
+                }),
+                encoding="utf-8",
+            )
+
+            class FakeAccEvaluator:
+                pass
+
+            class FakePromptTemplate:
+                pass
+
+            class FakeZeroRetriever:
+                pass
+
+            class FakePrefixCacheDataset:
+                pass
+
+            class FakePrefixCacheGenInferencer:
+                pass
+
+            module_values = {
+                "ais_bench.benchmark.openicl.icl_evaluator": ("AccEvaluator", FakeAccEvaluator),
+                "ais_bench.benchmark.openicl.icl_prompt_template": ("PromptTemplate", FakePromptTemplate),
+                "ais_bench.benchmark.openicl.icl_retriever": ("ZeroRetriever", FakeZeroRetriever),
+                "ais_bench_prefix_cache.datasets": ("PrefixCacheDataset", FakePrefixCacheDataset),
+                "ais_bench_prefix_cache.openicl.icl_inferencer": ("PrefixCacheGenInferencer", FakePrefixCacheGenInferencer),
+            }
+            modules = {}
+            for name, (attribute, value) in module_values.items():
+                module = ModuleType(name)
+                setattr(module, attribute, value)
+                modules[name] = module
+            with (
+                patch.dict(sys.modules, modules),
+                patch.dict(os.environ, {"AISBENCH_PREFIX_CACHE_MANIFEST": str(paths.manifest)}),
+            ):
+                dataset_config = build_dataset_config(source)
+
+            self.assertEqual(dataset_config["abbr"], "custom-dataset")
+            self.assertIs(dataset_config["type"], FakePrefixCacheDataset)
+            self.assertEqual(dataset_config["reader_cfg"], {
+                "input_columns": ["question", "max_out_len"],
+                "output_column": "answer",
+            })
+            self.assertEqual(dataset_config["infer_cfg"]["prompt_template"]["template"], "{question}")
+            self.assertEqual(dataset_config["eval_cfg"]["pred_role"], "ASSISTANT")
+
     def test_model_config_enables_streaming_metrics(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -45,6 +116,56 @@ class RuntimeIntegrationTest(unittest.TestCase):
 
             self.assertIs(model_config["type"], FakeVLLMPrefixCacheAPI)
             self.assertIs(model_config["stream"], True)
+            self.assertEqual(model_config["max_out_len"], 1)
+            self.assertEqual(model_config["retry"], 2)
+            self.assertEqual(model_config["batch_size"], 1)
+            self.assertEqual(model_config["generation_kwargs"], {"temperature": 0, "ignore_eos": True})
+
+    def test_model_config_reads_user_settings_only_from_scenario(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = write_case(root)
+            raw = json.loads(source.read_text(encoding="utf-8"))
+            raw["aisbench"] = {
+                "model": {
+                    "abbr": "custom-model",
+                    "stream": False,
+                    "max_out_len": 7,
+                    "retry": 4,
+                    "batch_size": 3,
+                    "generation_kwargs": {
+                        "temperature": 0.25,
+                        "ignore_eos": False,
+                        "top_p": 0.9,
+                    },
+                }
+            }
+            source.write_text(json.dumps(raw), encoding="utf-8")
+            scenario = load_scenario(source)
+            paths = artifact_paths(scenario.output_dir, scenario.run_id)
+            paths.manifest.parent.mkdir(parents=True, exist_ok=True)
+            paths.manifest.write_text(json.dumps({"run_id": scenario.run_id}), encoding="utf-8")
+
+            class FakeVLLMPrefixCacheAPI:
+                pass
+
+            models_module = ModuleType("ais_bench_prefix_cache.models")
+            models_module.VLLMPrefixCacheAPI = FakeVLLMPrefixCacheAPI
+            with (
+                patch.dict(sys.modules, {models_module.__name__: models_module}),
+                patch.dict(os.environ, {"AISBENCH_PREFIX_CACHE_MANIFEST": str(paths.manifest)}),
+            ):
+                model_config = build_model_config(source)
+
+            self.assertEqual(model_config["abbr"], "custom-model")
+            self.assertIs(model_config["stream"], False)
+            self.assertEqual(model_config["max_out_len"], 7)
+            self.assertEqual(model_config["retry"], 4)
+            self.assertEqual(model_config["batch_size"], 3)
+            self.assertEqual(
+                model_config["generation_kwargs"],
+                {"temperature": 0.25, "ignore_eos": False, "top_p": 0.9},
+            )
 
     def test_config_falls_back_to_latest_prepared_manifest(self):
         with tempfile.TemporaryDirectory() as folder:

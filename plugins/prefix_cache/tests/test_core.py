@@ -91,6 +91,26 @@ class CoreTest(unittest.TestCase):
             self.assertEqual(effective["service"]["dp_size"], 2)
             self.assertEqual(effective["service"]["inference_url"], "http://127.0.0.1:8000/v1/completions")
             self.assertEqual(effective["validation"], {"target_warning_pp": 1.0, "actual_warning_pp": 5.0})
+            self.assertEqual(effective["aisbench"], {
+                "config": "./plugins/prefix_cache/config_examples/prefix_cache_perf.py",
+                "work_dir": "./outputs/aisbench-prefix-cache-60",
+                "extra_args": [],
+                "dataset": {
+                    "abbr": None,
+                    "input_columns": ["question", "max_out_len"],
+                    "output_column": "answer",
+                    "prompt_template": "{question}",
+                    "pred_role": "BOT",
+                },
+                "model": {
+                    "abbr": None,
+                    "stream": True,
+                    "max_out_len": 1,
+                    "retry": 2,
+                    "batch_size": 1,
+                    "generation_kwargs": {"temperature": 0, "ignore_eos": True},
+                },
+            })
 
     def test_partially_empty_sections_receive_nested_defaults(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -105,6 +125,7 @@ class CoreTest(unittest.TestCase):
                 "prefix_cache": {"groups": {"assignment": {}}, "order": {}},
                 "service": {},
                 "validation": {},
+                "aisbench": {"dataset": {}, "model": {}},
             }), encoding="utf-8")
             effective = load_scenario(path).to_effective_dict()
             self.assertEqual(effective["corpus"]["selection"]["mode"], "random")
@@ -114,6 +135,8 @@ class CoreTest(unittest.TestCase):
             self.assertEqual(effective["prefix_cache"]["groups"]["count"], 1)
             self.assertEqual(effective["prefix_cache"]["groups"]["assignment"]["mode"], "uniform")
             self.assertEqual(effective["prefix_cache"]["order"]["strategy"], "interleave")
+            self.assertEqual(effective["aisbench"]["dataset"]["prompt_template"], "{question}")
+            self.assertIs(effective["aisbench"]["model"]["stream"], True)
 
     def test_scenario_rejects_unknown_multi_instance_field(self):
         with tempfile.TemporaryDirectory() as folder:

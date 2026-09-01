@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -44,28 +45,32 @@ def build_dataset_config(scenario_path: str | Path) -> dict:
     scenario = load_scenario(scenario_path)
     manifest_path, manifest = _manifest(scenario)
     artifacts = manifest["artifacts"]
+    dataset_cfg = scenario.section("aisbench")["dataset"]
     return dict(
-        abbr=manifest["run_id"],
+        abbr=dataset_cfg["abbr"] or manifest["run_id"],
         type=PrefixCacheDataset,
         requests_path=str(Path(artifacts["requests"]["path"])),
         full_path=str(Path(artifacts["full"]["path"])),
         manifest_path=str(manifest_path),
-        reader_cfg=dict(input_columns=["question", "max_out_len"], output_column="answer"),
+        reader_cfg=dict(
+            input_columns=list(dataset_cfg["input_columns"]),
+            output_column=dataset_cfg["output_column"],
+        ),
         infer_cfg=dict(
-            prompt_template=dict(type=PromptTemplate, template="{question}"),
+            prompt_template=dict(type=PromptTemplate, template=dataset_cfg["prompt_template"]),
             retriever=dict(type=ZeroRetriever),
             inferencer=dict(type=PrefixCacheGenInferencer),
         ),
-        eval_cfg=dict(evaluator=dict(type=AccEvaluator), pred_role="BOT"),
+        eval_cfg=dict(evaluator=dict(type=AccEvaluator), pred_role=dataset_cfg["pred_role"]),
     )
 
 
 def build_model_config(scenario_path: str | Path) -> dict:
     """构造 AISBench 的模型（推理服务）配置字典。
 
-    从场景的 service/tokenizer 段取出模型名、推理地址、api_key 等，
-    封装为 VLLMPrefixCacheAPI，并显式启用流式响应，以便 AISBench
-    按首 token 和后续 token 到达时间计算 TTFT、TPOT 与 ITL。
+    从场景的 service/tokenizer/aisbench.model 段取出连接与运行参数，
+    封装为 VLLMPrefixCacheAPI。默认启用流式响应以采集 TTFT/TPOT/ITL，
+    用户也可在 Scenario 中显式关闭。
     """
     from .models import VLLMPrefixCacheAPI
 
@@ -73,16 +78,17 @@ def build_model_config(scenario_path: str | Path) -> dict:
     _, manifest = _manifest(scenario)
     service = scenario.section("service")
     tokenizer = scenario.section("tokenizer")
+    model_cfg = scenario.section("aisbench")["model"]
     return dict(
         type=VLLMPrefixCacheAPI,
-        abbr=f"{manifest['run_id']}-vllm",
+        abbr=model_cfg["abbr"] or f"{manifest['run_id']}-vllm",
         path=tokenizer["path"],
         model=service["model"],
         inference_url=service["inference_url"],
         api_key=service.get("api_key", ""),
-        stream=True,
-        max_out_len=1,
-        retry=2,
-        generation_kwargs=dict(temperature=0, ignore_eos=True),
-        batch_size=1,
+        stream=model_cfg["stream"],
+        max_out_len=model_cfg["max_out_len"],
+        retry=model_cfg["retry"],
+        generation_kwargs=copy.deepcopy(model_cfg["generation_kwargs"]),
+        batch_size=model_cfg["batch_size"],
     )

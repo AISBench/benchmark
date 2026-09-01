@@ -27,7 +27,9 @@ _ALLOWED = {
     "prefix_cache.order": {"strategy"},
     "service": {"inference_url", "metrics_url", "reset_url", "model", "dp_size", "assume_empty_cache", "engine_label_map", "timeout_seconds", "api_key", "poll_interval_seconds"},
     "validation": {"target_warning_pp", "actual_warning_pp"},
-    "aisbench": {"config", "work_dir", "extra_args"},
+    "aisbench": {"config", "work_dir", "extra_args", "dataset", "model"},
+    "aisbench.dataset": {"abbr", "input_columns", "output_column", "prompt_template", "pred_role"},
+    "aisbench.model": {"abbr", "stream", "max_out_len", "retry", "batch_size", "generation_kwargs"},
 }
 
 _MODES = {
@@ -399,6 +401,19 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     aisbench.setdefault("config", "./plugins/prefix_cache/config_examples/prefix_cache_perf.py")
     aisbench.setdefault("work_dir", "./outputs/aisbench-prefix-cache-60")
     aisbench.setdefault("extra_args", [])
+    dataset_cfg = _require_dict(aisbench.setdefault("dataset", {}), "aisbench.dataset")
+    dataset_cfg.setdefault("abbr", None)
+    dataset_cfg.setdefault("input_columns", ["question", "max_out_len"])
+    dataset_cfg.setdefault("output_column", "answer")
+    dataset_cfg.setdefault("prompt_template", "{question}")
+    dataset_cfg.setdefault("pred_role", "BOT")
+    model_cfg = _require_dict(aisbench.setdefault("model", {}), "aisbench.model")
+    model_cfg.setdefault("abbr", None)
+    model_cfg.setdefault("stream", True)
+    model_cfg.setdefault("max_out_len", 1)
+    model_cfg.setdefault("retry", 2)
+    model_cfg.setdefault("batch_size", 1)
+    model_cfg.setdefault("generation_kwargs", {"temperature": 0, "ignore_eos": True})
     for field in ("config", "work_dir"):
         if not isinstance(aisbench[field], str) or not aisbench[field]:
             raise ScenarioValidationError(f"aisbench.{field} must be a non-empty string")
@@ -406,6 +421,36 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
         not isinstance(value, str) for value in aisbench["extra_args"]
     ):
         raise ScenarioValidationError("aisbench.extra_args must be a list of strings")
+    if dataset_cfg["abbr"] is not None and (
+        not isinstance(dataset_cfg["abbr"], str) or not dataset_cfg["abbr"]
+    ):
+        raise ScenarioValidationError("aisbench.dataset.abbr must be null or a non-empty string")
+    if dataset_cfg["input_columns"] != ["question", "max_out_len"]:
+        raise ScenarioValidationError(
+            "aisbench.dataset.input_columns must equal ['question', 'max_out_len'] "
+            "to preserve prompt and per-request output-length semantics"
+        )
+    if dataset_cfg["output_column"] != "answer":
+        raise ScenarioValidationError("aisbench.dataset.output_column must be 'answer'")
+    if dataset_cfg["prompt_template"] != "{question}":
+        raise ScenarioValidationError(
+            "aisbench.dataset.prompt_template must be '{question}' to preserve theoretical token accounting"
+        )
+    if not isinstance(dataset_cfg["pred_role"], str) or not dataset_cfg["pred_role"]:
+        raise ScenarioValidationError("aisbench.dataset.pred_role must be a non-empty string")
+    if model_cfg["abbr"] is not None and (
+        not isinstance(model_cfg["abbr"], str) or not model_cfg["abbr"]
+    ):
+        raise ScenarioValidationError("aisbench.model.abbr must be null or a non-empty string")
+    if not isinstance(model_cfg["stream"], bool):
+        raise ScenarioValidationError("aisbench.model.stream must be a boolean")
+    _positive(model_cfg["max_out_len"], "aisbench.model.max_out_len")
+    retry = model_cfg["retry"]
+    if isinstance(retry, bool) or not isinstance(retry, int) or retry < 0:
+        raise ScenarioValidationError("aisbench.model.retry must be a non-negative integer")
+    _positive(model_cfg["batch_size"], "aisbench.model.batch_size")
+    if not isinstance(model_cfg["generation_kwargs"], dict):
+        raise ScenarioValidationError("aisbench.model.generation_kwargs must be an object")
     # cold 多 DP 必须显式提供推理地址，否则无法路由。
     if cache_mode == "cold" and service["dp_size"] > 1 and not service["inference_url"]:
         raise ScenarioValidationError("cold multi-DP requires inference_url")
