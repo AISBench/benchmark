@@ -81,6 +81,10 @@ def build_model_config(scenario_path: str | Path) -> dict:
     model_cfg = scenario.section("aisbench")["model"]
     return dict(
         type=VLLMPrefixCacheAPI,
+        # attr 是 ais_bench 区分 service/local 模型的类型字段：DefaultPerfSummarizer
+        # 只汇总 attr=="service" 的模型（且此处不带默认值），缺失会导致汇总（含
+        # TTFT/TPOT/ITL）被静默跳过。与 abbr（结果目录命名）无关，必须显式给出。
+        attr=model_cfg["attr"] or "service",
         abbr=model_cfg["abbr"] or f"{manifest['run_id']}-vllm",
         path=tokenizer["path"],
         model=service["model"],

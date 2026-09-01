@@ -29,7 +29,7 @@ _ALLOWED = {
     "validation": {"target_warning_pp", "actual_warning_pp"},
     "aisbench": {"config", "work_dir", "extra_args", "dataset", "model"},
     "aisbench.dataset": {"abbr", "input_columns", "output_column", "prompt_template", "pred_role"},
-    "aisbench.model": {"abbr", "stream", "max_out_len", "retry", "batch_size", "generation_kwargs"},
+    "aisbench.model": {"abbr", "attr", "stream", "max_out_len", "retry", "batch_size", "generation_kwargs"},
 }
 
 _MODES = {
@@ -409,6 +409,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     dataset_cfg.setdefault("pred_role", "BOT")
     model_cfg = _require_dict(aisbench.setdefault("model", {}), "aisbench.model")
     model_cfg.setdefault("abbr", None)
+    model_cfg.setdefault("attr", "service")
     model_cfg.setdefault("stream", True)
     model_cfg.setdefault("max_out_len", 1)
     model_cfg.setdefault("retry", 2)
@@ -442,6 +443,12 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
         not isinstance(model_cfg["abbr"], str) or not model_cfg["abbr"]
     ):
         raise ScenarioValidationError("aisbench.model.abbr must be null or a non-empty string")
+    if model_cfg["attr"] != "service":
+        raise ScenarioValidationError(
+            "aisbench.model.attr must be 'service': the Prefix Cache model is a "
+            "served API, and any other value makes AISBench skip perf summarization "
+            "(TTFT/TPOT/ITL) for it"
+        )
     if not isinstance(model_cfg["stream"], bool):
         raise ScenarioValidationError("aisbench.model.stream must be a boolean")
     _positive(model_cfg["max_out_len"], "aisbench.model.max_out_len")
