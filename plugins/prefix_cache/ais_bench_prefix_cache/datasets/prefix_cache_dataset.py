@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 
 from datasets import Dataset
 
 from ais_bench.benchmark.datasets.base import BaseDataset
 from ais_bench.benchmark.registry import LOAD_DATASET
+from ais_bench.benchmark.utils.logging.logger import AISLogger
 
 from ..artifacts import read_jsonl, validate_artifacts
 from ..errors import ArtifactValidationError
 
 
-logger = logging.getLogger(__name__)
+logger = AISLogger()
 
 
 @LOAD_DATASET.register_module()
@@ -27,7 +27,7 @@ class PrefixCacheDataset(BaseDataset):
         供推理器按 prefix cache 的冷/热路由语义执行。
         """
         manifest_file = Path(manifest_path).resolve()
-        logger.info(
+        logger.debug(
             "[aisbench-dataset] load start requests_path=%s full_path=%s manifest_path=%s extra_kwargs=%s",
             requests_path,
             full_path,
@@ -35,14 +35,14 @@ class PrefixCacheDataset(BaseDataset):
             sorted(kwargs),
         )
         validation = validate_artifacts(manifest_file)
-        logger.info("[aisbench-dataset] artifacts validated result=%s", validation)
+        logger.debug("[aisbench-dataset] artifacts validated result=%s", validation)
         manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
         requests = read_jsonl(Path(requests_path).resolve())
         full = read_jsonl(Path(full_path).resolve())
         if len(requests) != len(full):
             raise ArtifactValidationError("requests/full row count mismatch")
         mode = manifest["prefix_cache"]["mode"]
-        logger.info(
+        logger.debug(
             "[aisbench-dataset] artifacts loaded run_id=%s cache_mode=%s request_rows=%d full_rows=%d",
             manifest.get("run_id"),
             mode,
@@ -66,7 +66,7 @@ class PrefixCacheDataset(BaseDataset):
                 "cache_mode": mode,
             }
             rows.append(row)
-            logger.info(
+            logger.debug(
                 "[aisbench-dataset] row merged index=%d request_id=%s group_id=%s dp_rank=%s lane_sequence=%s cache_mode=%s input_tokens=%s shared_prefix_tokens=%s theoretical_hit_tokens=%s max_out_len=%s question_chars=%d",
                 index,
                 audit.get("request_id"),
@@ -81,7 +81,7 @@ class PrefixCacheDataset(BaseDataset):
                 len(request["question"]),
             )
         dataset = Dataset.from_list(rows)
-        logger.info(
+        logger.debug(
             "[aisbench-dataset] load complete rows=%d columns=%s",
             len(rows),
             dataset.column_names,

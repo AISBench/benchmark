@@ -181,8 +181,8 @@ def _install_logger(log_file: Path | None) -> None:
     plugin_logger.setLevel(logging.INFO)
     formatter = logging.Formatter(LOG_NORMAL_FORMAT)
     if log_file is not None:
-        # 先清空上一轮同名日志，再以 append 模式打开。run 的 AISBench 子进程
-        # 也会追加写入同一文件，O_APPEND 可避免父子进程使用独立文件偏移时覆盖。
+        # 先清空上一轮同名插件日志，再以 append 模式打开。AISBench 正式任务的
+        # stdout/stderr 由其 LocalRunner 写入 work_dir/logs/infer，不与本文件混写。
         log_file.write_text("", encoding="utf-8")
         handler: logging.Handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
         handler.setFormatter(formatter)

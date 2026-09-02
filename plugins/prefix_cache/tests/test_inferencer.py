@@ -12,6 +12,11 @@ class _Registry:
         return lambda cls: cls
 
 
+class _FakeAISLogger:
+    def debug(self, *args, **kwargs):
+        pass
+
+
 class _FakeGenInferencer:
     events = []
 
@@ -42,6 +47,8 @@ def _load_inferencer_module():
         for name in (
             "ais_bench",
             "ais_bench.benchmark",
+            "ais_bench.benchmark.utils",
+            "ais_bench.benchmark.utils.logging",
             "ais_bench.benchmark.openicl",
             "ais_bench.benchmark.openicl.icl_inferencer",
         )
@@ -54,9 +61,12 @@ def _load_inferencer_module():
     gen_module.GenInferencer = _FakeGenInferencer
     registry_module = ModuleType("ais_bench.benchmark.registry")
     registry_module.ICL_INFERENCERS = _Registry()
+    logger_module = ModuleType("ais_bench.benchmark.utils.logging.logger")
+    logger_module.AISLogger = _FakeAISLogger
     stubs = packages | {
         gen_module.__name__: gen_module,
         registry_module.__name__: registry_module,
+        logger_module.__name__: logger_module,
         module_name: module,
     }
     with patch.dict(sys.modules, stubs):

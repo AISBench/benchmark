@@ -399,7 +399,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     validation.setdefault("actual_warning_pp", 5.0)
     aisbench = _require_dict(data["aisbench"], "aisbench")
     aisbench.setdefault("config", "./plugins/prefix_cache/config_examples/prefix_cache_perf.py")
-    aisbench.setdefault("work_dir", "./outputs/aisbench-prefix-cache-60")
+    aisbench.setdefault("work_dir", "./outputs/default")
     aisbench.setdefault("extra_args", [])
     dataset_cfg = _require_dict(aisbench.setdefault("dataset", {}), "aisbench.dataset")
     dataset_cfg.setdefault("abbr", None)

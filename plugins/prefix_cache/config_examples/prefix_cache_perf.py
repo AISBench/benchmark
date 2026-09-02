@@ -15,5 +15,4 @@ infer = dict(
     runner=dict(type=LocalRunner, max_num_workers=1, task=dict(type=OpenICLApiInferTask)),
 )
 summarizer = dict(attr="accuracy", summary_groups=[])
-work_dir = os.environ.get("AISBENCH_PREFIX_CACHE_WORK_DIR", "outputs/prefix_cache")
-
+work_dir = os.environ.get("AISBENCH_PREFIX_CACHE_WORK_DIR", "outputs/default")

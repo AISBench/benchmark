@@ -93,7 +93,7 @@ class CoreTest(unittest.TestCase):
             self.assertEqual(effective["validation"], {"target_warning_pp": 1.0, "actual_warning_pp": 5.0})
             self.assertEqual(effective["aisbench"], {
                 "config": "./plugins/prefix_cache/config_examples/prefix_cache_perf.py",
-                "work_dir": "./outputs/aisbench-prefix-cache-60",
+                "work_dir": "./outputs/default",
                 "extra_args": [],
                 "dataset": {
                     "abbr": None,

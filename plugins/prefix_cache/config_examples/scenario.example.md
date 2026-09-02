@@ -481,7 +481,7 @@ Zipf 分配：
 ```json
 "aisbench": {
   "config": "./plugins/prefix_cache/config_examples/prefix_cache_perf.py",
-  "work_dir": "./outputs/aisbench-prefix-cache-60",
+  "work_dir": "./outputs/default",
   "extra_args": [],
   "dataset": {
     "abbr": null,
@@ -508,7 +508,7 @@ Zipf 分配：
 | 字段 | 必填 | 默认值 | 当前用途 |
 |---|---:|---|---|
 | `config` | 否 | `"./plugins/prefix_cache/config_examples/prefix_cache_perf.py"` | `run` 加载并渲染的 AISBench Python 配置；该默认值适用于按 README 把 Scenario 复制到仓库根目录的工作流，可用 CLI `--config` 临时覆盖。 |
-| `work_dir` | 否 | `"./outputs/aisbench-prefix-cache-60"` | AISBench 正式压测结果目录，相对 Scenario 所在目录解析。 |
+| `work_dir` | 否 | `"./outputs/default"` | AISBench 正式压测基础目录，相对 Scenario 所在目录解析；AISBench 会在其下追加执行时间戳，并把正式任务 stdout/stderr（包括本插件 Dataset/Model/Inferencer 的 AISLogger 输出）写入 `<时间戳>/logs/infer/*.out`。 |
 | `extra_args` | 否 | `[]` | 追加到 AISBench perf 子进程命令后的字符串参数列表。 |
 | `dataset` | 否 | 见下表 | AISBench Dataset reader、prompt 和评测展示配置。 |
 | `model` | 否 | 见下表 | AISBench API Model 的流式、重试、并发和请求参数。 |
@@ -551,7 +551,7 @@ Zipf 分配：
 - 单个 vLLM HTTP 入口内部有 2 个 DP rank（cold 路由 / warmup 计划使用）；
 - 该组分别在 DP 0、DP 1 生成预热计划，共 2 条不进入正式统计的 warmup 请求；
 - 理论/目标超过 1 pp、实际/理论超过 5 pp 时均只告警；
-- `run` 使用示例 `prefix_cache_perf.py` 启动 AISBench，工作目录为 `./outputs/aisbench-prefix-cache-60`。
+- `run` 使用示例 `prefix_cache_perf.py` 启动 AISBench，基础工作目录为 `./outputs/default`；实际任务日志位于其时间戳子目录的 `logs/infer/*.out`。
 
 ## 13. 建议检查顺序
 

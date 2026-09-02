@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import time
 from urllib.parse import urlsplit, urlunsplit
 from typing import Any
@@ -10,10 +9,11 @@ from ais_bench.benchmark.models.api_models.vllm_custom_api import VLLMCustomAPI
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.logging.error_codes import MODEL_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchValueError
+from ais_bench.benchmark.utils.logging.logger import AISLogger
 
 
 _DP_KEY = "_aisbench_prefix_cache_dp_rank"
-logger = logging.getLogger(__name__)
+logger = AISLogger()
 
 
 @MODELS.register_module()
@@ -32,7 +32,7 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
             kwargs["url"] = inference_url
         super().__init__(*args, **kwargs)
         self.url = inference_url
-        logger.info(
+        logger.debug(
             "[aisbench-model] initialized inference_url=%s model=%s stream=%s max_out_len=%s retry=%s batch_size=%s api_key_configured=%s",
             self._safe_url(inference_url),
             getattr(self, "model", None),
@@ -58,7 +58,7 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
         # 把该请求应路由到的 DP rank 藏进请求体，供后续构造请求头使用。
         body = await super().get_request_body(input_data, max_out_len, output, **args)
         body[_DP_KEY] = dp_rank
-        logger.info(
+        logger.debug(
             "[aisbench-model] request_body built dp_rank=%s input_chars=%d max_out_len=%d stream=%s model=%s generation_keys=%s",
             dp_rank,
             len(input_data) if isinstance(input_data, str) else len(str(input_data)),
@@ -77,7 +77,7 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
         if rank is not None:
             # vLLM 依据该请求头把请求固定路由到指定 DP 卡，保证同组请求落在同一张卡的缓存上。
             headers["X-data-parallel-rank"] = str(rank)
-        logger.info(
+        logger.debug(
             "[aisbench-model] request route prepared dp_rank=%s routed=%s payload_keys=%s prompt_chars=%d max_tokens=%s stream=%s",
             rank,
             rank is not None,
@@ -92,7 +92,7 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
         # 非流式推理：发 POST，非 200 记为失败；成功则解析 JSON 并写入 output。
         payload, headers = self._payload_and_headers(request_body)
         started = time.perf_counter()
-        logger.info(
+        logger.debug(
             "[aisbench-model] text_infer start url=%s dp_rank=%s max_tokens=%s",
             self._safe_url(self.url),
             request_body.get(_DP_KEY),
@@ -103,7 +103,7 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
             if response.status != 200:
                 output.error_info = response.reason
                 output.success = False
-                logger.error(
+                logger.debug(
                     "[aisbench-model] text_infer failed status=%s reason=%s dp_rank=%s elapsed_seconds=%.6f",
                     response.status,
                     response.reason,
@@ -122,7 +122,7 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
             await self.parse_text_response(data, output)
             self._record_response_anomaly_payload(data, output)
             output.success = True
-            logger.info(
+            logger.debug(
                 "[aisbench-model] text_infer complete status=%s dp_rank=%s input_tokens=%s output_tokens=%s elapsed_seconds=%.6f",
                 response.status,
                 request_body.get(_DP_KEY),
@@ -137,7 +137,7 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
         started = time.perf_counter()
         first_chunk_seconds = None
         chunk_count = 0
-        logger.info(
+        logger.debug(
             "[aisbench-model] stream_infer start url=%s dp_rank=%s max_tokens=%s",
             self._safe_url(self.url),
             request_body.get(_DP_KEY),
@@ -148,7 +148,7 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
             if response.status != 200:
                 output.error_info = response.reason
                 output.success = False
-                logger.error(
+                logger.debug(
                     "[aisbench-model] stream_infer failed status=%s reason=%s dp_rank=%s elapsed_seconds=%.6f",
                     response.status,
                     response.reason,
@@ -170,17 +170,18 @@ class VLLMPrefixCacheAPI(VLLMCustomAPI):
                 try:
                     data = json.loads(chunk)
                 except json.JSONDecodeError:
-                    logger.exception(
+                    logger.debug(
                         "[aisbench-model] stream_infer invalid_chunk chunk_index=%d dp_rank=%s chunk_chars=%d",
                         chunk_count,
                         request_body.get(_DP_KEY),
                         len(chunk),
+                        exc_info=True,
                     )
                     raise
                 await self.parse_stream_response(data, output)
                 self._accumulate_response_anomaly_payload(data, output)
             output.success = True
-            logger.info(
+            logger.debug(
                 "[aisbench-model] stream_infer complete status=%s dp_rank=%s chunks=%d first_chunk_seconds=%s input_tokens=%s output_tokens=%s elapsed_seconds=%.6f",
                 response.status,
                 request_body.get(_DP_KEY),
