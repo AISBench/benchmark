@@ -43,7 +43,8 @@ AISBench Benchmark当前支持的数据集类型如下：
 | mbpp            | 编程（Python）           | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mbpp/README.md)            |
 | mgsm            | 多语言数学推理           | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mgsm/README.md)            |
 | mmlu            | 多学科理解（英文）       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmlu/README.md)            |
-| mmlu_pro        | 多学科理解（专业版）     | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmlu_pro/README.md)        |
+| mmlu_pro        | 多学科理解（专业版）       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmlu_pro/README.md)        |
+| mrcr            | 长序列（多针检索）       | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mrcr/README.md)            |
 | needlebench_v2  | 长序列                   | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/needlebench_v2/README.md)  |
 | piqa            | 物理常识推理             | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/piqa/README.md)            |
 | siqa            | 社会常识推理             | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/siqa/README.md)            |
