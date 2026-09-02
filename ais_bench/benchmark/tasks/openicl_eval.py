@@ -276,6 +276,17 @@ class OpenICLEvalTask(BaseTask):
                     ]
                 except TypeError:
                     preds['origin_prompt'] = None
+            # Same fallback for ``content``: the reasoning-free final answer
+            # persisted by GenInferencerOutputHandler when the model emits
+            # reasoning.  Evaluators that take ``content`` in their score()
+            # signature (e.g. MRCREvaluator) then work on both
+            # thinking-model files (field present) and legacy/non-thinking
+            # files (field absent).
+            if 'content' not in preds:
+                try:
+                    preds['content'] = [None for _ in range(len(pred_strs))]
+                except TypeError:
+                    preds['content'] = None
             preds = {
                 k: preds[k]
                 for k in signature(icl_evaluator.score).parameters
