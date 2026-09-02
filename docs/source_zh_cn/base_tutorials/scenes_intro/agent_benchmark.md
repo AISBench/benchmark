@@ -93,18 +93,18 @@ AISBench 支持 Harbor 定义的全量 Agent（`-a/--agent` 直接传名称）�
 
 | ⭐ 推荐：使用命令行参数 | 备选：使用自定义配置文件 |
 | :--- | :--- |
-| 无需新建文件，一条命令把 Agent、模型服务、数据集及运行参数全部配好 | 集中管理所有参数，一次编写多次复用 |
-| 依赖统一语义参数由适配器自动转换，开箱即用 | 支持 Python 全部语法，灵活扩展 |
+| 先准备一个自定义配置文件（含 `HarborRunner`+`HarborAgentTask`），再用命令行覆盖/补充各参数，无需改文件内容 | 所有参数集中在配置文件，一次编写多次复用 |
+| 命令行显式指定的参数优先级最高，开箱即用 | 支持 Python 全部语法，灵活扩展 |
 
 ::::{tab-set}
 :::{tab-item} ⭐ 推荐：使用命令行参数
 
-命令行方式通过一条命令配置所有参数。除常规模型服务参数外，Agent 测评新引入的参数（`--mode agent`、`-a/--agent`、`--api-base`、`--agent-api-key`、`-p/--agent-dataset-path`、`-d/--dataset`、`-n/--n-concurrent`、`-k/--n-attempts`、`-e/--environment`、`--monitor-port` 等）均需配合 `--mode agent` / `--mode agent_viz` 使用。完整参数见 📚 [用户配置参数 - Agent 测评参数](../all_params/cli_args.md#agent-测评参数)。
+Agent 测评仍需先准备一个自定义配置文件（其 `eval.runner` 定义了 `HarborRunner` + `HarborAgentTask`，可参考 `ais_bench/configs/agent_example/harbor_agent_task.py`），然后通过命令行在配置基础上覆盖/补充 Agent、模型服务、数据集与运行参数；命令行显式指定的参数优先级高于配置文件。除常规模型服务参数外，Agent 测评新引入的参数（`--mode agent`、`-a/--agent`、`--api-base`、`--agent-api-key`、`-p/--agent-dataset-path`、`-d/--dataset`、`-n/--n-concurrent`、`-k/--n-attempts`、`-e/--environment`、`--monitor-port` 等）均配合 `--mode agent` / `--mode agent_viz` 使用。完整参数见 📚 [用户配置参数 - Agent 测评参数](../all_params/cli_args.md#agent-测评参数)。
 
-以本地 terminal-bench-2 数据集 + terminus-2 Agent 为例：
+以本地 terminal-bench-2 数据集 + terminus-2 Agent 为例（`<config>.py` 为含 `HarborRunner`/`HarborAgentTask` 的自定义配置文件，可参考 `harbor_agent_task.py`）：
 
 ```bash
-ais_bench --mode agent \
+ais_bench <config>.py --mode agent \
     -a terminus-2 \                        # Agent 名称（或自定义 import path）
     --model hosted_vllm/qwen3 \             # 模型名称（可多次）
     --api-base http://0.0.0.0:8080/v1 \     # 模型服务 base url（统一语义）
@@ -120,7 +120,7 @@ ais_bench --mode agent \
 如需为 Agent 追加原始参数或环境变量（优先级最高），可用 `--ak key=value` / `--ae KEY=VALUE`：
 
 ```bash
-ais_bench --mode agent -a terminus-2 --model hosted_vllm/qwen3 \
+ais_bench <config>.py --mode agent -a terminus-2 --model hosted_vllm/qwen3 \
     --api-base http://0.0.0.0:8080/v1 \
     -p /path/to/terminal-bench-2 \
     --ak max_tokens=4096 \

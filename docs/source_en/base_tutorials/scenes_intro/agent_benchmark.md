@@ -73,23 +73,24 @@ AISBench supports all agents defined by Harbor (pass the name directly via `-a/-
 
 | ⭐ Recommended: Use command-line parameters | Alternative: Use a custom config file |
 | :--- | :--- |
-| Configure the agent, model service, dataset and runtime parameters all in one command, no new file needed | Centralize all parameters and reuse them across runs |
-| Unified semantic parameters are adapted automatically, ready to use | Supports all Python syntax for flexible extension |
+| First prepare a custom config file (containing `HarborRunner`+`HarborAgentTask`), then override/add parameters on the command line without editing the file | Centralize all parameters and reuse them across runs |
+| Parameters explicitly passed on the command line take the highest priority | Supports all Python syntax for flexible extension |
 
 ::::{tab-set}
 :::{tab-item} ⭐ Recommended: Use command-line parameters
 
-The command-line way configures every parameter in one command. Besides the regular model-service parameters, the parameters newly introduced for agent evaluation (`--mode agent`, `-a/--agent`, `--api-base`, `--agent-api-key`, `-p/--agent-dataset-path`, `-d/--dataset`, `-n/--n-concurrent`, `-k/--n-attempts`, `-e/--environment`, `--monitor-port`, etc.) work together with `--mode agent` / `--mode agent_viz`. See 📚 [User Configuration Parameters - Agent Evaluation Parameters](../all_params/cli_args.md) for the full list.
+Agent evaluation still requires a custom config file first (its `eval.runner` defines `HarborRunner` + `HarborAgentTask`; see `ais_bench/configs/agent_example/harbor_agent_task.py`). You then override/add agent, model-service, dataset and runtime parameters on the command line, which take priority over the config file. Besides the regular model-service parameters, the parameters newly introduced for agent evaluation (`--mode agent`, `-a/--agent`, `--api-base`, `--agent-api-key`, `-p/--agent-dataset-path`, `-d/--dataset`, `-n/--n-concurrent`, `-k/--n-attempts`, `-e/--environment`, `--monitor-port`, etc.) work together with `--mode agent` / `--mode agent_viz`. See 📚 [User Configuration Parameters - Agent Evaluation Parameters](../all_params/cli_args.md) for the full list.
 
-Take a local terminal-bench-2 dataset with the terminus-2 agent as an example:
+Take a local terminal-bench-2 dataset with the terminus-2 agent as an example (`<config>.py` is a custom config file containing `HarborRunner`/`HarborAgentTask`; see `harbor_agent_task.py`):
 
 ```bash
-ais_bench --mode agent \
+ais_bench <config>.py --mode agent \
     -a terminus-2 \                        # Agent name (or a custom import path)
     --model hosted_vllm/qwen3 \            # Model name (repeatable)
     --api-base http://0.0.0.0:8080/v1 \    # Model service base url (unified semantic)
     --agent-api-key sk-xxx \               # Model service API key (unified semantic)
     -p /path/to/terminal-bench-2 \         # Local dataset path
+    # --agent-deps /path/to/terminus-2-offline-pack/ \ # (optional, recommended) path to offline agent deps bundles (one tar.gz per OS)
     -n 5 \                                 # Concurrent trial count
     -k 1 \                                 # Attempts per trial
     -e docker \                            # Environment type
@@ -99,7 +100,7 @@ ais_bench --mode agent \
 To append raw agent kwargs or environment variables (highest priority), use `--ak key=value` / `--ae KEY=VALUE`:
 
 ```bash
-ais_bench --mode agent -a terminus-2 --model hosted_vllm/qwen3 \
+ais_bench <config>.py --mode agent -a terminus-2 --model hosted_vllm/qwen3 \
     --api-base http://0.0.0.0:8080/v1 \
     -p /path/to/terminal-bench-2 \
     --ak max_tokens=4096 \
