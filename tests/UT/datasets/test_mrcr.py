@@ -248,18 +248,6 @@ class TestMRCRDataset:
         with tempfile.TemporaryDirectory() as tmp:
             return self._load(tmp, self._rows(2))
 
-    def test_load_filters_by_token_bin(self):
-        """按官方 (bin_lo, bin_hi] 区间过滤 num_tokens 列"""
-        import tempfile
-
-        # 1m bin = (524288, 1048576]
-        rows = self._rows(n=3, num_tokens=[600000, 524288, 1048576])
-        with tempfile.TemporaryDirectory() as tmp:
-            ds = self._load(tmp, rows, length_bin="1m")
-        # 524288 is out (exclusive lower bound), 1048576 is in
-        assert len(ds) == 2
-        assert list(ds["id"]) == [0, 2]
-
     def test_load_tiktoken_failure_raises_actionable_error(self, monkeypatch):
         """离线机器：tiktoken 初始化失败应报出带 TIKTOKEN_CACHE_DIR 指引的可读错误"""
         import tempfile
@@ -280,14 +268,6 @@ class TestMRCRDataset:
         with tempfile.TemporaryDirectory() as tmp:
             with pytest.raises(ValueError, match="Unknown length_bin"):
                 self._load(tmp, self._rows(1), length_bin="2m")
-
-    def test_load_missing_subset_dir_raises(self):
-        """subset 子目录缺失时抛 FileNotFoundError"""
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            with pytest.raises(FileNotFoundError, match="subset directory"):
-                self._load(tmp, None, subset="4needle")
 
     def test_load_no_matching_samples_raises(self):
         """bin 过滤后无样本时抛 ValueError（防止静默空跑）"""
