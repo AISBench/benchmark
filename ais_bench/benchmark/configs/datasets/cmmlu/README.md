@@ -157,8 +157,8 @@ rm cmmlu.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|cmmlu_gen_0_shot_cot_chat_prompt|CMMLU数据集生成式任务, prompt带逻辑链|accuracy|0-shot|对话格式|[cmmlu_gen_0_shot_cot_chat_prompt.py](cmmlu_gen_0_shot_cot_chat_prompt.py)|
-|cmmlu_gen_5_shot_cot_chat_prompt|CMMLU数据集生成式任务, prompt带逻辑链|accuracy|5-shot|对话格式|[cmmlu_gen_5_shot_cot_chat_prompt.py](cmmlu_gen_5_shot_cot_chat_prompt.py)|
-|cmmlu_ppl_0_shot_cot_chat_prompt|CMMLU数据集PPL任务，prompt带逻辑链|accuracy|0-shot|对话格式|[cmmlu_ppl_0_shot_cot_chat_prompt.py](cmmlu_ppl_0_shot_cot_chat_prompt.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|cmmlu_gen_0_shot_cot_chat_prompt|CMMLU数据集生成式任务, prompt带逻辑链|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.cmmlu.cmmlu_gen_0_shot_cot_chat_prompt import cmmlu_datasets as datasets`|[cmmlu_gen_0_shot_cot_chat_prompt.py](cmmlu_gen_0_shot_cot_chat_prompt.py)|
+|cmmlu_gen_5_shot_cot_chat_prompt|CMMLU数据集生成式任务, prompt带逻辑链|accuracy|5-shot|对话格式|`from ais_bench.benchmark.configs.datasets.cmmlu.cmmlu_gen_5_shot_cot_chat_prompt import cmmlu_datasets as datasets`|[cmmlu_gen_5_shot_cot_chat_prompt.py](cmmlu_gen_5_shot_cot_chat_prompt.py)|
+|cmmlu_ppl_0_shot_cot_chat_prompt|CMMLU数据集PPL任务，prompt带逻辑链|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.cmmlu.cmmlu_ppl_0_shot_cot_chat_prompt import cmmlu_datasets as datasets`|[cmmlu_ppl_0_shot_cot_chat_prompt.py](cmmlu_ppl_0_shot_cot_chat_prompt.py)|

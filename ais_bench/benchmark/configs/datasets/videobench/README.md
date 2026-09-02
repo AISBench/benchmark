@@ -33,7 +33,7 @@ mv videobench_subset/ videobench/
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|videobench_gen|VideoBench数据集生成式任务，⚠️该数据集任务下，会直接将视频路径传入服务化，需确保服务化支持该格式输入并且有权限访问该路径视频。|accuracy|0-shot|列表格式（包含文本和视频两种数据）|[videobench_gen.py](videobench_gen.py)|
-|videobench_gen_base64|VideoBench数据集生成式任务，⚠️该数据集任务下，会先将视频进行抽帧再转化为base64格式传入服务化，需确保服务化支持该输入格式数据。其中num_frames表示视频抽帧数，默认为5|accuracy|0-shot|列表格式（包含文本和视频两种数据）|[videobench_gen_base64.py](videobench_gen_base64.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|videobench_gen|VideoBench数据集生成式任务，⚠️该数据集任务下，会直接将视频路径传入服务化，需确保服务化支持该格式输入并且有权限访问该路径视频。|accuracy|0-shot|列表格式（包含文本和视频两种数据）|`from ais_bench.benchmark.configs.datasets.videobench.videobench_gen import videobench_datasets as datasets`|[videobench_gen.py](videobench_gen.py)|
+|videobench_gen_base64|VideoBench数据集生成式任务，⚠️该数据集任务下，会先将视频进行抽帧再转化为base64格式传入服务化，需确保服务化支持该输入格式数据。其中num_frames表示视频抽帧数，默认为5|accuracy|0-shot|列表格式（包含文本和视频两种数据）|`from ais_bench.benchmark.configs.datasets.videobench.videobench_gen_base64 import videobench_datasets as datasets`|[videobench_gen_base64.py](videobench_gen_base64.py)|

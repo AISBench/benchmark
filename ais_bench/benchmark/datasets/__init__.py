@@ -69,4 +69,5 @@ from ais_bench.benchmark.datasets.realworldqa import * # noqa: F401, F403
 from ais_bench.benchmark.datasets.oneig import *  # noqa: F401, F403
 from ais_bench.benchmark.datasets.geometry3k import *  # noqa: F401, F403
 from ais_bench.benchmark.datasets.mrcr import *  # noqa: F401, F403
+from ais_bench.benchmark.datasets.corpusqa import *  # noqa: F401, F403
 

@@ -33,8 +33,8 @@ rm math.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| math_prm800k_500_0shot_cot_gen | Generative task for the MATH500 dataset. The default maximum output token length is 32768, with a logical chain in the prompt. | Accuracy (pass@1) | 0-shot | String format | [math_prm800k_500_0shot_cot_gen.py](math_prm800k_500_0shot_cot_gen.py) |
-| math_prm800k_500_5shot_cot_gen | Generative task for the MATH500 dataset. The default maximum output token length is 32768, with a logical chain in the prompt. | Accuracy (pass@1) | 5-shot | String format | [math_prm800k_500_5shot_cot_gen.py](math_prm800k_500_5shot_cot_gen.py) |
-| math500_gen_0_shot_cot_chat_prompt | Generative task for the MATH500 dataset, with a logical chain in the prompt (aligned with DeepSeek R1 accuracy test) | Accuracy (pass@1) | 0-shot | Chat format | [math500_gen_0_shot_cot_chat_prompt.py](math500_gen_0_shot_cot_chat_prompt.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| math_prm800k_500_0shot_cot_gen | Generative task for the MATH500 dataset. The default maximum output token length is 32768, with a logical chain in the prompt. | Accuracy (pass@1) | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.math.math_prm800k_500_0shot_cot_gen import math_datasets as datasets`| [math_prm800k_500_0shot_cot_gen.py](math_prm800k_500_0shot_cot_gen.py) |
+| math_prm800k_500_5shot_cot_gen | Generative task for the MATH500 dataset. The default maximum output token length is 32768, with a logical chain in the prompt. | Accuracy (pass@1) | 5-shot | String format |`from ais_bench.benchmark.configs.datasets.math.math_prm800k_500_5shot_cot_gen import math_datasets as datasets`| [math_prm800k_500_5shot_cot_gen.py](math_prm800k_500_5shot_cot_gen.py) |
+| math500_gen_0_shot_cot_chat_prompt | Generative task for the MATH500 dataset, with a logical chain in the prompt (aligned with DeepSeek R1 accuracy test) | Accuracy (pass@1) | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.math.math500_gen_0_shot_cot_chat_prompt import math_datasets as datasets`| [math500_gen_0_shot_cot_chat_prompt.py](math500_gen_0_shot_cot_chat_prompt.py) |

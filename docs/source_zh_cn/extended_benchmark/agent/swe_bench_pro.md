@@ -19,6 +19,8 @@ SWE-Bench Pro 是一个用于评估大语言模型在长时域软件工程任务
 - `mini_swe_agent_swe_bench_pro_mini.py`：SWE-bench Pro Mini，适合先跑通流程/快速迭代。
 - `mini_swe_agent_swe_bench_pro_full.py`：SWE-bench Pro Full，完整测试集。
 
+> 💡 上述示例配置文件即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考这些示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
+
 ## 2. 前置依赖
 
 运行前请确保以下依赖可用：

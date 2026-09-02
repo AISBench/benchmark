@@ -136,9 +136,9 @@ Mooncake Trace 数据集是一个用于性能评测的 trace 数据集，支持�
 
 ## 可用数据集任务
 
-| 任务名称 | 简介 | 评估指标 | few-shot | prompt格式 | 对应源码配置文件路径 |
-| --- | --- | --- | --- | --- | --- |
-| mooncake_trace_gen | Mooncake trace 数据集生成式任务 | 性能测评 | 0-shot | 字符串格式 | [mooncake_trace_gen.py](mooncake_trace_gen.py) |
+| 任务名称 | 简介 | 评估指标 | few-shot | prompt格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| mooncake-trace | Mooncake trace 数据集生成式任务 | 性能测评 | 0-shot | 字符串格式 | `from ais_bench.benchmark.configs.datasets.mooncake_trace.mooncake_trace_gen import mooncake_trace_datasets as datasets` | [mooncake_trace_gen.py](mooncake_trace_gen.py) |
 
 ## 使用示例
 

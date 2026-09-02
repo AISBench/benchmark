@@ -35,6 +35,7 @@ extensions = [
     'sphinx.ext.imgconverter', # 支持图片格式转换
     'sphinx.ext.mathjax',    # 支持数学公式
     'sphinx.ext.viewcode',   # 查看代码源文件
+    'sphinx_design',         # 支持 tab-set、card 等 UI 组件
 ]
 
 # 4. 若使用 Markdown，需指定源文件后缀
@@ -58,6 +59,7 @@ myst_enable_extensions = [
     'dollarmath',            # 支持 $ 分隔的数学公式
     'html_admonition',       # 支持 HTML 警告框
     'replacements',          # 支持文本替换
+    'colon_fence',           # 支持 ::: 栅栏指令（用于 tab-set 等 sphinx_design 组件）
 ]
 
 # （可选）配置 Mermaid 输出格式

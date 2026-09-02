@@ -60,6 +60,7 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | dapo-math-17k   | Mathematical Reasoning (RL Evaluation)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/dapo_math/README_en.md)       |
 | ifbench         | Instruction Following Evaluation                       | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ifbench/README_en.md)         |
 | aa_lcr          | Long Context Retrieval & Reasoning                     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aa_lcr/README_en.md)          |
+| corpusqa        | Long Context Q&A (1M tokens)                           | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/corpusqa/README_en.md)          |
 
 ### Multimodal Datasets
 

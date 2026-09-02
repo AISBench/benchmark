@@ -17,13 +17,17 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidException
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners import LocalRunner
+from ais_bench.benchmark.runners import LocalRunner, TasksMonitor
 from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask, OpenICLInferTask
 from ais_bench.benchmark.tasks.base import EmptyTask
 from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.cli.utils import clear_repeat_tasks
 from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
+from ais_bench.benchmark.utils.response_anomaly import (
+    ANOMALY_RESULT_NAMES,
+    ResponseAnomalyCoordinator,
+)
 
 logger = AISLogger()
 
@@ -43,6 +47,19 @@ class _SpecDecodeContext:
     """
     enabled: bool = False
     entries: dict[str, _URLSnapshotEntry] = field(default_factory=dict)
+
+
+def _run_response_anomaly_monitor(
+    task_names: list, work_dir: str, is_debug: bool
+) -> None:
+    """Run a dedicated status board for the response anomaly task."""
+    tasks_monitor = TasksMonitor(
+        task_names,
+        work_dir,
+        is_debug,
+        include_anomaly_status=True,
+    )
+    tasks_monitor.launch_state_board()
 
 
 class BaseWorker(ABC):
@@ -125,11 +142,43 @@ class Infer(BaseWorker):
 
         spec_ctx = self._spec_decode_before_snapshot(cfg)
 
+        if cfg.get('response_anomaly', {}).get('enabled', False):
+            # Remove a stale status left by a previous interrupted run so the
+            # inference board does not wait on an outdated ResponseAnomaly state.
+            stale_status = osp.join(
+                cfg['work_dir'],
+                'status_tmp',
+                ResponseAnomalyCoordinator.STATUS_FILE_NAME,
+            )
+            try:
+                if os.path.isfile(stale_status):
+                    os.remove(stale_status)
+            except OSError as exc:
+                logger.warning(
+                    "Failed to remove stale response anomaly status file %s: %s",
+                    stale_status,
+                    exc,
+                )
+
         runner = RUNNERS.build(cfg.infer.runner)
         runner(tasks)
 
         self._spec_decode_finalize(cfg, spec_ctx)
 
+        if cfg.get('response_anomaly', {}).get('enabled', False):
+            logger.info(
+                "Inference finished; starting response anomaly detection "
+                "(bound to the inference stage)..."
+            )
+            self.response_anomaly_coordinator.start(cfg)
+            # Detection runs serially inside the inference stage: wait for
+            # it to finish (its status board prints between the inference
+            # board and any evaluation board) before the workflow continues.
+            _finalize_response_anomaly_detection(
+                self.response_anomaly_coordinator,
+                cfg['work_dir'],
+                cfg.get('cli_args', {}).get('debug', False),
+            )
         logger.info("Inference tasks completed.")
 
     def _merge_datasets(self, tasks):
@@ -655,6 +704,71 @@ class PerfViz(BaseWorker):
                 print(format_spec_decode_na(url, result.get("error")))
 
 
+def _finalize_response_anomaly_detection(
+    coordinator, work_dir: str, is_debug: bool
+) -> None:
+    """Wait for detection to finish and print its status board and summary.
+
+    Called from the Infer worker so detection is serially bound to the
+    inference stage: the dedicated board renders right after the inference
+    board and before evaluation starts.
+    """
+    # The dedicated board is the only place detection status is rendered now
+    # that evaluation boards stay separate. Start it whenever detection has
+    # produced a status (it may have already finished for tiny datasets), so
+    # the final table is always printed. Skip it when no status was ever
+    # written to avoid the board waiting forever on tasks that never started.
+    anomaly_status_file = osp.join(
+        work_dir,
+        'status_tmp',
+        ResponseAnomalyCoordinator.STATUS_FILE_NAME,
+    )
+    if coordinator.is_running or osp.isfile(anomaly_status_file):
+        _run_response_anomaly_monitor(
+            coordinator.task_names,
+            work_dir,
+            is_debug,
+        )
+    coordinator.join()
+    TasksMonitor.rm_tmp_files(work_dir)
+    if coordinator.summary:
+        logger.info(
+            "Response anomaly detection summary across %d task(s): %s",
+            len(coordinator.anomaly_report),
+            coordinator.summary,
+        )
+    for task_name, info in coordinator.anomaly_report.items():
+        counts = info.get("counts", {})
+        anomalies = {
+            name: count
+            for name, count in counts.items()
+            if name in ANOMALY_RESULT_NAMES and count
+        }
+        if anomalies:
+            logger.warning(
+                "Response anomalies detected for %s: %s",
+                task_name,
+                anomalies,
+            )
+            logger.warning("  detection results: %s", info.get("result_file"))
+            if info.get("payload_dir"):
+                logger.warning("  payload archive:   %s", info["payload_dir"])
+            logger.warning("  task log:          %s", info.get("task_log"))
+        undetected = {
+            name: count
+            for name, count in counts.items()
+            if name in ("failed", "unavailable") and count
+        }
+        if undetected:
+            logger.warning(
+                "Response anomaly detection did not complete for %s: %s. "
+                "Check the task log for the root cause.",
+                task_name,
+                undetected,
+            )
+            logger.warning("  task log:          %s", info.get("task_log"))
+
+
 WORK_FLOW = dict(
     all=[Infer, JudgeInfer, Eval, AccViz],
     infer=[Infer],
@@ -671,8 +785,10 @@ class WorkFlowExecutor:
     def __init__(self, cfg, workflow) -> None:
         self.cfg = cfg
         self.workflow = workflow
+        self.response_anomaly_coordinator = ResponseAnomalyCoordinator()
 
     def execute(self) -> None:
         for worker in self.workflow:
+            worker.response_anomaly_coordinator = self.response_anomaly_coordinator
             cfg = copy.deepcopy(self.cfg)
             worker.do_work(cfg)

@@ -28,7 +28,7 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code File Path |
-| --- | --- | --- | --- | --- | --- |
-| siqa_gen_0_shot_chat | Generative task for the SIQA dataset; The `EDAccEvaluator` accuracy evaluation method selects the closest answer using the `Levenshtein distance algorithm`, which may cause misjudgment and result in an artificially high accuracy score. | Accuracy | 0-shot | Chat Format | [siqa_gen_0_shot_chat.py](siqa_gen_0_shot_chat.py) |
-| siqa_ppl_0_shot_chat | PPL task for SIQA dataset | Accuracy | 0-shot | Chat Format | [siqa_ppl_0_shot_chat.py](siqa_ppl_0_shot_chat.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| siqa_gen_0_shot_chat | Generative task for the SIQA dataset; The `EDAccEvaluator` accuracy evaluation method selects the closest answer using the `Levenshtein distance algorithm`, which may cause misjudgment and result in an artificially high accuracy score. | Accuracy | 0-shot | Chat Format |`from ais_bench.benchmark.configs.datasets.siqa.siqa_gen_0_shot_chat import siqa_datasets as datasets`| [siqa_gen_0_shot_chat.py](siqa_gen_0_shot_chat.py) |
+| siqa_ppl_0_shot_chat | PPL task for SIQA dataset | Accuracy | 0-shot | Chat Format |`from ais_bench.benchmark.configs.datasets.siqa.siqa_ppl_0_shot_chat import siqa_datasets as datasets`| [siqa_ppl_0_shot_chat.py](siqa_ppl_0_shot_chat.py) |

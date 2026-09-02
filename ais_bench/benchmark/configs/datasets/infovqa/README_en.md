@@ -24,6 +24,6 @@ wget https://opencompass.openxlab.space/utils/VLMEval/InfoVQA_VAL.tsv
 
 ## Available Dataset Tasks
 #### Basic Information
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-|infovqa_gen|infovqa dataset generative task|anls|0-shot|String format|[infovqa_gen.py](infovqa_gen.py)|
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+|infovqa_gen|infovqa dataset generative task|anls|0-shot|String format|`from ais_bench.benchmark.configs.datasets.infovqa.infovqa_gen import infovqa_datasets as datasets`|[infovqa_gen.py](infovqa_gen.py)|

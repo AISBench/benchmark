@@ -30,10 +30,10 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|race_middle_gen_5_shot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|[race_middle_gen_5_shot_chat.py](race_middle_gen_5_shot_chat.py)|
-|race_middle_gen_5_shot_cot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|[race_middle_gen_5_shot_cot_chat.py](race_middle_gen_5_shot_cot_chat.py)|
-|race_high_gen_5_shot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|[race_high_gen_5_shot_chat.py](race_high_gen_5_shot_chat.py)|
-|race_high_gen_5_shot_cot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|[race_high_gen_5_shot_cot_chat.py](race_high_gen_5_shot_cot_chat.py)|
-|race_ppl_0_shot_chat|race数据集PPL任务|accuracy|0-shot|对话格式|[race_ppl_0_shot_chat.py](race_ppl_0_shot_chat.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|race_middle_gen_5_shot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|`from ais_bench.benchmark.configs.datasets.race.race_middle_gen_5_shot_chat import race_datasets as datasets`|[race_middle_gen_5_shot_chat.py](race_middle_gen_5_shot_chat.py)|
+|race_middle_gen_5_shot_cot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|`from ais_bench.benchmark.configs.datasets.race.race_middle_gen_5_shot_cot_chat import race_datasets as datasets`|[race_middle_gen_5_shot_cot_chat.py](race_middle_gen_5_shot_cot_chat.py)|
+|race_high_gen_5_shot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|`from ais_bench.benchmark.configs.datasets.race.race_high_gen_5_shot_chat import race_datasets as datasets`|[race_high_gen_5_shot_chat.py](race_high_gen_5_shot_chat.py)|
+|race_high_gen_5_shot_cot_chat|race数据集生成式任务|accuracy|5-shot|对话格式|`from ais_bench.benchmark.configs.datasets.race.race_high_gen_5_shot_cot_chat import race_datasets as datasets`|[race_high_gen_5_shot_cot_chat.py](race_high_gen_5_shot_cot_chat.py)|
+|race_ppl_0_shot_chat|race数据集PPL任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.race.race_ppl_0_shot_chat import race_datasets as datasets`|[race_ppl_0_shot_chat.py](race_ppl_0_shot_chat.py)|

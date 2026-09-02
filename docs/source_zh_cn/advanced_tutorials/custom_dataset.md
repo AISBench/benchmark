@@ -105,11 +105,11 @@ ais_bench \
 命令行参考：
 
 ```shell
-ais_bench ais_bench/configs/api_examples/infer_api_vllm_general.py
+ais_bench ais_bench/configs/api_examples/infer_vllm_api_general.py
 ```
 
 ```shell
-ais_bench ais_bench/configs/api_examples/infer_api_mindie_stream_general.py
+ais_bench ais_bench/configs/api_examples/infer_mindie_stream_api_general.py
 ```
 
 在原配置文件中，直接向 `datasets` 变量中添加新的项即可。同普通数据集一致，该方式下支持自定义数据集与普通数据集混用。
@@ -121,6 +121,8 @@ datasets = [
     ..., # 普通数据集
 ]
 ```
+
+> 💡 上述配置文件方式本质上就是 [自定义配置文件方式](run_custom_config.md) 的简化应用。更复杂的场景（如多模型多数据集组合、自定义模型参数、裁判模型等）请参考 [自定义配置文件运行AISBench](run_custom_config.md#各场景自定义配置文件示例) 中"自定义数据集测评"示例。
 
 ### 数据集补充信息`.meta.json`使用指南
 目前仅支持性能测评场景。ais_bench 会默认尝试对输入的数据集文件进行解析，因此在绝大多数情况下，`.meta.json` 文件都是 **不需要** 的。但是，如果原生数据集中没有指定max_tokens，或者需要通过配置进行数据采样等，则需要在 `.meta.json` 文件中进行指定。

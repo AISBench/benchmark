@@ -137,6 +137,7 @@ def build_model_from_cfg(model_cfg: ConfigDict):
     model_cfg.pop("batch_size", None)
     model_cfg.pop("abbr", None)
     model_cfg.pop("attr", None)
+    model_cfg.pop("response_anomaly", None)
     model_cfg.pop("summarizer_abbr", None)
     model_cfg.pop("pred_postprocessor", None)
     model_cfg.pop("min_out_len", None)

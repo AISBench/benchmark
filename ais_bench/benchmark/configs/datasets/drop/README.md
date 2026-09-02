@@ -22,7 +22,7 @@ rm drop_simple_eval.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|drop_gen_0_shot_str|drop数据集生成式任务|accuracy(pass@1)|0-shot|字符串格式|[drop_gen_0_shot_str.py](drop_gen_0_shot_str.py)|
-|drop_gen_3_shot_str|drop数据集生成式任务|accuracy(pass@1)|3-shot|字符串格式|[drop_gen_3_shot_str.py](drop_gen_3_shot_str.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|drop_gen_0_shot_str|drop数据集生成式任务|accuracy(pass@1)|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.drop.drop_gen_0_shot_str import drop_datasets as datasets`|[drop_gen_0_shot_str.py](drop_gen_0_shot_str.py)|
+|drop_gen_3_shot_str|drop数据集生成式任务|accuracy(pass@1)|3-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.drop.drop_gen_3_shot_str import drop_datasets as datasets`|[drop_gen_3_shot_str.py](drop_gen_3_shot_str.py)|

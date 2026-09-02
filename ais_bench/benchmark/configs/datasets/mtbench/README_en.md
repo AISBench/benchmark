@@ -29,9 +29,9 @@ wget https://huggingface.co/datasets/HuggingFaceH4/mt_bench_prompts/blob/main/ra
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| mtbench_gen | Generative task for MTBench | Accuracy evaluation not supported temporarily | 0-shot | List format | [mtbench_gen.py](mtbench_gen.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| mtbench_gen | Generative task for MTBench | Accuracy evaluation not supported temporarily | 0-shot | List format |`from ais_bench.benchmark.configs.datasets.mtbench.mtbench_gen import mtbench_datasets as datasets`| [mtbench_gen.py](mtbench_gen.py) |
 
 
 *Note: The evaluation of this multi-turn conversation dataset supports service deployment frameworks such as vLLM, SGLang, and MindIE Service. When using it, you need to specify `--models` as `vllm_api_stream_chat_multiturn`.*

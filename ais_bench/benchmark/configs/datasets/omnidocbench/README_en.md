@@ -33,9 +33,9 @@ git lfs pull
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| omnidocbench_gen | Generative task for the OmniDocBench dataset | accuracy (pass@1) | 0-shot | String format | [omnidocbench_gen.py](omnidocbench_gen.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| omnidocbench_gen | Generative task for the OmniDocBench dataset | accuracy (pass@1) | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.omnidocbench.omnidocbench_gen import omnidocbench_datasets as datasets`| [omnidocbench_gen.py](omnidocbench_gen.py) |
 
 ## Usage Constraints:
 - Currently, only the Edit_dist metric is supported (used to evaluate the DeepSeek-OCR model); other metrics are not supported yet. The "overall" score is the average of the Edit_dist scores across all dimensions.

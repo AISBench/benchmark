@@ -37,8 +37,8 @@ rm physicaliqa-train-dev.zip
 ## 可用数据集任务
 ### piqa_gen_0_shot_chat_prompt
 #### 基本信息
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|piqa_gen_0_shot_chat_prompt|piqa数据集生成式任务|accuracy|0-shot|对话格式|[piqa_gen_0_shot_chat_prompt.py](piqa_gen_0_shot_chat_prompt.py)|
-|piqa_gen_0_shot_str|piqa数据集生成式任务|accuracy|0-shot|字符串格式|[piqa_gen_0_shot_str.py](piqa_gen_0_shot_str.py)|
-|piqa_ppl_0_shot_str|piqa数据集PPL任务|accuracy|0-shot|字符串格式|[piqa_ppl_0_shot_str.py](piqa_ppl_0_shot_str.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|piqa_gen_0_shot_chat_prompt|piqa数据集生成式任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.piqa.piqa_gen_0_shot_chat_prompt import piqa_datasets as datasets`|[piqa_gen_0_shot_chat_prompt.py](piqa_gen_0_shot_chat_prompt.py)|
+|piqa_gen_0_shot_str|piqa数据集生成式任务|accuracy|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.piqa.piqa_gen_0_shot_str import piqa_datasets as datasets`|[piqa_gen_0_shot_str.py](piqa_gen_0_shot_str.py)|
+|piqa_ppl_0_shot_str|piqa数据集PPL任务|accuracy|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.piqa.piqa_ppl_0_shot_str import piqa_datasets as datasets`|[piqa_ppl_0_shot_str.py](piqa_ppl_0_shot_str.py)|

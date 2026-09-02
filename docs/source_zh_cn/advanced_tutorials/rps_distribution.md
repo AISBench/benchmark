@@ -329,6 +329,10 @@ $\lambda_i = \lambda_{\text{start}} \times \left(\frac{\lambda_{end}}{\lambda_{s
 4. **压测场景下，控制连接数创建的频率，不控制请求发送速率（每个连接创建后，会不间断的执行请求发送和处理返回）**
 5. **多轮对话场景下，仅第一轮的请求分布有效**
 
+## 通过自定义配置文件实现
+
+> 💡 上述 RPS 分布控制参数（`traffic_cfg`）在 [自定义配置文件方式](run_custom_config.md) 中同样适用。只需在模型配置的 dict 中添加 `traffic_cfg` 字段即可。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](run_custom_config.md)。
+
 ---
 
 ## 配置与可视化示例

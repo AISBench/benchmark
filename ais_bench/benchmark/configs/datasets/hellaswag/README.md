@@ -24,8 +24,8 @@ rm hellaswag.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|hellaswag_gen_0_shot_chat_prompt|hellaswag数据集生成式任务|accuracy|0-shot|对话格式|[hellaswag_gen_0_shot_chat_prompt.py](hellaswag_gen_0_shot_chat_prompt.py)|
-|hellaswag_gen_10_shot_chat_prompt|hellaswag数据集生成式任务|accuracy|10-shot|对话格式|[hellaswag_gen_10_shot_chat_prompt.py](hellaswag_gen_10_shot_chat_prompt.py)|
-|hellaswag_ppl_0_shot_chat_prompt|hellaswag数据集PPL任务|accuracy|0-shot|对话格式|[hellaswag_ppl_0_shot_chat_prompt.py](hellaswag_ppl_0_shot_chat_prompt.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|hellaswag_gen_0_shot_chat_prompt|hellaswag数据集生成式任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.hellaswag.hellaswag_gen_0_shot_chat_prompt import hellaswag_datasets as datasets`|[hellaswag_gen_0_shot_chat_prompt.py](hellaswag_gen_0_shot_chat_prompt.py)|
+|hellaswag_gen_10_shot_chat_prompt|hellaswag数据集生成式任务|accuracy|10-shot|对话格式|`from ais_bench.benchmark.configs.datasets.hellaswag.hellaswag_gen_10_shot_chat_prompt import hellaswag_datasets as datasets`|[hellaswag_gen_10_shot_chat_prompt.py](hellaswag_gen_10_shot_chat_prompt.py)|
+|hellaswag_ppl_0_shot_chat_prompt|hellaswag数据集PPL任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.hellaswag.hellaswag_ppl_0_shot_chat_prompt import hellaswag_datasets as datasets`|[hellaswag_ppl_0_shot_chat_prompt.py](hellaswag_ppl_0_shot_chat_prompt.py)|

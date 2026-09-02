@@ -99,7 +99,7 @@ Location: /usr/local/lib/python3.10/dist-packages
 ### 错误描述
 使用[随机合成数据集](../advanced_tutorials/synthetic_dataset.md)`tokenid`场景下，模型配置文件必须指定tokenizer路径。
 ### 解决办法
-假设ais_bench评测工具命令为`ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_tokenid --mode perf`，那么`vllm_api_stream_chat.py`（配置文件路径检索方式参考[任务对应配置文件修改](../get_started/quick_start.md#任务对应配置文件修改)）配置文件中`models`中所有的`path`参数须传入tokenizer路径（一般就是模型权重文件夹路径）。
+假设ais_bench评测工具命令为`ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_tokenid --mode perf`，那么`vllm_api_stream_chat.py`（配置文件路径检索方式参考[任务对应配置文件修改](../get_started/quick_start.md#启动测评两种方式任选其一)）配置文件中`models`中所有的`path`参数须传入tokenizer路径（一般就是模型权重文件夹路径）。
 ```python
 # ......
 models = dict(

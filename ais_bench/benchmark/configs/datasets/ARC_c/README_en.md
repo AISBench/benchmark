@@ -28,8 +28,8 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| ARC_c_gen_0_shot_chat_prompt | Generative task for the ARC Challenge Set dataset | Accuracy | 0-shot | Chat format | [ARC_c_gen_0_shot_chat_prompt.py](ARC_c_gen_0_shot_chat_prompt.py) |
-| ARC_c_gen_25_shot_chat_prompt | Generative task for the ARC Challenge Set dataset | Accuracy | 25-shot | Chat format | [ARC_c_gen_25_shot_chat_prompt.py](ARC_c_gen_25_shot_chat_prompt.py) |
-| ARC_c_ppl_0_shot_str | PPL task for ARC Challenge Set dataset | Accuracy | 0-shot | String format | [ARC_c_ppl_0_shot_str.py](ARC_c_ppl_0_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| ARC_c_gen_0_shot_chat_prompt | Generative task for the ARC Challenge Set dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.ARC_c.ARC_c_gen_0_shot_chat_prompt import ARC_c_datasets as datasets`| [ARC_c_gen_0_shot_chat_prompt.py](ARC_c_gen_0_shot_chat_prompt.py) |
+| ARC_c_gen_25_shot_chat_prompt | Generative task for the ARC Challenge Set dataset | Accuracy | 25-shot | Chat format |`from ais_bench.benchmark.configs.datasets.ARC_c.ARC_c_gen_25_shot_chat_prompt import ARC_c_datasets as datasets`| [ARC_c_gen_25_shot_chat_prompt.py](ARC_c_gen_25_shot_chat_prompt.py) |
+| ARC_c_ppl_0_shot_str | PPL task for ARC Challenge Set dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.ARC_c.ARC_c_ppl_0_shot_str import ARC_c_datasets as datasets`| [ARC_c_ppl_0_shot_str.py](ARC_c_ppl_0_shot_str.py) |

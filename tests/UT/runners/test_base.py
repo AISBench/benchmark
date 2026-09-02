@@ -100,11 +100,35 @@ class TestTasksMonitor(unittest.TestCase):
         mock_makedirs.assert_called_once()
 
     @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=True)
+    @patch('ais_bench.benchmark.runners.base.os.listdir', return_value=[])
     @patch('ais_bench.benchmark.runners.base.shutil.rmtree')
-    def test_rm_tmp_files(self, mock_rmtree, mock_exists):
+    def test_rm_tmp_files(self, mock_rmtree, mock_listdir, mock_exists):
         """Test rm_tmp_files static method."""
         TasksMonitor.rm_tmp_files("/tmp/test")
         mock_rmtree.assert_called_once()
+
+    @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=True)
+    @patch(
+        'ais_bench.benchmark.runners.base.os.listdir',
+        side_effect=[['tmp_task1.json'], ['tmp_task1.json']],
+    )
+    @patch(
+        'ais_bench.benchmark.runners.base.os.remove',
+        side_effect=OSError('permission denied'),
+    )
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    def test_rm_tmp_files_warns_and_continues_on_remove_error(
+        self, mock_logger_class, mock_remove, mock_listdir, mock_exists
+    ):
+        """Status cleanup failures are visible but do not abort the workflow."""
+        TasksMonitor.rm_tmp_files("/tmp/test")
+
+        mock_remove.assert_called_once_with('/tmp/test/status_tmp/tmp_task1.json')
+        mock_logger_class.return_value.warning.assert_called_once_with(
+            "Failed to remove task status path %s: %s",
+            '/tmp/test/status_tmp/tmp_task1.json',
+            mock_remove.side_effect,
+        )
 
     @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
     @patch('ais_bench.benchmark.runners.base.os.makedirs')
@@ -158,6 +182,48 @@ class TestTasksMonitor(unittest.TestCase):
         self.assertEqual(monitor.tasks_state_map['task1']['process_id'], 12345)
         self.assertEqual(monitor.tasks_state_map['task1']['finish_count'], 10)
         self.assertEqual(monitor.tasks_state_map['task1']['status'], 'running')
+
+    @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
+    @patch('ais_bench.benchmark.runners.base.os.makedirs')
+    @patch('ais_bench.benchmark.runners.base.AISLogger')
+    @patch('ais_bench.benchmark.runners.base.read_and_clear_statuses')
+    @patch('ais_bench.benchmark.runners.base.json.load')
+    @patch('ais_bench.benchmark.runners.base.open', create=True)
+    def test_tasks_monitor_anomaly_status_is_opt_in(
+        self, mock_open, mock_json_load, mock_read_statuses,
+        mock_logger_class, mock_makedirs, mock_exists
+    ):
+        """默认（eval/judge 面板）不读取检测状态；专属检测面板 opt-in 读取。"""
+        mock_read_statuses.return_value = []
+        monitor = TasksMonitor(
+            task_names=self.task_names,
+            output_path=self.output_path,
+            is_debug=True
+        )
+
+        monitor._refresh_task_state()
+
+        mock_open.assert_not_called()
+
+        anomaly_task_name = 'ResponseAnomaly/model/ds'
+        opt_in_monitor = TasksMonitor(
+            task_names=[anomaly_task_name],
+            output_path=self.output_path,
+            is_debug=True,
+            include_anomaly_status=True,
+        )
+        mock_json_load.return_value = [
+            {
+                'task_name': anomaly_task_name,
+                'process_id': 1,
+                'finish_count': 1,
+                'total_count': 2,
+                'status': 'response anomaly',
+            }
+        ]
+        opt_in_monitor._refresh_task_state()
+
+        self.assertIn(anomaly_task_name, opt_in_monitor.tasks_state_map)
 
     @patch('ais_bench.benchmark.runners.base.os.path.exists', return_value=False)
     @patch('ais_bench.benchmark.runners.base.os.makedirs')
@@ -229,6 +295,7 @@ class TestTasksMonitor(unittest.TestCase):
         mock_pbar.close.assert_called_once()
 
 
+
 class TestBaseRunner(unittest.TestCase):
     """Tests for BaseRunner class."""
 
@@ -289,4 +356,3 @@ class TestBaseRunner(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
