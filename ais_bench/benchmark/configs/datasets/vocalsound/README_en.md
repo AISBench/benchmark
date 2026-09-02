@@ -30,7 +30,7 @@ mv vocalsound/subset5/* vocalsound/
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code File Path |
-| --- | --- | --- | --- | --- | --- |
-| vocalsound_gen | Generative task for the VocalSound dataset. ⚠️ For this dataset task, the audio path will be directly passed to the service deployment. Ensure that the service deployment supports this input format and has permission to access the audio at the specified path. | Accuracy | 0-shot | List format (contains two types of data: text and audio) | [vocalsound_gen.py](vocalsound_gen.py) |
-| vocalsound_gen_base64 | Generative task for the VocalSound dataset. ⚠️ For this dataset task, the audio data will be converted to Base64 format before being passed to the service deployment. Ensure that the service deployment supports this input format. | Accuracy | 0-shot | List format (contains two types of data: text and audio) | [vocalsound_gen_base64.py](vocalsound_gen_base64.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| vocalsound_gen | Generative task for the VocalSound dataset. ⚠️ For this dataset task, the audio path will be directly passed to the service deployment. Ensure that the service deployment supports this input format and has permission to access the audio at the specified path. | Accuracy | 0-shot | List format (contains two types of data: text and audio) |`from ais_bench.benchmark.configs.datasets.vocalsound.vocalsound_gen import vocalsound_datasets as datasets`| [vocalsound_gen.py](vocalsound_gen.py) |
+| vocalsound_gen_base64 | Generative task for the VocalSound dataset. ⚠️ For this dataset task, the audio data will be converted to Base64 format before being passed to the service deployment. Ensure that the service deployment supports this input format. | Accuracy | 0-shot | List format (contains two types of data: text and audio) |`from ais_bench.benchmark.configs.datasets.vocalsound.vocalsound_gen_base64 import vocalsound_datasets as datasets`| [vocalsound_gen_base64.py](vocalsound_gen_base64.py) |

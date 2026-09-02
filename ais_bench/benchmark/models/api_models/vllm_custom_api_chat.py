@@ -1,3 +1,5 @@
+import json
+import os
 import urllib
 from typing import Dict, Optional, Union
 
@@ -91,12 +93,49 @@ class VLLMCustomAPIChat(BaseAPIModel):
         self.url = self._get_url()
         self.template_parser = APITemplateParser(self.meta_template)
         self.session = None
+        # Multi-LoRA: load data_id -> lora adapter name map from generation_kwargs (optional).
+        self.lora_data_map = self._load_lora_data_map(generation_kwargs)
 
     def _get_url(self) -> str:
         endpoint = "v1/chat/completions"
         url = urllib.parse.urljoin(self.base_url, endpoint)
         self.logger.debug(f"Request url: {url}")
         return url
+
+    @staticmethod
+    def _load_lora_data_map(generation_kwargs):
+        """Load data_id -> LoRA adapter name mapping JSON file.
+
+        Returns None when ``lora_data_map_file`` is absent/invalid; the caller
+        then falls back to the base model without error.
+        """
+        if not generation_kwargs:
+            return None
+        lora_data_map_file = generation_kwargs.get("lora_data_map_file")
+        if not (isinstance(lora_data_map_file, str) and lora_data_map_file):
+            return None
+        file_path = os.path.abspath(lora_data_map_file)
+        if not os.path.exists(file_path):
+            return None
+        try:
+            with open(file_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    def _resolve_lora_model_name(self, output: RequestOutput):
+        """Look up LoRA adapter name for the current sample's data_id.
+
+        ``output.data_id`` is set by ``GenInferencer.do_request``; if not
+        available or not in the map, returns None and the caller falls back
+        to the base model.
+        """
+        if not self.lora_data_map:
+            return None
+        data_id = getattr(output, "data_id", None)
+        if data_id is None:
+            return None
+        return self.lora_data_map.get(f"{data_id}")
 
     async def get_request_body(
         self, input: PromptType, max_out_len: int, output: RequestOutput, **args
@@ -118,8 +157,23 @@ class VLLMCustomAPIChat(BaseAPIModel):
                 messages.append(msg)
         output.input = messages
         generation_kwargs = self.generation_kwargs.copy()
+        if self.response_anomaly_enabled:
+            # vLLM returns OpenAI-style logprobs with token text by default.
+            # Token ids are required to convert them into msProbe input.
+            generation_kwargs['return_token_ids'] = True
+            generation_kwargs['return_tokens_as_token_ids'] = True
         generation_kwargs.update({"max_tokens": max_out_len})
-        generation_kwargs.update({"model": self.model})
+        # Multi-LoRA: override model field with the resolved LoRA adapter name.
+        lora_model_name = self._resolve_lora_model_name(output)
+        lora_active = lora_model_name is not None
+        actual_model_in_body = lora_model_name if lora_active else self.model
+        generation_kwargs.update({"model": actual_model_in_body})
+        # Debug: log LoRA routing decision for observability.
+        self.logger.debug(
+            f"[Multi-LoRA] data_id={getattr(output, 'data_id', None)} "
+            f"lora_model_name={lora_model_name} "
+            f"model_in_request_body={actual_model_in_body}"
+        )
         if args.get("tools"):
             generation_kwargs.update({"tools": args["tools"]})
 
@@ -145,12 +199,25 @@ class VLLMCustomAPIChat(BaseAPIModel):
                 output.reasoning_content += reasoning
         await self._parse_usage(json_content, output)
 
+    async def _parse_logprobs(self, choice: dict, output: Output) -> None:
+        # chat API 格式：choice.logprobs.content[]
+        # 直接透传 vLLM 原始结构，每个 item 含 {token, logprob, bytes, top_logprobs}
+        lp = choice.get("logprobs")
+        if not lp:
+            if self._logprobs_enabled():
+                output.extra_details_data["logprobs_warning"] = (
+                    "logprobs is enabled in generation_kwargs but missing in response"
+                )
+            return
+        output.origin_logprobs = lp.get("content") or []
+
     async def parse_text_response(self, json_content, output):
         for item in json_content.get("choices", []):
             if content:=item["message"].get("content"):
                 output.content += content
             if reasoning_content:=item["message"].get("reasoning_content") or item["message"].get("reasoning"):
                 output.reasoning_content += reasoning_content
+            await self._parse_logprobs(item, output)
         await self._parse_usage(json_content, output)
         output.update_extra_details_data_from_text_response(json_content)
         self.logger.debug(f"Output content: {output.content}")

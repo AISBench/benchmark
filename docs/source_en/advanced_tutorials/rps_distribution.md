@@ -324,6 +324,9 @@ $\lambda_i = \lambda_{\text{start}} \times \left(\frac{\lambda_{end}}{\lambda_{s
 4. **In stress testing scenarios, the frequency of connection creation is controlled, but not the request sending rate (after each connection is created, requests are sent and responses are processed continuously without interruption)**.
 5. **In multi-turn dialogue scenarios, only the request distribution of the first turn is valid**.
 
+## Implement via Custom Config Files
+
+> 💡 The above RPS distribution control parameters (`traffic_cfg`) are also applicable in the [Custom Config File Method](run_custom_config.md). You only need to add the `traffic_cfg` field in the model configuration dict. The configuration file is essentially a Python script that supports all Python syntax such as loops, conditional judgments, list comprehensions, etc. You can write models, datasets, summarizer, and other configurations into a single file, write once and reuse multiple times. See [Running AISBench with Custom Config Files](run_custom_config.md).
 
 ---
 

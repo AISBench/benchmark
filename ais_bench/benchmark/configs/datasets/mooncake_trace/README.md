@@ -92,7 +92,7 @@ Mooncake Trace 数据集是一个用于性能评测的 trace 数据集，支持�
 | ---- | ---- | ---- | ---- |
 | `path` | str | 原始包含 hash_id 和 trace 数据的 JSONL 文件路径。使用相对路径时相对于源码根路径，支持绝对路径 | 必需 |
 | `random_seed` | int | 随机数种子，用于可复现性 | None |
-| `generated_prompts_path` | str | 生成的 prompt 缓存路径。如果为空，将自动生成缓存文件名。使用相对路径时相对于源码根路径，支持绝对路径 | "" |
+| `generated_prompts_path` | str | 生成的 prompt 缓存路径。详细说明见下方 | "" |
 
 ### 固定调度参数
 
@@ -121,16 +121,24 @@ Mooncake Trace 数据集是一个用于性能评测的 trace 数据集，支持�
      - **截取规则**：保留满足「偏移后时间 >= start_offset」且「end_offset 为 -1 或 偏移后时间 <= end_offset」的 trace；即时间窗为 `[start_offset, end_offset]`（毫秒，左闭右闭），`end_offset=-1` 表示不设上界。
      - **示例**：原始时间戳为 [1000, 2000, 5000] ms，`auto_offset=True` 后变为 [0, 1000, 4000]；若 `start_offset=500`、`end_offset=3000`，则保留偏移后在 [500, 3000] 内的，即仅保留偏移后为 1000 的那条（对应原始 2000 ms）。
 
-3. **缓存机制**:
-   - 当使用 `fixed_schedule` 参数时，缓存文件名会自动包含这些参数，确保参数变化时使用不同的缓存文件
+3. **generated_prompts_path 与缓存机制**:
+   - 该参数控制生成的 prompt 缓存文件的落盘路径以及是否基于 `path` 所指的 JSONL 重新生成 prompt：
+     - **不指定（值为空字符串）**：系统会在 `path` 所指的 JSONL 文件**同目录下**自动生成缓存文件，不会触发任何额外读取，缓存文件命名规则如下：
+       - 文件名格式：`{原文件名（不含扩展名）}_{原JSONL内容的MD5}_generated_prompts{原扩展名}`
+       - 即默认缓存文件与原始 JSONL 文件位于同一目录，扩展名与原始文件一致（通常为 `.jsonl`）
+       - 当使用 `fixed_schedule_*` 参数时，文件名后会附加调度参数后缀，便于不同参数组合复用不同缓存：依次按需拼接 `_auto`、`_start{start_offset}`、`_end{end_offset}`
+       - 示例：原始文件 `trace.jsonl`，其内容 MD5 为 `d41d8cd98f00b204e9800998ecf8427e`，`fixed_schedule_*` 全部使用默认值时，缓存文件名为 `trace_d41d8cd98f00b204e9800998ecf8427e_generated_prompts.jsonl`；若 `fixed_schedule_auto_offset=True` 且 `fixed_schedule_start_offset=1000`，缓存文件名变为 `trace_d41d8cd98f00b204e9800998ecf8427e_generated_prompts_auto_start1000.jsonl`
+     - **显式指定一个路径**：将使用该路径作为缓存文件路径（相对路径相对源码根路径解析，绝对路径按原样使用）。运行时会按如下规则处理：
+       - 若指定的缓存文件**已存在**：直接读取该缓存文件作为数据集，**完全不会**基于 `path` 所指的包含 hash_id 与 trace 数据的 JSONL 去生成 prompt，从而显著加速加载并避免重复生成
+       - 若指定的缓存文件**不存在**：基于 `path` 所指的 JSONL 正常生成 prompt，并将结果落盘到该指定路径
    - 如果缓存文件已存在，会直接加载缓存，跳过 prompt 生成过程
    - 如需重新生成，请删除缓存文件后重新运行
 
 ## 可用数据集任务
 
-| 任务名称 | 简介 | 评估指标 | few-shot | prompt格式 | 对应源码配置文件路径 |
-| --- | --- | --- | --- | --- | --- |
-| mooncake-trace | Mooncake trace 数据集生成式任务 | 性能测评 | 0-shot | 字符串格式 | [mooncake_trace_gen.py](mooncake_trace_gen.py) |
+| 任务名称 | 简介 | 评估指标 | few-shot | prompt格式 | 配套文件导入方式 | 对应源码配置文件路径 |
+| --- | --- | --- | --- | --- | --- | --- |
+| mooncake-trace | Mooncake trace 数据集生成式任务 | 性能测评 | 0-shot | 字符串格式 | `from ais_bench.benchmark.configs.datasets.mooncake_trace.mooncake_trace_gen import mooncake_trace_datasets as datasets` | [mooncake_trace_gen.py](mooncake_trace_gen.py) |
 
 ## 使用示例
 

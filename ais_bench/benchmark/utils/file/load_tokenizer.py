@@ -1,6 +1,6 @@
 import os
 
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, PreTrainedTokenizerFast
 from typing import List, Tuple
 
 from ais_bench.benchmark.utils.logging import AISLogger
@@ -36,11 +36,20 @@ def load_tokenizer(tokenizer_path: str, trust_remote_code=False):
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=trust_remote_code)
         logger.debug(f"Successfully loaded tokenizer from: {tokenizer_path}")
         return tokenizer
-    except Exception as e:
-        raise FileOperationError(
-            UTILS_CODES.TOKENIZER_LOAD_FAILED,
-            f"Failed to load tokenizer from {tokenizer_path}: {type(e).__name__}: {e}",
-        ) from e
+    except Exception as e1:
+        try:
+            tokenizer = PreTrainedTokenizerFast.from_pretrained(
+                tokenizer_path, trust_remote_code=trust_remote_code
+            )
+            logger.debug(f"Successfully loaded tokenizer from: {tokenizer_path} (PreTrainedTokenizerFast)")
+            return tokenizer
+        except Exception as e2:
+            raise FileOperationError(
+                UTILS_CODES.TOKENIZER_LOAD_FAILED,
+                f"Failed to load tokenizer from {tokenizer_path}: "
+                f"AutoTokenizer failed({type(e1).__name__}: {e1}), "
+                f"PreTrainedTokenizerFast also failed({type(e2).__name__}: {e2})",
+            ) from e2
 
 
 class AISTokenizer:

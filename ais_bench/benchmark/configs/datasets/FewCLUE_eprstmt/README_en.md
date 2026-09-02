@@ -39,7 +39,7 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| FewCLUE_eprstmt_ppl_0_shot_chat | PPL task for the FewCLUE_eprstmt dataset | Accuracy | 0-shot | Chat format | [FewCLUE_eprstmt_ppl_0_shot_chat.py](FewCLUE_eprstmt_ppl_0_shot_chat.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| FewCLUE_eprstmt_ppl_0_shot_chat | PPL task for the FewCLUE_eprstmt dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.FewCLUE_eprstmt.FewCLUE_eprstmt_ppl_0_shot_chat import eprstmt_datasets as datasets`| [FewCLUE_eprstmt_ppl_0_shot_chat.py](FewCLUE_eprstmt_ppl_0_shot_chat.py) |
 

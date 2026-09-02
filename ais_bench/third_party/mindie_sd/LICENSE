@@ -1,0 +1,13 @@
+MindIE SD — Qwen Image Edit (vendored integration code)
+
+The Python sources under this directory incorporate third-party material that
+is licensed under the Apache License, Version 2.0. The complete license text
+is included in the repository root file LICENSE.
+
+Upstream attribution and a breakdown by component are summarized in the
+repository root file NOTICE under "MindIE SD (Qwen Image Edit)".
+
+Runtime dependencies (not bundled in this repository), such as the Ascend MindIE
+SD Python module (`mindiesd`), PyTorch NPU extensions (`torch_npu`), and other
+optional packages used at import time, are governed by the license terms
+shipped with those distributions (e.g. your MindIE / CANN / PyTorch install).

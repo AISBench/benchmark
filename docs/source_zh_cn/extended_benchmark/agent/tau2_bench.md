@@ -63,7 +63,9 @@
 > 注意，AISBench依赖的tau2-bench仓库的commit id为 c5b2d228d850c59b749b93cf32c4745d3aa53967（2025年2月的版本）。
 
 ### 3. 配置τ²-Bench任务的自定义配置文件
-1. 在AISBench工具根目录下修改`ais_bench/configs/agent_examples/tau2_bench_task.py`中必要的配置（主要是配置被测推理服务和模拟用户的推理服务的信息）
+1. 在AISBench工具根目录下修改`ais_bench/configs/agent_example/tau2_bench_task.py`中必要的配置（主要是配置被测推理服务和模拟用户的推理服务的信息）
+
+> 💡 上述 `tau2_bench_task.py` 即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考此示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
 ```python
 # ......
 models = [
@@ -108,7 +110,7 @@ for task in sub_tasks:
 1. 在AISBench工具根目录下执行以下命令：
    ```bash
    # 执行τ²-Bench任务
-   ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3
+   ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3
    ```
    - `--max-num-workers`参数表示任务最大并发数，`--max-num-workers 3`表示"airline", "retail", "telecom"这3个任务会并行执行。
 
@@ -140,8 +142,8 @@ Press Up/Down arrow to page, 'P' to PAUSE/RESUME screen refresh, 'Ctrl + C' to e
 | tau2_bench_airline | / | pass^1 | unknown | 50 | 38.00 |
 | tau2_bench_retail | / | pass^1 | unknown | 114 | 21.05 |
 | tau2_bench_telecom | / | pass^1 | unknown | 114 | 33.33 |
-| tau2_bench_avg | - | naive_average | unknown | / | 30.80 |
-| tau2_bench_avg-weighted | - | weighted_average | unknown | / | 29.14 |
+| tau2_bench_pass^1_avg | - | naive_average | unknown | / | 30.80 |
+| tau2_bench_pass^1_avg-weighted | - | weighted_average | unknown | / | 29.14 |
 ```
 - `tau2_bench_avg` 表示三大领域的简单平均得分。
 - `tau2_bench_avg-weighted` 表示三大领域的加权平均得分（权重为各领域的任务数），权重为每个领域的任务数。
@@ -198,12 +200,12 @@ Press Up/Down arrow to page, 'P' to PAUSE/RESUME screen refresh, 'Ctrl + C' to e
 
 这个时候可以手动中断任务执行，例如按下`Ctrl + C`, 随后执行如下命令在之前完成的测评进度基础上继续测评：
 ```bash
-# ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3 --reuse {时间戳}
-ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3 --reuse 20260408_091146
+# ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3 --reuse {时间戳}
+ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3 --reuse 20260408_091146
 ```
 
 ## 单条case多次执行（pass^k）
-1. 在AISBench工具根目录下修改`ais_bench/configs/agent_examples/tau2_bench_task.py` `num_trials`参数的取值为需要执行的次数（默认为1）
+1. 在AISBench工具根目录下修改`ais_bench/configs/agent_example/tau2_bench_task.py` `num_trials`参数的取值为需要执行的次数（默认为1）
 ```python
 # ......
 sub_tasks = ["airline", "retail", "telecom"]
@@ -213,7 +215,7 @@ for task in sub_tasks:
             abbr=f'tau2_bench_{task}',
             args = dict(
                 domain = task,                      # -d, 要运行的模拟域，可选值为 "airline", "retail", "telecom"
-                num_trials = 3,                     # 每个任务运行的次数，默认为 1
+                num_trials = 5,                     # 每个任务运行的次数，默认为 1
                 # ......
             ),
         )
@@ -221,16 +223,16 @@ for task in sub_tasks:
 # ......
 ```
 
-2. 执行`ais_bench ais_bench/configs/agent_examples/tau2_bench_task.py --max-num-workers 3`命令后每条case会执行`num_trials`次，进度条的总数也会相应增加至`num_trials`倍。
+2. 执行`ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3`命令后每条case会执行`num_trials`次，进度条的总数也会相应增加至`num_trials`倍。
 ```
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
 | Task Name                         |   Process | Progress                                                   | Time Cost   | Status   | Log Path                                        | Extend Parameters   |
 +===================================+===========+============================================================+=============+==========+=================================================+=====================+
-| openai-v1-chat/tau2_bench_airline |   1856223 | [######                        ] 30/150 Running TAU2 Bench | 0:07:13     | running  | logs/eval/openai-v1-chat/tau2_bench_airline.out | None                |
+| openai-v1-chat/tau2_bench_airline |   1856223 | [######                        ] 30/250 Running TAU2 Bench | 0:07:13     | running  | logs/eval/openai-v1-chat/tau2_bench_airline.out | None                |
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
-| openai-v1-chat/tau2_bench_retail  |   1856224 | [######                        ] 75/342 Running TAU2 Bench | 0:11:56     | running  | logs/eval/openai-v1-chat/tau2_bench_retail.out  | None                |
+| openai-v1-chat/tau2_bench_retail  |   1856224 | [######                        ] 75/568 Running TAU2 Bench | 0:11:56     | running  | logs/eval/openai-v1-chat/tau2_bench_retail.out  | None                |
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
-| openai-v1-chat/tau2_bench_telecom |   1856222 | [######                        ] 76/342 Running TAU2 Bench | 1:09:51     | running  | logs/eval/openai-v1-chat/tau2_bench_telecom.out | None                |
+| openai-v1-chat/tau2_bench_telecom |   1856222 | [######                        ] 76/568 Running TAU2 Bench | 1:09:51     | running  | logs/eval/openai-v1-chat/tau2_bench_telecom.out | None                |
 +-----------------------------------+-----------+------------------------------------------------------------+-------------+----------+-------------------------------------------------+---------------------+
 ```
 
@@ -238,9 +240,90 @@ for task in sub_tasks:
 ```shell
 | dataset | version | metric | mode | total_count | openai-v1-chat |
 |----- | ----- | ----- | ----- | ----- | -----|
-| tau2_bench_airline | / | pass^3 | unknown | 50 | 38.00 |
-| tau2_bench_retail | / | pass^3 | unknown | 114 | 21.05 |
-| tau2_bench_telecom | / | pass^3 | unknown | 114 | 33.33 |
-| tau2_bench_avg | - | naive_average | unknown | / | 30.80 |
-| tau2_bench_avg-weighted | - | weighted_average | unknown | / | 29.14 |
+| tau2_bench_airline | a39421 | pass^1 | gen | 10 | 46.00 |
+| tau2_bench_airline | a39421 | pass^2 | gen | 10 | 37.00 |
+| tau2_bench_airline | a39421 | pass^3 | gen | 10 | 34.00 |
+| tau2_bench_airline | a39421 | pass^4 | gen | 10 | 32.00 |
+| tau2_bench_airline | a39421 | pass^5 | gen | 10 | 30.00 |
+| tau2_bench_retail | a39421 | pass^1 | gen | 23 | 32.17 |
+| tau2_bench_retail | a39421 | pass^2 | gen | 23 | 19.13 |
+| tau2_bench_retail | a39421 | pass^3 | gen | 23 | 13.48 |
+| tau2_bench_retail | a39421 | pass^4 | gen | 23 | 8.70 |
+| tau2_bench_retail | a39421 | pass^5 | gen | 23 | 4.35 |
+| tau2_bench_telecom | a39421 | pass^1 | gen | 23 | 62.61 |
+| tau2_bench_telecom | a39421 | pass^2 | gen | 23 | 44.78 |
+| tau2_bench_telecom | a39421 | pass^3 | gen | 23 | 36.52 |
+| tau2_bench_telecom | a39421 | pass^4 | gen | 23 | 32.17 |
+| tau2_bench_telecom | a39421 | pass^5 | gen | 23 | 30.43 |
+| tau2_bench_pass^5_avg | - | naive_average | gen | / | 21.59 |
+| tau2_bench_pass^5_avg-weighted | - | weighted_average | gen | / | 19.64 |
+```
+
+## 使用 TAU2-mini 采样子集
+
+**TAU2-mini** 是由 AISBench 提供的 TAU2 采样子集，通过 K-means 聚类算法对原始数据集进行约 1/10 规模的采样，在测试得分上与原始数据集大致相同，用于快速验证模型能力与降低评测成本。数据集地址：[TAU2-mini](https://modelers.cn/datasets/AISBench/TAU2-mini)。
+
+### 1. 下载 TAU2-mini 数据集
+
+从 [魔乐社区](https://modelers.cn/datasets/AISBench/TAU2-mini) 下载数据集。下载后解压，记下数据集根目录路径（下文称 `<TAU2_MINI_ROOT>`）。
+
+### 2. 替换 tau2 的原始数据集文件
+
+在安装环境上执行如下命令找到 tau2 的安装路径：
+
+```bash
+pip3 show tau2 | grep "Editable project location"
+```
+
+执行得到类似如下输出：
+
+```
+Editable project location: {tau2安装路径}/benchmark/src/tau2
+```
+
+将 TAU2-mini 数据中的文件替换 tau2 中的原始数据集文件（**请提前备份好** `{tau2安装路径}/src/benchmark/tau2/data/tau2/domains`）：
+
+```bash
+cp -r <TAU2_MINI_ROOT>/tau2_subsets/* {tau2安装路径}/src/benchmark/tau2/data/tau2/domains
+```
+
+### 3. 修改 AISBench 中 tau2-bench 的配置文件
+
+在上述[快速上手](#aisbench中快速上手-τ²-bench-测评)配置的基础上，额外修改 `ais_bench/configs/agent_example/tau2_bench_task.py` 中的 `task_split_name` 参数：
+
+```python
+# ......
+for task in sub_tasks:
+    datasets.append(
+        dict(
+            abbr=f'tau2_bench_{task}',
+            args = dict(
+                # ......
+                task_split_name = "mini",           # 使用 mini 分割
+                # ......
+            ),
+        )
+    )
+
+# ......
+```
+
+### 4. 执行测评
+
+与标准流程一致，执行如下命令：
+
+```bash
+ais_bench ais_bench/configs/agent_example/tau2_bench_task.py --max-num-workers 3
+```
+
+执行完成后，各领域的任务数变为 airline **5** 条、retail **11** 条、telecom **11** 条，精度结果示例：
+
+```
+| dataset | version | metric | mode | total_count | openai-v1-chat |
+|----- | ----- | ----- | ----- | ----- | -----|
+| tau2_bench_airline | a39421 | pass^1 | gen | 5 | 40.00 |
+| tau2_bench_retail | a39421 | pass^1 | gen | 11 | 27.27 |
+| tau2_bench_telecom | a39421 | pass^1 | gen | 11 | 54.55 |
+| tau2_bench_pass^1_avg | - | naive_average | gen | / | 40.61 |
+| tau2_bench_pass^1_avg-weighted | - | weighted_average | gen | / | 40.74 |
 ```

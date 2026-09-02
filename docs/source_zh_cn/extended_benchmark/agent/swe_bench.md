@@ -6,18 +6,24 @@ SWE-bench是一个基准测试，用于评估大语言模型在从GitHub收集�
 
 当前在 `ais_bench` 已接入以下 SWEbench 能力：
 
-- 数据集：`full`、`verified`、`lite`、`multilingual`
+- 数据集：`full`、`verified`、`verified_mini`、`lite`、`multilingual`
 - 任务：
   - `infer`：调用 `mini-swe-agent` 生成补丁（`model_patch`）
   - `eval`：调用 SWE-bench harness 执行评测并统计 resolved
 - 结果汇总：输出 `accuracy`、`submitted_accuracy`、`resolved_instances` 等关键指标
 
-`ais_bench/configs/swe_bench_examples/`目录已提供 4 个示例配置：
+`ais_bench/configs/swe_bench_examples/`目录已提供以下示例配置：
 
-- `mini_swe_agent_swe_bench_lite.py`
-- `mini_swe_agent_swe_bench_verified.py`
-- `mini_swe_agent_swe_bench_full.py`
-- `mini_swe_agent_swe_bench_multilingual.py`
+- `mini_swe_agent_swe_bench_lite.py`：SWE-bench Lite（`princeton-nlp/SWE-Bench_Lite`），适合先跑通流程/快速迭代。
+- `mini_swe_agent_swe_bench_verified.py`：SWE-bench Verified（`princeton-nlp/SWE-Bench_Verified`，**500** 条），SWE-bench 测试集里经人工验证质量的子集。
+- `mini_swe_agent_swe_bench_verified_mini.py`：SWE-bench Verified Mini（`MariusHobbhahn/swe-bench-verified-mini`，**50** 条），社区构造的 Verified 子集，用于显著降低评测成本；子集筛选/构造方式见数据集卡与构造仓库：`https://huggingface.co/datasets/MariusHobbhahn/swe-bench-verified-mini`、`https://github.com/mariushobbhahn/make_swe_bench_verified_mini`。
+- `mini_swe_agent_swe_bench_full.py`：SWE-bench Full（`princeton-nlp/SWE-Bench`），完整测试集。
+- `mini_swe_agent_swe_bench_multilingual.py`：SWE-bench Multilingual（`SWE-bench/SWE-bench_Multilingual`），包含多语言 issue 描述的数据集。
+- `mini_swe_agent_swe_bench_multilingual_mini.py`：SWE-bench Multilingual Mini（**15**/**30**/**60** 条），AISBench官方构造的 Multilingual 子集，用于显著降低评测成本；子集筛选/构造方式见数据集卡与构造仓库：`https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini`、`https://github.com/AISBench/datasets/tree/main/mini_datasets/swe_bench_multiligual_mini`。
+
+> 💡 上述示例配置文件即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考这些示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
+
+
 
 ## 2. 前置依赖
 
@@ -26,7 +32,10 @@ SWE-bench是一个基准测试，用于评估大语言模型在从GitHub收集�
 1) 安装 `mini-swe-agent`（infer 依赖）
 
 ```bash
-pip install mini-swe-agent
+git clone https://github.com/AISBench/mini-swe-agent.git
+cd mini-swe-agent
+pip install -e .
+cd -
 ```
 
 2) 安装 SWE-bench harness（eval 依赖）
@@ -43,6 +52,11 @@ cd -
 ```bash
 docker --version
 docker ps
+```
+4) ARM 环境下需要开启 docker 的 x86 支持，执行以下命令：
+
+```bash
+docker run --rm --privileged tonistiigi/binfmt --install all
 ```
 
 ## 3. 最小配置（先跑通再调优）
@@ -128,7 +142,7 @@ ais_bench ais_bench/configs/swe_bench_examples/mini_swe_agent_swe_bench_lite.py 
 
 以下错误码来自 `SWEB_CODES`，可结合全量 FAQ 查看：
 
-- 中文 FAQ：`docs/source_zh_cn/faqs/error_codes.md`
+- FAQ：`docs/source_zh_cn/faqs/error_codes.md`
 
 ### 1) `SWEB-DEPENDENCY-001`：缺少 mini-swe-agent
 
@@ -170,7 +184,7 @@ ais_bench ais_bench/configs/swe_bench_examples/mini_swe_agent_swe_bench_lite.py 
 - 原因：镜像不可用、网络异常、容器运行环境不满足
 - 处理：
   - 先确认 `docker ps` 正常
-  - 检查镜像是否可拉取
+  - 检查镜像是否可拉取，确保可以从dockerhub拉取镜像（示例：docker pull swebench/sweb.eval.x86_64.astropy_1776_astropy-6938:latest）
   - 失败后可用 `--reuse` 重试，避免重复计算已完成实例
 
 ## 7. 进阶建议（可选）

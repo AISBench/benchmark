@@ -1,6 +1,8 @@
 import unittest
 import asyncio
 import json
+import os
+import tempfile
 from unittest.mock import patch, MagicMock, AsyncMock
 from typing import Dict
 
@@ -324,6 +326,99 @@ class TestVLLMCustomAPI(unittest.TestCase):
     def test_parse_stream_response_no_choices_wrapper(self):
         self.run_async_test(self.test_parse_stream_response_no_choices())
 
+    async def test_parse_logprobs_with_data(self):
+        """测试_parse_logprobs正确解析logprobs响应"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+
+        choice = {
+            "text": "B",
+            "logprobs": {
+                "tokens": ["B"],
+                "token_logprobs": [-0.5],
+                "text_offset": [0],
+                "top_logprobs": [{"333": -0.5, "444": -2.1}]
+            }
+        }
+
+        await model._parse_logprobs(choice, output)
+
+        # completions API 转换为统一嵌套结构
+        self.assertEqual(output.origin_logprobs, [
+            {"token": "B", "logprob": -0.5, "top_logprobs": {"333": -0.5, "444": -2.1}}
+        ])
+
+    async def test_parse_logprobs_without_logprobs_field(self):
+        """测试_parse_logprobs在响应无logprobs字段时不报错"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+
+        choice = {"text": "B"}
+
+        await model._parse_logprobs(choice, output)
+
+        self.assertEqual(output.origin_logprobs, [])
+
+    async def test_parse_logprobs_with_none_token_logprob(self):
+        """测试_parse_logprobs处理None的token_logprob（保留为None项对齐位置）"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+
+        choice = {
+            "text": "AB",
+            "logprobs": {
+                "tokens": ["A", "B"],
+                "token_logprobs": [-0.5, None],
+                "top_logprobs": [{"333": -0.5}, None]
+            }
+        }
+
+        await model._parse_logprobs(choice, output)
+
+        self.assertEqual(output.origin_logprobs, [
+            {"token": "A", "logprob": -0.5, "top_logprobs": {"333": -0.5}},
+            None,
+        ])
+
+    async def test_parse_text_response_with_logprobs(self):
+        """测试parse_text_response正确调用_parse_logprobs"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+        output.content = ""
+
+        response = {
+            "choices": [{
+                "text": "B",
+                "logprobs": {
+                    "tokens": ["B"],
+                    "token_logprobs": [-0.5],
+                    "top_logprobs": [{"333": -0.5}]
+                }
+            }],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 1}
+        }
+
+        await model.parse_text_response(response, output)
+
+        self.assertEqual(output.content, "B")
+        self.assertEqual(output.input_tokens, 10)
+        self.assertEqual(output.output_tokens, 1)
+        self.assertEqual(output.origin_logprobs, [
+            {"token": "B", "logprob": -0.5, "top_logprobs": {"333": -0.5}}
+        ])
+
+    def test_parse_logprobs_with_data_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_with_data())
+
+    def test_parse_logprobs_without_logprobs_field_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_without_logprobs_field())
+
+    def test_parse_logprobs_with_none_token_logprob_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_with_none_token_logprob())
+
+    def test_parse_text_response_with_logprobs_wrapper(self):
+        self.run_async_test(self.test_parse_text_response_with_logprobs())
+
     def test_calc_ppl(self):
         """测试_calc_ppl方法"""
         model = VLLMCustomAPI(**self.default_kwargs)
@@ -344,19 +439,144 @@ class TestVLLMCustomAPI(unittest.TestCase):
     def test_calc_ppl_with_none(self):
         """测试_calc_ppl处理None值"""
         model = VLLMCustomAPI(**self.default_kwargs)
-        
+
         # 测试包含None的logprobs列表
         prompt_logprobs = [
             {"1": {"logprob": -0.5}},
             None,
             {"3": {"logprob": -0.7}}
         ]
-        
+
         ppl = model._calc_ppl(prompt_logprobs)
-        
+
         # 只计算非None的值: -(-0.5 - 0.7) / 2 = 1.2 / 2 = 0.6
         expected_ppl = -(-0.5 - 0.7) / 2
         self.assertAlmostEqual(ppl, expected_ppl, places=5)
+
+
+class TestVLLMCustomAPILora(unittest.TestCase):
+    """针对 Multi-LoRA 兼容性扩展的 UT（completions API）。"""
+
+    LORA_MAP = {"0": "LoraA", "2": "LoraB"}
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmp_root = self._tmpdir.name
+        self.default_kwargs = {
+            "path": "test-model",
+            "model": "base-model-name",
+            "stream": False,
+            "max_out_len": 100,
+            "retry": 1,
+            "host_ip": "localhost",
+            "host_port": 8080,
+            "enable_ssl": False,
+            "verbose": False,
+            "generation_kwargs": {},
+        }
+        self._get_service_model_path_patcher = patch.object(
+            base_api.BaseAPIModel, "_get_service_model_path"
+        )
+        self.mock_get_model_path = self._get_service_model_path_patcher.start()
+        self.mock_get_model_path.return_value = "mocked-base-model"
+
+    def tearDown(self):
+        self._get_service_model_path_patcher.stop()
+        self._tmpdir.cleanup()
+
+    def _write_lora_map(self, content=None):
+        path = os.path.join(self.tmp_root, "lora_data_map.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(content if content is not None else self.LORA_MAP, f)
+        return path
+
+    def test_load_lora_data_map_with_valid_file(self):
+        path = self._write_lora_map()
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPI(**kwargs)
+        self.assertEqual(model.lora_data_map, self.LORA_MAP)
+
+    def test_load_lora_data_map_no_config_returns_none(self):
+        model = VLLMCustomAPI(**self.default_kwargs)
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_file_not_exists(self):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {
+            "lora_data_map_file": os.path.join(self.tmp_root, "missing.json")
+        }
+        model = VLLMCustomAPI(**kwargs)
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_invalid_json(self):
+        path = os.path.join(self.tmp_root, "bad.json")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("[broken")
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPI(**kwargs)
+        self.assertIsNone(model.lora_data_map)
+
+    def test_resolve_hit(self):
+        path = self._write_lora_map()
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPI(**kwargs)
+        out = Output()
+        out.data_id = 2
+        self.assertEqual(model._resolve_lora_model_name(out), "LoraB")
+
+    def test_resolve_miss_returns_none(self):
+        path = self._write_lora_map()
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPI(**kwargs)
+        out = Output()
+        out.data_id = 99
+        self.assertIsNone(model._resolve_lora_model_name(out))
+
+    def test_resolve_no_data_id_returns_none(self):
+        path = self._write_lora_map()
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPI(**kwargs)
+        out = Output()  # no data_id attribute
+        self.assertIsNone(model._resolve_lora_model_name(out))
+
+    def _make_model_with_lora(self, path):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        with patch.object(VLLMCustomAPI, '_get_url',
+                          return_value='http://localhost:8080/v1/completions'):
+            return VLLMCustomAPI(**kwargs)
+
+    def _run_get_request_body(self, model, output, input_data="test prompt", max_out_len=100):
+        return asyncio.run(model.get_request_body(input_data, max_out_len, output))
+
+    def test_request_body_lora_hit_overrides_model_field(self):
+        path = self._write_lora_map()
+        model = self._make_model_with_lora(path)
+        out = Output()
+        out.data_id = 0
+        body = self._run_get_request_body(model, out)
+        self.assertEqual(body["model"], "LoraA")
+
+    def test_request_body_lora_miss_keeps_base_model(self):
+        path = self._write_lora_map()
+        model = self._make_model_with_lora(path)
+        out = Output()
+        out.data_id = 999
+        body = self._run_get_request_body(model, out)
+        self.assertEqual(body["model"], "base-model-name")
+
+    def test_request_body_no_lora_config_keeps_base_model(self):
+        model = VLLMCustomAPI(**self.default_kwargs)
+        out = Output()
+        out.data_id = 0
+        body = self._run_get_request_body(model, out)
+        self.assertEqual(body["model"], "base-model-name")
+        self.assertNotIn("adapter_id", body)
 
 
 

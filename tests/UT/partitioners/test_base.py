@@ -22,6 +22,8 @@ class TestBasePartitioner(unittest.TestCase):
         self.assertIsNotNone(partitioner.keep_keys)
         self.assertIn('eval.runner.task.judge_cfg', partitioner.keep_keys)
         self.assertIn('eval.runner.task.dump_details', partitioner.keep_keys)
+        self.assertIn('VBENCH_CACHE_DIR', partitioner.keep_keys)
+        self.assertIn('vbench_cache_dir', partitioner.keep_keys)
 
     def test_base_partitioner_init_custom_keep_keys(self):
         """Test BasePartitioner initialization with custom keep_keys."""

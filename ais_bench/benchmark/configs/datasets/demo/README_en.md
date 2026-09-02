@@ -25,10 +25,10 @@ rm gsm8k.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| demo_gsm8k_gen_4_shot_cot_chat_prompt | Generative task for the GSM8K dataset (only 8 entries used) with logical chain | Accuracy | 4-shot | String format | [demo_gsm8k_gen_4_shot_cot_chat_prompt.py](demo_gsm8k_gen_0_shot_cot_str_perf.py) |
-| demo_gsm8k_gen_0_shot_cot_str_perf | Generative task for the GSM8K dataset (only 8 entries used) with logical chain | Performance Evaluation | 0-shot | String format | [demo_gsm8k_gen_0_shot_cot_str_perf.py](demo_gsm8k_gen_0_shot_cot_str_perf.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| demo_gsm8k_gen_4_shot_cot_chat_prompt | Generative task for the GSM8K dataset (only 8 entries used) with logical chain | Accuracy | 4-shot | String format | `from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets` | [demo_gsm8k_gen_4_shot_cot_chat_prompt.py](demo_gsm8k_gen_4_shot_cot_chat_prompt.py) |
+| demo_gsm8k_gen_0_shot_cot_str_perf | Generative task for the GSM8K dataset (only 8 entries used) with logical chain | Performance Evaluation | 0-shot | String format | `from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_0_shot_cot_str_perf import gsm8k_datasets as datasets` | [demo_gsm8k_gen_0_shot_cot_str_perf.py](demo_gsm8k_gen_0_shot_cot_str_perf.py) |
 
 
 ### Translation Notes

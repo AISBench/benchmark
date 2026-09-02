@@ -165,6 +165,7 @@ class BaseApiInferencer(BaseInferencer):
             connector=aiohttp.TCPConnector(limit=concurrency + 1),
             timeout=aiohttp.ClientTimeout(total=get_request_time_out()),
             max_line_size=get_max_chunk_size(),
+            trust_env=True,
         )
         warmup_tasks = []
         async def warmup_limited_request_func(data: dict):
@@ -411,7 +412,8 @@ class BaseApiInferencer(BaseInferencer):
         connector = aiohttp.TCPConnector(limit=num_workers + 1)
         timeout = aiohttp.ClientTimeout(total=get_request_time_out())
         session = aiohttp.ClientSession(
-            connector=connector, timeout=timeout, max_line_size=get_max_chunk_size()
+            connector=connector, timeout=timeout, max_line_size=get_max_chunk_size(),
+            trust_env=True,
         )
         self.logger.debug(f"Create aiohttp session with "
                      f"connector: {connector}, "

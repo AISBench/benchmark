@@ -90,7 +90,7 @@ When using `hash_ids`, `input_length` must satisfy:
 | ---- | ---- | ---- | ---- |
 | `path` | str | Path to the JSONL file with hash_id and trace data. Relative paths are relative to the project root; absolute paths are supported | Required |
 | `random_seed` | int | Random seed for reproducibility | None |
-| `generated_prompts_path` | str | Path for generated prompt cache. If empty, a default cache path is used. Relative paths are relative to the project root | "" |
+| `generated_prompts_path` | str | Path for generated prompt cache. See detailed description below | "" |
 
 ### Fixed Schedule Parameters
 
@@ -119,16 +119,24 @@ When using `hash_ids`, `input_length` must satisfy:
      - **Truncation rule**: Keep a trace if its shifted timestamp satisfies: shifted_time >= start_offset and (end_offset is -1 or shifted_time <= end_offset). So the window is the closed interval `[start_offset, end_offset]` in milliseconds; end_offset=-1 means no upper bound.
      - **Example**: Raw timestamps [1000, 2000, 5000] ms become [0, 1000, 4000] after auto_offset=True. With start_offset=500 and end_offset=3000, only traces whose shifted timestamp is in [500, 3000] are kept—i.e., only the trace with shifted time 1000 (original 2000 ms) is kept.
 
-3. **Caching**:
-   - When fixed_schedule parameters are used, the cache filename includes them so different settings use different caches
+3. **generated_prompts_path and Caching**:
+   - This parameter controls where the generated prompt cache file is stored and whether prompts are regenerated from the JSONL pointed to by `path`:
+     - **Not specified (empty string)**: The system auto-generates a cache file in the **same directory** as the JSONL pointed to by `path`, without any extra reads. Naming rules:
+       - File name format: `{original_name_without_ext}_{md5_of_original_jsonl_content}_generated_prompts{original_ext}`
+       - The cache file shares the same directory and extension (typically `.jsonl`) as the source JSONL
+       - When `fixed_schedule_*` parameters are used, schedule-related suffixes are appended (in order, as needed) to allow different parameter combinations to use different caches: `_auto`, `_start{start_offset}`, `_end{end_offset}`
+       - Example: For source file `trace.jsonl` with content MD5 `d41d8cd98f00b204e9800998ecf8427e` and default `fixed_schedule_*`, the cache file is `trace_d41d8cd98f00b204e9800998ecf8427e_generated_prompts.jsonl`. If `fixed_schedule_auto_offset=True` and `fixed_schedule_start_offset=1000`, the cache file becomes `trace_d41d8cd98f00b204e9800998ecf8427e_generated_prompts_auto_start1000.jsonl`
+     - **Explicitly specifying a path**: The specified path is used as the cache file path (relative paths are resolved against the project root, absolute paths are used as-is). Runtime behavior:
+       - If the specified cache file **exists**: it is loaded directly as the dataset; prompts are **NOT** generated from the JSONL pointed to by `path`, which significantly speeds up loading and avoids regeneration
+       - If the specified cache file **does not exist**: prompts are generated from the JSONL pointed to by `path` as usual, and the result is persisted to the specified path
    - If the cache file exists, it is loaded and prompt generation is skipped
    - Delete the cache file to regenerate
 
 ## Available Dataset Tasks
 
-| Task Name | Description | Metrics | few-shot | Prompt Format | Config Path |
-| --- | --- | --- | --- | --- | --- |
-| mooncake-trace | Mooncake trace generative task | Performance | 0-shot | String | [mooncake_trace_gen.py](mooncake_trace_gen.py) |
+| Task Name | Description | Metrics | few-shot | Prompt Format | Import Statement | Config Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| mooncake-trace | Mooncake trace generative task | Performance | 0-shot | String | `from ais_bench.benchmark.configs.datasets.mooncake_trace.mooncake_trace_gen import mooncake_trace_datasets as datasets` | [mooncake_trace_gen.py](mooncake_trace_gen.py) |
 
 ## Usage Examples
 

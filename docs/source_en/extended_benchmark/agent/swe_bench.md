@@ -6,18 +6,22 @@ SWE-bench is a benchmark for evaluating how well large language models solve rea
 
 `ais_bench` currently supports the following SWEbench capabilities:
 
-- Datasets: `full`, `verified`, `lite`, `multilingual`
+- Datasets: `full`, `verified` 、`verified_mini`, `lite`, `multilingual`
 - Tasks:
   - `infer`: call `mini-swe-agent` to generate patches (`model_patch`)
   - `eval`: call the SWE-bench harness to run evaluation and count resolved instances
 - Result summary: output key metrics such as `accuracy`, `submitted_accuracy`, and `resolved_instances`
 
-Directory `ais_bench/configs/swe_bench_examples/` already provides 4 example configs:
+Directory `ais_bench/configs/swe_bench_examples/` provides the following example configs:
 
-- `mini_swe_agent_swe_bench_lite.py`
-- `mini_swe_agent_swe_bench_verified.py`
-- `mini_swe_agent_swe_bench_full.py`
-- `mini_swe_agent_swe_bench_multilingual.py`
+- `mini_swe_agent_swe_bench_lite.py`: SWE-bench Lite (`princeton-nlp/SWE-Bench_Lite`) — commonly used for quick iterations.
+- `mini_swe_agent_swe_bench_verified.py`: SWE-bench Verified (`princeton-nlp/SWE-Bench_Verified`, **500** instances) — a human-validated subset of the SWE-bench test set.
+- `mini_swe_agent_swe_bench_verified_mini.py`: SWE-bench Verified Mini (`MariusHobbhahn/swe-bench-verified-mini`, **50** instances) — a community subset of Verified designed to be much cheaper to run; see the dataset card and the subset construction repo: `https://huggingface.co/datasets/MariusHobbhahn/swe-bench-verified-mini` and `https://github.com/mariushobbhahn/make_swe_bench_verified_mini`.
+- `mini_swe_agent_swe_bench_full.py`: SWE-bench Full (`princeton-nlp/SWE-Bench`) — the full test set.
+- `mini_swe_agent_swe_bench_multilingual.py`: SWE-bench Multilingual (`SWE-bench/SWE-bench_Multilingual`) — multilingual issue statements.
+- `mini_swe_agent_swe_bench_multilingual_mini.py`: SWE-bench Multilingual Mini (**15**/**30**/**60** instances) — an AISBench-constructed Multilingual subset designed to significantly reduce evaluation cost; see the dataset card and construction repository: `https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini` and `https://github.com/AISBench/datasets/tree/main/mini_datasets/swe_bench_multiligual_mini`.
+
+> 💡 The example configuration files mentioned above are concrete applications of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to these example files to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
 
 ## 2. Prerequisites
 
@@ -26,7 +30,10 @@ Before running, make sure the following dependencies are available:
 1) Install `mini-swe-agent` (required for infer)
 
 ```bash
-pip install mini-swe-agent
+git clone https://github.com/AISBench/mini-swe-agent.git
+cd mini-swe-agent
+pip install -e .
+cd -
 ```
 
 2) Install the SWE-bench harness (required for eval)
@@ -43,6 +50,12 @@ cd -
 ```bash
 docker --version
 docker ps
+```
+
+4) On ARM hosts, enable Docker x86 emulation (binfmt):
+
+```bash
+docker run --rm --privileged tonistiigi/binfmt --install all
 ```
 
 ## 3. Minimal Configuration (Run First, Tune Later)
@@ -128,7 +141,7 @@ The default output directory is `outputs/default/<timestamp>/`. Focus on:
 
 The following error codes come from `SWEB_CODES`. You can also refer to the full FAQ:
 
-- Chinese FAQ: `docs/source_zh_cn/faqs/error_codes.md`
+- FAQ: `docs/source_en/faqs/error_codes.md`
 
 ### 1) `SWEB-DEPENDENCY-001`: Missing mini-swe-agent
 
@@ -170,7 +183,7 @@ The following error codes come from `SWEB_CODES`. You can also refer to the full
 - Cause: unavailable images, network issues, or insufficient container runtime environment
 - Fix:
   - Check `docker ps` first
-  - Verify required images can be pulled
+  - Verify images can be pulled from Docker Hub (for example: `docker pull swebench/sweb.eval.x86_64.astropy_1776_astropy-6938:latest`)
   - Retry with `--reuse` to avoid recomputing completed instances
 
 ## 7. Advanced Tips (Optional)

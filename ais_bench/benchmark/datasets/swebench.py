@@ -17,6 +17,7 @@ from ais_bench.benchmark.datasets.utils.datasets import get_data_path
 DATASET_MAPPING = {
     "full": "princeton-nlp/SWE-Bench",
     "verified": "princeton-nlp/SWE-Bench_Verified",
+    "verified_mini": "MariusHobbhahn/swe-bench-verified-mini",
     "lite": "princeton-nlp/SWE-Bench_Lite",
     "multilingual": "SWE-bench/SWE-bench_Multilingual",
 }

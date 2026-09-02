@@ -22,6 +22,8 @@
 [👨‍💻 Developer Documentation](https://ais-bench-benchmark.readthedocs.io/en/latest/develop_guide/contributing.html) |
 [🔥 Latest Updates](#-latest-updates)|
 [🤔 Report Issues](https://github.com/AISBench/benchmark/issues/new/choose)
+[📦 Container Image](https://github.com/AISBench/benchmark/pkgs/container/aisbench_benchmark)
+
 <br><br>[简体中文](README.md) | English
 </div>
 
@@ -30,6 +32,17 @@
 > **⭐️Star this project** to get the latest updates of AISBench Benchmark Tool in real time!
 
 ## 🔥 Latest Updates
+- **\[2026.8.19\]** Added **Response Anomaly Detection**: automatically detects generation anomalies in LLM responses during inference evaluation, covering **repetition, garbled text, rare characters, and NaN values**. Enable it with a single `--response-anomaly` CLI switch with zero extra configuration; detection results are written per-dataset as JSONL for independent auditing **without affecting the original accuracy or performance metrics**. 🔥🔥🔥 See [Response Anomaly Detection](https://ais-bench-benchmark.readthedocs.io/en/latest/advanced_tutorials/response_anomaly_detection.html) for details.
+- **\[2026.6.29\]** Integrated the multi-dimensional evaluation benchmark for text-to-image models **OneIG-Benchmark**: Comprehensive evaluation of generated images across **alignment, text rendering, reasoning capability, style performance, and diversity**, supports EN/ZH bilingual mode, adopts a hybrid evaluation method of **LLM-as-Judge + dedicated small models**, with precision difference < 1% compared to the official evaluation method. 🔥🔥🔥 See [Evaluate OneIG-Benchmark in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/lmm_generate/oneig.html) for examples and details.
+- **\[2026.6.15\]** Added **Docker image multi-architecture support**: The AISBench Benchmark image now supports both **x86_64** and **aarch64 (ARM)** architectures, covering Ubuntu 22.04/24.04, openEuler 22.03/24.03 with Python 3.10/3.11/3.12 combinations. AISBench has also been published to **PyPI** and can be installed with one click via `pip install ais_bench_benchmark` / `pip install ais_bench_benchmark[full]`. See [Docker Image Overview](docker/OVERVIEW.en.md) for image details. 🚀🚀🚀
+- **\[2026.6.11\]** Integrated SWE-Bench Pro for long-horizon software engineering agent evaluation: supports evaluating agent models on long-horizon software engineering tasks in x86 environments, providing `full` / `mini` datasets and end-to-end workflows for `mini-swe-agent` infer and SWE-Bench Pro harness eval. See [Evaluate SWE-Bench Pro in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench_pro.html) for examples and details. 🔥🔥🔥
+- **\[2026.5.30\]** Support for evaluating Terminal-Bench 2.0 in AISBench, significantly reducing evaluation costs 🔥🔥🔥. Search for the `mini` keyword in the corresponding evaluation documentation:
+  - [Evaluate Terminal-Bench 2.0 in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/harbor_bench.html)
+- **\[2026.5.18]** Support for evaluating mini subsets of SWE-Bench, TAU2-Bench, and VBench 1.0 in AISBench, significantly reducing evaluation costs 🔥🔥🔥. Search for the `mini` keyword in the corresponding evaluation documentation:
+  - [Evaluate SWE-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench.html)
+  - [Evaluate TAU2-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/tau2_bench.html)
+  - [Evaluate VBench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/lmm_generate/vbench.html)
+- **\[2026.5.07\]** Integrated VBench 1.0 for video generation quality evaluation: supports running multi-dimension quality/semantic metrics on **generated videos** on GPU / NPU. See [Evaluate VBench in AISBench](docs/source_en/extended_benchmark/lmm_generate/vbench.md) for examples and notes. 🔥🔥🔥
 - **\[2026.4.14\]** Integrated the authoritative large model agent evaluation benchmark τ²-Bench, supporting evaluation of dialogue, tool calling, and compliance capabilities in dual-control environments. See [Evaluate τ²-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/tau2_bench.html) for details. 🔥🔥🔥
 - **\[2026.4.10\]** Integrated the first agent evaluation benchmark SWE-Bench, supporting evaluation of agent models. See [Evaluate SWE-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/agent/swe_bench.html) for details. 🔥🔥🔥
 - **\[2026.3.10\]** Integrated the first image generation evaluation benchmark GEdit-Bench, supporting evaluation of image generation models. See [Evaluate GEdit-Bench in AISBench](https://ais-bench-benchmark.readthedocs.io/en/latest/extended_benchmark/lmm_generate/gedit_bench.html) for details. 🔥🔥🔥
@@ -60,9 +73,9 @@
 
 - **\[2025.6.12\]** Supported accuracy and performance evaluation for multimodal datasets including [textvqa](ais_bench/benchmark/configs/datasets/textvqa/README_en.md), [videobench](ais_bench/benchmark/configs/datasets/videobench/README_en.md), and [vocalsound](ais_bench/benchmark/configs/datasets/vocalsound/README_en.md)! 🔥🔥🔥
 
-- **\[2025.6.6\]** AISBench supports steady-state performance evaluation to obtain the true optimal performance of the system. Refer to 📚 [Service Deployment Steady-State Performance Test](doc/users_guide/stable_stage.md) to get started quickly! 🔥🔥🔥
+- **\[2025.6.6\]** AISBench supports steady-state performance evaluation to obtain the true optimal performance of the system. Refer to 📚 [Service Deployment Steady-State Performance Test](docs/source_en/advanced_tutorials/stable_stage.md) to get started quickly! 🔥🔥🔥
 
-- **\[2025.5.16\]** Supported performance evaluation for high concurrency service deployment (up to 30,000+ concurrent requests). 📚 [Performance Metrics](doc/users_guide/performance_metric.md) are aligned with 🔗 [vllm benchmark](https://github.com/vllm-project/vllm/tree/main/benchmarks). See 📚 [Service Deployment Performance Evaluation Guide](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/scenes_intro/performance_benchmark.html) for details! 🔥🔥🔥
+- **\[2025.5.16\]** Supported performance evaluation for high concurrency service deployment (up to 30,000+ concurrent requests). 📚 [Performance Metrics](docs/source_en/base_tutorials/results_intro/performance_metric.md) are aligned with 🔗 [vllm benchmark](https://github.com/vllm-project/vllm/tree/main/benchmarks). See 📚 [Service Deployment Performance Evaluation Guide](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/scenes_intro/performance_benchmark.html) for details! 🔥🔥🔥
 
 - **\[2025.4.30\]** Accuracy evaluation supports resuming from breakpoints and re-evaluating failed cases, significantly improving the robustness of accuracy evaluation. Refer to 📚 [Resume from Interruption & Re-evaluate Failed Cases](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/scenes_intro/accuracy_benchmark.html#id10) to get started quickly! 🔥🔥🔥
 
@@ -94,9 +107,9 @@ conda create --name ais_bench python=3.10 -y
 conda activate ais_bench
 ```
 
-📦 Installation Method (Source Code Installation)
+### 📦 Installation Method - Source Code Installation (Preferred)
 
-AISBench currently only provides source code installation. Ensure the installation environment has internet access:
+AISBench currently recommends the source code installation method for a better custom configuration file experience. Ensure the installation environment has internet access:
 ```shell
 git clone https://github.com/AISBench/benchmark.git
 cd benchmark/
@@ -128,7 +141,17 @@ pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
 pip3 install -r requirements/datasets/ocrbench_v2.txt
 ```
 
-For further configuration or to initiate evaluation tasks using CLI or Python scripts, refer to the [Quick Start Guide](#quick-start).
+### 📦 Installation Method - One-Click Install (Alternative)
+
+AISBench also provides a one-click installation method, suitable for quick experience and evaluation scenarios based on preset configuration files. Ensure the installation environment has internet access.
+- Basic functionality installation command:
+```shell
+pip3 install ais_bench_benchmark
+```
+- Full functionality installation command:
+```shell
+pip3 install ais_bench_benchmark[full]
+```
 
 
 ## ❌ Tool Uninstallation
@@ -139,15 +162,97 @@ pip3 uninstall ais_bench_benchmark
 
 
 ## 🚀 Quick Start
-### Command Meaning
-A single or multiple evaluation tasks executed by an AISBench command are defined by a combination of model tasks (single or multiple), dataset tasks (single or multiple), and result presentation tasks (single). Other command-line options of AISBench specify the scenario of the evaluation task (accuracy evaluation scenario, performance evaluation scenario, etc.). Take the following AISBench command as an example:
+### Pre-execution Preparation
+
+- You need to prepare an inference service that supports the `v1/chat/completions` sub-service. Refer to 🔗 [VLLM Start OpenAI-Compatible Server](https://docs.vllm.com.cn/en/latest/getting_started/quickstart.html#openai-compatible-server) to start the inference service.
+- You need to prepare the GSM8K dataset. You can download it from the 🔗 [GSM8K dataset archive provided by OpenCompass](http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/gsm8k.zip). After decompression, place the `gsm8k/` folder under the `ais_bench/datasets` directory of the AISBench evaluation tool root path.
+
+### Start Evaluation (Choose one of two methods)
+
+| ⭐ Recommended: Use Custom Configuration File      | Alternative: Use Command-Line Parameters (Original Quick Start)                |
+| :------------------ | :------------------------------ |
+| Modify one file to centrally manage all configurations, write configurations at any path | Specify via `--models` and `--datasets` parameters |
+| Write once, reuse many times            | Each run requires entering the full command                  |
+| Supports full Python syntax for flexible extension | Only supports Cartesian product combinations                |
+
+**⭐ Recommended: Use Custom Configuration File**
+
+AISBench provides a preset custom configuration file [model_api_test_en.py](ais_bench/configs/model_api_test_en.py), which centralizes common inference service-deployed test configurations (model selection, service address, port, generation parameters, etc.) in one file, eliminating the need to look up and modify multiple configuration files. The file is essentially a Python script that supports all Python syntax, allowing you to freely extend it.
+
+Open `ais_bench/configs/model_api_test_en.py` and modify the following configuration according to your actual situation (if you installed the tool via `pip3 install ais_bench_benchmark`, you can create `model_api_test_en.py` at any path and write the following configuration content into that file):
+
+```python
+from mmengine.config import read_base
+
+with read_base():
+# Model task, select one. For other model tasks, see: https://ais-bench-benchmark-rf.readthedocs.io/en/latest/base_tutorials/all_params/models.html for more model tasks
+    # vllm_api_general is a base model that only supports text generation
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general import models as vllm_api_general
+    # vllm_api_general_chat is a chat model that supports dialogue
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_chat import models as vllm_api_general_chat
+    # vllm_api_stream_chat is a streaming chat model that supports streaming dialogue
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_stream_chat import models as vllm_api_stream_chat
+    # vllm_api_general_stream is a streaming model that supports streaming generation
+    from ais_bench.benchmark.configs.models.vllm_api.vllm_api_general_stream import models as vllm_api_general_stream
+
+# Dataset task, see: https://ais-bench-benchmark-rf.readthedocs.io/en/latest/get_started/datasets.html for more dataset tasks
+    from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets
+
+models = vllm_api_general_chat
+
+models[0]["path"] = ""  # Specify the absolute path of the model serialized vocabulary file (generally not required for accuracy testing scenarios)
+models[0]["model"] = "" # Specify the model name loaded on the server, configured according to the actual model name pulled by the VLLM inference service (configure as an empty string to get it automatically)
+models[0]["request_rate"] = 0 # Request sending frequency: send 1 request to the server every 1/request_rate seconds; if less than 0.001, all requests are sent at once
+models[0]["api_key"] = "" # Custom API key, default is an empty string
+models[0]["host_ip"] = "localhost" # Specify the IP of the inference service
+models[0]["host_port"] = 8080 # Specify the port of the inference service
+models[0]["url"] = "" # Custom URL path for accessing the inference service (needs to be configured when the base URL is not a combination of http://host_ip:host_port; after configuration, host_ip and host_port will be ignored)
+models[0]["max_out_len"] = 512 # Maximum number of tokens output by the inference service
+models[0]["batch_size"] = 1 # Maximum concurrency for sending requests
+models[0]["trust_remote_code"] = False # Whether the tokenizer trusts remote code, default is False
+models[0]["generation_kwargs"] = dict( # Model inference parameters, configured with reference to the VLLM documentation; the AISBench evaluation tool does not process them and attaches them directly to the sent request
+    temperature=0.01,
+    ignore_eos=False,
+)
+
+# datasets[0]["path"] = ais_bench/datasets/gsm8k # Specify the absolute path of the dataset directory (required for accuracy testing scenarios)
+
+work_dir = 'outputs/default/'  # Specify the working directory for saving task results and logs (default is outputs/default/)
+
+```
+> 💡 The configuration file has pre-imported common model types (`vllm_api_general`, `vllm_api_general_chat`, `vllm_api_stream_chat`, `vllm_api_general_stream`). You only need to uncomment/modify the comment to switch. For more usage of custom configuration files, please refer to 📚 [Running AISBench with Custom Configuration File](./docs/source_en/advanced_tutorials/run_custom_config.md).
+
+For selecting, preparing, and using dataset tasks, refer to the following steps:
+1. Select a dataset task in 📚 [Open-Source Datasets](https://ais-bench-benchmark.readthedocs.io/en/latest/get_started/datasets.html#id3)
+2. Enter the data's 📚 [Detailed Introduction/Dataset Deployment](ais_bench/benchmark/configs/datasets/demo/README_en.md#dataset-deployment) to prepare the dataset
+3. Refer to 📚 [Detailed Introduction/Available Dataset Tasks](ais_bench/benchmark/configs/datasets/demo/README_en.md#available-dataset-tasks) to select an available dataset task, and copy the corresponding task import method (e.g., `from ais_bench.benchmark.configs.datasets.demo.demo_gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets`) to the custom configuration file
+
+After modifying the configuration file, execute the following command to start the service-deployed accuracy evaluation:
+
+```bash
+ais_bench ais_bench/configs/model_api_test_en.py
+```
+
+***
+
+**Alternative: Use Command-Line Parameters**
+
+If you are more familiar with using command-line parameters, AISBench also supports directly specifying tasks via the `--models`, `--datasets`, and `--summarizer` parameters. The following is the command-line approach that has **exactly the same execution effect** as the above custom configuration file approach.
+
+A single or multiple evaluation tasks executed by an AISBench command are defined by a combination of model tasks (single or multiple), dataset tasks (single or multiple), and result presentation tasks (single). Take the following AISBench command as an example:
+
 ```shell
 ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer example
 ```
+
 This command does not specify other command-line options, so it defaults to an accuracy evaluation task, where:
 - `--models` specifies the model task: the `vllm_api_general_chat` model task.
 - `--datasets` specifies the dataset task: the `demo_gsm8k_gen_4_shot_cot_chat_prompt` dataset task.
 - `--summarizer` specifies the result presentation task: the `example` result presentation task (if `--summarizer` is not specified, the `example` task is used by default for accuracy evaluation scenarios). It is generally used as default and does not need to be specified in the command line (subsequent commands will omit this option).
+
+For multi-task evaluation, refer to: 📚 [Multi-Task Evaluation in Accuracy Scenarios](./docs/source_en/base_tutorials/scenes_intro/accuracy_benchmark.md#multi-task-evaluation) and [Multi-Task Evaluation in Performance Scenarios](./docs/source_en/base_tutorials/scenes_intro/performance_benchmark.md#multi-task-evaluation).
+
+If you need to combine evaluation tasks on your own for more flexible evaluation methods, refer to: 📚 [Running AISBench with Custom Configuration File](./docs/source_en/advanced_tutorials/run_custom_config.md#running-aisbench-with-a-custom-configuration-file).
 
 
 ### Task Meaning Query (Optional)
@@ -155,7 +260,6 @@ Detailed information (introduction, usage constraints, etc.) about the selected 
 - `--models`: 📚 [Service Deployment Inference Backend](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/all_params/models.html#id2)
 - `--datasets`: 📚 [Open-Source Datasets](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/all_params/datasets.html#id3) → 📚 [Detailed Introduction](ais_bench/benchmark/configs/datasets/demo/README_en.md)
 - `--summarizer`: 📚 [Result Summary Tasks](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/all_params/summarizer.html)
-
 
 # Modification of Configuration Files Corresponding to Tasks
 Each model task, dataset task, and result presentation task corresponds to a configuration file. The content of these configuration files needs to be modified before running the command. The paths of these configuration files can be queried by adding `--search` to the original AISBench command. For example:
@@ -179,6 +283,15 @@ After executing the query command, you will get the following query results:
 - The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in the quick start does not require additional modifications. For an introduction to the content of the dataset task configuration file, please refer to 📚 [Configure Open-Source Datasets](https://ais-bench-benchmark.readthedocs.io/en/latest/base_tutorials/all_params/datasets.html#id6)
 
 The model configuration file `vllm_api_general_chat.py` contains configuration content related to model operation and needs to be modified according to actual conditions. The content that needs to be modified in the quick start is marked with comments.
+
+> 💡 **Tip**: Some parameters in the model config above (e.g. `host_ip`, `host_port`, `model`, `url`, `max_out_len`, `generation_kwargs`, etc.) can be overridden directly on the command line without editing the config file. For example:
+>
+> ```bash
+> ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --host-ip 127.0.0.1 --host-port 8000
+> ```
+>
+> An explicitly specified parameter overrides the corresponding field in **all executed model configs**; only fields **already present** in the config are overridden, and unspecified parameters keep their config-file values. For the full overridable parameter list and coverage notes, refer to 📚 [User Configuration Parameters - API Model Common Override Parameters](./docs/source_en/base_tutorials/all_params/cli_args.md#api-model-common-override-parameters).
+
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPIChat
 
@@ -277,8 +390,8 @@ For more tutorials, please refer to our 👉[Documentation](https://ais-bench-be
 
 ## 🔜 Coming Soon
 - [x] **\[Completed\]** ✅ AISBench has completed comprehensive refactoring, supporting plug-and-play integration of cutting-edge testing benchmarks within the AISBench framework to address the increasingly complex and diverse testing tasks in the industry; while significantly improving usability.
-- [ ] **\[Planned\]** Continue to expand industry-leading multimodal evaluation capabilities, supporting more multimodal datasets and evaluation scenarios.
-- [ ] **\[Planned\]** Provide evaluation capabilities for mainstream industry Agents, supporting Agent task chains and tool calling in complex scenarios.
+- [x] **\[Completed\]** Continue to expand industry-leading multimodal evaluation capabilities, supporting more multimodal datasets and evaluation scenarios.
+- [x] **\[Completed\]** Provide evaluation capabilities for mainstream industry Agents, supporting Agent task chains and tool calling in complex scenarios.
 
 
 ## 🤝 Acknowledgements

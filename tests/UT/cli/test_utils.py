@@ -219,8 +219,8 @@ class TestValidateMaxWorkers(unittest.TestCase):
     @patch('ais_bench.benchmark.cli.utils.logger')
     def test_validate_max_workers_valid_value(self, mock_logger):
         """测试有效的 max_workers 值"""
-        result = validate_max_workers("10")
-        self.assertEqual(result, 10)
+        result = validate_max_workers(str(MAX_NUM_WORKERS))
+        self.assertEqual(result, MAX_NUM_WORKERS)
         mock_logger.warning.assert_not_called()
 
     def test_validate_max_workers_exceeds_max(self):

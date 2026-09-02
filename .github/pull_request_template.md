@@ -71,3 +71,4 @@ If this PR introduces a new feature, it is better to list some use cases here an
 |`/gemini summary`| Provides a summary of the current pull request in its current state by Gemini. / 对当前拉取请求在当前状态下由 Gemini 提供摘要。 |
 |`/gemini help`| Displays a list of available commands of Gemini. / 显示 Gemini 可用命令的列表。 |
 |`/readthedocs build`| Triggers a build of the documentation for the current pull request in its current state by Read the Docs. / 触发当前拉取请求在当前状态下由 Read the Docs 构建文档。 |
+|`/pr_check`| 手动重新触发 PR 合入质量检查工作流（PR Quality Check），并在 PR 上评论即可生效。 / Manually re-runs the PR Quality Check workflow by commenting on the pull request. |

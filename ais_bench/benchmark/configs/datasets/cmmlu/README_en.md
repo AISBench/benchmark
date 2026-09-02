@@ -157,8 +157,8 @@ rm cmmlu.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| cmmlu_gen_0_shot_cot_chat_prompt | Generative task for the CMMLU dataset with logical chain in prompt | Accuracy | 0-shot | Chat format | [cmmlu_gen_0_shot_cot_chat_prompt.py](cmmlu_gen_0_shot_cot_chat_prompt.py) |
-| cmmlu_gen_5_shot_cot_chat_prompt | Generative task for the CMMLU dataset with logical chain in prompt | Accuracy | 5-shot | Chat format | [cmmlu_gen_5_shot_cot_chat_prompt.py](cmmlu_gen_5_shot_cot_chat_prompt.py) |
-| cmmlu_ppl_0_shot_cot_chat_prompt | PPL task for the CMMLU dataset with logical chain in prompt | Accuracy | 0-shot | Chat format | [cmmlu_ppl_0_shot_cot_chat_prompt.py](cmmlu_ppl_0_shot_cot_chat_prompt.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| cmmlu_gen_0_shot_cot_chat_prompt | Generative task for the CMMLU dataset with logical chain in prompt | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.cmmlu.cmmlu_gen_0_shot_cot_chat_prompt import cmmlu_datasets as datasets`| [cmmlu_gen_0_shot_cot_chat_prompt.py](cmmlu_gen_0_shot_cot_chat_prompt.py) |
+| cmmlu_gen_5_shot_cot_chat_prompt | Generative task for the CMMLU dataset with logical chain in prompt | Accuracy | 5-shot | Chat format |`from ais_bench.benchmark.configs.datasets.cmmlu.cmmlu_gen_5_shot_cot_chat_prompt import cmmlu_datasets as datasets`| [cmmlu_gen_5_shot_cot_chat_prompt.py](cmmlu_gen_5_shot_cot_chat_prompt.py) |
+| cmmlu_ppl_0_shot_cot_chat_prompt | PPL task for the CMMLU dataset with logical chain in prompt | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.cmmlu.cmmlu_ppl_0_shot_cot_chat_prompt import cmmlu_datasets as datasets`| [cmmlu_ppl_0_shot_cot_chat_prompt.py](cmmlu_ppl_0_shot_cot_chat_prompt.py) |

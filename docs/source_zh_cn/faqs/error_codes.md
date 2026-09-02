@@ -99,7 +99,7 @@ Location: /usr/local/lib/python3.10/dist-packages
 ### 错误描述
 使用[随机合成数据集](../advanced_tutorials/synthetic_dataset.md)`tokenid`场景下，模型配置文件必须指定tokenizer路径。
 ### 解决办法
-假设ais_bench评测工具命令为`ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_tokenid --mode perf`，那么`vllm_api_stream_chat.py`（配置文件路径检索方式参考[任务对应配置文件修改](../get_started/quick_start.md#任务对应配置文件修改)）配置文件中`models`中所有的`path`参数须传入tokenizer路径（一般就是模型权重文件夹路径）。
+假设ais_bench评测工具命令为`ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_tokenid --mode perf`，那么`vllm_api_stream_chat.py`（配置文件路径检索方式参考[任务对应配置文件修改](../get_started/quick_start.md#启动测评两种方式任选其一)）配置文件中`models`中所有的`path`参数须传入tokenizer路径（一般就是模型权重文件夹路径）。
 ```python
 # ......
 models = dict(
@@ -1351,6 +1351,61 @@ SWEBench 运行所需 Docker 镜像不存在，且拉取失败。
 ## SWEB-RUNTIME-002
 ### 错误描述
 SWEBench 执行阶段出现运行时异常（如 harness 执行失败或并发任务异常）。
+### 解决办法
+根据日志中的详细异常定位处理：
+1. 优先检查依赖安装、Docker 可用性、预测文件格式。
+2. 若问题持续，保留完整日志并携带错误码提交 issue：<https://github.com/AISBench/benchmark/issues>。
+
+## SWEBP-DEPENDENCY-001
+### 错误描述
+运行 SWE-Bench Pro infer 时缺少 `mini-swe-agent` 依赖，任务初始化失败。
+### 解决办法
+按照前置依赖中的说明，克隆并安装 scaleapi 仓库中的适配版本：
+```bash
+git clone https://github.com/scaleapi/mini-swe-agent.git
+
+cd mini-swe-agent/
+
+pip install -e .
+```
+若你使用虚拟环境，请确认 `ais_bench` 与 `mini-swe-agent` 安装在同一 Python 环境。
+
+## SWEBP-PARAM-001
+### 错误描述
+SWE-Bench Pro infer 未检测到可用模型配置（`model/url/api_key` 等关键字段缺失或为空）。
+### 解决办法
+检查任务配置中的 `models[0]`，至少补齐以下字段：
+1. `model`：如 `qwen3`
+2. `url`：如 `http://127.0.0.1:2998/v1`
+3. `api_key`：本地测试可设为 `EMPTY`
+
+## SWEBP-PARAM-002
+### 错误描述
+SWE-Bench Pro 数据集名称非法，不在支持的名称集合内。
+### 解决办法
+将数据集 `name` 修正为受支持值：`full`、`mini`。
+
+## SWEBP-DATA-001
+### 错误描述
+从 Hugging Face 在线加载 SWE-Bench Pro 数据集失败，或本地文件未找到。
+### 解决办法
+优先检查网络连通性与 Hugging Face 可访问性；若环境受限，请先手工下载数据并在配置中设置本地 `path`。本地路径需为有效的 parquet 文件路径。
+
+## SWEBP-FILE-001
+### 错误描述
+执行 SWE-Bench Pro eval 时找不到预测文件（`*.json` 或 `preds.json`）。
+### 解决办法
+先成功执行 infer，再执行 eval；并确认 `work_dir/predictions` 下存在目标模型对应的预测结果文件。
+
+## SWEBP-RUNTIME-001
+### 错误描述
+SWE-Bench Pro 运行所需 Docker 镜像不存在，且拉取失败。
+### 解决办法
+检查 Docker 服务状态与网络后，手工执行 `docker pull` 拉取日志中提示的镜像；确认镜像可见后重新运行任务。
+
+## SWEBP-RUNTIME-002
+### 错误描述
+SWE-Bench Pro 执行阶段出现运行时异常（如 harness 执行失败或并发任务异常）。
 ### 解决办法
 根据日志中的详细异常定位处理：
 1. 优先检查依赖安装、Docker 可用性、预测文件格式。

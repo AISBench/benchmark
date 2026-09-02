@@ -1,5 +1,6 @@
 import sys
 import json
+import urllib.parse
 import warnings
 import asyncio
 import os.path as osp
@@ -14,12 +15,19 @@ import aiohttp
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import MODEL_CODES
 from ais_bench.benchmark.utils.logging.exceptions import (
-    AISBenchNotImplementedError, AISBenchValueError, AISBenchKeyError,
-    AISBenchTypeError, AISBenchRuntimeError, AISBenchImplementationError)
+    AISBenchNotImplementedError,
+    AISBenchValueError,
+    AISBenchKeyError,
+    AISBenchTypeError,
+    AISBenchRuntimeError,
+    AISBenchImplementationError,
+)
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models import BaseModel
 from ais_bench.benchmark.models.output import Output
-from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import PPLRequestOutput
+from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import (
+    PPLRequestOutput,
+)
 from ais_bench.benchmark.utils.logging.error_codes import ICLI_CODES
 from ais_bench.benchmark.global_consts import REQUEST_TIME_OUT
 
@@ -28,10 +36,12 @@ AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=REQUEST_TIME_OUT)
 
 PromptType = Union[PromptList, str]
 
+
 class MockAISLogger(AISLogger):
     """Mock logger for API model. Because model will init in task for warmup and init in infer process,
     so we mock the logger to avoid the print each log in init process twice
     """
+
     def info(self, msg, *args, **kwargs):
         pass
 
@@ -40,6 +50,7 @@ class MockAISLogger(AISLogger):
 
     def warning(self, msg, *args, **kwargs):
         pass
+
 
 class BaseAPIModel(BaseModel):
     """Base class for API model wrapper.
@@ -93,27 +104,47 @@ class BaseAPIModel(BaseModel):
         self.url = url
         self.enable_ssl = enable_ssl
         self.template_parser = APITemplateParser(self.meta_template)
-        self.generation_kwargs = generation_kwargs
+        self.generation_kwargs = dict(generation_kwargs or {})
+        # Injected by ConfigManager when response anomaly detection is enabled.
+        # Popped here so it never reaches the service request body.
+        self.response_anomaly_enabled = bool(
+            self.generation_kwargs.pop('response_anomaly_enabled', False)
+        )
         self.verbose = verbose
         self.session = None
         self.base_url = self._get_base_url()
+        if self._logprobs_enabled():
+            self.logger.warning(
+                "logprobs is enabled, which will increase response size and "
+                "may impact evaluation performance and memory usage"
+            )
 
     @abstractmethod
     def _get_url(self) -> str:
         raise AISBenchNotImplementedError(
             MODEL_CODES.UNKNOWN_ERROR,
             f"{self.__class__.__name__} does not supported"
-            " to be called in base classes"
+            " to be called in base classes",
         )
 
     def _get_base_url(self) -> str:
         protocol = "https" if self.enable_ssl else "http"
-        if self.url:
-            self.logger.info(f"Using custom URL: [{self.url}], [host_ip: {self.host_ip}] and [host_port: {self.host_port}] will be ignored")
+        clean_url = self.url.strip() if isinstance(self.url, str) else ""
+        if clean_url:
+            self.logger.info(
+                f"Using custom URL: [{clean_url}], [host_ip: {self.host_ip}] and [host_port: {self.host_port}] will be ignored"
+            )
             # Check if URL already contains protocol
-            if self.url.startswith("http://") or self.url.startswith("https://"):
-                return self.url
-            return f"{protocol}://{self.url}"
+            if clean_url.startswith("http://") or clean_url.startswith("https://"):
+                url = clean_url
+            else:
+                url = f"{protocol}://{clean_url}"
+            # Ensure trailing slash on path to avoid urljoin dropping the last path segment.
+            # Use urlparse/urlunparse to safely handle URLs with query strings or fragments.
+            parsed = urllib.parse.urlparse(url)
+            if not parsed.path or parsed.path.endswith("/"):
+                return url
+            return urllib.parse.urlunparse(parsed._replace(path=parsed.path + "/"))
 
         # For IPv6 literals, wrap in brackets when constructing the URL.
         host = self.host_ip
@@ -135,7 +166,7 @@ class BaseAPIModel(BaseModel):
 
             if response.status_code == 200:
                 data = response.json()
-                model_id = data['data'][0]['id']
+                model_id = data["data"][0]["id"]
                 self.logger.debug(f"Service Model ID: {model_id}")
                 return model_id
             else:
@@ -144,7 +175,7 @@ class BaseAPIModel(BaseModel):
         except requests.exceptions.RequestException as e:
             raise AISBenchRuntimeError(
                 MODEL_CODES.GET_SERVICE_MODEL_PATH_FAILED,
-                f"Failed to get service model path from {self.base_url}. Error: {e}"
+                f"Failed to get service model path from {self.base_url}. Error: {e}",
             )
 
     async def iter_lines(self, stream):
@@ -190,20 +221,209 @@ class BaseAPIModel(BaseModel):
         raise AISBenchNotImplementedError(
             MODEL_CODES.UNKNOWN_ERROR,
             f"{self.__class__.__name__} does not supported"
-            " to be called in base classes"
+            " to be called in base classes",
         )
+
+    async def _parse_logprobs(self, choice: dict, output: Output) -> None:
+        """
+        基类空实现，子类按需 override。vLLM 系列模型 override 此方法
+        以解析 OpenAI 兼容的 logprobs 响应。
+        """
+        pass
+
+    def _logprobs_enabled(self) -> bool:
+        """检查 generation_kwargs 是否开启了 logprobs 采集。
+
+        chat API: logprobs 为 bool，True 表示开启
+        completions API: logprobs 为 int，> 0 表示开启
+        """
+        if not self.generation_kwargs:
+            return False
+        val = self.generation_kwargs.get("logprobs")
+        if val is None:
+            return False
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, int):
+            return val > 0
+        return False
 
     async def parse_text_response(self, data, output):
         raise AISBenchNotImplementedError(
             MODEL_CODES.PARSE_TEXT_RSP_NOT_IMPLEMENTED,
-            f"{self.__class__.__name__} should be implemented if stream is False"
+            f"{self.__class__.__name__} should be implemented if stream is False",
         )
 
     async def parse_stream_response(self, data, output):
         raise AISBenchNotImplementedError(
             MODEL_CODES.PARSE_STREAM_RSP_NOT_IMPLEMENTED,
-            f"{self.__class__.__name__} should be implemented if stream is True"
+            f"{self.__class__.__name__} should be implemented if stream is True",
         )
+
+    @staticmethod
+    def _extract_vllm_token_id(item):
+        """Extract a token id from a vLLM OpenAI-style logprob item."""
+        if not isinstance(item, dict):
+            return None
+        if 'token_id' in item:
+            value = item['token_id']
+            try:
+                return int(value) if not isinstance(value, bool) else None
+            except (TypeError, ValueError):
+                return None
+
+        value = item.get('token')
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value.startswith('token_id:'):
+            try:
+                return int(value.removeprefix('token_id:'))
+            except ValueError:
+                return None
+        return None
+
+    @classmethod
+    def _extract_vllm_openai_logprobs(cls, candidate: dict, tokens):
+        """Convert choices[0].logprobs.content into msProbe's top-k maps."""
+        logprobs = candidate.get('logprobs')
+        content = logprobs.get('content') if isinstance(logprobs, dict) else None
+        if not isinstance(content, list) or not content:
+            return tokens, None
+
+        sampled_token_ids = []
+        topk_logprobs = []
+        for token_item in content:
+            if not isinstance(token_item, dict):
+                return tokens, None
+            sampled_token_id = cls._extract_vllm_token_id(token_item)
+            sampled_token_ids.append(sampled_token_id)
+
+            topk_items = token_item.get('top_logprobs')
+            if not isinstance(topk_items, list):
+                return tokens, None
+            token_logprobs = {}
+            for topk_item in topk_items:
+                token_id = cls._extract_vllm_token_id(topk_item)
+                if token_id is None or 'logprob' not in topk_item:
+                    return tokens, None
+                token_logprobs[token_id] = topk_item['logprob']
+
+            # Keep the sampled token even when the server omits it from top-k.
+            if (
+                sampled_token_id is not None
+                and 'logprob' in token_item
+                and sampled_token_id not in token_logprobs
+            ):
+                token_logprobs[sampled_token_id] = token_item['logprob']
+            if not token_logprobs:
+                return tokens, None
+            topk_logprobs.append(token_logprobs)
+
+        if not isinstance(tokens, list) or len(tokens) != len(topk_logprobs):
+            if any(token_id is None for token_id in sampled_token_ids):
+                return tokens, None
+            tokens = sampled_token_ids
+        return tokens, topk_logprobs
+
+    @classmethod
+    def _extract_response_anomaly_payload(cls, data: dict):
+        """Extract service-provided token ids and top-k logprobs."""
+        candidate = data
+        choices = data.get('choices') if isinstance(data, dict) else None
+        if isinstance(choices, list) and choices:
+            candidate = choices[0]
+        if not isinstance(candidate, dict):
+            return None, None
+        tokens = candidate.get('token_ids', candidate.get('tokens'))
+        topk_logprobs = candidate.get('topk_logprobs')
+        if tokens is None and isinstance(data, dict):
+            tokens = data.get('token_ids', data.get('tokens'))
+        if topk_logprobs is None and isinstance(data, dict):
+            topk_logprobs = data.get('topk_logprobs')
+        if topk_logprobs is None:
+            tokens, topk_logprobs = cls._extract_vllm_openai_logprobs(
+                candidate, tokens
+            )
+        return tokens, topk_logprobs
+
+    def _record_response_anomaly_payload(self, data: dict, output: Output) -> None:
+        """Preserve service-provided token ids and top-k logprobs for msProbe.
+
+        Compatible services expose these fields either at the response root or
+        in the first choice. Responses without token ids are intentionally not
+        synthesized: msProbe requires the model vocabulary ids.
+        """
+        if not self.response_anomaly_enabled:
+            return
+        tokens, topk_logprobs = self._extract_response_anomaly_payload(data)
+        if isinstance(tokens, list) and isinstance(topk_logprobs, list):
+            output.extra_details_data['response_anomaly_payload'] = {
+                'tokens': tokens,
+                'topk_logprobs': topk_logprobs,
+            }
+
+    def _accumulate_response_anomaly_payload(
+        self, data: dict, output: Output
+    ) -> None:
+        """Accumulate per-chunk token ids/logprobs for streaming responses.
+
+        Supports both incremental chunks (one new token per chunk) and
+        full-snapshot chunks (the service resends the complete list). Some
+        services send the full token list but only the current token's top-k
+        logprobs; those are handled as incremental appends.
+        """
+        if not self.response_anomaly_enabled:
+            return
+        tokens, topk_logprobs = self._extract_response_anomaly_payload(data)
+        if not isinstance(tokens, list) or not isinstance(topk_logprobs, list):
+            return
+
+        current = output.extra_details_data.get('response_anomaly_payload')
+        cur_tokens = (current or {}).get('tokens') or []
+
+        # Mixed format: full token list so far + topk logprobs for the newly
+        # generated token. Treat it as an incremental append of the last token
+        # so the accumulated payload stays aligned.
+        if (
+            len(topk_logprobs) == 1
+            and len(tokens) > 1
+            and len(tokens) == len(cur_tokens) + 1
+            and list(tokens[:-1]) == list(cur_tokens)
+        ):
+            tokens = tokens[-1:]
+        elif len(tokens) != len(topk_logprobs):
+            # A misaligned chunk cannot be merged without corrupting the
+            # accumulated payload; drop it but leave a trace for debugging.
+            self.logger.debug(
+                "Dropping misaligned response anomaly chunk: "
+                "%d token ids vs %d topk logprobs",
+                len(tokens),
+                len(topk_logprobs),
+            )
+            return
+
+        if current is None:
+            current = {'tokens': [], 'topk_logprobs': []}
+            output.extra_details_data['response_anomaly_payload'] = current
+
+        # Full snapshot: the incoming list is strictly longer than what we
+        # have and its prefix matches.  Using ">" (not ">=") ensures that a
+        # single-token chunk equal to the current state (e.g. two consecutive
+        # identical tokens in an incremental stream) falls through to the
+        # incremental-append branch instead of being treated as a no-op
+        # snapshot that drops the duplicate token.
+        if len(tokens) > len(cur_tokens) and list(tokens[:len(cur_tokens)]) == list(cur_tokens):
+            current['tokens'] = list(tokens)
+            current['topk_logprobs'] = list(topk_logprobs)
+        # Incremental stream: one new token per chunk.
+        elif len(tokens) == 1 and cur_tokens:
+            current['tokens'].append(tokens[0])
+            current['topk_logprobs'].append(topk_logprobs[0])
+        # Full snapshot whose prefix differs or whose length matches (e.g. the
+        # service restarted and re-sent a complete list of the same length).
+        elif len(tokens) >= len(cur_tokens):
+            current['tokens'] = list(tokens)
+            current['topk_logprobs'] = list(topk_logprobs)
 
     async def generate(
         self,
@@ -282,9 +502,10 @@ class BaseAPIModel(BaseModel):
                         output.error_info = f"Unexpected response format: {raw_chunk}. Please check if server is working correctly."
                         raise AISBenchValueError(
                             MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                            f"Unexpected response format. Please check 'error_info' in ***_failed.jsonl for more information."
+                            f"Unexpected response format. Please check 'error_info' in ***_failed.jsonl for more information.",
                         )
                     await self.parse_stream_response(data, output)
+                    self._accumulate_response_anomaly_payload(data, output)
                 output.success = True
             else:
                 output.error_info = response.reason
@@ -305,21 +526,23 @@ class BaseAPIModel(BaseModel):
                     output.error_info = f"Unexpected response format: {raw_data}. Please check if server is working correctly."
                     raise AISBenchValueError(
                         MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                        f"Unexpected response format. Please check ***_details.jsonl for more information."
+                        f"Unexpected response format. Please check ***_details.jsonl for more information.",
                     )
                 await self.parse_text_response(data, output)
+                self._record_response_anomaly_payload(data, output)
                 output.success = True
             else:
                 output.error_info = response.reason
                 output.success = False
 
-    async def get_ppl(self,
+    async def get_ppl(
+        self,
         input_data: PromptType,
         max_out_len: int,
         output: PPLRequestOutput,
         session: aiohttp.ClientSession = None,
-        **args
-        ):
+        **args,
+    ):
         """Compute perplexity for a given prompt via the remote API.
         Args:
             input_data: Prompt text or list structure the backend expects.
@@ -334,12 +557,16 @@ class BaseAPIModel(BaseModel):
             • Respect session lifecycle: only close if they created it.
         """
         if session is None:
-            self.session = aiohttp.ClientSession(trust_env=True, timeout=AIOHTTP_TIMEOUT)
+            self.session = aiohttp.ClientSession(
+                trust_env=True, timeout=AIOHTTP_TIMEOUT
+            )
             close_session = True
         else:
             self.session = session
             close_session = False
-        request_body = await self.get_ppl_request_body(input_data, max_out_len, output, **args)
+        request_body = await self.get_ppl_request_body(
+            input_data, max_out_len, output, **args
+        )
         retry_count = 0
         for _ in range(self.retry):
             try:
@@ -382,22 +609,37 @@ class BaseAPIModel(BaseModel):
         if close_session:
             await self.session.close()
 
-    async def get_ppl_request_body(self, input_data:PromptType, max_out_len: int, output: PPLRequestOutput, **args):
-        raise AISBenchNotImplementedError(ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED, f"PPL is not supported for this model.")
+    async def get_ppl_request_body(
+        self, input_data: PromptType, max_out_len: int, output: PPLRequestOutput, **args
+    ):
+        raise AISBenchNotImplementedError(
+            ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED,
+            f"PPL is not supported for this model.",
+        )
 
     def get_prompt_logprobs(self, data: dict):
-        raise AISBenchNotImplementedError(ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED, f"PPL is not supported for this model.")
+        raise AISBenchNotImplementedError(
+            ICLI_CODES.IMPLEMENTATION_ERROR_PPL_METHOD_NOT_IMPLEMENTED,
+            f"PPL is not supported for this model.",
+        )
 
     def _calc_ppl(self, prompt_logprobs: list):
-        logprobs = [list(item.values())[0]['logprob'] for item in prompt_logprobs if item is not None]
-        tokenids = [list(item.keys())[0] for item in prompt_logprobs if item is not None]
+        logprobs = [
+            list(item.values())[0]["logprob"]
+            for item in prompt_logprobs
+            if item is not None
+        ]
+        tokenids = [
+            list(item.keys())[0] for item in prompt_logprobs if item is not None
+        ]
         if len(tokenids) == 0:
             raise AISBenchImplementationError(
                 ICLI_CODES.PPL_COMPUTE_ERROR_NO_VALID_TOKENS,
-                "No valid tokens with log probabilities found for PPL computation."
+                "No valid tokens with log probabilities found for PPL computation.",
             )
         loss = -sum(logprobs) / len(tokenids)
         return loss
+
 
 class APITemplateParser:
     """Intermidate prompt template parser, specifically for API models.
@@ -414,12 +656,12 @@ class APITemplateParser:
             if "round" not in meta_template:
                 raise AISBenchTypeError(
                     MODEL_CODES.MISS_REQUIRED_PARAM_IN_META_TEMPLATE,
-                    "round is required in meta template"
+                    "round is required in meta template",
                 )
             if not isinstance(meta_template["round"], list):
                 raise AISBenchTypeError(
                     MODEL_CODES.INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE,
-                    "round must be a list in meta template"
+                    "round must be a list in meta template",
                 )
             keys_to_check = ["round"]
 
@@ -427,7 +669,7 @@ class APITemplateParser:
                 if not isinstance(meta_template["reserved_roles"], list):
                     raise AISBenchTypeError(
                         MODEL_CODES.INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE,
-                        "reserved_roles must be a list in meta template"
+                        "reserved_roles must be a list in meta template",
                     )
                 keys_to_check.append("reserved_roles")
 
@@ -437,13 +679,13 @@ class APITemplateParser:
                     if not isinstance(item, (str, dict)):
                         raise AISBenchTypeError(
                             MODEL_CODES.INVALID_TYPE_OF_PARAM_IN_META_TEMPLATE,
-                            f"each item in {meta_key} must be a string or a dict in meta template"
+                            f"each item in {meta_key} must be a string or a dict in meta template",
                         )
                     if isinstance(item, dict):
                         if item["role"] in self.roles:
                             raise AISBenchTypeError(
                                 MODEL_CODES.ROLE_IN_META_TEMPLATE_IS_NOT_UNIQUE,
-                                f"role {item['role']} in meta prompt must be unique!"
+                                f"role {item['role']} in meta prompt must be unique!",
                             )
                         self.roles[item["role"]] = item.copy()
 
@@ -468,7 +710,7 @@ class APITemplateParser:
         if not isinstance(prompt_template, (str, list, PromptList, tuple)):
             raise AISBenchTypeError(
                 MODEL_CODES.PARSE_TEMPLATE_INVALID_TYPE,
-                f"prompt_template must be a string, list of strings, PromptList, or tuple of strings, but got {type(prompt_template)}"
+                f"prompt_template must be a string, list of strings, PromptList, or tuple of strings, but got {type(prompt_template)}",
             )
 
         if not isinstance(prompt_template, (str, PromptList)):
@@ -477,15 +719,13 @@ class APITemplateParser:
         if not mode in ["ppl", "gen"]:
             raise AISBenchTypeError(
                 MODEL_CODES.PARSE_TEMPLATE_INVALID_MODE,
-                f"Parsing mode must be 'ppl' or 'gen', but got {mode}"
+                f"Parsing mode must be 'ppl' or 'gen', but got {mode}",
             )
-
 
         if isinstance(prompt_template, str):
             return prompt_template
 
         if self.meta_template:
-
             prompt = PromptList()
             # Whether to keep generating the prompt
             generate = True
@@ -508,7 +748,7 @@ class APITemplateParser:
                         if not section_name == item["section"]:
                             raise AISBenchValueError(
                                 MODEL_CODES.UNKNOWN_ERROR,
-                                f"section {item['section']} in prompt template must match the last section {section_name}"
+                                f"section {item['section']} in prompt template must match the last section {section_name}",
                             )
                         if section_name in ["round", "ice"]:
                             dialogue = prompt_template[start_idx:i]
@@ -538,13 +778,13 @@ class APITemplateParser:
                             raise AISBenchValueError(
                                 MODEL_CODES.UNKNOWN_ERROR,
                                 f"section {item['section']} in prompt template is not valid, "
-                                "it must be 'begin', 'round', 'end', or 'ice'"
+                                "it must be 'begin', 'round', 'end', or 'ice'",
                             )
                         section_stack.append((item["section"], i + 1))
                     else:
                         raise AISBenchValueError(
                             MODEL_CODES.UNKNOWN_ERROR,
-                            f"Invalid prompt template item pos {item['pos']}, legal item pos are 'begin' or 'end'."
+                            f"Invalid prompt template item pos {item['pos']}, legal item pos are 'begin' or 'end'.",
                         )
                 elif section_stack[-1][0] in ["begin", "end"]:
                     role_dict = self._update_role_dict(item)
@@ -637,7 +877,7 @@ class APITemplateParser:
                     raise AISBenchKeyError(
                         MODEL_CODES.INVALID_ROLE_IN_PROMPT_TEMPLATE,
                         f"prompt template item {template} neither has an appropriate "
-                        "role nor a fallback_role."
+                        "role nor a fallback_role.",
                     )
             if role_idx <= last_role_idx:
                 cutoff_idxs.append(idx)
@@ -677,7 +917,7 @@ class APITemplateParser:
             if isinstance(prompt, str):
                 raise AISBenchTypeError(
                     MODEL_CODES.MIX_STR_WITHOUT_EXPLICIT_ROLE,
-                    "Mixing str without explicit role is not allowed in API models!"
+                    "Mixing str without explicit role is not allowed in API models!",
                 )
             else:
                 api_role, cont = self._role2api_role(prompt, role_dict, for_gen)
@@ -720,6 +960,6 @@ class APITemplateParser:
         else:
             raise AISBenchValueError(
                 MODEL_CODES.INVALID_PROMPT_CONTENT,
-                "Invalid prompt content: without 'prompt' or 'prompt_mm' param!"
+                "Invalid prompt content: without 'prompt' or 'prompt_mm' param!",
             )
         return res, True

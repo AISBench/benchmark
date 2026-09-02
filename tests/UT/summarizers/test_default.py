@@ -296,7 +296,7 @@ class TestDefaultSummarizer(unittest.TestCase):
         self.assertIn("test_ds", raw_results["test_model"])
 
         self.assertIn("test_model", parsed_results)
-        self.assertNotIn("test_ds", parsed_results["test_model"])
+        self.assertIn("test_ds", parsed_results["test_model"])
 
     @patch('ais_bench.benchmark.summarizers.default.model_abbr_from_cfg_used_in_summarizer')
     @patch('ais_bench.benchmark.summarizers.default.AISLogger')

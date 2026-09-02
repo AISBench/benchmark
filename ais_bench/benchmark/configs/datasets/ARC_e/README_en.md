@@ -14,7 +14,7 @@ cd ais_bench/datasets
 wget https://github.com/open-compass/opencompass/releases/download/0.2.2.rc1/OpenCompassData-core-20240207.zip
 unzip OpenCompassData-core-20240207.zip -d OpenCompassData-core-20240207
 mkdir ARC/
-cp -r OpenCompassData-core-20240207/data/AGIEval/data/v1/* ARC/
+cp -r OpenCompassData-core-20240207/data/ARC/* ARC/
 rm -r OpenCompassData-core-20240207/
 rm -r OpenCompassData-core-20240207.zip
 ```
@@ -27,8 +27,8 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| ARC_e_gen_0_shot_chat_prompt | Generative task for the ARC Easy Set dataset | Accuracy | 0-shot | Chat format | [ARC_e_gen_0_shot_chat_prompt.py](ARC_e_gen_0_shot_chat_prompt.py) |
-| ARC_e_gen_25_shot_chat_prompt | Generative task for the ARC Easy Set dataset | Accuracy | 25-shot | Chat format | [ARC_e_gen_25_shot_chat_prompt.py](ARC_e_gen_25_shot_chat_prompt.py) |
-| ARC_e_ppl_0_shot_str | PPL task for the ARC Easy Set dataset | Accuracy | 0-shot | String Format | [ARC_e_ppl_0_shot_str.py](ARC_e_ppl_0_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| ARC_e_gen_0_shot_chat_prompt | Generative task for the ARC Easy Set dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.ARC_e.ARC_e_gen_0_shot_chat_prompt import ARC_e_datasets as datasets`| [ARC_e_gen_0_shot_chat_prompt.py](ARC_e_gen_0_shot_chat_prompt.py) |
+| ARC_e_gen_25_shot_chat_prompt | Generative task for the ARC Easy Set dataset | Accuracy | 25-shot | Chat format |`from ais_bench.benchmark.configs.datasets.ARC_e.ARC_e_gen_25_shot_chat_prompt import ARC_e_datasets as datasets`| [ARC_e_gen_25_shot_chat_prompt.py](ARC_e_gen_25_shot_chat_prompt.py) |
+| ARC_e_ppl_0_shot_str | PPL task for the ARC Easy Set dataset | Accuracy | 0-shot | String Format |`from ais_bench.benchmark.configs.datasets.ARC_e.ARC_e_ppl_0_shot_str import ARC_e_datasets as datasets`| [ARC_e_ppl_0_shot_str.py](ARC_e_ppl_0_shot_str.py) |

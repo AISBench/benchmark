@@ -169,7 +169,68 @@ class TestStablePerfMetricCalculator(unittest.TestCase):
         calculator.stage_section = [2.0, 4.0]
         self.assertTrue(calculator.stage_section[0] > 0)
         self.assertTrue(calculator.stage_section[1] > calculator.stage_section[0])
-    
+
+    def test_get_requests_id_second_max_concurrency_as_start(self):
+        # 稳定阶段起点应为第 2 个达到 max_concurrency 的请求，而非第 1 个
+        calculator = StablePerfMetricCalculator()
+        calculator.max_concurrency = 2
+        calculator.logger = self.mock_logger
+        calculator.stage_section = [0, 0]
+
+        # req0/req1 爬坡：req1 启动时并发达到 2（第 1 个达到 max）
+        # req2 启动时并发再次达到 2（第 2 个达到 max）-> 稳定阶段起点
+        # req3 启动时并发第三次达到 2（最后一次达到 max）-> 稳定阶段终点
+        perf_details = {
+            "id": [0, 1, 2, 3],
+            "start_time": [1.0, 2.0, 4.0, 6.0],
+            "end_time": [3.5, 5.5, 7.0, 9.0],
+            "success": [True, True, True, True]
+        }
+
+        result = calculator._get_requests_id(perf_details)
+
+        # 起点 = req2 的 start(4.0)，终点 = 最后一次达到 max 的 req3 的 start(6.0)
+        self.assertEqual(calculator.stage_section, [4.0, 6.0])
+        # 第 1 个达到 max 的 req1 被排除；req2、req3 纳入
+        self.assertEqual(result, [2, 3])
+
+    def test_get_requests_id_single_max_reaching_raises(self):
+        # 并发只达到 max 一次（不存在第 2 个达到 max 的请求）时应抛出异常
+        calculator = StablePerfMetricCalculator()
+        calculator.max_concurrency = 2
+        calculator.logger = self.mock_logger
+        calculator.stage_section = [0, 0]
+
+        perf_details = {
+            "id": [0, 1],
+            "start_time": [1.0, 2.0],
+            "end_time": [3.0, 4.0],
+            "success": [True, True]
+        }
+
+        with self.assertRaises(AISBenchDataContentError):
+            calculator._get_requests_id(perf_details)
+
+    def test_get_requests_id_excludes_requests_after_last_max(self):
+        # 稳定阶段终点为最后一次达到 max 的时间，之后启动的请求应被排除
+        calculator = StablePerfMetricCalculator()
+        calculator.max_concurrency = 2
+        calculator.logger = self.mock_logger
+        calculator.stage_section = [0, 0]
+
+        perf_details = {
+            "id": [0, 1, 2, 3, 4],
+            "start_time": [1.0, 2.0, 3.5, 5.0, 8.0],
+            "end_time": [3.0, 4.0, 6.0, 7.0, 9.0],
+            "success": [True, True, True, True, True]
+        }
+
+        result = calculator._get_requests_id(perf_details)
+
+        self.assertEqual(calculator.stage_section, [3.5, 5.0])
+        # req2(3.5)、req3(5.0) 落在区间内；req4(8.0) 在终点之后被排除
+        self.assertEqual(result, [2, 3])
+
     def test_process_result(self):
         # 测试处理结果方法
         calculator = StablePerfMetricCalculator()
@@ -300,11 +361,13 @@ class TestStablePerfMetricCalculator(unittest.TestCase):
     
     def test_edge_case_empty_stable_stage(self):
         # 测试边缘情况 - 稳定阶段只有少量请求
+        # 单个请求达到 max_concurrency=1 时，作为首个达到 max 的请求会被忽略（pop），
+        # 不存在第 2 个达到 max 的请求，因此应抛出异常
         calculator = StablePerfMetricCalculator()
         calculator.max_concurrency = 1
         calculator.logger = self.mock_logger
         calculator.stage_section = [0, 0]  # 初始化必要的属性
-        
+
         # 准备测试数据 - 只有一个请求
         perf_details = {
             "id": [0],
@@ -312,7 +375,7 @@ class TestStablePerfMetricCalculator(unittest.TestCase):
             "end_time": [2.0],
             "success": [True]
         }
-        
+
         # 验证抛出异常
         with self.assertRaises(AISBenchDataContentError):
             calculator._get_requests_id(perf_details)

@@ -24,7 +24,7 @@ wget https://www.modelscope.cn/datasets/evalscope/MMStar/resolve/master/MMStar.t
 ## 可用数据集任务
 ### mmstar_gen
 #### 基本信息
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|mmstar_gen|mmstar数据集生成式任务|acc|0-shot|字符串格式|[mmstar_gen.py](mmstar_gen.py)|
-|mmstar_gen_cot|mmstar数据集思维链生成式任务|acc|0-shot|字符串格式|[mmstar_gen_cot.py](mmstar_gen_cot.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|mmstar_gen|mmstar数据集生成式任务|acc|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.mmstar.mmstar_gen import mmstar_datasets as datasets`|[mmstar_gen.py](mmstar_gen.py)|
+|mmstar_gen_cot|mmstar数据集思维链生成式任务|acc|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.mmstar.mmstar_gen_cot import mmstar_datasets as datasets`|[mmstar_gen_cot.py](mmstar_gen_cot.py)|

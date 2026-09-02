@@ -1,6 +1,8 @@
 import unittest
 import asyncio
 import json
+import os
+import tempfile
 import uuid
 from unittest.mock import patch, MagicMock, AsyncMock
 from typing import Dict, List
@@ -156,6 +158,23 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
         self.assertTrue(request_body["stream"])
         self.assertIn("stream_options", request_body)
         self.assertEqual(request_body["stream_options"]["include_usage"], True)
+
+    def test_response_anomaly_requests_vllm_token_ids(self):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {
+            "response_anomaly_enabled": True,
+            "return_token_ids": False,
+            "return_tokens_as_token_ids": False,
+        }
+        model = VLLMCustomAPIChat(**kwargs)
+
+        request_body = asyncio.run(
+            model.get_request_body("test prompt", 100, RequestOutput())
+        )
+
+        self.assertTrue(request_body["return_token_ids"])
+        self.assertTrue(request_body["return_tokens_as_token_ids"])
+        self.assertNotIn("response_anomaly_enabled", request_body)
     
     async def test_parse_stream_response(self):
         """测试parse_stream_response方法"""
@@ -314,6 +333,107 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
     def test_parse_text_response_wrapper(self):
         self.run_async_test(self.test_parse_text_response())
 
+    async def test_parse_logprobs_with_data(self):
+        """测试_parse_logprobs正确解析chat API logprobs响应"""
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+
+        content_list = [
+            {"token": "B", "logprob": -0.5, "bytes": [66], "top_logprobs": [{"token": "B", "logprob": -0.5}, {"token": "A", "logprob": -2.1}]}
+        ]
+        choice = {
+            "message": {"content": "B"},
+            "logprobs": {"content": content_list}
+        }
+
+        await model._parse_logprobs(choice, output)
+
+        # chat API 直接透传 lp.content，保持 vLLM 原始结构
+        self.assertEqual(output.origin_logprobs, content_list)
+
+    async def test_parse_logprobs_without_logprobs_field(self):
+        """测试_parse_logprobs在响应无logprobs字段时不报错"""
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+
+        choice = {"message": {"content": "B"}}
+
+        await model._parse_logprobs(choice, output)
+
+        self.assertEqual(output.origin_logprobs, [])
+
+    async def test_parse_logprobs_enabled_but_missing_warns(self):
+        """测试开启logprobs但响应缺失时，写入logprobs_warning到extra_details_data"""
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"logprobs": True}
+        model = VLLMCustomAPIChat(**kwargs)
+        output = RequestOutput()
+
+        choice = {"message": {"content": "B"}}  # 无 logprobs 字段
+
+        await model._parse_logprobs(choice, output)
+
+        self.assertEqual(output.origin_logprobs, [])
+        self.assertIn("logprobs_warning", output.extra_details_data)
+        self.assertIn("logprobs is enabled", output.extra_details_data["logprobs_warning"])
+
+    async def test_parse_logprobs_with_none_content(self):
+        """测试_parse_logprobs保留None项（predefined token）"""
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+
+        content_list = [
+            None,
+            {"token": "B", "logprob": -0.3, "top_logprobs": [{"token": "B", "logprob": -0.3}]}
+        ]
+        choice = {
+            "message": {"content": "AB"},
+            "logprobs": {"content": content_list}
+        }
+
+        await model._parse_logprobs(choice, output)
+
+        # 直接透传，None 项保留
+        self.assertEqual(output.origin_logprobs, content_list)
+
+    async def test_parse_text_response_with_logprobs(self):
+        """测试parse_text_response正确调用_parse_logprobs"""
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+
+        content_list = [
+            {"token": "B", "logprob": -0.5, "top_logprobs": [{"token": "B", "logprob": -0.5}]}
+        ]
+        response = {
+            "choices": [{
+                "message": {"content": "B"},
+                "logprobs": {"content": content_list}
+            }],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 1}
+        }
+
+        await model.parse_text_response(response, output)
+
+        self.assertEqual(output.content, "B")
+        self.assertEqual(output.input_tokens, 10)
+        self.assertEqual(output.output_tokens, 1)
+        self.assertEqual(output.origin_logprobs, content_list)
+
+    def test_parse_logprobs_with_data_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_with_data())
+
+    def test_parse_logprobs_without_logprobs_field_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_without_logprobs_field())
+
+    def test_parse_logprobs_enabled_but_missing_warns_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_enabled_but_missing_warns())
+
+    def test_parse_logprobs_with_none_content_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_with_none_content())
+
+    def test_parse_text_response_with_logprobs_wrapper(self):
+        self.run_async_test(self.test_parse_text_response_with_logprobs())
+
     def test_calc_ppl(self):
         """测试_calc_ppl方法"""
         model = VLLMCustomAPIChat(**self.default_kwargs)
@@ -334,19 +454,202 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
     def test_calc_ppl_with_none(self):
         """测试_calc_ppl处理None值"""
         model = VLLMCustomAPIChat(**self.default_kwargs)
-        
+
         # 测试包含None的logprobs列表
         prompt_logprobs = [
             {"1": {"logprob": -0.5}},
             None,
             {"3": {"logprob": -0.7}}
         ]
-        
+
         ppl = model._calc_ppl(prompt_logprobs)
-        
+
         # 只计算非None的值: -(-0.5 - 0.7) / 2 = 1.2 / 2 = 0.6
         expected_ppl = -(-0.5 - 0.7) / 2
         self.assertAlmostEqual(ppl, expected_ppl, places=5)
+
+
+class TestVLLMCustomAPIChatLora(unittest.TestCase):
+    """针对 Multi-LoRA 兼容性扩展的 UT（base model 内嵌，无新增子类）。"""
+
+    LORA_MAP = {"0": "LoraA", "1": "LoraB", "6": "LoraA"}
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmp_root = self._tmpdir.name
+        self.default_kwargs = {
+            "path": "test-model",
+            "model": "base-model-name",
+            "stream": False,
+            "max_out_len": 100,
+            "retry": 1,
+            "host_ip": "localhost",
+            "host_port": 8080,
+            "enable_ssl": False,
+            "verbose": False,
+            "generation_kwargs": {},
+        }
+        # Avoid actual service discovery on instantiation.
+        self._get_service_model_path_patcher = patch.object(
+            base_api.BaseAPIModel, "_get_service_model_path"
+        )
+        self.mock_get_model_path = self._get_service_model_path_patcher.start()
+        self.mock_get_model_path.return_value = "mocked-base-model"
+
+    def tearDown(self):
+        self._get_service_model_path_patcher.stop()
+        self._tmpdir.cleanup()
+
+    def _write_lora_map(self, content=None):
+        path = os.path.join(self.tmp_root, "lora_data_map.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(content if content is not None else self.LORA_MAP, f)
+        return path
+
+    # ---------- _load_lora_data_map ----------
+
+    def test_load_lora_data_map_with_valid_file(self):
+        path = self._write_lora_map()
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPIChat(**kwargs)
+        self.assertEqual(model.lora_data_map, self.LORA_MAP)
+
+    def test_load_lora_data_map_missing_key(self):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"temperature": 0.7}
+        model = VLLMCustomAPIChat(**kwargs)
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_empty_generation_kwargs(self):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = None
+        model = VLLMCustomAPIChat(**kwargs)
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_none_value(self):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": None}
+        model = VLLMCustomAPIChat(**kwargs)
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_empty_string(self):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": ""}
+        model = VLLMCustomAPIChat(**kwargs)
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_file_not_exists(self):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {
+            "lora_data_map_file": os.path.join(self.tmp_root, "no_such_file.json")
+        }
+        model = VLLMCustomAPIChat(**kwargs)
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_invalid_json(self):
+        path = os.path.join(self.tmp_root, "bad.json")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("not json {{{")
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPIChat(**kwargs)
+        self.assertIsNone(model.lora_data_map)
+
+    def test_load_lora_data_map_empty_dict(self):
+        path = self._write_lora_map(content={})
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPIChat(**kwargs)
+        self.assertEqual(model.lora_data_map, {})
+
+    # ---------- _resolve_lora_model_name ----------
+
+    def test_resolve_hit(self):
+        path = self._write_lora_map()
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPIChat(**kwargs)
+        out = RequestOutput()
+        out.data_id = 0
+        self.assertEqual(model._resolve_lora_model_name(out), "LoraA")
+        out.data_id = 1
+        self.assertEqual(model._resolve_lora_model_name(out), "LoraB")
+        out.data_id = 6
+        self.assertEqual(model._resolve_lora_model_name(out), "LoraA")
+
+    def test_resolve_miss_returns_none(self):
+        path = self._write_lora_map()
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPIChat(**kwargs)
+        out = RequestOutput()
+        out.data_id = 999
+        self.assertIsNone(model._resolve_lora_model_name(out))
+
+    def test_resolve_no_map_returns_none(self):
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        out = RequestOutput()
+        out.data_id = 0
+        self.assertIsNone(model._resolve_lora_model_name(out))
+
+    def test_resolve_output_without_data_id_returns_none(self):
+        path = self._write_lora_map()
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        model = VLLMCustomAPIChat(**kwargs)
+        out = RequestOutput()  # no data_id attribute
+        self.assertIsNone(model._resolve_lora_model_name(out))
+
+    # ---------- get_request_body LoRA injection ----------
+
+    def _make_model_with_lora(self, path):
+        kwargs = self.default_kwargs.copy()
+        kwargs["generation_kwargs"] = {"lora_data_map_file": path}
+        with patch.object(VLLMCustomAPIChat, '_get_url',
+                          return_value='http://localhost:8080/v1/chat/completions'):
+            return VLLMCustomAPIChat(**kwargs)
+
+    def _run_get_request_body(self, model, output, input_data="test prompt", max_out_len=100):
+        return asyncio.run(model.get_request_body(input_data, max_out_len, output))
+
+    def test_request_body_lora_hit_overrides_model_field(self):
+        path = self._write_lora_map()
+        model = self._make_model_with_lora(path)
+        out = RequestOutput()
+        out.data_id = 0
+        body = self._run_get_request_body(model, out)
+        self.assertEqual(body["model"], "LoraA")
+
+    def test_request_body_lora_miss_keeps_base_model(self):
+        path = self._write_lora_map()
+        model = self._make_model_with_lora(path)
+        out = RequestOutput()
+        out.data_id = 999  # not in map
+        body = self._run_get_request_body(model, out)
+        # Falls back to base model name.
+        self.assertEqual(body["model"], "base-model-name")
+
+    def test_request_body_no_lora_config_keeps_base_model(self):
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        out = RequestOutput()
+        out.data_id = 0
+        body = self._run_get_request_body(model, out)
+        self.assertEqual(body["model"], "base-model-name")
+        # adapter_id should NEVER appear in the vLLM body even with data_id set.
+        self.assertNotIn("adapter_id", body)
+
+    def test_request_body_lora_hit_with_promptlist(self):
+        path = self._write_lora_map()
+        model = self._make_model_with_lora(path)
+        out = RequestOutput()
+        out.data_id = 1
+        prompt_list = [
+            {"role": "HUMAN", "prompt": "Hello"},
+        ]
+        body = self._run_get_request_body(model, out, input_data=prompt_list)
+        self.assertEqual(body["model"], "LoraB")
+        self.assertEqual(len(body["messages"]), 1)
 
 
 

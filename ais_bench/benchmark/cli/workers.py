@@ -1,9 +1,13 @@
+import glob
 import os
 import os.path as osp
 import copy
 import shutil
+import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any, NamedTuple
 
 from mmengine.config import ConfigDict
 
@@ -13,15 +17,49 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidException
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners import LocalRunner
+from ais_bench.benchmark.runners import LocalRunner, TasksMonitor
 from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask, OpenICLInferTask
 from ais_bench.benchmark.tasks.base import EmptyTask
 from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.cli.utils import clear_repeat_tasks
 from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
+from ais_bench.benchmark.utils.response_anomaly import (
+    ANOMALY_RESULT_NAMES,
+    ResponseAnomalyCoordinator,
+)
 
 logger = AISLogger()
+
+
+class _URLSnapshotEntry(NamedTuple):
+    """A single URL's before-snapshot state."""
+    before: Any = None   # SpecDecodeSnapshot | None
+    error: str | None = None
+
+
+@dataclass
+class _SpecDecodeContext:
+    """Carries state between before/after spec decode Prometheus snapshots.
+
+    Each unique metrics URL gets its own entry so that spec decode metrics
+    from different servers are collected and reported independently.
+    """
+    enabled: bool = False
+    entries: dict[str, _URLSnapshotEntry] = field(default_factory=dict)
+
+
+def _run_response_anomaly_monitor(
+    task_names: list, work_dir: str, is_debug: bool
+) -> None:
+    """Run a dedicated status board for the response anomaly task."""
+    tasks_monitor = TasksMonitor(
+        task_names,
+        work_dir,
+        is_debug,
+        include_anomaly_status=True,
+    )
+    tasks_monitor.launch_state_board()
 
 
 class BaseWorker(ABC):
@@ -102,8 +140,45 @@ class Infer(BaseWorker):
             logger.info("Merging datasets with the same model and inferencer...")
             tasks = self._merge_datasets(tasks)
 
+        spec_ctx = self._spec_decode_before_snapshot(cfg)
+
+        if cfg.get('response_anomaly', {}).get('enabled', False):
+            # Remove a stale status left by a previous interrupted run so the
+            # inference board does not wait on an outdated ResponseAnomaly state.
+            stale_status = osp.join(
+                cfg['work_dir'],
+                'status_tmp',
+                ResponseAnomalyCoordinator.STATUS_FILE_NAME,
+            )
+            try:
+                if os.path.isfile(stale_status):
+                    os.remove(stale_status)
+            except OSError as exc:
+                logger.warning(
+                    "Failed to remove stale response anomaly status file %s: %s",
+                    stale_status,
+                    exc,
+                )
+
         runner = RUNNERS.build(cfg.infer.runner)
         runner(tasks)
+
+        self._spec_decode_finalize(cfg, spec_ctx)
+
+        if cfg.get('response_anomaly', {}).get('enabled', False):
+            logger.info(
+                "Inference finished; starting response anomaly detection "
+                "(bound to the inference stage)..."
+            )
+            self.response_anomaly_coordinator.start(cfg)
+            # Detection runs serially inside the inference stage: wait for
+            # it to finish (its status board prints between the inference
+            # board and any evaluation board) before the workflow continues.
+            _finalize_response_anomaly_detection(
+                self.response_anomaly_coordinator,
+                cfg['work_dir'],
+                cfg.get('cli_args', {}).get('debug', False),
+            )
         logger.info("Inference tasks completed.")
 
     def _merge_datasets(self, tasks):
@@ -133,6 +208,127 @@ class Infer(BaseWorker):
             for task in tasks:
                 cfg.attack.dataset = task.datasets[0][0].abbr
                 task.attack = cfg.attack
+
+    # ------------------------------------------------------------------
+    #  Speculative Decoding — per-URL before/after snapshot methods
+    # ------------------------------------------------------------------
+
+    def _spec_decode_before_snapshot(self, cfg: ConfigDict) -> _SpecDecodeContext:
+        """Fetch before-snapshots for every unique metrics URL."""
+        cli_args = cfg.get("cli_args", {})
+        ctx = _SpecDecodeContext()
+
+        ctx.enabled = (
+            cli_args.get("spec_decode", False)
+            and cli_args.get("mode") == "perf"
+        )
+        if cli_args.get("spec_decode") and cli_args.get("mode") != "perf":
+            logger.warning(
+                "--spec-decode is only effective in --mode perf. "
+                "Ignoring spec decode for current mode '%s'.",
+                cli_args.get("mode"),
+            )
+
+        if not ctx.enabled:
+            return ctx
+
+        from ais_bench.benchmark.spec_decode.urls import resolve_metrics_urls
+
+        urls = resolve_metrics_urls(cfg.get("models", []))
+        if not urls:
+            ctx.enabled = False
+            logger.info("Spec decode before-snapshot failed: no metrics URLs found.")
+            return ctx
+
+        from ais_bench.benchmark.spec_decode.fetcher import (
+            fetch_spec_decode_metrics_with_error,
+        )
+        for url in urls:
+            snapshot, error = fetch_spec_decode_metrics_with_error(url)
+            ctx.entries[url] = _URLSnapshotEntry(before=snapshot, error=error)
+            if error:
+                logger.info(
+                    "Spec decode [%s] before-snapshot failed: %s", url, error
+                )
+            else:
+                logger.info(
+                    "Spec decode [%s] before-snapshot captured successfully.", url
+                )
+        return ctx
+
+    def _spec_decode_finalize(
+        self, cfg: ConfigDict, ctx: _SpecDecodeContext
+    ) -> None:
+        """Finalize: collect after-snapshots, compute deltas, save results."""
+        if not ctx.enabled:
+            return
+
+        for url, entry in ctx.entries.items():
+            try:
+                self._process_spec_decode_url(cfg, url, entry)
+            except Exception:
+                logger.warning(
+                    "Spec decode [%s] after-snapshot failed unexpectedly, skipping",
+                    url, exc_info=True,
+                )
+
+    def _process_spec_decode_url(
+        self, cfg: ConfigDict, url: str, entry: _URLSnapshotEntry
+    ) -> None:
+        """After-snapshot → compute delta → save for a single URL."""
+        from ais_bench.benchmark.spec_decode.fetcher import (
+            fetch_spec_decode_metrics_with_error,
+        )
+        from ais_bench.benchmark.spec_decode.calculator import (
+            compute_spec_decode_stats,
+        )
+        from ais_bench.benchmark.spec_decode.reporter import (
+            save_spec_decode_result,
+        )
+
+        after_snapshot, after_error = fetch_spec_decode_metrics_with_error(url)
+        error = self._merge_spec_decode_errors(entry.error, after_error)
+
+        spec_stats = None
+        if entry.before is not None and after_snapshot is not None:
+            spec_stats = compute_spec_decode_stats(entry.before, after_snapshot)
+            if spec_stats is None:
+                error = "No spec decode activity detected during benchmark window"
+
+        self._log_spec_decode_result(url, spec_stats, error)
+
+        save_spec_decode_result(
+            spec_stats, error, cfg["work_dir"], url,
+            before_snapshot=entry.before,
+            after_snapshot=after_snapshot,
+        )
+
+    @staticmethod
+    def _merge_spec_decode_errors(before_error: str | None, after_error: str | None) -> str | None:
+        """Merge before/after error messages, preserving both when possible."""
+        if not after_error:
+            return before_error
+        if before_error:
+            return f"{before_error}; {after_error}"
+        return after_error
+
+    @staticmethod
+    def _log_spec_decode_result(url: str, spec_stats: dict | None, error: str | None) -> None:
+        """Log the outcome of spec decode collection for a single URL."""
+        if spec_stats:
+            logger.info(
+                "Spec decode [%s] collected: acceptance_rate=%.2f%%, "
+                "acceptance_length=%.2f",
+                url,
+                spec_stats["acceptance_rate"],
+                spec_stats["acceptance_length"],
+            )
+        else:
+            logger.info(
+                "Spec decode [%s] unavailable: %s",
+                url, error or "unknown reason",
+            )
+
 
 
 class JudgeInfer(BaseWorker):
@@ -468,6 +664,110 @@ class PerfViz(BaseWorker):
         logger.info("Summarizing performance results...")
         summarizer.summarize()
 
+        # ========== Speculative Decoding Results ==========
+        if cfg.get("cli_args", {}).get("spec_decode", False):
+            self._output_spec_decode_results(cfg)
+
+    @staticmethod
+    def _output_spec_decode_results(cfg: ConfigDict) -> None:
+        """Read all per-URL spec_decode_*.json files and print results."""
+        from ais_bench.benchmark.spec_decode.reporter import (
+            format_spec_decode_console,
+            format_spec_decode_na,
+        )
+
+        pattern = osp.join(cfg["work_dir"], "performances", "spec_decode_*.json")
+        spec_files = sorted(glob.glob(pattern))
+
+        if not spec_files:
+            logger.warning(
+                "Spec decode enabled but no result files found matching %s",
+                pattern,
+            )
+            return
+
+        for spec_file in spec_files:
+            try:
+                with open(spec_file, "r", encoding="utf-8") as f:
+                    result = json.load(f)
+            except Exception:
+                logger.warning(
+                    "Failed to read spec decode result file %s, skipping",
+                    spec_file, exc_info=True,
+                )
+                continue
+
+            url = result.get("url", "")
+            if result.get("status") == "ok" and result.get("data"):
+                print(format_spec_decode_console(result["data"], url))
+            else:
+                print(format_spec_decode_na(url, result.get("error")))
+
+
+def _finalize_response_anomaly_detection(
+    coordinator, work_dir: str, is_debug: bool
+) -> None:
+    """Wait for detection to finish and print its status board and summary.
+
+    Called from the Infer worker so detection is serially bound to the
+    inference stage: the dedicated board renders right after the inference
+    board and before evaluation starts.
+    """
+    # The dedicated board is the only place detection status is rendered now
+    # that evaluation boards stay separate. Start it whenever detection has
+    # produced a status (it may have already finished for tiny datasets), so
+    # the final table is always printed. Skip it when no status was ever
+    # written to avoid the board waiting forever on tasks that never started.
+    anomaly_status_file = osp.join(
+        work_dir,
+        'status_tmp',
+        ResponseAnomalyCoordinator.STATUS_FILE_NAME,
+    )
+    if coordinator.is_running or osp.isfile(anomaly_status_file):
+        _run_response_anomaly_monitor(
+            coordinator.task_names,
+            work_dir,
+            is_debug,
+        )
+    coordinator.join()
+    TasksMonitor.rm_tmp_files(work_dir)
+    if coordinator.summary:
+        logger.info(
+            "Response anomaly detection summary across %d task(s): %s",
+            len(coordinator.anomaly_report),
+            coordinator.summary,
+        )
+    for task_name, info in coordinator.anomaly_report.items():
+        counts = info.get("counts", {})
+        anomalies = {
+            name: count
+            for name, count in counts.items()
+            if name in ANOMALY_RESULT_NAMES and count
+        }
+        if anomalies:
+            logger.warning(
+                "Response anomalies detected for %s: %s",
+                task_name,
+                anomalies,
+            )
+            logger.warning("  detection results: %s", info.get("result_file"))
+            if info.get("payload_dir"):
+                logger.warning("  payload archive:   %s", info["payload_dir"])
+            logger.warning("  task log:          %s", info.get("task_log"))
+        undetected = {
+            name: count
+            for name, count in counts.items()
+            if name in ("failed", "unavailable") and count
+        }
+        if undetected:
+            logger.warning(
+                "Response anomaly detection did not complete for %s: %s. "
+                "Check the task log for the root cause.",
+                task_name,
+                undetected,
+            )
+            logger.warning("  task log:          %s", info.get("task_log"))
+
 
 WORK_FLOW = dict(
     all=[Infer, JudgeInfer, Eval, AccViz],
@@ -485,8 +785,10 @@ class WorkFlowExecutor:
     def __init__(self, cfg, workflow) -> None:
         self.cfg = cfg
         self.workflow = workflow
+        self.response_anomaly_coordinator = ResponseAnomalyCoordinator()
 
     def execute(self) -> None:
         for worker in self.workflow:
+            worker.response_anomaly_coordinator = self.response_anomaly_coordinator
             cfg = copy.deepcopy(self.cfg)
             worker.do_work(cfg)

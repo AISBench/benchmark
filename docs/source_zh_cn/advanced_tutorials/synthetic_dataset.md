@@ -294,3 +294,7 @@ synthetic_config = {
 1. **`tokenid`模式**：该模式下的`tokenid`取值范围取决于在模型配置文件中指定的模型的词表范围
 
 2. **`string`模式**：当MinValue=MaxValue时生成固定长度序列
+
+## 七. 通过自定义配置文件实现
+
+> 💡 上述合成数据集测评场景也可以通过 [自定义配置文件方式](run_custom_config.md) 实现。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](run_custom_config.md#各场景自定义配置文件示例) 中"合成数据集性能测评"示例。

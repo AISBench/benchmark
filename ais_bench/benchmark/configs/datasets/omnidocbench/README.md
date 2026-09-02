@@ -15,7 +15,11 @@ OmniDocBench是一个针对真实场景下多样性文档解析评测集，具�
 ```bash
 # linux服务器内，处于工具根路径下
 cd ais_bench/datasets
-git clone https://huggingface.co/datasets/opendatalab/OmniDocBench
+git lfs install
+GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/datasets/opendatalab/OmniDocBench
+cd OmniDocBench
+git checkout 91fe284bbfacfa687959ae3eb00846ca852aa907 # 注意必须是这个commit id版本的数据集
+git lfs pull
 ```
 - 在`{工具根路径}/ais_bench/datasets`目录下执行`tree OmniDocBench/`查看目录结构，若目录结构如下所示，则说明数据集部署成功。
     ```
@@ -29,9 +33,9 @@ git clone https://huggingface.co/datasets/opendatalab/OmniDocBench
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|omnidocbench_gen|OmniDocBench数据集生成式任务|accuracy (pass@1)|0-shot|字符串格式|[omnidocbench_gen.py](omnidocbench_gen.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|omnidocbench_gen|OmniDocBench数据集生成式任务|accuracy (pass@1)|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.omnidocbench.omnidocbench_gen import omnidocbench_datasets as datasets`|[omnidocbench_gen.py](omnidocbench_gen.py)|
 
 ## 使用约束
 - 当前仅支持Edit_dist指标（用于测评DeepSeek-OCR模型），其他指标暂不支持，overall为各个维度的Edit_dist评分的均值
