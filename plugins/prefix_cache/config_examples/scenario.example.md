@@ -36,7 +36,7 @@
 - `prefix_cache.order`（即 `order` 对象）：`strategy`；
 - `aisbench`：`config`、`work_dir`、`extra_args`、`dataset`、`model`；
 - `aisbench.dataset`：`abbr`、`input_columns`、`output_column`、`prompt_template`、`pred_role`；
-- `aisbench.model`：`abbr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs`；
+- `aisbench.model`：`abbr`、`attr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs`；
 - 其余对象的允许字段由下文对应字段表完整列出。
 
 ## 3. `schema_version`
@@ -290,7 +290,7 @@ CSV 行数必须等于 `requests.count`，并包含以下任一正整数列：
 
 CSV 必须包含正整数 `output_tokens` 列，行数等于 `requests.count`。
 
-### 7.3 顶层 `output`
+### 7.4 顶层 `output`
 
 ```json
 "output": {"output_key": null}
@@ -438,7 +438,8 @@ Zipf 分配：
   "reset_url": "http://127.0.0.1:8000/reset_prefix_cache",
   "model": "model-name",
   "dp_size": 2,
-  "assume_empty_cache": false
+  "assume_empty_cache": false,
+  "poll_interval_seconds": 5.0
 }
 ```
 
@@ -453,6 +454,7 @@ Zipf 分配：
 | `engine_label_map` | 否 | `{}` | Prometheus `engine` 标签到 DP rank 的显式映射；未配置时尝试解析标签尾部数字。 |
 | `timeout_seconds` | 否 | `30` | probe、reset、warmup、metrics HTTP 请求超时秒数。 |
 | `api_key` | 否 | `""` | 推理 API Bearer Token。Manifest 不保存明文，只记录是否配置；Scenario 文件本身仍需限制权限。 |
+| `poll_interval_seconds` | 否 | `5.0` | AISBench 正式压测期间轮询 `metrics_url` 的间隔秒数；设为 `0` 可关闭 KV Cache 周期采样，baseline/after 仍会采集。 |
 
 > `inspect`、`prepare`、`validate` 不访问服务；`run` 消费全部在线字段。当前支持一个 HTTP 入口及其内部多个 DP，不支持多个独立 vLLM 实例。
 
@@ -490,6 +492,7 @@ Zipf 分配：
   },
   "model": {
     "abbr": null,
+    "attr": "service",
     "stream": true,
     "max_out_len": 1,
     "retry": 2,
@@ -525,13 +528,14 @@ Zipf 分配：
 | 字段 | 默认值 | 作用与约束 |
 |---|---|---|
 | `abbr` | `null` | Model 展示名；为 null 时使用 `<run_id>-vllm`，也可配置非空字符串。 |
+| `attr` | `"service"` | AISBench 模型类型标记，当前只能为 `"service"`；其他值会跳过 service 性能汇总，因此 Scenario 加载阶段会直接拒绝。 |
 | `stream` | `true` | 是否使用 SSE 流式请求。设为 false 后仍可测 Prefix Cache 命中率，但不能按 chunk 采集完整 TTFT/TPOT/ITL。 |
 | `max_out_len` | `1` | AISBench Model 的兜底最大输出长度。正式请求优先使用 full.jsonl 中每行的 `max_tokens`。 |
 | `retry` | `2` | API 失败重试次数，必须是非负整数。重试请求也可能进入服务端累计指标，应结合服务稳定性谨慎调整。 |
 | `batch_size` | `1` | AISBench API Model 最大并发基值，必须是正整数；cold 模式同一 lane 仍由插件严格串行。 |
 | `generation_kwargs` | `{"temperature":0,"ignore_eos":true}` | 合并到 vLLM 请求的生成参数对象，可增加 `top_p` 等当前服务支持的 JSON 参数。 |
 
-整个 `aisbench` 段及其 `dataset`、`model` 子段都可省略，旧 Scenario 会补齐与当前行为一致的默认值。`config`、`work_dir` 必须是非空字符串，`extra_args` 必须是字符串列表。离线命令不消费这些在线参数，`run` 才会渲染配置并启动 AISBench。Python 类型、Manifest 工件路径、DP 路由和 Prefix Cache Inferencer 属于插件内部不变量，不允许在 Scenario 中替换。
+整个 `aisbench` 段及其 `dataset`、`model` 子段都可省略，旧 Scenario 会补齐与当前行为一致的默认值。`config`、`work_dir` 必须是非空字符串，`extra_args` 必须是字符串列表。插件的 Group × DP warmup 与 AISBench perf 自带预热互相独立；如需禁用后者，使 baseline 之后只包含正式请求，可配置 `"extra_args": ["--num-warmups", "0"]`。离线命令不消费这些在线参数，`run` 才会渲染配置并启动 AISBench。Python 类型、Manifest 工件路径、DP 路由和 Prefix Cache Inferencer 属于插件内部不变量，不允许在 Scenario 中替换。
 
 ## 12. 原示例最终表示的场景
 
@@ -614,7 +618,7 @@ validate 日志写入 Manifest 对应时间戳目录的 `log/<run_id>.validate.l
 
 ### 14.5 `analyze`
 
-`analyze --manifest <path> --baseline <before.prom> --after <after.prom>` 不连接服务，只离线复算实际命中率并写回 analysis。stdout 返回完整 analysis，日志写入 `log/<run_id>.analyze.log`。
+`analyze --manifest <path> --baseline <before.prom> --after <after.prom>` 不连接服务，只离线复算实际命中率并写回 analysis。stdout 返回完整 analysis。当前 CLI 与 `validate` 共用日志文件名 `log/<run_id>.validate.log`，后执行的命令会重新创建该文件。
 
 正常成功退出码为 `0`；Scenario、生成或产物校验错误返回 `2`。目标不可达和命中率偏差始终只是 warning，不改变成功退出码。
 

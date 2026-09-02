@@ -88,7 +88,7 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 - `service.dp_size`：需要模拟 cold 多 DP 路由或生成 warmup 计划时，应与目标服务的 DP 数量一致。
 - `service.inference_url`、`metrics_url`、`reset_url` 和 `model`：在线 `run` 使用；
 - `aisbench.config`：正式压测使用的 AISBench Python 配置。
-- `aisbench.dataset`、`aisbench.model`：AISBench Dataset/Model 的全部用户可见配置；包括 abbr、reader 契约、prompt、pred_role、stream、retry、batch_size 和 generation_kwargs。用户无需编辑插件 `config.py`。
+- `aisbench.dataset`、`aisbench.model`：AISBench Dataset/Model 的全部用户可见配置；包括 abbr、reader 契约、prompt、pred_role、attr、stream、retry、batch_size 和 generation_kwargs。用户无需编辑插件 `config.py`。
 
 `inspect`、`prepare` 和 `validate` 不访问服务；`run` 会使用 `service` 段完成探活、reset、逐 DP warmup、正式压测和指标采集。当前只支持一个 HTTP 入口后面的单 DP 或多 DP，不支持多个彼此独立的 vLLM 实例。
 
@@ -117,7 +117,7 @@ Scenario 采用严格白名单，完整配置层级如下；未列出的字段�
 - `validation`：`target_warning_pp`、`actual_warning_pp`；
 - `aisbench`：`config`、`work_dir`、`extra_args`、`dataset`、`model`；离线命令不消费，`run` 用于渲染配置并启动 AISBench perf。
   - `dataset`：`abbr`、`input_columns`、`output_column`、`prompt_template`、`pred_role`；为保证理论 token 与实际 prompt 一致，前三个数据契约字段必须保持示例值，abbr/pred_role 可改。
-  - `model`：`abbr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs`；旧 Scenario 省略时自动使用示例默认值。
+  - `model`：`abbr`、`attr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs`；旧 Scenario 省略时自动使用示例默认值。`attr` 当前只能为 `"service"`，用于启用 AISBench service 性能链路和 TTFT 等指标汇总。
 
 各字段逐项含义见 [Scenario 完整字段说明](config_examples/scenario.example.md)。
 
@@ -358,7 +358,9 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 `run` 的 Prefix Cache 插件流程日志只写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log`，不会作为插件日志回显到 CLI 终端；stdout 仍输出最终 analysis JSON。AISBench 子进程继续继承 stdout/stderr，其运行过程会实时展示在 CLI 中，不会被插件重定向到 `run.log`。插件日志覆盖执行上下文、产物复用/自动 prepare、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警，并记录 Dataset 行合并、cold lane 等待/放行、逐请求 DP 路由和流式响应 chunk 摘要。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
 
-正式 AISBench 请求固定使用 vLLM SSE 流式响应。插件会在请求开始、首个响应 chunk 以及后续 chunk 到达时记录时间点，供 `DefaultPerfSummarizer` 计算 TTFT、TPOT、ITL、E2EL 和吞吐量；这些性能汇总文件位于 `aisbench.work_dir/performances/<model-abbr>/`。逐 DP 探活和 warmup 使用独立的非流式请求，它们发生在正式 baseline 之前，不会混入上述性能指标。
+正式 AISBench 请求默认使用 vLLM SSE 流式响应，因为 `aisbench.model.stream` 默认为 `true`。流式模式会在请求开始、首个响应 chunk 以及后续 chunk 到达时记录时间点，供 `DefaultPerfSummarizer` 计算 TTFT、TPOT、ITL、E2EL 和吞吐量；这些性能汇总文件位于 `aisbench.work_dir/performances/<model-abbr>/`。设为 `false` 后仍可统计 Prefix Cache 命中率，但无法按 chunk 生成完整 TTFT、TPOT 和 ITL。逐 DP 探活和插件 warmup 使用独立的非流式请求，它们发生在正式 baseline 之前，不会混入上述性能指标。
+
+插件的 Group × DP warmup 与 AISBench 自带的 `--num-warmups` 是两套独立机制。前者由 `prefix_cache.mode="warmup"` 控制并发生在 baseline 之前；后者属于 AISBench perf 子进程。如果需要让正式 baseline 之后只包含正式请求，应配置 `"extra_args": ["--num-warmups", "0"]`。
 
 临时覆盖 Scenario 中的 AISBench 配置：
 
@@ -377,7 +379,7 @@ ais-bench-prefix-cache analyze \
   --after ./after.prom
 ```
 
-该命令不连接 vLLM、不运行 AISBench，只解析两份 Prometheus 文本，重新计算正式阶段计数器增量并写回 Manifest 对应的 analysis。详细日志位于同一时间戳目录的 `log/<run_id>.analyze.log`。
+该命令不连接 vLLM、不运行 AISBench，只解析两份 Prometheus 文本，重新计算正式阶段计数器增量并写回 Manifest 对应的 analysis。当前 CLI 将 `analyze` 和 `validate` 的插件日志写入同一时间戳目录的 `log/<run_id>.validate.log`；连续执行时后一次命令会重新创建该日志文件。
 
 ## 4. 推荐工作流
 

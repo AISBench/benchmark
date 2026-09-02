@@ -99,7 +99,7 @@ ais-bench-prefix-cache validate --manifest \
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-Formal AISBench requests issued by `run` always use vLLM SSE streaming. Request-start, first-chunk, and subsequent chunk timestamps are used to produce TTFT, TPOT, ITL, E2EL, and throughput metrics. Precheck and warmup use separate non-streaming requests before the baseline and are excluded from formal performance statistics.
+Formal AISBench requests use vLLM SSE streaming by default (`aisbench.model.stream=true`). Request-start, first-chunk, and subsequent chunk timestamps are used to produce TTFT, TPOT, ITL, E2EL, and throughput metrics. Prefix Cache hit rate can still be measured when this option is `false`, but complete chunk-based TTFT, TPOT, and ITL metrics are unavailable. Precheck and plugin warmup use separate non-streaming requests before the baseline and are excluded from formal performance statistics.
 
 With saved Prometheus snapshots, recompute without contacting vLLM:
 
@@ -109,6 +109,76 @@ ais-bench-prefix-cache analyze \
   --baseline ./baseline.prom \
   --after ./after.prom
 ```
+
+---
+
+## `run`: Execute an Online Prefix Cache Benchmark
+
+```shell
+ais-bench-prefix-cache run --scenario ./scenario.json
+ais-bench-prefix-cache run --scenario ./scenario.json --config ./my_prefix_cache_perf.py
+```
+
+`--scenario` supplies dataset construction, service, validation, and AISBench settings. The optional `--config` overrides only the AISBench Python template for this invocation and does not modify the Scenario. `run` reuses a matching inspect/prepared Manifest and automatically runs prepare when the timestamped task directory does not yet contain formal artifacts.
+
+The complete online sequence is:
+
+```mermaid
+flowchart LR
+    S[Load Scenario] --> P[Reuse or auto-prepare]
+    P --> V[Validate artifacts]
+    V --> C[Precheck every DP]
+    C --> R[Reset Prefix Cache]
+    R --> W{Warmup mode?}
+    W -->|Yes| U[Warm every Group × DP]
+    W -->|No| B[Capture baseline]
+    U --> B
+    B --> G[Render temporary AISBench config]
+    G --> F[AISBench perf formal requests]
+    F --> K[Periodic KV sampling]
+    K --> A[Capture after]
+    A --> D[after - baseline]
+    D --> O[Update analysis.json]
+```
+
+The phase boundaries are:
+
+1. `precheck` sends a probe to every DP rank and verifies that query, hit, and KV metrics can be parsed. Multi-DP requests use `X-data-parallel-rank` for deterministic routing.
+2. `reset` calls `service.reset_url`. If it is missing or fails, execution continues with a warning only when `service.assume_empty_cache=true`.
+3. In warmup mode, every `Prefix Group × DP rank` is warmed according to the Manifest plan. The baseline is captured after plugin warmup, so cumulative counters produced by probes and warmup are removed by subtraction.
+4. The formal phase renders `aisbench.dataset`, `aisbench.model`, artifact paths, and service settings into a temporary Python configuration and starts AISBench in `perf` mode. KV Cache gauge values are sampled every `service.poll_interval_seconds`; set it to `0` to disable periodic sampling.
+5. After AISBench exits successfully, the plugin captures the after snapshot, computes per-DP and global queries, hits, and hit rate from `after - baseline`, and writes theory-versus-actual differences back to analysis.
+
+Plugin warmup and AISBench's own `--num-warmups` are independent mechanisms. To ensure that only formal requests occur after the baseline, configure:
+
+```json
+"aisbench": {
+  "extra_args": ["--num-warmups", "0"]
+}
+```
+
+Prefix Cache phase logs are written only to `log/<run_id>.run.log`. The AISBench child process inherits stdout/stderr, so its progress and performance output remain visible in the terminal. On success, the final stdout object is the complete analysis JSON. A non-zero AISBench exit code, missing service capability, or artifact validation failure makes `run` fail.
+
+---
+
+## `analyze`: Recompute from Prometheus Snapshots Offline
+
+```shell
+ais-bench-prefix-cache analyze \
+  --manifest <manifest-path> \
+  --baseline ./baseline.prom \
+  --after ./after.prom
+```
+
+Use `analyze` when pre- and post-benchmark `/metrics` text has already been saved and the result must be recomputed with the current parser or independently checked. It does not connect to vLLM, send requests, or launch AISBench.
+
+- `--manifest`: a prepared Manifest. The command first validates full/requests row counts, order, and SHA-256, then reads `dp_size`, `engine_label_map`, and warning thresholds from `effective_config.service`.
+- `--baseline`: complete Prometheus text captured before the formal measurement window.
+- `--after`: complete Prometheus text captured after the window. Queries and hits are cumulative counters, so their values must not be lower than the baseline.
+
+The command parses both snapshots, subtracts per-DP queries and hits, aggregates `actual.global_hit_rate`, compares it with `theoretical_hit_rate`, and emits `ACTUAL_DEVIATION` when required. It writes `status="analyzed"` to the analysis artifact indexed by the Manifest; `runtime` contains only `metrics_baseline` and `metrics_after`. Offline snapshots have no formal-run sampling sequence, so `runtime.kv_cache_polling` and run-time KV averages/peaks are not produced. Prometheus metrics also have no Prefix Group label, so actual statistics are per-DP and global, while group-level statistics remain theoretical.
+
+The current CLI uses the same `log/<run_id>.validate.log` filename for `analyze` and `validate`; the later command recreates that file. Stdout contains the updated complete analysis JSON. Target or actual deviations produce only `PASS_WITH_WARNING` and do not change an otherwise successful exit code.
 
 ---
 
@@ -144,17 +214,13 @@ The plugin solves for the shared-prefix length of every request from the target 
 
 ## Core Scenario Configuration
 
-The complete field-by-field reference is stored in the repository at:
-
-```text
-plugins/prefix_cache/config_examples/scenario.example.md
-```
+See the [complete Scenario field reference](../../../plugins/prefix_cache/config_examples/scenario.example.md).
 
 ### Complete Field Index
 
 | Configuration path | Allowed fields |
 |---|---|
-| Top level | `schema_version`, `run`, `tokenizer`, `corpus`, `requests`, `prefix_cache`, `service`, `validation`, `aisbench` |
+| Top level | `schema_version`, `run`, `tokenizer`, `corpus`, `requests`, `output`, `prefix_cache`, `service`, `validation`, `aisbench` |
 | `run` | `run_id`, `random_seed`, `output_dir`, `overwrite` |
 | `tokenizer` | `path`, `block_size`, `revision`, `trust_remote_code` |
 | `corpus` | `path`, `field`, `selection` |
@@ -162,14 +228,17 @@ plugins/prefix_cache/config_examples/scenario.example.md
 | `requests` | `count`, `input_length`, `output_length` |
 | `requests.input_length` | `mode`, `value`, `values`, `ranges`, `min`, `max`, `mean`, `std`, `path`; each range item only permits `min`, `max`, and `count` |
 | `requests.output_length` | `mode`, `value`, `min`, `max`, `mean`, `std`, `path` |
+| `output` | `output_key` |
 | `prefix_cache` | `mode`, `target_hit_rate`, `seed_blocks`, `minimum_non_shared_length`, `groups`, `order` |
 | `prefix_cache.groups` | `count`, `assignment`, `overrides` |
 | `prefix_cache.groups.assignment` | `mode`, `exponent`, `weights` |
 | `groups.overrides.group-N` | `input_length`, `output_length`, `corpus_selection` |
 | `prefix_cache.order` | `strategy` |
-| `service` | `inference_url`, `metrics_url`, `reset_url`, `model`, `dp_size`, `assume_empty_cache`, `engine_label_map`, `timeout_seconds`, `api_key` |
+| `service` | `inference_url`, `metrics_url`, `reset_url`, `model`, `dp_size`, `assume_empty_cache`, `engine_label_map`, `timeout_seconds`, `api_key`, `poll_interval_seconds` |
 | `validation` | `target_warning_pp`, `actual_warning_pp` |
-| `aisbench` | `config`, `work_dir`, `extra_args`; consumed by `run`, not by offline commands |
+| `aisbench` | `config`, `work_dir`, `extra_args`, `dataset`, `model`; consumed by `run`, not by offline commands |
+| `aisbench.dataset` | `abbr`, `input_columns`, `output_column`, `prompt_template`, `pred_role` |
+| `aisbench.model` | `abbr`, `attr`, `stream`, `max_out_len`, `retry`, `batch_size`, `generation_kwargs` |
 
 Unknown Scenario fields are rejected. Offline calculations use `service.dp_size`; `run` consumes the service URLs, model, reset/empty-cache policy, metric mapping, timeout, API key, and the complete `aisbench` section.
 
@@ -309,7 +378,7 @@ No standalone `<output_dir>.inspect.json` is created. `inspect` stores its summa
 | `full.jsonl` | Complete audit rows: group, DP lane, input lengths, shared prefix, unique seed, GSM8K sources, theoretical watermark, and collision state. |
 | `requests.jsonl` | Minimal AISBench requests. Rows contain `question` and `answer` by default; `output.output_key` may append `max_tokens` or `output_tokens`. |
 | `manifest.json` | Effective configuration, input hashes, tokenizer fingerprint, length distributions, reachable ranges, groups, DP, warmup plan, and artifact hashes. |
-| `analysis.json` | Requested/effective/theoretical/actual rates, baseline/after snapshots, group/DP statistics, differences, validation state, and warnings. |
+| `analysis.json` | Requested/effective/theoretical/actual rates, baseline/after snapshots, theoretical group statistics, theoretical/actual per-DP statistics, differences, validation state, and warnings. |
 
 The plaintext `service.api_key` is not stored in the Manifest; only `api_key_configured` is recorded.
 
@@ -321,7 +390,7 @@ Fixed field index:
 - `analysis.json`: prepare writes schema/run/status, requested/effective/theoretical values, target differences, `validation`, `theory`, and `warnings`; run/analyze add `runtime`, `actual`, and `theory_actual_*_difference_pp`;
 - `inspect` stdout: `run_id`, `mode`, `requested_target_hit_rate`, `effective_target_hit_rate`, `theoretical_hit_rate`, `reachable_min`, `reachable_max`, `target_reachable`, `group_reachability`, `groups`, `input_tokens`, `output_tokens`, `dp_route_counts`, `sends_requests`, `log`, `manifest`.
 
-See the plugin README and complete Scenario reference for field types and nested semantics.
+See the [Prefix Cache plugin README](../../../plugins/prefix_cache/README.md) and [complete Scenario reference](../../../plugins/prefix_cache/config_examples/scenario.example.md) for field types and nested semantics.
 
 ---
 
@@ -367,4 +436,4 @@ The plugin requires canonical prefixes, seeds, and final prompts to survive toke
 - Does not support multiple independent inference-server instances.
 - `run` warms every Prefix Group on every DP rank, executes AISBench, and collects Prometheus metrics. Warmup completes before the formal baseline and is excluded from formal statistics.
 - `analyze` recomputes results offline from saved baseline/after `.prom` files.
-- The complete configuration and JSON contracts are defined by `plugins/prefix_cache/README.md` and `plugins/prefix_cache/config_examples/scenario.example.md`.
+- The complete configuration and JSON contracts are defined by the [Prefix Cache plugin README](../../../plugins/prefix_cache/README.md) and [complete Scenario reference](../../../plugins/prefix_cache/config_examples/scenario.example.md).
