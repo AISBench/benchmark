@@ -1,25 +1,4 @@
 # -*- coding: utf-8 -*-
-"""Unit tests for the MRCR dataset integration.
-
-Covers:
-- ``MRCRPromptTemplate.generate_item``: raw multi-turn prompt -> framework
-  PromptList with one flat ``begin`` section (no ``round`` section, so the
-  API parser never pairs HUMAN/BOT rounds) and OpenAI-style role mapping
-  (system -> SYSTEM, user -> HUMAN, assistant -> BOT with
-  ``generate=False``), plus plain-str / single-dict prompt handling and
-  consecutive same-role message merging.  An end-to-end test replays the
-  production [MODEL-DATA-002] failure through ``APITemplateParser`` with
-  the default VLLMCustomAPIChat meta template.
-- ``MRCRDataset.load``: parquet shard streaming, JSON-encoded prompt
-  parsing, token-bin filtering via the precomputed ``num_tokens``
-  column, and config-error handling.
-- ``MRCREvaluator``: official ``grade`` semantics -- prefix gate +
-  SequenceMatcher ratio, ``content`` over ``prediction`` preference for
-  thinking models, prefixes taken from the dataset column, metrics and
-  details fields.
-- ``mrcr_postprocess``: identity postprocessing.
-"""
-
 import json
 import sys
 import os
