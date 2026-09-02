@@ -49,7 +49,7 @@
   "aisbench": {
     "config": "./plugins/prefix_cache/config_examples/prefix_cache_perf.py",
     "work_dir": "./outputs/default",
-    "extra_args": [],
+    "extra_args": ["--num-warmups","0"],
     "dataset": {
       "abbr": null,
       "input_columns": ["question", "max_out_len"],
