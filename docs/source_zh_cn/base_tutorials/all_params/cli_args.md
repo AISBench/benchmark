@@ -21,9 +21,10 @@ ais_bench [OPTIONS]
 适用于所有模式，可同时与精度或性能参数联合使用。
 | 参数| 说明| 示例|
 | ---- | ---- | ----|
-| `--models`| 指定模型推理后端任务名称（对应 `ais_bench/benchmark/configs/models` 路径下一个已经实现的默认模型配置文件），支持传入多个任务名称。详情参考📚 [支持的模型](./models.md)| `--models vllm_api_general`  |
-| `--datasets`   | 指定数据集任务名称（对应 `ais_bench/benchmark/configs/datasets` 路径下一个已经实现的默认数据集配置文件），可传入多个。详情参考📚 [支持的数据集类型](./datasets.md)| `--datasets gsm8k_gen`    |
-| `--summarizer` | 指定结果总结任务名称（对应 `ais_bench/benchmark/configs/summarizers` 路径下一个已经实现的默认模型配置文件）。详情参考📚 [支持的结果汇总任务](./summarizer.md) | `--summarizer medium`|
+|`config`|指定自定义配置文件路径|`ais_bench /path/to/custom_config.py {other optional arguments}`|
+| `--models`| 指定模型推理后端任务名称（对应 `ais_bench/benchmark/configs/models` 路径下一个已经实现的默认模型配置文件），支持传入多个任务名称。详情参考📚 [支持的模型](./models.md)。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--models vllm_api_general`  |
+| `--datasets`   | 指定数据集任务名称（对应 `ais_bench/benchmark/configs/datasets` 路径下一个已经实现的默认数据集配置文件），可传入多个。详情参考📚 [支持的数据集类型](../../get_started/datasets.md)。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--datasets gsm8k_gen`    |
+| `--summarizer` | 指定结果总结任务名称（对应 `ais_bench/benchmark/configs/summarizers` 路径下一个已经实现的默认模型配置文件）。详情参考📚 [支持的结果汇总任务](./summarizer.md) 。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--summarizer medium`|
 | `--mode` 或 `-m`| 运行模式，可选：`all`、`infer`、`eval`、`viz`、`perf`、`perf_viz`；默认 `all`。<br>详细请见 📚 [运行模式说明](./mode.md)。 | `--mode infer`<br>`-m all`|
 | `--reuse` 或 `-r`| 指定已有工作目录下的时间戳，继续执行并覆盖原有结果。结合`--mode`参数值，可用于推理中断续推，或基于已有推理结果执行精度计算、可视化结果打印。若不加参，则自动选取 `--work-dir` 下最新时间戳。| `--reuse 20250126_144254`<br>`-r 20250126_144254` |
 | `--work-dir` 或 `-w`     | 指定评测工作目录，用于保存输出结果。默认 `outputs/default`。| `--work-dir /path/to/work`<br>`-w /path/to/work` |
@@ -35,6 +36,33 @@ ais_bench [OPTIONS]
 | `--num-prompts` | 指定数据集测评条数（按照数据集顺序选取），需传入正整数，超过数据集条数或默认情况下表示对全量数据集进行测评。 | `--num-prompts 500` |
 | `--max-num-workers`   | 并行任务数，范围 `[1, CPU 核数]`，默认 `1`。在指定`--debug`时配置无效，所有任务串行执行。注意：性能测评场景下，并发数过高可能会导致不同进程出现资源抢占，导致测试结果失真。  | `--max-num-workers 2` |
 |`--num-warmups`|发送请求前预热次数，按照数据集顺序选取数据进行测试，大概num-warmups大于数据集条数时，会循环发送数据集中数据。默认 `1`；若设为0，则不预热。如果warmup阶段所有请求失败，后续推理任务将不会执行。| `--num-warmups 10` |
+| `--response-anomaly` | 开启推理响应异常检测，无需额外配置：命令行增加 `--response-anomaly` 即开启，不增加默认不开启。检测串行绑定在推理阶段内：推理结束后启动检测并等待其完成（专属状态面板打印最终结果后）才进入后续 Judge / Eval / 汇总流程；需服务返回 token id 与 top-k logprobs。仅支持 `all`、`infer`、`infer_judge` 普通生成链路，不支持性能模式与 Agent 测评模式。详细用法见 📚 [推理响应异常检测](../../advanced_tutorials/response_anomaly_detection.md)。 | `--response-anomaly` |
+| `--response-anomaly-payload-retention` | 异常检测完成后的 payload 保存模式：`all` 保存全部，`anomalies` 保存异常及检测失败/不可用 Case，`none` 不保存。默认 `anomalies`。 | `--response-anomaly-payload-retention anomalies` |
+
+### API 模型通用覆盖参数
+
+适用于服务化推理后端（API 模型，如 vLLM、Triton、MindIE、TGI 等），用于在不修改模型配置文件的前提下，通过命令行直接覆盖模型配置中的常用字段。
+
+> ⚠️ **覆盖范围说明**：
+> - 仅覆盖模型配置中**已存在的字段**，不新增字段（避免向不支持某字段的模型类传入多余参数，保证向后兼容）。
+> - 命令行显式指定的参数会覆盖**执行的所有模型配置**中对应的字段（同一命令下多个模型任务均生效）。
+> - 未显式指定的参数不生效（默认 `None`），配置文件中保持原值。
+> - `model` / `model_name` 字段按模型 `type` 的构造签名自动选择写入目标：VLLM 系列写入 `model`，Triton 写入 `model_name`；模型类型两者都不接收（如 MindIE、TGI）时打印 warning 并跳过。
+
+| 参数 | 说明 | 示例 |
+| ---- | ---- | ---- |
+| `--path` | 覆盖模型配置的 `path` 字段（Tokenizer/模型序列化词表文件路径） | `--path /weight/Qwen` |
+| `--model-name` | 覆盖模型名。按模型 `type` 自动写入 `model` 或 `model_name` 字段（VLLM→`model`，Triton→`model_name`；MindIE/TGI 不接收时 warning 跳过） | `--model-name Qwen` |
+| `--request-rate` | 覆盖 `request_rate`（请求发送速率） | `--request-rate 10` |
+| `--retry` | 覆盖 `retry`（每个请求最大重试次数） | `--retry 3` |
+| `--api-key` | 覆盖 `api_key`（自定义 API key） | `--api-key sk-xxx` |
+| `--host-ip` | 覆盖 `host_ip`（推理服务 IP） | `--host-ip 127.0.0.1` |
+| `--host-port` | 覆盖 `host_port`（推理服务端口） | `--host-port 8000` |
+| `--url` | 覆盖 `url`（自定义访问推理服务的 URL 路径） | `--url http://x.x.x.x:8000/v1` |
+| `--max-out-len` | 覆盖 `max_out_len`（推理输出最大 token 数） | `--max-out-len 1024` |
+| `--batch-size` | 覆盖 `batch_size`（请求最大并发数） | `--batch-size 4` |
+| `--trust-remote-code` | 覆盖 `trust_remote_code`（tokenizer 是否信任远程代码），支持 `--trust-remote-code` / `--no-trust-remote-code` 两种形态 | `--no-trust-remote-code` |
+| `--generation-kwargs` | 覆盖 `generation_kwargs`（推理生成参数），以 JSON 对象形式传入，**整体替换**配置中的 dict | `--generation-kwargs '{"temperature": 0.5}'` |
 
 ### 精度测评参数
 仅在模式为 `all、infer、eval` 或 `viz` 时有效。

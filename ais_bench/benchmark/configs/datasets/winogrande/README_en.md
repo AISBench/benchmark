@@ -39,10 +39,10 @@ rm winogrande.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code File Path |
-| --- | --- | --- | --- | --- | --- |
-| winogrande_gen_0_shot_chat_prompt | Generative task for the WinoGrande dataset | Accuracy | 0-shot | Chat Format | [winogrande_gen_0_shot_chat_prompt.py](winogrande_gen_0_shot_chat_prompt.py) |
-| winogrande_gen_5_shot_chat_prompt | Generative task for the WinoGrande dataset (Note: The original "piqa dataset" in the introduction is a typo, corrected to "WinoGrande dataset" for consistency) | Accuracy | 5-shot | Chat Format | [winogrande_gen_5_shot_chat_prompt.py](winogrande_gen_5_shot_chat_prompt.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| winogrande_gen_0_shot_chat_prompt | Generative task for the WinoGrande dataset | Accuracy | 0-shot | Chat Format |`from ais_bench.benchmark.configs.datasets.winogrande.winogrande_gen_0_shot_chat_prompt import winogrande_datasets as datasets`| [winogrande_gen_0_shot_chat_prompt.py](winogrande_gen_0_shot_chat_prompt.py) |
+| winogrande_gen_5_shot_chat_prompt | Generative task for the WinoGrande dataset (Note: The original "piqa dataset" in the introduction is a typo, corrected to "WinoGrande dataset" for consistency) | Accuracy | 5-shot | Chat Format |`from ais_bench.benchmark.configs.datasets.winogrande.winogrande_gen_5_shot_chat_prompt import winogrande_datasets as datasets`| [winogrande_gen_5_shot_chat_prompt.py](winogrande_gen_5_shot_chat_prompt.py) |
 
 
 ### Note

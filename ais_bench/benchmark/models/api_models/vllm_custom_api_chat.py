@@ -157,6 +157,11 @@ class VLLMCustomAPIChat(BaseAPIModel):
                 messages.append(msg)
         output.input = messages
         generation_kwargs = self.generation_kwargs.copy()
+        if self.response_anomaly_enabled:
+            # vLLM returns OpenAI-style logprobs with token text by default.
+            # Token ids are required to convert them into msProbe input.
+            generation_kwargs['return_token_ids'] = True
+            generation_kwargs['return_tokens_as_token_ids'] = True
         generation_kwargs.update({"max_tokens": max_out_len})
         # Multi-LoRA: override model field with the resolved LoRA adapter name.
         lora_model_name = self._resolve_lora_model_name(output)
@@ -194,12 +199,25 @@ class VLLMCustomAPIChat(BaseAPIModel):
                 output.reasoning_content += reasoning
         await self._parse_usage(json_content, output)
 
+    async def _parse_logprobs(self, choice: dict, output: Output) -> None:
+        # chat API 格式：choice.logprobs.content[]
+        # 直接透传 vLLM 原始结构，每个 item 含 {token, logprob, bytes, top_logprobs}
+        lp = choice.get("logprobs")
+        if not lp:
+            if self._logprobs_enabled():
+                output.extra_details_data["logprobs_warning"] = (
+                    "logprobs is enabled in generation_kwargs but missing in response"
+                )
+            return
+        output.origin_logprobs = lp.get("content") or []
+
     async def parse_text_response(self, json_content, output):
         for item in json_content.get("choices", []):
             if content:=item["message"].get("content"):
                 output.content += content
             if reasoning_content:=item["message"].get("reasoning_content") or item["message"].get("reasoning"):
                 output.reasoning_content += reasoning_content
+            await self._parse_logprobs(item, output)
         await self._parse_usage(json_content, output)
         output.update_extra_details_data_from_text_response(json_content)
         self.logger.debug(f"Output content: {output.content}")

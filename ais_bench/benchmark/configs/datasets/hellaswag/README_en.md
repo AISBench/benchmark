@@ -24,8 +24,8 @@ rm hellaswag.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| hellaswag_gen_0_shot_chat_prompt | Generative task for the HellaSwag dataset | Accuracy | 0-shot | Chat format | [hellaswag_gen_0_shot_chat_prompt.py](hellaswag_gen_0_shot_chat_prompt.py) |
-| hellaswag_gen_10_shot_chat_prompt | Generative task for the HellaSwag dataset | Accuracy | 10-shot | Chat format | [hellaswag_gen_10_shot_chat_prompt.py](hellaswag_gen_10_shot_chat_prompt.py) |
-| hellaswag_ppl_0_shot_chat_prompt | PPL task for the hellaswag dataset | Accuracy | 0-shot | Chat format | [hellaswag_ppl_0_shot_chat_prompt.py](hellaswag_ppl_0_shot_chat_prompt.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| hellaswag_gen_0_shot_chat_prompt | Generative task for the HellaSwag dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.hellaswag.hellaswag_gen_0_shot_chat_prompt import hellaswag_datasets as datasets`| [hellaswag_gen_0_shot_chat_prompt.py](hellaswag_gen_0_shot_chat_prompt.py) |
+| hellaswag_gen_10_shot_chat_prompt | Generative task for the HellaSwag dataset | Accuracy | 10-shot | Chat format |`from ais_bench.benchmark.configs.datasets.hellaswag.hellaswag_gen_10_shot_chat_prompt import hellaswag_datasets as datasets`| [hellaswag_gen_10_shot_chat_prompt.py](hellaswag_gen_10_shot_chat_prompt.py) |
+| hellaswag_ppl_0_shot_chat_prompt | PPL task for the hellaswag dataset | Accuracy | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.hellaswag.hellaswag_ppl_0_shot_chat_prompt import hellaswag_datasets as datasets`| [hellaswag_ppl_0_shot_chat_prompt.py](hellaswag_ppl_0_shot_chat_prompt.py) |

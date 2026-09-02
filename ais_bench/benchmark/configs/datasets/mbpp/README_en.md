@@ -25,7 +25,7 @@ rm mbpp.zip
 ## Available Dataset Tasks
 ### mbpp_passk_gen_3_shot_chat_prompt
 #### Basic Information
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| mbpp_passk_gen_3_shot_chat_prompt | Generative task for the mbpp dataset, supporting pass@k evaluation (default: pass@1) | pass@1 | 3-shot | Chat format | [mbpp_passk_gen_3_shot_chat_prompt.py](mbpp_passk_gen_3_shot_chat_prompt.py) |
-| sanitized_mbpp_passk_gen_3_shot_chat_prompt | Generative task for the sanitized mbpp dataset, supporting pass@k evaluation (default: pass@1) | pass@1 | 3-shot | Chat format | [sanitized_mbpp_passk_gen_3_shot_chat_prompt.py](sanitized_mbpp_passk_gen_3_shot_chat_prompt.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| mbpp_passk_gen_3_shot_chat_prompt | Generative task for the mbpp dataset, supporting pass@k evaluation (default: pass@1) | pass@1 | 3-shot | Chat format |`from ais_bench.benchmark.configs.datasets.mbpp.mbpp_passk_gen_3_shot_chat_prompt import mbpp_datasets as datasets`| [mbpp_passk_gen_3_shot_chat_prompt.py](mbpp_passk_gen_3_shot_chat_prompt.py) |
+| sanitized_mbpp_passk_gen_3_shot_chat_prompt | Generative task for the sanitized mbpp dataset, supporting pass@k evaluation (default: pass@1) | pass@1 | 3-shot | Chat format |`from ais_bench.benchmark.configs.datasets.mbpp.sanitized_mbpp_passk_gen_3_shot_chat_prompt import sanitized_mbpp_datasets as datasets`| [sanitized_mbpp_passk_gen_3_shot_chat_prompt.py](sanitized_mbpp_passk_gen_3_shot_chat_prompt.py) |

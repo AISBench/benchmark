@@ -326,6 +326,99 @@ class TestVLLMCustomAPI(unittest.TestCase):
     def test_parse_stream_response_no_choices_wrapper(self):
         self.run_async_test(self.test_parse_stream_response_no_choices())
 
+    async def test_parse_logprobs_with_data(self):
+        """测试_parse_logprobs正确解析logprobs响应"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+
+        choice = {
+            "text": "B",
+            "logprobs": {
+                "tokens": ["B"],
+                "token_logprobs": [-0.5],
+                "text_offset": [0],
+                "top_logprobs": [{"333": -0.5, "444": -2.1}]
+            }
+        }
+
+        await model._parse_logprobs(choice, output)
+
+        # completions API 转换为统一嵌套结构
+        self.assertEqual(output.origin_logprobs, [
+            {"token": "B", "logprob": -0.5, "top_logprobs": {"333": -0.5, "444": -2.1}}
+        ])
+
+    async def test_parse_logprobs_without_logprobs_field(self):
+        """测试_parse_logprobs在响应无logprobs字段时不报错"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+
+        choice = {"text": "B"}
+
+        await model._parse_logprobs(choice, output)
+
+        self.assertEqual(output.origin_logprobs, [])
+
+    async def test_parse_logprobs_with_none_token_logprob(self):
+        """测试_parse_logprobs处理None的token_logprob（保留为None项对齐位置）"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+
+        choice = {
+            "text": "AB",
+            "logprobs": {
+                "tokens": ["A", "B"],
+                "token_logprobs": [-0.5, None],
+                "top_logprobs": [{"333": -0.5}, None]
+            }
+        }
+
+        await model._parse_logprobs(choice, output)
+
+        self.assertEqual(output.origin_logprobs, [
+            {"token": "A", "logprob": -0.5, "top_logprobs": {"333": -0.5}},
+            None,
+        ])
+
+    async def test_parse_text_response_with_logprobs(self):
+        """测试parse_text_response正确调用_parse_logprobs"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+        output.content = ""
+
+        response = {
+            "choices": [{
+                "text": "B",
+                "logprobs": {
+                    "tokens": ["B"],
+                    "token_logprobs": [-0.5],
+                    "top_logprobs": [{"333": -0.5}]
+                }
+            }],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 1}
+        }
+
+        await model.parse_text_response(response, output)
+
+        self.assertEqual(output.content, "B")
+        self.assertEqual(output.input_tokens, 10)
+        self.assertEqual(output.output_tokens, 1)
+        self.assertEqual(output.origin_logprobs, [
+            {"token": "B", "logprob": -0.5, "top_logprobs": {"333": -0.5}}
+        ])
+
+    def test_parse_logprobs_with_data_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_with_data())
+
+    def test_parse_logprobs_without_logprobs_field_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_without_logprobs_field())
+
+    def test_parse_logprobs_with_none_token_logprob_wrapper(self):
+        self.run_async_test(self.test_parse_logprobs_with_none_token_logprob())
+
+    def test_parse_text_response_with_logprobs_wrapper(self):
+        self.run_async_test(self.test_parse_text_response_with_logprobs())
+
     def test_calc_ppl(self):
         """测试_calc_ppl方法"""
         model = VLLMCustomAPI(**self.default_kwargs)

@@ -27,7 +27,7 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code File Path |
-| --- | --- | --- | --- | --- | --- |
-| Xsum_gen_0_shot_chat | Generative task for the XSum dataset | Accuracy | 0-shot | Chat Format | [Xsum_gen_0_shot_chat.py](Xsum_gen_0_shot_chat.py) |
-| Xsum_gen_0_shot_str | Generative task for the XSum dataset | Accuracy | 0-shot | String Format | [Xsum_gen_0_shot_str.py](Xsum_gen_0_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| Xsum_gen_0_shot_chat | Generative task for the XSum dataset | Accuracy | 0-shot | Chat Format |`from ais_bench.benchmark.configs.datasets.Xsum.Xsum_gen_0_shot_chat import Xsum_datasets as datasets`| [Xsum_gen_0_shot_chat.py](Xsum_gen_0_shot_chat.py) |
+| Xsum_gen_0_shot_str | Generative task for the XSum dataset | Accuracy | 0-shot | String Format |`from ais_bench.benchmark.configs.datasets.Xsum.Xsum_gen_0_shot_str import Xsum_datasets as datasets`| [Xsum_gen_0_shot_str.py](Xsum_gen_0_shot_str.py) |

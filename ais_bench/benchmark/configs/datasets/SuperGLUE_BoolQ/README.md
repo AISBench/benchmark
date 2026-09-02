@@ -23,9 +23,9 @@ rm SuperGLUE.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|SuperGLUE_BoolQ_gen_883d50_str|BoolQ数据集生成式任务|accuracy(naive_average)|0-shot|string|[SuperGLUE_BoolQ_gen_883d50_str.py](SuperGLUE_BoolQ_gen_883d50_str.py)|
-|SuperGLUE_BoolQ_gen_0_shot_cot_str|BoolQ数据集生成式任务，prompt带逻辑链|accuracy(naive_average)|0-shot|string|[SuperGLUE_BoolQ_gen_0_shot_cot_str.py](SuperGLUE_BoolQ_gen_0_shot_cot_str.py)|
-|SuperGLUE_BoolQ_gen_5_shot_str|BoolQ数据集生成式任务，few-shot|accuracy(naive_average)|5-shot|string|[SuperGLUE_BoolQ_gen_5_shot_str.py](SuperGLUE_BoolQ_gen_5_shot_str.py)|
-|SuperGLUE_BoolQ_gen_0_shot_str|BoolQ数据集生成式任务，few-shot|accuracy(naive_average)|5-shot|string|[SuperGLUE_BoolQ_gen_0_shot_str.py](SuperGLUE_BoolQ_gen_0_shot_str.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|SuperGLUE_BoolQ_gen_0_shot_noncot_str|BoolQ数据集生成式任务|accuracy(naive_average)|0-shot|string|`from ais_bench.benchmark.configs.datasets.SuperGLUE_BoolQ.SuperGLUE_BoolQ_gen_0_shot_noncot_str import BoolQ_datasets as datasets`|[SuperGLUE_BoolQ_gen_0_shot_noncot_str.py](SuperGLUE_BoolQ_gen_0_shot_noncot_str.py)|
+|SuperGLUE_BoolQ_gen_0_shot_cot_str|BoolQ数据集生成式任务，prompt带逻辑链|accuracy(naive_average)|0-shot|string|`from ais_bench.benchmark.configs.datasets.SuperGLUE_BoolQ.SuperGLUE_BoolQ_gen_0_shot_cot_str import BoolQ_datasets as datasets`|[SuperGLUE_BoolQ_gen_0_shot_cot_str.py](SuperGLUE_BoolQ_gen_0_shot_cot_str.py)|
+|SuperGLUE_BoolQ_gen_5_shot_str|BoolQ数据集生成式任务，few-shot|accuracy(naive_average)|5-shot|string|`from ais_bench.benchmark.configs.datasets.SuperGLUE_BoolQ.SuperGLUE_BoolQ_gen_5_shot_str import BoolQ_datasets as datasets`|[SuperGLUE_BoolQ_gen_5_shot_str.py](SuperGLUE_BoolQ_gen_5_shot_str.py)|
+|SuperGLUE_BoolQ_gen_0_shot_str|BoolQ数据集生成式任务，few-shot|accuracy(naive_average)|5-shot|string|`from ais_bench.benchmark.configs.datasets.SuperGLUE_BoolQ.SuperGLUE_BoolQ_gen_0_shot_str import BoolQ_datasets as datasets`|[SuperGLUE_BoolQ_gen_0_shot_str.py](SuperGLUE_BoolQ_gen_0_shot_str.py)|

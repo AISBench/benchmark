@@ -191,12 +191,17 @@ outputs/default/20260305_153318/logs/eval/vllm-api-general-chat/aime2025-judge.o
 
 ## 其他精度评测功能场景
 从裁判模型的快速上手章节可以看到，除了需要额外修改数据配置文件中裁判模型的配置，其他测评执行方式是与常规测评执行方式是完全一致的，因此其他精度评测功能场景的执行方式也是完全一致的。
+
+## 通过自定义配置文件实现
+
+> 💡 上述裁判模型测评场景也可以通过 [自定义配置文件方式](run_custom_config.md) 实现。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将被测模型、裁判模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](run_custom_config.md#各场景自定义配置文件示例) 中"裁判模型测评"示例。
+
 ### 多任务测评
 参考[精度评测场景多任务测评](../base_tutorials/scenes_intro/accuracy_benchmark.md#多任务测评)
 ### 多任务并行测评
 参考[精度评测场景多任务并行测评](../base_tutorials/scenes_intro/accuracy_benchmark.md#多任务并行测评)
 ### 中断续测 & 失败用例重测
-参考[精度评测场景中断续测 & 失败用例重测](../base_tutorials/scenes_intro/accuracy_benchmark.md#中断续测-失败用例重测)
+参考[精度评测场景中断续测 & 失败用例重测](../base_tutorials/scenes_intro/accuracy_benchmark.md#中断续测--失败用例重测)
 > ⚠️ 注意，--reuse 重新补全被测模型推理结果后，裁判模型会从0开始重新对全部完整的推理结果进行判断，历史判断过的结果将不会使用。
 ### 合并子数据集推理
 参考[精度评测场景合并子数据集推理](../base_tutorials/scenes_intro/accuracy_benchmark.md#合并子数据集推理)

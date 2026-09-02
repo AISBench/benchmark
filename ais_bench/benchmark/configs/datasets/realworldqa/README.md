@@ -25,7 +25,7 @@ git clone https://huggingface.co/datasets/xai-community/realworldqa RealworldQA
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|realworldqa_gen|RealworldQA数据集生成式任务，⚠️该数据集任务下，会从Parquet文件中提取图片并保存到本地路径，然后将图片路径传入服务化，需确保服务化支持该格式输入并且有权限访问该路径图片。|accuracy|0-shot|列表格式（包含文本和图片两种数据）|[realworldqa_gen.py](realworldqa_gen.py)|
-|realworldqa_gen_base64|RealworldQA数据集生成式任务，⚠️该数据集任务下，会将图片数据转化为base64格式再传入服务化，需确保服务化支持该输入格式数据。|accuracy|0-shot|列表格式（包含文本和图片两种数据）|[realworldqa_gen_base64.py](realworldqa_gen_base64.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|realworldqa_gen|RealworldQA数据集生成式任务，⚠️该数据集任务下，会从Parquet文件中提取图片并保存到本地路径，然后将图片路径传入服务化，需确保服务化支持该格式输入并且有权限访问该路径图片。|accuracy|0-shot|列表格式（包含文本和图片两种数据）|`from ais_bench.benchmark.configs.datasets.realworldqa.realworldqa_gen import realworldqa_datasets as datasets`|[realworldqa_gen.py](realworldqa_gen.py)|
+|realworldqa_gen_base64|RealworldQA数据集生成式任务，⚠️该数据集任务下，会将图片数据转化为base64格式再传入服务化，需确保服务化支持该输入格式数据。|accuracy|0-shot|列表格式（包含文本和图片两种数据）|`from ais_bench.benchmark.configs.datasets.realworldqa.realworldqa_gen_base64 import realworldqa_datasets as datasets`|[realworldqa_gen_base64.py](realworldqa_gen_base64.py)|

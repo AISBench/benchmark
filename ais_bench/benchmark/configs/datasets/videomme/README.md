@@ -13,7 +13,7 @@ Video-MME 是面向多模态大语言模型（MLLM）的视频理解评测基准
     Video-MME
     ├── videomme
     │   └── test-00000-of-00001.parquet
-    │   
+    │
     ├── subtitle
     │   ├── 068rdc75mHM.srt
     │   └── 08km9Y1bt-A.srt
@@ -30,6 +30,6 @@ Video-MME 是面向多模态大语言模型（MLLM）的视频理解评测基准
 #### 基本信息
 - 当前对于Video-MME数据集的测评暂不支持字幕数据的传入
 
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|videomme_gen|videomme数据集生成式任务|acc|0-shot|字符串格式|[videomme_gen.py](videomme_gen.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|videomme_gen|videomme数据集生成式任务|acc|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.videomme.videomme_gen import videomme_datasets as datasets`|[videomme_gen.py](videomme_gen.py)|

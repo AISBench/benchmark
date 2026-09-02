@@ -8,6 +8,7 @@ on:
     paths:
       - 'ais_bench/benchmark/**'
       - 'smoke_tests/**'
+      - 'plugins/prefix_cache/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

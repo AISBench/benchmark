@@ -54,9 +54,9 @@ wget https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/b
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|sharegpt_gen|sharegpt生成式任务|暂不支持精度评测|0-shot|列表格式|[sharegpt_gen.py](sharegpt_gen.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|sharegpt_gen|sharegpt生成式任务|暂不支持精度评测|0-shot|列表格式|`from ais_bench.benchmark.configs.datasets.sharegpt.sharegpt_gen import sharegpt_datasets as datasets`|[sharegpt_gen.py](sharegpt_gen.py)|
 
 
 *注意：该多轮对话数据集的测评支持vLLM、SGLang、MindIE Service等服务化，使用时需指定--models为vllm_api_stream_chat_multiturn*

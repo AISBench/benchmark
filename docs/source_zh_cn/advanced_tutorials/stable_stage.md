@@ -188,6 +188,10 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
   ![full_plot_example.img](../img/request_concurrency/full_plot_example.png)
 具体这个html中的图标如何查看请参考📚 [性能测试可视化并发图使用说明](../base_tutorials/results_intro/performance_visualization.md)
 
+## 通过自定义配置文件实现
+
+> 💡 上述稳态性能测评场景也可以通过 [自定义配置文件方式](run_custom_config.md) 实现。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用。详见 [自定义配置文件运行AISBench](run_custom_config.md#各场景自定义配置文件示例) 中"稳态性能测评"示例。
+
 ## 其他功能场景
 ### 性能结果重计算
 参考📚 [常规性能测试性能结果重计算](../base_tutorials/scenes_intro/performance_benchmark.md#性能结果重计算)
@@ -205,7 +209,7 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 压力测试的流程与[稳态测试快速入门](#稳态测试快速入门)基本一致，差异主要有如下两点：
 #### 压力测试参数说明
 通过命令参数`--pressure-time`和指定压力测试的持续时间，压测持续时间不能超过86400秒（24小时）。
-通过配置[模型配置文件](../base_tutorials/all_params/models.md#配置模型)中的`request_rate`参数来指定每个进程新增线程（客户端）的频率。此参数取值越大，实际新增线程（客户端）的频率偏差越大（偏差和cpu单核处理能力有关）。
+通过配置[模型配置文件](../base_tutorials/all_params/models.md#服务化推理后端)中的`request_rate`参数来指定每个进程新增线程（客户端）的频率。此参数取值越大，实际新增线程（客户端）的频率偏差越大（偏差和cpu单核处理能力有关）。
 通过修改[配置常量文件参数](../base_tutorials/all_params/cli_args.md#配置常量文件参数)中的`WORKERS_NUM`参数来指定压力测试中使用的进程数,提高压力测试的并发能力。
 
 

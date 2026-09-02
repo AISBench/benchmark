@@ -1,4 +1,5 @@
 import argparse
+import json
 from ais_bench.benchmark.cli.utils import (
     get_current_time_str,
     validate_max_workers,
@@ -18,6 +19,7 @@ class ArgumentParser():
         self._perf_parser()
         self._accuracy_parser()
         self._custom_dataset_parser()
+        self._api_model_parser()
 
     def parse_args(self):
         args = self.parser.parse_args()
@@ -122,6 +124,24 @@ class ArgumentParser():
             type=validate_num_warmups,
             default=1
         )
+        parser.add_argument(
+            '--response-anomaly',
+            action='store_true',
+            default=False,
+            help='Enable msProbe response anomaly detection. This command-line '
+            'switch is the only way to enable the feature; detection is disabled '
+            'when the flag is absent (response_anomaly.enabled in the config '
+            'file is not supported and is ignored). '
+            'Only supported in all/infer/infer_judge modes; perf and Agent modes are unsupported.'
+        )
+        parser.add_argument(
+            '--response-anomaly-payload-retention',
+            choices=('all', 'anomalies', 'none'),
+            default=None,
+            help='Select which response anomaly payloads to retain after detection. '
+            'The command-line value overrides response_anomaly.payload_retention '
+            'in the config file. Defaults to anomalies when neither is set.'
+        )
 
     def _accuracy_parser(self):
         """These args are all for the accuracy evaluation."""
@@ -176,5 +196,42 @@ class ArgumentParser():
                             type=str,
                             choices=['gen'])
 
+    def _api_model_parser(self):
+        """API 模型通用参数，覆盖执行的所有模型配置（mindie_api/tgi_api/triton_api/vllm_api）。
 
+        All args default to None so that they only take effect when explicitly
+        specified on the command line.
+        """
+        parser = self.parser.add_argument_group('api_model_args')
+        parser.add_argument('--path', type=str, default=None,
+                            help='Path override for all API model configs')
+        parser.add_argument('--model-name', type=str, default=None,
+                            help='Model name override. Written to the `model` or `model_name` '
+                            'field depending on the model type. Named --model-name to avoid '
+                            'confusion with --models')
+        parser.add_argument('--request-rate', type=float, default=None,
+                            help='Request rate override in the range [0, 64000]')
+        parser.add_argument('--retry', type=int, default=None,
+                            help='Retry count override in the range [0, 1000]')
+        parser.add_argument('--api-key', type=str, default=None,
+                            help='API key override')
+        parser.add_argument('--host-ip', type=str, default=None,
+                            help='Host ip override')
+        parser.add_argument('--host-port', type=int, default=None,
+                            help='Host port override in the range (0, 65536)')
+        parser.add_argument('--url', type=str, default=None,
+                            help='Endpoint url override')
+        parser.add_argument('--max-out-len', type=int, default=None,
+                            help='Max output length override')
+        parser.add_argument('--batch-size', type=int, default=None,
+                            help='Batch size override in the range (0, 100000]')
+        parser.add_argument(
+            '--trust-remote-code',
+            action=argparse.BooleanOptionalAction,
+            default=None,
+            help='Trust remote code override (--trust-remote-code / --no-trust-remote-code)'
+        )
+        parser.add_argument('--generation-kwargs', type=json.loads, default=None,
+                            help='Generation kwargs override as a JSON object, '
+                            'e.g. \'{"temperature": 0.01, "ignore_eos": false}\'')
 

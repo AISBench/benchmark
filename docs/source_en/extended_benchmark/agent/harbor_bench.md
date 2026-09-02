@@ -53,6 +53,40 @@ Ensure deployment of tested inference services following OpenAI chat/completions
    ```bash
    pip install harbor==0.6.1
    ```
+3. Edit the Harbor docker compose configuration file.
+   First, run:
+   ```bash
+   pip3 show harbor | grep Loca
+   ```
+   Find the site-packages path and locate `harbor/environments/docker/docker-compose-base.yaml` under that path, for example:
+   ```
+   /usr/local/lib/python3.12/dist-packages/harbor/environments/docker/docker-compose-base.yaml
+   ```
+   Configure the file as follows:
+   ```yaml
+   services:
+     main:
+       network_mode: host # Share host network, required
+       environment: # Environment variables applied globally in the container
+         http_proxy: XXXXXXXX # Configure proxy environment variables if the execution environment has no internet access
+         https_proxy: XXXXXXXX # Configure proxy environment variables if the execution environment has no internet access
+         no_proxy: XXXXXXXX
+       volumes:
+         - type: bind
+           source: ${HOST_VERIFIER_LOGS_PATH}
+           target: ${ENV_VERIFIER_LOGS_PATH}
+         - type: bind
+           source: ${HOST_AGENT_LOGS_PATH}
+           target: ${ENV_AGENT_LOGS_PATH}
+         - type: bind
+           source: ${HOST_ARTIFACTS_PATH}
+           target: ${ENV_ARTIFACTS_PATH}
+       deploy:
+         resources:
+           limits:
+             cpus: ${CPUS}
+             memory: ${MEMORY}
+   ```
 > ⚠️ Note: Installing Harbor will upgrade the datasets library to version 4.0.0 or higher, which will cause dependency conflicts for the datasets library after installation. This does not affect tests for Terminal-Bench datasets using Harbor. However, if you need to test other datasets, you will need to downgrade the datasets library.
 
 #### 2.2 Install Inside a Docker Container
@@ -68,6 +102,10 @@ services:
     network_mode: host # Share host network, required
     security_opt: # Required when starting the container with Mode B (Socket Passthrough)
       - seccomp=unconfined
+    environment: # Environment variables applied globally in the container
+      http_proxy: XXXXXXXX # Configure proxy environment variables if the execution environment has no internet access
+      https_proxy: XXXXXXXX # Configure proxy environment variables if the execution environment has no internet access
+      no_proxy: XXXXXXXX
     volumes:
       - type: bind
         source: ${HOST_VERIFIER_LOGS_PATH}
@@ -87,11 +125,13 @@ services:
 > ⚠️ Note: Installing Harbor will upgrade the datasets library to version 4.0.0 or higher, which will cause dependency conflicts for the datasets library after installation. This does not affect tests for Terminal-Bench datasets using Harbor. However, if you need to test other datasets, you will need to downgrade the datasets library.
 
 
-### 3. Prepare AISBench-modified Terminal-Bench-2 Dataset and Images
+### 3. Prepare AISBench-modified Terminal-Bench Dataset and Images
+
+#### 3.1 terminal-bench 2
 
 AISBench modified dataset repository: [https://github.com/AISBench/terminal-bench-2](https://github.com/AISBench/terminal-bench-2)
 
-> Note: AISBench only centralized all environment preparation into the Dockerfile without changing the case content, avoiding repeated environment building and dependency installation.
+> Note: AISBench did not change the case content. It only centralized all environment preparation (including all dependencies of the terminus-2 agent and verification resources) into the Dockerfile, avoiding repeated environment building and dependency installation on every run.
 
 Terminal-Bench-2 pre-packaged images:
 | Image Name | Download Link | CPU Architecture | Compressed Size |
@@ -101,14 +141,29 @@ Terminal-Bench-2 pre-packaged images:
 
 > Tip: If you don't want to prepare images for all cases, you can get the terminal-bench-2-offline-mini sampled dataset from [terminal-bench-2-offline-mini](https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini).
 
+#### 3.2 terminal-bench 2.1
+
+> terminal-bench 2.1 is essentially a bug-fix release of terminal-bench-2.0. The number of cases and case names are completely identical; only the dataset content and image content of certain cases differ.
+
+AISBench modified dataset repository: [https://github.com/AISBench/terminal-bench-2.1](https://github.com/AISBench/terminal-bench-2.1)
+
+> Note: AISBench did not modify the content of the official original images of terminal-bench-2.1; only the image tag names have been changed to distinguish them from terminal-bench-2.0. The image names in task.toml within the dataset are also updated accordingly.
+
+| Image Name | Download Link | CPU Architecture | Compressed Size |
+| --------- | ------------ | ---------------- | -------------- |
+| `terminal-bench-2.1-images-aarch64.tar` | Not Supported | aarch64 | NA |
+| `terminal-bench-2.1-images-x86_64.tar` | [Link](https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar) | x86_64 | 38.62 GB |
+
 > ⚠️ Note:
-> If you installed AISBench & Harbor dependencies from source, deploy the Terminal-Bench-2 images on the **host machine** by running `docker load -i xxxxxxx.tar`.
-> If you started the AISBench container using Mode A (true Docker-in-Docker), deploy the Terminal-Bench-2 images **inside the container** by running `docker load -i xxxxxxx.tar`.
-> If you started the AISBench container using Mode B (Socket Passthrough), deploy the Terminal-Bench-2 images on the **host machine** by running `docker load -i xxxxxxx.tar`.
+> If you installed AISBench & Harbor dependencies from source, deploy the Terminal-Bench-2/2.1 images on the **host machine** by running `docker load -i xxxxxxx.tar`.
+> If you started the AISBench container using Mode A (true Docker-in-Docker), deploy the Terminal-Bench-2/2.1 images **inside the container** by running `docker load -i xxxxxxx.tar`.
+> If you started the AISBench container using Mode B (Socket Passthrough), deploy the Terminal-Bench-2/2.1 images on the **host machine** by running `docker load -i xxxxxxx.tar`.
 
 ### 4. Configure Custom Configuration File for Harbor Tasks
 
 Modify `ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py` under AISBench tool root directory:
+
+> 💡 The above `harbor_terminal_bench_2_task.py` is a concrete application of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to this example file to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
 
 ```python
 models = [
@@ -145,13 +200,13 @@ datasets.append(
             # ......
             n_concurrent_trials=5,  # -n/--n-concurrent: Number of concurrent trials
             # ......
-            path="/path/to/terminal-bench-2/",  # -p/--path: Local dataset path
+            path="/path/to/terminal-bench-2/",  # -p/--path: Local dataset path, the path to either the terminal-bench-2 or terminal-bench 2.1 dataset
             # ......
             n_tasks=None,  # --n-tasks: Maximum number of tasks, None runs all, try setting a few for quick testing
             # ......
         ),
     )
-)
+
 # ......
 ```
 

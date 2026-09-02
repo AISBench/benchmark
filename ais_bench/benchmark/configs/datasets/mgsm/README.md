@@ -34,7 +34,7 @@ git clone https://huggingface.co/datasets/juletxara/mgsm
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|mgsm_gen_0_shot_cot_chat_prompt|mgsm数据集生成式任务，prompt带逻辑链|accuracy|0-shot|对话格式|[mgsm_gen_0_shot_cot_chat_prompt.py](mgsm_gen_0_shot_cot_chat_prompt.py)|
-|mgsm_gen_8_shot_cot_chat_prompt|mgsm数据集生成式任务，prompt带逻辑链|accuracy|8-shot|对话格式|[mgsm_gen_8_shot_cot_chat_prompt.py](mgsm_gen_8_shot_cot_chat_prompt.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|mgsm_gen_0_shot_cot_chat_prompt|mgsm数据集生成式任务，prompt带逻辑链|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.mgsm.mgsm_gen_0_shot_cot_chat_prompt import mgsm_datasets as datasets`|[mgsm_gen_0_shot_cot_chat_prompt.py](mgsm_gen_0_shot_cot_chat_prompt.py)|
+|mgsm_gen_8_shot_cot_chat_prompt|mgsm数据集生成式任务，prompt带逻辑链|accuracy|8-shot|对话格式|`from ais_bench.benchmark.configs.datasets.mgsm.mgsm_gen_8_shot_cot_chat_prompt import mgsm_datasets as datasets`|[mgsm_gen_8_shot_cot_chat_prompt.py](mgsm_gen_8_shot_cot_chat_prompt.py)|

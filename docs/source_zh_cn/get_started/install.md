@@ -31,6 +31,19 @@ pip3 install -r requirements/api.txt
 pip3 install -r requirements/extra.txt
 ```
 
+⚙️ 推理响应异常检测支持（可选）
+
+若需使用推理响应异常检测（`--response-anomaly`），需额外安装相关依赖：
+```shell
+pip3 install -r requirements/response_anomaly.txt
+```
+或通过 extra 方式安装：
+```shell
+pip3 install 'ais-bench-benchmark[response_anomaly]'
+```
+
+**注意**：该依赖包含从 GitCode 下载并构建固定提交的检测器源码，安装环境需要 Git 与网络访问。未安装该依赖不影响 AISBench 主流程，相关 Case 的检测结果会标记为 `unavailable`。
+
 ⚙️ Huggingface多模态模型/vllm多模态离线推理支持（可选）
 
 ```shell

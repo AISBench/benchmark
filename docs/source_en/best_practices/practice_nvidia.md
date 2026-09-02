@@ -2,6 +2,7 @@
 ### Version of AISBench Evaluation Tool Used for Reproduction
 The version of the AISBench evaluation tool used for reproduction in this paper is [v3.0-20250412](https://github.com/AISBench/benchmark/releases/tag/v3.0-20250412).
 
+> 💡 All evaluation commands in this document can be implemented through the [custom configuration file approach](../advanced_tutorials/run_custom_config.md). Write configurations for models, datasets, summarizers, etc. into a single Python file for one-time writing and multiple reuse. The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. See [Running AISBench with Custom Configuration Files](../advanced_tutorials/run_custom_config.md) for details.
 
 ### I. Background and Objectives
 #### 1.1 Significance of Reproduction
@@ -272,7 +273,7 @@ The inference backend configuration file contains settings related to the local 
 
 ```bash
 # Ensure you are in the outermost directory of the source code: your/work/dir/benchmark
-vim ais_bench/benchmark/configs/models/hf_model/hf_chat_model.py
+vim ais_bench/benchmark/configs/models/hf_models/hf_chat_model.py
 ```
 
 Modify the content of the inference backend configuration file as follows:

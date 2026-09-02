@@ -2,7 +2,9 @@
 
 **VBench** (VBench: Comprehensive Benchmark Suite for Video Generative Models) is a benchmark suite for video generative models. It organizes evaluation around perception-related metrics such as subject consistency, motion smoothness, temporal flickering, and spatial relationship (the official Standard suite has **16 dimensions**), and provides matching prompts, pipelines, and validation methods for each dimension.
 
-AISBench has **adapted to VBench 1.0**. The repository directory `ais_bench/configs/vbench_examples/` contains **standalone configuration file** examples for running quality/semantic dimension evaluation on generated videos on **GPU** or **NPU**. **AISBench currently does not include multimodal video generation**, so please generate videos first and then run the evaluation. (For Standard mode, see the [Dataset Generation](#dataset-generation) section.)
+AISBench has **adapted to VBench 1.0**. The repository directory `ais_bench/configs/vbench_examples/` contains **standalone configuration file** examples for running quality/semantic dimension evaluation on generated videos on **GPU** or **NPU**. **AISBench currently does not include multimodal video generation**, so please generate videos first and then run the evaluation. (For Standard mode, see the [Dataset Generation](#inference-result-video-generation) section.)
+
+> 💡 The example configuration files under `vbench_examples/` mentioned above are concrete applications of the [custom configuration file approach](../../advanced_tutorials/run_custom_config.md). The configuration file is essentially a Python script that supports all Python syntax including loops, conditional statements, list comprehensions, etc. You can refer to these example files to write a configuration file that meets specific needs. See [Running AISBench with Custom Configuration Files](../../advanced_tutorials/run_custom_config.md) for details.
 
 ## Table of Contents
 
@@ -11,7 +13,7 @@ AISBench has **adapted to VBench 1.0**. The repository directory `ais_bench/conf
 - [Configuration and Output](#configuration-and-output)
 - [Score Aggregation (Quality / Semantic / Total)](#score-aggregation-quality--semantic--total)
 - [Prompt Suite (Official Prompt Structure)](#prompt-suite-official-prompt-structure)
-- [Dataset Generation](#dataset-generation)
+- [Dataset Generation](#inference-result-video-generation)
 - [Sampling Pseudocode (Reference Official)](#sampling-pseudocode-reference-official)
 - [Format Requirements](#format-requirements)
 - [VBench-1.0-mini (AISBench Official Sampled Subset)](#vbench-10-mini-aisbench-official-sampled-subset)
@@ -45,7 +47,7 @@ Some torchvision operators (such as `nms` and `roi_align`) may run only on CPU o
 ## Quick Start
 
 1. **Prepare the video directory**
-   For both Standard and Custom modes, set `DATA_PATH` in the corresponding configuration to the root directory of the generated videos (absolute or relative path). You can also copy the configuration file, change `DATA_PATH`, and then run `ais_bench <your_config.py> --mode eval`. (See [Dataset Generation](#dataset-generation) for video sampling notes.)
+   For both Standard and Custom modes, set `DATA_PATH` in the corresponding configuration to the root directory of the generated videos (absolute or relative path). You can also copy the configuration file, change `DATA_PATH`, and then run `ais_bench <your_config.py> --mode eval`. (See [Dataset Generation](#inference-result-video-generation) for video sampling notes.)
 
 2. **Download third-party dependencies to local cache**
    VBench loads multiple small model weights for video generation quality evaluation. It is recommended to download them in advance. By default, the evaluation will also try to download dependencies automatically, but downloads may fail and break the evaluation. For details, see [`vbench_cache_dependencies.md`](./vbench_cache_dependencies.md).

@@ -39,7 +39,7 @@ rm winogrande.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|winogrande_gen_0_shot_chat_prompt|winogrande数据集生成式任务|accuracy|0-shot|对话格式|[winogrande_gen_0_shot_chat_prompt.py](winogrande_gen_0_shot_chat_prompt.py)|
-|winogrande_gen_5_shot_chat_prompt|piqa数据集生成式任务|accuracy|5-shot|对话格式|[winogrande_gen_5_shot_chat_prompt.py](winogrande_gen_5_shot_chat_prompt.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|winogrande_gen_0_shot_chat_prompt|winogrande数据集生成式任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.winogrande.winogrande_gen_0_shot_chat_prompt import winogrande_datasets as datasets`|[winogrande_gen_0_shot_chat_prompt.py](winogrande_gen_0_shot_chat_prompt.py)|
+|winogrande_gen_5_shot_chat_prompt|piqa数据集生成式任务|accuracy|5-shot|对话格式|`from ais_bench.benchmark.configs.datasets.winogrande.winogrande_gen_5_shot_chat_prompt import winogrande_datasets as datasets`|[winogrande_gen_5_shot_chat_prompt.py](winogrande_gen_5_shot_chat_prompt.py)|

@@ -25,10 +25,10 @@ rm gsm8k.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|gsm8k_gen_4_shot_cot_str|gsm8k数据集生成式任务，带逻辑链|accuracy|4-shot|字符串格式|[gsm8k_gen_4_shot_cot_str.py](gsm8k_gen_4_shot_cot_str.py)|
-|gsm8k_gen_4_shot_cot_chat_prompt|gsm8k数据集生成式任务，带逻辑链|accuracy|4-shot|对话格式|[gsm8k_gen_4_shot_cot_chat_prompt.py](gsm8k_gen_4_shot_cot_chat_prompt.py)|
-|gsm8k_gen_0_shot_cot_str|gsm8k数据集生成式任务|accuracy|0-shot|字符串格式|[gsm8k_gen_0_shot_cot_str.py](gsm8k_gen_0_shot_cot_str.py)|
-|gsm8k_gen_0_shot_cot_chat_prompt|gsm8k数据集生成式任务|accuracy|0-shot|对话格式|[gsm8k_gen_0_shot_cot_chat_prompt.py](gsm8k_gen_0_shot_cot_chat_prompt.py)|
-|gsm8k_gen_0_shot_cot_str_perf|gsm8k数据集生成式任务（用于性能测评）|性能测评|0-shot|字符串格式|[gsm8k_gen_0_shot_cot_str_perf.py](gsm8k_gen_0_shot_cot_str_perf.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|gsm8k_gen_4_shot_cot_str|gsm8k数据集生成式任务，带逻辑链|accuracy|4-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_4_shot_cot_str import gsm8k_datasets as datasets`|[gsm8k_gen_4_shot_cot_str.py](gsm8k_gen_4_shot_cot_str.py)|
+|gsm8k_gen_4_shot_cot_chat_prompt|gsm8k数据集生成式任务，带逻辑链|accuracy|4-shot|对话格式|`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_4_shot_cot_chat_prompt import gsm8k_datasets as datasets`|[gsm8k_gen_4_shot_cot_chat_prompt.py](gsm8k_gen_4_shot_cot_chat_prompt.py)|
+|gsm8k_gen_0_shot_cot_str|gsm8k数据集生成式任务|accuracy|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_0_shot_cot_str import gsm8k_datasets as datasets`|[gsm8k_gen_0_shot_cot_str.py](gsm8k_gen_0_shot_cot_str.py)|
+|gsm8k_gen_0_shot_cot_chat_prompt|gsm8k数据集生成式任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_0_shot_cot_chat_prompt import gsm8k_datasets as datasets`|[gsm8k_gen_0_shot_cot_chat_prompt.py](gsm8k_gen_0_shot_cot_chat_prompt.py)|
+|gsm8k_gen_0_shot_cot_str_perf|gsm8k数据集生成式任务（用于性能测评）|性能测评|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.gsm8k.gsm8k_gen_0_shot_cot_str_perf import gsm8k_datasets as datasets`|[gsm8k_gen_0_shot_cot_str_perf.py](gsm8k_gen_0_shot_cot_str_perf.py)|

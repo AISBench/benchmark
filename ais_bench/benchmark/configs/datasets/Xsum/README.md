@@ -27,7 +27,7 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|Xsum_gen_0_shot_chat|Xsum数据集生成式任务|accuracy|0-shot|对话格式|[Xsum_gen_0_shot_chat.py](Xsum_gen_0_shot_chat.py)|
-|Xsum_gen_0_shot_str|Xsum数据集生成式任务|accuracy|0-shot|字符串格式|[Xsum_gen_0_shot_str.py](Xsum_gen_0_shot_str.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|Xsum_gen_0_shot_chat|Xsum数据集生成式任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.Xsum.Xsum_gen_0_shot_chat import Xsum_datasets as datasets`|[Xsum_gen_0_shot_chat.py](Xsum_gen_0_shot_chat.py)|
+|Xsum_gen_0_shot_str|Xsum数据集生成式任务|accuracy|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.Xsum.Xsum_gen_0_shot_str import Xsum_datasets as datasets`|[Xsum_gen_0_shot_str.py](Xsum_gen_0_shot_str.py)|

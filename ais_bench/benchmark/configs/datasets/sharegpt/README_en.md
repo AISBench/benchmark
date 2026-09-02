@@ -57,9 +57,9 @@ wget https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/b
 
 ## Available Dataset Tasks
 
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code File Path |
-| --- | --- | --- | --- | --- | --- |
-| sharegpt_gen | Generative task for ShareGPT | Accuracy evaluation not supported temporarily | 0-shot | List Format | [sharegpt_gen.py](sharegpt_gen.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| sharegpt_gen | Generative task for ShareGPT | Accuracy evaluation not supported temporarily | 0-shot | List Format |`from ais_bench.benchmark.configs.datasets.sharegpt.sharegpt_gen import sharegpt_datasets as datasets`| [sharegpt_gen.py](sharegpt_gen.py) |
 
 
 *Note: The evaluation of this multi-turn conversation dataset supports service deployment frameworks such as vLLM, SGLang, and MindIE Service. When using it, you need to specify `--models` as `vllm_api_stream_chat_multiturn`.*

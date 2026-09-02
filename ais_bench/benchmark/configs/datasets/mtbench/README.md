@@ -29,9 +29,9 @@ wget https://huggingface.co/datasets/HuggingFaceH4/mt_bench_prompts/blob/main/ra
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|mtbench_gen|mtbench生成式任务|暂不支持精度评测|0-shot|列表格式|[mtbench_gen.py](mtbench_gen.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|mtbench_gen|mtbench生成式任务|暂不支持精度评测|0-shot|列表格式|`from ais_bench.benchmark.configs.datasets.mtbench.mtbench_gen import mtbench_datasets as datasets`|[mtbench_gen.py](mtbench_gen.py)|
 
 
 *注意：该多轮对话数据集的测评支持vLLM、SGLang、MindIE Service等服务化，使用时需指定--models为vllm_api_stream_chat_multiturn*

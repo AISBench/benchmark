@@ -27,8 +27,8 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|ARC_e_gen_0_shot_chat_prompt|ARC Easy Set数据集生成式任务|accuracy|0-shot|对话格式|[ARC_e_gen_0_shot_chat_prompt.py](ARC_e_gen_0_shot_chat_prompt.py)|
-|ARC_e_gen_25_shot_chat_prompt|ARC Easy Set数据集生成式任务|accuracy|25-shot|对话格式|[ARC_e_gen_25_shot_chat_prompt.py](ARC_e_gen_25_shot_chat_prompt.py)|
-|ARC_e_ppl_0_shot_str|ARC Easy Set数据集PPL任务|accuracy|0-shot|字符串模式|[ARC_e_ppl_0_shot_str.py](ARC_e_ppl_0_shot_str.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|ARC_e_gen_0_shot_chat_prompt|ARC Easy Set数据集生成式任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.ARC_e.ARC_e_gen_0_shot_chat_prompt import ARC_e_datasets as datasets`|[ARC_e_gen_0_shot_chat_prompt.py](ARC_e_gen_0_shot_chat_prompt.py)|
+|ARC_e_gen_25_shot_chat_prompt|ARC Easy Set数据集生成式任务|accuracy|25-shot|对话格式|`from ais_bench.benchmark.configs.datasets.ARC_e.ARC_e_gen_25_shot_chat_prompt import ARC_e_datasets as datasets`|[ARC_e_gen_25_shot_chat_prompt.py](ARC_e_gen_25_shot_chat_prompt.py)|
+|ARC_e_ppl_0_shot_str|ARC Easy Set数据集PPL任务|accuracy|0-shot|字符串模式|`from ais_bench.benchmark.configs.datasets.ARC_e.ARC_e_ppl_0_shot_str import ARC_e_datasets as datasets`|[ARC_e_ppl_0_shot_str.py](ARC_e_ppl_0_shot_str.py)|

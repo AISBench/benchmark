@@ -40,7 +40,7 @@ Remember to put your answer inside \boxed{}.
 ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|aime2026_gen|AIME2026 数据集生成式任务|准确率(accuracy)|0-shot|对话格式|aime2026_gen_0_shot_chat_prompt.py|
-|aime2026_gen_0_shot_str|AIME2026 数据集生成式任务|准确率(accuracy)|0-shot|字符串格式|aime2026_gen_0_shot_str.py|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|aime2026_gen_0_shot_chat_prompt|AIME2026 数据集生成式任务|准确率(accuracy)|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.aime2026.aime2026_gen_0_shot_chat_prompt import aime2026_datasets as datasets`|[aime2026_gen_0_shot_chat_prompt.py](aime2026_gen_0_shot_chat_prompt.py)|
+|aime2026_gen_0_shot_str|AIME2026 数据集生成式任务|准确率(accuracy)|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.aime2026.aime2026_gen_0_shot_str import aime2026_datasets as datasets`|[aime2026_gen_0_shot_str.py](aime2026_gen_0_shot_str.py)|

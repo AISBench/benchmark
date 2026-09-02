@@ -24,7 +24,7 @@ rm aime.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| aime2024_gen_0_shot_str | Generative task for the aime2024 dataset | accuracy (pass@1) | 0-shot | String format | [aime2024_gen_0_shot_str.py](aime2024_gen_0_shot_str.py) |
-| aime2024_gen_0_shot_chat_prompt | Generative task for the aime2024 dataset (aligned with DeepSeek R1 accuracy test) | accuracy (pass@1) | 0-shot | Chat format | [aime2024_gen_0_shot_chat_prompt.py](aime2024_gen_0_shot_chat_prompt.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| aime2024_gen_0_shot_str | Generative task for the aime2024 dataset | accuracy (pass@1) | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.aime2024.aime2024_gen_0_shot_str import aime2024_datasets as datasets`| [aime2024_gen_0_shot_str.py](aime2024_gen_0_shot_str.py) |
+| aime2024_gen_0_shot_chat_prompt | Generative task for the aime2024 dataset (aligned with DeepSeek R1 accuracy test) | accuracy (pass@1) | 0-shot | Chat format |`from ais_bench.benchmark.configs.datasets.aime2024.aime2024_gen_0_shot_chat_prompt import aime2024_datasets as datasets`| [aime2024_gen_0_shot_chat_prompt.py](aime2024_gen_0_shot_chat_prompt.py) |

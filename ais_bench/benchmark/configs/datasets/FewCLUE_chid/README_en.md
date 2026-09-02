@@ -39,6 +39,6 @@ rm -r OpenCompassData-core-20240207.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| FewCLUE_chid_ppl_0_shot_str | PPL task for the FewCLUE_chid dataset | Accuracy | 0-shot | String format | [FewCLUE_chid_ppl_0_shot_str.py](FewCLUE_chid_ppl_0_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| FewCLUE_chid_ppl_0_shot_str | PPL task for the FewCLUE_chid dataset | Accuracy | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.FewCLUE_chid.FewCLUE_chid_ppl_0_shot_str import chid_datasets as datasets`| [FewCLUE_chid_ppl_0_shot_str.py](FewCLUE_chid_ppl_0_shot_str.py) |

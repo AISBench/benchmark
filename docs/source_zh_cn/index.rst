@@ -21,7 +21,7 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
 * 本教程提供的 :doc:`快速入门 <get_started/quick_start>` 将引导你完成基本的精度评测配置和运行。
 * :doc:`数据集准备指南 <get_started/datasets>` 将帮助你了解支持的数据集及其准备方法。
 * 基础教程部分将介绍 :doc:`评测场景介绍 <base_tutorials/scenes_intro/index>` 、:doc:`评测结果说明 <base_tutorials/results_intro/index>` 以及 :doc:`详细参数说明 <base_tutorials/all_params/index>` 等内容，帮助你更好地理解主要的评测场景的使用。
-* 如果想要更深入地了解 AISBench 评测工具的高级用法，可以参考 :doc:`进阶教程 <advanced_tutorials/run_custom_config>`。
+* 如果想要更深入地了解 AISBench 评测工具的高级用法，可以参考 :doc:`进阶教程 <advanced_tutorials/run_custom_config>`。**强烈推荐**阅读 :doc:`自定义配置文件运行AISBench <advanced_tutorials/run_custom_config>`，配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用，覆盖几乎所有评测场景。
 * 你可以参考 :doc:`最佳实践<best_practices/practice_nvidia>` 部分，了解在不同场景下使用 AISBench 评测工具的最佳实践。
 * 最后，你可以参考 :doc:`常见问题 <faqs/faq>` 部分，解决在使用 AISBench 评测工具过程中遇到的问题。
 
@@ -56,6 +56,8 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
    advanced_tutorials/custom_dataset
    advanced_tutorials/judge_model_evaluate
    advanced_tutorials/spec_decode
+   advanced_tutorials/prefix_cache
+   advanced_tutorials/response_anomaly_detection
 
 
 

@@ -22,7 +22,7 @@ rm drop_simple_eval.zip
     ```
 
 ## Available Dataset Tasks
-| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Corresponding Source Code Configuration File Path |
-| --- | --- | --- | --- | --- | --- |
-| drop_gen_0_shot_str | Generative task for the DROP dataset | Accuracy (pass@1) | 0-shot | String format | [drop_gen_0_shot_str.py](drop_gen_0_shot_str.py) |
-| drop_gen_3_shot_str | Generative task for the DROP dataset | Accuracy (pass@1) | 3-shot | String format | [drop_gen_3_shot_str.py](drop_gen_3_shot_str.py) |
+| Task Name | Introduction | Evaluation Metric | Few-Shot | Prompt Format | Import Statement | Corresponding Source Code Configuration File Path |
+| --- | --- | --- | --- | --- | --- | --- |
+| drop_gen_0_shot_str | Generative task for the DROP dataset | Accuracy (pass@1) | 0-shot | String format |`from ais_bench.benchmark.configs.datasets.drop.drop_gen_0_shot_str import drop_datasets as datasets`| [drop_gen_0_shot_str.py](drop_gen_0_shot_str.py) |
+| drop_gen_3_shot_str | Generative task for the DROP dataset | Accuracy (pass@1) | 3-shot | String format |`from ais_bench.benchmark.configs.datasets.drop.drop_gen_3_shot_str import drop_datasets as datasets`| [drop_gen_3_shot_str.py](drop_gen_3_shot_str.py) |

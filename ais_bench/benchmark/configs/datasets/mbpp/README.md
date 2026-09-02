@@ -25,7 +25,7 @@ rm mbpp.zip
 ## 可用数据集任务
 ### mbpp_passk_gen_3_shot_chat_prompt
 #### 基本信息
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|mbpp_passk_gen_3_shot_chat_prompt|mbpp数据集生成式任务，支持测pass@k(默认pass@1)|pass@1|3-shot|对话格式|[mbpp_passk_gen_3_shot_chat_prompt.py](mbpp_passk_gen_3_shot_chat_prompt.py)|
-|sanitized_mbpp_passk_gen_3_shot_chat_prompt|sanitized mbpp数据集生成式任务，支持测pass@k(默认pass@1)|pass@1|3-shot|对话格式|[sanitized_mbpp_passk_gen_3_shot_chat_prompt.py](sanitized_mbpp_passk_gen_3_shot_chat_prompt.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|mbpp_passk_gen_3_shot_chat_prompt|mbpp数据集生成式任务，支持测pass@k(默认pass@1)|pass@1|3-shot|对话格式|`from ais_bench.benchmark.configs.datasets.mbpp.mbpp_passk_gen_3_shot_chat_prompt import mbpp_datasets as datasets`|[mbpp_passk_gen_3_shot_chat_prompt.py](mbpp_passk_gen_3_shot_chat_prompt.py)|
+|sanitized_mbpp_passk_gen_3_shot_chat_prompt|sanitized mbpp数据集生成式任务，支持测pass@k(默认pass@1)|pass@1|3-shot|对话格式|`from ais_bench.benchmark.configs.datasets.mbpp.sanitized_mbpp_passk_gen_3_shot_chat_prompt import sanitized_mbpp_datasets as datasets`|[sanitized_mbpp_passk_gen_3_shot_chat_prompt.py](sanitized_mbpp_passk_gen_3_shot_chat_prompt.py)|

@@ -45,6 +45,6 @@ rm -r OpenCompassData-core-20240207.zip
     └── sat-math.jsonl
     ```
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|agieval_gen_0_shot_chat_prompt|AGIEval数据集生成式任务，共包含21个子任务|accuracy|0-shot|对话格式|[agieval_gen_0_shot_chat_prompt.py](agieval_gen_0_shot_chat_prompt.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|agieval_gen_0_shot_chat_prompt|AGIEval数据集生成式任务，共包含21个子任务|accuracy|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.agieval.agieval_gen_0_shot_chat_prompt import agieval_datasets as datasets`|[agieval_gen_0_shot_chat_prompt.py](agieval_gen_0_shot_chat_prompt.py)|

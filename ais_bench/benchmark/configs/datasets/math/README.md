@@ -34,8 +34,8 @@ rm math.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|math_prm800k_500_0shot_cot_gen|MATH500数据集生成式任务, 默认max out tokens长度取32768，prompt带逻辑链|accuracy(pass@1)|0-shot|字符串格式|[math_prm800k_500_0shot_cot_gen.py](math_prm800k_500_0shot_cot_gen.py)|
-|math_prm800k_500_5shot_cot_gen|MATH500数据集生成式任务, 默认max out tokens长度取32768，prompt带逻辑链|accuracy(pass@1)|5-shot|字符串格式|[math_prm800k_500_5shot_cot_gen.py](math_prm800k_500_5shot_cot_gen.py)|
-|math500_gen_0_shot_cot_chat_prompt|MATH500数据集生成式任务，prompt带逻辑链（对齐DeepSeek R1精度测试）|accuracy(pass@1)|0-shot|对话格式|[math500_gen_0_shot_cot_chat_prompt.py](math500_gen_0_shot_cot_chat_prompt.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|math_prm800k_500_0shot_cot_gen|MATH500数据集生成式任务, 默认max out tokens长度取32768，prompt带逻辑链|accuracy(pass@1)|0-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.math.math_prm800k_500_0shot_cot_gen import math_datasets as datasets`|[math_prm800k_500_0shot_cot_gen.py](math_prm800k_500_0shot_cot_gen.py)|
+|math_prm800k_500_5shot_cot_gen|MATH500数据集生成式任务, 默认max out tokens长度取32768，prompt带逻辑链|accuracy(pass@1)|5-shot|字符串格式|`from ais_bench.benchmark.configs.datasets.math.math_prm800k_500_5shot_cot_gen import math_datasets as datasets`|[math_prm800k_500_5shot_cot_gen.py](math_prm800k_500_5shot_cot_gen.py)|
+|math500_gen_0_shot_cot_chat_prompt|MATH500数据集生成式任务，prompt带逻辑链（对齐DeepSeek R1精度测试）|accuracy(pass@1)|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.math.math500_gen_0_shot_cot_chat_prompt import math_datasets as datasets`|[math500_gen_0_shot_cot_chat_prompt.py](math500_gen_0_shot_cot_chat_prompt.py)|

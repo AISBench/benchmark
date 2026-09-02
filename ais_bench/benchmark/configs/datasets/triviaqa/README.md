@@ -25,7 +25,7 @@ rm triviaqa.zip
     ```
 
 ## 可用数据集任务
-|任务名称|简介|评估指标|few-shot|prompt格式|对应源码配置文件路径|
-| --- | --- | --- | --- | --- | --- |
-|triviaqa_gen_5_shot_chat_prompt|TriviaQA数据集生成式任务|accuracy|5-shot|对话格式|[triviaqa_gen_5_shot_chat_prompt.py](triviaqa_gen_5_shot_chat_prompt.py)|
+|任务名称|简介|评估指标|few-shot|prompt格式|配套文件导入方式|对应源码配置文件路径|
+| --- | --- | --- | --- | --- | --- | --- |
+|triviaqa_gen_5_shot_chat_prompt|TriviaQA数据集生成式任务|accuracy|5-shot|对话格式|`from ais_bench.benchmark.configs.datasets.triviaqa.triviaqa_gen_5_shot_chat_prompt import triviaqa_datasets as datasets`|[triviaqa_gen_5_shot_chat_prompt.py](triviaqa_gen_5_shot_chat_prompt.py)|
 
