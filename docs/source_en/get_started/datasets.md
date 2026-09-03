@@ -16,23 +16,33 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 
 | Dataset Name    | Category                                               | Detailed Introduction & Acquisition Method                                                                                                   |
 | --------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| DEMO            | Mathematical Reasoning                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README_en.md)            |
-| ARC_c           | Reasoning (Common Sense + Science)                     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ARC_c/README_en.md)           |
-| ARC_e           | Reasoning (Common Sense + Science)                     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ARC_e/README_en.md)           |
-| SuperGLUE_BoolQ | Natural Language Understanding (Q&A)                   | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/SuperGLUE_BoolQ/README_en.md) |
+| aa_lcr          | Long Context Retrieval & Reasoning                     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aa_lcr/README_en.md)          |
 | agieval         | Comprehensive Exams / Reasoning                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/agieval/README_en.md)         |
 | aime2024        | Mathematical Reasoning                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2024/README_en.md)        |
 | aime2025        | Mathematical Reasoning                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2025/README_en.md)        |
 | aime2026        | Mathematical Reasoning                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aime2026/README_en.md)        |
+| ARC_c           | Reasoning (Common Sense + Science)                     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ARC_c/README_en.md)           |
+| ARC_e           | Reasoning (Common Sense + Science)                     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ARC_e/README_en.md)           |
 | bbh             | Multi-Task (Big-Bench Hard)                            | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/bbh/README_en.md)             |
-| cmmlu           | Chinese Understanding / Knowledge Q&A                  | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/cmmlu/README_en.md)           |
+| BFCL            | Function Calling Capability Evaluation                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README_en.md)            |
 | ceval           | Chinese Professional Exams                             | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ceval/README_en.md)           |
+| cmmlu           | Chinese Understanding / Knowledge Q&A                  | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/cmmlu/README_en.md)           |
+| corpusqa        | Long Context Q&A (1M tokens)                           | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/corpusqa/README_en.md)          |
+| dapo-math-17k   | Mathematical Reasoning (RL Evaluation)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/dapo_math/README_en.md)       |
+| DEMO            | Mathematical Reasoning                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README_en.md)            |
 | drop            | Reading Comprehension + Reasoning                      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/drop/README_en.md)            |
-| gsm8k           | Mathematical Reasoning                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/gsm8k/README_en.md)           |
+| FewCLUE_bustm   | Short Text Semantic Matching                           | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_bustm/README_en.md)   |
+| FewCLUE_chid    | Reading Comprehension Cloze                            | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_chid/README_en.md)    |
+| FewCLUE_cluewsc | Pronoun Disambiguation                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_cluewsc/README_en.md) |
+| FewCLUE_csl     | Keyword Recognition                                    | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_csl/README_en.md)     |
+| FewCLUE_eprstmt | Sentiment Analysis                                     | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_eprstmt/README_en.md) |
+| FewCLUE_tnews   | News Classification                                    | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_tnews/README_en.md)   |
 | gpqa            | Knowledge Q&A                                          | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/gpqa/README_en.md)            |
+| gsm8k           | Mathematical Reasoning                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/gsm8k/README_en.md)           |
 | hellaswag       | Common Sense Reasoning                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/hellaswag/README_en.md)       |
 | humaneval       | Programming (Code Generation + Testing)                | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/humaneval/README_en.md)       |
 | humanevalx      | Programming (Multilingual)                             | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/humanevalx/README_en.md)      |
+| ifbench         | Instruction Following Evaluation                       | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ifbench/README_en.md)         |
 | ifeval          | Programming (Function Generation)                      | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ifeval/README_en.md)          |
 | lambada         | Long Text Cloze                                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/lambada/README_en.md)         |
 | lcsts           | Chinese Text Summarization                             | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/lcsts/README_en.md)           |
@@ -44,53 +54,44 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | mgsm            | Multilingual Mathematical Reasoning                    | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mgsm/README_en.md)            |
 | mmlu            | Multidisciplinary Understanding (English)              | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmlu/README_en.md)            |
 | mmlu_pro        | Multidisciplinary Understanding (Professional Version) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmlu_pro/README_en.md)        |
+| mrcr            | Long Sequences (Multi-Needle Retrieval)                | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mrcr/README_en.md)            |
 | needlebench_v2  | Long Sequences                                         | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/needlebench_v2/README_en.md)  |
 | piqa            | Physical Common Sense Reasoning                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/piqa/README_en.md)            |
 | siqa            | Social Common Sense Reasoning                          | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/siqa/README_en.md)            |
+| SuperGLUE_BoolQ | Natural Language Understanding (Q&A)                   | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/SuperGLUE_BoolQ/README_en.md) |
 | triviaqa        | Knowledge Q&A                                          | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/triviaqa/README_en.md)        |
 | winogrande      | Common Sense Reasoning (Pronoun Resolution)            | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/winogrande/README_en.md)      |
 | Xsum            | Text Generation (Summarization)                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/Xsum/README_en.md)            |
-| BFCL            | Function Calling Capability Evaluation                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/BFCL/README_en.md)            |
-| FewCLUE_bustm   | Short Text Semantic Matching                           | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_bustm/README_en.md)   |
-| FewCLUE_chid    | Reading Comprehension Cloze                            | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_chid/README_en.md)    |
-| FewCLUE_cluewsc | Pronoun Disambiguation                                 | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_cluewsc/README_en.md) |
-| FewCLUE_csl     | Keyword Recognition                                    | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_csl/README_en.md)     |
-| FewCLUE_eprstmt | Sentiment Analysis                                     | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_eprstmt/README_en.md) |
-| FewCLUE_tnews   | News Classification                                    | [Detailed Introduction](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/FewCLUE_tnews/README_en.md)   |
-| dapo-math-17k   | Mathematical Reasoning (RL Evaluation)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/dapo_math/README_en.md)       |
-| ifbench         | Instruction Following Evaluation                       | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ifbench/README_en.md)         |
-| aa_lcr          | Long Context Retrieval & Reasoning                     | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/aa_lcr/README_en.md)          |
-| corpusqa        | Long Context Q&A (1M tokens)                           | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/corpusqa/README_en.md)          |
 
 ### Multimodal Datasets
 
 | Dataset Name | Category                                                | Detailed Introduction & Acquisition Method                                                                                                |
 | ------------ | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| textvqa      | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/textvqa/README_en.md)      |
-| videobench   | Multimodal Understanding (Video)                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videobench/README_en.md)   |
-| vocalsound   | Multimodal Understanding (Audio)                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/vocalsound/README_en.md)   |
-| Omnidocbench | Image OCR (Image + Text)                                | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/omnidocbench/README_en.md) |
+| DocVQA       | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README_en.md)       |
+| geometry3k   | Multimodal Geometry Reasoning (Image + Text)            | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/geometry3k/README_en.md)   |
+| HLE          | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/hle/README_en.md)          |
+| InfoVQA      | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README_en.md)      |
+| MathVision   | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mathvision/README_en.md)   |
 | MMMU         | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu/README_en.md)         |
 | MMMU_Pro     | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README_en.md)     |
-| InfoVQA      | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README_en.md)      |
-| DocVQA       | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/docvqa/README_en.md)       |
 | MMStar       | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmstar/README_en.md)       |
-| Video-MME    | Multimodal Understanding (video + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README_en.md)     |
 | OCRBench_v2  | Multimodal Understanding (Image + Text, OCR Evaluation) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/ocrbench_v2/README_en.md)  |
+| Omnidocbench | Image OCR (Image + Text)                                | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/omnidocbench/README_en.md) |
 | RealWorldQA  | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/realworldqa/README_en.md)  |
-| MathVision   | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mathvision/README_en.md)   |
 | RefCOCO      | Visual Grounding (Image + Text)                         | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/refcoco/README_en.md)      |
 | RefCOCO+     | Visual Grounding (Image + Text)                         | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/refcoco_plus/README_en.md) |
 | RefCOCOg     | Visual Grounding (Image + Text)                         | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/refcocog/README_en.md)     |
-| HLE          | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/hle/README_en.md)          |
-| geometry3k   | Multimodal Geometry Reasoning (Image + Text)            | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/geometry3k/README_en.md)   |
+| textvqa      | Multimodal Understanding (Image + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/textvqa/README_en.md)      |
+| Video-MME    | Multimodal Understanding (video + Text)                 | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videomme/README_en.md)     |
+| videobench   | Multimodal Understanding (Video)                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/videobench/README_en.md)   |
+| vocalsound   | Multimodal Understanding (Audio)                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/vocalsound/README_en.md)   |
 
 ### Multi-Turn Dialogue Datasets
 
 | Dataset Name | Category            | Detailed Introduction & Acquisition Method                                                                                            |
 | ------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| sharegpt     | Multi-Turn Dialogue | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/sharegpt/README_en.md) |
 | mtbench      | Multi-Turn Dialogue | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mtbench/README_en.md)  |
+| sharegpt     | Multi-Turn Dialogue | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/sharegpt/README_en.md) |
 
 **Tip**: Users can uniformly place the acquired dataset folders in the `ais_bench/datasets/` directory. AISBench Benchmark will automatically retrieve the dataset files in this directory based on the dataset configuration file for testing.
 
@@ -100,8 +101,8 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 | ------------------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | SWE-bench          | Software Engineering Tasks (Open-Source)       | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/swe_bench.md)        |
 | SWE-bench Pro      | Software Engineering Tasks (Closed/Long-Horizon) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/swe_bench_pro.md)    |
-| τ²-Bench           | Dual-Control Dialogue & Tool Calling           | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/tau2_bench.md)       |
 | Terminal-Bench 2.0 | Terminal Task Execution                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/harbor_bench.md)     |
+| τ²-Bench           | Dual-Control Dialogue & Tool Calling           | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/tau2_bench.md)       |
 
 ### Configuring Open-Source Datasets
 
