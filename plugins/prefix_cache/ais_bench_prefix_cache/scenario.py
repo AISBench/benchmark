@@ -12,7 +12,7 @@ from .errors import ScenarioValidationError
 
 
 _ALLOWED = {
-    "": {"schema_version", "run", "tokenizer", "corpus", "requests", "prefix_cache", "service", "validation", "aisbench"},
+    "": {"schema_version", "run", "tokenizer", "corpus", "requests", "output", "prefix_cache", "service", "validation", "aisbench"},
     "run": {"run_id", "random_seed", "output_dir", "overwrite"},
     "tokenizer": {"path", "block_size", "revision", "trust_remote_code"},
     "corpus": {"path", "field", "selection"},
@@ -20,13 +20,16 @@ _ALLOWED = {
     "requests": {"count", "input_length", "output_length"},
     "requests.input_length": {"mode", "value", "values", "ranges", "min", "max", "mean", "std", "path"},
     "requests.output_length": {"mode", "value", "min", "max", "mean", "std", "path"},
+    "output": {"output_key"},
     "prefix_cache": {"mode", "target_hit_rate", "seed_blocks", "minimum_non_shared_length", "groups", "order"},
     "prefix_cache.groups": {"count", "assignment", "overrides"},
     "prefix_cache.groups.assignment": {"mode", "exponent", "weights"},
     "prefix_cache.order": {"strategy"},
-    "service": {"inference_url", "metrics_url", "reset_url", "model", "dp_size", "assume_empty_cache", "engine_label_map", "timeout_seconds", "api_key"},
+    "service": {"inference_url", "metrics_url", "reset_url", "model", "dp_size", "assume_empty_cache", "engine_label_map", "timeout_seconds", "api_key", "poll_interval_seconds"},
     "validation": {"target_warning_pp", "actual_warning_pp"},
-    "aisbench": {"config", "work_dir", "extra_args"},
+    "aisbench": {"config", "work_dir", "extra_args", "dataset", "model"},
+    "aisbench.dataset": {"abbr", "input_columns", "output_column", "prompt_template", "pred_role"},
+    "aisbench.model": {"abbr", "attr", "stream", "max_out_len", "retry", "batch_size", "generation_kwargs"},
 }
 
 _MODES = {
@@ -254,6 +257,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     data.setdefault("tokenizer", {})
     data.setdefault("corpus", {})
     data.setdefault("requests", {})
+    data.setdefault("output", {})
     data.setdefault("prefix_cache", {})
     data.setdefault("service", {})
     data.setdefault("validation", {})
@@ -262,6 +266,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     tokenizer = _require_dict(data["tokenizer"], "tokenizer")
     corpus = _require_dict(data["corpus"], "corpus")
     requests = _require_dict(data["requests"], "requests")
+    output = _require_dict(data["output"], "output")
     pc = _require_dict(data["prefix_cache"], "prefix_cache")
     service = _require_dict(data["service"], "service")
     run.setdefault("run_id", "gsm8k-prefix-cache-60")
@@ -281,6 +286,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
         output_cfg.setdefault("mode", "fixed")
         if output_cfg["mode"] == "fixed":
             output_cfg.setdefault("value", 32)
+    output.setdefault("output_key", None)
     pc.setdefault("mode", "warmup")
     pc.setdefault("target_hit_rate", 0.6)
     pc.setdefault("seed_blocks", 1)
@@ -321,6 +327,10 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     output_cfg = _require_dict(output_cfg, "requests.output_length")
     _validate_input_config(input_cfg, "requests.input_length", source.parent, count)
     _validate_output_config(output_cfg, "requests.output_length", source.parent)
+    if output["output_key"] not in (None, "max_tokens", "output_tokens"):
+        raise ScenarioValidationError(
+            "output.output_key must be null, 'max_tokens', or 'output_tokens'"
+        )
     cache_mode = _mode(pc, _MODES["cache"], "prefix_cache")
     target = pc.get("target_hit_rate")
     if isinstance(target, bool) or not isinstance(target, (int, float)) or not 0 <= target <= 1:
@@ -377,12 +387,77 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     service.setdefault("engine_label_map", {})
     service.setdefault("timeout_seconds", 30)
     service.setdefault("api_key", "")
+    service.setdefault("poll_interval_seconds", 5.0)
+    poll_interval = service.get("poll_interval_seconds")
+    if isinstance(poll_interval, bool) or not isinstance(poll_interval, (int, float)) or poll_interval < 0:
+        raise ScenarioValidationError("service.poll_interval_seconds must be a non-negative number")
     for field in ("inference_url", "metrics_url", "model"):
         if not isinstance(service.get(field), str) or not service[field]:
             raise ScenarioValidationError(f"service.{field} must be a non-empty string")
     validation = _require_dict(data["validation"], "validation")
     validation.setdefault("target_warning_pp", 1.0)
     validation.setdefault("actual_warning_pp", 5.0)
+    aisbench = _require_dict(data["aisbench"], "aisbench")
+    aisbench.setdefault("config", "./plugins/prefix_cache/config_examples/prefix_cache_perf.py")
+    aisbench.setdefault("work_dir", "./outputs/default")
+    aisbench.setdefault("extra_args", [])
+    dataset_cfg = _require_dict(aisbench.setdefault("dataset", {}), "aisbench.dataset")
+    dataset_cfg.setdefault("abbr", None)
+    dataset_cfg.setdefault("input_columns", ["question", "max_out_len"])
+    dataset_cfg.setdefault("output_column", "answer")
+    dataset_cfg.setdefault("prompt_template", "{question}")
+    dataset_cfg.setdefault("pred_role", "BOT")
+    model_cfg = _require_dict(aisbench.setdefault("model", {}), "aisbench.model")
+    model_cfg.setdefault("abbr", None)
+    model_cfg.setdefault("attr", "service")
+    model_cfg.setdefault("stream", True)
+    model_cfg.setdefault("max_out_len", 1)
+    model_cfg.setdefault("retry", 2)
+    model_cfg.setdefault("batch_size", 1)
+    model_cfg.setdefault("generation_kwargs", {"temperature": 0, "ignore_eos": True})
+    for field in ("config", "work_dir"):
+        if not isinstance(aisbench[field], str) or not aisbench[field]:
+            raise ScenarioValidationError(f"aisbench.{field} must be a non-empty string")
+    if not isinstance(aisbench["extra_args"], list) or any(
+        not isinstance(value, str) for value in aisbench["extra_args"]
+    ):
+        raise ScenarioValidationError("aisbench.extra_args must be a list of strings")
+    if dataset_cfg["abbr"] is not None and (
+        not isinstance(dataset_cfg["abbr"], str) or not dataset_cfg["abbr"]
+    ):
+        raise ScenarioValidationError("aisbench.dataset.abbr must be null or a non-empty string")
+    if dataset_cfg["input_columns"] != ["question", "max_out_len"]:
+        raise ScenarioValidationError(
+            "aisbench.dataset.input_columns must equal ['question', 'max_out_len'] "
+            "to preserve prompt and per-request output-length semantics"
+        )
+    if dataset_cfg["output_column"] != "answer":
+        raise ScenarioValidationError("aisbench.dataset.output_column must be 'answer'")
+    if dataset_cfg["prompt_template"] != "{question}":
+        raise ScenarioValidationError(
+            "aisbench.dataset.prompt_template must be '{question}' to preserve theoretical token accounting"
+        )
+    if not isinstance(dataset_cfg["pred_role"], str) or not dataset_cfg["pred_role"]:
+        raise ScenarioValidationError("aisbench.dataset.pred_role must be a non-empty string")
+    if model_cfg["abbr"] is not None and (
+        not isinstance(model_cfg["abbr"], str) or not model_cfg["abbr"]
+    ):
+        raise ScenarioValidationError("aisbench.model.abbr must be null or a non-empty string")
+    if model_cfg["attr"] != "service":
+        raise ScenarioValidationError(
+            "aisbench.model.attr must be 'service': the Prefix Cache model is a "
+            "served API, and any other value makes AISBench skip perf summarization "
+            "(TTFT/TPOT/ITL) for it"
+        )
+    if not isinstance(model_cfg["stream"], bool):
+        raise ScenarioValidationError("aisbench.model.stream must be a boolean")
+    _positive(model_cfg["max_out_len"], "aisbench.model.max_out_len")
+    retry = model_cfg["retry"]
+    if isinstance(retry, bool) or not isinstance(retry, int) or retry < 0:
+        raise ScenarioValidationError("aisbench.model.retry must be a non-negative integer")
+    _positive(model_cfg["batch_size"], "aisbench.model.batch_size")
+    if not isinstance(model_cfg["generation_kwargs"], dict):
+        raise ScenarioValidationError("aisbench.model.generation_kwargs must be an object")
     # cold 多 DP 必须显式提供推理地址，否则无法路由。
     if cache_mode == "cold" and service["dp_size"] > 1 and not service["inference_url"]:
         raise ScenarioValidationError("cold multi-DP requires inference_url")

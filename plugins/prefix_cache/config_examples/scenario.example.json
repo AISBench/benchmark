@@ -3,11 +3,13 @@
   "run": {
     "run_id": "gsm8k-prefix-cache-60",
     "random_seed": 42,
-    "output_dir": "./outputs/gsm8k-prefix-cache-60"
+    "output_dir": "./outputs/gsm8k-prefix-cache-60",
+    "overwrite": false
   },
   "tokenizer": {
     "path": "/home/weights/Qwen3.6-27B",
     "block_size": 16,
+    "revision": null,
     "trust_remote_code": false
   },
   "corpus": {
@@ -20,12 +22,15 @@
     "input_length": {"mode": "fixed", "value": 1024},
     "output_length": {"mode": "fixed", "value": 32}
   },
+  "output": {
+    "output_key": null
+  },
   "prefix_cache": {
     "mode": "warmup",
     "target_hit_rate": 0.6,
     "seed_blocks": 1,
     "minimum_non_shared_length": 16,
-    "groups": {"count": 1, "assignment": {"mode": "uniform"}},
+    "groups": {"count": 1, "assignment": {"mode": "uniform"}, "overrides": {}},
     "order": {"strategy": "interleave"}
   },
   "service": {
@@ -34,7 +39,34 @@
     "reset_url": "http://127.0.0.1:8000/reset_prefix_cache",
     "model": "model-name",
     "dp_size": 2,
-    "assume_empty_cache": false
+    "assume_empty_cache": false,
+    "engine_label_map": {},
+    "timeout_seconds": 30,
+    "api_key": "",
+    "poll_interval_seconds": 5.0
   },
-  "validation": {"target_warning_pp": 1.0, "actual_warning_pp": 5.0}
+  "validation": {"target_warning_pp": 1.0, "actual_warning_pp": 5.0},
+  "aisbench": {
+    "config": "./plugins/prefix_cache/config_examples/prefix_cache_perf.py",
+    "work_dir": "./outputs/default",
+    "extra_args": ["--num-warmups","0"],
+    "dataset": {
+      "abbr": null,
+      "input_columns": ["question", "max_out_len"],
+      "output_column": "answer",
+      "prompt_template": "{question}",
+      "pred_role": "BOT"
+    },
+    "model": {
+      "abbr": null,
+      "stream": true,
+      "max_out_len": 1,
+      "retry": 2,
+      "batch_size": 1,
+      "generation_kwargs": {
+        "temperature": 0,
+        "ignore_eos": true
+      }
+    }
+  }
 }

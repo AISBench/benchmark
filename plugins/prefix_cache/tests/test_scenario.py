@@ -311,9 +311,37 @@ class LoadScenarioErrorTest(unittest.TestCase):
     def test_order_strategy_rejected(self):
         self._expect({"prefix_cache": {"order": {"strategy": "bogus"}}}, "order.strategy")
 
+    def test_output_key_rejected(self):
+        self._expect({"output": {"output_key": "bogus"}}, "output.output_key")
+
     def test_service_fields_rejected(self):
         for field in ("inference_url", "metrics_url", "model"):
             self._expect({"service": {field: ""}}, f"service.{field}")
+
+    def test_aisbench_model_fields_rejected(self):
+        invalid_cases = [
+            ({"stream": "true"}, "stream must be a boolean"),
+            ({"max_out_len": 0}, "max_out_len must be a positive integer"),
+            ({"retry": -1}, "retry must be a non-negative integer"),
+            ({"batch_size": 0}, "batch_size must be a positive integer"),
+            ({"generation_kwargs": []}, "generation_kwargs must be an object"),
+            ({"abbr": ""}, "abbr must be null or a non-empty string"),
+        ]
+        for model, message in invalid_cases:
+            with self.subTest(model=model):
+                self._expect({"aisbench": {"model": model}}, message)
+
+    def test_aisbench_dataset_contract_fields_rejected(self):
+        invalid_cases = [
+            ({"input_columns": ["question"]}, "input_columns must equal"),
+            ({"output_column": "gold"}, "output_column must be 'answer'"),
+            ({"prompt_template": "Question: {question}"}, "prompt_template must be '{question}'"),
+            ({"pred_role": ""}, "pred_role must be a non-empty string"),
+            ({"abbr": ""}, "abbr must be null or a non-empty string"),
+        ]
+        for dataset, message in invalid_cases:
+            with self.subTest(dataset=dataset):
+                self._expect({"aisbench": {"dataset": dataset}}, message)
 
     def test_unreadable_file_rejected(self):
         with self.assertRaisesRegex(ScenarioValidationError, "cannot read scenario"):
