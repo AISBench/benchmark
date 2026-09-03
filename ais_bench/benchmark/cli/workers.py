@@ -18,12 +18,12 @@ from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidExcept
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners import LocalRunner, TasksMonitor
-from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask, OpenICLInferTask
 from ais_bench.benchmark.tasks.base import EmptyTask
-from ais_bench.benchmark.summarizers import DefaultSummarizer, DefaultPerfSummarizer
+from ais_bench.benchmark.summarizers import DefaultSummarizer
 from ais_bench.benchmark.calculators import DefaultPerfMetricCalculator
 from ais_bench.benchmark.cli.utils import clear_repeat_tasks
 from ais_bench.benchmark.utils.file.file import load_jsonl, dump_jsonl
+from ais_bench.benchmark.utils.agent_params import parse_env_strings, parse_kwarg_strings
 from ais_bench.benchmark.utils.response_anomaly import (
     ANOMALY_RESULT_NAMES,
     ResponseAnomalyCoordinator,
@@ -81,6 +81,9 @@ class BaseWorker(ABC):
 class Infer(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> ConfigDict:
         def get_task_type() -> str:
+            # lazily import the task classes to avoid pulling heavy backends
+            # (and torch) at module import time
+            from ais_bench.benchmark.tasks import OpenICLApiInferTask, OpenICLInferTask
             if cfg["models"][0]["attr"] == "service":
                 return OpenICLApiInferTask
             else:
@@ -347,6 +350,9 @@ class JudgeInfer(BaseWorker):
             return cfg
 
         def get_task_type() -> str:
+            # lazily import the task classes to avoid pulling heavy backends
+            # (and torch) at module import time
+            from ais_bench.benchmark.tasks import OpenICLApiInferTask, OpenICLInferTask
             if self.judge_model_type == "service":
                 return get_config_type(OpenICLApiInferTask)
             else:
@@ -517,6 +523,7 @@ class Eval(BaseWorker):
             if new_cfg["eval"].get("runner") and new_cfg["eval"]["runner"].get("type") is None:
                 new_cfg["eval"]["runner"]["type"] = LocalRunner
         else:
+            from ais_bench.benchmark.tasks import OpenICLEvalTask
             new_cfg = dict(
                 eval=dict(
                     partitioner=dict(type=NaivePartitioner),
@@ -639,6 +646,8 @@ class AccViz(BaseWorker):
 
 class PerfViz(BaseWorker):
     def update_cfg(self, cfg: ConfigDict) -> None:
+        # lazily imported: default_perf pulls in plotly, only needed in perf
+        from ais_bench.benchmark.summarizers import DefaultPerfSummarizer
         summarizer_cfg = cfg.get("summarizer", {})
         if (
             not summarizer_cfg
@@ -769,6 +778,148 @@ def _finalize_response_anomaly_detection(
             logger.warning("  task log:          %s", info.get("task_log"))
 
 
+class AgentEval(BaseWorker):
+    """Worker for agent evaluation via Harbor (mode=agent).
+
+    Launches one harbor job per model-dataset pair through HarborRunner /
+    HarborAgentTask and relies on the config's summarizer (HarborSummarizer
+    usually) to aggregate results afterwards. CLI agent args are merged into
+    the cfg here so common parameters can be overridden from the command
+    line (CLI takes precedence over the config file).
+    """
+
+    # HarborRunner / HarborAgentTask are referenced by dotted string so they
+    # are only imported when actually used (registry builds them lazily).
+    RUNNER_TYPE = "ais_bench.benchmark.runners.harbor_runner.HarborRunner"
+    TASK_TYPE = (
+        "ais_bench.benchmark.tasks.custom_tasks.harbor_agent_task.HarborAgentTask"
+    )
+
+    def update_cfg(self, cfg: ConfigDict) -> ConfigDict:
+        self._apply_cli_args(cfg)
+
+        custom_eval = cfg.get("eval")
+        custom_task = None
+        if custom_eval:
+            custom_task = custom_eval.get("runner", {}).get("task", {}).get("type")
+            if custom_task == EmptyTask:
+                self.skip = True
+                return cfg
+
+        def update_eval_cfg(new_cfg: ConfigDict) -> None:
+            runner_cfg = new_cfg['eval']['runner']
+            runner_cfg['max_num_workers'] = self.args.max_num_workers
+            runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
+            runner_cfg['monitor_port'] = getattr(self.args, 'monitor_port', 0)
+            runner_cfg['refresh_interval'] = 0.5
+            # purge exception-finished cases before rerunning; only with --reuse
+            runner_cfg['purge_exception_cases'] = bool(
+                getattr(self.args, 'purge_exception_cases', False)
+                and getattr(self.args, 'reuse', None)
+            )
+
+        if cfg.get('eval'):
+            new_cfg = dict(eval=cfg.eval)
+            if not new_cfg["eval"].get("partitioner"):
+                new_cfg["eval"]["partitioner"] = dict(type=NaivePartitioner)
+            if new_cfg["eval"].get("runner") and new_cfg["eval"]["runner"].get("type") is None:
+                new_cfg["eval"]["runner"]["type"] = self.RUNNER_TYPE
+            if custom_task is None and new_cfg["eval"].get("runner"):
+                new_cfg["eval"]["runner"].setdefault("task", {}).setdefault(
+                    "type", self.TASK_TYPE
+                )
+        else:
+            new_cfg = dict(
+                eval=dict(
+                    partitioner=dict(type=NaivePartitioner),
+                    runner=dict(
+                        type=self.RUNNER_TYPE,
+                        task=dict(type=self.TASK_TYPE),
+                    ),
+                )
+            )
+
+        update_eval_cfg(new_cfg)
+        cfg.merge_from_dict(new_cfg)
+        cfg.eval.partitioner["out_dir"] = osp.join(cfg["work_dir"], "results/")
+        return cfg
+
+    def do_work(self, cfg: ConfigDict):
+        if self.skip:
+            logger.info("EmptyTask is selected, skip agent evaluation.")
+            return
+        partitioner = PARTITIONERS.build(cfg.eval.partitioner)
+        logger.info("Starting harbor agent evaluation tasks...")
+        tasks = partitioner(cfg)
+        tasks = clear_repeat_tasks(tasks)
+
+        runner = RUNNERS.build(cfg.eval.runner)
+        runner(tasks)
+        logger.info("Agent evaluation tasks completed.")
+
+    def _apply_cli_args(self, cfg: ConfigDict) -> None:
+        """Merge CLI agent args into cfg models / dataset args (CLI wins)."""
+        args = self.args
+        for model in cfg.get("models") or []:
+            if getattr(args, "agent", None):
+                model["agent_name"] = args.agent
+            if getattr(args, "agent_import_path", None):
+                model["agent_import_path"] = args.agent_import_path
+            if getattr(args, "agent_deps", None):
+                model["deps_path"] = args.agent_deps
+            if getattr(args, "model", None):
+                model["model_names"] = list(args.model)
+            if getattr(args, "api_base", None):
+                model["api_base"] = args.api_base
+            if getattr(args, "agent_api_key", None):
+                model["api_key"] = args.agent_api_key
+            if getattr(args, "agent_kwarg", None):
+                model["agent_kwargs"] = {
+                    **(model.get("agent_kwargs") or {}),
+                    **parse_kwarg_strings(args.agent_kwarg),
+                }
+            if getattr(args, "agent_env", None):
+                model["agent_env"] = {
+                    **(model.get("agent_env") or {}),
+                    **parse_env_strings(args.agent_env),
+                }
+
+        cli_to_dataset_args = {
+            "agent_dataset_path": "path",
+            "dataset": "dataset_name_version",
+            "n_concurrent": "n_concurrent_trials",
+            "n_attempts": "n_attempts",
+            "environment": "environment_type",
+            "timeout_multiplier": "timeout_multiplier",
+            "max_retries": "max_retries",
+            "include_task_name": "task_names",
+            "exclude_task_name": "exclude_task_names",
+            "n_tasks": "n_tasks",
+            "disable_verification": "disable_verification",
+            "quiet": "quiet",
+            "yes": "yes",
+            "env_file": "env_file",
+        }
+        for dataset in cfg.get("datasets") or []:
+            dargs = dict(dataset.get("args") or {})
+            for cli_name, arg_name in cli_to_dataset_args.items():
+                value = getattr(args, cli_name, None)
+                if value is not None:
+                    dargs[arg_name] = value
+            for cli_name, arg_name in (
+                ("force_build", "environment_force_build"),
+                ("delete", "environment_delete"),
+            ):
+                value = getattr(args, cli_name, None)
+                if value is not None:
+                    dargs[arg_name] = value
+            if getattr(args, "host_network", None):
+                env_kwargs = dict(dargs.get("environment_kwargs") or {})
+                env_kwargs["host_network"] = True
+                dargs["environment_kwargs"] = env_kwargs
+            dataset["args"] = dargs
+
+
 WORK_FLOW = dict(
     all=[Infer, JudgeInfer, Eval, AccViz],
     infer=[Infer],
@@ -778,6 +929,8 @@ WORK_FLOW = dict(
     viz=[AccViz],
     perf=[Infer, PerfViz],
     perf_viz=[PerfViz],
+    agent=[AgentEval, AccViz],
+    agent_viz=[AccViz],
 )
 
 

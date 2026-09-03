@@ -233,6 +233,12 @@ class HarborTask(BaseTask):
         pbar = tqdm(total=total_tasks, desc="Running Harbor Job", unit="task")
         completed = 0
         stop_event = threading.Event()
+        # The job dir is known from the config before the job starts. The
+        # progress monitor must use it (not self.job) because self.job is only
+        # assigned after the whole job completes, which would make the board's
+        # finish_count and live metrics stay empty during the run.
+        job_dir = Path(config.jobs_dir) / config.job_name
+        self._progress_job_dir = job_dir
 
         if self.task_state_manager:
             self.task_state_manager.update_task_state(
@@ -247,8 +253,8 @@ class HarborTask(BaseTask):
         def monitor_progress():
             nonlocal completed
             while not stop_event.is_set():
-                if self.job and self.job.job_dir:
-                    trial_count = len(list(self.job.job_dir.glob("trial_*")))
+                if job_dir.is_dir():
+                    trial_count = len(list(job_dir.glob("trial_*")))
                     if trial_count > completed:
                         pbar.update(trial_count - completed)
                         completed = trial_count
@@ -256,6 +262,7 @@ class HarborTask(BaseTask):
                             self.task_state_manager.update_task_state(
                                 {"finish_count": completed}
                             )
+                    self._refresh_progress_metrics()
                 stop_event.wait(0.5)
             pbar.close()
 
@@ -285,6 +292,11 @@ class HarborTask(BaseTask):
                 )
 
         return self.job, self.job_result
+
+    def _refresh_progress_metrics(self):
+        """Hook for subclasses to push live per-task metrics (e.g. harbor
+        result.json stats) into the task state while a job is running."""
+        return
 
     def _dump_eval_results(self, job, job_result):
         dataset_cfg = self.dataset_cfgs[0]
@@ -383,7 +395,11 @@ if __name__ == "__main__":
     try:
         inferencer = HarborTask(cfg)
         inferencer.run(task_state_manager)
-    except Exception as e:
+    except BaseException as e:
+        # BaseException (not just Exception): on Ctrl+C (KeyboardInterrupt)
+        # the task state must still be flipped to "error" so the non-daemon
+        # TaskStateManager thread exits and the process can terminate after
+        # harbor recycles its containers.
         task_state_manager.update_task_state({"status": "error"})
         raise e
 

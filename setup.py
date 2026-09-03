@@ -50,6 +50,10 @@ def parse_requirements(fname='requirements.txt', with_version=True):
         else:
             info = {'line': line}
             if line.startswith('-e '):
+                if '#egg=' not in line:
+                    # editable local/git path without an egg fragment (e.g.
+                    # "-e ../../harbor"): not a PyPI dependency, skip it.
+                    return
                 info['package'] = line.split('#egg=')[1]
             else:
                 # Remove versioning from the package
@@ -176,6 +180,8 @@ def do_setup():
             'response_anomaly':
             parse_requirements('requirements/response_anomaly.txt') +
             parse_requirements('requirements/runtime.txt'),
+            'agent':
+            parse_requirements('requirements/agent.txt'),
             'full':
             parse_requirements('requirements/extra.txt') +
             parse_requirements('requirements/api.txt') +

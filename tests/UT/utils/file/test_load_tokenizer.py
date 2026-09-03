@@ -3,15 +3,10 @@ import os
 import tempfile
 import shutil
 from unittest.mock import patch, MagicMock
-import importlib
 
 from ais_bench.benchmark.utils.file.load_tokenizer import load_tokenizer
 from ais_bench.benchmark.utils.logging.exceptions import FileOperationError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
-
-
-# Import the module object to patch module-level attributes reliably
-lt_module = importlib.import_module("ais_bench.benchmark.utils.file.load_tokenizer")
 
 
 class TestLoadTokenizer(unittest.TestCase):
@@ -36,7 +31,7 @@ class TestLoadTokenizer(unittest.TestCase):
         self.assertEqual(cm.exception.error_code_str, UTILS_CODES.TOKENIZER_PATH_NOT_FOUND.full_code)
         self.assertIn(nonexistent_path, str(cm.exception))
 
-    @patch.object(lt_module, "AutoTokenizer")
+    @patch("transformers.AutoTokenizer")
     def test_load_tokenizer_success(self, mock_auto_tokenizer):
         """Successfully loads tokenizer"""
         mock_tokenizer = MagicMock()
@@ -47,7 +42,7 @@ class TestLoadTokenizer(unittest.TestCase):
         self.assertIs(result, mock_tokenizer)
         mock_auto_tokenizer.from_pretrained.assert_called_once_with(self.tokenizer_path, trust_remote_code=False)
 
-    @patch.object(lt_module, "AutoTokenizer")
+    @patch("transformers.AutoTokenizer")
     def test_load_tokenizer_loading_fails_value_error(self, mock_auto_tokenizer):
         """Wraps ValueError from AutoTokenizer in FileOperationError"""
         error_msg = "Invalid tokenizer configuration"
@@ -62,7 +57,7 @@ class TestLoadTokenizer(unittest.TestCase):
         self.assertIn("ValueError", exc_str)
         self.assertIn(error_msg, exc_str)
 
-    @patch.object(lt_module, "AutoTokenizer")
+    @patch("transformers.AutoTokenizer")
     def test_load_tokenizer_loading_fails_runtime_error(self, mock_auto_tokenizer):
         """Wraps RuntimeError and chains as __cause__."""
         error_msg = "Corrupted tokenizer files"
@@ -73,7 +68,7 @@ class TestLoadTokenizer(unittest.TestCase):
 
         self.assertEqual(cm.exception.error_code_str, UTILS_CODES.TOKENIZER_LOAD_FAILED.full_code)
 
-    @patch.object(lt_module, "AutoTokenizer")
+    @patch("transformers.AutoTokenizer")
     def test_load_tokenizer_loading_fails_os_error(self, mock_auto_tokenizer):
         """Wraps OSError"""
         error_msg = "Permission denied"
@@ -85,7 +80,7 @@ class TestLoadTokenizer(unittest.TestCase):
         self.assertEqual(cm.exception.error_code_str, UTILS_CODES.TOKENIZER_LOAD_FAILED.full_code)
         self.assertIn("OSError", str(cm.exception))
 
-    @patch.object(lt_module, "AutoTokenizer")
+    @patch("transformers.AutoTokenizer")
     def test_load_tokenizer_loading_fails_generic_exception(self, mock_auto_tokenizer):
         """Wraps generic Exception."""
         error_msg = "Unknown error"
@@ -98,7 +93,7 @@ class TestLoadTokenizer(unittest.TestCase):
         self.assertIn("Exception", str(cm.exception))
         self.assertIn(error_msg, str(cm.exception))
 
-    @patch.object(lt_module, "AutoTokenizer")
+    @patch("transformers.AutoTokenizer")
     def test_load_tokenizer_with_absolute_path(self, mock_auto_tokenizer):
         """Accepts absolute path and forwards it to AutoTokenizer."""
         mock_tokenizer = MagicMock()
@@ -132,7 +127,7 @@ class TestLoadTokenizerEdgeCases(unittest.TestCase):
 
         self.assertEqual(cm.exception.error_code_str, UTILS_CODES.TOKENIZER_PATH_NOT_FOUND.full_code)
 
-    @patch.object(lt_module, "AutoTokenizer")
+    @patch("transformers.AutoTokenizer")
     def test_load_tokenizer_file_instead_of_directory(self, mock_auto_tokenizer):
         """If AutoTokenizer accepts a file path, we return that tokenizer."""
         # Create a file instead of a directory

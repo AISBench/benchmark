@@ -23,7 +23,11 @@ try:
         reliability_guard
     )
     TESTING_UTIL_AVAILABLE = True
-except ImportError:
+except Exception:
+    # pyext (a third-party livecodebench dependency) can be incompatible with
+    # the installed IPython (AttributeError on IPython.core.oinspect.getargspec),
+    # which surfaces as a non-ImportError failure. Treat it as unavailable so
+    # collection never crashes and the whole suite can still run/skip.
     TESTING_UTIL_AVAILABLE = False
 
 

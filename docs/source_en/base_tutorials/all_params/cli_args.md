@@ -10,12 +10,13 @@ ais_bench [OPTIONS]
 ```
 
 ### Parameter Description
-Based on the execution scenario, command line parameters are divided into three categories:
+Based on the execution scenario, command line parameters are divided into four categories:
 - Common Parameters
 - Accuracy Evaluation Parameters (effective only when `--mode` is set to `all`, `infer`, `eval`, or `viz`)
 - Performance Evaluation Parameters (effective only when `--mode` is set to `perf` or `perf_viz`)
+- Agent Evaluation Parameters (effective only when `--mode` is set to `agent` or `agent_viz`)
 
-`Accuracy Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"all", "infer", "eval", "viz"`. `Performance Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"perf", "perf_viz"`. `Common Parameters` are not restricted by the task execution mode and can be specified in all modes.
+`Accuracy Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"all", "infer", "eval", "viz"`. `Performance Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"perf", "perf_viz"`. `Agent Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"agent", "agent_viz"`. `Common Parameters` are not restricted by the task execution mode and can be specified in all modes.
 
 ### Common Parameters
 Applicable to all modes and can be used in combination with accuracy or performance parameters.
@@ -26,7 +27,7 @@ Applicable to all modes and can be used in combination with accuracy or performa
 | `--models` | Specifies the name of the model inference backend task (corresponding to a pre-implemented default model configuration file under the path `ais_bench/benchmark/configs/models`). Multiple task names are supported. For details, refer to 📚 [Supported Models](./models.md).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--models vllm_api_general`  |
 | `--datasets` | Specifies the name of the dataset task (corresponding to a pre-implemented default dataset configuration file under the path `ais_bench/benchmark/configs/datasets`). Multiple dataset names are supported. For details, refer to 📚 [Supported Dataset Types](../../get_started/datasets.md).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--datasets gsm8k_gen`    |
 | `--summarizer` | Specifies the name of the result summary task (corresponding to a pre-implemented default configuration file under the path `ais_bench/benchmark/configs/summarizers`). For details, refer to 📚 [Supported Result Summary Tasks](./summarizer.md).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--summarizer medium`|
-| `--mode` or `-m` | Running mode, optional values: `all`, `infer`, `eval`, `viz`, `perf`, `perf_viz`; default value is `all`.<br>For details, refer to 📚 [Running Mode Description](./mode.md). | `--mode infer`<br>`-m all`|
+| `--mode` or `-m` | Running mode, optional values: `all`, `infer`, `eval`, `viz`, `perf`, `perf_viz`, `agent`, `agent_viz`; default value is `all`.<br>For details, refer to 📚 [Running Mode Description](./mode.md). | `--mode infer`<br>`-m all`|
 | `--reuse` or `-r`       | Specifies the timestamp in an existing working directory to continue execution and overwrite original results. Used in conjunction with the `--mode` parameter, it can resume interrupted inference, or perform accuracy calculation/visualization result printing based on existing inference results. If no parameter is added, the latest timestamp in the `--work-dir` is automatically selected. | `--reuse 20250126_144254`<br>`-r 20250126_144254` |
 | `--work-dir` or `-w`    | Specifies the evaluation working directory for saving output results. Default path: `outputs/default`.                                                                                                       | `--work-dir /path/to/work`<br>`-w /path/to/work` |
 | `--config-dir`          | Path to the folder where configuration files for `models`, `datasets`, and `summarizers` are stored. Default path: `ais_bench/benchmark/configs`.                                                          | `--config-dir /xxx/xxx`          |
@@ -84,6 +85,38 @@ Valid only when the mode is `perf` or `perf_viz`.
 | `--pressure-time`       | Duration of pressure testing. Only takes effect when `--pressure` mode is specified. Unit: seconds; default value: 15 seconds; value range: `[1, 86400]` (i.e., 1 second to 24 hours).                     | `--pressure-time 30` |
 | `--spec-decode`         | Enable speculative decoding metrics collection from the inference server's Prometheus `/metrics` endpoint. Only effective in `--mode perf`. For detailed usage, see 📚 [Speculative Decoding Metrics Collection](../../advanced_tutorials/spec_decode.md). | `--spec-decode` |
 
+### Agent Evaluation Parameters
+Effective only when `--mode` is `agent` or `agent_viz`. AISBench runs agent evaluation through [Harbor](https://github.com/harbor-framework/harbor); unified semantic parameters (model service base url / API key / LLM call parameters, etc.) are translated automatically by `AgentParamAdapter` into each agent's private kwargs / environment variables. For detailed usage, see 📚 [Agent Evaluation](../base_tutorials/scenes_intro/agent_benchmark.md).
+
+| Parameter | Description | Example |
+| ---- | ---- | ---- |
+| `-a` / `--agent` | Agent name (a Harbor `AgentName`, e.g. `terminus-2`, `claude-code`) or a custom agent import path `module.path:ClassName` | `-a terminus-2` |
+| `--agent-import-path` | Import path of a custom agent (`module.path:ClassName`) | `--agent-import-path my.pkg:MyAgent` |
+| `--model` | Model name used by the agent (repeatable, corresponding to config `model_names`) | `--model hosted_vllm/qwen3` |
+| `--api-base` | Model service base url (unified semantic, translated by the agent adapter) | `--api-base http://0.0.0.0:8080/v1` |
+| `--agent-api-key` | Model service API key (unified semantic, translated by the agent adapter) | `--agent-api-key sk-xxx` |
+| `--ak` / `--agent-kwarg` | Additional agent kwargs in `key=value` format (repeatable) | `--ak max_tokens=4096` |
+| `--ae` / `--agent-env` | Environment variables passed to the agent in `KEY=VALUE` format (repeatable) | `--ae OPENAI_API_KEY=sk-xxx` |
+| `--agent-deps` | Path to an offline agent deps bundle (`<agent>.tar.gz`, or a directory auto-matched by base image) | `--agent-deps /path/to/agent.tar.gz` |
+| `-p` / `--agent-dataset-path` | Local dataset path (also supports a single task directory) | `-p /path/to/terminal-bench-2` |
+| `-d` / `--dataset` | Remote dataset `name@version` (registry or package `org/name@ref`) | `-d my_dataset@v1` |
+| `-n` / `--n-concurrent` | Number of concurrent trials | `-n 5` |
+| `-k` / `--n-attempts` | Number of attempts per trial | `-k 1` |
+| `-e` / `--environment` | Harbor environment type (`docker`, `daytona`, `e2b`, `modal`, etc.) | `-e docker` |
+| `--timeout-multiplier` | Task timeout multiplier | `--timeout-multiplier 1.0` |
+| `--max-retries` | Maximum number of retry attempts | `--max-retries 0` |
+| `--include-task-name` | Task names to include (supports glob, repeatable) | `--include-task-name '*astropy*'` |
+| `--exclude-task-name` | Task names to exclude (supports glob, repeatable) | `--exclude-task-name '*failed*'` |
+| `--n-tasks` | Maximum number of tasks to take from the dataset | `--n-tasks 10` |
+| `--disable-verification` | Disable the verifier | `--disable-verification` |
+| `--force-build` / `--no-force-build` | Whether to force rebuild the environment | `--no-force-build` |
+| `--host-network` | Run all task containers sharing the host network (docker-compose network_mode: host) | `--host-network` |
+| `--delete` / `--no-delete` | Whether to delete the environment after completion | `--no-delete` |
+| `--purge-exception-cases` | Delete all case directories that ended with an exception before execution to auto-retry them; **effective only when `--reuse` is set** | `--reuse <ts> --purge-exception-cases` |
+| `-q` / `--quiet` | Suppress per-trial progress output | `--quiet` |
+| `-y` / `--yes` | Automatically confirm environment variable prompts | `--yes` |
+| `--env-file` | Path to a `.env` file | `--env-file /path/to/.env` |
+| `--monitor-port` | Harbor monitoring HTTP service port (`0` = off, default `0`) | `--monitor-port 8788` |
 
 ## Configuration Constant File Parameters
 Some global constants are not restricted by task type, and it is recommended to keep their default values. If customization is required, edit the constant file: [`global_consts.py`](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/global_consts.py) for configuration.

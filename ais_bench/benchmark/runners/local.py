@@ -5,7 +5,6 @@ import subprocess
 import multiprocessing
 import sys
 import time
-import torch
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from threading import Lock
@@ -89,6 +88,10 @@ class LocalRunner(BaseRunner):
         )
         self.logger.debug(f"Task monitor process started (PID: {monitor_p.pid})")
 
+        # torch is imported lazily here so the module stays importable in
+        # dependency-isolated (non-torch) environments.
+        from mmengine.device import is_npu_available
+        import torch
         if is_npu_available():
             visible_devices = 'ASCEND_RT_VISIBLE_DEVICES'
             device_nums = torch.npu.device_count()

@@ -19,6 +19,7 @@ class ArgumentParser():
         self._perf_parser()
         self._accuracy_parser()
         self._custom_dataset_parser()
+        self._agent_parser()
         self._api_model_parser()
 
     def parse_args(self):
@@ -63,7 +64,8 @@ class ArgumentParser():
             help='Running mode. Choose "perf" for performance evaluation, "infer" to run inference only, '
             '"eval" to evaluate existing inference results, or "viz" to visualize the results. '
             'The default mode is "all", which runs all steps.',
-            choices=['all', 'infer', 'eval', 'viz', 'perf', 'perf_viz', 'judge', 'infer_judge'],
+            choices=['all', 'infer', 'eval', 'viz', 'perf', 'perf_viz', 'judge', 'infer_judge',
+                     'agent', 'agent_viz'],
             default='all',
             type=str
         )
@@ -196,6 +198,195 @@ class ArgumentParser():
                             type=str,
                             choices=['gen'])
 
+    def _agent_parser(self):
+        """These args are all for the harbor agent evaluation (mode=agent)."""
+        parser = self.parser.add_argument_group('agent_args')
+        parser.add_argument(
+            '-a',
+            '--agent',
+            help='Agent name (see harbor AgentName) or a custom agent import '
+            'path (module.path:ClassName)',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--agent-import-path',
+            help='Import path of a custom agent (module.path:ClassName)',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--model',
+            help='Model name for the agent (can be used multiple times)',
+            nargs='+',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--api-base',
+            help='Model service base url (unified semantic parameter)',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--agent-api-key',
+            help='API key for the model service (agent semantic parameter)',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--ak',
+            '--agent-kwarg',
+            dest='agent_kwarg',
+            help="Additional agent kwarg in 'key=value' format "
+            "(can be used multiple times)",
+            nargs='+',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--ae',
+            '--agent-env',
+            dest='agent_env',
+            help="Environment variable for the agent in 'KEY=VALUE' format "
+            "(can be used multiple times)",
+            nargs='+',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--agent-deps',
+            help='Path to an offline agent deps bundle (<agent>.tar.gz), or a '
+            'directory of per-base-image bundles auto-matched at runtime',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '-p',
+            '--agent-dataset-path',
+            help='Local dataset path (or a single task directory)',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '-d',
+            '--dataset',
+            help='Remote dataset name@version (registry or package)',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '-n',
+            '--n-concurrent',
+            help='Number of concurrent trials to run',
+            type=int,
+            default=None,
+        )
+        parser.add_argument(
+            '-k',
+            '--n-attempts',
+            help='Number of attempts per trial',
+            type=int,
+            default=None,
+        )
+        parser.add_argument(
+            '-e',
+            '--environment',
+            help='Harbor environment type (docker, daytona, e2b, modal, ...)',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--timeout-multiplier',
+            help='Multiplier for task timeouts',
+            type=float,
+            default=None,
+        )
+        parser.add_argument(
+            '--max-retries',
+            help='Maximum number of retry attempts',
+            type=int,
+            default=None,
+        )
+        parser.add_argument(
+            '--include-task-name',
+            help='Task name to include (supports glob, can be used multiple times)',
+            nargs='+',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--exclude-task-name',
+            help='Task name to exclude (supports glob, can be used multiple times)',
+            nargs='+',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--n-tasks',
+            help='Maximum number of tasks to include from the dataset',
+            type=int,
+            default=None,
+        )
+        parser.add_argument(
+            '--disable-verification',
+            help='Disable the verifier',
+            action='store_true',
+            default=None,
+        )
+        parser.add_argument(
+            '--force-build/--no-force-build',
+            help='Whether to force rebuild the environment',
+            action=argparse.BooleanOptionalAction,
+            default=None,
+        )
+        parser.add_argument(
+            '--host-network',
+            help='Run all task containers sharing the host network '
+            '(docker-compose network_mode: host)',
+            action='store_true',
+            default=None,
+        )
+        parser.add_argument(
+            '--delete/--no-delete',
+            help='Whether to delete the environment after completion',
+            action=argparse.BooleanOptionalAction,
+            default=None,
+        )
+        parser.add_argument(
+            '--purge-exception-cases',
+            help='Before execution, delete all case dirs that ended with an '
+            'exception (from each job result.json exception_stats), to '
+            'automatically retry them. Only effective when --reuse is set.',
+            action='store_true',
+            default=False,
+        )
+        parser.add_argument(
+            '-q',
+            '--quiet',
+            help='Suppress individual trial progress displays',
+            action='store_true',
+            default=None,
+        )
+        parser.add_argument(
+            '-y',
+            '--yes',
+            help='Automatically confirm environment variable prompts',
+            action='store_true',
+            default=None,
+        )
+        parser.add_argument(
+            '--env-file',
+            help='Path to a .env file',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            '--monitor-port',
+            help='Port of the harbor monitor HTTP service (0 = disabled, default 0)',
+            type=int,
+            default=0,
+        )
     def _api_model_parser(self):
         """API 模型通用参数，覆盖执行的所有模型配置（mindie_api/tgi_api/triton_api/vllm_api）。
 
