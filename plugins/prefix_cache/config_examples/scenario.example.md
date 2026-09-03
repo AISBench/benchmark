@@ -1,5 +1,7 @@
 # Scenario 配置参数说明
 
+简体中文 | [English](scenario.example_en.md)
+
 本文逐字段解释 [scenario.example.json](scenario.example.json)，并补充示例中没有展开的可选参数和模式。
 
 ## 1. 基本规则

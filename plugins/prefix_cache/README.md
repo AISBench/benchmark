@@ -1,5 +1,7 @@
 # AISBench Prefix Cache 数据生成与压测插件
 
+简体中文 | [English](README_en.md)
+
 这是一个独立的 AISBench 插件，用于构造具有可控公共前缀的数据集，并比较 vLLM Prefix Cache 的理论与实际命中率。它同时提供离线的 `inspect` / `prepare` / `validate`，在线的 `run`，以及使用已保存 Prometheus 快照复算的 `analyze`。
 
 插件只增加 `plugins/prefix_cache` 下的新代码，不修改 AISBench 核心逻辑。

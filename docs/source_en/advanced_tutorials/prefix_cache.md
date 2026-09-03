@@ -214,7 +214,7 @@ The plugin solves for the shared-prefix length of every request from the target 
 
 ## Core Scenario Configuration
 
-See the [complete Scenario field reference](../../../plugins/prefix_cache/config_examples/scenario.example.md).
+See the [complete Scenario field reference](../../../plugins/prefix_cache/config_examples/scenario.example_en.md).
 
 ### Complete Field Index
 
@@ -570,7 +570,7 @@ A prepared Manifest uses all fields above except `inspect`. An inspect-only Mani
 | `log` | Path to the inspect log file. |
 | `manifest` | Path to the inspect-only Manifest. |
 
-See the [Prefix Cache plugin README](../../../plugins/prefix_cache/README.md) and [complete Scenario reference](../../../plugins/prefix_cache/config_examples/scenario.example.md) for field types and nested semantics.
+See the [Prefix Cache plugin README](../../../plugins/prefix_cache/README_en.md) and [complete Scenario reference](../../../plugins/prefix_cache/config_examples/scenario.example_en.md) for field types and nested semantics.
 
 ---
 
@@ -616,4 +616,4 @@ The plugin requires canonical prefixes, seeds, and final prompts to survive toke
 - Does not support multiple independent inference-server instances.
 - `run` warms every Prefix Group on every DP rank, executes AISBench, and collects Prometheus metrics. Warmup completes before the formal baseline and is excluded from formal statistics.
 - `analyze` recomputes results offline from saved baseline/after `.prom` files.
-- The complete configuration and JSON contracts are defined by the [Prefix Cache plugin README](../../../plugins/prefix_cache/README.md) and [complete Scenario reference](../../../plugins/prefix_cache/config_examples/scenario.example.md).
+- The complete configuration and JSON contracts are defined by the [Prefix Cache plugin README](../../../plugins/prefix_cache/README_en.md) and [complete Scenario reference](../../../plugins/prefix_cache/config_examples/scenario.example_en.md).
