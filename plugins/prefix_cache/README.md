@@ -7,7 +7,6 @@
 插件只增加 `plugins/prefix_cache` 下的新代码，不修改 AISBench 核心逻辑。
 
 Scenario 示例见 [config_examples/scenario.example.json](config_examples/scenario.example.json)，完整字段说明见 [config_examples/scenario.example.md](config_examples/scenario.example.md)。
-实现架构和模块职责见 [ARCHITECTURE.md](ARCHITECTURE.md)、[MODULES.md](MODULES.md) 与 [架构可视化](../../prefix_cache_architecture.html)。
 
 ## 1. 安装前准备
 

@@ -6,7 +6,7 @@ This standalone AISBench plugin builds datasets with controllable shared prefixe
 
 The plugin adds code only under `plugins/prefix_cache`; AISBench core logic is unchanged.
 
-See the [Scenario example](config_examples/scenario.example.json), [complete field reference](config_examples/scenario.example.md), [architecture](ARCHITECTURE.md), [module responsibilities](MODULES.md), and [architecture visualization](../../prefix_cache_architecture.html).
+See the [Scenario example](config_examples/scenario.example.json), [complete field reference](config_examples/scenario.example_en.md).
 
 ## 1. Prerequisites
 
@@ -89,7 +89,7 @@ Creates an editable Scenario. Check at least:
 
 `inspect`, `prepare`, and `validate` do not contact the service. `run` uses the `service` section for probing, reset, per-DP warmup, the formal load test, and metric collection. One HTTP endpoint may front a single-DP or multi-DP service; orchestration of multiple independent vLLM instances is not supported.
 
-Defaults, constraints, and modes are documented in the [Scenario field reference](config_examples/scenario.example.md). Omitting a field uses the current value from `scenario.example.json`, including the default run/tokenizer/GSM8K path, 100 fixed 1024-token requests, `output.output_key=null` (no output-length field in `requests.jsonl`), a 60% warmup target, one uniform Prefix Group, and DP size 2. `minimum_non_shared_length` is a safety exception: it is derived dynamically from `seed_blocks × block_size`; it remains 16 with the example values.
+Defaults, constraints, and modes are documented in the [Scenario field reference](config_examples/scenario.example_en.md). Omitting a field uses the current value from `scenario.example.json`, including the default run/tokenizer/GSM8K path, 100 fixed 1024-token requests, `output.output_key=null` (no output-length field in `requests.jsonl`), a 60% warmup target, one uniform Prefix Group, and DP size 2. `minimum_non_shared_length` is a safety exception: it is derived dynamically from `seed_blocks × block_size`; it remains 16 with the example values.
 
 ### 3.2 Prefix Cache data-construction parameters
 
@@ -114,7 +114,7 @@ The Scenario uses a strict allowlist; unknown fields are rejected. The complete 
   - `dataset`: `abbr`, `input_columns`, `output_column`, `prompt_template`, and `pred_role`. To keep theoretical and actual prompts token-identical, retain the example values for the first three contract fields; `abbr` and `pred_role` may be changed.
   - `model`: `abbr`, `attr`, `stream`, `max_out_len`, `retry`, `batch_size`, and `generation_kwargs`. Older Scenarios receive the example defaults automatically. `attr` currently must be `"service"` to enable AISBench service performance collection, including TTFT.
 
-See the [Scenario complete field reference](config_examples/scenario.example.md) for each field.
+See the [Scenario complete field reference](config_examples/scenario.example_en.md) for each field.
 
 #### `requests.jsonl` output fields
 
