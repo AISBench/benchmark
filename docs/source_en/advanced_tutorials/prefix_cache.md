@@ -218,27 +218,101 @@ See the [complete Scenario field reference](../../../plugins/prefix_cache/config
 
 ### Complete Field Index
 
-| Configuration path | Allowed fields |
+| Configuration path | Brief description |
 |---|---|
-| Top level | `schema_version`, `run`, `tokenizer`, `corpus`, `requests`, `output`, `prefix_cache`, `service`, `validation`, `aisbench` |
-| `run` | `run_id`, `random_seed`, `output_dir`, `overwrite` |
-| `tokenizer` | `path`, `block_size`, `revision`, `trust_remote_code` |
-| `corpus` | `path`, `field`, `selection` |
-| `corpus.selection` | `mode`, `values`, `indices`, `question_sha256` |
-| `requests` | `count`, `input_length`, `output_length` |
-| `requests.input_length` | `mode`, `value`, `values`, `ranges`, `min`, `max`, `mean`, `std`, `path`; each range item only permits `min`, `max`, and `count` |
-| `requests.output_length` | `mode`, `value`, `min`, `max`, `mean`, `std`, `path` |
-| `output` | `output_key` |
-| `prefix_cache` | `mode`, `target_hit_rate`, `seed_blocks`, `minimum_non_shared_length`, `groups`, `order` |
-| `prefix_cache.groups` | `count`, `assignment`, `overrides` |
-| `prefix_cache.groups.assignment` | `mode`, `exponent`, `weights` |
-| `groups.overrides.group-N` | `input_length`, `output_length`, `corpus_selection` |
-| `prefix_cache.order` | `strategy` |
-| `service` | `inference_url`, `metrics_url`, `reset_url`, `model`, `dp_size`, `assume_empty_cache`, `engine_label_map`, `timeout_seconds`, `api_key`, `poll_interval_seconds` |
-| `validation` | `target_warning_pp`, `actual_warning_pp` |
-| `aisbench` | `config`, `work_dir`, `extra_args`, `dataset`, `model`; consumed by `run`, not by offline commands |
-| `aisbench.dataset` | `abbr`, `input_columns`, `output_column`, `prompt_template`, `pred_role` |
-| `aisbench.model` | `abbr`, `attr`, `stream`, `max_out_len`, `retry`, `batch_size`, `generation_kwargs` |
+| `schema_version` | Scenario configuration format version. |
+| `run` | Task identity, randomness, and output controls. |
+| `run.run_id` | Task name; a timestamp is appended at execution. |
+| `run.random_seed` | Global seed for generation and random selection. |
+| `run.output_dir` | Base directory for Prefix Cache artifacts. |
+| `run.overwrite` | Whether existing formal artifacts may be overwritten. |
+| `tokenizer` | Tokenizer loading and Block configuration. |
+| `tokenizer.path` | Tokenizer model or directory path. |
+| `tokenizer.block_size` | Prefix Cache Block size in tokens. |
+| `tokenizer.revision` | Tokenizer repository revision; `null` uses the default. |
+| `tokenizer.trust_remote_code` | Whether to trust custom Tokenizer code. |
+| `corpus` | Natural-suffix corpus configuration. |
+| `corpus.path` | Path to the GSM8K JSONL file. |
+| `corpus.field` | JSONL field containing question text. |
+| `corpus.selection` | GSM8K sample-selection rule. |
+| `corpus.selection.mode` | Selection mode: random, index, hash, or mixed. |
+| `corpus.selection.values` | Index or hash list for a non-mixed mode. |
+| `corpus.selection.indices` | Zero-based index list for mixed mode. |
+| `corpus.selection.question_sha256` | Question SHA-256 list for mixed mode. |
+| `requests` | Formal request count and length distributions. |
+| `requests.count` | Total number of formal requests. |
+| `requests.input_length` | Input-token length generation rule. |
+| `requests.input_length.mode` | Input-length mode. |
+| `requests.input_length.value` | Fixed length used by fixed mode. |
+| `requests.input_length.values` | Length list used by explicit mode. |
+| `requests.input_length.ranges` | Range list used by range mode. |
+| `requests.input_length.ranges[].min` | Lower bound of one sampling range. |
+| `requests.input_length.ranges[].max` | Upper bound of one sampling range. |
+| `requests.input_length.ranges[].count` | Number of requests generated from one range. |
+| `requests.input_length.min` | Lower bound of the truncated normal distribution. |
+| `requests.input_length.max` | Upper bound of the truncated normal distribution. |
+| `requests.input_length.mean` | Mean of the truncated normal distribution. |
+| `requests.input_length.std` | Standard deviation of the truncated normal distribution. |
+| `requests.input_length.path` | Length-file path used by csv mode. |
+| `requests.output_length` | Maximum output-token length generation rule. |
+| `requests.output_length.mode` | Output-length mode. |
+| `requests.output_length.value` | Fixed length used by fixed mode. |
+| `requests.output_length.min` | Lower bound for uniform/truncated-normal mode. |
+| `requests.output_length.max` | Upper bound for uniform/truncated-normal mode. |
+| `requests.output_length.mean` | Mean of the truncated normal distribution. |
+| `requests.output_length.std` | Standard deviation of the truncated normal distribution. |
+| `requests.output_length.path` | Length-file path used by csv mode. |
+| `output` | Field controls for the compact request file. |
+| `output.output_key` | Optional output-length key; `null` omits it. |
+| `prefix_cache` | Prefix Cache data and runtime strategy. |
+| `prefix_cache.mode` | Cache mode: `cold` or `warmup`. |
+| `prefix_cache.target_hit_rate` | Requested global Prefix Cache hit rate. |
+| `prefix_cache.seed_blocks` | Number of Blocks used by each unique seed. |
+| `prefix_cache.minimum_non_shared_length` | Minimum non-shared tokens retained per request. |
+| `prefix_cache.groups` | Prefix Group count, assignment, and overrides. |
+| `prefix_cache.groups.count` | Total number of Prefix Groups. |
+| `prefix_cache.groups.assignment` | Rule assigning requests to Groups. |
+| `prefix_cache.groups.assignment.mode` | Group-assignment mode. |
+| `prefix_cache.groups.assignment.exponent` | Hotspot exponent for Zipf assignment. |
+| `prefix_cache.groups.assignment.weights` | Relative Group weights for weights mode. |
+| `prefix_cache.groups.overrides` | Optional per-Group overrides. |
+| `prefix_cache.groups.overrides.group-N.input_length` | Input-length rule for one Group. |
+| `prefix_cache.groups.overrides.group-N.output_length` | Output-length rule for one Group. |
+| `prefix_cache.groups.overrides.group-N.corpus_selection` | Corpus-selection rule for one Group. |
+| `prefix_cache.order` | Formal request ordering rule. |
+| `prefix_cache.order.strategy` | Sequential, interleaved, shuffled, or length-ascending order. |
+| `service` | Online inference service and metric collection. |
+| `service.inference_url` | vLLM inference endpoint. |
+| `service.metrics_url` | Prometheus metrics endpoint. |
+| `service.reset_url` | Prefix Cache reset endpoint. |
+| `service.model` | Service model name sent in the request body. |
+| `service.dp_size` | Number of DP ranks inside one instance. |
+| `service.assume_empty_cache` | Assume an empty cache when reset is unavailable. |
+| `service.engine_label_map` | Mapping from Prometheus engine label to DP rank. |
+| `service.timeout_seconds` | Timeout for probes, warmup, and metrics requests. |
+| `service.api_key` | Service credential; never persisted in plaintext. |
+| `service.poll_interval_seconds` | KV metric sampling interval during the formal run. |
+| `validation` | Result-deviation warning thresholds. |
+| `validation.target_warning_pp` | Warning threshold for theory-versus-target deviation. |
+| `validation.actual_warning_pp` | Warning threshold for actual-versus-theory deviation. |
+| `aisbench` | AISBench formal benchmark launch configuration. |
+| `aisbench.config` | Path to the AISBench Python configuration template. |
+| `aisbench.work_dir` | Base directory for AISBench results. |
+| `aisbench.extra_args` | Arguments appended to the AISBench command. |
+| `aisbench.dataset` | Dataset reader and Prompt mapping configuration. |
+| `aisbench.dataset.abbr` | Dataset display name; `null` generates one. |
+| `aisbench.dataset.input_columns` | Input columns used by the Dataset reader. |
+| `aisbench.dataset.output_column` | Reference-answer column used by the reader. |
+| `aisbench.dataset.prompt_template` | Prompt template for formal requests. |
+| `aisbench.dataset.pred_role` | Role name assigned to predictions. |
+| `aisbench.model` | AISBench API Model configuration. |
+| `aisbench.model.abbr` | Model display name; `null` generates one. |
+| `aisbench.model.attr` | Model attribute; currently must be `service`. |
+| `aisbench.model.stream` | Whether to use SSE streaming responses. |
+| `aisbench.model.max_out_len` | Model-level fallback maximum output length. |
+| `aisbench.model.retry` | Number of retries after API failures. |
+| `aisbench.model.batch_size` | Base AISBench API concurrency. |
+| `aisbench.model.generation_kwargs` | Generation arguments forwarded to vLLM. |
 
 Unknown Scenario fields are rejected. Offline calculations use `service.dp_size`; `run` consumes the service URLs, model, reset/empty-cache policy, metric mapping, timeout, API key, and the complete `aisbench` section.
 
@@ -382,13 +456,119 @@ No standalone `<output_dir>.inspect.json` is created. `inspect` stores its summa
 
 The plaintext `service.api_key` is not stored in the Manifest; only `api_key_configured` is recorded.
 
-Fixed field index:
+The fixed field index is listed below. Fields marked as optional or phase-specific appear only under the corresponding configuration or execution phase.
 
-- `requests.jsonl`: always `question` and `answer`; `output.output_key` defaults to `null` and may append `max_tokens` or `output_tokens`;
-- `full.jsonl`: `request_id`, `sequence_index`, `group_id`, `occurrence_index_within_group`, `dp_rank`, `lane_sequence`, `target_input_tokens`, `actual_input_tokens`, `max_tokens`, `shared_prefix_tokens`, `seed_tokens`, `natural_suffix_tokens`, `question`, `answer`, `gsm_indices`, `gsm_hashes`, `canonical_prefix_sha256`, `seed_sha256`, `request_random_seed`, `watermark_before`, `theoretical_hit_tokens`, `watermark_after`, `theoretical_hit_rate`, `divergence_block_sha256`, `divergence_unique`, `collision_status`;
-- prepared Manifest top level: `schema_version`, `plugin_version`, `status`, `run_id`, `scenario_path`, `scenario_sha256`, `effective_config`, `effective_config_sha256`, `corpus_sha256`, `tokenizer`, `requests`, `prefix_cache`, `groups`, `dp`, `warmup`, `divergence`, `artifacts`; an inspect-only Manifest uses `status="inspected"` and stores the preview under `inspect.summary`;
-- `analysis.json`: prepare writes schema/run/status, requested/effective/theoretical values, target differences, `validation`, `theory`, and `warnings`; run/analyze add `runtime`, `actual`, and `theory_actual_*_difference_pp`;
-- `inspect` stdout: `run_id`, `mode`, `requested_target_hit_rate`, `effective_target_hit_rate`, `theoretical_hit_rate`, `reachable_min`, `reachable_max`, `target_reachable`, `group_reachability`, `groups`, `input_tokens`, `output_tokens`, `dp_route_counts`, `sends_requests`, `log`, `manifest`.
+### `requests.jsonl` Fields
+
+| Field | Brief description |
+|---|---|
+| `question` | Complete Prompt sent to the model. |
+| `answer` | Reference answer used by AISBench. |
+| `max_tokens` | Optional maximum output-token count. |
+| `output_tokens` | Optional alias for `max_tokens`. |
+
+`output.output_key` may append either `max_tokens` or `output_tokens`; neither is present by default.
+
+### `full.jsonl` Fields
+
+| Field | Brief description |
+|---|---|
+| `request_id` | Globally unique request identifier. |
+| `sequence_index` | Global index in final send order. |
+| `group_id` | Prefix Group containing the request. |
+| `occurrence_index_within_group` | Occurrence index inside the Group. |
+| `dp_rank` | Target DP rank in cold mode. |
+| `lane_sequence` | Sequence number within a `(group_id, dp_rank)` lane. |
+| `target_input_tokens` | Configured target input-token count. |
+| `actual_input_tokens` | Actual input tokens verified by the Tokenizer. |
+| `max_tokens` | Maximum tokens allowed for this response. |
+| `shared_prefix_tokens` | Number of reusable shared-prefix tokens. |
+| `seed_tokens` | Number of globally unique seed tokens. |
+| `natural_suffix_tokens` | Number of natural-suffix tokens. |
+| `question` | Complete Prompt composed of prefix, seed, and suffix. |
+| `answer` | AISBench reference answer. |
+| `gsm_indices` | Zero-based GSM8K rows used by the natural suffix. |
+| `gsm_hashes` | SHA-256 values of the suffix source questions. |
+| `canonical_prefix_sha256` | Digest of the Group canonical prefix. |
+| `seed_sha256` | Digest of this request's unique seed. |
+| `request_random_seed` | Random seed derived for this request. |
+| `watermark_before` | Simulated cache-lane watermark before the request. |
+| `theoretical_hit_tokens` | Tokens theoretically hit by this request. |
+| `watermark_after` | Simulated cache-lane watermark after the request. |
+| `theoretical_hit_rate` | Theoretical hit rate of this request. |
+| `divergence_block_sha256` | Digest used to validate the divergence Block. |
+| `divergence_unique` | Whether the divergence Block is globally unique. |
+| `collision_status` | Prefix or seed collision-check result. |
+
+### `manifest.json` Top-Level Fields
+
+| Field | Brief description |
+|---|---|
+| `schema_version` | Manifest data-structure version. |
+| `plugin_version` | Plugin version that produced the artifacts. |
+| `status` | `inspected` or `prepared` state. |
+| `run_id` | Timestamped task identifier. |
+| `scenario_path` | Path to the original Scenario file. |
+| `scenario_sha256` | Digest of the original Scenario file. |
+| `effective_config` | Effective configuration after defaults are applied. |
+| `effective_config_sha256` | Digest of the effective configuration. |
+| `corpus_sha256` | Digest of the GSM8K corpus file. |
+| `tokenizer` | Tokenizer identity and Block information. |
+| `requests` | Request count, token total, and length summaries. |
+| `prefix_cache` | Mode, hit rates, and reachability results. |
+| `groups` | Independent statistics for each Prefix Group. |
+| `dp` | DP count and cold-routing strategy. |
+| `warmup` | Group × DP warmup plan. |
+| `divergence` | Seed/divergence-block uniqueness summary. |
+| `artifacts` | Paths, sizes, and digests of generated artifacts. |
+| `inspect` | Preview information in an inspect-only Manifest. |
+
+A prepared Manifest uses all fields above except `inspect`. An inspect-only Manifest has `status="inspected"` and stores its preview under `inspect.summary`.
+
+### `analysis.json` Top-Level Fields
+
+| Field | Brief description |
+|---|---|
+| `schema_version` | Analysis data-structure version. |
+| `run_id` | Corresponding timestamped task identifier. |
+| `status` | `prepared` or `complete` state. |
+| `requested_target_hit_rate` | Hit-rate target requested by the Scenario. |
+| `effective_target_hit_rate` | Nearest reachable target chosen by the solver. |
+| `theoretical_hit_rate` | Rate simulated in final request order. |
+| `target_difference_pp` | Absolute percentage-point gap between theory and target. |
+| `target_signed_difference_pp` | Signed theory-minus-target gap in percentage points. |
+| `target_absolute_difference_pp` | Absolute theory-versus-target gap in percentage points. |
+| `validation` | Reachability, status, and warning policy. |
+| `theory` | Theoretical token, Group, and DP statistics. |
+| `warnings` | Warnings produced by this run. |
+| `runtime` | Run phases, warmup, and metric snapshots. |
+| `actual` | Actual hit statistics computed from metric deltas. |
+| `theory_actual_difference_pp` | Absolute actual-versus-theory gap in percentage points. |
+| `theory_actual_signed_difference_pp` | Signed actual-minus-theory gap in percentage points. |
+| `theory_actual_absolute_difference_pp` | Absolute actual-versus-theory gap in percentage points. |
+
+`runtime`, `actual`, and the three `theory_actual_*` fields are appended by the run/analyze phase.
+
+### `inspect` stdout Fields
+
+| Field | Brief description |
+|---|---|
+| `run_id` | Scenario task name before timestamping. |
+| `mode` | `cold` or `warmup` mode. |
+| `requested_target_hit_rate` | Hit rate requested by the user. |
+| `effective_target_hit_rate` | Nearest reachable target hit rate. |
+| `theoretical_hit_rate` | Predicted theoretical hit rate. |
+| `reachable_min` | Minimum globally reachable hit rate. |
+| `reachable_max` | Maximum globally reachable hit rate. |
+| `target_reachable` | Whether the target is inside the reachable range. |
+| `group_reachability` | Reachable range of every Group. |
+| `groups` | Request count for every Group. |
+| `input_tokens` | Input-length statistics and total token count. |
+| `output_tokens` | Output-length statistics and total token count. |
+| `dp_route_counts` | Formal request count for every DP rank. |
+| `sends_requests` | Whether online requests are sent; always false for inspect. |
+| `log` | Path to the inspect log file. |
+| `manifest` | Path to the inspect-only Manifest. |
 
 See the [Prefix Cache plugin README](../../../plugins/prefix_cache/README.md) and [complete Scenario reference](../../../plugins/prefix_cache/config_examples/scenario.example.md) for field types and nested semantics.
 

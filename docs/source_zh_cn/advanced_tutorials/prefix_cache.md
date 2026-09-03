@@ -218,27 +218,101 @@ flowchart LR
 
 ### 完整字段索引
 
-| 配置路径 | 允许字段 |
+| 配置路径 | 简短说明 |
 |---|---|
-| 顶层 | `schema_version`、`run`、`tokenizer`、`corpus`、`requests`、`output`、`prefix_cache`、`service`、`validation`、`aisbench` |
-| `run` | `run_id`、`random_seed`、`output_dir`、`overwrite` |
-| `tokenizer` | `path`、`block_size`、`revision`、`trust_remote_code` |
-| `corpus` | `path`、`field`、`selection` |
-| `corpus.selection` | `mode`、`values`、`indices`、`question_sha256` |
-| `requests` | `count`、`input_length`、`output_length` |
-| `requests.input_length` | `mode`、`value`、`values`、`ranges`、`min`、`max`、`mean`、`std`、`path`；range 项只允许 `min`、`max`、`count` |
-| `requests.output_length` | `mode`、`value`、`min`、`max`、`mean`、`std`、`path` |
-| `output` | `output_key` |
-| `prefix_cache` | `mode`、`target_hit_rate`、`seed_blocks`、`minimum_non_shared_length`、`groups`、`order` |
-| `prefix_cache.groups` | `count`、`assignment`、`overrides` |
-| `prefix_cache.groups.assignment` | `mode`、`exponent`、`weights` |
-| `groups.overrides.group-N` | `input_length`、`output_length`、`corpus_selection` |
-| `prefix_cache.order` | `strategy` |
-| `service` | `inference_url`、`metrics_url`、`reset_url`、`model`、`dp_size`、`assume_empty_cache`、`engine_label_map`、`timeout_seconds`、`api_key`、`poll_interval_seconds` |
-| `validation` | `target_warning_pp`、`actual_warning_pp` |
-| `aisbench` | `config`、`work_dir`、`extra_args`、`dataset`、`model`；`run` 消费，离线命令不消费 |
-| `aisbench.dataset` | `abbr`、`input_columns`、`output_column`、`prompt_template`、`pred_role` |
-| `aisbench.model` | `abbr`、`attr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs` |
+| `schema_version` | Scenario 配置格式版本。 |
+| `run` | 任务标识、随机性和输出控制。 |
+| `run.run_id` | 任务名称；执行时会追加时间戳。 |
+| `run.random_seed` | 数据生成和随机选择的全局种子。 |
+| `run.output_dir` | Prefix Cache 产物基础目录。 |
+| `run.overwrite` | 是否允许覆盖同名正式产物。 |
+| `tokenizer` | Tokenizer 加载与 Block 配置。 |
+| `tokenizer.path` | Tokenizer 模型或目录路径。 |
+| `tokenizer.block_size` | Prefix Cache 的 token Block 大小。 |
+| `tokenizer.revision` | Tokenizer 仓库版本；`null` 表示默认版本。 |
+| `tokenizer.trust_remote_code` | 是否信任 Tokenizer 自定义代码。 |
+| `corpus` | 自然后缀语料配置。 |
+| `corpus.path` | GSM8K JSONL 文件路径。 |
+| `corpus.field` | JSONL 中的问题文本字段名。 |
+| `corpus.selection` | GSM8K 样本选择规则。 |
+| `corpus.selection.mode` | 选择模式：随机、行号、哈希或混合。 |
+| `corpus.selection.values` | 非 mixed 模式的行号或哈希值列表。 |
+| `corpus.selection.indices` | mixed 模式的零基行号列表。 |
+| `corpus.selection.question_sha256` | mixed 模式的问题 SHA-256 列表。 |
+| `requests` | 正式请求数量和长度分布。 |
+| `requests.count` | 正式请求总数。 |
+| `requests.input_length` | 输入 token 长度生成规则。 |
+| `requests.input_length.mode` | 输入长度模式。 |
+| `requests.input_length.value` | fixed 模式的固定长度。 |
+| `requests.input_length.values` | explicit 模式的长度列表。 |
+| `requests.input_length.ranges` | range 模式的区间列表。 |
+| `requests.input_length.ranges[].min` | 单个采样区间下界。 |
+| `requests.input_length.ranges[].max` | 单个采样区间上界。 |
+| `requests.input_length.ranges[].count` | 单个区间生成的请求数。 |
+| `requests.input_length.min` | 截断正态分布下界。 |
+| `requests.input_length.max` | 截断正态分布上界。 |
+| `requests.input_length.mean` | 截断正态分布均值。 |
+| `requests.input_length.std` | 截断正态分布标准差。 |
+| `requests.input_length.path` | csv 模式的长度文件路径。 |
+| `requests.output_length` | 最大输出 token 长度生成规则。 |
+| `requests.output_length.mode` | 输出长度模式。 |
+| `requests.output_length.value` | fixed 模式的固定长度。 |
+| `requests.output_length.min` | uniform/截断正态分布下界。 |
+| `requests.output_length.max` | uniform/截断正态分布上界。 |
+| `requests.output_length.mean` | 截断正态分布均值。 |
+| `requests.output_length.std` | 截断正态分布标准差。 |
+| `requests.output_length.path` | csv 模式的长度文件路径。 |
+| `output` | 精简请求文件的字段控制。 |
+| `output.output_key` | 可选输出长度字段名；`null` 表示不输出。 |
+| `prefix_cache` | Prefix Cache 数据和运行策略。 |
+| `prefix_cache.mode` | 缓存模式：`cold` 或 `warmup`。 |
+| `prefix_cache.target_hit_rate` | 期望的全局 Prefix Cache 命中率。 |
+| `prefix_cache.seed_blocks` | 每条请求唯一 seed 占用的 Block 数。 |
+| `prefix_cache.minimum_non_shared_length` | 每条请求至少保留的非共享 token 数。 |
+| `prefix_cache.groups` | Prefix Group 数量、分配和覆盖配置。 |
+| `prefix_cache.groups.count` | Prefix Group 总数。 |
+| `prefix_cache.groups.assignment` | 请求到 Group 的分配规则。 |
+| `prefix_cache.groups.assignment.mode` | Group 分配模式。 |
+| `prefix_cache.groups.assignment.exponent` | Zipf 分布热点指数。 |
+| `prefix_cache.groups.assignment.weights` | weights 模式的各组相对权重。 |
+| `prefix_cache.groups.overrides` | 各 Group 的可选独立覆盖。 |
+| `prefix_cache.groups.overrides.group-N.input_length` | 指定 Group 的输入长度规则。 |
+| `prefix_cache.groups.overrides.group-N.output_length` | 指定 Group 的输出长度规则。 |
+| `prefix_cache.groups.overrides.group-N.corpus_selection` | 指定 Group 的语料选择规则。 |
+| `prefix_cache.order` | 正式请求排列规则。 |
+| `prefix_cache.order.strategy` | 顺序、交错、打乱或长度升序策略。 |
+| `service` | 在线推理服务与指标采集配置。 |
+| `service.inference_url` | vLLM 推理接口地址。 |
+| `service.metrics_url` | Prometheus 指标接口地址。 |
+| `service.reset_url` | Prefix Cache 重置接口地址。 |
+| `service.model` | 请求体中的服务模型名。 |
+| `service.dp_size` | 单实例内部 DP rank 数量。 |
+| `service.assume_empty_cache` | 无重置接口时是否假定缓存为空。 |
+| `service.engine_label_map` | Prometheus engine 标签到 DP rank 的映射。 |
+| `service.timeout_seconds` | 探活、预热和指标请求超时秒数。 |
+| `service.api_key` | 推理服务鉴权密钥；不会明文落盘。 |
+| `service.poll_interval_seconds` | 正式压测期间 KV 指标采样间隔。 |
+| `validation` | 结果偏差告警阈值。 |
+| `validation.target_warning_pp` | 理论值偏离目标的告警百分点。 |
+| `validation.actual_warning_pp` | 实际值偏离理论值的告警百分点。 |
+| `aisbench` | AISBench 正式压测启动配置。 |
+| `aisbench.config` | AISBench Python 配置模板路径。 |
+| `aisbench.work_dir` | AISBench 结果基础目录。 |
+| `aisbench.extra_args` | 追加到 AISBench 命令的参数列表。 |
+| `aisbench.dataset` | Dataset reader 和 Prompt 映射配置。 |
+| `aisbench.dataset.abbr` | Dataset 展示简称；`null` 时自动生成。 |
+| `aisbench.dataset.input_columns` | Dataset reader 的输入列。 |
+| `aisbench.dataset.output_column` | Dataset reader 的参考答案列。 |
+| `aisbench.dataset.prompt_template` | 正式请求的 Prompt 模板。 |
+| `aisbench.dataset.pred_role` | 预测结果的角色名称。 |
+| `aisbench.model` | AISBench API Model 配置。 |
+| `aisbench.model.abbr` | Model 展示简称；`null` 时自动生成。 |
+| `aisbench.model.attr` | 模型属性；当前必须为 `service`。 |
+| `aisbench.model.stream` | 是否使用 SSE 流式响应。 |
+| `aisbench.model.max_out_len` | Model 层的兜底最大输出长度。 |
+| `aisbench.model.retry` | API 请求失败重试次数。 |
+| `aisbench.model.batch_size` | AISBench API 最大并发基值。 |
+| `aisbench.model.generation_kwargs` | 透传给 vLLM 的生成参数。 |
 
 Scenario 会拒绝白名单之外的字段。离线计算使用 `service.dp_size`；`run` 使用服务 URL、model、reset/空缓存策略、指标映射、超时、API key 以及整个 `aisbench` 段。
 
@@ -382,13 +456,119 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 
 `service.api_key` 明文不会写入 Manifest，只记录 `api_key_configured`。
 
-固定字段索引：
+固定字段索引如下。标为“可选”或“阶段性”的字段只在对应配置或执行阶段出现。
 
-- `requests.jsonl`：固定 `question`、`answer`；`output.output_key` 默认为 `null`，也可选择追加 `max_tokens` 或 `output_tokens`；
-- `full.jsonl`：`request_id`、`sequence_index`、`group_id`、`occurrence_index_within_group`、`dp_rank`、`lane_sequence`、`target_input_tokens`、`actual_input_tokens`、`max_tokens`、`shared_prefix_tokens`、`seed_tokens`、`natural_suffix_tokens`、`question`、`answer`、`gsm_indices`、`gsm_hashes`、`canonical_prefix_sha256`、`seed_sha256`、`request_random_seed`、`watermark_before`、`theoretical_hit_tokens`、`watermark_after`、`theoretical_hit_rate`、`divergence_block_sha256`、`divergence_unique`、`collision_status`；
-- 正式 Manifest 顶层：`schema_version`、`plugin_version`、`status`、`run_id`、`scenario_path`、`scenario_sha256`、`effective_config`、`effective_config_sha256`、`corpus_sha256`、`tokenizer`、`requests`、`prefix_cache`、`groups`、`dp`、`warmup`、`divergence`、`artifacts`；inspect-only Manifest 的 `status="inspected"`，并以 `inspect.summary` 保存摘要；
-- `analysis.json`：prepare 阶段包含 `schema_version`、`run_id`、`status`、requested/effective/theoretical、目标偏差、`validation`、`theory`、`warnings`；run/analyze 进一步加入 `runtime`、`actual` 和 `theory_actual_*_difference_pp`；
-- inspect stdout：`run_id`、`mode`、`requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`、`reachable_min`、`reachable_max`、`target_reachable`、`group_reachability`、`groups`、`input_tokens`、`output_tokens`、`dp_route_counts`、`sends_requests`、`log`、`manifest`。
+### `requests.jsonl` 字段
+
+| 字段 | 简短说明 |
+|---|---|
+| `question` | 发送给模型的完整 Prompt。 |
+| `answer` | AISBench 使用的参考答案。 |
+| `max_tokens` | 可选的最大输出 token 数。 |
+| `output_tokens` | `max_tokens` 的可选别名。 |
+
+`max_tokens` 和 `output_tokens` 由 `output.output_key` 二选一追加；默认都不出现。
+
+### `full.jsonl` 字段
+
+| 字段 | 简短说明 |
+|---|---|
+| `request_id` | 全局唯一的请求标识。 |
+| `sequence_index` | 最终发送顺序中的全局序号。 |
+| `group_id` | 请求所属 Prefix Group。 |
+| `occurrence_index_within_group` | 请求在组内的出现序号。 |
+| `dp_rank` | cold 模式下的目标 DP rank。 |
+| `lane_sequence` | `(group_id, dp_rank)` lane 内序号。 |
+| `target_input_tokens` | 配置期望的输入 token 数。 |
+| `actual_input_tokens` | Tokenizer 验证后的实际输入 token 数。 |
+| `max_tokens` | 该请求允许生成的最大 token 数。 |
+| `shared_prefix_tokens` | 可复用公共前缀的 token 数。 |
+| `seed_tokens` | 全局唯一 seed 的 token 数。 |
+| `natural_suffix_tokens` | 自然后缀的 token 数。 |
+| `question` | 公共前缀、seed 和后缀组成的完整 Prompt。 |
+| `answer` | AISBench 参考答案。 |
+| `gsm_indices` | 自然后缀使用的 GSM8K 零基行号。 |
+| `gsm_hashes` | 自然后缀对应问题的 SHA-256。 |
+| `canonical_prefix_sha256` | 所属组 canonical 前缀摘要。 |
+| `seed_sha256` | 当前请求唯一 seed 摘要。 |
+| `request_random_seed` | 当前请求派生出的随机种子。 |
+| `watermark_before` | 请求前该缓存 lane 的模拟水位。 |
+| `theoretical_hit_tokens` | 当前请求理论命中的 token 数。 |
+| `watermark_after` | 请求后该缓存 lane 的模拟水位。 |
+| `theoretical_hit_rate` | 当前请求理论命中率。 |
+| `divergence_block_sha256` | 用于验证分歧 Block 的摘要。 |
+| `divergence_unique` | 分歧 Block 是否全局唯一。 |
+| `collision_status` | 前缀或 seed 碰撞检查结果。 |
+
+### `manifest.json` 顶层字段
+
+| 字段 | 简短说明 |
+|---|---|
+| `schema_version` | Manifest 数据结构版本。 |
+| `plugin_version` | 生成产物的插件版本。 |
+| `status` | `inspected` 或 `prepared` 状态。 |
+| `run_id` | 带执行时间戳的任务标识。 |
+| `scenario_path` | 原始 Scenario 文件路径。 |
+| `scenario_sha256` | 原始 Scenario 文件摘要。 |
+| `effective_config` | 补齐默认值后的有效配置。 |
+| `effective_config_sha256` | 有效配置摘要。 |
+| `corpus_sha256` | GSM8K 语料文件摘要。 |
+| `tokenizer` | Tokenizer 身份和 Block 信息。 |
+| `requests` | 请求数、总 token 和长度摘要。 |
+| `prefix_cache` | 模式、命中率和可达性结果。 |
+| `groups` | 每个 Prefix Group 的独立统计。 |
+| `dp` | DP 数量和 cold 路由策略。 |
+| `warmup` | Group × DP 预热计划。 |
+| `divergence` | seed/分歧块唯一性汇总。 |
+| `artifacts` | 各产物路径、大小和摘要。 |
+| `inspect` | inspect-only Manifest 的预览信息。 |
+
+正式 Manifest 使用除 `inspect` 外的上述字段；inspect-only Manifest 的 `status="inspected"`，并在 `inspect.summary` 中保存预览结果。
+
+### `analysis.json` 顶层字段
+
+| 字段 | 简短说明 |
+|---|---|
+| `schema_version` | Analysis 数据结构版本。 |
+| `run_id` | 对应的带时间戳任务标识。 |
+| `status` | `prepared` 或 `complete` 状态。 |
+| `requested_target_hit_rate` | Scenario 请求的目标命中率。 |
+| `effective_target_hit_rate` | 求解器选择的最近可达目标。 |
+| `theoretical_hit_rate` | 按最终顺序模拟的理论命中率。 |
+| `target_difference_pp` | 理论值与目标的绝对百分点差。 |
+| `target_signed_difference_pp` | 理论值减目标值的带符号百分点差。 |
+| `target_absolute_difference_pp` | 理论值与目标的绝对百分点差。 |
+| `validation` | 可达性、状态和告警策略。 |
+| `theory` | 理论 token、Group 和 DP 统计。 |
+| `warnings` | 本次产生的告警列表。 |
+| `runtime` | run 阶段、预热和指标快照信息。 |
+| `actual` | 指标差分得到的实际命中统计。 |
+| `theory_actual_difference_pp` | 实际值与理论值的绝对百分点差。 |
+| `theory_actual_signed_difference_pp` | 实际值减理论值的带符号百分点差。 |
+| `theory_actual_absolute_difference_pp` | 实际值与理论值的绝对百分点差。 |
+
+`runtime`、`actual` 和三个 `theory_actual_*` 字段由 run/analyze 阶段追加。
+
+### inspect stdout 字段
+
+| 字段 | 简短说明 |
+|---|---|
+| `run_id` | Scenario 中未追加时间戳的任务名。 |
+| `mode` | `cold` 或 `warmup` 模式。 |
+| `requested_target_hit_rate` | 用户请求的目标命中率。 |
+| `effective_target_hit_rate` | 最近可达目标命中率。 |
+| `theoretical_hit_rate` | 预计理论命中率。 |
+| `reachable_min` | 全局最小可达命中率。 |
+| `reachable_max` | 全局最大可达命中率。 |
+| `target_reachable` | 请求目标是否处于可达区间。 |
+| `group_reachability` | 各 Group 的可达范围。 |
+| `groups` | 各 Group 的请求数量。 |
+| `input_tokens` | 输入长度统计和总 token 数。 |
+| `output_tokens` | 输出长度统计和总 token 数。 |
+| `dp_route_counts` | 各 DP rank 的正式请求数。 |
+| `sends_requests` | 是否发送在线请求；inspect 固定为 false。 |
+| `log` | inspect 日志文件路径。 |
+| `manifest` | inspect-only Manifest 文件路径。 |
 
 各字段类型和嵌套含义以 [Prefix Cache 插件 README](../../../plugins/prefix_cache/README.md) 与 [Scenario 完整字段说明](../../../plugins/prefix_cache/config_examples/scenario.example.md) 为准。
 
