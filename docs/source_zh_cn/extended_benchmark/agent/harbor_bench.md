@@ -44,94 +44,9 @@
 
 确保本地或云端部署了遵循 OpenAI chat/completions API 规范且支持 tool call 的被测推理服务。
 
-### 2. 安装 AISBench 测评工具 & Harbor 依赖
-#### 2.1 源码安装
-> ⚠️环境限制： 确保环境docker 版本 >= 20.10.0，docker compose 版本 >= 2.0.0（docker compose可能需要额外安装）。同时需要准备一个python 3.12的运行环境
-1. 在python 3.12的运行环境内，参考 [AISBench 安装文档](../../get_started/install.md) 安装 AISBench 测评工具。
-2. python 3.12的运行环境内安装 Harbor：
-   ```bash
-   pip install harbor==0.6.1
-   ```
-3. 编辑harbor中的docker compose配置文件
-首先执行：
-```bash
-pip3 show harbor | grep Loca
-```
-找到site-package路径，在这个路径下找到`harbor/environments/docker/docker-compose-base.yaml`, 例如
-
-```
-/usr/local/lib/python3.12/dist-packages/harbor/environments/docker/docker-compose-base.yaml
-```
-
-在这个文件中配置：
-
-```yaml
-services:
-  main:
-    network_mode: host # 共享主机网络，必须配置
-    environment: # 在容器中普遍生效的环境变量
-      http_proxy: XXXXXXXX # 如果执行环境无法访问互联网，需要配置代理环境变量
-      https_proxy: XXXXXXXX # 如果执行环境无法访问互联网，需要配置代理环境变量
-      no_proxy: XXXXXXXX
-    volumes:
-      - type: bind
-        source: ${HOST_VERIFIER_LOGS_PATH}
-        target: ${ENV_VERIFIER_LOGS_PATH}
-      - type: bind
-        source: ${HOST_AGENT_LOGS_PATH}
-        target: ${ENV_AGENT_LOGS_PATH}
-      - type: bind
-        source: ${HOST_ARTIFACTS_PATH}
-        target: ${ENV_ARTIFACTS_PATH}
-    deploy:
-      resources:
-        limits:
-          cpus: ${CPUS}
-          memory: ${MEMORY}
-```
-
-> ⚠️注意：安装harbor会将datasets库的版本升级到4.0.0以上的版本，这会导致安装后报datasets库的依赖冲突，对于执行harbor测试terminal-bench相关数据集没有影响，但是如果你需要测试其他数据集，需要降低datasets库的版本。
-
-#### 2.2 在docker容器中安装
-1. 参考[镜像概览](https://github.com/AISBench/benchmark/blob/master/docker/OVERVIEW.zh.md)的“运行 Agent / 沙箱类测评（在容器内使用 Docker）”章节启动基于**python3.12及以上版本镜像（2026.7.1之后发布的镜像才支持）**的容器。
-2. 在容器内执行以下命令安装 Harbor：
-   ```bash
-   pip install harbor==0.6.1 --break-system-packages
-   ```
-3. 编辑harbor中的docker compose配置文件`/usr/local/lib/python3.12/dist-packages/harbor/environments/docker/docker-compose-base.yaml`
-```yaml
-services:
-  main:
-    network_mode: host # 共享主机网络，必须配置
-    security_opt: # 模式 B 启动的容器需要配置
-      - seccomp=unconfined
-    environment: # 在容器中普遍生效的环境变量
-      http_proxy: XXXXXXXX # 如果执行环境无法访问互联网，需要配置代理环境变量
-      https_proxy: XXXXXXXX # 如果执行环境无法访问互联网，需要配置代理环境变量
-      no_proxy: XXXXXXXX
-    volumes:
-      - type: bind
-        source: ${HOST_VERIFIER_LOGS_PATH}
-        target: ${ENV_VERIFIER_LOGS_PATH}
-      - type: bind
-        source: ${HOST_AGENT_LOGS_PATH}
-        target: ${ENV_AGENT_LOGS_PATH}
-      - type: bind
-        source: ${HOST_ARTIFACTS_PATH}
-        target: ${ENV_ARTIFACTS_PATH}
-    deploy:
-      resources:
-        limits:
-          cpus: ${CPUS}
-          memory: ${MEMORY}
-```
-> ⚠️注意：安装harbor会将datasets库的版本升级到4.0.0以上的版本，这会导致安装后报datasets库的依赖冲突，对于执行harbor测试terminal-bench相关数据集没有影响，但是如果你需要测试其他数据集，需要降低datasets库的版本。
-
-
-### 3. 准备AISBench修改过的Terminal-Bench数据集和对应镜像
-#### 3.1 terminal-bench 2
+### 2. 准备AISBench修改过的Terminal-Bench-2数据集和对应镜像
 AISBench修改的数据集获取链接：https://github.com/AISBench/terminal-bench-2
-> 👉注意: AISBench没有改用例内容，只是将所有环境的准备（包括terminus 2这个agent的所有依赖以及验证资源的）全部集中到Dockerfile中，避免反复执行还需要反复构建环境和安装依赖
+> 👉注意: AISBench没有改用例内容，只是将所有环境的准备全部集中到Dockerfile中，避免反复执行还需要反复构建环境和安装依赖
 
 Terminal-Bench-2 预制打包镜像信息：
 | 镜像名称 | 获取链接 |cpu架构| 打包压缩包大小 |
@@ -141,29 +56,72 @@ Terminal-Bench-2 预制打包镜像信息：
 
 > 🌟提示：如果不想准备所有case的镜像，可以从[terminal-bench-2-offline-mini](https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini)获取基于terminal-bench-2.0小规模采样的数据集及对应打包镜像
 
-#### 3.2 terminal-bench 2.1
-> terminal-bench 2.1简单来说就是terminal-bench-2.0的一个bugfix版本，用例数量和用例名称是完全一致的，只有部分case的数据集内容和镜像内容有所差别。
+### 3. 安装 AISBench 测评工具 & Harbor 依赖
+#### 3.1 源码安装
+> ⚠️环境限制： 确保环境docker 版本 >= 20.10.0，docker compose 版本 >= 2.0.0（docker compose可能需要额外安装）。同时需要准备一个python 3.12的运行环境
+1. 在python 3.12的运行环境内，参考 [AISBench 安装文档](../../get_started/install.md) 安装 AISBench 测评工具。
+2. python 3.12的运行环境内安装 Harbor：
+   ```bash
+   pip install harbor==0.20.0
+   ```
+> ⚠️注意：安装harbor会将datasets库的版本升级到4.0.0以上的版本，这会导致安装后报datasets库的依赖冲突，对于执行harbor测试terminal-bench相关数据集没有影响，但是如果你需要测试其他数据集，需要降低datasets库的版本。
 
-AISBench修改的数据集获取链接：https://github.com/AISBench/terminal-bench-2.1
+> ⚠️注意：源码安装方式下，[2. 准备数据集和对应镜像](##-2-准备aisbench修改过的terminal-bench-2数据集和对应镜像) 章节下载的 case 镜像 tar 需要在**物理机**上执行 `docker load -i xxxxxxx.tar` 加载到本地 docker daemon 后再跑测评。
 
-> 👉注意：AISBench没有修改terminal-bench-2.1的官方原始镜像的内容，仅修改了镜像的tag名称便于和terminal-bench-2.0进行区分，数据集中的task.toml中镜像名称也做了同步修改。
+#### 3.2 一键准备方案（推荐）
 
-| 镜像名称 | 获取链接 |cpu架构| 打包压缩包大小 |
-| -------- | -------- | ------- |-------- |
-|`terminal-bench-2.1-images-aarch64.tar`| 暂不支持 | aarch64 | NA |
-|`terminal-bench-2.1-images-x86_64.tar`| https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar | x86_64 | 38.62GB |
+如果不想手动准备环境，推荐使用 **AISBench Agent Runtime 一键准备方案**。同一脚本同时覆盖**快速入门（在线）**与**离线场景（内网/隔离环境）**，通过 `--runtime-tar` / `--case-tar` / `--datasets` 自由组合，无需切换不同流程。
 
+```bash
+# 1. 物理机上一键起 runtime 容器（自动选 DinD/Socket 模式，自动挂载数据集，自动把 case 镜像 tar 拷进容器内部 docker load 完）
+#    在线场景：在线场景：省略 --runtime-tar，runtime 镜像自动从 ghcr.io 拉取最新的
+#    离线场景：通过 --runtime-tar 跳过外网拉取，可以从最新的release信息中提前获取
+curl -fsSL https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/ais_bench_agent_bootstrap.sh \
+    | bash -s -- \
+        --datasets /path/to/terminal-bench-2-offline-mini/terminal-bench-2-offline-selected_0.10/ \
+        --runtime-tar /path/to/agent_runtime_image_v3.1-20260701-master-ubuntu24.04-py312-<arch>.tar.gz \
+        --case-tar /path/to/terminal-bench-2-offline-prepared-images-selected-0.10.tar \
+        --host-path /path/to/test_wkp/ \
+        --container-name test_agent_run
+# --datasets 指向的目录结构需与 terminal-bench-2-offline-mini 仓库的 terminal-bench-2-offline-selected_0.10/ 子目录结构一致
+# --runtime-tar （可选）提前准备的测评镜像，不传则自动拉取最新
+# --case-tar 指向的 tar 结构需与对应 agent 测评文档的 case 镜像 tar 结构一致（可多次传，也可传目录）
+# --host-path 指向的目录需为空目录，容器内会自动创建同名目录挂载数据集和 case 镜像
+# --container-name 指向的容器名需唯一，否则会覆盖旧容器
 
-> ⚠️注意：
-> 如果通过源码安装 AISBench 测评工具 & Harbor 依赖这种方式安装依赖的情况下，部署Terminal-Bench-2/2.1的镜像需要在**物理机**上执行`docker load -i xxxxxxx.tar`
-> 如果通过模式 A（真 docker in docker）启动AISBench容器，部署Terminal-Bench-2/2.1的镜像需要在**容器内**上执行`docker load -i xxxxxxx.tar`
-> 如果提供给模式 B（Socket 代理）启动AISBench容器，部署Terminal-Bench-2/2.1的镜像需要在**物理机**上执行`docker load -i xxxxxxx.tar`
+# 2. 进入容器（case 镜像已在内部，直接可用）
+docker exec -it test_agent_run bash
+
+# 3. （无需改 path）原生配置 path 自动从 AISBENCH_AGENT_DATASET_PATH 读
+#    仅需 vim 改 model_names / api_base
+vim ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py
+
+# 4. 验证 runtime 就绪
+ais_bench_agent_doctor.sh harbor
+
+# 5. 进入测评环境
+agent_env harbor
+```
+
+切到其它数据集（mini-0.14 / mini-0.20 / full）：销毁旧容器 → 重新 `bash ... --datasets <新路径> --case-tar <新tar>` 起容器。
+
+`--runtime-tar` / `--case-tar` / `--datasets` 三者完全独立，可任意组合。三个都不会触发任何 `docker pull` 或 `curl` 到外网的操作；在快速入门（在线）场景中省略 `--runtime-tar`，脚本会自动从网络拉取 runtime 镜像。
+
+`--case-tar` 在 A/B 两种模式下都生效：脚本会 `docker cp` 把 tar 拷进 runtime 容器，再在容器内 `docker load` 加载到该容器的 docker daemon。
+
+该方案解决了以下痛点：
+- **依赖冲突**：harbor==0.20.0 强制升级 datasets 到 4.0+ 会污染主环境，runtime 镜像用独立 venv 隔离
+- **容器配置易错**：DinD 模式 A/B、`--cgroupns=host`、`daemon.json`、seccomp 自动处理
+- **数据集版本频繁**：数据集与 case 镜像均不烤入 runtime 镜像，由用户在物理机准备后通过 `--datasets` 挂载 / `--case-tar` 加载，避免镜像频繁过期
+- **case 镜像管理**：通过 `--case-tar` 在 bootstrap 时一次性加载到容器内，容器内无需手动 `docker pull` / `docker load`
+- **环境无验证**：`doctor.sh` 在跑测评前验证 runtime 就绪，失败时给精确修复指引
+- **离线部署**：支持 `--runtime-tar <PATH>` 跳过 runtime 镜像的网络获取；支持 `--case-tar <PATH>` 加载 case 镜像到容器内（可多次，可传目录）。内网隔离环境可全程零外网请求
+
+方案原理与脚本实现见 [`docker/agent_runtime/`](https://github.com/AISBench/benchmark/tree/master/docker/agent_runtime/README.md)。
 
 ### 4. 配置 Harbor 任务的自定义配置文件
 
 在 AISBench 工具根目录下修改 `ais_bench/configs/agent_example/harbor_terminal_bench_2_task.py`：
-
-> 💡 上述 `harbor_terminal_bench_2_task.py` 即为 [自定义配置文件方式](../../advanced_tutorials/run_custom_config.md) 的具体应用。配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法。你可以参考此示例文件自行编写满足特定需求的配置文件。详见 [自定义配置文件运行AISBench](../../advanced_tutorials/run_custom_config.md)。
 
 ```python
 models = [
@@ -201,7 +159,7 @@ for task in sub_tasks:
                 # ......
                 n_concurrent_trials=5,  # -n/--n-concurrent: 并发运行的trial数量
                 # ......
-                path="/path/to/terminal-bench-2/",  # -p/--path: 本地数据集路径，terminal-bench-2或者terminal-bench 2.1数据集的路径
+                path="/path/to/terminal-bench-2/",  # -p/--path: 本地数据集路径
                 # ......
                 n_tasks=None,  # --n-tasks: 最大任务数量, None默认跑全部，快速入门可以尝试设置几条快速跑通流程
                 # ......

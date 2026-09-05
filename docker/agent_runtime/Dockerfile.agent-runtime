@@ -1,0 +1,310 @@
+# AISBench Agent Runtime Dockerfile
+#
+# 在现有 aisbench_benchmark 基础镜像（已含 docker engine + compose + ais_bench）之上，
+# 追加多 venv 隔离层，解决 agent 测评之间的依赖冲突：
+#   - harbor venv：隔离 harbor==0.20.0 强制升级的 datasets 4.0+，不污染主环境
+#                  + harbor_task.py 用 subprocess 启动 venv python，所以 venv 内还
+#                    放了一个 ais_bench wrapper（shebang 指向 venv python），
+#                    让用户 `agent_env harbor` 后 which ais_bench 指向 venv 内
+#   - swebench venv：装 AISBench fork 的 mini-swe-agent + SWE-bench harness
+#   - swebench_pro venv：装 scaleapi fork 的 mini-swe-agent + SWE-bench_Pro-os
+#
+# 三个 venv 都使用 --system-site-packages --copies：
+#   --system-site-packages: 让 venv 看到系统已装的 ais_bench_benchmark（共用基镜像，
+#                          不重复装 torch / datasets / tiktoken 等大依赖）
+#   --copies: 强制 python 二进制是真实副本（不是 symlink），否则 subprocess 启动时会
+#            丢 venv 身份（找不到 venv local 的包）
+#
+# 构建方式（推荐使用 build_image_agent_runtime.sh）：
+#   bash docker/agent_runtime/build_image_agent_runtime.sh \
+#       --base-tag v3.1-20260522-master --os ubuntu24.04 --py-version py312
+#
+# 或直接 docker build：
+#   docker build \
+#       --network host \
+#       -f docker/agent_runtime/Dockerfile.agent-runtime \
+#       -t ghcr.io/aisbench/agent-runtime:v3.1-20260522-master-ubuntu24.04-py312-x86_64 \
+#       --build-arg BASE_IMAGE=ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-ubuntu24.04-py312-x86_64 \
+#       .
+#
+# BASE_IMAGE 必须通过 --build-arg 传入，无默认值，避免基镜像 tag 写死导致过期。
+
+ARG BASE_IMAGE
+# [v3 wrapper] 允许通过 build-arg 注入本地 harbor wheel 文件路径，
+# 替换硬编码的 harbor==0.20.0。不传则走默认 PyPI 版本。
+# 占位文件 .harbor_wheel_cache.whl 由 build_image_agent_runtime.sh 保证存在
+# （空文件时回退到 harbor==0.20.0）。
+ARG HARBOR_WHEEL_FILE=""
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# agent runtime 相关路径
+ENV AGENT_VENVS_ROOT=/opt/venvs
+ENV AGENT_PACKS_ROOT=/opt/agent-resources/packs
+ENV SWEBENCH_DOCKERFILES_ROOT=/opt/swebench/dockerfiles
+
+RUN mkdir -p ${AGENT_VENVS_ROOT} \
+             ${AGENT_PACKS_ROOT} \
+             ${SWEBENCH_DOCKERFILES_ROOT} \
+             /opt/src
+
+# ============================================================
+# venv: harbor
+# harbor==0.20.0 会把 datasets 升到 4.0+，必须隔离在独立 venv
+# 否则会污染 ais_bench 主环境，导致其他数据集依赖冲突
+#
+# --system-site-packages: 让 venv 能看到基镜像里已经装好的 ais_bench_benchmark
+#   - ais_bench_benchmark 装在基镜像 /usr/local/lib/.../dist-packages/，
+#     是 ais_bench 框架本体（benchmark / configs / datasets / tasks / ...）
+#   - venv 默认不读系统 site-packages，会导致 harbor_task.py 跑时找不到 ais_bench 包
+#   - harbor 升级的 datasets 4.0+ 仍只装在 venv local site-packages，
+#     不会污染系统环境（Python venv 优先用 local 包覆盖 system 包）
+#
+# --copies: 强制拷贝 python 二进制到 venv 内（默认是 symlink 到系统 python3.12）
+#   - harbor_task.py 通过 subprocess.Popen 以绝对路径启动 venv 的 python
+#   - 若 venv python 是 symlink，python 启动时通过 symlink 解析到 /usr/bin/python3.12，
+#     丢失 venv 身份（不再读 venv 的 pyvenv.cfg），找不到 venv local 的 harbor 包
+#   - 用 --copies 后 venv python 是真实二进制，python 通过真实路径识别 venv 身份，
+#     正确加载 venv local site-packages
+# ============================================================
+# [v3 wrapper] 占位文件由 build_image_agent_runtime.sh 保证存在：
+#   - 传了 --harbor-wheel 时 cp 真实 wheel 到此
+#   - 未传时 touch 创建空文件（0 字节）
+# Docker COPY 对空文件正常，RUN 中 [ -s ... ] 检测非空才安装自定义 wheel。
+COPY .harbor_wheel_cache.whl /tmp/harbor_wheel_cache.whl
+
+RUN python3.12 -m venv ${AGENT_VENVS_ROOT}/harbor --system-site-packages --copies && \
+    ${AGENT_VENVS_ROOT}/harbor/bin/pip install --no-cache-dir --upgrade pip \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --default-timeout=120 --retries=5 && \
+    if [ -s /tmp/harbor_wheel_cache.whl ]; then \
+        echo "[ais_bench_agent] 使用本地 harbor wheel: /tmp/harbor_wheel_cache.whl"; \
+        ${AGENT_VENVS_ROOT}/harbor/bin/pip install --no-cache-dir \
+            -i https://repo.huaweicloud.com/repository/pypi/simple \
+            --trusted-host repo.huaweicloud.com \
+            --default-timeout=120 --retries=5 \
+            /tmp/harbor_wheel_cache.whl; \
+    else \
+        echo "[ais_bench_agent] 使用默认 harbor==0.20.0"; \
+        ${AGENT_VENVS_ROOT}/harbor/bin/pip install --no-cache-dir \
+            -i https://repo.huaweicloud.com/repository/pypi/simple \
+            --trusted-host repo.huaweicloud.com \
+            --default-timeout=120 --retries=5 \
+            harbor==0.20.0; \
+    fi && \
+    rm -f /tmp/harbor_wheel_cache.whl
+
+# ============================================================
+# harbor venv 内放置 ais_bench 命令（关键）
+#
+# 问题链路（已修过的两层坑）:
+#   1. venv 默认不读系统 site-packages → 加 --system-site-packages ✓
+#   2. venv python 是 symlink 时丢身份 → 加 --copies ✓
+#   3. **主进程 sys.executable 是系统 python**（ais_bench 命令装在系统不在 venv）
+#      → harbor_task.py:44  python = sys.executable 拿到 /usr/bin/python3.12
+#      → subprocess 启动系统 python（不是 venv python）
+#      → 系统 python 找不到 venv local 的 harbor 包
+#
+# 修复：把 ais_bench wrapper 放到 harbor venv/bin 下，shebang 指向 venv python
+#   - 用户 agent_env harbor 后，PATH 中 venv/bin 在前
+#   - which ais_bench → /opt/venvs/harbor/bin/ais_bench（venv 内）
+#   - shell 解析 shebang 用 venv python 启动 ais_bench
+#   - 主进程 sys.executable = venv python
+#   - harbor_task.py:44 拿到的也是 venv python
+#   - subprocess 启动 venv python → 找到 venv local site-packages → import harbor OK
+#
+# 注意：不依赖基镜像 /usr/local/bin/ais_bench 的具体实现，直接 import 调用 main()
+# =========================================================
+RUN cat > ${AGENT_VENVS_ROOT}/harbor/bin/ais_bench <<'PYEOF'
+#!/opt/venvs/harbor/bin/python
+# -*- coding: utf-8 -*-
+"""harbor venv 内置 ais_bench wrapper
+启动时使用 harbor venv 的 python，让 subprocess.Popen 启动 harbor venv 的 python，
+从而能正确加载 venv local site-packages（harbor 0.20.0 在此）。
+"""
+import re
+import sys
+try:
+    from ais_bench.benchmark.cli.main import main
+except ImportError as e:
+    sys.stderr.write(f"[error] failed to import ais_bench: {e}\n")
+    sys.stderr.write("[hint] 检查 harbor venv 是否启用 --system-site-packages（需看到系统 ais_bench）\n")
+    sys.exit(2)
+if __name__ == "__main__":
+    sys.argv[0] = re.sub(r"(-script\.pyw|\.exe)?$", "", sys.argv[0])
+    sys.exit(main())
+PYEOF
+RUN chmod +x ${AGENT_VENVS_ROOT}/harbor/bin/ais_bench
+
+# ============================================================
+# Patch harbor 的 docker-compose-base.yaml
+# 模式 B（Socket 代理）下子容器由宿主 dockerd 创建，会继承宿主 seccomp
+# profile。openEuler/RHEL 的默认 profile 比 Docker 官方严格，会拦截
+# OpenBLAS/NumPy 初始化线程时使用的 clone3 调用，表现为：
+#   OpenBLAS blas_thread_init: pthread_create failed: Operation not permitted
+# 详见 docker/OVERVIEW.zh.md 模式 B 常见问题
+#
+# harbor 0.20.0 的 compose 模板路径（python3.12 site-packages）：
+#   harbor/environments/docker/docker-compose-base.yaml
+# 在其中给 main service 补上 security_opt: [seccomp=unconfined]
+# 模式 A（DinD）下此 patch 无副作用（子容器本就用 Docker 官方默认 profile）
+# ============================================================
+COPY docker/agent_runtime/patches/harbor_compose_patch.py /tmp/harbor_compose_patch.py
+RUN HARBOR_SITEPKG=$(${AGENT_VENVS_ROOT}/harbor/bin/python -c "import harbor, os; print(os.path.dirname(harbor.__file__))") && \
+    COMPOSE_FILE="${HARBOR_SITEPKG}/environments/docker/docker-compose-base.yaml" && \
+    if [ -f "$COMPOSE_FILE" ]; then \
+        cp "$COMPOSE_FILE" "$COMPOSE_FILE.bak" && \
+        python3.12 /tmp/harbor_compose_patch.py "${COMPOSE_FILE}"; \
+    else \
+        echo "[warn] harbor compose 模板未找到: $COMPOSE_FILE，跳过 patch"; \
+    fi
+
+# ============================================================
+# venv: swebench
+# SWE-bench / SWE-bench Pro 两个 benchmark 各需要一个 mini-swe-agent fork，
+# 同包名 minisweagent 互相覆盖，必须在两个独立 venv 内安装。
+#
+# 仓库选择：
+#   - AISBench fork (https://github.com/AISBench/mini-swe-agent) 用于 SWE-bench
+#   - scaleapi fork (https://github.com/scaleapi/mini-swe-agent) 用于 SWE-bench Pro
+#
+# 需要 ais_bench wrapper（与 harbor 同机理）：
+#   - system /usr/local/bin/ais_bench 的 shebang 指向 system python3.12，不会自动切到 venv python
+#   - 用户 agent_env swebench 后，PATH 首位是 /opt/venvs/swebench/bin，
+#     但 swebench/bin/ 下若没有 ais_bench，shell 仍落到 /usr/local/bin/ais_bench
+#   - task 代码 (swebench_infer.py) 在主进程 import minisweagent，
+#     system python 看不到 venv-local 的 minisweagent → ModuleNotFoundError
+#   - 在 swebench/bin/ 放一个 ais_bench wrapper（shebang 指向 venv python），
+#     PATH 命中它后启动 venv python → 正确加载 venv-local 的 minisweagent
+#   - 同时通过 --system-site-packages 仍能看到系统的 ais_bench / datasets / tasks
+# ============================================================
+RUN python3.12 -m venv ${AGENT_VENVS_ROOT}/swebench --system-site-packages --copies && \
+    ${AGENT_VENVS_ROOT}/swebench/bin/pip install --no-cache-dir --upgrade pip \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --default-timeout=120 --retries=5 && \
+    git clone --depth 1 https://gh-proxy.com/https://github.com/AISBench/mini-swe-agent.git \
+        /opt/src/mini-swe-agent-aisbench && \
+    ${AGENT_VENVS_ROOT}/swebench/bin/pip install --no-cache-dir \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --default-timeout=120 --retries=5 \
+        -e /opt/src/mini-swe-agent-aisbench && \
+    git clone --depth 1 https://gh-proxy.com/https://github.com/SWE-bench/SWE-bench.git \
+        /opt/src/SWE-bench && \
+    ${AGENT_VENVS_ROOT}/swebench/bin/pip install --no-cache-dir \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --default-timeout=120 --retries=5 \
+        -e /opt/src/SWE-bench
+
+# ais_bench wrapper for swebench venv（让主进程加载 venv-local 的 minisweagent）
+RUN cat > ${AGENT_VENVS_ROOT}/swebench/bin/ais_bench <<'PYEOF'
+#!/opt/venvs/swebench/bin/python
+# -*- coding: utf-8 -*-
+"""swebench venv 内置 ais_bench wrapper
+启动时使用 swebench venv 的 python，让 task 代码 (swebench_infer.py)
+在主进程 import minisweagent 时加载 venv-local 的 mini-swe-agent (AISBench fork)。
+"""
+import re
+import sys
+try:
+    from ais_bench.benchmark.cli.main import main
+except ImportError as e:
+    sys.stderr.write(f"[error] failed to import ais_bench: {e}\n")
+    sys.stderr.write("[hint] 检查 swebench venv 是否启用 --system-site-packages（需看到系统 ais_bench）\n")
+    sys.exit(2)
+if __name__ == "__main__":
+    sys.argv[0] = re.sub(r"(-script\.pyw|\.exe)?$", "", sys.argv[0])
+    sys.exit(main())
+PYEOF
+RUN chmod +x ${AGENT_VENVS_ROOT}/swebench/bin/ais_bench
+
+# ============================================================
+# venv: swebench_pro
+# SWE-bench Pro 需用 scaleapi 适配的 mini-swe-agent 和官方 SWE-Bench_Pro-os
+# 单独 venv 避免与 swebench venv 内的 mini-swe-agent fork 冲突
+#
+# 同样需要 ais_bench wrapper（原因同上）：主进程要加载 scaleapi fork 的 minisweagent
+#
+# ARM 限制：官方 docker 镜像均为 x86 架构，ARM 跑不动（runtime 仍可启动）
+# ============================================================
+RUN python3.12 -m venv ${AGENT_VENVS_ROOT}/swebench_pro --system-site-packages --copies && \
+    ${AGENT_VENVS_ROOT}/swebench_pro/bin/pip install --no-cache-dir --upgrade pip \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --default-timeout=120 --retries=5 && \
+    git clone --depth 1 https://gh-proxy.com/https://github.com/scaleapi/mini-swe-agent.git \
+        /opt/src/mini-swe-agent-scaleapi && \
+    ${AGENT_VENVS_ROOT}/swebench_pro/bin/pip install --no-cache-dir \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --default-timeout=120 --retries=5 \
+        -e /opt/src/mini-swe-agent-scaleapi && \
+    git clone --depth 1 https://gh-proxy.com/https://github.com/scaleapi/SWE-bench_Pro-os.git \
+        /opt/src/SWE-bench_Pro-os && \
+    ${AGENT_VENVS_ROOT}/swebench_pro/bin/pip install --no-cache-dir \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --default-timeout=120 --retries=5 \
+        -r /opt/src/SWE-bench_Pro-os/requirements.txt
+
+# ais_bench wrapper for swebench_pro venv（让主进程加载 venv-local 的 minisweagent）
+RUN cat > ${AGENT_VENVS_ROOT}/swebench_pro/bin/ais_bench <<'PYEOF'
+#!/opt/venvs/swebench_pro/bin/python
+# -*- coding: utf-8 -*-
+"""swebench_pro venv 内置 ais_bench wrapper
+启动时使用 swebench_pro venv 的 python，让 task 代码 (swebench_pro_infer.py)
+在主进程 import minisweagent 时加载 venv-local 的 mini-swe-agent (scaleapi fork)。
+"""
+import re
+import sys
+try:
+    from ais_bench.benchmark.cli.main import main
+except ImportError as e:
+    sys.stderr.write(f"[error] failed to import ais_bench: {e}\n")
+    sys.stderr.write("[hint] 检查 swebench_pro venv 是否启用 --system-site-packages（需看到系统 ais_bench）\n")
+    sys.exit(2)
+if __name__ == "__main__":
+    sys.argv[0] = re.sub(r"(-script\.pyw|\.exe)?$", "", sys.argv[0])
+    sys.exit(main())
+PYEOF
+RUN chmod +x ${AGENT_VENVS_ROOT}/swebench_pro/bin/ais_bench
+
+# ============================================================
+# 脚本 + pack 清单
+# ============================================================
+COPY docker/agent_runtime/doctor.sh /usr/local/bin/ais_bench_agent_doctor.sh
+RUN chmod +x /usr/local/bin/ais_bench_agent_doctor.sh
+
+COPY docker/agent_runtime/packs/      ${AGENT_PACKS_ROOT}/
+
+# v3 D 批: L1/L2 baked image Jinja2 模板
+# 让 build_l2_baked_image.sh 在容器内可直接 docker build -f /opt/swebench/dockerfiles/...
+# 模板来源:mini_matrix cli/swebench_dind/dockerfiles/(5 个 j2)
+# - Dockerfile.l1-base.j2           FROM prebuilt → WORKDIR /testbed + /logs
+# - Dockerfile.l2-agent-{aider,msa,oh,qwen}.j2  FROM L1 → 装对应 agent
+COPY docker/agent_runtime/dockerfiles/ ${SWEBENCH_DOCKERFILES_ROOT}/
+
+# ============================================================
+# 便捷函数：激活对应 venv
+# 用户在容器内 `agent_env harbor` 即可激活 harbor venv，
+# 然后照常执行原生 ais_bench 命令
+# ============================================================
+RUN cat >> /etc/bash.bashrc <<'EOF'
+
+# AISBench Agent venv 激活便捷函数
+agent_env() {
+    case "$1" in
+        harbor)        source /opt/venvs/harbor/bin/activate ;;
+        swebench)      source /opt/venvs/swebench/bin/activate 2>/dev/null || echo "venv swebench 未安装" ;;
+        swebench_pro)  source /opt/venvs/swebench_pro/bin/activate 2>/dev/null || echo "venv swebench_pro 未安装" ;;
+        *) echo "usage: agent_env <harbor|swebench|swebench_pro>" ;;
+    esac
+}
+EOF
+
+WORKDIR /benchmark

@@ -1,0 +1,12 @@
+# SWE-bench pack 元数据
+# 供 ais_bench_agent_doctor.sh 读取，验证该 pack 的 runtime 是否就绪
+#
+# 字段用途：
+#   name          pack 唯一标识
+#   runtime_venv  doctor L1 验证 /opt/venvs/<name> 存在 + python 可执行
+#   native_config doctor L1 验证原生 ais_bench 配置文件存在
+#   native_doc    跑完 doctor 后指引用户看哪份文档
+name: swebench
+runtime_venv: swebench
+native_config: ais_bench/configs/swe_bench_examples/mini_swe_agent_swe_bench_lite.py
+native_doc: docs/source_zh_cn/extended_benchmark/agent/swe_bench.md
