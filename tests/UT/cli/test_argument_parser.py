@@ -203,6 +203,45 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.api_key, 'KEY')
 
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_extra_docker_compose_single(
+        self, mock_get_current_time_str
+    ):
+        """单次 --extra-docker-compose 解析为单元素列表"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = [
+            'benchmark.py',
+            '--extra-docker-compose', '/path/to/overlay.yaml',
+        ]
+        args = ArgumentParser().parse_args()
+        self.assertEqual(args.extra_docker_compose, ['/path/to/overlay.yaml'])
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_extra_docker_compose_multiple(
+        self, mock_get_current_time_str
+    ):
+        """多次 --extra-docker-compose 解析为多元素列表（与 harbor CLI 行为一致）"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = [
+            'benchmark.py',
+            '--extra-docker-compose', '/a.yaml', '/b.yaml',
+            '--extra-docker-compose', '/c.yaml',
+        ]
+        args = ArgumentParser().parse_args()
+        self.assertEqual(
+            args.extra_docker_compose, ['/a.yaml', '/b.yaml', '/c.yaml']
+        )
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_extra_docker_compose_default_none(
+        self, mock_get_current_time_str
+    ):
+        """未指定 --extra-docker-compose 时默认为 None，不污染配置"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py']
+        args = ArgumentParser().parse_args()
+        self.assertIsNone(args.extra_docker_compose)
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
     def test_parse_args_custom_dataset_options(self, mock_get_current_time_str):
         """测试自定义数据集相关选项参数解析"""
         # 模拟返回值

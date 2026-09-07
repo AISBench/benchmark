@@ -1040,3 +1040,93 @@ class TestJudgeInfer:
                 assert 'judge_infer_cfg' not in task['datasets'][0][0]
                 assert task['models'][0]['type'] == 'judge_model_type'
                 assert task['datasets'][0][0]['type'] == 'judge_dataset'
+
+
+class TestAgentEval:
+    """AgentEval._apply_cli_args 将 CLI 参数写入 cfg.models[*] / cfg.datasets[*].args。"""
+
+    def _make_args(self, **kwargs):
+        """构造一个 _apply_cli_args 关心的字段子集，其余用 MagicMock 兜底。"""
+        args = MagicMock()
+        args.agent = kwargs.get("agent")
+        args.agent_import_path = kwargs.get("agent_import_path")
+        args.agent_deps = kwargs.get("agent_deps")
+        args.model = kwargs.get("model")
+        args.api_base = kwargs.get("api_base")
+        args.agent_api_key = kwargs.get("agent_api_key")
+        args.agent_kwarg = kwargs.get("agent_kwarg")
+        args.agent_env = kwargs.get("agent_env")
+        # dataset-side
+        args.agent_dataset_path = kwargs.get("agent_dataset_path")
+        args.dataset = kwargs.get("dataset")
+        args.n_concurrent = kwargs.get("n_concurrent")
+        args.n_attempts = kwargs.get("n_attempts")
+        args.environment = kwargs.get("environment")
+        args.timeout_multiplier = kwargs.get("timeout_multiplier")
+        args.max_retries = kwargs.get("max_retries")
+        args.include_task_name = kwargs.get("include_task_name")
+        args.exclude_task_name = kwargs.get("exclude_task_name")
+        args.n_tasks = kwargs.get("n_tasks")
+        args.disable_verification = kwargs.get("disable_verification")
+        args.quiet = kwargs.get("quiet")
+        args.yes = kwargs.get("yes")
+        args.env_file = kwargs.get("env_file")
+        args.force_build = kwargs.get("force_build")
+        args.delete = kwargs.get("delete")
+        args.host_network = kwargs.get("host_network")
+        args.extra_docker_compose = kwargs.get("extra_docker_compose")
+        return args
+
+    def _make_worker(self, args):
+        # 引入 AgentEval（同模块的内部符号）
+        from ais_bench.benchmark.cli.workers import AgentEval
+        return AgentEval(args)
+
+    def test_apply_cli_args_propagates_extra_docker_compose(self):
+        """CLI --extra-docker-compose 透传到 cfg.datasets[*].args.extra_docker_compose。"""
+        worker = self._make_worker(
+            self._make_args(extra_docker_compose=["/a.yaml", "/b.yaml"])
+        )
+        cfg = MockConfigDict({
+            "models": [{"abbr": "m"}],
+            "datasets": [{"abbr": "d", "args": {}}],
+            "work_dir": "/tmp",
+            "cli_args": MagicMock(debug=False),
+        })
+        worker._apply_cli_args(cfg)
+        self.assertEqual(
+            cfg["datasets"][0]["args"]["extra_docker_compose"],
+            ["/a.yaml", "/b.yaml"],
+        )
+
+    def test_apply_cli_args_extra_docker_compose_absent(self):
+        """未指定 --extra-docker-compose 时不在 dataset.args 中注入空字段。"""
+        worker = self._make_worker(self._make_args(extra_docker_compose=None))
+        cfg = MockConfigDict({
+            "models": [{"abbr": "m"}],
+            "datasets": [{"abbr": "d", "args": {}}],
+            "work_dir": "/tmp",
+            "cli_args": MagicMock(debug=False),
+        })
+        worker._apply_cli_args(cfg)
+        self.assertNotIn("extra_docker_compose", cfg["datasets"][0]["args"])
+
+    def test_apply_cli_args_extra_docker_compose_overrides_config(self):
+        """CLI 优先级高于 config 文件中已存在的 extra_docker_compose。"""
+        worker = self._make_worker(
+            self._make_args(extra_docker_compose=["/cli.yaml"])
+        )
+        cfg = MockConfigDict({
+            "models": [{"abbr": "m"}],
+            "datasets": [{
+                "abbr": "d",
+                "args": {"extra_docker_compose": ["/config.yaml"]},
+            }],
+            "work_dir": "/tmp",
+            "cli_args": MagicMock(debug=False),
+        })
+        worker._apply_cli_args(cfg)
+        self.assertEqual(
+            cfg["datasets"][0]["args"]["extra_docker_compose"],
+            ["/cli.yaml"],
+        )
