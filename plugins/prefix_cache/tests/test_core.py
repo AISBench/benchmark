@@ -82,6 +82,7 @@ class CoreTest(unittest.TestCase):
             self.assertEqual(effective["requests"]["count"], 100)
             self.assertEqual(effective["requests"]["input_length"], {"mode": "fixed", "value": 1024})
             self.assertEqual(effective["requests"]["output_length"], {"mode": "fixed", "value": 32})
+            self.assertEqual(effective["output"], {"output_key": None})
             self.assertEqual(effective["prefix_cache"]["mode"], "warmup")
             self.assertEqual(effective["prefix_cache"]["target_hit_rate"], 0.6)
             self.assertEqual(effective["prefix_cache"]["minimum_non_shared_length"], 16)
@@ -90,6 +91,27 @@ class CoreTest(unittest.TestCase):
             self.assertEqual(effective["service"]["dp_size"], 2)
             self.assertEqual(effective["service"]["inference_url"], "http://127.0.0.1:8000/v1/completions")
             self.assertEqual(effective["validation"], {"target_warning_pp": 1.0, "actual_warning_pp": 5.0})
+            self.assertEqual(effective["aisbench"], {
+                "config": "./plugins/prefix_cache/config_examples/prefix_cache_perf.py",
+                "work_dir": "./outputs/default",
+                "extra_args": [],
+                "dataset": {
+                    "abbr": None,
+                    "input_columns": ["question", "max_out_len"],
+                    "output_column": "answer",
+                    "prompt_template": "{question}",
+                    "pred_role": "BOT",
+                },
+                "model": {
+                    "abbr": None,
+                    "attr": "service",
+                    "stream": True,
+                    "max_out_len": 1,
+                    "retry": 2,
+                    "batch_size": 1,
+                    "generation_kwargs": {"temperature": 0, "ignore_eos": True},
+                },
+            })
 
     def test_partially_empty_sections_receive_nested_defaults(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -100,17 +122,22 @@ class CoreTest(unittest.TestCase):
                 "tokenizer": {},
                 "corpus": {"selection": {}},
                 "requests": {"input_length": {}, "output_length": {}},
+                "output": {},
                 "prefix_cache": {"groups": {"assignment": {}}, "order": {}},
                 "service": {},
                 "validation": {},
+                "aisbench": {"dataset": {}, "model": {}},
             }), encoding="utf-8")
             effective = load_scenario(path).to_effective_dict()
             self.assertEqual(effective["corpus"]["selection"]["mode"], "random")
             self.assertEqual(effective["requests"]["input_length"], {"mode": "fixed", "value": 1024})
             self.assertEqual(effective["requests"]["output_length"], {"mode": "fixed", "value": 32})
+            self.assertEqual(effective["output"], {"output_key": None})
             self.assertEqual(effective["prefix_cache"]["groups"]["count"], 1)
             self.assertEqual(effective["prefix_cache"]["groups"]["assignment"]["mode"], "uniform")
             self.assertEqual(effective["prefix_cache"]["order"]["strategy"], "interleave")
+            self.assertEqual(effective["aisbench"]["dataset"]["prompt_template"], "{question}")
+            self.assertIs(effective["aisbench"]["model"]["stream"], True)
 
     def test_scenario_rejects_unknown_multi_instance_field(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -273,6 +300,80 @@ class CoreTest(unittest.TestCase):
         self.assertEqual(result.effective_hit_tokens, 48_896)
         self.assertEqual(result.effective_hit_rate, result.max_reachable_rate)
         self.assertFalse(result.target_reachable)
+
+    def test_cold_solver_converges_without_cumulative_target_overshoot(self):
+        lengths = [
+            2504, 2150, 3174, 3051, 2962, 2619, 2467, 2404, 3776, 2178,
+            2170, 2431, 2943, 3000, 2156, 2862, 3766, 2950, 3887, 3187,
+        ]
+        groups = ["g0"] * len(lengths)
+        ranks, lanes = assign_cold_routes(groups, 1)
+        result = solve_prefix_lengths(
+            lengths, [32] * len(lengths), groups, ranks, lanes,
+            128, 128, "cold", 0.7,
+        )
+        plans = [
+            RequestPlan(
+                f"r{index}", index, "g0", index, ranks[index], lanes[index],
+                length, length, 32, prefix, 128, length - prefix - 128,
+            )
+            for index, (length, prefix) in enumerate(zip(lengths, result.shared_prefix_tokens))
+        ]
+        rows = simulate_theory(plans, "cold", verbose=False).rows
+        cumulative_input = 0
+        cumulative_hit = 0
+        rates = []
+        for row in rows:
+            cumulative_input += row.actual_input_tokens
+            cumulative_hit += row.theoretical_hit_tokens
+            rates.append(cumulative_hit / cumulative_input)
+        self.assertTrue(
+            all(later + 1e-12 >= earlier for earlier, later in zip(rates, rates[1:])),
+            rates,
+        )
+        self.assertLessEqual(max(rates), result.effective_hit_rate + 1e-12)
+        self.assertAlmostEqual(rates[-1], result.effective_hit_rate)
+
+    def test_warmup_solver_balances_prefixes_instead_of_front_loading(self):
+        lengths = [32] * 4
+        result = solve_prefix_lengths(
+            lengths, [1] * 4, ["g0"] * 4, [None] * 4, [None] * 4,
+            4, 4, "warmup", 0.5,
+        )
+        self.assertEqual(result.shared_prefix_tokens, (16, 16, 16, 16))
+        self.assertEqual(result.effective_hit_tokens, 64)
+        self.assertEqual(result.effective_hit_rate, 0.5)
+
+    def test_cold_multi_dp_converges_after_each_lane_first_miss(self):
+        lengths = [32] * 8
+        groups = ["g0"] * len(lengths)
+        ranks, lanes = assign_cold_routes(groups, 2)
+        result = solve_prefix_lengths(
+            lengths, [1] * len(lengths), groups, ranks, lanes,
+            4, 4, "cold", 0.5,
+        )
+        plans = [
+            RequestPlan(
+                f"r{index}", index, "g0", index, ranks[index], lanes[index],
+                length, length, 1, prefix, 4, length - prefix - 4,
+            )
+            for index, (length, prefix) in enumerate(zip(lengths, result.shared_prefix_tokens))
+        ]
+        rows = simulate_theory(plans, "cold", verbose=False).rows
+        cumulative_input = 0
+        cumulative_hit = 0
+        rates = []
+        for row in rows:
+            cumulative_input += row.actual_input_tokens
+            cumulative_hit += row.theoretical_hit_tokens
+            rates.append(cumulative_hit / cumulative_input)
+        self.assertEqual([row.theoretical_hit_tokens for row in rows[:2]], [0, 0])
+        self.assertTrue(
+            all(later + 1e-12 >= earlier for earlier, later in zip(rates, rates[1:])),
+            rates,
+        )
+        self.assertLessEqual(max(rates), result.effective_hit_rate + 1e-12)
+        self.assertAlmostEqual(rates[-1], result.effective_hit_rate)
 
     def test_solver_matches_exhaustive_small_oracle(self):
         lengths = [16, 20, 24]

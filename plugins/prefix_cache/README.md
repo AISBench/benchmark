@@ -1,6 +1,8 @@
-# AISBench Prefix Cache 数据集生成插件
+# AISBench Prefix Cache 数据生成与压测插件
 
-这是一个独立的 AISBench 插件，用于**离线构造**具有可控公共前缀的 Prefix Cache 数据集，并校验产物的完整性。本分支只保留数据生成与校验能力（`inspect` / `prepare` / `validate` 三个命令），不包含任何在线压测（连接 vLLM、跑 AISBench、采集指标）相关功能。
+简体中文 | [English](README_en.md)
+
+这是一个独立的 AISBench 插件，用于构造具有可控公共前缀的数据集，并比较 vLLM Prefix Cache 的理论与实际命中率。它同时提供离线的 `inspect` / `prepare` / `validate`，在线的 `run`，以及使用已保存 Prometheus 快照复算的 `analyze`。
 
 插件只增加 `plugins/prefix_cache` 下的新代码，不修改 AISBench 核心逻辑。
 
@@ -13,7 +15,9 @@ Scenario 示例见 [config_examples/scenario.example.json](config_examples/scena
 - Python 3.10 或更高版本；
 - 当前 AISBench 仓库及其依赖可以正常导入；
 - `transformers`：加载与 vLLM 模型一致的 tokenizer；
-- 一份 GSM8K JSONL 文件，每行至少包含 `question` 字段。
+- `datasets` 和 `aiohttp`：AISBench Dataset 与 API 压测依赖；
+- 一份 GSM8K JSONL 文件，每行至少包含 `question` 字段；
+- 在线 `run` 还需要一个启用 Prefix Cache 的 vLLM Completions 服务。
 
 数据生成时使用的 tokenizer 必须与 vLLM 服务端模型一致。否则本地计算的 token 长度、Block 边界和理论命中率会与服务端实际行为不一致。
 
@@ -52,7 +56,8 @@ python -m pip install -e ./plugins/prefix_cache
 这条命令会：
 
 1. 安装 `ais_bench_prefix_cache` Python 包；
-2. 安装 `ais-bench-prefix-cache` 命令行入口。
+2. 注册 Prefix Cache Dataset、Inferencer 和 vLLM API Model 的 AISBench 插件入口；
+3. 安装 `ais-bench-prefix-cache` 命令行入口。
 
 ### 2.4 验证安装
 
@@ -60,7 +65,7 @@ python -m pip install -e ./plugins/prefix_cache
 ais-bench-prefix-cache --help
 ```
 
-作用：验证命令行入口是否安装成功，并列出 `inspect`、`prepare` 和 `validate` 三个子命令。
+作用：验证命令行入口是否安装成功，并列出 `inspect`、`prepare`、`validate`、`run` 和 `analyze` 五个子命令。
 
 如果系统找不到该命令，可以使用等价形式：
 
@@ -76,18 +81,21 @@ python -m ais_bench_prefix_cache.cli --help
 cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 ```
 
-作用：复制一份可编辑的 Scenario。离线生成前至少核对：
+作用：复制一份可编辑的 Scenario。执行前至少核对：
 
 - `tokenizer.path`：与 vLLM 一致的 tokenizer；
 - `corpus.path`：本地 GSM8K JSONL；
 - `tokenizer.block_size`：与服务端 Prefix Cache Block 大小一致；
 - `service.dp_size`：需要模拟 cold 多 DP 路由或生成 warmup 计划时，应与目标服务的 DP 数量一致。
+- `service.inference_url`、`metrics_url`、`reset_url` 和 `model`：在线 `run` 使用；
+- `aisbench.config`：正式压测使用的 AISBench Python 配置。
+- `aisbench.dataset`、`aisbench.model`：AISBench Dataset/Model 的全部用户可见配置；包括 abbr、reader 契约、prompt、pred_role、attr、stream、retry、batch_size 和 generation_kwargs。用户无需编辑插件 `config.py`。
 
-当前分支完全离线，不访问 `service` 中的 URL，也不把 `service.model` 写入请求体；这些字段可以保留默认值。`inference_url`、`metrics_url` 和 `model` 的最终有效值仍需为非空字符串，这是兼容后续在线流程的配置校验。
+`inspect`、`prepare` 和 `validate` 不访问服务；`run` 会使用 `service` 段完成探活、reset、逐 DP warmup、正式压测和指标采集。当前只支持一个 HTTP 入口后面的单 DP 或多 DP，不支持多个彼此独立的 vLLM 实例。
 
 各参数的默认值、约束和模式见 [Scenario 参数说明](config_examples/scenario.example.md)。下面给出完整字段索引和最关键的数据构造参数，README 本身可作为快速使用手册。
 
-Scenario 中省略的字段会使用 `scenario.example.json` 的当前值作为默认值，包括默认 run、tokenizer、GSM8K 路径、100 条固定 1024-token 请求、warmup 60% 目标、单一 uniform Prefix Group 和 DP 2。`minimum_non_shared_length` 是安全例外：它按 `seed_blocks × block_size` 动态推导；使用示例默认值时仍为 16。
+Scenario 中省略的字段会使用 `scenario.example.json` 的当前值作为默认值，包括默认 run、tokenizer、GSM8K 路径、100 条固定 1024-token 请求、`output.output_key=null`（requests 不带输出长度字段）、warmup 60% 目标、单一 uniform Prefix Group 和 DP 2。`minimum_non_shared_length` 是安全例外：它按 `seed_blocks × block_size` 动态推导；使用示例默认值时仍为 16。
 
 ### 3.2 Prefix Cache 数据构造参数
 
@@ -100,16 +108,33 @@ Scenario 采用严格白名单，完整配置层级如下；未列出的字段�
 - `requests`：`count`、`input_length`、`output_length`；
   - `input_length` 支持 `mode`、`value`、`values`、`ranges`、`min`、`max`、`mean`、`std`、`path`，其中 `ranges` 项只允许 `min`、`max`、`count`；
   - `output_length` 支持 `mode`、`value`、`min`、`max`、`mean`、`std`、`path`；
+- `output`：`output_key`，允许 `null`、`"max_tokens"`、`"output_tokens"`；
 - `prefix_cache`：`mode`、`target_hit_rate`、`seed_blocks`、`minimum_non_shared_length`、`groups`、`order`；
   - `groups` 支持 `count`、`assignment`、`overrides`；
   - `assignment` 支持 `mode`、`exponent`、`weights`；
   - 每个 `overrides.group-N` 支持 `input_length`、`output_length`、`corpus_selection`；
   - `order` 支持 `strategy`；
-- `service`：`inference_url`、`metrics_url`、`reset_url`、`model`、`dp_size`、`assume_empty_cache`、`engine_label_map`、`timeout_seconds`、`api_key`；
+- `service`：`inference_url`、`metrics_url`、`reset_url`、`model`、`dp_size`、`assume_empty_cache`、`engine_label_map`、`timeout_seconds`、`api_key`、`poll_interval_seconds`；
 - `validation`：`target_warning_pp`、`actual_warning_pp`；
-- `aisbench`：`config`、`work_dir`、`extra_args`，当前离线流程仅兼容保留、不消费。
+- `aisbench`：`config`、`work_dir`、`extra_args`、`dataset`、`model`；离线命令不消费，`run` 用于渲染配置并启动 AISBench perf。
+  - `dataset`：`abbr`、`input_columns`、`output_column`、`prompt_template`、`pred_role`；为保证理论 token 与实际 prompt 一致，前三个数据契约字段必须保持示例值，abbr/pred_role 可改。
+  - `model`：`abbr`、`attr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs`；旧 Scenario 省略时自动使用示例默认值。`attr` 当前只能为 `"service"`，用于启用 AISBench service 性能链路和 TTFT 等指标汇总。
 
 各字段逐项含义见 [Scenario 完整字段说明](config_examples/scenario.example.md)。
+
+#### requests.jsonl 输出字段
+
+```json
+"output": {"output_key": null}
+```
+
+该配置参考 `extract_qa.py --output-key`：
+
+- `null`：默认，只输出 `question`、`answer`；
+- `"max_tokens"`：追加 `max_tokens`；
+- `"output_tokens"`：追加 `output_tokens`，值仍来自本请求生成的 `max_tokens`。
+
+无论公开的 requests 文件是否带第三字段，完整审计文件 `full.jsonl` 都保留 `max_tokens`，AISBench Dataset 也从 full 文件读取 `max_out_len`，因此默认省略不会改变实际生成长度。
 
 #### 输入长度模式
 
@@ -207,7 +232,7 @@ Scenario 加载阶段会检查每种输入长度模式的最小值是否能容�
 - `global_shuffle`：所有请求全局确定性打乱；
 - `input_len_asc`：每个 Prefix Group 内按输入长度从短到长排序，再按组轮转交错；相同长度保持原始顺序。
 
-理论命中率始终按照最终发送顺序重新模拟。cold 模式下，同一个 `(Prefix Group, DP rank)` lane 的正式请求会保持该顺序，即使 AISBench 并发发送也不会破坏理论缓存水位。
+理论命中率始终按照最终发送顺序重新模拟。使用 `input_len_asc` + `cold` 时，短到长顺序会贯穿四个阶段：prepare 先重排长度和 Group，`requests.jsonl` / `full.jsonl` 按该顺序落盘，Dataset 校验 `sequence_index` 与行号一致，Inferencer 最后用 `LaneSequencer` 按 `(Prefix Group, DP rank)` 的 `lane_sequence` 串行放行。只有前一条请求完成后才发送同一 lane 的下一条，因此即使 AISBench 并发创建任务，也能模拟“首次请求无缓存，后续短请求到长请求逐步建立 Cache”。不同 Group 或 DP 的缓存彼此独立，仍可并发，不要求全局串行。
 
 #### 可达性与长度统计
 
@@ -219,7 +244,9 @@ Scenario 加载阶段会检查每种输入长度模式的最小值是否能容�
 - requested、effective 和 theoretical hit rate；
 - 理论值减目标值的带符号偏差和绝对偏差。
 
-目标高于 `reachable_max` 或低于 `reachable_min` 时，求解器直接选择对应边界解；目标位于区间内时，按 Block 单位选择最近可达命中量。cold 模式按 `(Prefix Group, DP rank)` lane 精确构造，不使用可能停在局部最优的爬山搜索。
+目标高于 `reachable_max` 或低于 `reachable_min` 时，求解器直接选择对应边界解；目标位于区间内时，按 Block 单位选择最近可达命中量。最终 hit token 精度是硬约束，在此基础上再优化请求过程：warmup 按累计输入比例均衡分配前缀；cold 按 `(Prefix Group, DP rank)` 独立水位搜索，依次最小化累计命中率的最大超调、总超调和回落，再尽快贴近目标。因此不会再把大部分前缀集中到前几条、最后用零/短前缀回调。
+
+严格单调并非所有顺序都可实现，例如后置 Prefix Group/DP lane 的首次 cold 请求必然 miss，或某条请求没有足够前缀容量。此时求解器仍优先选择超调和回落最小的精确总量解；极端搜索空间下会回退到确定性的 exact lane construction，确保最终 effective/theoretical 命中率不被轨迹优化破坏。
 
 Manifest 的输入和输出长度摘要包含 `min`、`max`、`mean`、`p50`、`p90`、`p95`、`p99` 以及最多十个长度分桶。`inspect` 也会展示这些摘要和组级可达范围。
 
@@ -230,7 +257,7 @@ Manifest 的输入和输出长度摘要包含 `min`、`max`、`mean`、`p50`、`
 - 目标超出可达区间时记录 `TARGET_UNREACHABLE`；
 - 理论值与目标相差超过 `target_warning_pp` 时记录 `TARGET_DEVIATION`。
 
-这些状态和差异只用于展示，`warning_only=true` 且 `affects_exit_code=false`。偏差不会改变原本成功的退出码；只有配置、产物生成或校验错误才会失败。
+这些状态和差异只用于展示，`warning_only=true` 且 `affects_exit_code=false`。在线实际值与理论值超过 `actual_warning_pp` 时也只记录 `ACTUAL_DEVIATION`；配置、产物、服务能力或 AISBench 执行错误才会失败。
 
 ### 3.3 `inspect`：检查配置和理论范围
 
@@ -246,8 +273,8 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 - 展示组分布、输入/输出长度和 cold DP 路由摘要；
 - 不访问 vLLM、不发送请求，也不在 Scenario 的 `output_dir` 留下四类正式数据产物；
 - 与 `prepare` 一样生成 `_YYYYMMDD_HHMMSS` 时间戳，并把详细日志缓存到 `output_dir_时间戳/log/<run_id_时间戳>.inspect.log`；
-- 成功后在基础输出目录旁写入 `<output_dir>.inspect.json` 指针，记录本次时间戳，供下一次匹配的 `prepare` 复用同一目录；
-- 输出的 JSON 摘要包含 `log` 字段，可直接定位该日志。
+- 成功后在 `output_dir_时间戳/result/` 写入同名轻量 `manifest.json`，其 `status="inspected"`，并把 inspect 摘要保存在 `inspect.summary`；不会再生成 `<output_dir>.inspect.json`；
+- 输出的 JSON 摘要包含 `log` 和 `manifest` 路径，可直接定位日志与检查结果。
 
 ### 3.4 `prepare`：生成正式数据产物
 
@@ -272,7 +299,7 @@ Generate prompts [##############################] 100/100 100%
 
 进度写入 stderr，最后一行结果 JSON 写入 stdout，方便脚本继续解析。
 
-时间戳采用 `_YYYYMMDD_HHMMSS`。单独执行 `prepare` 且没有可复用 inspect 指针时，会生成新时间戳；如果此前成功执行过匹配的 `inspect`，`prepare` 会复用 inspect 的时间戳，使 inspect、prepare、validate 的日志和正式产物位于同一个时间戳目录。
+时间戳采用 `_YYYYMMDD_HHMMSS`。单独执行 `prepare` 且没有可复用 inspect Manifest 时会生成新时间戳；`prepare` 会发现最近一次与当前 Scenario SHA-256 匹配的 `status="inspected"` Manifest，并在同一路径把它安全升级为正式 `status="prepared"` Manifest。`run` 可复用匹配的 inspected/prepared Manifest，使预览、生成、压测和校验位于同一个时间戳目录。
 
 例如配置为：
 
@@ -294,9 +321,7 @@ output_dir: ./outputs/gsm8k-prefix-cache-60
     └── gsm8k-prefix-cache-60_20260825_123456.analysis.json
 ```
 
-因此正常工作流不需要手动修改 `run_id` 或 `output_dir`。inspect 指针位于基础输出目录旁，例如 `./outputs/gsm8k-prefix-cache-60.inspect.json`，字段为 `schema_version`、`timestamp`、`run_id`、`output_dir` 和 `output_dir_with_timestamp`。
-
-只有当指针版本、基础 `run_id`、基础 `output_dir`、时间戳格式和对应目录都有效时才会复用。当前实现不比较 Scenario 内容哈希；修改其他 Scenario 参数后如需确保使用新目录，应重新执行 `inspect` 生成新指针，或删除旧的 `.inspect.json` 指针后再执行 `prepare`。
+因此正常工作流不需要手动修改 `run_id` 或 `output_dir`，基础输出目录旁也不会出现额外的 `.inspect.json` 文件。插件直接扫描 `<output_dir>_时间戳/result/<run_id_时间戳>.manifest.json`，并校验 Manifest 版本、状态、时间戳化 run/output 以及 `scenario_sha256`；修改 Scenario 后旧 Manifest 会自动失配并创建新时间戳。
 
 默认不覆盖同名文件。确定需要重建时使用：
 
@@ -304,7 +329,7 @@ output_dir: ./outputs/gsm8k-prefix-cache-60
 ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
 ```
 
-`--overwrite` 只覆盖本次时间戳目录内该 run 对应的四个确定文件，不会清理整个输出目录。若 `prepare` 复用了已经存在正式产物的 inspect 时间戳，则默认会因同名文件失败；此时应重新执行 `inspect` 获得新时间戳，只有明确要重建同一目录时才使用 `--overwrite`。
+`--overwrite` 只覆盖本次时间戳目录内该 run 对应的四个确定文件，不会清理整个输出目录。匹配的 inspect-only Manifest 可由 prepare 自动升级，不需要 `--overwrite`；正式 prepared Manifest 不会被后续 prepare 当作 inspect 占位复用。
 
 ### 3.5 `validate`：校验已有产物
 
@@ -316,7 +341,7 @@ ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60_<时�
 
 - Manifest、full 和 requests 行数是否一致；
 - `sequence_index` 是否连续；
-- requests 是否严格只含 `question`、`answer`、`max_tokens`；
+- requests 是否严格只含 `question`、`answer` 以及 `output.output_key` 指定的可选第三字段；
 - requests 与 full 是否逐行对应；
 - full 和 requests 的 SHA-256 是否匹配 Manifest。
 
@@ -324,15 +349,51 @@ ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60_<时�
 
 与 `inspect`/`prepare` 一样，validate 的详细日志写入 Manifest 所在时间戳输出目录的 `log/<run_id_时间戳>.validate.log`，终端只打印校验结果 JSON。
 
+### 3.6 `run`：执行 vLLM Prefix Cache 压测
+
+```bash
+ais-bench-prefix-cache run --scenario ./scenario.json
+```
+
+完整流程为：校验或自动生成本时间戳的产物；逐 DP 探活；reset Prefix Cache（或按配置记录 `ASSUME_EMPTY_CACHE`）；warmup 模式按每个 `Prefix Group × DP rank` 定向预热；预热完成后采集正式 baseline；运行 AISBench `perf`；采集 after 并计算每 DP、全局实际命中率；最后把 `runtime`、`actual`、理论/实际差值和告警写回 `result/<run_id>.analysis.json`。warmup 在 baseline 之前完成，因此不进入正式吞吐、时延或命中率统计。
+
+`run` 的 Prefix Cache 插件流程日志只写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log`，不会作为插件日志回显到 CLI 终端；stdout 仍输出最终 analysis JSON。AISBench 子进程继续继承 stdout/stderr，其运行过程会实时展示在 CLI 中，不会被插件重定向到 `run.log`。插件日志覆盖执行上下文、产物复用/自动 prepare、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
+
+Dataset、Model 和 Inferencer 运行在 AISBench 正式任务子进程中，统一使用 AISBench 的 `AISLogger` 和 `ais_bench` handle，详细过程使用 debug 级别。默认 `aisbench.work_dir="./outputs/default"` 时，AISBench 会把该任务 stdout/stderr 写入 `./outputs/default/<AISBench时间戳>/logs/infer/*.out`；若显式修改 `aisbench.work_dir`，日志会随之移动。当前 AISBench 全局日志级别默认为 INFO，只有将其设为 DEBUG 时这些详细日志才会实际写入 `.out`。
+
+正式 AISBench 请求默认使用 vLLM SSE 流式响应，因为 `aisbench.model.stream` 默认为 `true`。流式模式会在请求开始、首个响应 chunk 以及后续 chunk 到达时记录时间点，供 `DefaultPerfSummarizer` 计算 TTFT、TPOT、ITL、E2EL 和吞吐量；这些性能汇总文件位于 `aisbench.work_dir/performances/<model-abbr>/`。设为 `false` 后仍可统计 Prefix Cache 命中率，但无法按 chunk 生成完整 TTFT、TPOT 和 ITL。逐 DP 探活和插件 warmup 使用独立的非流式请求，它们发生在正式 baseline 之前，不会混入上述性能指标。
+
+插件的 Group × DP warmup 与 AISBench 自带的 `--num-warmups` 是两套独立机制。前者由 `prefix_cache.mode="warmup"` 控制并发生在 baseline 之前；后者属于 AISBench perf 子进程。如果需要让正式 baseline 之后只包含正式请求，应配置 `"extra_args": ["--num-warmups", "0"]`。
+
+临时覆盖 Scenario 中的 AISBench 配置：
+
+```bash
+ais-bench-prefix-cache run --scenario ./scenario.json --config ./my_prefix_cache_perf.py
+```
+
+多 DP 使用同一个 HTTP 入口，并要求服务支持 `X-data-parallel-rank` 定向路由及带 `engine` 标签的分 DP Prometheus 指标。每个 DP 都会独立预热；不支持多实例服务编排。
+
+### 3.7 `analyze`：用保存的指标快照离线复算
+
+```bash
+ais-bench-prefix-cache analyze \
+  --manifest ./outputs/gsm8k-prefix-cache-60_<时间戳>/result/gsm8k-prefix-cache-60_<时间戳>.manifest.json \
+  --baseline ./baseline.prom \
+  --after ./after.prom
+```
+
+该命令不连接 vLLM、不运行 AISBench，只解析两份 Prometheus 文本，重新计算正式阶段计数器增量并写回 Manifest 对应的 analysis。当前 CLI 将 `analyze` 和 `validate` 的插件日志写入同一时间戳目录的 `log/<run_id>.validate.log`；连续执行时后一次命令会重新创建该日志文件。
+
 ## 4. 推荐工作流
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
 ais-bench-prefix-cache prepare --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest路径>
+ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-这样可以在任何实际压测前人工审计数据。该顺序下 `prepare` 会复用刚刚 `inspect` 的时间戳；`prepare` 遇到同名产物时默认拒绝覆盖。
+这样可以在实际压测前人工审计数据。`prepare` 和 `run` 会通过匹配 Manifest 复用时间戳；`run` 发现同一时间戳下已有且与 Scenario 匹配的正式产物时直接复用。
 
 ## 5. cold 与 warmup
 
@@ -349,7 +410,7 @@ ais-bench-prefix-cache validate --manifest <manifest路径>
 - warmup 不进入 requests JSONL、理论分母或正式指标增量；
 - 全局理论命中率有效，分 DP 主要展示实际指标。
 
-> 本分支只负责生成 cold / warmup 模式下的数据与预热计划，不实际执行预热请求。预热计划落在 `result/<run_id_时间戳>.manifest.json` 的 `warmup.plan` 字段。
+预热计划落在 `result/<run_id_时间戳>.manifest.json` 的 `warmup.plan` 字段。`prepare` 只生成计划；`run` 才会执行预热请求，并在全部预热完成后采集 baseline。
 
 ## 6. 分层产物
 
@@ -390,13 +451,13 @@ ais-bench-prefix-cache validate --manifest <manifest路径>
 
 ### `<run_id>.requests.jsonl`
 
-最小输入，每行字段顺序严格为 `question`、`answer`、`max_tokens`：
+最小输入，每行固定先写 `question`、`answer`，再按 `output.output_key` 决定是否追加第三字段：
 
 - `question`：最终完整 prompt；
 - `answer`：当前固定为 `"none"`；
-- `max_tokens`：该请求最大输出 token 数。
+- `max_tokens` 或 `output_tokens`：可选；值为该请求最大输出 token 数。默认 `output_key=null`，两者都不写。
 
-DP 路由等字段只存在于 full 文件，不污染通用请求格式。
+`full.jsonl` 始终保留 `max_tokens`。DP 路由等字段也只存在于 full 文件，不污染通用请求格式。
 
 ### `<run_id>.manifest.json`
 
@@ -442,26 +503,31 @@ DP 路由等字段只存在于 full 文件，不污染通用请求格式。
 - `theory`：`input_tokens`、`hit_tokens`、`groups`、`dp`；每个组或 DP 统计包含 `input_tokens`、`hit_tokens`、`hit_rate`；
 - `warnings`：零个或多个告警。`TARGET_UNREACHABLE` 包含 requested target 和可达上下界，`TARGET_DEVIATION` 包含 `difference_pp`。
 
-成功生成时 `status="prepared"`；偏差告警只改变 `validation.status` 的展示值，不改变成功退出码。
+成功生成时 `status="prepared"`；`run` 完成后为 `"complete"`，`analyze` 复算后为 `"analyzed"`。在线阶段新增 `runtime.metrics_baseline/metrics_after`（含原始 Prometheus 文本和分 DP 累计值）、`actual`、`theory_actual_*_difference_pp` 及 `validation.actual_status`。偏差告警只改变展示值，不改变成功退出码。
 
-### `inspect`、指针和 CLI 返回字段
+`run` 在正式跑分期间按 `service.poll_interval_seconds` 周期轮询 `metrics_url` 采样 KV 用量（kv 是瞬时 gauge，跑分结束后会归零，必须在跑分期间采样），结果写入 `runtime.kv_cache_polling`：`interval_seconds`、`count`、`summary`（每 DP 的 `peak`/`avg`/`sample_count` 及 `global_peak`/`global_avg`）与逐样本明细 `samples`（`elapsed_seconds` + 每 DP 用量）。同时把峰值/均值合并进 `actual`：`actual.by_dp.*.kv_cache_usage_peak`、`kv_cache_usage_avg`、`actual.global_kv_cache_usage_peak`、`global_kv_cache_usage_avg`；`actual.by_dp.*.kv_cache_usage` 仍为 after 快照的瞬时值。`poll_interval_seconds` 设为 0 可关闭轮询；单次抓取失败只跳过该样本，不中断跑分。
 
-`inspect` 终端 JSON 包含：`run_id`、`mode`、`requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`、`reachable_min`、`reachable_max`、`target_reachable`、`group_reachability`、`groups`、`input_tokens`、`output_tokens`、`dp_route_counts`、`sends_requests`、`log`。其中 `sends_requests` 固定为 `false`。
+### `inspect` Manifest 和 CLI 返回字段
 
-`<output_dir>.inspect.json` 包含：`schema_version`、`timestamp`、`run_id`、`output_dir`、`output_dir_with_timestamp`。
+`inspect` 终端 JSON 包含：`run_id`、`mode`、`requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`、`reachable_min`、`reachable_max`、`target_reachable`、`group_reachability`、`groups`、`input_tokens`、`output_tokens`、`dp_route_counts`、`sends_requests`、`log`、`manifest`。其中 `sends_requests` 固定为 `false`。
+
+inspect 写出的轻量 Manifest 顶层包含 `schema_version`、`plugin_version`、`status`、`run_id`、`scenario_path`、`scenario_sha256`、`effective_config` 和 `inspect`。`status` 固定为 `"inspected"`；`inspect` 包含 `timestamp`、`base_run_id`、`base_output_dir`、`sends_requests` 与 `summary`。prepare 原位升级后，该文件变为完整正式 Manifest，`status="prepared"`，并包含请求、组、DP、warmup 和 artifacts 等正式字段。
 
 CLI 最后一段 JSON 的固定字段为：
 
 - `prepare`：`full`、`requests`、`manifest`、`analysis`、`log`；
-- `inspect`：上述 inspect 摘要和 `log`；
-- `validate`：`ok`、`rows`、`run_id`。validate 会写日志，但返回 JSON 当前不包含 `log`。
+- `inspect`：上述 inspect 摘要、`log` 和 `manifest`；
+- `validate`：`ok`、`rows`、`run_id`；
+- `run`：更新后的完整 analysis JSON；
+- `analyze`：离线复算后的完整 analysis JSON。validate/run/analyze 均写日志，返回 JSON 当前不单独添加 `log` 字段。
 
 ## 7. 退出码
 
 - 理论与目标差异超过 `target_warning_pp`：`TARGET_DEVIATION`；
 - 目标超出可达区间：`TARGET_UNREACHABLE`；
-- 两者始终只告警，不改变原本成功的退出码；
-- 配置错误、产物损坏会返回非零退出码。
+- 实际与理论差异超过 `actual_warning_pp`：`ACTUAL_DEVIATION`；
+- 三者始终只告警，不改变原本成功的退出码；
+- 配置错误、产物损坏、服务能力不足或 AISBench 执行失败会返回非零退出码。
 
 ## 8. 常见问题
 
@@ -477,4 +543,4 @@ warmup 只负责建立缓存。如果计入请求数、吞吐、时延或命中�
 
 ### 修改 Scenario 后为什么通常不再需要手动改 run_id？
 
-单独执行 `prepare` 时会使用新的秒级时间戳；执行推荐的 `inspect → prepare` 工作流时，prepare 会复用 inspect 时间戳。两种方式都会把同一时间戳同时追加到 `run_id` 和 `output_dir`，因此不需要手动改名。`--overwrite` 仅用于明确重建同一时间戳目录。
+单独执行 `prepare` 时会使用新的秒级时间戳；执行推荐的 `inspect → prepare → run` 工作流时，后续命令通过匹配的 Manifest 复用同一时间戳。时间戳同时追加到 `run_id` 和 `output_dir`，因此不需要手动改名。`--overwrite` 仅用于明确重建同一时间戳目录。

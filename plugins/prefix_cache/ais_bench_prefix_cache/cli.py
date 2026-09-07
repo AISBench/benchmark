@@ -1,15 +1,24 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import sys
 from pathlib import Path
 from typing import TextIO
 
-from .artifacts import validate_artifacts
+from . import __version__
+from .artifacts import (
+    artifact_paths,
+    find_latest_execution_manifest,
+    sha256_file,
+    validate_artifacts,
+    write_json,
+)
 from .errors import PrefixCacheError
 from .pipeline import inspect_scenario, prepare_scenario
+from .runtime import analyze_snapshots, run_scenario
 from .scenario import Scenario, load_scenario, new_execution_timestamp, with_execution_timestamp
 
 # Parent logger name shared by all module loggers (ais_bench_prefix_cache.*).
@@ -53,17 +62,23 @@ class PromptProgress:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """构建命令行参数解析器：prepare / inspect / validate 三个离线子命令。"""
+    """构建 Prefix Cache 数据准备、运行与分析子命令。"""
     parser = argparse.ArgumentParser(prog="ais-bench-prefix-cache")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("prepare", "inspect"):
+    for name in ("prepare", "inspect", "run"):
         # prepare 生成请求工件；inspect 只预览不发请求（共用 --scenario）。
         item = sub.add_parser(name)
         item.add_argument("--scenario", required=True, type=Path)
     prepare = sub.choices["prepare"]
     prepare.add_argument("--overwrite", action="store_true")
+    run = sub.choices["run"]
+    run.add_argument("--config", type=Path)
     validate = sub.add_parser("validate")
     validate.add_argument("--manifest", required=True, type=Path)
+    analyze = sub.add_parser("analyze")
+    analyze.add_argument("--manifest", required=True, type=Path)
+    analyze.add_argument("--baseline", required=True, type=Path)
+    analyze.add_argument("--after", required=True, type=Path)
     return parser
 
 
@@ -76,14 +91,14 @@ def _resolve_log_file(
     """Resolve a per-command log under the run output directory's log/ layer.
 
     prepare / inspect 从 scenario 解析 output_dir 与 run_id（prepare 优先复用
-    最近一次成功 inspect 的时间戳目录，见 _reusable_inspect_timestamp）；
+    最近一次成功 inspect Manifest 的时间戳目录）；
     validate 从 manifest 的 run_id 与 effective_config.run.output_dir 解析。
 
     Falls back to console-only logging when the config cannot be loaded
     or the output directory is not writable (the real error surfaces in
     the normal command flow).
     """
-    if command == "validate":
+    if command in {"validate", "analyze"}:
         if manifest_path is None:
             return None
         try:
@@ -108,69 +123,55 @@ def _resolve_log_file(
         return None
 
 
-def _inspect_pointer_path(output_dir: Path) -> Path:
-    """每个基础 output_dir 一个指针文件，记录最近一次成功 inspect 的时间戳。"""
-    return output_dir.with_name(f"{output_dir.name}.inspect.json")
+def _reusable_execution_timestamp(scenario: Scenario, *, inspected_only: bool) -> str | None:
+    """Return the newest reusable timestamp discovered from a matching Manifest."""
+    statuses = {"inspected"} if inspected_only else {"inspected", "prepared"}
+    found = find_latest_execution_manifest(scenario, statuses)
+    return found[0] if found is not None else None
 
 
-def _reusable_inspect_timestamp(scenario: Scenario) -> str | None:
-    """若存在与当前场景匹配的 inspect 指针且其时间戳目录还在，返回可复用的时间戳。
-
-    指针记录的 run_id / output_dir 必须与当前场景一致，时间戳格式合法，
-    且对应的时间戳目录仍然存在，否则视为不可复用（返回 None）。
-    """
-    pointer = _inspect_pointer_path(scenario.output_dir)
-    try:
-        record = json.loads(pointer.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if record.get("schema_version") != "1.0":
-        return None
-    if record.get("run_id") != scenario.run_id or record.get("output_dir") != str(scenario.output_dir):
-        return None
-    timestamp = record.get("timestamp")
-    if not isinstance(timestamp, str):
-        return None
-    try:
-        stamped = with_execution_timestamp(scenario, timestamp)
-    except PrefixCacheError:
-        return None
-    if not stamped.output_dir.is_dir():
-        return None
-    return timestamp
-
-
-def _persist_inspect_pointer(scenario_path: Path, log_file: Path, timestamp: str) -> None:
-    """写入 inspect 复用指针，供后续 prepare 复用同一时间戳目录。
-
-    Best-effort：任何持久化失败只记日志，不影响 inspect 命令本身的结果。
-    """
-    try:
-        base_scenario = load_scenario(scenario_path)
-    except PrefixCacheError as exc:
-        logger.warning("[cli] cannot load scenario for inspect pointer: %s", exc)
-        return
-    run_dir = log_file.parent.parent
-    pointer = _inspect_pointer_path(base_scenario.output_dir)
-    record = {
+def _persist_inspect_manifest(
+    scenario_path: Path,
+    result: dict,
+    log_file: Path | None,
+    timestamp: str,
+) -> Path:
+    """Persist inspect output as the run's lightweight Manifest."""
+    base_scenario = load_scenario(scenario_path)
+    scenario = with_execution_timestamp(base_scenario, timestamp)
+    effective = copy.deepcopy(scenario.to_effective_dict())
+    configured_api_key = bool(effective["service"].pop("api_key", ""))
+    effective["service"]["api_key_configured"] = configured_api_key
+    summary = copy.deepcopy(result)
+    if log_file is not None:
+        summary["log"] = str(log_file)
+    manifest = {
         "schema_version": "1.0",
-        "timestamp": timestamp,
-        "run_id": base_scenario.run_id,
-        "output_dir": str(base_scenario.output_dir),
-        "output_dir_with_timestamp": str(run_dir),
+        "plugin_version": __version__,
+        "status": "inspected",
+        "run_id": scenario.run_id,
+        "scenario_path": str(base_scenario.source_path),
+        "scenario_sha256": sha256_file(base_scenario.source_path),
+        "effective_config": effective,
+        "inspect": {
+            "timestamp": timestamp,
+            "base_run_id": base_scenario.run_id,
+            "base_output_dir": str(base_scenario.output_dir),
+            "sends_requests": False,
+            "summary": summary,
+        },
     }
-    try:
-        pointer.write_text(json.dumps(record, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        logger.info("[cli] inspect persisted pointer=%s record=%s", pointer, record)
-    except OSError as exc:
-        logger.warning("[cli] cannot persist inspect pointer: %s", exc)
+    path = artifact_paths(scenario.output_dir, scenario.run_id).manifest
+    write_json(path, manifest, overwrite=False)
+    logger.info("[cli] inspect persisted manifest=%s", path)
+    return path
 
 
 def _install_logger(log_file: Path | None) -> None:
     """安装插件自身的 logger handler，不依赖 ais_bench 的 AISLogger。
 
-    解析到 .log 文件时日志只写入文件、不在终端打印；否则回退为仅控制台输出，
-    真实的错误信息在正常命令流程中抛出。
+    解析到 .log 文件时只写入文件；无法解析日志路径时回退为仅控制台输出，
+    真实错误仍由正常命令流程抛出。
     """
     plugin_logger = logging.getLogger(PLUGIN_LOG_NAME)
     for existing in plugin_logger.handlers:
@@ -178,31 +179,47 @@ def _install_logger(log_file: Path | None) -> None:
     plugin_logger.handlers.clear()
     plugin_logger.propagate = False
     plugin_logger.setLevel(logging.INFO)
+    formatter = logging.Formatter(LOG_NORMAL_FORMAT)
     if log_file is not None:
-        handler: logging.Handler = logging.FileHandler(log_file, mode="w")
+        # 先清空上一轮同名插件日志，再以 append 模式打开。AISBench 正式任务的
+        # stdout/stderr 由其 LocalRunner 写入 work_dir/logs/infer，不与本文件混写。
+        log_file.write_text("", encoding="utf-8")
+        handler: logging.Handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
+        handler.setFormatter(formatter)
+        plugin_logger.addHandler(handler)
     else:
         handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter(LOG_NORMAL_FORMAT))
-    plugin_logger.addHandler(handler)
+        handler.setFormatter(formatter)
+        plugin_logger.addHandler(handler)
+
+
+def _close_logger() -> None:
+    """Close command-scoped handlers so repeated CLI calls do not leak files."""
+    plugin_logger = logging.getLogger(PLUGIN_LOG_NAME)
+    for handler in plugin_logger.handlers:
+        handler.close()
+    plugin_logger.handlers.clear()
 
 
 def main(argv: list[str] | None = None) -> int:
     """CLI 主入口：分发到对应子命令并统一处理错误码。"""
     args = build_parser().parse_args(argv)
-    # inspect 每次生成新时间戳目录；prepare 优先复用最近一次成功 inspect 的
-    # 时间戳目录，让 inspect / prepare / validate 的 .log 与 .json 落在同一目录。
+    # inspect 每次生成新时间戳目录；prepare/run 从 Manifest 发现可复用目录。
     execution_timestamp: str | None = None
-    reused_inspect_timestamp = False
+    reused_execution_timestamp = False
     if args.command == "inspect":
         execution_timestamp = new_execution_timestamp()
-    elif args.command == "prepare":
+    elif args.command in {"prepare", "run"}:
         try:
-            reusable = _reusable_inspect_timestamp(load_scenario(args.scenario))
+            reusable = _reusable_execution_timestamp(
+                load_scenario(args.scenario),
+                inspected_only=args.command == "prepare",
+            )
         except PrefixCacheError:
             reusable = None
         if reusable is not None:
             execution_timestamp = reusable
-            reused_inspect_timestamp = True
+            reused_execution_timestamp = True
         else:
             execution_timestamp = new_execution_timestamp()
     log_file = _resolve_log_file(
@@ -211,10 +228,10 @@ def main(argv: list[str] | None = None) -> int:
         manifest_path=getattr(args, "manifest", None),
         execution_timestamp=execution_timestamp,
     )
-    # 安装插件自身的 logger（日志只缓存到 .log 文件，不在终端打印）。
+    # 安装插件自身的 logger；日志路径可用时只写文件，不回显到 CLI 终端。
     _install_logger(log_file)
-    logger.info("[cli] command=%s args=%s log_file=%s reused_inspect_timestamp=%s", args.command, vars(args), log_file, reused_inspect_timestamp)
-    progress = PromptProgress() if args.command == "prepare" else None
+    logger.info("[cli] command=%s args=%s log_file=%s reused_execution_timestamp=%s", args.command, vars(args), log_file, reused_execution_timestamp)
+    progress = PromptProgress() if args.command in {"prepare", "run"} else None
     try:
         if args.command == "prepare":
             logger.info("[cli] prepare scenario=%s overwrite=%s", args.scenario, args.overwrite)
@@ -239,9 +256,34 @@ def main(argv: list[str] | None = None) -> int:
             result = inspect_scenario(args.scenario)
             if log_file is not None:
                 result["log"] = str(log_file)
-                # 写入复用指针，供后续 prepare/validate 复用同一时间戳目录。
-                _persist_inspect_pointer(args.scenario, log_file, execution_timestamp)
+            manifest_path = _persist_inspect_manifest(
+                args.scenario,
+                result,
+                log_file,
+                execution_timestamp,
+            )
+            result["manifest"] = str(manifest_path)
             logger.info("[cli] inspect_scenario returned result=%s", json.dumps(result, ensure_ascii=False))
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        elif args.command == "run":
+            logger.info("[cli] run scenario=%s config=%s", args.scenario, args.config)
+            result = run_scenario(
+                args.scenario,
+                args.config,
+                execution_timestamp=execution_timestamp,
+                progress=progress.update,
+            )
+            logger.info("[cli] run_scenario returned status=%s", result.get("status"))
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        elif args.command == "analyze":
+            logger.info(
+                "[cli] analyze manifest=%s baseline=%s after=%s",
+                args.manifest,
+                args.baseline,
+                args.after,
+            )
+            result = analyze_snapshots(args.manifest, args.baseline, args.after)
+            logger.info("[cli] analyze_snapshots returned status=%s", result.get("status"))
             print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except PrefixCacheError as exc:
@@ -251,6 +293,8 @@ def main(argv: list[str] | None = None) -> int:
         logger.warning("[cli] PrefixCacheError: %s", exc)
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+    finally:
+        _close_logger()
 
 
 def console_main() -> None:

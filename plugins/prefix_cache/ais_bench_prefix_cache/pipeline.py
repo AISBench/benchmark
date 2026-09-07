@@ -300,7 +300,13 @@ def prepare_scenario(
         }
         for row in theory.rows
     ]
-    request_rows = [{"question": row.question, "answer": row.answer, "max_tokens": row.max_tokens} for row in theory.rows]
+    request_output_key = effective["output"]["output_key"]
+    request_rows = []
+    for row in theory.rows:
+        request_row = {"question": row.question, "answer": row.answer}
+        if request_output_key is not None:
+            request_row[request_output_key] = row.max_tokens
+        request_rows.append(request_row)
     logger.info("[prepare] full_rows=%d request_rows=%d first_full_row=%s", len(full_rows), len(request_rows), full_rows[0])
     paths = artifact_paths(scenario.output_dir, scenario.run_id)
     logger.info("[prepare] paths full=%s requests=%s manifest=%s analysis=%s", paths.full, paths.requests, paths.manifest, paths.analysis)
@@ -364,6 +370,7 @@ def prepare_scenario(
     manifest = {
         "schema_version": "1.0",
         "plugin_version": __version__,
+        "status": "prepared",
         "run_id": scenario.run_id,
         "scenario_path": str(scenario.source_path),
         "scenario_sha256": sha256_file(scenario.source_path),
@@ -420,7 +427,20 @@ def prepare_scenario(
         },
     }
     logger.info("[prepare] manifest=%s", json.dumps(manifest, ensure_ascii=False))
-    write_json(paths.manifest, manifest, overwrite)
+    manifest_overwrite = overwrite
+    if paths.manifest.is_file() and not overwrite:
+        try:
+            existing_manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing_manifest = {}
+        manifest_overwrite = (
+            existing_manifest.get("status") == "inspected"
+            and existing_manifest.get("run_id") == scenario.run_id
+            and existing_manifest.get("scenario_sha256") == manifest["scenario_sha256"]
+        )
+        if manifest_overwrite:
+            logger.info("[prepare] upgrading inspect Manifest in place: %s", paths.manifest)
+    write_json(paths.manifest, manifest, manifest_overwrite)
     validate_artifacts(paths.manifest)
     logger.info("[prepare] prepare_scenario done paths=%s", {key: str(value) for key, value in paths.__dict__.items()})
     return paths

@@ -50,7 +50,7 @@ class ValidateArtifactsTest(unittest.TestCase):
         full_path = result_dir / "x.full.jsonl"
         request_path = result_dir / "x.requests.jsonl"
         full_path.write_text(json.dumps(full_row) + "\n", encoding="utf-8")
-        # requests 行要求严格为 {question, answer, max_tokens}，剥离 sequence_index。
+        # 此 helper 构造无 output 配置的旧 Manifest，按兼容契约固定带 max_tokens。
         request_row = {key: value for key, value in request_row.items() if key != "sequence_index"}
         request_path.write_text(json.dumps(request_row) + "\n", encoding="utf-8")
         manifest = {
@@ -72,6 +72,23 @@ class ValidateArtifactsTest(unittest.TestCase):
         with self.assertRaisesRegex(ArtifactValidationError, "cannot read Manifest"):
             validate_artifacts(Path("/nonexistent/x.manifest.json"))
 
+    def test_inspect_manifest_requests_prepare_first(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manifest_path = Path(folder) / "x.manifest.json"
+            manifest_path.write_text(
+                json.dumps({"status": "inspected", "inspect": {"summary": {}}}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ArtifactValidationError, "run prepare first"):
+                validate_artifacts(manifest_path)
+
+    def test_missing_prepared_artifacts_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manifest_path = Path(folder) / "x.manifest.json"
+            manifest_path.write_text(json.dumps({"status": "prepared"}), encoding="utf-8")
+            with self.assertRaisesRegex(ArtifactValidationError, "required prepared artifacts"):
+                validate_artifacts(manifest_path)
+
     def test_row_count_mismatch_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             manifest_path = self._write_artifacts(folder, self._row(), self._row(), count=5)
@@ -88,6 +105,14 @@ class ValidateArtifactsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             manifest_path = self._write_artifacts(
                 folder, self._row(), {"question": "q", "answer": "a", "max_tokens": 2, "bogus": 1}
+            )
+            with self.assertRaisesRegex(ArtifactValidationError, "unexpected fields"):
+                validate_artifacts(manifest_path)
+
+    def test_request_field_order_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            manifest_path = self._write_artifacts(
+                folder, self._row(), {"answer": "a", "question": "q", "max_tokens": 2}
             )
             with self.assertRaisesRegex(ArtifactValidationError, "unexpected fields"):
                 validate_artifacts(manifest_path)

@@ -20,7 +20,19 @@ def load_class(class_path):
 
 
 def get_locations(module_dir):
-    locations = [f'ais_bench.benchmark.{module_dir}']
+    """返回核心模块位置;插件位置通过 get_plugin_locations 延迟探测导入。
+
+    插件模块通常要 ``from ais_bench.benchmark.registry import MODELS`` 来
+    注册类,如果在 Registry 构造期间(例如 MODELS 尚未完成赋值)急切导入
+    插件子包,会形成循环导入。因此插件探测延迟到本模块全部 Registry
+    构造完成之后统一执行,见文件末尾的延迟探测循环。
+    """
+    return [f'ais_bench.benchmark.{module_dir}']
+
+
+def get_plugin_locations(module_dir):
+    """探测并导入提供 module_dir 子包的插件,返回其位置列表。"""
+    locations = []
     try:
         # 使用 .select() 方法替代已弃用的 .get() 方法
         for entry_point in entry_points().select(group='ais_bench.benchmark_plugins'):
@@ -82,6 +94,31 @@ TOT_WRAPPER = Registry('tot_wrapper', locations=get_locations('datasets'))
 CLIENTS = Registry('client', locations=get_locations('clients'))
 
 PERF_METRIC_CALCULATORS = Registry('perf_metric_calculator', locations=get_locations('calculators'))
+
+
+# 延迟探测插件位置:在全部 Registry 构造完成、registry.py 执行到末尾之后
+# 再导入插件子包。此时 MODELS/LOAD_DATASET 等均已赋值,插件注册类不会再
+# 触发 "partially initialized module" 循环导入错误。
+for _registry, _module_dir in (
+    (PARTITIONERS, 'partitioners'),
+    (RUNNERS, 'runners'),
+    (TASKS, 'tasks'),
+    (TASKS, 'tasks.custom_tasks'),
+    (MODELS, 'models'),
+    (LOAD_DATASET, 'datasets'),
+    (TEXT_POSTPROCESSORS, 'utils.postprocess.text_postprocessors'),
+    (EVALUATORS, 'evaluators'),
+    (ICL_INFERENCERS, 'openicl.icl_inferencer'),
+    (ICL_RETRIEVERS, 'openicl.icl_retriever'),
+    (ICL_DATASET_READERS, 'openicl.icl_dataset_reader'),
+    (ICL_PROMPT_TEMPLATES, 'openicl.icl_prompt_template'),
+    (ICL_EVALUATORS, 'openicl.icl_evaluator'),
+    (METRICS, 'metrics'),
+    (TOT_WRAPPER, 'datasets'),
+    (CLIENTS, 'clients'),
+    (PERF_METRIC_CALCULATORS, 'calculators'),
+):
+    _registry._locations.extend(get_plugin_locations(_module_dir))
 
 
 def build_from_cfg(cfg):
