@@ -111,6 +111,7 @@ Effective only when `--mode` is `agent` or `agent_viz`. AISBench runs agent eval
 | `--disable-verification` | Disable the verifier | `--disable-verification` |
 | `--force-build` / `--no-force-build` | Whether to force rebuild the environment | `--no-force-build` |
 | `--host-network` | Run all task containers sharing the host network (docker-compose network_mode: host) | `--host-network` |
+| `--extra-docker-compose` | Additional Docker Compose overlay file (repeatable, one file each) | `--extra-docker-compose /path/to/overlay1.yaml --extra-docker-compose /path/to/overlay2.yaml` |
 | `--delete` / `--no-delete` | Whether to delete the environment after completion | `--no-delete` |
 | `--purge-exception-cases` | Delete all case directories that ended with an exception before execution to auto-retry them; **effective only when `--reuse` is set** | `--reuse <ts> --purge-exception-cases` |
 | `-q` / `--quiet` | Suppress per-trial progress output | `--quiet` |

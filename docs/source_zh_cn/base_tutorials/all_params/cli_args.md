@@ -106,6 +106,7 @@ ais_bench [OPTIONS]
 | `--disable-verification` | 禁用 verifier | `--disable-verification` |
 | `--force-build` / `--no-force-build` | 是否强制重建环境 | `--no-force-build` |
 | `--host-network` | 所有任务容器共享宿主网络（docker-compose network_mode: host） | `--host-network` |
+| `--extra-docker-compose` | 附加的 Docker Compose overlay 文件（可多次传入，每次一个文件） | `--extra-docker-compose /path/to/overlay1.yaml --extra-docker-compose /path/to/overlay2.yaml` |
 | `--delete` / `--no-delete` | 完成后是否删除环境 | `--no-delete` |
 | `--purge-exception-cases` | 执行前删除所有因异常结束的 case 目录，实现自动重试；**仅在 `--reuse` 指定时生效** | `--reuse <ts> --purge-exception-cases` |
 | `-q` / `--quiet` | 抑制单个 trial 的进度显示 | `--quiet` |
