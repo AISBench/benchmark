@@ -1094,10 +1094,9 @@ class TestAgentEval:
             "cli_args": MagicMock(debug=False),
         })
         worker._apply_cli_args(cfg)
-        self.assertEqual(
-            cfg["datasets"][0]["args"]["extra_docker_compose"],
-            ["/a.yaml", "/b.yaml"],
-        )
+        assert cfg["datasets"][0]["args"]["extra_docker_compose"] == [
+            "/a.yaml", "/b.yaml",
+        ]
 
     def test_apply_cli_args_extra_docker_compose_absent(self):
         """未指定 --extra-docker-compose 时不在 dataset.args 中注入空字段。"""
@@ -1109,7 +1108,7 @@ class TestAgentEval:
             "cli_args": MagicMock(debug=False),
         })
         worker._apply_cli_args(cfg)
-        self.assertNotIn("extra_docker_compose", cfg["datasets"][0]["args"])
+        assert "extra_docker_compose" not in cfg["datasets"][0]["args"]
 
     def test_apply_cli_args_extra_docker_compose_overrides_config(self):
         """CLI 优先级高于 config 文件中已存在的 extra_docker_compose。"""
@@ -1126,7 +1125,4 @@ class TestAgentEval:
             "cli_args": MagicMock(debug=False),
         })
         worker._apply_cli_args(cfg)
-        self.assertEqual(
-            cfg["datasets"][0]["args"]["extra_docker_compose"],
-            ["/cli.yaml"],
-        )
+        assert cfg["datasets"][0]["args"]["extra_docker_compose"] == ["/cli.yaml"]

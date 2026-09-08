@@ -219,11 +219,12 @@ class TestArgumentParser(unittest.TestCase):
     def test_parse_args_extra_docker_compose_multiple(
         self, mock_get_current_time_str
     ):
-        """多次 --extra-docker-compose 解析为多元素列表（与 harbor CLI 行为一致）"""
+        """多次 --extra-docker-compose（每次一个文件）累加为多元素列表（与 harbor CLI 行为一致）"""
         mock_get_current_time_str.return_value = "20230516_144254"
         sys.argv = [
             'benchmark.py',
-            '--extra-docker-compose', '/a.yaml', '/b.yaml',
+            '--extra-docker-compose', '/a.yaml',
+            '--extra-docker-compose', '/b.yaml',
             '--extra-docker-compose', '/c.yaml',
         ]
         args = ArgumentParser().parse_args()

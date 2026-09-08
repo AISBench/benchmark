@@ -350,8 +350,8 @@ class ArgumentParser():
         parser.add_argument(
             '--extra-docker-compose',
             help='Additional Docker Compose overlay file path. '
-            'Can be used multiple times.',
-            nargs='+',
+            'Can be used multiple times (one file each).',
+            action='append',
             type=str,
             default=None,
         )
