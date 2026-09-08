@@ -17,11 +17,11 @@ models = [
         api_base="http://0.0.0.0:8080/v1",  # --api-base: 模型服务 base url（统一语义）
         # api_key=None,            # --agent-api-key: 模型服务 API key（建议命令行传入）
         llm_kwargs={  # LLM 调用参数
-            "max_tokens": 4096,
+            "max_tokens": 16384,
         },
         model_info={  # 模型 token 限制与成本信息
             "max_input_tokens": 128000,
-            "max_output_tokens": 4096,
+            "max_output_tokens": 16384,
             "input_cost_per_token": 0.0,
             "output_cost_per_token": 0.0,
         },
