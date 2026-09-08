@@ -44,7 +44,7 @@ AISBench 理论上支持全量Harbor适配的数据集，具体支持的数据�
 | SWEBench Pro | https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/swebench-pro-offline.zip | https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini | 小规模采样数据集资源中 `harbor_adapt`开头的文件夹是Harbor格式的数据集 |
 | terminal-bench 2.0 | https://github.com/AISBench/terminal-bench-2 | https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini | ⚠️执行过程中agent需要访问外网 |
 | terminal-bench 2.1 | https://github.com/AISBench/terminal-bench-2-1 | https://modelers.cn/datasets/AISBench/terminal-bench-2-1-mini | ⚠️执行过程中需要agent访问外网 |
-| DeepSWE | https://github.com/datacurve-ai/deep-swe | NA | |
+| DeepSWE | https://github.com/datacurve-ai/deep-swe | https://github.com/AISBench/deep-swe | NA |
 
 ### 数据集对应镜像准备
 agent数据集的测评每一个case都有对应的镜像，这些镜像名称在数据集中定义，如果在x86_64服务器上，网络条件良好且能够访问外网，执行过程中会自动拉取并构建对应的镜像。但是这个过程往往比较漫长。
