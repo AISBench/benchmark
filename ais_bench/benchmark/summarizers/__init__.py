@@ -16,6 +16,7 @@ _SUMMARIZER_CLASS_MODULES: dict[str, str] = {
     "VBenchSummarizer": "ais_bench.benchmark.summarizers.vbench",
     "SWEBenchSummarizer": "ais_bench.benchmark.summarizers.swebench",
     "HarborSummarizer": "ais_bench.benchmark.summarizers.harbor",
+    "DeepSWESummarizer": "ais_bench.benchmark.summarizers.deepswe",
     "SWEBenchProSummarizer": "ais_bench.benchmark.summarizers.swebench_pro",
     "OneIGSummarizer": "ais_bench.benchmark.summarizers.oneig",
 }
