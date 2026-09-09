@@ -320,13 +320,10 @@ class HarborTask(BaseTask):
                 exc_type = trial_result.exception_info.exception_type
                 exception_distribution[exc_type] = exception_distribution.get(exc_type, 0) + 1
             elif trial_result.verifier_result and trial_result.verifier_result.rewards:
-                # 只有 reward 字段是得分；其余键（如 DeepSWE 的 f2p_total/p2p_passed）为辅助指标，不计入
-                score = trial_result.verifier_result.rewards.get("reward")
-                if score is None:
-                    score = 0.0
-                all_rewards.append(score)
-                score_key = str(score)
-                reward_distribution[score_key] = reward_distribution.get(score_key, 0) + 1
+                for key, value in trial_result.verifier_result.rewards.items():
+                    all_rewards.append(value)
+                    score_key = str(value)
+                    reward_distribution[score_key] = reward_distribution.get(score_key, 0) + 1
 
         total_reward = sum(all_rewards) if all_rewards else 0.0
         avg_reward = (total_reward / job_result.n_total_trials) if job_result.n_total_trials > 0 else 0.0
