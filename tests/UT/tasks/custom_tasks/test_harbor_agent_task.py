@@ -479,9 +479,9 @@ class TestHarborAgentTaskJobConfig(unittest.TestCase):
         self.assertEqual(config.environment.env, {"K": "V"})
 
     @mock.patch.dict("sys.modules", _HARBOR_MODULES)
-    def test_apply_environment_extra_docker_compose_extends(self):
-        """extra_docker_compose (list[str]) 应被 extend 到
-        config.environment.extra_docker_compose (list[Path])。"""
+    def test_apply_environment_with_extra_docker_compose_expect_appends_existing_paths(self):
+        """_apply_environment 收到 extra_docker_compose (list[str]) 时，应把各路径追加为
+        Path 到 config.environment.extra_docker_compose（保留已有值）。"""
         config = mock.MagicMock()
         config.environment = mock.MagicMock()
         config.environment.env = {}
@@ -500,8 +500,8 @@ class TestHarborAgentTaskJobConfig(unittest.TestCase):
         )
 
     @mock.patch.dict("sys.modules", _HARBOR_MODULES)
-    def test_apply_environment_extra_docker_compose_absent(self):
-        """未提供 extra_docker_compose 时不调用 extend，列表保持初始空。"""
+    def test_apply_environment_without_extra_docker_compose_expect_keeps_list_empty(self):
+        """_apply_environment 未收到 extra_docker_compose 时，不应调用 extend，列表保持初始空。"""
         config = mock.MagicMock()
         config.environment = mock.MagicMock()
         config.environment.env = {}
@@ -511,8 +511,8 @@ class TestHarborAgentTaskJobConfig(unittest.TestCase):
         self.assertEqual(config.environment.extra_docker_compose, [])
 
     @mock.patch.dict("sys.modules", _HARBOR_MODULES)
-    def test_apply_environment_extra_docker_compose_empty_list(self):
-        """args 提供空列表时不应被当作缺省值跳过（保持与 harbor 一致）。"""
+    def test_apply_environment_with_empty_extra_docker_compose_expect_noop(self):
+        """_apply_environment 收到空的 extra_docker_compose 列表时，应为 no-op，不做任何追加。"""
         config = mock.MagicMock()
         config.environment = mock.MagicMock()
         config.environment.env = {}

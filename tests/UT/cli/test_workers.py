@@ -1082,8 +1082,8 @@ class TestAgentEval:
         from ais_bench.benchmark.cli.workers import AgentEval
         return AgentEval(args)
 
-    def test_apply_cli_args_propagates_extra_docker_compose(self):
-        """CLI --extra-docker-compose 透传到 cfg.datasets[*].args.extra_docker_compose。"""
+    def test_apply_cli_args_with_extra_docker_compose_expect_writes_dataset_args(self):
+        """_apply_cli_args 收到 --extra-docker-compose 时，应写入 cfg.datasets[*].args.extra_docker_compose。"""
         worker = self._make_worker(
             self._make_args(extra_docker_compose=["/a.yaml", "/b.yaml"])
         )
@@ -1098,8 +1098,8 @@ class TestAgentEval:
             "/a.yaml", "/b.yaml",
         ]
 
-    def test_apply_cli_args_extra_docker_compose_absent(self):
-        """未指定 --extra-docker-compose 时不在 dataset.args 中注入空字段。"""
+    def test_apply_cli_args_without_extra_docker_compose_expect_skips_dataset_arg(self):
+        """_apply_cli_args 未收到 --extra-docker-compose 时，应在 dataset.args 中不注入该字段。"""
         worker = self._make_worker(self._make_args(extra_docker_compose=None))
         cfg = MockConfigDict({
             "models": [{"abbr": "m"}],
@@ -1110,8 +1110,8 @@ class TestAgentEval:
         worker._apply_cli_args(cfg)
         assert "extra_docker_compose" not in cfg["datasets"][0]["args"]
 
-    def test_apply_cli_args_extra_docker_compose_overrides_config(self):
-        """CLI 优先级高于 config 文件中已存在的 extra_docker_compose。"""
+    def test_apply_cli_args_extra_docker_compose_expect_overrides_config_value(self):
+        """_apply_cli_args 同时收到 CLI 与 config 相同的 extra_docker_compose 时，应以 CLI 为准覆盖。"""
         worker = self._make_worker(
             self._make_args(extra_docker_compose=["/cli.yaml"])
         )
