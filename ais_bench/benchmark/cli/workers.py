@@ -917,6 +917,8 @@ class AgentEval(BaseWorker):
                 env_kwargs = dict(dargs.get("environment_kwargs") or {})
                 env_kwargs["host_network"] = True
                 dargs["environment_kwargs"] = env_kwargs
+            if getattr(args, "extra_docker_compose", None):
+                dargs["extra_docker_compose"] = list(args.extra_docker_compose)
             dataset["args"] = dargs
 
 

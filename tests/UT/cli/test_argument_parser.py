@@ -203,6 +203,46 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.api_key, 'KEY')
 
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_extra_docker_compose_single_file_expect_single_element_list(
+        self, mock_get_current_time_str
+    ):
+        """parse_args 收到单个 --extra-docker-compose 时，应解析为单元素列表"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = [
+            'benchmark.py',
+            '--extra-docker-compose', '/path/to/overlay.yaml',
+        ]
+        args = ArgumentParser().parse_args()
+        self.assertEqual(args.extra_docker_compose, ['/path/to/overlay.yaml'])
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_extra_docker_compose_repeated_flags_expect_accumulate_all_files(
+        self, mock_get_current_time_str
+    ):
+        """parse_args 收到多次 --extra-docker-compose（每次一个文件）时应累加所有文件（与 harbor CLI 行为一致）"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = [
+            'benchmark.py',
+            '--extra-docker-compose', '/a.yaml',
+            '--extra-docker-compose', '/b.yaml',
+            '--extra-docker-compose', '/c.yaml',
+        ]
+        args = ArgumentParser().parse_args()
+        self.assertEqual(
+            args.extra_docker_compose, ['/a.yaml', '/b.yaml', '/c.yaml']
+        )
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_extra_docker_compose_omitted_expect_defaults_to_none(
+        self, mock_get_current_time_str
+    ):
+        """parse_args 未收到 --extra-docker-compose 时应默认为 None，不污染配置"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py']
+        args = ArgumentParser().parse_args()
+        self.assertIsNone(args.extra_docker_compose)
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
     def test_parse_args_custom_dataset_options(self, mock_get_current_time_str):
         """测试自定义数据集相关选项参数解析"""
         # 模拟返回值

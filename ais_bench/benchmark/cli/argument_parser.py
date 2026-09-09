@@ -348,6 +348,14 @@ class ArgumentParser():
             default=None,
         )
         parser.add_argument(
+            '--extra-docker-compose',
+            help='Additional Docker Compose overlay file path. '
+            'Can be used multiple times (one file each).',
+            action='append',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
             '--delete/--no-delete',
             help='Whether to delete the environment after completion',
             action=argparse.BooleanOptionalAction,
