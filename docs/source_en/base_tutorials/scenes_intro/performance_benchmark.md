@@ -54,93 +54,31 @@ After the task is completed, you can view the performance result report in the `
 
 ### Command Meaning
 
-The meaning of the AISBench service-oriented performance evaluation command is the same as explained in 📚 [Tool Quick Start/Command Meaning](../../get_started/quick_start.md#start-evaluation-choose-one-of-two-methods). On this basis, you need to add `--mode perf` or `-m perf` to enter the performance evaluation scenario. Take the following AISBench command as an example:
-
-```shell
-ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --summarizer default_perf --mode perf
-```
-
-Among them:
-
-- `--models` specifies the model task, i.e., the `vllm_api_stream_chat` model task.
-- `--datasets` specifies the dataset task, i.e., the `demo_gsm8k_gen_4_shot_cot_chat_prompt` dataset task.
-- `--summarizer` specifies the result presentation task, i.e., the `default_perf` result presentation task (if `--summarizer` is not specified, the `default_perf` task is used by default in performance evaluation scenarios). It is generally used by default and does not need to be specified in the command line; subsequent commands will omit this parameter.
-
-### Task Meaning Query (Optional)
-
-Specific information (introduction, usage constraints, etc.) about the selected model task `vllm_api_stream_chat`, dataset task `demo_gsm8k_gen_4_shot_cot_chat_prompt`, and result presentation task `default_perf` can be queried from the following links:
-
-- `--models`: 📚 [Service-Oriented Inference Backend](../all_params/models.md#service-oriented-inference-backend)
-- `--datasets`: 📚 [Open-Source Datasets](../../get_started/datasets.md#open-source-datasets) → 📚 [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/demo/README_en.md)
-- `--summarizer`: 📚 [Result Summary Tasks](../all_params/summarizer.md#supported-result-summary-tasks)
-
-### Preparations Before Running the Command
-
-- `--models`: To use the `vllm_api_stream_chat` model task, you need to prepare an inference service that supports the `v1/chat/completions` sub-service. You can refer to 🔗 [VLLM Launch OpenAI-Compatible Server](https://docs.vllm.com.cn/en/latest/getting_started/quickstart.html#openai-compatible-server) to start the inference service.
-- `--datasets`: To use the `demo_gsm8k_gen_4_shot_cot_chat_prompt` dataset task, you need to prepare the GSM8K dataset, which can be downloaded from 🔗 [GSM8K Dataset Compressed Package Provided by OpenCompass](http://opencompass.oss-cn-shanghai.aliyuncs.com/datasets/data/gsm8k.zip). Deploy the unzipped `gsm8k/` folder to the `ais_bench/datasets` folder in the root path of the AISBench evaluation tool.
-
-### Modification of Configuration Files Corresponding to Tasks
-
-Each model task, dataset task, and result presentation task corresponds to a configuration file. The content of these configuration files must be modified before executing commands. The paths of these configuration files can be queried by adding `--search` to the original AISBench command. For example:
-
-```shell
-# Note: Whether to add "--mode perf" to the search command does not affect the search results
-ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --mode perf --search
-```
-
-> ⚠️ **Note**: Executing a command with the `search` option will print the absolute path of the configuration file corresponding to the task.
-
-Executing the query command will yield the following results:
-
-```shell
-╒══════════════╤═══════════════════════════════════════╤════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╕
-│ Task Type    │ Task Name                             │ Config File Path                                                                                                               │
-╞══════════════╪═══════════════════════════════════════╪════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╡
-│ --models     │ vllm_api_stream_chat                  │ /your_workspace/benchmark/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py                                 │
-├──────────────┼───────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ --datasets   │ demo_gsm8k_gen_4_shot_cot_chat_prompt │ /your_workspace/benchmark/ais_bench/benchmark/configs/datasets/demo/demo_gsm8k_gen_4_shot_cot_chat_prompt.py                   │
-╘══════════════╧═══════════════════════════════════════╧════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╛
-```
-
-- The dataset task configuration file `demo_gsm8k_gen_4_shot_cot_chat_prompt.py` in the quick start does not require additional modifications. For an introduction to the content of the dataset task configuration file, please refer to 📚 [Configure Open-Source Datasets](../../get_started/datasets.md#configuring-open-source-datasets)
-
-The model configuration file `vllm_api_stream_chat.py` contains configuration content related to model operation and needs to be modified according to actual conditions. The content that needs to be modified in the quick start is marked with comments.
-
-```python
-from ais_bench.benchmark.models import VLLMCustomAPIChatStream
-
-models = [
-    dict(
-        attr="service",
-        type=VLLMCustomAPIChat,
-        abbr='vllm-api-general-chat',
-        path="",                    # Specify the absolute path of the model serialized vocabulary file (generally not required for accuracy testing scenarios)
-        model="",        # Specify the name of the model loaded on the server, configured according to the actual model name pulled by the VLLM inference service (configuring an empty string will automatically retrieve it)
-        stream=True, # Service performance only supports evaluating streaming interfaces
-        request_rate=0,           # Request sending frequency: send 1 request to the server every 1/request_rate seconds; if less than 0.1, all requests are sent at once
-        use_timestamp=False,      # Whether to schedule requests by dataset timestamp; used with timestamped datasets (e.g. Mooncake Trace)
-        retry=2,                  # Maximum number of retries for each request
-        api_key="",               # Custom API key, default is an empty string
-        host_ip="localhost",      # Specify the IP of the inference service
-        host_port=8080,           # Specify the port of the inference service
-        url="",                     # Custom URL path for accessing the inference service (required when the base URL is not a combination of http://host_ip:host_port; host_ip and host_port will be ignored after configuration)
-        max_out_len=512,          # Maximum number of tokens output by the inference service
-        batch_size=1,               # Maximum concurrency for sending requests
-        trust_remote_code=False,    # Whether the tokenizer trusts remote code, default is False;
-        generation_kwargs=dict(   # Model inference parameters, configured with reference to VLLM documentation; the AISBench evaluation tool does not process them and attaches them to the sent request
-            temperature=0.01,
-            ignore_eos=True, # When testing performance and needing to limit the output length, ignore_eos must be set to True
-        )
-    )
-]
-```
+The meaning of the AISBench service-oriented performance evaluation command is the same as explained in 📚 [Tool Quick Start/Start Evaluation (Choose One of Two Methods)](../../get_started/quick_start.md#start-evaluation-choose-one-of-two-methods). On this basis, you need to add `--mode perf` or `-m perf` to enter the performance evaluation scenario.
 
 
 ### Execute Commands
+
+::::{tab-set}
+:::{tab-item} ⭐ Custom Configuration File
+
+After completing the configuration, execute the command to start the service performance evaluation:
+
+```bash
+ais_bench ais_bench/configs/performance_benchmark/single_task_zh_cn.py --mode perf
+```
+
+:::
+:::{tab-item} Alternative: Command-Line Parameters
+
 After modifying the configuration files, execute the command to start the service performance evaluation:
+
 ```bash
 ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt -m perf
 ```
+
+:::
+:::
 
 After executing the AISBench command, the status of the ongoing task will be displayed on a real-time refreshing dashboard in the command line (press the "P" key on the keyboard to stop refreshing for copying dashboard information, and press "P" again to resume refreshing). For example:
 
