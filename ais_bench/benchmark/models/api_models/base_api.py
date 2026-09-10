@@ -39,13 +39,14 @@ PromptType = Union[PromptList, str]
 
 class MockAISLogger(AISLogger):
     """Mock logger for API model. Because model will init in task for warmup and init in infer process,
-    so we mock the logger to avoid the print each log in init process twice
+    so we mock the logger to avoid the print each log in init process twice.
+
+    Only the informational init/status logs are suppressed; debug logs still pass
+    through so that per-request detail is not silently dropped when the log level
+    is set to DEBUG via global_consts.LOG_LEVEL.
     """
 
     def info(self, msg, *args, **kwargs):
-        pass
-
-    def debug(self, msg, *args, **kwargs):
         pass
 
     def warning(self, msg, *args, **kwargs):
