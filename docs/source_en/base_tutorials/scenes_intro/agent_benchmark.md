@@ -1,6 +1,7 @@
 # Agent Evaluation (Harbor)
 
 AISBench natively integrates [Harbor](https://github.com/harbor-framework/harbor) as the agent evaluation engine. With a single `--mode agent` command you can launch a Harbor evaluation, watch the status of each case in real time, and get a single-table + CSV summary. This path is fully independent of AISBench's native inference/accuracy chain and **does not change any other AISBench functionality**.
+> 👉 Note: AISBench has made some offline-deployment changes to Harbor and will keep integrating new agents. The Harbor actually used is the [Harbor fork modified from the upstream repo](https://github.com/AISBench/harbor).
 
 Unlike the existing [Harbor Terminal-Bench](../../extended_benchmark/agent/harbor_bench.md) integration, this is a general-purpose agent evaluation with the following capabilities:
 
@@ -28,30 +29,43 @@ pip install -r requirements/agent.txt
 > - warnings/issues for third-party builds, or `yanked` / `deprecated` hints during resolution.
 > As long as these do **not cause the install to fail** (pip reports an `error` and stops), you can ignore them and continue using Harbor agent evaluation normally. To confirm a successful install, run `pip show harbor`.
 
-## Dataset Support
+## Resource Preparation
 
-AISBench supports **all datasets resolvable by Harbor** through a unified entry, with three sources, all selectable via `-d/--dataset` or the dataset `args`:
+### Harbor-format dataset resources
 
-| Source | CLI / config | Description |
-| --- | --- | --- |
-| Local dataset directory | `-p/--agent-dataset-path` (`path`) | Points to a Harbor dataset directory containing multiple task (`task.toml`, etc.); can be narrowed with `--include/exclude-task-name` and `--n-tasks` |
-| Single task directory | `-p/--agent-dataset-path` (`path`) | Points directly to one task directory (Harbor checks `is_valid_dir`); runs only that task |
-| Registry dataset | `-d name@version` (`dataset_name_version`) | Pulls a dataset from the Harbor dataset registry by name and version; a `name` without `@version` uses the registry dataset |
-| Package dataset | `-d org/name@ref` (`dataset_name_version`) | References a dataset package on the Harbor hub / a Git repo via `org/name` + `@ref` |
+AISBench theoretically supports **all datasets adapted by Harbor**; for the concrete set of supported datasets, see the [Harbor dataset adapter list](https://github.com/AISBench/harbor/tree/main/adapters/datasets). These datasets must be built yourself by following Harbor's documentation.
 
-The set of supported datasets depends on the adapters on the Harbor side; AISBench does not restrict a specific list. Below are some benchmark examples that ship with a built-in adapter in Harbor's `adapters/` directory (see that directory for the full list):
+🔍 **AISBench directly provides the following dataset resources**:
 
-| Category | Example datasets |
-| --- | --- |
-| Terminal / CLI | terminal-bench (2 / 2.1), swe-bench, swe-bench-pro, swebench-multilingual, swt-bench, swe-smith, swe-lancer, swe-gym |
-| Code / software engineering | bix-bench, code-pde, ds-1000, quix-bugs, sci-code, devops-gym, research-code-bench, feat-bench |
-| Others | strong-reject, simple-qa, text-arena, usaco, replication-bench, reasoning-gym, webgen-bench, etc. |
+| Dataset | Full dataset resource | Small-scale sampled dataset resource | Notes |
+| ----- | ------ | ------ | ----- |
+| SWEBench Verified | https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/swebench-verified-offline.zip | https://modelers.cn/datasets/AISBench/SWE-Bench_Verified_mini | In the small-scale sampled dataset resource, the folders whose names start with `harbor_adapt` are Harbor-format datasets |
+| SWEBench Multilingual | https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/swebench-multilingual-offline.zip | https://modelers.cn/datasets/AISBench/SWE-Bench_Multilingual_mini | In the small-scale sampled dataset resource, the folders whose names start with `harbor_adapt` are Harbor-format datasets |
+| SWEBench Pro | https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/swebench-pro-offline.zip | https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini | In the small-scale sampled dataset resource, the folders whose names start with `harbor_adapt` are Harbor-format datasets |
+| terminal-bench 2.0 | https://github.com/AISBench/terminal-bench-2 | https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini | ⚠️ the agent needs to access the internet during execution |
+| terminal-bench 2.1 | https://github.com/AISBench/terminal-bench-2-1 | https://modelers.cn/datasets/AISBench/terminal-bench-2-1-mini | ⚠️ the agent needs to access the internet during execution |
+| DeepSWE | https://github.com/AISBench/deep-swe | https://modelers.cn/datasets/AISBench/DeepSWE-mini | NA |
 
-> 💡 For terminal-bench 2 / 2.1, AISBench provides offline datasets and pre-built images; see 📚 [Harbor Terminal-Bench](../../extended_benchmark/agent/harbor_bench.md) for resources and preparation.
+### Corresponding dataset image resources
 
-## Agent Support
+Each case of an agent dataset has a corresponding image; these image names are defined in the dataset. On an x86_64 server with good network access to the internet, the corresponding images are automatically pulled and built during execution. However, this process is often rather slow.
 
-AISBench supports all agents defined by Harbor (pass the name directly via `-a/--agent`), as well as custom `module.path:ClassName` agents via `--agent-import-path`. The full list of built-in `AgentName` values:
+🔍 **AISBench directly provides the following packaged image resources**:
+
+The packaged image resources below can be loaded into the test environment with `docker load -i <packaged image resource>`.
+
+| Dataset | Full dataset image package | Small-scale sampled dataset image package | Base OS | Notes |
+| ----- | ------ | ------ | ------ | ----- |
+| SWEBench Verified | x86_64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/SWEBenchData/verified.tar | NA | ubuntu:22.04 | aarch64 not supported |
+| SWEBench Multilingual | x86_64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/SWEBenchData/multilingual.tar | NA | debian:12 | aarch64 not supported |
+| SWEBench Pro | NA | x86_64: https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini | ubuntu:24.04 | aarch64 not supported |
+| terminal-bench 2.0 | x86_64: <br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_x86_64.tar <br> aarch64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_aarch64.tar | x86_64: <br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.10_x86_64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.14_x86_64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.20_x86_64.tar <br> aarch64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.10_aarch64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.14_aarch64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.20_aarch64.tar | ubuntu:24.04, debian:11, debian:12, debian:13 | NA |
+| terminal-bench 2.1 | x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar <br>aarch64:<br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-aarch64.tar | NA | ubuntu:24.04, debian:12, debian:13 | NA |
+| DeepSWE | x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/deepswe/deep-swe-v1.1-task-images.tar.gz | NA | debian:12 | aarch64 not supported |
+
+### Agent support list
+
+AISBench supports all agents defined by Harbor (pass the name directly via `-a/--agent`), as well as custom `module.path:ClassName` agents via `--agent-import-path`. The full list of Harbor's built-in `AgentName` values:
 
 | Agent (`AgentName`) | Agent (`AgentName`) |
 | --- | --- |
@@ -65,9 +79,18 @@ AISBench supports all agents defined by Harbor (pass the name directly via `-a/-
 
 > 💡 Different agents pass the same semantic parameters (model service base url / API key, etc.) through different channels. AISBench's `AgentParamAdapter` adapts them automatically: agents that use environment variables (e.g. `claude-code`→`ANTHROPIC_*`, `dsh`→`DSH_*`, `openhands`→`LLM_*`/`OPENAI_*`) and agents that use constructor kwargs (e.g. `terminus-2`→`api_base`) all work with the same unified semantic parameters (`--api-base` / `--agent-api-key`), with no need to distinguish.
 
-## Resource Preparation
+During evaluation, Harbor installs the dependent resources of the corresponding agent (its code, dependency libraries, config files, etc.) inside each case's container. If your environment has no network access:
 
-### Harbor-format dataset resources
+🔍 **AISBench directly provides the following packaged agent dependency resources**:
+
+> ⚠️ Note: choose the corresponding agent package resource according to the base OS of the dataset image.
+
+| Agent | ubuntu:22.04 | ubuntu:24.04 | debian:13 | debian:12 | debian:11 | Notes |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| terminus-2 | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-11-x86_64.tar.gz) | |
+| mini-swe-agent | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-11-x86_64.tar.gz) | |
+| claude-code | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-11-x86_64.tar.gz) | |
+| dsh | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-11-x86_64.tar.gz) | |
 
 ## Quick Start (either of the two ways)
 
