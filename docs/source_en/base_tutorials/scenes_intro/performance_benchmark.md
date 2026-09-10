@@ -59,7 +59,7 @@ The meaning of the AISBench service-oriented performance evaluation command is t
 
 ### Execute Commands
 
-::::{tab-set}
+:::{tab-set}
 :::{tab-item} ⭐ Custom Configuration File
 
 After completing the configuration, execute the command to start the service performance evaluation:
@@ -78,7 +78,7 @@ ais_bench --models vllm_api_stream_chat --datasets demo_gsm8k_gen_4_shot_cot_cha
 ```
 
 :::
-:::
+::::
 
 After executing the AISBench command, the status of the ongoing task will be displayed on a real-time refreshing dashboard in the command line (press the "P" key on the keyboard to stop refreshing for copying dashboard information, and press "P" again to resume refreshing). For example:
 
