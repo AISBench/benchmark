@@ -240,6 +240,7 @@ class ArgumentParser():
             dest='agent_kwarg',
             help="Additional agent kwarg in 'key=value' format "
             "(can be used multiple times)",
+            action='append',
             nargs='+',
             type=str,
             default=None,
@@ -250,6 +251,7 @@ class ArgumentParser():
             dest='agent_env',
             help="Environment variable for the agent in 'KEY=VALUE' format "
             "(can be used multiple times)",
+            action='append',
             nargs='+',
             type=str,
             default=None,
