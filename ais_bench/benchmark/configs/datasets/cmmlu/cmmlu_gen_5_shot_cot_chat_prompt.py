@@ -100,7 +100,7 @@ for _name in cmmlu_all_sets:
                     role='HUMAN',
                     prompt=prompt_prefix+QUERY_TEMPLATE,
                 ),
-                dict(role='BOT', prompt="{answer}\n",)
+                dict(role='BOT', prompt="答案: {answer}\n",)
             ]),
         ),
         prompt_template=dict(
