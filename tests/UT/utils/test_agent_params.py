@@ -89,7 +89,7 @@ class TestAgentParamAdapterTranslate(unittest.TestCase):
             {"api_base": "http://x/v1", "api_key": "sk"},
         )
         self.assertEqual(out["env"]["ANTHROPIC_BASE_URL"], "http://x/v1")
-        self.assertEqual(out["env"]["ANTHROPIC_API_KEY"], "sk")
+        self.assertEqual(out["env"]["ANTHROPIC_AUTH_TOKEN"], "sk")
         self.assertEqual(out["kwargs"], {})
 
     def test_dsh_env_mapping(self):
