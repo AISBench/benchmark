@@ -1,0 +1,12 @@
+ARG BASE_IMAGE
+ARG AGENT
+FROM ${BASE_IMAGE}
+ARG AGENT
+
+# mini-swe-agent: pip install from aliyun mirror
+RUN if [ "$AGENT" = "mini-swe-agent" ]; then \
+        pip install --break-system-packages 'mini-swe-agent[litellm_proxy]' \
+            --index-url https://mirrors.aliyun.com/pypi/simple/; \
+    else \
+        echo "Unknown agent: $AGENT" && exit 1; \
+    fi

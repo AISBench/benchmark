@@ -1,0 +1,15 @@
+ARG BASE_IMAGE
+ARG AGENT
+FROM ${BASE_IMAGE}
+ARG AGENT
+
+# openhands-sdk: uses pre-built venv (see P7 issue: QEMU + Python 3.12 too slow)
+# NOTE: OH is currently NOT working under QEMU. Kept here for documentation.
+RUN if [ "$AGENT" = "openhands-sdk" ]; then \
+        echo "[WARN] openhands-sdk is not reliable under QEMU (Python 3.12 + network)" && \
+        echo "[WARN] Kept as no-op so build doesn't fail" && \
+        mkdir -p /opt/openhands-sdk-venv && \
+        echo "# openhands-sdk disabled (see Dockerfile.l2-agent-oh-v8 for full attempt)" > /opt/openhands-sdk-venv/README; \
+    else \
+        echo "Unknown agent: $AGENT" && exit 1; \
+    fi
