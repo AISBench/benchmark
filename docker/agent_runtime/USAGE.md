@@ -339,20 +339,54 @@ ais_bench ais_bench/configs/agent_example/harbor_agent_task.py \
     --model openai/<模型名>
 ```
 
+**只跑指定的 case**（任选其一，可与上面参数自由组合）：
+
+```bash
+# 方式 1：--include-task-name 按 task 名过滤（推荐）
+#   匹配对象 = task.toml 的 [task] name 字段（如 sys-report、terminal-bench/fix-git）
+#   支持 glob 通配；可空格分隔多个，也可重复传参
+--include-task-name sys-report
+--include-task-name "terminal-bench/fix-git" "*hello*"
+
+# 方式 2：--exclude-task-name 反向排除（匹配规则同上），可与 include 组合
+
+# 方式 3：-p 直接指向单个 case 目录（等效于只跑该 case）
+-p /data/terminal-bench-2/sys-report
+```
+
+> `--n-tasks N` 表示"最多取 N 个任务"，与过滤参数叠加生效：
+> 先按 include/exclude 筛选，再截取前 N 个。要精确跑某一个 case，
+> 用 `--include-task-name` 而不要只靠 `--n-tasks 1`（后者取的是数据集里第一个任务）。
+
 参数说明：
 
 | 参数 | 说明 |
 |---|---|
 | `-a` | agent 名（须与 deps bundle 前缀、第 5 步构建的 agent 一致） |
 | `--agent-deps` | deps bundle 目录（dind 固定 `/opt/agent-resources/deps`；socket 为启动时的宿主原路径，文件夹模式自动匹配 bundle） |
-| `-p` | 数据集目录（dind 固定 `/opt/data/terminal-bench-2`；socket 为启动时的宿主原路径） |
-| `--n-tasks` | 抽取的任务数；**首次务必 `1`** 冒烟 |
+| `-p` | 数据集目录（dind 固定 `/opt/data/terminal-bench-2`；socket 为启动时的宿主原路径）；**也支持直接指向单个 case 子目录** |
+| `--include-task-name <名>` | **只跑指定 case**：匹配 `task.toml` 的 `[task] name`，支持 glob、可多个（如 `--include-task-name sys-report` 或 `"terminal-bench/*"`） |
+| `--exclude-task-name <名>` | 排除匹配的 case（规则同 include），可与 include 组合 |
+| `--n-tasks` | 最多抽取的任务数（与过滤参数叠加）；**首次冒烟务必 `1`** |
 | `--api-base` | OpenAI 兼容服务地址（以 `/v1` 结尾） |
 | `--model` | **必须带 litellm provider 前缀**；OpenAI 兼容接口一律 `openai/<模型名>`，如 `openai/Qwen2.5-7B-Instruct` |
 | `--agent-api-key <key>` | 模型服务需要鉴权时传（可选） |
 | `--n-concurrent N` | 并发 trial 数（默认配置 5，可按资源调整） |
 | `-k N` | 每个 task 的尝试次数 |
 | `--ae KEY=VALUE` | 注入 trial 容器/tmux 会话的环境变量，可重复（如 `--ae OPENAI_API_KEY=xxx`） |
+| `--ak KEY=VALUE` | 传给 agent 的额外 kwarg，可重复（进阶用法） |
+| `--agent-import-path <m:C>` | 自定义 agent 导入路径（`module.path:ClassName`），配合 `-a` 使用 |
+| `-d <name@version>` | 远端数据集（registry 或包），与 `-p` 二选一 |
+| `-e <环境>` | harbor 环境类型（docker/daytona/e2b/modal…，默认 docker） |
+| `--timeout-multiplier X` | case 超时时间倍率（慢模型/长任务可调大） |
+| `--max-retries N` | trial 失败自动重试次数 |
+| `--host-network` | trial 容器共享宿主网络栈（镜像内 compose 模板已默认 host，一般无需再传） |
+| `--force-build/--no-force-build` | 是否强制重建 case 环境（prebuilt 镜像场景无需关心） |
+| `--delete/--no-delete` | 结束后是否删除 trial 容器（排查时 `--no-delete` 保留现场） |
+| `--purge-exception-cases` | 配合 `--reuse`：先清掉上次异常退出的 case 再自动重跑 |
+| `-q` / `-y` | 抑制单 trial 进度显示 / 自动确认环境变量提示 |
+| `--env-file <path>` | 从 .env 文件读取环境变量 |
+| `--monitor-port <port>` | harbor monitor HTTP 服务端口（默认 0 = 关闭） |
 | `--disable-verification` | 跳过 verifier 打分（链路调试用；正常评测勿加） |
 
 预期日志关键行（以 dind 模式路径为例，socket 模式对应路径为宿主原路径）：
