@@ -151,6 +151,10 @@ COPY --from=builder /usr/share/nltk_data /usr/share/nltk_data
 #   docker-${DOCKER_VERSION}-${ARCH}.tgz
 #   docker-compose-linux-${ARCH}
 ARG DOCKER_VERSION=27.3.1
+# buildx 插件用于 harbor 的 `docker buildx build`（见 harbor/src/harbor/environments/docker/utils.py）
+# 资源已上传至华为云 OBS：
+#   buildx-v${BUILDX_VERSION}-${ARCH}
+ARG BUILDX_VERSION=0.36.1
 RUN ARCH=$(uname -m) && \
     apt-get update && \
     apt-get install -y --no-install-recommends iptables && \
@@ -163,10 +167,14 @@ RUN ARCH=$(uname -m) && \
     curl -fsSL "https://aisbench.obs.cn-north-4.myhuaweicloud.com/images/resources/docker-compose-linux-${ARCH}" \
         -o /usr/local/lib/docker/cli-plugins/docker-compose && \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
+    curl -fsSL "https://aisbench.obs.cn-north-4.myhuaweicloud.com/images/resources/buildx-v${BUILDX_VERSION}-${ARCH}" \
+        -o /usr/local/lib/docker/cli-plugins/docker-buildx && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
     docker --version && \
     docker compose version && \
+    docker buildx version && \
     dockerd --version
 
 WORKDIR /benchmark
