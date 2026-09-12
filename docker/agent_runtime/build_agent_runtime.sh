@@ -166,7 +166,9 @@ fi
 echo "开始验证镜像功能..."
 validation_output=$(docker run --rm --entrypoint bash ${image_name} -c '
     set -e
-    [ -x /opt/venvs/harbor/bin/ais_bench ] || { echo "ERR: harbor ais_bench wrapper 缺失或不可执行"; exit 2; }
+    wrapper=/opt/venvs/harbor/bin/ais_bench
+    [ -x "$wrapper" ] || { echo "ERR: harbor ais_bench wrapper 缺失或不可执行"; exit 2; }
+    echo "$wrapper"
     /opt/venvs/harbor/bin/python -c "import harbor; print(\"harbor import ok\")" > /dev/null || { echo "ERR: harbor 包无法在 venv 中导入"; exit 3; }
     echo "agent-runtime validation OK"
 ')
