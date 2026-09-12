@@ -36,7 +36,15 @@
 
 ## 🔥 最新进展
 
+- **\[2026.9.12]Agent测评完全对接harbor框架，并提供一键部署的离线测评解决方案**：Agent测评完全支持Harbor适配的agent以及harbor格式的数据集，同时为常用agent（包括claude-code，terminus-2，mini-swe-agent等）以及当前常用的agent数据集（SWE-Bench，terminal-bench，DeepSWE）提供了一键部署的离线测评解决方案。使用说明见 👉 [基于Harbor框架的](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/agent_benchmark.html)。🔥🔥🔥🚀🚀🚀
+- **\[2026.9.3]** 支持 **Prefix Cache 场景化压测与指标分析**：提供数据生成、请求调度、缓存预热、指标采集与结果分析全链路能力，支持单 Prefix / 多 Prefix Group、目标命中率反算、cold/warmup 双模式与多 DP 定向路由，新增 `prefix_hit_rate` 等指标查询。详见 [Prefix Cache 场景化压测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/prefix_cache.html)。🚀🚀🚀
+- **\[2026.9.2]** 新增 **MRCR 1M 数据集**：支持评测模型的 1M 长上下文检索问答能力，详见 [mrcr](ais_bench/benchmark/configs/datasets/mrcr/README.md)。
+- **\[2026.8.27]** 新增 **corpusQA 1M 数据集**：支持验证模型长序列推理精度能力，详见 [corpusqa](ais_bench/benchmark/configs/datasets/corpusqa/README.md)。
+- **\[2026.8.27]** 新增 **`api_model_args` CLI 命令组**：支持在命令行显式传入 `path`、`model`、`request_rate`、`host_ip`、`host_port`、`url`、`max_out_len`、`generation_kwargs` 等 API 模型通用参数，并在配置加载阶段覆盖所有模型配置中的对应字段，免去临时修改配置文件。🔥🔥🔥
 - **\[2026.8.19]** 新增**推理响应异常检测**功能：在推理评测的同时自动检测大模型响应中的生成异常，覆盖**重复、乱码、生僻字、NaN** 四类异常；命令行增加 `--response-anomaly` 即可零配置开启，检测结果按数据集落盘为 JSONL 供独立审计，**不影响原有精度与性能指标**。🔥🔥🔥 配置与使用详见 [推理响应异常检测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/response_anomaly_detection.html)。
+- **\[2026.8.10]** 支持**投机推理（Speculative Decoding）性能评测**：在既有性能评测流程中新增投机推理指标采集、计算与展示，详见 [投机推理性能评测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/spec_decode.html)。🔥🔥🔥
+- **\[2026.7.27]** 支持 **Multi LoRA 推理评测**：适配推理服务同时加载多个 LoRA 适配器的多租户生产场景，无需按适配器拆分多次独立评测。
+- **\[2026.7.20]** 镜像预装 **Docker / Docker Compose**：在全部系统镜像中预装 Docker Engine 与 Docker Compose v2，agent 类测评可在测评容器内开箱即用地启动子任务容器，详见 [Docker 镜像概览](docker/OVERVIEW.zh.md)。🚀🚀🚀
 - **\[2026.6.29]** 接入文生图模型多维评测基准 **OneIG-Benchmark**：围绕**对齐性、文本渲染、推理能力、风格表现、多样性**五个维度对生成图片进行综合评估，支持 EN/ZH 双语言模式，采用 **LLM-as-Judge + 专用小模型** 的混合评测方式，与官方评测方法精度差异 < 1%。🔥🔥🔥 示例与说明见 [在AISBench中测评OneIG-Benchmark](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/lmm_generate/oneig.html)。
 - **\[2026.6.15]** 新增 **Docker 镜像多架构支持**：AISBench Benchmark 镜像同步支持 **x86_64** 与 **aarch64 (ARM)** 架构，覆盖 Ubuntu 22.04/24.04、openEuler 22.03/24.03 与 Python 3.10/3.11/3.12 多种组合；同时 AISBench 已发布到 **PyPI**，可通过 `pip install ais_bench_benchmark` / `pip install ais_bench_benchmark[full]` 一键安装。镜像说明见 [Docker 镜像概览](docker/OVERVIEW.zh.md)。🚀🚀🚀
 - **\[2026.6.11]** 接入长时域软件工程智能体评测基准 **SWE-Bench Pro**：支持在 x86 环境下对智能体模型在长时域软件工程任务上的表现进行评测，提供 `full` / `mini` 数据集以及 `mini-swe-agent` infer 与 SWE-Bench Pro harness eval 的端到端流程。示例与说明见 [在AISBench中测评SWE-Bench Pro](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/extended_benchmark/agent/swe_bench_pro.html)。🔥🔥🔥
