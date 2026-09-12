@@ -11,27 +11,9 @@ AISBench 原生集成了 [Harbor](https://github.com/harbor-framework/harbor) �
 - **实时监控 HTTP 服务**：标准库实现，无需额外依赖，外部可实时获取各 Harbor 任务的执行信息。
 - **独立依赖集**：Agent 测评只需安装 `requirements/agent.txt`，不依赖 AISBench 原生繁重依赖。
 
-## 安装
-
-### 前置约束
-
-- 一个遵循 **OpenAI chat/completions API** 规范、且支持 **tool call** 的被测推理服务（本地或云端均可）。
-- Python 3.12 运行环境；执行 Harbor 所需的 Docker / 环境按 Harbor 要求准备。
-
-### 安装 Agent 独立依赖集
-
-```bash
-pip install -r requirements/agent.txt
-```
-
-> ⚠️ **安装过程中的无关紧要报错说明**：执行 Agent 依赖安装（尤其是从源码以可编辑方式安装 Harbor 及其传递依赖）时，`pip` 可能会输出一些**不影响 Agent 测评使用**的报错或告警，主要包括：
-> - 依赖版本冲突告警（例如 Harbor 会把 `datasets` 库升级到 4.0.0+，导致该库与其它依赖出现版本冲突告警）；
-> - 个别包编译/构建的 warning，或依赖解析时的 `yanked` / `deprecated` 提示等。
-> 这些告警只要**未导致安装失败（pip 报 `error` 并中断）**，即可直接忽略，继续安装后的 Harbor Agent 测评即可正常使用。若确需判断是否安装成功，可在安装后执行 `pip show harbor` 确认 Harbor 已正确就位。
-
-
 ## 资源准备
-### harbor格式数据集准备
+agent测评主要要准备如下资源：harbor格式数据集、数据集对应镜像、agent依赖，请依据实际测试需求将这3个资源在测试环境上准备好。
+### 1. harbor格式数据集准备
 AISBench 理论上支持全量Harbor适配的数据集，具体支持的数据集参考[Harbor 数据集适配器列表](https://github.com/AISBench/harbor/tree/main/adapters/datasets)
 。这些数据集需要参考harbor的文档自行构建。
 
@@ -46,7 +28,7 @@ AISBench 理论上支持全量Harbor适配的数据集，具体支持的数据�
 | terminal-bench 2.1 | https://github.com/AISBench/terminal-bench-2-1 | https://modelers.cn/datasets/AISBench/terminal-bench-2-1-mini | ⚠️执行过程中需要agent访问外网 |
 | DeepSWE | https://github.com/AISBench/deep-swe | https://modelers.cn/datasets/AISBench/DeepSWE-mini | NA |
 
-### 数据集对应镜像准备
+### 2. 数据集对应镜像准备
 agent数据集的测评每一个case都有对应的镜像，这些镜像名称在数据集中定义，如果在x86_64服务器上，网络条件良好且能够访问外网，执行过程中会自动拉取并构建对应的镜像。但是这个过程往往比较漫长。
 
 🔍**AISBench直接提供了如下镜像打包资源**：
@@ -62,7 +44,7 @@ agent数据集的测评每一个case都有对应的镜像，这些镜像名称�
 |terminal-bench 2.1| x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar <br>aarch64:<br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-aarch64.tar | NA | ubuntu:24.04, debian:12, debian:13 |  NA |
 | DeepSWE | x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/deepswe/deep-swe-v1.1-task-images.tar.gz | NA | debian:12 | 不支持aarch64 |
 
-### Agent 支持列表
+### 3. Agent 依赖准备
 
 AISBench 支持 Harbor 定义的全量 Agent（`-a/--agent` 直接传名称），也支持通过 `--agent-import-path` 指定自定义 `module.path:ClassName` Agent。以下为 Harbor `AgentName` 内置全部 Agent：
 
@@ -90,6 +72,11 @@ AISBench 支持 Harbor 定义的全量 Agent（`-a/--agent` 直接传名称）�
 |mini-swe-agent| [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-11-x86_64.tar.gz) | |
 |claude-code| [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-11-x86_64.tar.gz)  | |
 |dsh| [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-11-x86_64.tar.gz) | |
+|codex| [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-debian-12-aarch64.tar.gz) |  | debian:11 暂无打包 |
+
+## 安装agent运行环境（docker 容器）
+请确保测试环境上已安装docker，且docker服务已启动。
+### 获取agent运行镜像
 
 ## 快速入门（两种方式任选其一）
 
@@ -367,3 +354,21 @@ outputs/default/20260530_012601/
 | `monitor_port` | `--monitor-port` | Harbor 监控 HTTP 服务端口（0 = 关闭，默认 0） |
 
 > 📚 更详细的 Harbor 环境准备、terminal-bench 2/2.1 数据集与镜像说明，参见 [Harbor Terminal-Bench](../../extended_benchmark/agent/harbor_bench.md)。全部 CLI 参数见 📚 [用户配置参数 - Agent 测评参数](../all_params/cli_args.md#agent-测评参数)。
+
+
+## 源码安装
+#### 前置约束
+
+- 一个遵循 **OpenAI chat/completions API** 规范、且支持 **tool call** 的被测推理服务（本地或云端均可）。
+- Python 3.12 运行环境；执行 Harbor 所需的 Docker / 环境按 Harbor 要求准备。
+
+#### 安装 Agent 独立依赖集
+
+```bash
+pip install -r requirements/agent.txt
+```
+
+> ⚠️ **安装过程中的无关紧要报错说明**：执行 Agent 依赖安装（尤其是从源码以可编辑方式安装 Harbor 及其传递依赖）时，`pip` 可能会输出一些**不影响 Agent 测评使用**的报错或告警，主要包括：
+> - 依赖版本冲突告警（例如 Harbor 会把 `datasets` 库升级到 4.0.0+，导致该库与其它依赖出现版本冲突告警）；
+> - 个别包编译/构建的 warning，或依赖解析时的 `yanked` / `deprecated` 提示等。
+> 这些告警只要**未导致安装失败（pip 报 `error` 并中断）**，即可直接忽略，继续安装后的 Harbor Agent 测评即可正常使用。若确需判断是否安装成功，可在安装后执行 `pip show harbor` 确认 Harbor 已正确就位。
