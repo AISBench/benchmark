@@ -77,7 +77,8 @@ AISBench 支持 Harbor 定义的全量 Agent（`-a/--agent` 直接传名称）�
 ## 安装agent运行环境（docker 容器）
 请确保测试环境上已安装docker，且docker服务已启动。
 ### 获取agent运行镜像
-以`ghcr.io/aisbench/agent-runtime:v3.1-20260912-master-ubuntu24.04-py312`为例
+从[📦Agent runtime镜像列表](https://github.com/AISBench/benchmark/wiki/Agent-runtime-images) 获取最新的agent运行镜像信息。
+后续文档以`ghcr.io/aisbench/agent-runtime:v3.1-20260912-master-ubuntu24.04-py312`为例
 ### 获取agent环境一键部署脚本
 ```bash
 wget https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/scripts/start_agent_runtime.sh

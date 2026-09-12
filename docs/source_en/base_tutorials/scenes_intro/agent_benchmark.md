@@ -85,6 +85,8 @@ Make sure Docker is installed on the test environment and the Docker service is 
 
 ### Get the agent runtime image
 
+Get the latest agent runtime image information from the [📦Agent runtime image list](https://github.com/AISBench/benchmark/wiki/Agent-runtime-images).
+
 Take `ghcr.io/aisbench/agent-runtime:v3.1-20260912-master-ubuntu24.04-py312` as an example.
 
 ### Get the one-click agent environment deployment script
