@@ -1126,3 +1126,54 @@ class TestAgentEval:
         })
         worker._apply_cli_args(cfg)
         assert cfg["datasets"][0]["args"]["extra_docker_compose"] == ["/cli.yaml"]
+
+    def test_apply_cli_args_repeated_ae_ak_expect_merges_all_pairs(self):
+        """重复 --ae/--ak 产生嵌套列表，_apply_cli_args 应合并全部 KEY=VALUE，而非只留最后一个。"""
+        worker = self._make_worker(
+            self._make_args(
+                agent_env=[
+                    ["ANTHROPIC_AUTH_TOKEN=sk-aaa"],
+                    ["ANTHROPIC_API_KEY=sk-bbb"],
+                    ["CLAUDE_CODE_EFFORT_LEVEL=max"],
+                    ["CLAUDE_CODE_MAX_OUTPUT_TOKENS=131072"],
+                ],
+                agent_kwarg=[
+                    ["disallowed_tools=WebSearch"],
+                    ["max_tokens=4096"],
+                ],
+            )
+        )
+        cfg = MockConfigDict({
+            "models": [{"abbr": "m"}],
+            "datasets": [],
+            "work_dir": "/tmp",
+            "cli_args": MagicMock(debug=False),
+        })
+        worker._apply_cli_args(cfg)
+        assert cfg["models"][0]["agent_env"] == {
+            "ANTHROPIC_AUTH_TOKEN": "sk-aaa",
+            "ANTHROPIC_API_KEY": "sk-bbb",
+            "CLAUDE_CODE_EFFORT_LEVEL": "max",
+            "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "131072",
+        }
+        assert cfg["models"][0]["agent_kwargs"] == {
+            "disallowed_tools": "WebSearch",
+            "max_tokens": 4096,
+        }
+
+    def test_apply_cli_args_agent_env_expect_cli_wins_over_config(self):
+        """同一环境变量 config 与 CLI 都提供时，应以 CLI 值为准覆盖。"""
+        worker = self._make_worker(
+            self._make_args(agent_env=[["CLAUDE_CODE_MAX_OUTPUT_TOKENS=131072"]])
+        )
+        cfg = MockConfigDict({
+            "models": [{
+                "abbr": "m",
+                "agent_env": {"CLAUDE_CODE_MAX_OUTPUT_TOKENS": "8192"},
+            }],
+            "datasets": [],
+            "work_dir": "/tmp",
+            "cli_args": MagicMock(debug=False),
+        })
+        worker._apply_cli_args(cfg)
+        assert cfg["models"][0]["agent_env"]["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "131072"

@@ -114,15 +114,35 @@ _DISCOVERY_HINTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 }
 
 
-def parse_kwarg_strings(kwargs_list: list[str] | None) -> dict[str, Any]:
+def _flatten_env_items(items):
+    """Flatten ``['K=V']`` / ``[['K=V'], ['K2=V2']]`` into a flat string list.
+
+    ``--ae``/``--ak`` use ``action='append' + nargs='+'`` so repeated flags
+    produce a list of lists; a single flag with several values also yields a
+    nested list. Flattening keeps both shapes working.
+    """
+    if items is None:
+        return []
+    out: list[str] = []
+    for item in items:
+        if isinstance(item, (list, tuple)):
+            out.extend(_flatten_env_items(item))
+        else:
+            out.append(item)
+    return out
+
+
+def parse_kwarg_strings(kwargs_list: list | None) -> dict[str, Any]:
     """Parse ``key=value`` strings into a dict (values parsed as JSON literals).
 
-    Mirrors harbor's ``harbor.cli.utils.parse_kwargs`` without importing harbor.
+    Accepts a flat ``['key=value', ...]`` list or the nested list produced by
+    repeated ``--ak`` flags. Mirrors harbor's ``harbor.cli.utils.parse_kwargs``
+    without importing harbor.
     """
     if not kwargs_list:
         return {}
     result: dict[str, Any] = {}
-    for item in kwargs_list:
+    for item in _flatten_env_items(kwargs_list):
         if "=" not in item:
             raise ValueError(f"Invalid kwarg format: {item}. Expected key=value")
         key, value = item.split("=", 1)
@@ -142,12 +162,16 @@ def parse_kwarg_strings(kwargs_list: list[str] | None) -> dict[str, Any]:
     return result
 
 
-def parse_env_strings(env_list: list[str] | None) -> dict[str, str]:
-    """Parse ``KEY=VALUE`` strings into a dict of strings."""
+def parse_env_strings(env_list: list | None) -> dict[str, str]:
+    """Parse ``KEY=VALUE`` strings into a dict of strings.
+
+    Accepts a flat ``['KEY=VALUE', ...]`` list or the nested list produced by
+    repeated ``--ae`` flags.
+    """
     if not env_list:
         return {}
     result: dict[str, str] = {}
-    for item in env_list:
+    for item in _flatten_env_items(env_list):
         if "=" not in item:
             raise ValueError(f"Invalid env var format: {item}. Expected KEY=VALUE")
         key, value = item.split("=", 1)

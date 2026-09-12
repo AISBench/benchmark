@@ -43,6 +43,23 @@ class TestParseKwargStrings(unittest.TestCase):
         # "=value" has "=", so it parses to an empty key, no raise
         self.assertEqual(parse_kwarg_strings(["=value"]), {"": "value"})
 
+    def test_nested_list_from_repeated_flag(self):
+        # --ak with action='append' + nargs='+' yields a list of lists
+        self.assertEqual(
+            parse_kwarg_strings(
+                [["disallowed_tools=WebSearch"], ["max_tokens=4096"]]
+            ),
+            {"disallowed_tools": "WebSearch", "max_tokens": 4096},
+        )
+        # single flag, multiple values also nests
+        self.assertEqual(
+            parse_kwarg_strings([["a=1", "b=x"]]), {"a": 1, "b": "x"}
+        )
+        # deeper nesting is flattened too
+        self.assertEqual(
+            parse_kwarg_strings([[["a=1"], ["b=2"]]]), {"a": 1, "b": 2}
+        )
+
 
 class TestParseEnvStrings(unittest.TestCase):
     def test_none(self):
@@ -62,6 +79,33 @@ class TestParseEnvStrings(unittest.TestCase):
     def test_invalid_raises(self):
         with self.assertRaises(ValueError):
             parse_env_strings(["invalid"])
+
+    def test_nested_list_from_repeated_flag(self):
+        # --ae with action='append' + nargs='+' yields a list of lists
+        self.assertEqual(
+            parse_env_strings(
+                [
+                    ["ANTHROPIC_AUTH_TOKEN=sk-aaa"],
+                    ["ANTHROPIC_API_KEY=sk-bbb"],
+                    ["CLAUDE_CODE_EFFORT_LEVEL=max"],
+                    ["CLAUDE_CODE_MAX_OUTPUT_TOKENS=131072"],
+                ]
+            ),
+            {
+                "ANTHROPIC_AUTH_TOKEN": "sk-aaa",
+                "ANTHROPIC_API_KEY": "sk-bbb",
+                "CLAUDE_CODE_EFFORT_LEVEL": "max",
+                "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "131072",
+            },
+        )
+        # single flag, multiple values also nests
+        self.assertEqual(
+            parse_env_strings([["A=1", "B=2"]]), {"A": "1", "B": "2"}
+        )
+        # deeper nesting is flattened too
+        self.assertEqual(
+            parse_env_strings([[["A=1"], ["B=2"]]]), {"A": "1", "B": "2"}
+        )
 
 
 class TestAgentParamAdapterTranslate(unittest.TestCase):
