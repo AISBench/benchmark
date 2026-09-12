@@ -36,7 +36,7 @@
 
 ## 🔥 最新进展
 
-- **\[2026.9.12]Agent测评完全对接harbor框架，并提供一键部署的离线测评解决方案**：Agent测评完全支持Harbor适配的agent以及harbor格式的数据集，同时为常用agent（包括claude-code，terminus-2，mini-swe-agent等）以及当前常用的agent数据集（SWE-Bench，terminal-bench，DeepSWE）提供了一键部署的离线测评解决方案。使用说明见 👉 [基于Harbor框架的](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/agent_benchmark.html)。🔥🔥🔥🚀🚀🚀
+- **\[2026.9.12]Agent测评完全对接harbor框架，并提供一键部署的离线测评解决方案**：Agent测评完全支持Harbor适配的agent以及harbor格式的数据集，同时为常用agent（包括claude-code，terminus-2，mini-swe-agent等）以及当前常用的agent数据集（SWE-Bench，terminal-bench，DeepSWE）提供了一键部署的离线测评解决方案。使用说明见 👉 [基于Harbor框架的agent测评](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/agent_benchmark.html)。🔥🔥🔥🚀🚀🚀
 - **\[2026.9.3]** 支持 **Prefix Cache 场景化压测与指标分析**：提供数据生成、请求调度、缓存预热、指标采集与结果分析全链路能力，支持单 Prefix / 多 Prefix Group、目标命中率反算、cold/warmup 双模式与多 DP 定向路由，新增 `prefix_hit_rate` 等指标查询。详见 [Prefix Cache 场景化压测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/prefix_cache.html)。🚀🚀🚀
 - **\[2026.9.2]** 新增 **MRCR 1M 数据集**：支持评测模型的 1M 长上下文检索问答能力，详见 [mrcr](ais_bench/benchmark/configs/datasets/mrcr/README.md)。
 - **\[2026.8.27]** 新增 **corpusQA 1M 数据集**：支持验证模型长序列推理精度能力，详见 [corpusqa](ais_bench/benchmark/configs/datasets/corpusqa/README.md)。
