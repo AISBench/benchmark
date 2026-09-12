@@ -11,27 +11,13 @@ Unlike the existing [Harbor Terminal-Bench](../../extended_benchmark/agent/harbo
 - **Real-time monitoring HTTP service**: stdlib-only, no extra dependency; external clients can fetch live execution info of all Harbor tasks.
 - **Standalone dependency set**: agent evaluation only requires installing `requirements/agent.txt` and does not depend on AISBench's heavy native dependencies.
 
-## Installation
-
-### Prerequisites
-
-- A model inference service that follows the **OpenAI chat/completions API** and supports **tool call** (local or cloud).
-- A Python 3.12 environment; Docker / execution environment prepared as required by Harbor.
-
-### Install the Agent dependency set
-
-```bash
-pip install -r requirements/agent.txt
-```
-
-> ⚠️ **Non-critical warnings during installation**: while installing the agent dependencies (especially installing Harbor and its transitive dependencies from source in editable mode), `pip` may print some warnings/errors that do **not affect agent evaluation**, including:
-> - dependency version-conflict warnings (e.g. Harbor upgrades the `datasets` library to 4.0.0+, which may produce version-conflict warnings with other dependencies);
-> - warnings/issues for third-party builds, or `yanked` / `deprecated` hints during resolution.
-> As long as these do **not cause the install to fail** (pip reports an `error` and stops), you can ignore them and continue using Harbor agent evaluation normally. To confirm a successful install, run `pip show harbor`.
-
 ## Resource Preparation
 
-### Harbor-format dataset resources
+An agent evaluation mainly needs the following resources: a Harbor-format dataset, the images corresponding to the dataset, and the agent dependencies. Prepare all three on the test environment as needed.
+
+### 1. Harbor-format dataset preparation
+
+#### Harbor-format dataset resources
 
 AISBench theoretically supports **all datasets adapted by Harbor**; for the concrete set of supported datasets, see the [Harbor dataset adapter list](https://github.com/AISBench/harbor/tree/main/adapters/datasets). These datasets must be built yourself by following Harbor's documentation.
 
@@ -46,7 +32,7 @@ AISBench theoretically supports **all datasets adapted by Harbor**; for the conc
 | terminal-bench 2.1 | https://github.com/AISBench/terminal-bench-2-1 | https://modelers.cn/datasets/AISBench/terminal-bench-2-1-mini | ⚠️ the agent needs to access the internet during execution |
 | DeepSWE | https://github.com/AISBench/deep-swe | https://modelers.cn/datasets/AISBench/DeepSWE-mini | NA |
 
-### Corresponding dataset image resources
+### 2. Dataset-image preparation
 
 Each case of an agent dataset has a corresponding image; these image names are defined in the dataset. On an x86_64 server with good network access to the internet, the corresponding images are automatically pulled and built during execution. However, this process is often rather slow.
 
@@ -58,12 +44,12 @@ The packaged image resources below can be loaded into the test environment with 
 | ----- | ------ | ------ | ------ | ----- |
 | SWEBench Verified | x86_64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/SWEBenchData/verified.tar | NA | ubuntu:22.04 | aarch64 not supported |
 | SWEBench Multilingual | x86_64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/SWEBenchData/multilingual.tar | NA | debian:12 | aarch64 not supported |
-| SWEBench Pro | NA | x86_64: https://modelers.cn/datasets/AISBench/SWE-Bench_Pro_mini | ubuntu:24.04 | aarch64 not supported |
+| SWEBench Pro | NA | x86_64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/swe_bench_pro_mini_images/swe_bench_pro_mini_images.tar.gz | ubuntu:24.04 | aarch64 not supported |
 | terminal-bench 2.0 | x86_64: <br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_x86_64.tar <br> aarch64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_aarch64.tar | x86_64: <br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.10_x86_64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.14_x86_64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.20_x86_64.tar <br> aarch64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.10_aarch64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.14_aarch64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.20_aarch64.tar | ubuntu:24.04, debian:11, debian:12, debian:13 | NA |
 | terminal-bench 2.1 | x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar <br>aarch64:<br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-aarch64.tar | NA | ubuntu:24.04, debian:12, debian:13 | NA |
 | DeepSWE | x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/deepswe/deep-swe-v1.1-task-images.tar.gz | NA | debian:12 | aarch64 not supported |
 
-### Agent support list
+### 3. Agent dependency preparation
 
 AISBench supports all agents defined by Harbor (pass the name directly via `-a/--agent`), as well as custom `module.path:ClassName` agents via `--agent-import-path`. The full list of Harbor's built-in `AgentName` values:
 
@@ -89,9 +75,71 @@ During evaluation, Harbor installs the dependent resources of the corresponding 
 | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
 | terminus-2 | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/terminus-2/terminus-2-debian-11-x86_64.tar.gz) | |
 | mini-swe-agent | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/mini-swe-agent/mini-swe-agent-debian-11-x86_64.tar.gz) | |
-| claude-code | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-11-x86_64.tar.gz) | |
+| claude-code | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/claude-code/claude-code-debian-11-x86_64.tar.gz) | ⚠️ claude-code sends requests in the Anthropic format, which differs from the OpenAI format; use litellm[proxy] to forward requests if you need to connect to a model service that only supports the OpenAI format |
 | dsh | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-12-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/dsh/dsh-debian-11-x86_64.tar.gz) | |
 | codex | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-ubuntu-22.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-ubuntu-22.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-ubuntu-24.04-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-ubuntu-24.04-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-debian-13-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-debian-13-aarch64.tar.gz) | [x86_64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-debian-12-x86_64.tar.gz) <br> [aarch64](https://aisbench.obs.cn-north-4.myhuaweicloud.com/others/agent_offline_pack/codex/codex-debian-12-aarch64.tar.gz) |  | debian:11 not available yet |
+
+## Installing the agent runtime environment (Docker container)
+
+Make sure Docker is installed on the test environment and the Docker service is started.
+
+### Get the agent runtime image
+
+Take `ghcr.io/aisbench/agent-runtime:v3.1-20260912-master-ubuntu24.04-py312` as an example.
+
+### Get the one-click agent environment deployment script
+
+```bash
+wget https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/scripts/start_agent_runtime.sh
+```
+
+### Run the one-click deployment script
+
+1. Check the script usage message:
+
+```bash
+# Show the script usage message, which includes usage examples
+bash start_agent_runtime.sh --help
+```
+
+2. Run the one-click deployment script (remove comments when using):
+
+```bash
+  # take agent: terminus-2, dataset: terminal-bench-2 as an example
+  # (recommended) start in the default socket mode
+  ./start_agent_runtime.sh \
+      --image         ghcr.io/aisbench/agent-runtime:v3.1-20260912-master-ubuntu24.04-py312 \ # agent runtime image name:tag
+      --dataset       /abs/path/terminal-bench-2 \   # dataset path; note that this path must contain folders named after the cases; some datasets may need /path/to/{datasets-name}/tasks
+      --case-images /abs/path/case-images.tar[.gz] \ # (optional) the images corresponding to the dataset; they can also be loaded directly on the host
+      --agent-deps    /abs/path/agent-deps-dir \     # path of the agent deps folder (contains the packaged image resources for various OSes)
+      --agent         terminus-2 \  # agent name
+      # other optional commands:
+      # [--name agent-runtime]  # container name
+      # [--trials-dir ~/harbor-trials] # mounted working path
+
+  # dind mode (strong isolation), Docker version > 20.0.0
+  ./start_agent_runtime.sh --mode dind \
+      --image ghcr.io/aisbench/agent-runtime:v3.1-20260912-master-ubuntu24.04-py312 \ # agent runtime image name:tag
+      --dataset /abs/path/terminal-bench-2 \   # dataset path; note that this path must contain folders named after the cases; some datasets may need /path/to/{datasets-name}/tasks
+      --case-images /abs/path/case-images.tar[.gz] \  # (required) the images corresponding to the dataset; they can also be loaded directly on the host
+      --agent-deps /abs/path/agent-deps-dir \
+      --agent terminus-2 \
+      # other optional commands:
+      # [--name agent-runtime]  # container name
+      # [--trials-dir ~/harbor-trials] # mounted working path
+```
+
+3. Follow the one-click deployment script guidance to enter the evaluation environment inside the container:
+
+```bash
+# enter the evaluation environment inside the container
+docker exec -it agent-runtime /bin/bash
+# today we use the harbor environment for evaluation
+agent_env harbor
+cd {working path}
+```
+
+👉 For more on building the agent runtime image and the one-click deployment script, see 📚 [One-click deployment script guide](https://github.com/AISBench/benchmark/blob/master/docker/agent_runtime/USAGE.md).
 
 ## Quick Start (either of the two ways)
 
@@ -103,22 +151,20 @@ During evaluation, Harbor installs the dependent resources of the corresponding 
 ::::{tab-set}
 :::{tab-item} ⭐ Recommended: Use command-line parameters
 
-Agent evaluation still requires a custom config file first (its `eval.runner` defines `HarborRunner` + `HarborAgentTask`; see `ais_bench/configs/agent_example/harbor_agent_task.py`). You then override/add agent, model-service, dataset and runtime parameters on the command line, which take priority over the config file. Besides the regular model-service parameters, the parameters newly introduced for agent evaluation (`--mode agent`, `-a/--agent`, `--api-base`, `--agent-api-key`, `-p/--agent-dataset-path`, `-d/--dataset`, `-n/--n-concurrent`, `-k/--n-attempts`, `-e/--environment`, `--monitor-port`, etc.) work together with `--mode agent` / `--mode agent_viz`. See 📚 [User Configuration Parameters - Agent Evaluation Parameters](../all_params/cli_args.md) for the full list.
+Agent evaluation still requires a custom config file first (its path is printed after you enter the evaluation container, usually `/path/to/harbor_agent_task.py`), then you override/add agent, model-service, dataset and runtime parameters on the command line; parameters explicitly passed on the command line take priority over the config file. Besides the regular model-service parameters, the parameters newly introduced for agent evaluation (`--mode agent`, `-a/--agent`, `--api-base`, `--agent-api-key`, `-p/--agent-dataset-path`, `-d/--dataset`, `-n/--n-concurrent`, `-k/--n-attempts`, `-e/--environment`, `--monitor-port`, etc.) work together with `--mode agent` / `--mode agent_viz`. See 📚 [User Configuration Parameters - Agent Evaluation Parameters](../all_params/cli_args.md#agent-evaluation-parameters) for the full list.
 
 Take a local terminal-bench-2 dataset with the terminus-2 agent as an example (`<config>.py` is a custom config file containing `HarborRunner`/`HarborAgentTask`; see `harbor_agent_task.py`):
 
 ```bash
-ais_bench <config>.py --mode agent \
+ais_bench /path/to/harbor_agent_task.py --mode agent \
     -a terminus-2 \                        # Agent name (or a custom import path)
-    --model hosted_vllm/qwen3 \            # Model name (repeatable)
-    --api-base http://0.0.0.0:8080/v1 \    # Model service base url (unified semantic)
-    --agent-api-key sk-xxx \               # Model service API key (unified semantic)
-    -p /path/to/terminal-bench-2 \         # Local dataset path
-    # --agent-deps /path/to/terminus-2-offline-pack/ \ # (optional, recommended) path to offline agent deps bundles (one tar.gz per OS)
+    --model hosted_vllm/qwen3 \            # Model name (repeatable), configured by the user
+    --api-base http://0.0.0.0:8080/v1 \    # Model service base url (unified semantic), configured by the user
+    --agent-api-key sk-xxx \               # Model service API key (unified semantic), configured by the user
+    -p /path/to/terminal-bench-2 \         # Local dataset path; the command example inside the container has already given it
+    --agent-deps /path/to/terminus-2-offline-pack/ \ # Path to the offline agent dependency packages; the command example inside the container has already given it
     -n 5 \                                 # Concurrent trial count
     -k 1 \                                 # Attempts per trial
-    -e docker \                            # Environment type
-    --monitor-port 8788                    # Real-time monitoring HTTP service port
 ```
 
 To append raw agent kwargs or environment variables (highest priority), use `--ak key=value` / `--ae KEY=VALUE`:
@@ -127,16 +173,16 @@ To append raw agent kwargs or environment variables (highest priority), use `--a
 ais_bench <config>.py --mode agent -a terminus-2 --model hosted_vllm/qwen3 \
     --api-base http://0.0.0.0:8080/v1 \
     -p /path/to/terminal-bench-2 \
-    --ak max_tokens=4096 \
-    --ae HTTPS_PROXY=http://proxy:port
+    --ak max_tokens=4096 \ # extra kwargs of the agent
+    --ae HTTPS_PROXY=http://proxy:port # extra environment variables of the agent
 ```
 
-If the local dataset is a **single task directory** (rather than a dataset directory), use `-p` the same way. For remote datasets use `-d name@version` / `-d org/name@ref`.
+> ⚠️ Note: different agents support different `--ak` parameters. For the specific supported parameters, see the [Harbor agent adapters](https://github.com/AISBench/harbor/tree/main/src/harbor/agents/installed).
 
 :::
 :::{tab-item} Alternative: Use a custom config file
 
-A custom config file puts "model service and agent parameters" under `models` and "agent evaluation task parameters" under `datasets`, so it can be written once and reused. See `ais_bench/configs/agent_example/harbor_agent_task.py` / `harbor_terminal_bench_2_task.py` for reference. A complete example:
+A custom config file (its path is printed after you enter the evaluation container, usually `/path/to/harbor_agent_task.py`) puts "model service and agent parameters" under `models` and "agent evaluation task parameters" under `datasets`, so it can be written once and reused. A complete example:
 
 ```python
 from mmengine.config import read_base
@@ -162,7 +208,7 @@ models = [
             "max_input_tokens": 128000,
             "max_output_tokens": 4096,
         },
-        # deps_path=None,                   # --agent-deps: offline agent deps bundle path
+        deps_path=None,                  # (optional, recommended) --agent-deps: path of the offline agent dependency packages, which contain the tar.gz files of various OSes
     )
 ]
 
@@ -369,4 +415,22 @@ Meaning of each Harbor on-disk file:
 | --- | --- | --- |
 | `monitor_port` | `--monitor-port` | Harbor monitoring HTTP service port (0 = off, default 0) |
 
-> 📚 For more on Harbor environment preparation and terminal-bench 2 / 2.1 datasets and images, see [Harbor Terminal-Bench](../../extended_benchmark/agent/harbor_bench.md). For the full CLI parameter list, see 📚 [User Configuration Parameters - Agent Evaluation Parameters](../all_params/cli_args.md).
+> 📚 For more on Harbor environment preparation and terminal-bench 2 / 2.1 datasets and images, see [Harbor Terminal-Bench](../../extended_benchmark/agent/harbor_bench.md). For the full CLI parameter list, see 📚 [User Configuration Parameters - Agent Evaluation Parameters](../all_params/cli_args.md#agent-evaluation-parameters).
+
+## Appendix: Source Installation
+
+### Prerequisites
+
+- A Python 3.12 runtime environment;
+- The Docker / environment needed to run Harbor must be prepared as required by Harbor (docker > 20.0.0, docker compose > 2.0.0, docker buildx > 0.18.0).
+
+### Install the standalone agent dependency set
+
+```bash
+pip install -r requirements/agent.txt
+```
+
+> ⚠️ **Notes on non-critical errors during installation**: when installing the agent dependencies (especially installing Harbor and its transitive dependencies from source in editable mode), `pip` may print some errors or warnings that do **not affect agent evaluation**, mainly including:
+> - dependency version-conflict warnings (e.g. Harbor upgrades the `datasets` library to 4.0.0+, which may produce version-conflict warnings with other dependencies);
+> - warnings from the compilation/build of individual packages, or `yanked` / `deprecated` hints during dependency resolution.
+> As long as these do **not cause the installation to fail** (pip reports an `error` and stops), you can ignore them and continue; the installed Harbor agent evaluation works normally. To confirm a successful install, run `pip show harbor` to verify Harbor is properly in place.
