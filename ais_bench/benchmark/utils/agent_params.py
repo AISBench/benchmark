@@ -30,7 +30,7 @@ EXPLICIT_MAP: dict[str, dict[str, tuple[str, str]]] = {
     # well-known environment variables
     "claude-code": {
         "api_base": ("env", "ANTHROPIC_BASE_URL"),
-        "api_key": ("env", "ANTHROPIC_API_KEY"),
+        "api_key": ("env", "ANTHROPIC_AUTH_TOKEN"),
     },
     "aider": {
         "api_base": ("env", "OPENAI_API_BASE"),
