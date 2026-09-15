@@ -4,6 +4,8 @@
 
 这是一个独立的 AISBench 插件，用于构造具有可控公共前缀的数据集，并比较 vLLM Prefix Cache 的理论与实际命中率。它同时提供离线的 `inspect` / `prepare` / `validate`，在线的 `run`，以及使用已保存 Prometheus 快照复算的 `analyze`。
 
+固定图片的多模态理解数据构造与压测（1319 条单图 1080P、1319 条五图 720P、30-token GSM8K 文本、256-token 输出，以及 TTFT/TPOT/ITL 验收）见 [MULTIMODAL.md](MULTIMODAL.md)。
+
 插件只增加 `plugins/prefix_cache` 下的新代码，不修改 AISBench 核心逻辑。
 
 Scenario 示例见 [config_examples/scenario.example.json](config_examples/scenario.example.json)，完整字段说明见 [config_examples/scenario.example.md](config_examples/scenario.example.md)。

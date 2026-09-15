@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="ais-bench-prefix-cache",
-    version="0.2.0",
+    version="0.4.0",
     description="Prefix Cache dataset generation, runtime benchmarking, and validation for AISBench",
     packages=find_packages(),
     python_requires=">=3.10",
@@ -11,6 +11,8 @@ setup(
         "ais-bench-benchmark",
         "aiohttp",
         "datasets>=2.12.0,<=3.6.0",
+        "Pillow",
+        "pyarrow",
         "transformers",
     ],
     entry_points={
@@ -19,6 +21,7 @@ setup(
         ],
         "console_scripts": [
             "ais-bench-prefix-cache = ais_bench_prefix_cache.cli:console_main",
+            "ais-bench-prefix-cache-mm = ais_bench_prefix_cache.multimodal_cli:console_main",
         ],
     },
 )
