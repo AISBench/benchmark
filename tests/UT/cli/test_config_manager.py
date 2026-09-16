@@ -158,6 +158,18 @@ class TestConfigManager(unittest.TestCase):
         self.args.trust_remote_code = None
         self.args.generation_kwargs = None
 
+        # llm_io_replay_args 覆盖参数默认 None（未显式指定则不覆盖）
+        self.args.replay_log_file = None
+        self.args.replay_url = None
+        self.args.replay_model = None
+        self.args.replay_x_app_id = None
+        self.args.replay_x_app_key = None
+        self.args.replay_concurrency = None
+        self.args.replay_requests = None
+        self.args.replay_timeout = None
+        self.args.replay_mode = None
+        self.args.replay_temperature = None
+
         # Local tokenizer directory consumed by response anomaly model-path
         # fallback tests.
         self.tokenizer_dir = tempfile.mkdtemp()
@@ -450,6 +462,55 @@ class TestConfigManager(unittest.TestCase):
         config_manager._apply_cli_api_model_overrides([model])
 
         self.assertFalse(model['trust_remote_code'])
+
+    def test_apply_cli_replay_overrides(self):
+        """--replay-* 仅覆盖 replay 模型及其数据集配置。"""
+        self.args.replay_log_file = '/data/replay.txt'
+        self.args.replay_url = 'http://127.0.0.1:8900/v1/chat/completions'
+        self.args.replay_model = 'glm51'
+        self.args.replay_x_app_id = '1111'
+        self.args.replay_x_app_key = '22222'
+        self.args.replay_concurrency = 100
+        self.args.replay_requests = 2500
+        self.args.replay_timeout = 900.0
+        config = {
+            'models': [{
+                'type': 'LLMIOReplayService',
+                'url': 'http://default.invalid',
+                'model': 'default',
+            }],
+            'datasets': [{
+                'abbr': 'replay',
+                'args': {'input_log_file': 'default.txt', 'requests': 0},
+            }],
+        }
+
+        ConfigManager(self.args)._apply_cli_replay_overrides(config)
+
+        model = config['models'][0]
+        data_args = config['datasets'][0]['args']
+        self.assertEqual(model['url'], self.args.replay_url)
+        self.assertEqual(model['model'], 'glm51')
+        self.assertEqual(model['x_app_id'], '1111')
+        self.assertEqual(model['x_app_key'], '22222')
+        self.assertEqual(model['concurrent'], 100)
+        self.assertEqual(model['timeout'], 900.0)
+        self.assertEqual(data_args['input_log_file'], '/data/replay.txt')
+        self.assertEqual(data_args['requests'], 2500)
+
+    def test_apply_cli_replay_overrides_ignores_non_replay_config(self):
+        """Replay 参数不应污染其他模型和数据集。"""
+        self.args.replay_url = 'http://override.invalid'
+        self.args.replay_log_file = '/data/replay.txt'
+        config = {
+            'models': [{'type': VLLMCustomAPI, 'url': 'http://original'}],
+            'datasets': [{'args': {'path': '/data/other.jsonl'}}],
+        }
+
+        ConfigManager(self.args)._apply_cli_replay_overrides(config)
+
+        self.assertEqual(config['models'][0]['url'], 'http://original')
+        self.assertEqual(config['datasets'][0]['args']['path'], '/data/other.jsonl')
 
     @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._apply_cli_api_model_overrides')
     @mock.patch('ais_bench.benchmark.cli.config_manager.match_cfg_file')

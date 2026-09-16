@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import sys
 from ais_bench.benchmark.cli.argument_parser import ArgumentParser
 
@@ -342,6 +342,55 @@ class TestArgumentParser(unittest.TestCase):
         args = ArgumentParser().parse_args()
         self.assertFalse(args.trust_remote_code)
 
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_replay_options(self, mock_get_current_time_str):
+        """测试 llm_io replay 专用覆盖选项参数解析。"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = [
+            'benchmark.py',
+            '--replay-log-file', '/data/replay.txt',
+            '--replay-url', 'http://127.0.0.1:8900/v1/chat/completions',
+            '--replay-model', 'glm51',
+            '--replay-x-app-id', '1111',
+            '--replay-x-app-key', '22222',
+            '--replay-concurrency', '100',
+            '--replay-requests', '2500',
+            '--replay-timeout', '900',
+            '--replay-mode', 'stream',
+            '--replay-temperature', '0.7',
+        ]
+
+        args = ArgumentParser().parse_args()
+
+        self.assertEqual(args.replay_log_file, '/data/replay.txt')
+        self.assertEqual(
+            args.replay_url,
+            'http://127.0.0.1:8900/v1/chat/completions',
+        )
+        self.assertEqual(args.replay_model, 'glm51')
+        self.assertEqual(args.replay_x_app_id, '1111')
+        self.assertEqual(args.replay_x_app_key, '22222')
+        self.assertEqual(args.replay_concurrency, 100)
+        self.assertEqual(args.replay_requests, 2500)
+        self.assertEqual(args.replay_timeout, 900.0)
+        self.assertEqual(args.replay_mode, 'stream')
+        self.assertEqual(args.replay_temperature, 0.7)
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_replay_options_default_none(self, mock_get_current_time_str):
+        """未显式指定时 replay 覆盖参数均为 None。"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py']
+        args = ArgumentParser().parse_args()
+
+        for attr in (
+            'replay_log_file', 'replay_url', 'replay_model',
+            'replay_x_app_id', 'replay_x_app_key', 'replay_concurrency',
+            'replay_requests', 'replay_timeout', 'replay_mode',
+            'replay_temperature',
+        ):
+            self.assertIsNone(getattr(args, attr))
+
     def test_parse_args_api_model_invalid_generation_kwargs_json(self):
         """非法 JSON 的 --generation-kwargs 应导致解析失败"""
         sys.argv = ['benchmark.py', '--generation-kwargs', '{bad json']
@@ -368,6 +417,8 @@ class TestArgumentParser(unittest.TestCase):
             self.assertTrue(hasattr(args, 'host_port'))  # api_model_args
             self.assertTrue(hasattr(args, 'generation_kwargs'))  # api_model_args
             self.assertTrue(hasattr(args, 'trust_remote_code'))  # api_model_args
+            self.assertTrue(hasattr(args, 'replay_log_file'))  # llm_io_replay_args
+            self.assertTrue(hasattr(args, 'replay_concurrency'))  # llm_io_replay_args
 
 
 if __name__ == '__main__':

@@ -117,7 +117,7 @@ def test_settings_validation_and_summary():
     assert summary["output_token_throughput"] == 5.0
 
 
-def test_task_reads_runtime_environment_overrides(monkeypatch):
+def test_task_prefers_config_to_runtime_environment(monkeypatch):
     monkeypatch.setenv("AISBENCH_REPLAY_URL", "http://127.0.0.1:9999/v1/chat/completions")
     monkeypatch.setenv("AISBENCH_REPLAY_CONCURRENCY", "17")
     monkeypatch.setenv("AISBENCH_REPLAY_REQUESTS", "23")
@@ -127,9 +127,28 @@ def test_task_reads_runtime_environment_overrides(monkeypatch):
                 abbr="model",
                 url="http://default.invalid",
                 model="glm51",
+                concurrent=100,
             )
         ],
-        datasets=[[ConfigDict(abbr="data", args=ConfigDict(requests=0))]],
+        datasets=[[ConfigDict(abbr="data", args=ConfigDict(requests=2500))]],
+        work_dir="outputs/test",
+        cli_args=ConfigDict(mode="infer", debug=True),
+    )
+    task = LLMIOReplayTask(cfg)
+    settings = task._settings(task.dataset_cfgs[0])
+
+    assert settings.url == "http://default.invalid"
+    assert settings.concurrency == 100
+    assert settings.requests == 2500
+
+
+def test_task_uses_runtime_environment_as_missing_config_fallback(monkeypatch):
+    monkeypatch.setenv("AISBENCH_REPLAY_URL", "http://127.0.0.1:9999/v1/chat/completions")
+    monkeypatch.setenv("AISBENCH_REPLAY_CONCURRENCY", "17")
+    monkeypatch.setenv("AISBENCH_REPLAY_REQUESTS", "23")
+    cfg = ConfigDict(
+        models=[ConfigDict(abbr="model", model="glm51")],
+        datasets=[[ConfigDict(abbr="data", args=ConfigDict())]],
         work_dir="outputs/test",
         cli_args=ConfigDict(mode="infer", debug=True),
     )

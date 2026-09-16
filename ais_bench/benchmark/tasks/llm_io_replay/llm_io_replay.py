@@ -78,6 +78,25 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _config_or_env(config, key: str, env_name: str, default):
+    """Read config first, retaining environment variables as a legacy fallback."""
+
+    if key in config and config.get(key) is not None:
+        return config.get(key)
+    return os.getenv(env_name, default)
+
+
+def _config_bool_or_env(
+    config,
+    key: str,
+    env_name: str,
+    default: bool,
+) -> bool:
+    if key in config and config.get(key) is not None:
+        return bool(config.get(key))
+    return _env_bool(env_name, default)
+
+
 def normalize_endpoint(url: str) -> str:
     """Keep an exact chat-completions URL or append the endpoint once."""
 
@@ -394,56 +413,70 @@ class LLMIOReplayTask(BaseTask):
     def _settings(self, dataset_cfg: ConfigDict) -> ReplaySettings:
         data_args = dataset_cfg.get("args", {})
         return ReplaySettings(
-            url=os.getenv("AISBENCH_REPLAY_URL", self.model_cfg.get("url", "")),
-            model=os.getenv(
-                "AISBENCH_REPLAY_MODEL", self.model_cfg.get("model", "")
+            url=_config_or_env(
+                self.model_cfg, "url", "AISBENCH_REPLAY_URL", ""
+            ),
+            model=_config_or_env(
+                self.model_cfg, "model", "AISBENCH_REPLAY_MODEL", ""
             ),
             concurrency=int(
-                os.getenv(
+                _config_or_env(
+                    self.model_cfg,
+                    "concurrent",
                     "AISBENCH_REPLAY_CONCURRENCY",
-                    str(self.model_cfg.get("concurrent", 100)),
+                    100,
                 )
             ),
             requests=int(
-                os.getenv(
+                _config_or_env(
+                    data_args,
+                    "requests",
                     "AISBENCH_REPLAY_REQUESTS",
-                    str(data_args.get("requests", 0)),
+                    0,
                 )
             ),
             timeout=float(
-                os.getenv(
+                _config_or_env(
+                    self.model_cfg,
+                    "timeout",
                     "AISBENCH_REPLAY_TIMEOUT",
-                    str(self.model_cfg.get("timeout", 900)),
+                    900,
                 )
             ),
             temperature=float(
-                os.getenv(
+                _config_or_env(
+                    self.model_cfg,
+                    "temperature",
                     "AISBENCH_REPLAY_TEMPERATURE",
-                    str(self.model_cfg.get("temperature", 0.7)),
+                    0.7,
                 )
             ),
             stream=(
-                os.getenv(
+                _config_or_env(
+                    self.model_cfg,
+                    "mode",
                     "AISBENCH_REPLAY_MODE",
-                    self.model_cfg.get("mode", "stream"),
+                    "stream",
                 )
                 == "stream"
             ),
-            x_app_id=os.getenv(
-                "AISBENCH_REPLAY_X_APP_ID",
-                str(self.model_cfg.get("x_app_id", "")),
+            x_app_id=_config_or_env(
+                self.model_cfg, "x_app_id", "AISBENCH_REPLAY_X_APP_ID", ""
             ),
-            x_app_key=os.getenv(
-                "AISBENCH_REPLAY_X_APP_KEY",
-                str(self.model_cfg.get("x_app_key", "")),
+            x_app_key=_config_or_env(
+                self.model_cfg, "x_app_key", "AISBENCH_REPLAY_X_APP_KEY", ""
             ),
-            send_legacy_app_headers=_env_bool(
+            send_legacy_app_headers=_config_bool_or_env(
+                self.model_cfg,
+                "send_legacy_app_headers",
                 "AISBENCH_REPLAY_SEND_LEGACY_APP_HEADERS",
-                bool(self.model_cfg.get("send_legacy_app_headers", True)),
+                True,
             ),
-            add_timestamp_prefix=_env_bool(
+            add_timestamp_prefix=_config_bool_or_env(
+                self.model_cfg,
+                "add_timestamp_prefix",
                 "AISBENCH_REPLAY_ADD_TIMESTAMP_PREFIX",
-                bool(self.model_cfg.get("add_timestamp_prefix", True)),
+                True,
             ),
         )
 
@@ -561,29 +594,40 @@ class LLMIOReplayTask(BaseTask):
         self.task_state_manager = task_state_manager
         for dataset_cfg in self.dataset_cfgs:
             data_args = dataset_cfg.get("args", {})
-            configured_source = os.getenv(
-                "AISBENCH_REPLAY_LOG_FILE", data_args["input_log_file"]
+            configured_source = _config_or_env(
+                data_args,
+                "input_log_file",
+                "AISBENCH_REPLAY_LOG_FILE",
+                "",
             )
+            if not configured_source:
+                raise ValueError("input_log_file must not be empty")
             source_path = osp.abspath(osp.expanduser(configured_source))
             settings = self._settings(dataset_cfg)
             settings.validate()
             self.logger.info("Loading llm_io replay log: %s", source_path)
             max_records = int(
-                os.getenv(
+                _config_or_env(
+                    data_args,
+                    "max_records",
                     "AISBENCH_REPLAY_MAX_RECORDS",
-                    str(data_args.get("max_records", 0) or 0),
+                    0,
                 )
             )
             records = list(
                 iter_llm_io_records(
                     source_path,
-                    repair_redacted=_env_bool(
+                    repair_redacted=_config_bool_or_env(
+                        data_args,
+                        "repair_redacted",
                         "AISBENCH_REPLAY_REPAIR_REDACTED",
-                        bool(data_args.get("repair_redacted", False)),
+                        False,
                     ),
-                    on_error=os.getenv(
+                    on_error=_config_or_env(
+                        data_args,
+                        "on_error",
                         "AISBENCH_REPLAY_ON_ERROR",
-                        data_args.get("on_error", "raise"),
+                        "raise",
                     ),
                     max_records=max_records if max_records > 0 else None,
                 )

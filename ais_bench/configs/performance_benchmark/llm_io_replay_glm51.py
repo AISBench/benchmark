@@ -1,8 +1,7 @@
 """Replay a complete llm_io log with the core LLMIOReplayTask.
 
-Run with ``ais_bench <this-file> --mode infer``. ``LLMIOReplayTask`` reads
-``AISBENCH_REPLAY_*`` environment overrides at runtime, independently of
-MMEngine's lazy configuration parsing.
+Run with ``ais_bench <this-file> --mode infer``. Values may be edited directly
+below or overridden with the corresponding ``--replay-*`` CLI options.
 """
 
 
@@ -12,10 +11,10 @@ datasets = [
         # The args marker tells AISBench this custom task owns data loading.
         args=dict(
             input_log_file=(
-                "s9fkf_input_14-25round_150users_2500_redacted.txt"
+                "/data/s9fkf_input_14-25round_150users_2500_redacted.txt"
             ),
-            # Zero sends every loaded record once.
-            requests=0,
+            # Set to zero to send every loaded record once.
+            requests=2500,
             repair_redacted=True,
             on_error="raise",
             # Zero means no loading cap.

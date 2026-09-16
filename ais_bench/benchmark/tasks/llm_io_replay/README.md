@@ -9,26 +9,46 @@ message histories are never split into separate turns.
 
 ## Run
 
-From the AISBench repository:
+All values can be set directly in
+`ais_bench/configs/performance_benchmark/llm_io_replay_glm51.py`. For example,
+the supplied config already contains `input_log_file`, `url`, `model`,
+`x_app_id`, `x_app_key`, `concurrent`, `requests`, and `timeout`. After editing
+that file, run from the AISBench repository without any exports:
 
 ```bash
-export AISBENCH_REPLAY_LOG_FILE=/path/to/s9fkf_input_14-25round_150users_2500_redacted.txt
-export AISBENCH_REPLAY_URL=http://172.27.13.87:8900/v1/chat/completions
-export AISBENCH_REPLAY_MODEL=glm51
-export AISBENCH_REPLAY_CONCURRENCY=100
-export AISBENCH_REPLAY_REQUESTS=2500
-export AISBENCH_REPLAY_TIMEOUT=900
-
 ais_bench ais_bench/configs/performance_benchmark/llm_io_replay_glm51.py \
   --mode infer
 ```
 
-The intended runtime is Linux. Paths in `AISBENCH_REPLAY_LOG_FILE` may be
-absolute Linux paths or paths relative to the AISBench repository.
+Alternatively, leave the config reusable and override one or more values on
+the CLI:
 
-Set `AISBENCH_REPLAY_REQUESTS=2300` for the 79dw4 file. A value of `0` sends
-every loaded record once. If the requested count exceeds the number of loaded
-records, records are cycled in source order, matching `glm51_replay_v3.py`.
+```bash
+ais_bench ais_bench/configs/performance_benchmark/llm_io_replay_glm51.py \
+  --mode infer \
+  --replay-log-file /data/s9fkf_input_14-25round_150users_2500_redacted.txt \
+  --replay-url http://172.27.13.87:8900/v1/chat/completions \
+  --replay-model glm51 \
+  --replay-x-app-id 1111 \
+  --replay-x-app-key 22222 \
+  --replay-concurrency 100 \
+  --replay-requests 2500 \
+  --replay-timeout 900
+```
+
+CLI values have precedence over the config file. The old
+`AISBENCH_REPLAY_*` environment variables remain as a compatibility fallback
+only when the matching config field is absent or `None`. Because command-line
+arguments may be visible in process listings, keep real credentials in a
+protected config file when that matters.
+
+The intended runtime is Linux. Replay log paths may be absolute Linux paths or
+paths relative to the AISBench repository.
+
+Set `requests=2300` in the config or pass `--replay-requests 2300` for the
+79dw4 file. A value of `0` sends every loaded record once. If the requested
+count exceeds the number of loaded records, records are cycled in source order,
+matching `glm51_replay_v3.py`.
 
 The task writes JSON and Markdown reports under:
 
