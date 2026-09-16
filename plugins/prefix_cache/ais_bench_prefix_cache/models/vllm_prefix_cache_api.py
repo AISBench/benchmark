@@ -5,11 +5,7 @@ import time
 from urllib.parse import urlsplit, urlunsplit
 from typing import Any
 
-# Import through AISBench's public models facade.  Importing the implementation
-# submodule directly can make MMEngine's LazyObject enter vllm_custom_api before
-# ais_bench.benchmark.models has finished initializing, which creates a circular
-# import through models/__init__.py.
-from ais_bench.benchmark.models import VLLMCustomAPI
+from ais_bench.benchmark.models.api_models.vllm_custom_api import VLLMCustomAPI
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.logging.error_codes import MODEL_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchValueError
