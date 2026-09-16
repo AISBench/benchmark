@@ -61,7 +61,7 @@ export NLTK_DATA=/workspace/nltk_data
 
 ### 3. 模型配置修改
 
-若使用此数据集，需要在 `vllm_api_general_chat.py` 中同时修改引入语句和 `pred_postprocessor` 后处理函数：
+若用此数据集，需要在 `vllm_api_general_chat.py` 中同时修改引入语句和 `pred_postprocessor` 后处理函数：
 
 ```python
 # 修改前
