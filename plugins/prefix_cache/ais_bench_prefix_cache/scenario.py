@@ -12,7 +12,7 @@ from .errors import ScenarioValidationError
 
 
 _ALLOWED = {
-    "": {"schema_version", "run", "tokenizer", "corpus", "requests", "output", "prefix_cache", "service", "validation", "aisbench"},
+    "": {"schema_version", "run", "tokenizer", "corpus", "requests", "output", "prefix_cache", "service", "validation", "aisbench", "multimodal"},
     "run": {"run_id", "random_seed", "output_dir", "overwrite"},
     "tokenizer": {"path", "block_size", "revision", "trust_remote_code"},
     "corpus": {"path", "field", "selection"},
@@ -30,7 +30,10 @@ _ALLOWED = {
     "aisbench": {"config", "work_dir", "extra_args", "dataset", "model"},
     "aisbench.dataset": {"abbr", "input_columns", "output_column", "prompt_template", "pred_role"},
     "aisbench.model": {"abbr", "attr", "stream", "max_out_len", "retry", "batch_size", "generation_kwargs"},
+    "multimodal": {"mmmu_parquet_dir", "scenarios"},
 }
+
+MULTIMODAL_SCENARIOS = ("single_1080p", "multi_720p_5")
 
 _MODES = {
     "input": {"fixed", "explicit", "range", "truncated_normal", "csv"},
@@ -262,6 +265,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     data.setdefault("service", {})
     data.setdefault("validation", {})
     data.setdefault("aisbench", {})
+    data.setdefault("multimodal", {})
     run = _require_dict(data["run"], "run")
     tokenizer = _require_dict(data["tokenizer"], "tokenizer")
     corpus = _require_dict(data["corpus"], "corpus")
@@ -269,6 +273,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     output = _require_dict(data["output"], "output")
     pc = _require_dict(data["prefix_cache"], "prefix_cache")
     service = _require_dict(data["service"], "service")
+    multimodal = _require_dict(data["multimodal"], "multimodal")
     run.setdefault("run_id", "gsm8k-prefix-cache-60")
     run.setdefault("random_seed", 42)
     run.setdefault("output_dir", "./outputs/gsm8k-prefix-cache-60")
@@ -458,10 +463,49 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     _positive(model_cfg["batch_size"], "aisbench.model.batch_size")
     if not isinstance(model_cfg["generation_kwargs"], dict):
         raise ScenarioValidationError("aisbench.model.generation_kwargs must be an object")
+    multimodal.setdefault("scenarios", [MULTIMODAL_SCENARIOS[0]])
+    mmmu_parquet_dir = multimodal.get("mmmu_parquet_dir")
+    if mmmu_parquet_dir is not None:
+        if not isinstance(mmmu_parquet_dir, str) or not mmmu_parquet_dir:
+            raise ScenarioValidationError(
+                "multimodal.mmmu_parquet_dir must be a non-empty string when configured"
+            )
+        multimodal["mmmu_parquet_dir"] = _resolve_path(source.parent, mmmu_parquet_dir)
+    scenarios = multimodal["scenarios"]
+    if not isinstance(scenarios, list) or not scenarios:
+        raise ScenarioValidationError("multimodal.scenarios must be a non-empty list")
+    if any(not isinstance(item, str) or item not in MULTIMODAL_SCENARIOS for item in scenarios):
+        raise ScenarioValidationError(
+            f"multimodal.scenarios entries must be one of {list(MULTIMODAL_SCENARIOS)}"
+        )
+    if len(set(scenarios)) != len(scenarios):
+        raise ScenarioValidationError("multimodal.scenarios must not contain duplicates")
     # cold 多 DP 必须显式提供推理地址，否则无法路由。
     if cache_mode == "cold" and service["dp_size"] > 1 and not service["inference_url"]:
         raise ScenarioValidationError("cold multi-DP requires inference_url")
     return data
+
+
+def validate_scenario_mode(scenario: Scenario, mode: str) -> None:
+    """Validate constraints that depend on the CLI prepare mode."""
+    if mode not in {"text", "mm"}:
+        raise ScenarioValidationError("prepare mode must be 'text' or 'mm'")
+    if mode == "text":
+        return
+    multimodal = scenario.section("multimodal")
+    if not multimodal.get("mmmu_parquet_dir"):
+        raise ScenarioValidationError(
+            "multimodal.mmmu_parquet_dir is required when prepare --mode mm"
+        )
+    requests = scenario.section("requests")
+    if requests["input_length"]["mode"] != "fixed":
+        raise ScenarioValidationError(
+            "requests.input_length.mode must be 'fixed' when prepare --mode mm"
+        )
+    if requests["output_length"]["mode"] != "fixed":
+        raise ScenarioValidationError(
+            "requests.output_length.mode must be 'fixed' when prepare --mode mm"
+        )
 
 
 def load_scenario(path: Path | str) -> Scenario:

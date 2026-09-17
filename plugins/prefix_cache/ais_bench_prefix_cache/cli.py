@@ -17,9 +17,21 @@ from .artifacts import (
     write_json,
 )
 from .errors import PrefixCacheError
+from .multimodal import (
+    prepare_multimodal_scenario,
+    report_performance,
+    run_multimodal_benchmark,
+    validate_multimodal_manifest,
+)
 from .pipeline import inspect_scenario, prepare_scenario
 from .runtime import analyze_snapshots, run_scenario
-from .scenario import Scenario, load_scenario, new_execution_timestamp, with_execution_timestamp
+from .scenario import (
+    Scenario,
+    load_scenario,
+    new_execution_timestamp,
+    validate_scenario_mode,
+    with_execution_timestamp,
+)
 
 # Parent logger name shared by all module loggers (ais_bench_prefix_cache.*).
 PLUGIN_LOG_NAME = "ais_bench_prefix_cache"
@@ -70,6 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
         item = sub.add_parser(name)
         item.add_argument("--scenario", required=True, type=Path)
     prepare = sub.choices["prepare"]
+    prepare.add_argument("--mode", required=True, choices=("text", "mm"))
     prepare.add_argument("--overwrite", action="store_true")
     run = sub.choices["run"]
     run.add_argument("--config", type=Path)
@@ -79,6 +92,8 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--manifest", required=True, type=Path)
     analyze.add_argument("--baseline", required=True, type=Path)
     analyze.add_argument("--after", required=True, type=Path)
+    report = sub.add_parser("report")
+    report.add_argument("--manifest", required=True, type=Path)
     return parser
 
 
@@ -98,7 +113,7 @@ def _resolve_log_file(
     or the output directory is not writable (the real error surfaces in
     the normal command flow).
     """
-    if command in {"validate", "analyze"}:
+    if command in {"validate", "analyze", "report"}:
         if manifest_path is None:
             return None
         try:
@@ -125,9 +140,31 @@ def _resolve_log_file(
 
 def _reusable_execution_timestamp(scenario: Scenario, *, inspected_only: bool) -> str | None:
     """Return the newest reusable timestamp discovered from a matching Manifest."""
-    statuses = {"inspected"} if inspected_only else {"inspected", "prepared"}
+    statuses = {"inspected"} if inspected_only else {"prepared"}
     found = find_latest_execution_manifest(scenario, statuses)
     return found[0] if found is not None else None
+
+
+def _read_manifest(path: Path | str) -> dict:
+    manifest_path = Path(path).resolve()
+    try:
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PrefixCacheError(f"cannot read Manifest {manifest_path}: {exc}") from exc
+
+
+def _manifest_mode(manifest: dict) -> str:
+    mode = manifest.get("benchmark_mode", "text")
+    if mode not in {"text", "mm"}:
+        raise PrefixCacheError(f"unknown Manifest benchmark_mode: {mode!r}")
+    return mode
+
+
+def _scenario_work_dir(scenario: Scenario) -> Path:
+    configured = Path(scenario.section("aisbench")["work_dir"])
+    if configured.is_absolute():
+        return configured.resolve()
+    return (scenario.source_path.parent / configured).resolve()
 
 
 def _persist_inspect_manifest(
@@ -148,6 +185,7 @@ def _persist_inspect_manifest(
     manifest = {
         "schema_version": "1.0",
         "plugin_version": __version__,
+        "benchmark_mode": "text",
         "status": "inspected",
         "run_id": scenario.run_id,
         "scenario_path": str(base_scenario.source_path),
@@ -209,11 +247,14 @@ def main(argv: list[str] | None = None) -> int:
     reused_execution_timestamp = False
     if args.command == "inspect":
         execution_timestamp = new_execution_timestamp()
-    elif args.command in {"prepare", "run"}:
+    elif args.command == "prepare":
         try:
-            reusable = _reusable_execution_timestamp(
-                load_scenario(args.scenario),
-                inspected_only=args.command == "prepare",
+            scenario = load_scenario(args.scenario)
+            validate_scenario_mode(scenario, args.mode)
+            reusable = (
+                _reusable_execution_timestamp(scenario, inspected_only=True)
+                if args.mode == "text"
+                else None
             )
         except PrefixCacheError:
             reusable = None
@@ -222,6 +263,17 @@ def main(argv: list[str] | None = None) -> int:
             reused_execution_timestamp = True
         else:
             execution_timestamp = new_execution_timestamp()
+    elif args.command == "run":
+        try:
+            reusable = _reusable_execution_timestamp(
+                load_scenario(args.scenario),
+                inspected_only=False,
+            )
+        except PrefixCacheError:
+            reusable = None
+        if reusable is not None:
+            execution_timestamp = reusable
+            reused_execution_timestamp = True
     log_file = _resolve_log_file(
         args.command,
         scenario_path=getattr(args, "scenario", None),
@@ -234,22 +286,45 @@ def main(argv: list[str] | None = None) -> int:
     progress = PromptProgress() if args.command in {"prepare", "run"} else None
     try:
         if args.command == "prepare":
-            logger.info("[cli] prepare scenario=%s overwrite=%s", args.scenario, args.overwrite)
-            paths = prepare_scenario(
+            scenario = load_scenario(args.scenario)
+            validate_scenario_mode(scenario, args.mode)
+            logger.info(
+                "[cli] prepare mode=%s scenario=%s overwrite=%s",
+                args.mode,
                 args.scenario,
-                overwrite=args.overwrite,
-                progress=progress.update,
-                execution_timestamp=execution_timestamp,
+                args.overwrite,
             )
-            result = {key: str(value) for key, value in paths.__dict__.items()}
+            if args.mode == "text":
+                paths = prepare_scenario(
+                    args.scenario,
+                    overwrite=args.overwrite,
+                    progress=progress.update,
+                    execution_timestamp=execution_timestamp,
+                )
+                result = {key: str(value) for key, value in paths.__dict__.items()}
+            else:
+                manifest_path = prepare_multimodal_scenario(
+                    args.scenario,
+                    overwrite=args.overwrite,
+                    execution_timestamp=execution_timestamp,
+                )
+                result = validate_multimodal_manifest(manifest_path) | {
+                    "manifest": str(manifest_path)
+                }
             if log_file is not None:
                 result["log"] = str(log_file)
-            logger.info("[cli] prepare_scenario returned paths=%s", result)
+            logger.info("[cli] prepare returned result=%s", result)
             print(json.dumps(result, ensure_ascii=False))
         elif args.command == "validate":
             logger.info("[cli] validate manifest=%s", args.manifest)
-            result = validate_artifacts(args.manifest)
-            logger.info("[cli] validate_artifacts returned result=%s", result)
+            manifest = _read_manifest(args.manifest)
+            mode = _manifest_mode(manifest)
+            result = (
+                validate_multimodal_manifest(args.manifest)
+                if mode == "mm"
+                else validate_artifacts(args.manifest)
+            )
+            logger.info("[cli] validate mode=%s returned result=%s", mode, result)
             print(json.dumps(result, ensure_ascii=False))
         elif args.command == "inspect":
             logger.info("[cli] inspect scenario=%s", args.scenario)
@@ -267,13 +342,49 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         elif args.command == "run":
             logger.info("[cli] run scenario=%s config=%s", args.scenario, args.config)
-            result = run_scenario(
-                args.scenario,
-                args.config,
-                execution_timestamp=execution_timestamp,
-                progress=progress.update,
-            )
-            logger.info("[cli] run_scenario returned status=%s", result.get("status"))
+            if execution_timestamp is None:
+                raise PrefixCacheError(
+                    "no prepared Manifest found; run prepare --mode text or --mode mm first"
+                )
+            base_scenario = load_scenario(args.scenario)
+            scenario = with_execution_timestamp(base_scenario, execution_timestamp)
+            manifest_path = artifact_paths(scenario.output_dir, scenario.run_id).manifest
+            manifest = _read_manifest(manifest_path)
+            mode = _manifest_mode(manifest)
+            if mode == "text":
+                result = run_scenario(
+                    args.scenario,
+                    args.config,
+                    execution_timestamp=execution_timestamp,
+                    progress=progress.update,
+                )
+            else:
+                if args.config is not None:
+                    raise PrefixCacheError("run --config is only supported for text mode")
+                service = scenario.section("service")
+                tokenizer = scenario.section("tokenizer")
+                dataset_cfg = scenario.section("aisbench")["dataset"]
+                model_cfg = scenario.section("aisbench")["model"]
+                result = run_multimodal_benchmark(
+                    manifest_path=manifest_path,
+                    scenarios=manifest["datasets"],
+                    inference_url=service["inference_url"],
+                    model=service["model"],
+                    tokenizer_path=tokenizer["path"],
+                    work_dir=_scenario_work_dir(scenario),
+                    batch_size=model_cfg["batch_size"],
+                    extra_args=scenario.section("aisbench")["extra_args"],
+                    api_key=service.get("api_key", ""),
+                    stream=model_cfg["stream"],
+                    retry=model_cfg["retry"],
+                    generation_kwargs=model_cfg["generation_kwargs"],
+                    pred_role=dataset_cfg["pred_role"],
+                    dataset_abbr=dataset_cfg["abbr"],
+                    model_abbr=model_cfg["abbr"],
+                    model_attr=model_cfg["attr"],
+                    model_max_out_len=model_cfg["max_out_len"],
+                )
+            logger.info("[cli] run mode=%s returned result=%s", mode, result)
             print(json.dumps(result, ensure_ascii=False, indent=2))
         elif args.command == "analyze":
             logger.info(
@@ -284,6 +395,34 @@ def main(argv: list[str] | None = None) -> int:
             )
             result = analyze_snapshots(args.manifest, args.baseline, args.after)
             logger.info("[cli] analyze_snapshots returned status=%s", result.get("status"))
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        elif args.command == "report":
+            manifest = _read_manifest(args.manifest)
+            mode = _manifest_mode(manifest)
+            effective = manifest.get("effective_config", {})
+            aisbench = effective.get("aisbench", {})
+            configured_work_dir = Path(aisbench.get("work_dir", "outputs/default"))
+            if not configured_work_dir.is_absolute():
+                scenario_source = Path(manifest.get("scenario_path", args.manifest)).resolve()
+                configured_work_dir = (scenario_source.parent / configured_work_dir).resolve()
+            if mode == "mm":
+                configured_abbr = aisbench.get("dataset", {}).get("abbr")
+                selected = list(manifest["datasets"])
+                result = {}
+                for name in selected:
+                    scenario_abbr = (
+                        f"{configured_abbr}-{name}"
+                        if configured_abbr and len(selected) > 1
+                        else configured_abbr or name
+                    )
+                    result[name] = report_performance(
+                        configured_work_dir / name,
+                        scenario_abbr,
+                    )
+            else:
+                dataset_cfg = aisbench.get("dataset", {})
+                dataset_abbr = dataset_cfg.get("abbr") or manifest["run_id"]
+                result = report_performance(configured_work_dir, dataset_abbr)
             print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except PrefixCacheError as exc:

@@ -8,7 +8,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from PIL import Image
 
-from ais_bench_prefix_cache.artifacts import read_jsonl
+from ais_bench_prefix_cache.artifacts import find_latest_execution_manifest, read_jsonl
 from ais_bench_prefix_cache.multimodal import (
     MULTI_720P_5,
     SINGLE_1080P,
@@ -16,9 +16,11 @@ from ais_bench_prefix_cache.multimodal import (
     build_exact_token_texts,
     expand_prompt_image_refs,
     prepare_multimodal_datasets,
+    prepare_multimodal_scenario,
     report_performance,
     validate_multimodal_manifest,
 )
+from ais_bench_prefix_cache.scenario import load_scenario
 
 
 class FakeTokenizer:
@@ -86,6 +88,7 @@ class MultimodalBuildTest(unittest.TestCase):
                 gsm8k_path=gsm,
                 mmmu_parquet_dir=mmmu_dir,
                 output_dir=root / "out",
+                scenarios=(SINGLE_1080P, MULTI_720P_5),
                 request_count=3,
                 tokenizer_loader=lambda _: FakeTokenizer(),
             )
@@ -101,7 +104,9 @@ class MultimodalBuildTest(unittest.TestCase):
             self.assertTrue(all(len(set(row["image_refs"])) == 1 for row in multi))
             self.assertTrue(all(row["max_out_len"] == 256 for row in single + multi))
             self.assertEqual(single[0]["question"], multi[0]["question"])
-            self.assertEqual(manifest["schema_version"], "2.0")
+            self.assertEqual(manifest["schema_version"], "1.0")
+            self.assertEqual(manifest["multimodal_schema_version"], "2.0")
+            self.assertEqual(manifest["benchmark_mode"], "mm")
             self.assertEqual(
                 manifest["datasets"][SINGLE_1080P]["image"]["sample_id"],
                 "test_Agriculture_29",
@@ -138,15 +143,81 @@ class MultimodalBuildTest(unittest.TestCase):
             image_ref=SINGLE_1080P,
             image_data_url="data:image/png;base64,YQ==",
             batch_size=8,
+            api_key="secret",
+            stream=False,
+            retry=7,
+            generation_kwargs={"temperature": 0.25},
+            pred_role="ASSISTANT",
+            model_abbr="custom-model",
+            model_attr="service",
+            model_max_out_len=9,
         )
         self.assertLess(config.index("'image':"), config.index("'text':"))
-        self.assertIn("stream=True", config)
-        self.assertIn("max_out_len=256", config)
+        self.assertIn("api_key='secret'", config)
+        self.assertIn("stream=False", config)
+        self.assertIn("max_out_len=9", config)
+        self.assertIn("retry=7", config)
         self.assertIn("batch_size=8", config)
+        self.assertIn("generation_kwargs={'temperature': 0.25}", config)
+        self.assertIn("pred_role='ASSISTANT'", config)
+        self.assertIn("abbr='custom-model'", config)
+        self.assertIn("attr='service'", config)
         self.assertIn("input_columns=['content', 'max_out_len']", config)
         self.assertIn("Base64RefMMPromptTemplate", config)
         self.assertEqual(config.count("data:image/png;base64,YQ=="), 1)
         compile(config, "generated.py", "exec")
+
+    def test_scenario_prepare_uses_timestamp_layout_and_default_single_scene(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            mmmu_dir = root / "MMMU"
+            _write_mmmu_parquet(
+                mmmu_dir / "Agriculture" / "test-00000-of-00001.parquet",
+                "test_Agriculture_29",
+                (1920, 1080),
+            )
+            gsm = root / "gsm.jsonl"
+            questions = [
+                "alpha arithmetic question with more than thirty bytes",
+                "beta arithmetic question with more than thirty bytes",
+                "gamma arithmetic question with more than thirty bytes",
+            ]
+            gsm.write_text(
+                "".join(json.dumps({"question": item}) + "\n" for item in questions),
+                encoding="utf-8",
+            )
+            scenario_path = root / "scenario.json"
+            scenario_path.write_text(
+                json.dumps(
+                    {
+                        "run": {"run_id": "mm-case", "output_dir": "./out"},
+                        "tokenizer": {"path": "fake"},
+                        "corpus": {"path": "./gsm.jsonl"},
+                        "requests": {
+                            "count": 3,
+                            "input_length": {"mode": "fixed", "value": 30},
+                            "output_length": {"mode": "fixed", "value": 256},
+                        },
+                        "multimodal": {"mmmu_parquet_dir": "./MMMU"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            manifest_path = prepare_multimodal_scenario(
+                scenario_path,
+                execution_timestamp="20260917_120000",
+                tokenizer_loader=lambda _: FakeTokenizer(),
+            )
+            self.assertEqual(
+                manifest_path,
+                root / "out_20260917_120000" / "result" / "mm-case_20260917_120000.manifest.json",
+            )
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(list(manifest["datasets"]), [SINGLE_1080P])
+            self.assertEqual(manifest["effective_config"]["run"]["run_id"], "mm-case_20260917_120000")
+            found = find_latest_execution_manifest(load_scenario(scenario_path), {"prepared"})
+            self.assertIsNotNone(found)
+            self.assertEqual(found[1], manifest_path)
 
 
 class PerformanceReportTest(unittest.TestCase):

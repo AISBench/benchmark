@@ -231,6 +231,32 @@ class MainFlowTest(unittest.TestCase):
                 self.assertEqual(main(["validate", "--manifest", str(manifest_path)]), 2)
             self.assertIn("ERROR: bad manifest", stderr.getvalue())
 
+    def test_validate_dispatches_multimodal_manifest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            manifest_path = root / "m.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "benchmark_mode": "mm",
+                        "run_id": "mm-test",
+                        "effective_config": {"run": {"output_dir": str(root / "out")}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with (
+                patch(
+                    "ais_bench_prefix_cache.cli.validate_multimodal_manifest",
+                    return_value={"ok": True, "datasets": ["single_1080p"]},
+                ) as validate,
+                redirect_stdout(stdout),
+            ):
+                self.assertEqual(main(["validate", "--manifest", str(manifest_path)]), 0)
+            validate.assert_called_once_with(manifest_path)
+            self.assertEqual(json.loads(stdout.getvalue())["datasets"], ["single_1080p"])
+
     def test_prepare_error_closes_progress_and_returns_two(self):
         with tempfile.TemporaryDirectory() as folder:
             scenario = write_case(Path(folder))
@@ -240,7 +266,10 @@ class MainFlowTest(unittest.TestCase):
                 patch("ais_bench_prefix_cache.cli.prepare_scenario", side_effect=PrefixCacheError("boom")),
                 redirect_stderr(stderr),
             ):
-                self.assertEqual(main(["prepare", "--scenario", str(scenario)]), 2)
+                self.assertEqual(
+                    main(["prepare", "--mode", "text", "--scenario", str(scenario)]),
+                    2,
+                )
             self.assertIn("ERROR: boom", stderr.getvalue())
 
     def test_prepare_reuses_inspect_timestamp(self):
@@ -259,28 +288,61 @@ class MainFlowTest(unittest.TestCase):
                 patch("ais_bench_prefix_cache.cli.prepare_scenario", side_effect=fake_prepare),
                 redirect_stdout(io.StringIO()),
             ):
-                self.assertEqual(main(["prepare", "--scenario", str(scenario)]), 0)
+                self.assertEqual(
+                    main(["prepare", "--mode", "text", "--scenario", str(scenario)]),
+                    0,
+                )
             new_ts.assert_not_called()
             self.assertEqual(calls[0][2], "20260825_123456")
 
-    def test_prepare_falls_back_to_new_timestamp_on_bad_scenario(self):
+    def test_prepare_mm_dispatches_shared_scenario(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            scenario = write_case(root)
+            raw = json.loads(scenario.read_text(encoding="utf-8"))
+            raw["multimodal"] = {"mmmu_parquet_dir": "./MMMU"}
+            scenario.write_text(json.dumps(raw), encoding="utf-8")
+            manifest = root / "mm.manifest.json"
+            stdout = io.StringIO()
+            with (
+                patch(
+                    "ais_bench_prefix_cache.cli.new_execution_timestamp",
+                    return_value="20260917_120000",
+                ),
+                patch(
+                    "ais_bench_prefix_cache.cli.prepare_multimodal_scenario",
+                    return_value=manifest,
+                ) as prepare,
+                patch(
+                    "ais_bench_prefix_cache.cli.validate_multimodal_manifest",
+                    return_value={"ok": True, "datasets": ["single_1080p"]},
+                ),
+                redirect_stdout(stdout),
+            ):
+                self.assertEqual(
+                    main(["prepare", "--mode", "mm", "--scenario", str(scenario)]),
+                    0,
+                )
+            self.assertEqual(prepare.call_args.args[0], scenario)
+            self.assertEqual(prepare.call_args.kwargs["execution_timestamp"], "20260917_120000")
+            self.assertEqual(json.loads(stdout.getvalue())["manifest"], str(manifest))
+
+    def test_prepare_bad_scenario_returns_two(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             bad_scenario = root / "bad.json"
             bad_scenario.write_text("not json", encoding="utf-8")
-            stdout = io.StringIO()
+            stderr = io.StringIO()
             with (
                 patch("ais_bench_prefix_cache.cli.new_execution_timestamp", return_value="20260825_123456") as new_ts,
-                patch(
-                    "ais_bench_prefix_cache.cli.prepare_scenario",
-                    side_effect=lambda path, overwrite, progress, execution_timestamp: self._fake_paths(path),
-                ),
-                redirect_stdout(stdout),
+                redirect_stderr(stderr),
             ):
-                self.assertEqual(main(["prepare", "--scenario", str(bad_scenario)]), 0)
+                self.assertEqual(
+                    main(["prepare", "--mode", "text", "--scenario", str(bad_scenario)]),
+                    2,
+                )
             new_ts.assert_called_once()
-            output = json.loads(stdout.getvalue())
-            self.assertNotIn("log", output)
+            self.assertIn("ERROR:", stderr.getvalue())
 
     def test_inspect_without_log_file_omits_log_key(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -309,7 +371,7 @@ class MainFlowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             scenario = write_case(root)
-            _write_execution_manifest(scenario, "20260825_123456")
+            _write_execution_manifest(scenario, "20260825_123456", status="prepared")
             stdout = io.StringIO()
             stderr = io.StringIO()
             with (
@@ -324,6 +386,35 @@ class MainFlowTest(unittest.TestCase):
             self.assertEqual(json.loads(stdout.getvalue())["status"], "complete")
             self.assertEqual(stderr.getvalue(), "")
             self.assertEqual(run.call_args.kwargs["execution_timestamp"], "20260825_123456")
+
+    def test_run_dispatches_multimodal_from_manifest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            scenario = write_case(root)
+            _write_execution_manifest(
+                scenario,
+                "20260825_123456",
+                status="prepared",
+                benchmark_mode="mm",
+                datasets={"single_1080p": {}},
+            )
+            stdout = io.StringIO()
+            with (
+                patch(
+                    "ais_bench_prefix_cache.cli.run_multimodal_benchmark",
+                    return_value=[{"scenario": "single_1080p"}],
+                ) as run,
+                redirect_stdout(stdout),
+            ):
+                self.assertEqual(main(["run", "--scenario", str(scenario)]), 0)
+            self.assertEqual(run.call_args.kwargs["scenarios"], {"single_1080p": {}})
+            self.assertEqual(run.call_args.kwargs["model_attr"], "service")
+            self.assertEqual(run.call_args.kwargs["model_max_out_len"], 1)
+            self.assertEqual(
+                run.call_args.kwargs["generation_kwargs"],
+                {"temperature": 0, "ignore_eos": True},
+            )
+            self.assertEqual(json.loads(stdout.getvalue())[0]["scenario"], "single_1080p")
 
     def test_analyze_prints_recomputed_analysis(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -364,6 +455,40 @@ class MainFlowTest(unittest.TestCase):
                 )
             self.assertEqual(json.loads(stdout.getvalue())["status"], "analyzed")
             analyze.assert_called_once_with(manifest, baseline, after)
+
+    def test_report_dispatches_multimodal_from_manifest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            manifest = root / "manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "benchmark_mode": "mm",
+                        "run_id": "mm-test",
+                        "scenario_path": str(root / "scenario.json"),
+                        "effective_config": {
+                            "run": {"output_dir": str(root / "out")},
+                            "aisbench": {
+                                "work_dir": "./perf",
+                                "dataset": {"abbr": "custom"},
+                            },
+                        },
+                        "datasets": {"single_1080p": {}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with (
+                patch(
+                    "ais_bench_prefix_cache.cli.report_performance",
+                    return_value={"metrics": {"TTFT": {}}},
+                ) as report,
+                redirect_stdout(stdout),
+            ):
+                self.assertEqual(main(["report", "--manifest", str(manifest)]), 0)
+            report.assert_called_once_with(root / "perf" / "single_1080p", "custom")
+            self.assertIn("single_1080p", json.loads(stdout.getvalue()))
 
 
 if __name__ == "__main__":

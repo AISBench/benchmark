@@ -27,6 +27,7 @@
 | `service` | 否 | vLLM 推理、指标、reset、多 DP 路由与超时配置；离线阶段也使用 `dp_size` 建模。 |
 | `validation` | 否 | 偏差告警阈值。 |
 | `aisbench` | 否 | `run` 使用的 AISBench 配置、工作目录和额外命令行参数。 |
+| `multimodal` | `--mode mm` 时是 | MMMU Parquet 目录和要生成的多模态场景列表。 |
 
 嵌套对象同样采用严格字段白名单：
 
@@ -39,6 +40,7 @@
 - `aisbench`：`config`、`work_dir`、`extra_args`、`dataset`、`model`；
 - `aisbench.dataset`：`abbr`、`input_columns`、`output_column`、`prompt_template`、`pred_role`；
 - `aisbench.model`：`abbr`、`attr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs`；
+- `multimodal`：`mmmu_parquet_dir`、`scenarios`；
 - 其余对象的允许字段由下文对应字段表完整列出。
 
 ## 3. `schema_version`
@@ -539,7 +541,18 @@ Zipf 分配：
 
 整个 `aisbench` 段及其 `dataset`、`model` 子段都可省略，旧 Scenario 会补齐与当前行为一致的默认值。`config`、`work_dir` 必须是非空字符串，`extra_args` 必须是字符串列表，其源码默认值仍为 `[]`；当前示例显式使用 `["--num-warmups", "0"]`。插件的 Group × DP warmup 与 AISBench perf 自带预热互相独立：当前设置只关闭后者，使 baseline 之后只包含正式请求；由于示例的 `prefix_cache.mode` 为 `"warmup"`，正式 baseline 之前仍会执行每个 Group × DP 的插件预热。离线命令不消费这些在线参数，`run` 才会渲染配置并启动 AISBench。Python 类型、Manifest 工件路径、DP 路由和 Prefix Cache Inferencer 属于插件内部不变量，不允许在 Scenario 中替换。
 
-## 12. 原示例最终表示的场景
+## 12. `multimodal`
+
+```json
+"multimodal": {
+  "mmmu_parquet_dir": "../../../../MMMU",
+  "scenarios": ["single_1080p"]
+}
+```
+
+`mmmu_parquet_dir` 在 `prepare --mode mm` 时必填，相对路径以 Scenario 文件目录解析。`scenarios` 默认 `['single_1080p']`，可选值为 `single_1080p` 和 `multi_720p_5`，可同时配置。mm 模式复用 `tokenizer/corpus/requests/run/service/aisbench`；其中 input/output length 必须为 fixed。详见 [MULTIMODAL.md](../MULTIMODAL.md)。
+
+## 13. 原示例最终表示的场景
 
 - 生成 100 条正式请求；
 - 输入长度固定为 1024 token；
@@ -556,11 +569,11 @@ Zipf 分配：
 - 理论/目标超过 1 pp、实际/理论超过 5 pp 时均只告警；
 - `run` 使用示例 `prefix_cache_perf.py` 启动 AISBench，基础工作目录为 `./outputs/default`；实际任务日志位于其时间戳子目录的 `logs/infer/*.out`。
 
-## 13. 建议检查顺序
+## 14. 建议检查顺序
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
-ais-bench-prefix-cache prepare --scenario ./scenario.json
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest路径>
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
@@ -578,9 +591,9 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 Manifest 还会记录输入/输出长度的 min/max/mean/P50/P90/P95/P99 与分桶计数、各组 reachable min/max、每条请求的确定性 `request_random_seed`，以及唯一差异块的碰撞检查状态。
 
-## 14. CLI 行为和返回字段
+## 15. CLI 行为和返回字段
 
-### 14.1 `inspect`
+### 15.1 `inspect`
 
 `inspect` 会加载 tokenizer 和 GSM8K，在临时目录复用完整 prepare 流程计算可达范围，但不发送请求，也不保留 full/requests/analysis 三类正式数据产物；只在正式 `result/` 目录写入轻量 Manifest。
 
@@ -589,7 +602,7 @@ Manifest 还会记录输入/输出长度的 min/max/mean/P50/P90/P95/P99 与分�
 - 成功后写入 `output_dir_时间戳/result/<run_id_时间戳>.manifest.json`，`status="inspected"`；
 - stdout JSON 包含 `log` 和 `manifest` 路径。
 
-### 14.2 `prepare`
+### 15.2 `prepare`
 
 `prepare` 优先复用最近一次与当前 Scenario 匹配的 inspect Manifest 时间戳；没有匹配项时生成新时间戳。匹配的轻量 Manifest 会原位升级为正式 `status="prepared"` Manifest。生成 prompt 时进度条写入 stderr，每完成一条 prompt 增加 1；最后一行 stdout JSON 固定包含：
 
@@ -603,7 +616,7 @@ Manifest 还会记录输入/输出长度的 min/max/mean/P50/P90/P95/P99 与分�
 
 `--overwrite` 只允许覆盖当前时间戳目录内上述四个固定产物，不会删除整个输出目录。
 
-### 14.3 `validate`
+### 15.3 `validate`
 
 `validate` 不生成新数据，检查行数、字段集合、顺序对应关系及 full/requests SHA-256。stdout 固定返回：
 
@@ -615,11 +628,11 @@ Manifest 还会记录输入/输出长度的 min/max/mean/P50/P90/P95/P99 与分�
 
 validate 日志写入 Manifest 对应时间戳目录的 `log/<run_id>.validate.log`，但当前返回 JSON 不包含 `log` 字段。
 
-### 14.4 `run`
+### 15.4 `run`
 
-`run --scenario` 复用任务时间戳；若该目录还没有工件则自动 prepare。随后依次执行逐 DP probe、reset、可选的每组每 DP warmup、baseline、AISBench perf、after 和指标差分。`--config <path>` 可仅覆盖本次 AISBench 配置。stdout 返回更新后的完整 analysis；Prefix Cache 插件日志只写入 `log/<run_id>.run.log`，不回显到 CLI 终端。AISBench 子进程继承 stdout/stderr，其运行输出继续实时显示在 CLI 中。插件日志包含阶段状态、Group/DP 路由、baseline/after、KV 采样及理论/实际差值，但不输出 Prompt 正文、API key 或 Authorization Header。
+`run --scenario` 查找该 Scenario 最近一次由 `prepare` 生成的 Manifest，复用任务时间戳，并从 Manifest 自动识别 text/mm 模式；若没有 prepared Manifest，会提示先执行 `prepare --mode text|mm`。随后执行对应模式的 AISBench 压测；text 模式还会依次执行逐 DP probe、reset、可选的每组每 DP warmup、baseline、after 和指标差分。`--config <path>` 仅支持 text 模式临时覆盖 AISBench 配置。stdout 返回完整结果；Prefix Cache 插件日志只写入 `log/<run_id>.run.log`，不回显到 CLI 终端。AISBench 子进程继承 stdout/stderr，其运行输出继续实时显示在 CLI 中。插件日志不输出 Prompt 正文、API key 或 Authorization Header。
 
-### 14.5 `analyze`
+### 15.5 `analyze`
 
 `analyze --manifest <path> --baseline <before.prom> --after <after.prom>` 不连接服务，只离线复算实际命中率并写回 analysis。stdout 返回完整 analysis。当前 CLI 与 `validate` 共用日志文件名 `log/<run_id>.validate.log`，后执行的命令会重新创建该文件。
 

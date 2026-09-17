@@ -1,103 +1,103 @@
 # 多模态理解数据构造与压测
 
-该入口构造并压测两组固定规格数据：
-
-| 场景 | 请求数 | 图片 | 文本 | 输出 |
-|---|---:|---|---|---:|
-| `single_1080p` | 1319 | 每请求 1 张相同的 MMMU 1920×1080 图片 | 1319 条不同 GSM8K 文本，每条精确 30 token | 256 token |
-| `multi_720p_5` | 1319 | 每请求重复同一张 MMMU 1280×720 图片 5 次；所有请求一致 | 同上 | 256 token |
-
-图片 content 固定放在变化文本之前，以形成可复用的多模态前缀。生成器直接扫描 MMMU Parquet 的 `image_1`～`image_7` 二进制字段，挑选原生尺寸严格等于 1920×1080 和 1280×720 的图片，不进行缩放。随后将图片编码为 Base64，并校验 GSM8K 行数与唯一性、文本 token 数、图片数量、分辨率和 SHA-256；不满足要求时直接失败。
-
-## 1. 构造数据
-
-先安装仓库和插件：
+多模态与纯文本现在共用 `ais-bench-prefix-cache` 入口和同一种 Scenario JSON：
 
 ```bash
-python -m pip install -e .
-python -m pip install -e ./plugins/prefix_cache
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
+ais-bench-prefix-cache prepare --mode mm --scenario ./scenario.json
 ```
 
-使用与被测 vLLM 模型一致的 tokenizer：
+`prepare` 必须显式指定 `--mode text|mm`。`run`、`validate`、`report` 从 prepare 生成的 Manifest 中读取 `benchmark_mode`，不再接收 `--mode`。旧的 `ais-bench-prefix-cache-mm` 命令已删除。
+
+## Scenario 配置
+
+多模态模式复用 [scenario.example.json](config_examples/scenario.example.json) 的文本配置：
+
+- `tokenizer.path`：被测 VLM 对应的 tokenizer；
+- `corpus.path` / `corpus.field`：GSM8K JSONL 和问题字段；
+- `requests.count`：请求数量；
+- `requests.input_length`：必须为 `fixed`，其 `value` 是每条 GSM8K 文本的精确 token 数；
+- `requests.output_length`：必须为 `fixed`，其 `value` 是每请求输出 token 数；
+- `run.output_dir`：统一的时间戳产物根目录；
+- `service`：OpenAI 兼容推理服务、模型和 API key；
+- `aisbench`：工作目录、额外参数、batch size、stream、retry 和 generation kwargs。
+
+只需追加图片特有配置：
+
+```json
+{
+  "multimodal": {
+    "mmmu_parquet_dir": "../../../../MMMU",
+    "scenarios": ["single_1080p", "multi_720p_5"]
+  }
+}
+```
+
+`multimodal.mmmu_parquet_dir` 在 `--mode mm` 时必填，相对路径以 Scenario 文件目录为基准。`multimodal.scenarios` 可省略，默认只生成 `single_1080p`；支持：
+
+- `single_1080p`：每请求1张相同的原生1920×1080 MMMU图片；
+- `multi_720p_5`：每请求重复同一张原生1280×720 MMMU图片5次。
+
+程序直接扫描 MMMU Parquet 的 `image_1`～`image_7` bytes 字段，严格按原生尺寸选择图片，不进行缩放。图片编码为 Base64；Manifest 每个场景只保存一次完整 data URL，JSONL prompt 保存 `base64_ref`，发送请求时再展开为完整 `data:image/...;base64,...`。
+
+1319条、30-token文本、256-token输出的关键配置如下：
+
+```json
+{
+  "requests": {
+    "count": 1319,
+    "input_length": {"mode": "fixed", "value": 30},
+    "output_length": {"mode": "fixed", "value": 256}
+  },
+  "service": {
+    "inference_url": "http://127.0.0.1:8000/v1/chat/completions",
+    "model": "model-name"
+  },
+  "aisbench": {
+    "extra_args": ["--num-warmups", "0"],
+    "model": {
+      "stream": true,
+      "batch_size": 8,
+      "retry": 2,
+      "generation_kwargs": {"temperature": 0, "ignore_eos": true}
+    }
+  }
+}
+```
+
+## 构造、运行与验收
 
 ```bash
-ais-bench-prefix-cache-mm prepare \
-  --tokenizer /path/to/vlm-tokenizer \
-  --gsm8k 'C:\cjs\datasets\grade-school-math\grade_school_math\data\test.jsonl' \
-  --mmmu-parquet-dir '../MMMU' \
-  --output-dir ./outputs/prefix_cache_multimodal
+ais-bench-prefix-cache prepare --mode mm --scenario ./scenario.json
 ```
 
-`--mmmu-parquet-dir` 指向 MMMU 的 Parquet 数据集根目录，不需要也不接受单独图片目录。程序按稳定顺序扫描分片，并从图片 bytes 中选择首张符合目标原生尺寸的图片。默认值已经是 1319 / 30 / 256；验收数据不要覆盖这些值。
-
-为避免在 1319 行中反复写入相同 Base64（多图场景会造成数 GB 的无意义重复），Manifest 对每个场景只保存一次完整 `data:image/...;base64,...`；JSONL 中的每条 `prompt` 保存相应的 `base64_ref`。AISBench 生成每个最终请求时会把引用展开为完整 Base64 URL，因此实际发送给服务端的 prompt 不依赖本地图片路径。
-
-tokenizer 确实依赖自定义代码时才追加 `--trust-remote-code`。
-
-输出：
+产物使用与文本模式相同的时间戳布局：
 
 ```text
-outputs/prefix_cache_multimodal/
-├── single_1080p_1319.jsonl
-├── multi_720p_5_1319.jsonl
-└── multimodal_prefix_cache.manifest.json
+<output_dir>_<YYYYMMDD_HHMMSS>/
+├── log/
+└── result/
+    ├── <run_id>_<timestamp>.manifest.json
+    ├── <run_id>_<timestamp>.single_1080p.requests.jsonl
+    └── <run_id>_<timestamp>.multi_720p_5.requests.jsonl
 ```
 
-再次独立校验：
+运行压测：
 
 ```bash
-ais-bench-prefix-cache-mm validate \
-  --manifest ./outputs/prefix_cache_multimodal/multimodal_prefix_cache.manifest.json
+ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-注意：30 token 是每条 GSM8K 文本本身的 tokenizer 长度，不包含模型 chat template 和视觉 placeholder token。Manifest 会记录 tokenizer、语料和图片指纹。
-
-## 2. 运行压测
-
-vLLM 必须启用 Automatic Prefix Caching。多模态请求使用 `/v1/chat/completions`：
+校验指定 Manifest：
 
 ```bash
-ais-bench-prefix-cache-mm run \
-  --manifest ./outputs/prefix_cache_multimodal/multimodal_prefix_cache.manifest.json \
-  --scenario all \
-  --inference-url http://127.0.0.1:8000/v1/chat/completions \
-  --model /path/to/vlm \
-  --tokenizer /path/to/vlm-tokenizer \
-  --batch-size 8 \
-  --work-dir ./outputs/prefix_cache_multimodal_perf
+ais-bench-prefix-cache validate --manifest /path/to/run.manifest.json
 ```
 
-`--batch-size` 是最大并发。AISBench 的其他参数可重复传入，例如：
+重新汇总 TTFT、TPOT、ITL 等性能指标：
 
 ```bash
---extra-arg=--request-rate --extra-arg=16
+ais-bench-prefix-cache report --manifest /path/to/run.manifest.json
 ```
 
-图片始终通过 Base64 data URL 发送，不需要 vLLM 服务访问 MMMU 本地路径。多图场景每个请求包含 5 个相同 Base64 图片内容，HTTP 请求体会相应增大。
-
-## 3. 验收 TTFT / TPOT / ITL
-
-`run` 完成后会直接打印以下指标的 Average、Min、Max、Median、P75、P90、P99 和样本数：
-
-- `TTFT`：首 token 时延；
-- `TPOT`：每输出 token 时延；
-- `ITL`：相邻输出 token 间隔；
-- `E2EL`、InputTokens、OutputTokens；
-- Request Throughput、成功/失败请求数等公共指标。
-
-也可对已有输出重新汇总：
-
-```bash
-ais-bench-prefix-cache-mm report \
-  --work-dir ./outputs/prefix_cache_multimodal_perf/single_1080p \
-  --dataset-abbr single_1080p
-```
-
-原始结果位于 AISBench 输出目录的：
-
-```text
-performances/prefix-cache-mm-vllm/<scenario>.csv
-performances/prefix-cache-mm-vllm/<scenario>.json
-```
-
-必须保持 `stream=True`；非流式响应无法得到有效的 TTFT、TPOT 和 ITL。
+`stream=true` 是获得有效 TTFT、TPOT、ITL 的必要条件。图片始终通过 Base64 data URL 发送，服务端不需要访问本地 MMMU 路径。

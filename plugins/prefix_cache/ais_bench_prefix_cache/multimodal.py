@@ -135,7 +135,10 @@ def _parquet_sort_key(path: Path) -> tuple[int, str]:
     return rank, normalized
 
 
-def select_mmmu_images(parquet_dir: Path | str) -> dict[str, MMMUImage]:
+def select_mmmu_images(
+    parquet_dir: Path | str,
+    scenarios: Iterable[str] = SCENARIO_NAMES,
+) -> dict[str, MMMUImage]:
     """Select exact native-resolution images directly from MMMU Parquet binary fields."""
     try:
         import pyarrow.parquet as pq
@@ -149,7 +152,11 @@ def select_mmmu_images(parquet_dir: Path | str) -> dict[str, MMMUImage]:
     if not parquet_paths:
         raise ArtifactValidationError(f"no Parquet files found under MMMU directory: {root}")
 
-    targets = {(1920, 1080): SINGLE_1080P, (1280, 720): MULTI_720P_5}
+    selected_scenarios = tuple(scenarios)
+    if not selected_scenarios or any(name not in SCENARIO_NAMES for name in selected_scenarios):
+        raise ArtifactValidationError("multimodal scenarios must contain known scenario names")
+    all_targets = {(1920, 1080): SINGLE_1080P, (1280, 720): MULTI_720P_5}
+    targets = {size: name for size, name in all_targets.items() if name in selected_scenarios}
     selected: dict[str, MMMUImage] = {}
     for parquet_path in parquet_paths:
         try:
@@ -194,7 +201,7 @@ def select_mmmu_images(parquet_dir: Path | str) -> dict[str, MMMUImage]:
         except (OSError, ValueError) as exc:
             raise ArtifactValidationError(f"cannot read MMMU Parquet file {parquet_path}: {exc}") from exc
 
-    missing = [scenario for scenario in SCENARIO_NAMES if scenario not in selected]
+    missing = [scenario for scenario in selected_scenarios if scenario not in selected]
     raise ArtifactValidationError(
         f"MMMU Parquet data does not contain exact native images for: {', '.join(missing)}"
     )
@@ -245,6 +252,10 @@ def prepare_multimodal_datasets(
     gsm8k_path: Path | str,
     mmmu_parquet_dir: Path | str,
     output_dir: Path | str,
+    scenarios: Iterable[str] = (SINGLE_1080P,),
+    run_id: str = "multimodal-prefix-cache",
+    scenario_path: Path | str | None = None,
+    effective_config: dict[str, Any] | None = None,
     request_count: int = DEFAULT_REQUEST_COUNT,
     text_tokens: int = DEFAULT_TEXT_TOKENS,
     output_tokens: int = DEFAULT_OUTPUT_TOKENS,
@@ -292,13 +303,18 @@ def prepare_multimodal_datasets(
         text_tokens,
     )
 
-    selected_images = select_mmmu_images(mmmu_root)
+    selected_scenarios = tuple(scenarios)
+    if not selected_scenarios or any(name not in SCENARIO_NAMES for name in selected_scenarios):
+        raise ArtifactValidationError("multimodal scenarios must contain known scenario names")
+    if len(set(selected_scenarios)) != len(selected_scenarios):
+        raise ArtifactValidationError("multimodal scenarios must not contain duplicates")
+    selected_images = select_mmmu_images(mmmu_root, selected_scenarios)
 
     target_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path = target_dir / "multimodal_prefix_cache.manifest.json"
+    manifest_path = target_dir / f"{run_id}.manifest.json"
     dataset_paths = {
-        SINGLE_1080P: target_dir / f"{SINGLE_1080P}_{request_count}.jsonl",
-        MULTI_720P_5: target_dir / f"{MULTI_720P_5}_{request_count}.jsonl",
+        name: target_dir / f"{run_id}.{name}.requests.jsonl"
+        for name in selected_scenarios
     }
     existing = [path for path in [manifest_path, *dataset_paths.values()] if path.exists()]
     if existing and not overwrite:
@@ -307,19 +323,25 @@ def prepare_multimodal_datasets(
         )
 
     rows_by_name = {
-        SINGLE_1080P: _dataset_rows(
-            texts, SINGLE_1080P, 1, text_tokens, output_tokens
-        ),
-        MULTI_720P_5: _dataset_rows(
-            texts, MULTI_720P_5, 5, text_tokens, output_tokens
-        ),
+        name: _dataset_rows(
+            texts,
+            name,
+            1 if name == SINGLE_1080P else 5,
+            text_tokens,
+            output_tokens,
+        )
+        for name in selected_scenarios
     }
     for name, path in dataset_paths.items():
         write_jsonl(path, rows_by_name[name], overwrite=overwrite)
 
     manifest = {
-        "schema_version": "2.0",
+        "schema_version": "1.0",
+        "multimodal_schema_version": "2.0",
         "plugin_version": __version__,
+        "benchmark_mode": "mm",
+        "status": "prepared",
+        "run_id": run_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "corpus": {
             "path": str(corpus_path),
@@ -336,6 +358,16 @@ def prepare_multimodal_datasets(
         "mmmu_parquet_dir": str(mmmu_root),
         "datasets": {},
     }
+    if scenario_path is not None:
+        source = Path(scenario_path).resolve()
+        manifest["scenario_path"] = str(source)
+        manifest["scenario_sha256"] = sha256_file(source)
+    if effective_config is not None:
+        manifest_effective = deepcopy(effective_config)
+        service = manifest_effective.get("service")
+        if isinstance(service, dict):
+            service["api_key_configured"] = bool(service.pop("api_key", ""))
+        manifest["effective_config"] = manifest_effective
     for name, path in dataset_paths.items():
         image = selected_images[name]
         image_count = 1 if name == SINGLE_1080P else 5
@@ -366,6 +398,47 @@ def prepare_multimodal_datasets(
     write_json(manifest_path, manifest, overwrite=overwrite)
     validate_multimodal_manifest(manifest_path, tokenizer=tokenizer)
     return manifest_path
+
+
+def prepare_multimodal_scenario(
+    scenario_path: Path | str,
+    *,
+    overwrite: bool = False,
+    execution_timestamp: str | None = None,
+    tokenizer_loader: Callable[[str], Any] | None = None,
+) -> Path:
+    """Prepare multimodal artifacts from the shared Scenario configuration."""
+    from .scenario import (
+        load_scenario,
+        new_execution_timestamp,
+        validate_scenario_mode,
+        with_execution_timestamp,
+    )
+
+    base_scenario = load_scenario(scenario_path)
+    validate_scenario_mode(base_scenario, "mm")
+    timestamp = execution_timestamp or new_execution_timestamp()
+    scenario = with_execution_timestamp(base_scenario, timestamp)
+    effective = scenario.to_effective_dict()
+    requests = scenario.section("requests")
+    multimodal = scenario.section("multimodal")
+    tokenizer = scenario.section("tokenizer")
+    return prepare_multimodal_datasets(
+        tokenizer_path=tokenizer["path"],
+        gsm8k_path=scenario.section("corpus")["path"],
+        mmmu_parquet_dir=multimodal["mmmu_parquet_dir"],
+        output_dir=scenario.output_dir / "result",
+        scenarios=multimodal["scenarios"],
+        run_id=scenario.run_id,
+        scenario_path=base_scenario.source_path,
+        effective_config=effective,
+        request_count=requests["count"],
+        text_tokens=requests["input_length"]["value"],
+        output_tokens=requests["output_length"]["value"],
+        overwrite=overwrite,
+        trust_remote_code=tokenizer["trust_remote_code"],
+        tokenizer_loader=tokenizer_loader,
+    )
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -438,8 +511,16 @@ def validate_multimodal_manifest(
         raise ArtifactValidationError("multimodal content order must be image then text")
     if manifest.get("image_encoding") != "base64":
         raise ArtifactValidationError("multimodal images must use Base64 encoding")
-    for name in SCENARIO_NAMES:
-        spec = manifest.get("datasets", {}).get(name)
+    if manifest.get("benchmark_mode") != "mm":
+        raise ArtifactValidationError("Manifest benchmark_mode must be 'mm'")
+    datasets = manifest.get("datasets")
+    if not isinstance(datasets, dict) or not datasets:
+        raise ArtifactValidationError("multimodal Manifest must contain at least one dataset")
+    selected_scenarios = tuple(datasets)
+    if any(name not in SCENARIO_NAMES for name in selected_scenarios):
+        raise ArtifactValidationError("multimodal Manifest contains an unknown scenario")
+    for name in selected_scenarios:
+        spec = datasets.get(name)
         if not isinstance(spec, dict):
             raise ArtifactValidationError(f"manifest is missing dataset {name}")
         dataset_path = Path(spec["path"])
@@ -518,7 +599,7 @@ def validate_multimodal_manifest(
         "request_count": expected_count,
         "text_tokens": expected_text_tokens,
         "output_tokens": expected_output_tokens,
-        "datasets": list(SCENARIO_NAMES),
+        "datasets": list(selected_scenarios),
         "selected_images": selected_summary,
     }
 
@@ -535,6 +616,14 @@ def build_aisbench_config(
     image_data_url: str,
     output_tokens: int = DEFAULT_OUTPUT_TOKENS,
     batch_size: int = 1,
+    api_key: str = "",
+    stream: bool = True,
+    retry: int = 2,
+    generation_kwargs: dict[str, Any] | None = None,
+    pred_role: str = "BOT",
+    model_abbr: str = "prefix-cache-mm-vllm",
+    model_attr: str = "service",
+    model_max_out_len: int | None = None,
 ) -> str:
     """Render a static AISBench Python config for one multimodal scenario."""
     values = {
@@ -548,8 +637,22 @@ def build_aisbench_config(
         "batch_size": batch_size,
         "image_ref": image_ref,
         "image_data_url": image_data_url,
+        "api_key": api_key,
+        "stream": stream,
+        "retry": retry,
+        "generation_kwargs": (
+            generation_kwargs
+            if generation_kwargs is not None
+            else {"temperature": 0, "ignore_eos": True}
+        ),
+        "pred_role": pred_role,
+        "model_abbr": model_abbr,
+        "model_attr": model_attr,
+        "model_max_out_len": (
+            model_max_out_len if model_max_out_len is not None else output_tokens
+        ),
     }
-    return f'''# Generated by ais-bench-prefix-cache-mm; do not edit.
+    return f'''# Generated by ais-bench-prefix-cache; do not edit.
 from ais_bench.benchmark.openicl.icl_evaluator import AccEvaluator
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
@@ -577,21 +680,22 @@ datasets = [dict(
         retriever=dict(type=ZeroRetriever),
         inferencer=dict(type=GenInferencer),
     ),
-    eval_cfg=dict(evaluator=dict(type=AccEvaluator), pred_role='BOT'),
+    eval_cfg=dict(evaluator=dict(type=AccEvaluator), pred_role={values['pred_role']!r}),
 )]
 
 models = [dict(
     type=VLLMPrefixCacheChatAPI,
-    attr='service',
-    abbr='prefix-cache-mm-vllm',
+    attr={values['model_attr']!r},
+    abbr={values['model_abbr']!r},
     path={values['tokenizer_path']!r},
     model={values['model']!r},
     inference_url={values['inference_url']!r},
-    stream=True,
-    max_out_len={values['output_tokens']!r},
-    retry=2,
+    api_key={values['api_key']!r},
+    stream={values['stream']!r},
+    max_out_len={values['model_max_out_len']!r},
+    retry={values['retry']!r},
     batch_size={values['batch_size']!r},
-    generation_kwargs=dict(temperature=0, ignore_eos=True),
+    generation_kwargs={values['generation_kwargs']!r},
 )]
 
 infer = dict(
@@ -613,6 +717,15 @@ def run_multimodal_benchmark(
     work_dir: Path | str,
     batch_size: int,
     extra_args: Iterable[str] = (),
+    api_key: str = "",
+    stream: bool = True,
+    retry: int = 2,
+    generation_kwargs: dict[str, Any] | None = None,
+    pred_role: str = "BOT",
+    dataset_abbr: str | None = None,
+    model_abbr: str | None = None,
+    model_attr: str = "service",
+    model_max_out_len: int | None = None,
 ) -> list[dict[str, Any]]:
     manifest_file = Path(manifest_path).resolve()
     validation = validate_multimodal_manifest(manifest_file)
@@ -628,10 +741,13 @@ def run_multimodal_benchmark(
         config_dir = scenario_root / "generated_config"
         config_dir.mkdir(parents=True, exist_ok=True)
         config_path = config_dir / "multimodal_prefix_cache_perf.py"
+        scenario_abbr = (
+            f"{dataset_abbr}-{name}" if dataset_abbr and len(selected) > 1 else dataset_abbr or name
+        )
         config_path.write_text(
             build_aisbench_config(
                 dataset_path=manifest["datasets"][name]["path"],
-                dataset_abbr=name,
+                dataset_abbr=scenario_abbr,
                 tokenizer_path=tokenizer_path,
                 inference_url=inference_url,
                 model=model,
@@ -640,6 +756,14 @@ def run_multimodal_benchmark(
                 image_data_url=image_spec["data_url"],
                 output_tokens=validation["output_tokens"],
                 batch_size=batch_size,
+                api_key=api_key,
+                stream=stream,
+                retry=retry,
+                generation_kwargs=generation_kwargs,
+                pred_role=pred_role,
+                model_abbr=model_abbr or f"{manifest['run_id']}-vllm",
+                model_attr=model_attr,
+                model_max_out_len=model_max_out_len,
             ),
             encoding="utf-8",
         )
@@ -650,8 +774,6 @@ def run_multimodal_benchmark(
             str(config_path),
             "--mode",
             "perf",
-            "--num-warmups",
-            "0",
             *map(str, extra_args),
         ]
         completed = subprocess.run(command, env=os.environ.copy(), check=False)
@@ -660,8 +782,8 @@ def run_multimodal_benchmark(
                 f"AISBench multimodal scenario {name} failed with exit code {completed.returncode}"
             )
         results.append(
-            report_performance(scenario_root, dataset_abbr=name)
-            | {"scenario": name, "config": str(config_path)}
+            report_performance(scenario_root, dataset_abbr=scenario_abbr)
+            | {"scenario": name, "dataset_abbr": scenario_abbr, "config": str(config_path)}
         )
     return results
 
