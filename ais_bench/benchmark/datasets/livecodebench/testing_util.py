@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 from enum import Enum
 # for capturing the stdout
+import io
 from io import StringIO
 # used for testing the code that reads from input
 from unittest.mock import mock_open, patch
@@ -63,11 +64,43 @@ signal.signal(signal.SIGALRM, timeout_handler)
 # used to capture stdout as a list
 # from https://stackoverflow.com/a/16571630/6416660
 # alternative use redirect_stdout() from contextlib
+class _StdoutWithBuffer(StringIO):
+    """StringIO that also exposes a binary ``.buffer`` view, like real stdout.
+
+    Generated solutions often use ``sys.stdout.buffer.write(...)`` for fast
+    output. A plain StringIO has no ``buffer`` attribute, so such solutions
+    used to fail with an AttributeError and were counted as runtime errors.
+    The bytes written through ``.buffer`` are decoded and forwarded to this
+    same StringIO, so ``getvalue()`` still returns the complete output.
+    """
+
+    class _Buffer:
+
+        def __init__(self, owner):
+            self._owner = owner
+
+        def write(self, data):
+            if isinstance(data, (bytes, bytearray)):
+                data = data.decode()
+            return self._owner.write(data)
+
+        def writelines(self, lines):
+            for line in lines:
+                self.write(line)
+
+        def flush(self):
+            pass
+
+    def __init__(self):
+        super().__init__()
+        self.buffer = _StdoutWithBuffer._Buffer(self)
+
+
 class Capturing(list):
 
     def __enter__(self):
         self._stdout = sys.stdout
-        sys.stdout = self._stringio = StringIO()
+        sys.stdout = self._stringio = _StdoutWithBuffer()
         # Make closing the StringIO a no-op
         self._stringio.close = lambda x: 1
         return self
@@ -665,6 +698,19 @@ def stripped_string_compare(s1, s2):
     return s1 == s2
 
 
+class _StdinWithBuffer(StringIO):
+    """StringIO that also exposes a binary ``.buffer`` view, like real stdin.
+
+    Generated solutions often use ``sys.stdin.buffer.read()`` for fast input.
+    A plain StringIO has no ``buffer`` attribute, so such solutions used to
+    fail with an AttributeError and were counted as runtime errors.
+    """
+
+    def __init__(self, data):
+        super().__init__(data)
+        self.buffer = io.BytesIO(data.encode())
+
+
 def call_method(method, inputs):
 
     if isinstance(inputs, list):
@@ -676,7 +722,7 @@ def call_method(method, inputs):
 
     # @patch('builtins.input', side_effect=inputs.split("\n"))
     @patch('builtins.open', mock_open(read_data=inputs))
-    @patch('sys.stdin', StringIO(inputs))
+    @patch('sys.stdin', _StdinWithBuffer(inputs))
     @patch('sys.stdin.readline', lambda *args: next(inputs_line_iterator))
     @patch('sys.stdin.readlines', lambda *args: inputs.split('\n'))
     @patch('sys.stdin.read', lambda *args: inputs)
