@@ -13,6 +13,7 @@ import copy
 import json
 import os
 import os.path as osp
+import statistics
 import sys
 import threading
 import time
@@ -23,6 +24,7 @@ from datetime import datetime
 
 import aiohttp
 import mmengine
+import tabulate
 from mmengine.config import Config, ConfigDict
 from mmengine.utils import mkdir_or_exist
 
@@ -255,38 +257,508 @@ def percentile(values: list[float], quantile: float) -> float | None:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
 
 
-def summarize_results(details: list[dict], duration: float) -> dict:
-    successes = [item for item in details if item["success"]]
-    latencies = [item["latency"] for item in successes]
-    ttfts = [item["ttft"] for item in successes if item["ttft"] is not None]
-    total_output_tokens = sum(item["output_tokens"] for item in successes)
-    total_input_tokens = sum(item["input_tokens"] for item in successes)
+def _distribution(values: list[float]) -> dict:
+    values = [float(value) for value in values if value is not None]
+    return {
+        "mean": statistics.fmean(values) if values else None,
+        "max": max(values) if values else None,
+        "min": min(values) if values else None,
+        "p50": percentile(values, 0.50),
+        "p75": percentile(values, 0.75),
+        "p90": percentile(values, 0.90),
+        "p95": percentile(values, 0.95),
+        "p99": percentile(values, 0.99),
+        "stddev": statistics.stdev(values) if len(values) > 1 else 0.0,
+        "n": len(values),
+    }
 
-    def stats(values: list[float]) -> dict:
-        return {
-            "mean": sum(values) / len(values) if values else None,
-            "p50": percentile(values, 0.50),
-            "p90": percentile(values, 0.90),
-            "p95": percentile(values, 0.95),
-            "p99": percentile(values, 0.99),
-            "max": max(values) if values else None,
+
+def _error_type(item: dict) -> str:
+    status_code = int(item.get("status_code") or 0)
+    if status_code:
+        return f"HTTP {status_code}"
+    error = str(item.get("error") or "")
+    lowered = error.lower()
+    if "timeout" in lowered:
+        return "Timeout"
+    if "clientconnector" in lowered or "connection" in lowered:
+        return "Connection Error"
+    if ":" in error:
+        return error.split(":", 1)[0]
+    return error or "Unknown Error"
+
+
+def summarize_results(
+    details: list[dict],
+    duration: float,
+    max_concurrency: int = 0,
+) -> dict:
+    """Aggregate standalone-script and AISBench performance metrics."""
+
+    successes = [item for item in details if item.get("success")]
+    failures = [item for item in details if not item.get("success")]
+    total_input_tokens = sum(int(item.get("input_tokens") or 0) for item in successes)
+    total_output_tokens = sum(
+        int(item.get("output_tokens") or 0) for item in successes
+    )
+    total_tokens = sum(
+        int(item.get("total_tokens") or 0)
+        or int(item.get("input_tokens") or 0)
+        + int(item.get("output_tokens") or 0)
+        for item in successes
+    )
+
+    latencies = [float(item.get("latency") or 0) for item in successes]
+    ttfts = [float(item["ttft"]) for item in successes if item.get("ttft") is not None]
+    tpot_values = []
+    tps_values = []
+    typing_values = []
+    prefill_values = []
+    for item in successes:
+        latency = float(item.get("latency") or 0)
+        ttft = item.get("ttft")
+        ttft_value = float(ttft) if ttft is not None else 0.0
+        output_tokens = int(item.get("output_tokens") or 0)
+        input_tokens = int(item.get("input_tokens") or 0)
+        generation_time = max(latency - ttft_value, 0.0)
+        if latency > 0:
+            tps_values.append(output_tokens / latency)
+        if generation_time > 0:
+            typing_values.append(output_tokens / generation_time)
+        if generation_time > 0 and output_tokens > 1:
+            tpot_values.append(generation_time / (output_tokens - 1))
+        if ttft_value > 0:
+            prefill_values.append(input_tokens / ttft_value)
+
+    token_sources: dict[str, int] = {}
+    for item in successes:
+        source = str(item.get("token_source") or "unknown")
+        token_sources[source] = token_sources.get(source, 0) + 1
+
+    error_counts: dict[str, int] = {}
+    for item in failures:
+        label = _error_type(item)
+        error_counts[label] = error_counts.get(label, 0) + 1
+    errors = {
+        label: {
+            "count": count,
+            "percentage": count / len(failures) * 100 if failures else 0.0,
+            "request_percentage": count / len(details) * 100 if details else 0.0,
         }
+        for label, count in sorted(error_counts.items())
+    }
+
+    cache_hit_tokens = sum(
+        int(item.get("prompt_cache_hit_tokens") or 0) for item in successes
+    )
+    cache_hit_requests = sum(
+        int(item.get("prompt_cache_hit_tokens") or 0) > 0 for item in successes
+    )
+    total_reasoning_tokens = sum(
+        int(item.get("reasoning_tokens") or 0) for item in successes
+    )
+    total_request_body_size = sum(
+        int(item.get("request_body_size") or 0) for item in successes
+    )
+    request_throughput = len(successes) / duration if duration > 0 else 0.0
+    input_throughput = total_input_tokens / duration if duration > 0 else 0.0
+    output_throughput = total_output_tokens / duration if duration > 0 else 0.0
+    total_throughput = total_tokens / duration if duration > 0 else 0.0
 
     return {
         "total_requests": len(details),
         "successful_requests": len(successes),
-        "failed_requests": len(details) - len(successes),
-        "success_rate": len(successes) / len(details) if details else 0,
+        "failed_requests": len(failures),
+        "success_rate": len(successes) / len(details) if details else 0.0,
         "duration_seconds": duration,
-        "request_throughput_rps": len(successes) / duration if duration > 0 else 0,
+        "request_throughput_rps": request_throughput,
+        "request_throughput_rpm": request_throughput * 60,
+        "average_concurrency": sum(latencies) / duration if duration > 0 else 0.0,
+        "max_concurrency": max_concurrency,
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,
-        "output_token_throughput": (
-            total_output_tokens / duration if duration > 0 else 0
+        "total_tokens": total_tokens,
+        "total_reasoning_tokens": total_reasoning_tokens,
+        "total_request_body_size_bytes": total_request_body_size,
+        "input_token_throughput": input_throughput,
+        "output_token_throughput": output_throughput,
+        "total_token_throughput": total_throughput,
+        "latency_seconds": _distribution(latencies),
+        "ttft_seconds": _distribution(ttfts),
+        "tpot_seconds": _distribution(tpot_values),
+        "tps_tokens_per_second": _distribution(tps_values),
+        "typing_speed_tokens_per_second": _distribution(typing_values),
+        "prefill_token_throughput": _distribution(prefill_values),
+        "input_tokens_per_request": _distribution(
+            [int(item.get("input_tokens") or 0) for item in successes]
         ),
-        "latency_seconds": stats(latencies),
-        "ttft_seconds": stats(ttfts),
+        "output_tokens_per_request": _distribution(
+            [int(item.get("output_tokens") or 0) for item in successes]
+        ),
+        "total_tokens_per_request": _distribution(
+            [
+                int(item.get("total_tokens") or 0)
+                or int(item.get("input_tokens") or 0)
+                + int(item.get("output_tokens") or 0)
+                for item in successes
+            ]
+        ),
+        "reasoning_tokens_per_request": _distribution(
+            [int(item.get("reasoning_tokens") or 0) for item in successes]
+        ),
+        "request_body_size_bytes": _distribution(
+            [int(item.get("request_body_size") or 0) for item in successes]
+        ),
+        "cache": {
+            "hit_requests": cache_hit_requests,
+            "miss_requests": len(successes) - cache_hit_requests,
+            "hit_request_rate_percent": (
+                cache_hit_requests / len(successes) * 100 if successes else 0.0
+            ),
+            "hit_tokens": cache_hit_tokens,
+            "average_hit_tokens": (
+                cache_hit_tokens / cache_hit_requests if cache_hit_requests else 0.0
+            ),
+            "hit_rate_percent": (
+                cache_hit_tokens / total_input_tokens * 100
+                if total_input_tokens
+                else 0.0
+            ),
+        },
+        "token_sources": token_sources,
+        "errors": errors,
     }
+
+
+_PERFORMANCE_ROWS = (
+    ("E2EL", "latency_seconds", "s"),
+    ("TTFT", "ttft_seconds", "s"),
+    ("TPOT", "tpot_seconds", "s/token"),
+    ("TPS", "tps_tokens_per_second", "token/s"),
+    ("Typing Speed", "typing_speed_tokens_per_second", "token/s"),
+    ("Prefill Throughput", "prefill_token_throughput", "token/s"),
+    ("Input Tokens", "input_tokens_per_request", "token"),
+    ("Output Tokens", "output_tokens_per_request", "token"),
+    ("Total Tokens", "total_tokens_per_request", "token"),
+    ("Reasoning Tokens", "reasoning_tokens_per_request", "token"),
+    ("Request Body Size", "request_body_size_bytes", "byte"),
+)
+
+
+def _fmt(value, digits: int = 3) -> str:
+    if value is None:
+        return "N/A"
+    if isinstance(value, int):
+        return str(value)
+    return f"{float(value):.{digits}f}"
+
+
+def _report_summary(report: dict) -> dict:
+    """Return a complete summary, upgrading legacy replay reports in memory."""
+
+    summary = report.get("summary") or {}
+    latency = summary.get("latency_seconds") or {}
+    required = {
+        "request_throughput_rpm",
+        "average_concurrency",
+        "tpot_seconds",
+        "total_reasoning_tokens",
+        "total_request_body_size_bytes",
+        "cache",
+        "errors",
+    }
+    cache = summary.get("cache") or {}
+    if (
+        required.issubset(summary)
+        and {"miss_requests", "average_hit_tokens"}.issubset(cache)
+        and "min" in latency
+        and "p75" in latency
+    ):
+        return summary
+    settings = report.get("settings") or {}
+    return summarize_results(
+        report.get("details") or [],
+        float(summary.get("duration_seconds") or 0),
+        max_concurrency=int(settings.get("concurrency") or 0),
+    )
+
+
+def format_terminal_report(report: dict) -> str:
+    """Render replay metrics with AISBench's native ``fancy_grid`` style."""
+
+    summary = _report_summary(report)
+    performance = [[
+        "Stage",
+        "Unit",
+        "Average",
+        "Max",
+        "Min",
+        "Median",
+        "P75",
+        "P90",
+        "P95",
+        "P99",
+        "N",
+    ]]
+    for label, key, unit in _PERFORMANCE_ROWS:
+        values = summary[key]
+        performance.append(
+            [
+                label,
+                unit,
+                values["mean"],
+                values["max"],
+                values["min"],
+                values["p50"],
+                values["p75"],
+                values["p90"],
+                values["p95"],
+                values["p99"],
+                values["n"],
+            ]
+        )
+
+    common = [
+        ["Common Metric", "Value", "Unit"],
+        ["Benchmark Duration", summary["duration_seconds"], "s"],
+        ["Total Requests", summary["total_requests"], "request"],
+        ["Successful Requests", summary["successful_requests"], "request"],
+        ["Failed Requests", summary["failed_requests"], "request"],
+        ["Success Rate", summary["success_rate"] * 100, "%"],
+        ["Average Concurrency", summary["average_concurrency"], "request"],
+        ["Max Concurrency", summary["max_concurrency"], "request"],
+        ["Request Throughput", summary["request_throughput_rps"], "request/s"],
+        ["Request Throughput", summary["request_throughput_rpm"], "request/min"],
+        ["Total Input Tokens", summary["total_input_tokens"], "token"],
+        ["Total Output Tokens", summary["total_output_tokens"], "token"],
+        ["Total Tokens", summary["total_tokens"], "token"],
+        ["Total Reasoning Tokens", summary["total_reasoning_tokens"], "token"],
+        [
+            "Total Request Body Size",
+            summary["total_request_body_size_bytes"],
+            "byte",
+        ],
+        ["Input Token Throughput", summary["input_token_throughput"], "token/s"],
+        ["Output Token Throughput", summary["output_token_throughput"], "token/s"],
+        ["Total Token Throughput", summary["total_token_throughput"], "token/s"],
+    ]
+    options = dict(
+        headers="firstrow",
+        tablefmt="fancy_grid",
+        floatfmt=".3f",
+        numalign="center",
+        stralign="left",
+        missingval="N/A",
+    )
+    sections = [
+        "Performance Parameters\n" + tabulate.tabulate(performance, **options),
+        "Common Metric\n" + tabulate.tabulate(common, **options),
+    ]
+    if summary["errors"]:
+        errors = [["Error Type", "Count", "Percentage"]]
+        errors.extend(
+            [label, values["count"], values["percentage"]]
+            for label, values in summary["errors"].items()
+        )
+        sections.append("Error Summary\n" + tabulate.tabulate(errors, **options))
+    return "\n\n".join(sections)
+
+
+def _markdown_distribution_table(summary: dict) -> list[str]:
+    lines = [
+        "| 指标 | 单位 | 平均 | 最小 | 最大 | 中位数 | P75 | P90 | P95 | P99 | 标准差 | N |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for label, key, unit in _PERFORMANCE_ROWS:
+        values = summary[key]
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    label,
+                    unit,
+                    _fmt(values["mean"]),
+                    _fmt(values["min"]),
+                    _fmt(values["max"]),
+                    _fmt(values["p50"]),
+                    _fmt(values["p75"]),
+                    _fmt(values["p90"]),
+                    _fmt(values["p95"]),
+                    _fmt(values["p99"]),
+                    _fmt(values["stddev"]),
+                    _fmt(values["n"], 0),
+                ]
+            )
+            + " |"
+        )
+    return lines
+
+
+def build_markdown_report(report: dict) -> str:
+    """Build the complete persisted report without performing file I/O."""
+
+    settings = report["settings"]
+    summary = _report_summary(report)
+    cache = summary["cache"]
+    lines = [
+        "# AISBench llm_io 回放压测报告",
+        "",
+        "## 测试概览",
+        "",
+        f"- 输入文件：`{report['input_log_file']}`",
+        f"- 数据集：`{report['dataset']}`",
+        f"- 加载记录数：{report['loaded_records']}",
+        f"- 请求数：{summary['total_requests']}",
+        f"- 成功/失败：{summary['successful_requests']} / {summary['failed_requests']}",
+        f"- 成功率：{summary['success_rate'] * 100:.2f}%",
+        "",
+        "## 测试配置",
+        "",
+        f"- Endpoint：`{settings.get('url', '')}`",
+        f"- Model：`{settings.get('model', '')}`",
+        f"- 并发：{settings.get('concurrency', 0)}",
+        f"- 超时：{settings.get('timeout', 0)} 秒",
+        f"- 流式：{settings.get('stream', True)}",
+        "",
+        "## 性能参数统计",
+        "",
+        *_markdown_distribution_table(summary),
+        "",
+        "## 端到端汇总指标",
+        "",
+        "| 指标 | 数值 |",
+        "|---|---:|",
+        f"| Benchmark Duration (s) | {_fmt(summary['duration_seconds'])} |",
+        f"| Request Throughput (req/s) | {_fmt(summary['request_throughput_rps'])} |",
+        f"| Request Throughput (req/min) | {_fmt(summary['request_throughput_rpm'])} |",
+        f"| Average Concurrency | {_fmt(summary['average_concurrency'])} |",
+        f"| Max Concurrency | {summary['max_concurrency']} |",
+        f"| Total Input Tokens | {summary['total_input_tokens']} |",
+        f"| Total Output Tokens | {summary['total_output_tokens']} |",
+        f"| Total Tokens | {summary['total_tokens']} |",
+        f"| Total Reasoning Tokens | {summary['total_reasoning_tokens']} |",
+        f"| Total Request Body Size (bytes) | {summary['total_request_body_size_bytes']} |",
+        f"| Input Token Throughput (token/s) | {_fmt(summary['input_token_throughput'])} |",
+        f"| Output Token Throughput / OTPS (token/s) | {_fmt(summary['output_token_throughput'])} |",
+        f"| Total Token Throughput (token/s) | {_fmt(summary['total_token_throughput'])} |",
+        "",
+        "## Token统计来源",
+        "",
+        "| 来源 | 请求数 |",
+        "|---|---:|",
+    ]
+    lines.extend(
+        f"| {source} | {count} |"
+        for source, count in summary["token_sources"].items()
+    )
+    lines.extend(
+        [
+            "",
+            "## 缓存命中统计",
+            "",
+            f"- 命中请求数：{cache['hit_requests']}",
+            f"- 未命中请求数：{cache['miss_requests']}",
+            f"- 请求命中率：{cache['hit_request_rate_percent']:.2f}%",
+            f"- 命中 Token 数：{cache['hit_tokens']}",
+            f"- 平均每次命中 Token 数：{cache['average_hit_tokens']:.2f}",
+            f"- Prompt Token 命中率：{cache['hit_rate_percent']:.2f}%",
+            "",
+            "## 错误分析",
+            "",
+            "| 错误类型 | 数量 | 占失败请求 | 占全部请求 |",
+            "|---|---:|---:|---:|",
+        ]
+    )
+    if summary["errors"]:
+        lines.extend(
+            f"| {label} | {values['count']} | {values['percentage']:.2f}% | "
+            f"{values['request_percentage']:.2f}% |"
+            for label, values in summary["errors"].items()
+        )
+    else:
+        lines.append("| 无 | 0 | 0.00% | 0.00% |")
+
+    for success, heading in ((True, "成功请求详情"), (False, "失败请求详情")):
+        lines.extend(
+            [
+                "",
+                f"## {heading}",
+                "",
+                "| # | HTTP | TTFT(s) | E2EL(s) | Body(KB) | Input | Output | Reasoning | Cache | Total | TPS | 打字率 | Token来源 | Trace | 错误 |",
+                "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|",
+            ]
+        )
+        rows = [item for item in report["details"] if bool(item.get("success")) is success]
+        if not rows:
+            lines.append(
+                "| - | - | - | - | - | - | - | - | - | - | - | - | - | - | - |"
+            )
+        for item in rows:
+            error = str(item.get("error") or "").replace("|", "\\|").replace("\n", " ")
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        str(item.get("request_index", "")),
+                        str(item.get("status_code", "")),
+                        _fmt(item.get("ttft")),
+                        _fmt(item.get("latency")),
+                        _fmt((item.get("request_body_size") or 0) / 1024),
+                        str(item.get("input_tokens", 0)),
+                        str(item.get("output_tokens", 0)),
+                        str(item.get("reasoning_tokens", 0)),
+                        str(item.get("prompt_cache_hit_tokens", 0)),
+                        str(
+                            item.get("total_tokens")
+                            or int(item.get("input_tokens") or 0)
+                            + int(item.get("output_tokens") or 0)
+                        ),
+                        _fmt(
+                            item.get("tokens_per_second")
+                            if item.get("tokens_per_second") is not None
+                            else (
+                                int(item.get("output_tokens") or 0)
+                                / float(item.get("latency") or 1)
+                            )
+                        ),
+                        _fmt(
+                            item.get("typing_speed")
+                            if item.get("typing_speed") is not None
+                            else (
+                                int(item.get("output_tokens") or 0)
+                                / max(
+                                    float(item.get("latency") or 0)
+                                    - float(item.get("ttft") or 0),
+                                    1e-12,
+                                )
+                            )
+                        ),
+                        str(item.get("token_source", "")),
+                        str(
+                            item.get("source_trace_id")
+                            or item.get("traceparent")
+                            or ""
+                        ),
+                        error[:200],
+                    ]
+                )
+                + " |"
+            )
+
+    lines.extend(
+        [
+            "",
+            "## 线上流量回放",
+            "",
+            f"- 修复记录数：{report.get('repaired_records', 0)}",
+            f"- 修复操作数：{report.get('repair_operations', 0)}",
+            "- JSON 报告保留每个请求的 source_line、source_request_id、source_trace_id、session_id 与 traceparent。",
+            "",
+            "> ITL 需要服务端提供逐 Token 时间戳；当前回放协议仅有首包和结束时间，因此不伪造 ITL。",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 class ReplayClient:
@@ -319,9 +791,42 @@ class ReplayClient:
         status_code = 0
         input_tokens = 0
         output_tokens = 0
+        total_tokens = 0
+        reasoning_tokens = 0
+        prompt_cache_hit_tokens = 0
+        input_tokens_from_api = False
+        output_tokens_from_api = False
         response_fragments: list[str] = []
         event_count = 0
         error_text = ""
+
+        def capture_usage(usage: dict) -> None:
+            nonlocal input_tokens
+            nonlocal output_tokens
+            nonlocal total_tokens
+            nonlocal reasoning_tokens
+            nonlocal prompt_cache_hit_tokens
+            nonlocal input_tokens_from_api
+            nonlocal output_tokens_from_api
+            if usage.get("prompt_tokens") is not None:
+                input_tokens = int(usage["prompt_tokens"] or 0)
+                input_tokens_from_api = True
+            if usage.get("completion_tokens") is not None:
+                output_tokens = int(usage["completion_tokens"] or 0)
+                output_tokens_from_api = True
+            if usage.get("total_tokens") is not None:
+                total_tokens = int(usage["total_tokens"] or 0)
+            completion_details = usage.get("completion_tokens_details") or {}
+            if completion_details.get("reasoning_tokens") is not None:
+                reasoning_tokens = int(
+                    completion_details["reasoning_tokens"] or 0
+                )
+            prompt_details = usage.get("prompt_tokens_details") or {}
+            cached_tokens = usage.get("prompt_cache_hit_tokens")
+            if cached_tokens is None:
+                cached_tokens = prompt_details.get("cached_tokens")
+            if cached_tokens is not None:
+                prompt_cache_hit_tokens = int(cached_tokens or 0)
 
         try:
             async with session.post(
@@ -347,18 +852,14 @@ class ReplayClient:
                             first_event_time = time.perf_counter()
                         response_fragments.append(_extract_response_text(event))
                         usage = event.get("usage") or {}
-                        input_tokens = usage.get("prompt_tokens", input_tokens) or input_tokens
-                        output_tokens = (
-                            usage.get("completion_tokens", output_tokens) or output_tokens
-                        )
+                        capture_usage(usage)
                 else:
                     event = json.loads(await response.text())
                     event_count = 1
                     first_event_time = time.perf_counter()
                     response_fragments.append(_extract_response_text(event))
                     usage = event.get("usage") or {}
-                    input_tokens = usage.get("prompt_tokens", 0) or 0
-                    output_tokens = usage.get("completion_tokens", 0) or 0
+                    capture_usage(usage)
         except (asyncio.TimeoutError, aiohttp.ClientError, ValueError) as error:
             error_text = f"{type(error).__name__}: {error}"
         except Exception as error:  # keep every request represented in results
@@ -366,11 +867,29 @@ class ReplayClient:
 
         finished = time.perf_counter()
         response_text = "".join(response_fragments)
-        if output_tokens <= 0 and response_text:
-            output_tokens = max(1, len(response_text) // 2)
         success = status_code == 200 and not error_text and event_count > 0
         if status_code == 200 and not error_text and event_count == 0:
             error_text = "empty response stream"
+        if success and not output_tokens_from_api and response_text:
+            output_tokens = max(1, len(response_text) // 2)
+        if success and not input_tokens_from_api:
+            input_tokens = max(1, request_body_size // 2)
+        if total_tokens <= 0:
+            total_tokens = input_tokens + output_tokens
+        if success:
+            if input_tokens_from_api and output_tokens_from_api:
+                token_source = "api"
+            elif input_tokens_from_api:
+                token_source = "estimated_output"
+            elif output_tokens_from_api:
+                token_source = "estimated_prompt"
+            else:
+                token_source = "estimated_all"
+        else:
+            token_source = "none"
+        latency = finished - started
+        ttft = first_event_time - started if first_event_time else None
+        generation_time = max(latency - (ttft or 0.0), 0.0)
 
         return {
             "request_index": request_index,
@@ -382,10 +901,27 @@ class ReplayClient:
             "success": success,
             "status_code": status_code,
             "error": error_text,
-            "latency": finished - started,
-            "ttft": first_event_time - started if first_event_time else None,
+            "latency": latency,
+            "ttft": ttft,
             "input_tokens": int(input_tokens),
             "output_tokens": int(output_tokens),
+            "total_tokens": int(total_tokens),
+            "reasoning_tokens": int(reasoning_tokens),
+            "prompt_cache_hit_tokens": int(prompt_cache_hit_tokens),
+            "cache_hit": prompt_cache_hit_tokens > 0,
+            "token_source": token_source,
+            "tokens_per_second": output_tokens / latency if latency > 0 else 0.0,
+            "typing_speed": (
+                output_tokens / generation_time if generation_time > 0 else 0.0
+            ),
+            "prefill_token_throughput": (
+                input_tokens / ttft if ttft and ttft > 0 else None
+            ),
+            "tpot": (
+                generation_time / (output_tokens - 1)
+                if generation_time > 0 and output_tokens > 1
+                else None
+            ),
             "content_length": len(response_text),
             "request_body_size": request_body_size,
             "traceparent": headers["traceparent"],
@@ -541,9 +1077,14 @@ class LLMIOReplayTask(BaseTask):
             osp.join(self.work_dir, self.output_subdir),
         )
         mkdir_or_exist(osp.dirname(output_path))
-        summary = summarize_results(details, duration)
+        summary = summarize_results(
+            details,
+            duration,
+            max_concurrency=settings.concurrency,
+        )
         report = {
             "task": "llm_io_replay",
+            "generated_at": datetime.now().astimezone().isoformat(),
             "dataset": dataset_abbr_from_cfg(dataset_cfg),
             "input_log_file": source_path,
             "loaded_records": len(records),
@@ -559,36 +1100,28 @@ class LLMIOReplayTask(BaseTask):
         mmengine.dump(report, output_path, ensure_ascii=False, indent=2)
 
         markdown_path = osp.splitext(output_path)[0] + ".md"
-        latency = summary["latency_seconds"]
-        ttft = summary["ttft_seconds"]
         with open(markdown_path, "w", encoding="utf-8") as stream:
-            stream.write("# AISBench llm_io replay report\n\n")
-            stream.write(f"- Input: `{source_path}`\n")
-            stream.write(f"- Endpoint: `{settings.url}`\n")
-            stream.write(f"- Model: `{settings.model}`\n")
-            stream.write(f"- Concurrency: {settings.concurrency}\n")
-            stream.write(f"- Requests: {summary['total_requests']}\n")
-            stream.write(f"- Success: {summary['successful_requests']}\n")
-            stream.write(f"- Failed: {summary['failed_requests']}\n")
-            stream.write(
-                f"- Throughput: {summary['request_throughput_rps']:.3f} req/s\n"
-            )
-            stream.write(
-                f"- Output throughput: {summary['output_token_throughput']:.3f} token/s\n"
-            )
-            if latency["p50"] is not None:
-                stream.write(
-                    "- Latency p50/p95/p99: "
-                    f"{latency['p50']:.3f} / {latency['p95']:.3f} / "
-                    f"{latency['p99']:.3f} s\n"
-                )
-            if ttft["p50"] is not None:
-                stream.write(
-                    "- TTFT p50/p95/p99: "
-                    f"{ttft['p50']:.3f} / {ttft['p95']:.3f} / "
-                    f"{ttft['p99']:.3f} s\n"
-                )
+            stream.write(build_markdown_report(report))
         return output_path
+
+    def display_results(self) -> None:
+        """Print persisted metrics in the parent AISBench CLI process."""
+
+        for dataset_cfg in self.dataset_cfgs:
+            output_path = get_infer_output_path(
+                self.model_cfg,
+                dataset_cfg,
+                osp.join(self.work_dir, self.output_subdir),
+            )
+            if not osp.isfile(output_path):
+                self.logger.warning(
+                    "LLMIO replay report not found for terminal display: %s",
+                    output_path,
+                )
+                continue
+            report = mmengine.load(output_path)
+            print(format_terminal_report(report), flush=True)
+            self.logger.info("Detailed replay report: %s", output_path)
 
     def run(self, task_state_manager=None):
         self.task_state_manager = task_state_manager

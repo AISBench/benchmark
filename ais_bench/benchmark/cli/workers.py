@@ -11,7 +11,7 @@ from typing import Any, NamedTuple
 
 from mmengine.config import ConfigDict
 
-from ais_bench.benchmark.registry import PARTITIONERS, RUNNERS, build_from_cfg
+from ais_bench.benchmark.registry import PARTITIONERS, RUNNERS, TASKS, build_from_cfg
 from ais_bench.benchmark.utils.config.run import get_config_type
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidException
@@ -167,6 +167,8 @@ class Infer(BaseWorker):
         runner(tasks)
 
         self._spec_decode_finalize(cfg, spec_ctx)
+        task_type = cfg.infer.runner.get("task", {}).get("type")
+        self._display_task_results(tasks, task_type)
 
         if cfg.get('response_anomaly', {}).get('enabled', False):
             logger.info(
@@ -183,6 +185,26 @@ class Infer(BaseWorker):
                 cfg.get('cli_args', {}).get('debug', False),
             )
         logger.info("Inference tasks completed.")
+
+    @staticmethod
+    def _display_task_results(tasks, task_type) -> None:
+        """Run optional parent-process result renderers after inference."""
+
+        if task_type is None:
+            return
+        task_class = TASKS.get(task_type) if isinstance(task_type, str) else task_type
+        if not callable(getattr(task_class, "display_results", None)):
+            return
+        for task_cfg in tasks:
+            try:
+                task = TASKS.build(dict(cfg=task_cfg, type=task_type))
+                task.display_results()
+            except Exception:
+                logger.warning(
+                    "Failed to display results for task %s",
+                    task_cfg,
+                    exc_info=True,
+                )
 
     def _merge_datasets(self, tasks):
         # merge datasets with the same model, dataset type and inferencer

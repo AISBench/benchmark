@@ -181,6 +181,44 @@ class TestInfer:
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')
     @patch('ais_bench.benchmark.cli.workers.logger')
+    def test_do_work_displays_custom_task_results(
+        self, mock_logger, mock_runners, mock_partitioners
+    ):
+        class DisplayTask:
+            name = 'display-task'
+
+            def __init__(self, cfg):
+                self.cfg = cfg
+
+            def display_results(self):
+                displayed.append(self.cfg)
+
+        displayed = []
+        task_cfg = MockConfigDict(name='task-config')
+        mock_partitioner = MagicMock(return_value=[task_cfg])
+        mock_partitioners.build.return_value = mock_partitioner
+        mock_runner = MagicMock()
+        mock_runners.build.return_value = mock_runner
+        cfg = MockConfigDict({
+            'infer': {
+                'partitioner': {},
+                'runner': {'task': {'type': DisplayTask}},
+            },
+            'cli_args': MagicMock(merge_ds=False, mode='infer'),
+        })
+
+        with (
+            patch.object(self.infer_worker, '_update_tasks_cfg'),
+            patch('ais_bench.benchmark.cli.workers.TASKS') as mock_tasks,
+        ):
+            mock_tasks.build.side_effect = lambda spec: spec['type'](spec['cfg'])
+            self.infer_worker.do_work(cfg)
+
+        assert displayed == [task_cfg]
+
+    @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
+    @patch('ais_bench.benchmark.cli.workers.RUNNERS')
+    @patch('ais_bench.benchmark.cli.workers.logger')
     def test_do_work_merge_datasets(self, mock_logger, mock_runners, mock_partitioners):
         """测试do_work方法，合并数据集的情况"""
         # 设置mock对象

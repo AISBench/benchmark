@@ -26,7 +26,7 @@ the CLI:
 ```bash
 ais_bench ais_bench/configs/performance_benchmark/llm_io_replay_glm51.py \
   --mode infer \
-  --replay-log-file /data/s9fkf_input_14-25round_150users_2500_redacted.txt \
+  --replay-log-file /data/s9fkf_input_14-25round_150users_2500_redacted_fix.txt \
   --replay-url http://172.27.13.87:8900/v1/chat/completions \
   --replay-model glm51 \
   --replay-x-app-id 1111 \
@@ -56,6 +56,17 @@ The task writes JSON and Markdown reports under:
 outputs/llm_io_replay/predictions/<model-abbr>/
 ```
 
+At the end of inference, the main CLI process also prints AISBench-style
+`fancy_grid` tables for request latency (E2EL), TTFT, derived TPOT, per-request
+TPS, typing speed, prefill throughput, token distributions, request-body size,
+common throughput/concurrency metrics, and error groups. The Markdown report
+adds configuration, token-source, cache-hit, success-detail, and failure-detail
+sections. The JSON report retains every summary value and per-request field.
+
+ITL is intentionally omitted because the replay endpoint does not return a
+timestamp for every generated token. TPOT is derived from generation time and
+the output-token count.
+
 ## Compatibility details
 
 - Preserves `messages`, `tools`, `tool_choice`, and `max_tokens`.
@@ -64,8 +75,8 @@ outputs/llm_io_replay/predictions/<model-abbr>/
   outgoing request, matching the source script.
 - Adds the script-start timestamp prefix to message text by default.
 - Uses robust SSE event framing rather than TCP-chunk framing.
-- Repairs the supplied redacted JSON by default. Placeholders inside strings
-  remain unchanged; damaged numeric values outside strings become zero.
+- Reads the validated `_fix.txt` files directly by default. Runtime repair can
+  still be enabled explicitly for legacy damaged inputs.
 - The source script computes an HMAC but discards it. The task therefore sends
   `Authorization: <x_app_id>` and accepts `x_app_key` only for compatibility.
 
