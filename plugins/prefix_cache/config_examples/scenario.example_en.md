@@ -417,7 +417,7 @@ The complete `aisbench` section may be omitted and old Scenarios receive current
 }
 ```
 
-`mmmu_parquet_dir` is required by `prepare --mode mm` and relative paths resolve from the Scenario directory. `scenarios` defaults to `['single_1080p']`; accepted values are `single_1080p` and `multi_720p_5`, including both together. MM mode reuses `tokenizer/corpus/requests/run/service/aisbench` and requires fixed input/output lengths. See [MULTIMODAL.md](../MULTIMODAL.md).
+`mmmu_parquet_dir` is required by `prepare --mode mm` and relative paths resolve from the Scenario directory. `scenarios` defaults to `['single_1080p']`; accepted values are `single_1080p` and `multi_720p_5`, including both together. MM mode reuses `tokenizer/corpus/requests/run/service/aisbench` and requires fixed input/output lengths. It does not read `tokenizer.block_size` or use `prefix_cache`, so block and non-shared-region constraints do not apply to 30-token multimodal text; those fields may be omitted from an MM-only Scenario. See [MULTIMODAL.md](../MULTIMODAL.md).
 
 ## 13. Meaning of the example
 

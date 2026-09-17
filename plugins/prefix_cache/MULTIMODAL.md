@@ -38,6 +38,8 @@ ais-bench-prefix-cache prepare --mode mm --scenario ./scenario.json
 - `single_1080p`：每请求1张相同的原生1920×1080 MMMU图片；
 - `multi_720p_5`：每请求重复同一张原生1280×720 MMMU图片5次。
 
+mm 模式不使用 `tokenizer.block_size`，也不使用 `prefix_cache` 段；这两个字段可以省略。即使复用的 Scenario 中保留了它们，也不会对多模态文本长度施加 block、共享前缀或非共享区限制。30-token 文本只按当前 VLM tokenizer 做精确编码与回解校验。
+
 程序直接扫描 MMMU Parquet 的 `image_1`～`image_7` bytes 字段，严格按原生尺寸选择图片，不进行缩放。图片编码为 Base64；Manifest 每个场景只保存一次完整 data URL，JSONL prompt 保存 `base64_ref`，发送请求时再展开为完整 `data:image/...;base64,...`。
 
 1319条、30-token文本、256-token输出的关键配置如下：

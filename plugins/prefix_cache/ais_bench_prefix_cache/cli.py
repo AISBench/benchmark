@@ -102,6 +102,7 @@ def _resolve_log_file(
     scenario_path: Path | None = None,
     manifest_path: Path | None = None,
     execution_timestamp: str | None = None,
+    scenario_mode: str | None = None,
 ) -> Path | None:
     """Resolve a per-command log under the run output directory's log/ layer.
 
@@ -128,7 +129,8 @@ def _resolve_log_file(
     if scenario_path is None:
         return None
     try:
-        scenario = load_scenario(scenario_path)
+        load_mode = scenario_mode or ("mm" if command == "run" else "text")
+        scenario = load_scenario(scenario_path, mode=load_mode)
         if execution_timestamp is not None:
             scenario = with_execution_timestamp(scenario, execution_timestamp)
         log_file = scenario.output_dir / "log" / f"{scenario.run_id}.{command}.log"
@@ -249,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
         execution_timestamp = new_execution_timestamp()
     elif args.command == "prepare":
         try:
-            scenario = load_scenario(args.scenario)
+            scenario = load_scenario(args.scenario, mode=args.mode)
             validate_scenario_mode(scenario, args.mode)
             reusable = (
                 _reusable_execution_timestamp(scenario, inspected_only=True)
@@ -266,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "run":
         try:
             reusable = _reusable_execution_timestamp(
-                load_scenario(args.scenario),
+                load_scenario(args.scenario, mode="mm"),
                 inspected_only=False,
             )
         except PrefixCacheError:
@@ -279,6 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         scenario_path=getattr(args, "scenario", None),
         manifest_path=getattr(args, "manifest", None),
         execution_timestamp=execution_timestamp,
+        scenario_mode=getattr(args, "mode", None),
     )
     # 安装插件自身的 logger；日志路径可用时只写文件，不回显到 CLI 终端。
     _install_logger(log_file)
@@ -286,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
     progress = PromptProgress() if args.command in {"prepare", "run"} else None
     try:
         if args.command == "prepare":
-            scenario = load_scenario(args.scenario)
+            scenario = load_scenario(args.scenario, mode=args.mode)
             validate_scenario_mode(scenario, args.mode)
             logger.info(
                 "[cli] prepare mode=%s scenario=%s overwrite=%s",
@@ -346,7 +349,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise PrefixCacheError(
                     "no prepared Manifest found; run prepare --mode text or --mode mm first"
                 )
-            base_scenario = load_scenario(args.scenario)
+            base_scenario = load_scenario(args.scenario, mode="mm")
             scenario = with_execution_timestamp(base_scenario, execution_timestamp)
             manifest_path = artifact_paths(scenario.output_dir, scenario.run_id).manifest
             manifest = _read_manifest(manifest_path)

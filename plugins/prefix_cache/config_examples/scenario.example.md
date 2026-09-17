@@ -550,7 +550,7 @@ Zipf 分配：
 }
 ```
 
-`mmmu_parquet_dir` 在 `prepare --mode mm` 时必填，相对路径以 Scenario 文件目录解析。`scenarios` 默认 `['single_1080p']`，可选值为 `single_1080p` 和 `multi_720p_5`，可同时配置。mm 模式复用 `tokenizer/corpus/requests/run/service/aisbench`；其中 input/output length 必须为 fixed。详见 [MULTIMODAL.md](../MULTIMODAL.md)。
+`mmmu_parquet_dir` 在 `prepare --mode mm` 时必填，相对路径以 Scenario 文件目录解析。`scenarios` 默认 `['single_1080p']`，可选值为 `single_1080p` 和 `multi_720p_5`，可同时配置。mm 模式复用 `tokenizer/corpus/requests/run/service/aisbench`；其中 input/output length 必须为 fixed。mm 模式不读取 `tokenizer.block_size`，也不使用 `prefix_cache`，因此不会对30-token文本施加 block 或非共享区限制，这些字段可从纯多模态 Scenario 中省略。详见 [MULTIMODAL.md](../MULTIMODAL.md)。
 
 ## 13. 原示例最终表示的场景
 

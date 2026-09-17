@@ -191,7 +191,7 @@ class MultimodalBuildTest(unittest.TestCase):
                 json.dumps(
                     {
                         "run": {"run_id": "mm-case", "output_dir": "./out"},
-                        "tokenizer": {"path": "fake"},
+                        "tokenizer": {"path": "fake", "block_size": 128},
                         "corpus": {"path": "./gsm.jsonl"},
                         "requests": {
                             "count": 3,
@@ -215,7 +215,10 @@ class MultimodalBuildTest(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(list(manifest["datasets"]), [SINGLE_1080P])
             self.assertEqual(manifest["effective_config"]["run"]["run_id"], "mm-case_20260917_120000")
-            found = find_latest_execution_manifest(load_scenario(scenario_path), {"prepared"})
+            found = find_latest_execution_manifest(
+                load_scenario(scenario_path, mode="mm"),
+                {"prepared"},
+            )
             self.assertIsNotNone(found)
             self.assertEqual(found[1], manifest_path)
 

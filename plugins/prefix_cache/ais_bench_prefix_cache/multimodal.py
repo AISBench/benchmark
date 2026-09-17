@@ -415,7 +415,7 @@ def prepare_multimodal_scenario(
         with_execution_timestamp,
     )
 
-    base_scenario = load_scenario(scenario_path)
+    base_scenario = load_scenario(scenario_path, mode="mm")
     validate_scenario_mode(base_scenario, "mm")
     timestamp = execution_timestamp or new_execution_timestamp()
     scenario = with_execution_timestamp(base_scenario, timestamp)

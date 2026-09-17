@@ -243,12 +243,91 @@ def _resolve_path(base: Path, value: str) -> str:
     return str((base / path).resolve() if not path.is_absolute() else path.resolve())
 
 
-def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
+def _validate_prefix_cache_settings(
+    pc: dict[str, Any],
+    tokenizer: dict[str, Any],
+    input_cfg: dict[str, Any],
+    source: Path,
+) -> str:
+    """Validate settings used only by the text Prefix Cache generator."""
+    cache_mode = _mode(pc, _MODES["cache"], "prefix_cache")
+    target = pc.get("target_hit_rate")
+    if isinstance(target, bool) or not isinstance(target, (int, float)) or not 0 <= target <= 1:
+        raise ScenarioValidationError("prefix_cache.target_hit_rate must be in [0, 1]")
+    pc["seed_blocks"] = _positive(pc.get("seed_blocks", 1), "prefix_cache.seed_blocks")
+    seed_tokens = tokenizer["block_size"] * pc["seed_blocks"]
+    pc["minimum_non_shared_length"] = _positive(
+        pc.get("minimum_non_shared_length", seed_tokens),
+        "prefix_cache.minimum_non_shared_length",
+    )
+    if pc["minimum_non_shared_length"] < seed_tokens:
+        raise ScenarioValidationError(
+            f"prefix_cache.minimum_non_shared_length must be at least seed length {seed_tokens}"
+        )
+    reserved_tokens = pc["minimum_non_shared_length"]
+    if _minimum_input_tokens(input_cfg, "requests.input_length") < reserved_tokens:
+        raise ScenarioValidationError(
+            f"requests.input_length must be at least {reserved_tokens} tokens to contain the configured non-shared region"
+        )
+    groups = _require_dict(pc.get("groups"), "prefix_cache.groups")
+    groups["count"] = _positive(groups.get("count"), "prefix_cache.groups.count")
+    assignment = groups.setdefault("assignment", {"mode": "uniform"})
+    _mode(assignment, _MODES["assignment"], "prefix_cache.groups.assignment")
+    overrides = groups.setdefault("overrides", {})
+    if not isinstance(overrides, dict):
+        raise ScenarioValidationError("prefix_cache.groups.overrides must be an object")
+    for group_id, override in overrides.items():
+        expected_group_id = (
+            group_id.startswith("group-")
+            and group_id[6:].isdigit()
+            and int(group_id[6:]) < groups["count"]
+        )
+        if not expected_group_id:
+            raise ScenarioValidationError(f"invalid Prefix Group override id: {group_id}")
+        if not isinstance(override, dict):
+            raise ScenarioValidationError(
+                f"prefix_cache.groups.overrides.{group_id} must be an object"
+            )
+        unknown = set(override) - {"input_length", "output_length", "corpus_selection"}
+        if unknown:
+            raise ScenarioValidationError(
+                f"unknown field: prefix_cache.groups.overrides.{group_id}.{sorted(unknown)[0]}"
+            )
+        if "input_length" in override:
+            path = f"prefix_cache.groups.overrides.{group_id}.input_length"
+            _validate_input_config(override["input_length"], path, source.parent, None)
+            if _minimum_input_tokens(override["input_length"], path) < reserved_tokens:
+                raise ScenarioValidationError(
+                    f"{path} must be at least {reserved_tokens} tokens to contain the configured non-shared region"
+                )
+        if "output_length" in override:
+            _validate_output_config(
+                override["output_length"],
+                f"prefix_cache.groups.overrides.{group_id}.output_length",
+                source.parent,
+            )
+        if "corpus_selection" in override:
+            _mode(
+                override["corpus_selection"],
+                _MODES["selection"],
+                f"prefix_cache.groups.overrides.{group_id}.corpus_selection",
+            )
+    order = pc.setdefault("order", {"strategy": "interleave"})
+    if order.get("strategy") not in _MODES["order"]:
+        raise ScenarioValidationError(
+            f"prefix_cache.order.strategy must be one of {sorted(_MODES['order'])}"
+        )
+    return cache_mode
+
+
+def _validate(raw: dict[str, Any], source: Path, *, mode: str = "text") -> dict[str, Any]:
     """对原始场景 dict 做完整语义校验与默认值填充，返回规范化副本。
 
     校验缺失/未知字段、类型与取值约束、路径解析、prefix cache 相关的一致性
     （如非共享区下限、分组覆盖 id、cold 多 DP 的地址要求），并原地补默认值。
     """
+    if mode not in {"text", "mm"}:
+        raise ScenarioValidationError("scenario mode must be 'text' or 'mm'")
     _strict_keys(raw, "")
     # 深拷贝后再修改，避免污染调用方的原始数据。
     data = copy.deepcopy(raw)
@@ -278,7 +357,8 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     run.setdefault("random_seed", 42)
     run.setdefault("output_dir", "./outputs/gsm8k-prefix-cache-60")
     tokenizer.setdefault("path", "/home/weights/Qwen3.6-27B")
-    tokenizer.setdefault("block_size", 16)
+    if mode == "text":
+        tokenizer.setdefault("block_size", 16)
     corpus.setdefault("path", "./GSM8K.jsonl")
     requests.setdefault("count", 100)
     input_cfg = requests.setdefault("input_length", {"mode": "fixed", "value": 1024})
@@ -292,18 +372,19 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
         if output_cfg["mode"] == "fixed":
             output_cfg.setdefault("value", 32)
     output.setdefault("output_key", None)
-    pc.setdefault("mode", "warmup")
-    pc.setdefault("target_hit_rate", 0.6)
-    pc.setdefault("seed_blocks", 1)
-    groups_cfg = pc.setdefault("groups", {"count": 1, "assignment": {"mode": "uniform"}})
-    if isinstance(groups_cfg, dict):
-        groups_cfg.setdefault("count", 1)
-        assignment_cfg = groups_cfg.setdefault("assignment", {"mode": "uniform"})
-        if isinstance(assignment_cfg, dict):
-            assignment_cfg.setdefault("mode", "uniform")
-    order_cfg = pc.setdefault("order", {"strategy": "interleave"})
-    if isinstance(order_cfg, dict):
-        order_cfg.setdefault("strategy", "interleave")
+    if mode == "text":
+        pc.setdefault("mode", "warmup")
+        pc.setdefault("target_hit_rate", 0.6)
+        pc.setdefault("seed_blocks", 1)
+        groups_cfg = pc.setdefault("groups", {"count": 1, "assignment": {"mode": "uniform"}})
+        if isinstance(groups_cfg, dict):
+            groups_cfg.setdefault("count", 1)
+            assignment_cfg = groups_cfg.setdefault("assignment", {"mode": "uniform"})
+            if isinstance(assignment_cfg, dict):
+                assignment_cfg.setdefault("mode", "uniform")
+        order_cfg = pc.setdefault("order", {"strategy": "interleave"})
+        if isinstance(order_cfg, dict):
+            order_cfg.setdefault("strategy", "interleave")
     service.setdefault("inference_url", "http://127.0.0.1:8000/v1/completions")
     service.setdefault("metrics_url", "http://127.0.0.1:8000/metrics")
     service.setdefault("reset_url", "http://127.0.0.1:8000/reset_prefix_cache")
@@ -318,7 +399,8 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
         raise ScenarioValidationError("run.random_seed must be an integer")
     run.setdefault("overwrite", False)
     run["output_dir"] = _resolve_path(source.parent, run["output_dir"])
-    tokenizer["block_size"] = _positive(tokenizer.get("block_size"), "tokenizer.block_size")
+    if mode == "text":
+        tokenizer["block_size"] = _positive(tokenizer.get("block_size"), "tokenizer.block_size")
     tokenizer.setdefault("revision", None)
     tokenizer.setdefault("trust_remote_code", False)
     corpus.setdefault("field", "question")
@@ -336,56 +418,11 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
         raise ScenarioValidationError(
             "output.output_key must be null, 'max_tokens', or 'output_tokens'"
         )
-    cache_mode = _mode(pc, _MODES["cache"], "prefix_cache")
-    target = pc.get("target_hit_rate")
-    if isinstance(target, bool) or not isinstance(target, (int, float)) or not 0 <= target <= 1:
-        raise ScenarioValidationError("prefix_cache.target_hit_rate must be in [0, 1]")
-    pc["seed_blocks"] = _positive(pc.get("seed_blocks", 1), "prefix_cache.seed_blocks")
-    # 非共享区下限 = seed 长度，且须保证输入长度能容纳该非共享区。
-    seed_tokens = tokenizer["block_size"] * pc["seed_blocks"]
-    pc["minimum_non_shared_length"] = _positive(
-        pc.get("minimum_non_shared_length", seed_tokens),
-        "prefix_cache.minimum_non_shared_length",
+    cache_mode = (
+        _validate_prefix_cache_settings(pc, tokenizer, input_cfg, source)
+        if mode == "text"
+        else None
     )
-    if pc["minimum_non_shared_length"] < seed_tokens:
-        raise ScenarioValidationError(
-            f"prefix_cache.minimum_non_shared_length must be at least seed length {seed_tokens}"
-        )
-    reserved_tokens = pc["minimum_non_shared_length"]
-    if _minimum_input_tokens(input_cfg, "requests.input_length") < reserved_tokens:
-        raise ScenarioValidationError(
-            f"requests.input_length must be at least {reserved_tokens} tokens to contain the configured non-shared region"
-        )
-    groups = _require_dict(pc.get("groups"), "prefix_cache.groups")
-    groups["count"] = _positive(groups.get("count"), "prefix_cache.groups.count")
-    assignment = groups.setdefault("assignment", {"mode": "uniform"})
-    _mode(assignment, _MODES["assignment"], "prefix_cache.groups.assignment")
-    overrides = groups.setdefault("overrides", {})
-    if not isinstance(overrides, dict):
-        raise ScenarioValidationError("prefix_cache.groups.overrides must be an object")
-    for group_id, override in overrides.items():
-        # 校验 override 的 id 必须是合法 group-N 且未越界，再校验其字段。
-        expected_group_id = group_id.startswith("group-") and group_id[6:].isdigit() and int(group_id[6:]) < groups["count"]
-        if not expected_group_id:
-            raise ScenarioValidationError(f"invalid Prefix Group override id: {group_id}")
-        if not isinstance(override, dict):
-            raise ScenarioValidationError(f"prefix_cache.groups.overrides.{group_id} must be an object")
-        unknown = set(override) - {"input_length", "output_length", "corpus_selection"}
-        if unknown:
-            raise ScenarioValidationError(f"unknown field: prefix_cache.groups.overrides.{group_id}.{sorted(unknown)[0]}")
-        if "input_length" in override:
-            _validate_input_config(override["input_length"], f"prefix_cache.groups.overrides.{group_id}.input_length", source.parent, None)
-            if _minimum_input_tokens(override["input_length"], f"prefix_cache.groups.overrides.{group_id}.input_length") < reserved_tokens:
-                raise ScenarioValidationError(
-                    f"prefix_cache.groups.overrides.{group_id}.input_length must be at least {reserved_tokens} tokens to contain the configured non-shared region"
-                )
-        if "output_length" in override:
-            _validate_output_config(override["output_length"], f"prefix_cache.groups.overrides.{group_id}.output_length", source.parent)
-        if "corpus_selection" in override:
-            _mode(override["corpus_selection"], _MODES["selection"], f"prefix_cache.groups.overrides.{group_id}.corpus_selection")
-    order = pc.setdefault("order", {"strategy": "interleave"})
-    if order.get("strategy") not in _MODES["order"]:
-        raise ScenarioValidationError(f"prefix_cache.order.strategy must be one of {sorted(_MODES['order'])}")
     service["dp_size"] = _positive(service.get("dp_size", 1), "service.dp_size")
     service.setdefault("reset_url", None)
     service.setdefault("assume_empty_cache", False)
@@ -481,7 +518,7 @@ def _validate(raw: dict[str, Any], source: Path) -> dict[str, Any]:
     if len(set(scenarios)) != len(scenarios):
         raise ScenarioValidationError("multimodal.scenarios must not contain duplicates")
     # cold 多 DP 必须显式提供推理地址，否则无法路由。
-    if cache_mode == "cold" and service["dp_size"] > 1 and not service["inference_url"]:
+    if mode == "text" and cache_mode == "cold" and service["dp_size"] > 1 and not service["inference_url"]:
         raise ScenarioValidationError("cold multi-DP requires inference_url")
     return data
 
@@ -508,7 +545,7 @@ def validate_scenario_mode(scenario: Scenario, mode: str) -> None:
         )
 
 
-def load_scenario(path: Path | str) -> Scenario:
+def load_scenario(path: Path | str, *, mode: str = "text") -> Scenario:
     """读取并解析场景 JSON 文件，校验后返回 Scenario 对象。
 
     任何读取/解析/校验失败都会以 ScenarioValidationError 形式抛出。
@@ -518,4 +555,4 @@ def load_scenario(path: Path | str) -> Scenario:
         raw = json.loads(source.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ScenarioValidationError(f"cannot read scenario {source}: {exc}") from exc
-    return Scenario(source, _validate(_require_dict(raw, "scenario"), source))
+    return Scenario(source, _validate(_require_dict(raw, "scenario"), source, mode=mode))

@@ -407,6 +407,27 @@ class ScenarioModeTest(unittest.TestCase):
             with self.assertRaisesRegex(ScenarioValidationError, "input_length.mode"):
                 validate_scenario_mode(scenario, "mm")
 
+    def test_multimodal_ignores_prefix_cache_block_constraints(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data = scenario_dict(root)
+            data["tokenizer"]["block_size"] = 128
+            data["requests"] = {
+                "count": 1319,
+                "input_length": {"mode": "fixed", "value": 30},
+                "output_length": {"mode": "fixed", "value": 256},
+            }
+            data.pop("prefix_cache")
+            data["multimodal"] = {"mmmu_parquet_dir": "MMMU"}
+            path = root / "scenario.json"
+            path.write_text(json.dumps(data), encoding="utf-8")
+
+            scenario = load_scenario(path, mode="mm")
+
+            validate_scenario_mode(scenario, "mm")
+            self.assertEqual(scenario.section("requests")["input_length"]["value"], 30)
+            self.assertEqual(scenario.section("prefix_cache"), {})
+
 class LoadScenarioMultimodeTest(unittest.TestCase):
     def test_valid_explicit_zipf_scenario_with_overrides(self):
         with tempfile.TemporaryDirectory() as folder:
