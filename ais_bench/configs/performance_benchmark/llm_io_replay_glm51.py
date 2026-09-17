@@ -11,11 +11,11 @@ datasets = [
         # The args marker tells AISBench this custom task owns data loading.
         args=dict(
             input_log_file=(
-                "/data/s9fkf_input_14-25round_150users_2500_redacted.txt"
+                "/data/s9fkf_input_14-25round_150users_2500_redacted_fix.txt"
             ),
             # Set to zero to send every loaded record once.
             requests=2500,
-            repair_redacted=True,
+            repair_redacted=False,
             on_error="raise",
             # Zero means no loading cap.
             max_records=0,
