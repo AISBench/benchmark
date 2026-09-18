@@ -14,6 +14,7 @@ from ais_bench_prefix_cache.scenario import (
     _validate_input_config,
     _validate_output_config,
     load_scenario,
+    validate_scenario_mode,
     with_execution_timestamp,
 )
 from tests.test_core import scenario_dict
@@ -347,9 +348,85 @@ class LoadScenarioErrorTest(unittest.TestCase):
         with self.assertRaisesRegex(ScenarioValidationError, "cannot read scenario"):
             load_scenario(Path("/nonexistent/scenario.json"))
 
+    def test_multimodal_scenarios_reject_unknown_and_duplicates(self):
+        self._expect(
+            {"multimodal": {"scenarios": ["unknown"]}},
+            "multimodal.scenarios entries",
+        )
+        self._expect(
+            {"multimodal": {"scenarios": ["single_1080p", "single_1080p"]}},
+            "must not contain duplicates",
+        )
+
     def test_invalid_json_rejected(self):
         self._expect("not json", "cannot read scenario")
 
+
+class ScenarioModeTest(unittest.TestCase):
+    def _load(self, root: Path, updates: dict | None = None):
+        data = scenario_dict(root)
+        if updates:
+            data.update(updates)
+        path = root / "scenario.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return load_scenario(path)
+
+    def test_multimodal_defaults_to_single_image(self):
+        with tempfile.TemporaryDirectory() as folder:
+            scenario = self._load(Path(folder))
+            self.assertEqual(scenario.section("multimodal")["scenarios"], ["single_1080p"])
+            validate_scenario_mode(scenario, "text")
+            with self.assertRaisesRegex(ScenarioValidationError, "mmmu_parquet_dir is required"):
+                validate_scenario_mode(scenario, "mm")
+
+    def test_multimodal_path_is_resolved_and_fixed_lengths_are_accepted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            scenario = self._load(
+                root,
+                {"multimodal": {"mmmu_parquet_dir": "MMMU", "scenarios": ["multi_720p_5"]}},
+            )
+            self.assertEqual(
+                scenario.section("multimodal")["mmmu_parquet_dir"],
+                str((root / "MMMU").resolve()),
+            )
+            validate_scenario_mode(scenario, "mm")
+
+    def test_multimodal_rejects_non_fixed_lengths(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data = scenario_dict(root)
+            data["multimodal"] = {"mmmu_parquet_dir": "MMMU"}
+            data["requests"]["input_length"] = {
+                "mode": "explicit",
+                "values": [32] * data["requests"]["count"],
+            }
+            path = root / "scenario.json"
+            path.write_text(json.dumps(data), encoding="utf-8")
+            scenario = load_scenario(path)
+            with self.assertRaisesRegex(ScenarioValidationError, "input_length.mode"):
+                validate_scenario_mode(scenario, "mm")
+
+    def test_multimodal_ignores_prefix_cache_block_constraints(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            data = scenario_dict(root)
+            data["tokenizer"]["block_size"] = 128
+            data["requests"] = {
+                "count": 1319,
+                "input_length": {"mode": "fixed", "value": 30},
+                "output_length": {"mode": "fixed", "value": 256},
+            }
+            data.pop("prefix_cache")
+            data["multimodal"] = {"mmmu_parquet_dir": "MMMU"}
+            path = root / "scenario.json"
+            path.write_text(json.dumps(data), encoding="utf-8")
+
+            scenario = load_scenario(path, mode="mm")
+
+            validate_scenario_mode(scenario, "mm")
+            self.assertEqual(scenario.section("requests")["input_length"]["value"], 30)
+            self.assertEqual(scenario.section("prefix_cache"), {})
 
 class LoadScenarioMultimodeTest(unittest.TestCase):
     def test_valid_explicit_zipf_scenario_with_overrides(self):

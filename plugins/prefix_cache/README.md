@@ -4,6 +4,8 @@
 
 这是一个独立的 AISBench 插件，用于构造具有可控公共前缀的数据集，并比较 vLLM Prefix Cache 的理论与实际命中率。它同时提供离线的 `inspect` / `prepare` / `validate`，在线的 `run`，以及使用已保存 Prometheus 快照复算的 `analyze`。
 
+固定图片的多模态理解数据构造与压测（1319 条单图 1080P、1319 条五图 720P、30-token GSM8K 文本、256-token 输出，以及 TTFT/TPOT/ITL 验收）见 [MULTIMODAL.md](MULTIMODAL.md)。
+
 插件只增加 `plugins/prefix_cache` 下的新代码，不修改 AISBench 核心逻辑。
 
 Scenario 示例见 [config_examples/scenario.example.json](config_examples/scenario.example.json)，完整字段说明见 [config_examples/scenario.example.md](config_examples/scenario.example.md)。
@@ -279,7 +281,7 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 ### 3.4 `prepare`：生成正式数据产物
 
 ```bash
-ais-bench-prefix-cache prepare --scenario ./scenario.json
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ```
 
 作用：根据 Scenario 确定性生成并校验四个文件：
@@ -326,7 +328,7 @@ output_dir: ./outputs/gsm8k-prefix-cache-60
 默认不覆盖同名文件。确定需要重建时使用：
 
 ```bash
-ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json --overwrite
 ```
 
 `--overwrite` 只覆盖本次时间戳目录内该 run 对应的四个确定文件，不会清理整个输出目录。匹配的 inspect-only Manifest 可由 prepare 自动升级，不需要 `--overwrite`；正式 prepared Manifest 不会被后续 prepare 当作 inspect 占位复用。
@@ -355,9 +357,9 @@ ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60_<时�
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-完整流程为：校验或自动生成本时间戳的产物；逐 DP 探活；reset Prefix Cache（或按配置记录 `ASSUME_EMPTY_CACHE`）；warmup 模式按每个 `Prefix Group × DP rank` 定向预热；预热完成后采集正式 baseline；运行 AISBench `perf`；采集 after 并计算每 DP、全局实际命中率；最后把 `runtime`、`actual`、理论/实际差值和告警写回 `result/<run_id>.analysis.json`。warmup 在 baseline 之前完成，因此不进入正式吞吐、时延或命中率统计。
+完整流程为：读取显式 `prepare` 生成的 Manifest 并自动识别 text/mm 模式；校验本时间戳的产物；逐 DP 探活；reset Prefix Cache（或按配置记录 `ASSUME_EMPTY_CACHE`）；warmup 模式按每个 `Prefix Group × DP rank` 定向预热；预热完成后采集正式 baseline；运行 AISBench `perf`；采集 after 并计算每 DP、全局实际命中率；最后把 `runtime`、`actual`、理论/实际差值和告警写回 `result/<run_id>.analysis.json`。warmup 在 baseline 之前完成，因此不进入正式吞吐、时延或命中率统计。
 
-`run` 的 Prefix Cache 插件流程日志只写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log`，不会作为插件日志回显到 CLI 终端；stdout 仍输出最终 analysis JSON。AISBench 子进程继续继承 stdout/stderr，其运行过程会实时展示在 CLI 中，不会被插件重定向到 `run.log`。插件日志覆盖执行上下文、产物复用/自动 prepare、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
+`run` 的 Prefix Cache 插件流程日志只写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log`，不会作为插件日志回显到 CLI 终端；stdout 仍输出最终 analysis JSON。AISBench 子进程继续继承 stdout/stderr，其运行过程会实时展示在 CLI 中，不会被插件重定向到 `run.log`。插件日志覆盖执行上下文、产物复用、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
 
 Dataset、Model 和 Inferencer 运行在 AISBench 正式任务子进程中，统一使用 AISBench 的 `AISLogger` 和 `ais_bench` handle，详细过程使用 debug 级别。默认 `aisbench.work_dir="./outputs/default"` 时，AISBench 会把该任务 stdout/stderr 写入 `./outputs/default/<AISBench时间戳>/logs/infer/*.out`；若显式修改 `aisbench.work_dir`，日志会随之移动。当前 AISBench 全局日志级别默认为 INFO，只有将其设为 DEBUG 时这些详细日志才会实际写入 `.out`。
 
@@ -388,7 +390,7 @@ ais-bench-prefix-cache analyze \
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
-ais-bench-prefix-cache prepare --scenario ./scenario.json
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest路径>
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```

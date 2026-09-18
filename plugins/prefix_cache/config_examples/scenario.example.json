@@ -68,5 +68,9 @@
         "ignore_eos": true
       }
     }
+  },
+  "multimodal": {
+    "mmmu_parquet_dir": "../../../../MMMU",
+    "scenarios": ["single_1080p"]
   }
 }
