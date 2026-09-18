@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
 from urllib.parse import urlsplit, urlunsplit
 
 from ais_bench.benchmark.models.api_models.vllm_custom_api_chat import VLLMCustomAPIChat
 from ais_bench.benchmark.registry import MODELS
+from ais_bench.benchmark.utils.logging.logger import AISLogger
+
+
+logger = AISLogger()
 
 
 @MODELS.register_module()
@@ -20,3 +25,21 @@ class VLLMPrefixCacheChatAPI(VLLMCustomAPIChat):
             kwargs["url"] = inference_url
         super().__init__(*args, **kwargs)
         self.url = inference_url
+
+    async def get_request_body(self, input_data, max_out_len, output, **args):
+        """Build the outgoing request and log its final multimodal prompt."""
+        request_body = await super().get_request_body(
+            input_data,
+            max_out_len,
+            output,
+            **args,
+        )
+        logger.info(
+            "[aisbench-model] multimodal request prompt=%s",
+            json.dumps(
+                request_body.get("messages", []),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        )
+        return request_body
