@@ -305,23 +305,60 @@ class MainFlowTest(unittest.TestCase):
                 console_main()
         self.assertEqual(context.exception.code, 3)
 
-    def test_run_passes_reused_timestamp_and_prints_analysis(self):
+    def test_run_passes_reused_timestamp_and_prints_compact_analysis(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             scenario = write_case(root)
             _write_execution_manifest(scenario, "20260825_123456")
             stdout = io.StringIO()
             stderr = io.StringIO()
+            analysis = {
+                "schema_version": "1.0",
+                "status": "complete",
+                "runtime": {"phases": ["formal"]},
+                "actual": {"global_hit_rate": 0.5},
+                "effective_target_hit_rate": 0.5,
+                "requested_target_hit_rate": 0.6,
+                "target_absolute_difference_pp": 10.0,
+                "target_difference_pp": 10.0,
+                "target_signed_difference_pp": -10.0,
+                "theoretical_hit_rate": 0.5,
+                "theory": {"hit_tokens": 50, "input_tokens": 100},
+                "theory_actual_absolute_difference_pp": 0.0,
+                "theory_actual_difference_pp": 0.0,
+                "theory_actual_signed_difference_pp": 0.0,
+                "validation": {"status": "PASS_WITH_WARNING"},
+                "warnings": [{"code": "TARGET_DEVIATION"}],
+                "analysis": str(root / "analysis.json"),
+            }
             with (
                 patch(
                     "ais_bench_prefix_cache.cli.run_scenario",
-                    return_value={"status": "complete", "actual": {"global_hit_rate": 0.5}},
+                    return_value=analysis,
                 ) as run,
                 redirect_stdout(stdout),
                 redirect_stderr(stderr),
             ):
                 self.assertEqual(main(["run", "--scenario", str(scenario)]), 0)
-            self.assertEqual(json.loads(stdout.getvalue())["status"], "complete")
+            output = json.loads(stdout.getvalue())
+            self.assertEqual(list(output), [
+                "actual",
+                "effective_target_hit_rate",
+                "requested_target_hit_rate",
+                "target_absolute_difference_pp",
+                "target_difference_pp",
+                "target_signed_difference_pp",
+                "theoretical_hit_rate",
+                "theory",
+                "theory_actual_absolute_difference_pp",
+                "theory_actual_difference_pp",
+                "theory_actual_signed_difference_pp",
+                "validation",
+                "warnings",
+                "analysis",
+            ])
+            self.assertNotIn("status", output)
+            self.assertNotIn("runtime", output)
             self.assertEqual(stderr.getvalue(), "")
             self.assertEqual(run.call_args.kwargs["execution_timestamp"], "20260825_123456")
 

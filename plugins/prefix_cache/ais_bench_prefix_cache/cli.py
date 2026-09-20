@@ -31,6 +31,29 @@ LOG_NORMAL_FORMAT = "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s"
 logger = logging.getLogger(f"{PLUGIN_LOG_NAME}.cli")
 
 
+_RUN_STDOUT_FIELDS = (
+    "actual",
+    "effective_target_hit_rate",
+    "requested_target_hit_rate",
+    "target_absolute_difference_pp",
+    "target_difference_pp",
+    "target_signed_difference_pp",
+    "theoretical_hit_rate",
+    "theory",
+    "theory_actual_absolute_difference_pp",
+    "theory_actual_difference_pp",
+    "theory_actual_signed_difference_pp",
+    "validation",
+    "warnings",
+    "analysis",
+)
+
+
+def _run_stdout_summary(analysis: dict) -> dict:
+    """Return the compact, stable subset printed by the ``run`` command."""
+    return {field: analysis[field] for field in _RUN_STDOUT_FIELDS if field in analysis}
+
+
 class PromptProgress:
     """Render prompt-generation progress to a text stream without touching stdout."""
 
@@ -274,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
                 progress=progress.update,
             )
             logger.info("[cli] run_scenario returned status=%s", result.get("status"))
-            print(json.dumps(result, ensure_ascii=False, indent=2))
+            print(json.dumps(_run_stdout_summary(result), ensure_ascii=False, indent=2))
         elif args.command == "analyze":
             logger.info(
                 "[cli] analyze manifest=%s baseline=%s after=%s",

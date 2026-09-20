@@ -608,6 +608,9 @@ def run_scenario(
         warnings,
         analysis_path,
     )
+    # Return the artifact location for concise CLI output without persisting a
+    # self-referential path inside analysis.json itself.
+    analysis["analysis"] = str(analysis_path)
     return analysis
 
 

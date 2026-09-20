@@ -5,7 +5,7 @@ import time
 from urllib.parse import urlsplit, urlunsplit
 from typing import Any
 
-from ais_bench.benchmark.models.api_models.vllm_custom_api import VLLMCustomAPI
+from ais_bench.benchmark.models import VLLMCustomAPI
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.logging.error_codes import MODEL_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchValueError
