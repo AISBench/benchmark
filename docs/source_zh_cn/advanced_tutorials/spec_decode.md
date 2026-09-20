@@ -97,8 +97,10 @@ Per-position acceptance rates                 {0: 0.9939, 1: 0.9939, 2: 0.9939, 
 ========== Speculative Decoding Metrics  [10.0.0.1:8080] ==========
 ====================================================================
 Status                                     N/A
-Reason                                     No spec decode metrics found on server
+Reason                                     [before] No spec decode metrics found on server; [after] No spec decode metrics found on server
 ```
+
+Reason 中的 `[before]` / `[after]` 前缀标识错误来源的采集阶段（推理前基线采集 / 推理后采集）；两阶段都失败时分别列出，便于定位是哪个阶段开始出现异常。
 
 这**不会**中断性能评测流程 — 投机推理指标采集采用尽力而为策略。
 

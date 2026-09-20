@@ -97,8 +97,10 @@ If the metrics endpoint is unreachable or the server has no spec decode counters
 ========== Speculative Decoding Metrics  [10.0.0.1:8080] ==========
 ====================================================================
 Status                                     N/A
-Reason                                     No spec decode metrics found on server
+Reason                                     [before] No spec decode metrics found on server; [after] No spec decode metrics found on server
 ```
+
+The `[before]` / `[after]` prefixes in the Reason field indicate which collection phase the error occurred in (pre-inference baseline snapshot / post-inference snapshot). When both phases fail, each error is listed separately so you can tell which phase the failure belongs to.
 
 This does **not** interrupt or fail the performance evaluation — spec decode collection is best-effort.
 

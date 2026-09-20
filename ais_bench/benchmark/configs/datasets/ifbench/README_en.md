@@ -35,10 +35,10 @@ IFBench is a benchmark for evaluating the reliability of AI models in following 
 
 ### 1. Install Dependencies
 
-Download pyarrow dependency:
+Read the dependency list from `requirements/datasets/IFBench_test.txt` and install the required dependencies:
 
 ```shell
-pip install pyarrow==15.0.0
+pip install -r requirements/datasets/IFBench_test.txt
 ```
 
 ### 2. Download NLTK Data Package
