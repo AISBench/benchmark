@@ -153,7 +153,7 @@ flowchart LR
 
 ```json
 "aisbench": {
-  "extra_args": ["--num-warmups", "0"]
+  "extra_args": {"--num-warmups": 0}
 }
 ```
 
@@ -176,7 +176,26 @@ ais-bench-prefix-cache analyze \
 - `--baseline`：正式统计窗口开始前保存的完整 Prometheus 文本。
 - `--after`：正式统计窗口结束后保存的完整 Prometheus 文本；queries/hits 是累计 counter，应不小于 baseline。
 
-命令解析两个快照，按 DP 计算 queries/hits 差值，再汇总 `actual.global_hit_rate`，比较 `theoretical_hit_rate` 并生成 `ACTUAL_DEVIATION` 告警。结果以 `status="analyzed"` 写回 Manifest 所索引的 analysis 文件，`runtime` 只包含 `metrics_baseline` 和 `metrics_after`。离线快照没有正式运行期间的采样序列，因此不会生成 `runtime.kv_cache_polling` 或运行期 KV 均值/峰值；Prometheus 指标也没有 Prefix Group 标签，所以实际值只能按 DP 和全局统计，组级数据仍是理论值。
+`baseline.prom` 和 `after.prom` 不是 `prepare` 生成的数据集产物，而是同一个 vLLM 进程 `/metrics` 端点的完整文本快照。手工采集时，先完成 reset；warmup 模式还要完成插件 warmup，然后在第一条正式请求之前采集 baseline，并在最后一条正式请求完成后立即采集 after：
+
+```shell
+METRICS_URL="http://127.0.0.1:8000/metrics"
+curl -fsS "$METRICS_URL" -o baseline.prom
+# 在这里执行正式压测；期间不要重启 vLLM 或重置指标
+curl -fsS "$METRICS_URL" -o after.prom
+```
+
+两份文件必须来自同一服务进程并覆盖全部 DP rank。多 DP 指标必须保留 `engine` 标签；由于 queries/hits 是累计 counter，after 值不能小于 baseline。
+
+正常执行 `run` 时，插件已经自动采集前后快照，并将原始 Prometheus 文本写入 analysis JSON 的 `runtime.metrics_baseline.raw_prometheus` 和 `runtime.metrics_after.raw_prometheus`，但不会额外落盘为 `.prom` 文件。可按需导出后重新执行 `analyze`：
+
+```shell
+ANALYSIS="./outputs/<run_id_时间戳>/result/<run_id_时间戳>.analysis.json"
+jq -r '.runtime.metrics_baseline.raw_prometheus' "$ANALYSIS" > baseline.prom
+jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
+```
+
+命令解析两个快照，按 DP 计算 queries/hits 差值，再汇总 `actual.global_hit_rate`，比较 `theoretical_hit_rate` 并生成 `ACTUAL_DEVIATION` 告警。它适合历史结果复核、指标解析逻辑升级后的重算、外部压测流量分析和 CI 校验；成功的 `run` 已在线完成同样的差分分析，通常不必再次执行。结果以 `status="analyzed"` 写回 Manifest 所索引的 analysis 文件，`runtime` 只包含 `metrics_baseline` 和 `metrics_after`。离线快照没有正式运行期间的采样序列，因此不会生成 `runtime.kv_cache_polling` 或运行期 KV 均值/峰值；Prometheus 指标也没有 Prefix Group 标签，所以实际值只能按 DP 和全局统计，组级数据仍是理论值。
 
 当前 CLI 将 `analyze` 与 `validate` 的插件日志写入同一个 `log/<run_id>.validate.log` 文件名，后执行的命令会重新创建该文件。stdout 返回更新后的完整 analysis JSON。目标或实际偏差只产生 `PASS_WITH_WARNING`，不改变原本成功的退出码。
 
@@ -298,7 +317,7 @@ flowchart LR
 | `aisbench` | AISBench 正式压测启动配置。 |
 | `aisbench.config` | AISBench Python 配置模板路径。 |
 | `aisbench.work_dir` | AISBench 结果基础目录。 |
-| `aisbench.extra_args` | 追加到 AISBench 命令的参数列表。 |
+| `aisbench.extra_args` | 附加 CLI 参数键值对象；参数名映射到单值、多值列表或布尔开关。 |
 | `aisbench.dataset` | Dataset reader 和 Prompt 映射配置。 |
 | `aisbench.dataset.abbr` | Dataset 展示简称；`null` 时自动生成。 |
 | `aisbench.dataset.input_columns` | Dataset reader 的输入列。 |
