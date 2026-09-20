@@ -45,3 +45,4 @@ Pillow==11.2.1
 janus
 emoji
 syllapy
+setuptools<=80.10.2
