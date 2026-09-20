@@ -9,10 +9,10 @@ import pyarrow.parquet as pq
 from PIL import Image
 
 from ais_bench_prefix_cache.artifacts import find_latest_execution_manifest, read_jsonl
+from ais_bench_prefix_cache.multimodal_aisbench_config import build_aisbench_config
 from ais_bench_prefix_cache.multimodal import (
     MULTI_720P_5,
     SINGLE_1080P,
-    build_aisbench_config,
     build_exact_token_texts,
     expand_prompt_image_refs,
     prepare_multimodal_datasets,
@@ -132,7 +132,7 @@ class MultimodalBuildTest(unittest.TestCase):
             self.assertEqual([part["type"] for part in content], ["image_url"] * 5 + ["text"])
             self.assertTrue(all(part["image_url"]["url"].startswith("data:image/png;base64,") for part in content[:5]))
 
-    def test_generated_config_is_image_first_streaming_chat(self):
+    def test_generated_config_uses_multimodal_config_factory(self):
         config = build_aisbench_config(
             dataset_path="dataset.jsonl",
             dataset_abbr=SINGLE_1080P,
@@ -152,18 +152,17 @@ class MultimodalBuildTest(unittest.TestCase):
             model_attr="service",
             model_max_out_len=9,
         )
-        self.assertLess(config.index("'image':"), config.index("'text':"))
+        self.assertIn("create_aisbench_config", config)
         self.assertIn("api_key='secret'", config)
         self.assertIn("stream=False", config)
-        self.assertIn("max_out_len=9", config)
+        self.assertIn("model_max_out_len=9", config)
         self.assertIn("retry=7", config)
         self.assertIn("batch_size=8", config)
         self.assertIn("generation_kwargs={'temperature': 0.25}", config)
         self.assertIn("pred_role='ASSISTANT'", config)
-        self.assertIn("abbr='custom-model'", config)
-        self.assertIn("attr='service'", config)
-        self.assertIn("input_columns=['content', 'max_out_len']", config)
-        self.assertIn("Base64RefMMPromptTemplate", config)
+        self.assertIn("model_abbr='custom-model'", config)
+        self.assertIn("model_attr='service'", config)
+        self.assertIn("image_ref='single_1080p'", config)
         self.assertEqual(config.count("data:image/png;base64,YQ=="), 1)
         compile(config, "generated.py", "exec")
 

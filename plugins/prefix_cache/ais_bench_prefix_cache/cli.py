@@ -419,7 +419,7 @@ def main(argv: list[str] | None = None) -> int:
                         else configured_abbr or name
                     )
                     result[name] = report_performance(
-                        configured_work_dir / name,
+                        configured_work_dir,
                         scenario_abbr,
                     )
             else:

@@ -73,15 +73,21 @@ mm 模式不使用 `tokenizer.block_size`，也不使用 `prefix_cache` 段；�
 ais-bench-prefix-cache prepare --mode mm --scenario ./scenario.json
 ```
 
-产物使用与文本模式相同的时间戳布局：
+正式压测结果使用 AISBench 的时间戳布局，场景名不再作为 `work_dir` 子目录：
 
 ```text
-<output_dir>_<YYYYMMDD_HHMMSS>/
+<aisbench.work_dir>/<YYYYMMDD_HHMMSS>/
 ├── log/
 └── result/
-    ├── <run_id>_<timestamp>.manifest.json
-    ├── <run_id>_<timestamp>.single_1080p.requests.jsonl
-    └── <run_id>_<timestamp>.multi_720p_5.requests.jsonl
+    └── ...
+```
+
+如果同时运行多个多模态场景，生成配置统一写入：
+
+```text
+<aisbench.work_dir>/generated_config/
+├── multimodal_prefix_cache_perf_single_1080p.py
+└── multimodal_prefix_cache_perf_multi_720p_5.py
 ```
 
 运行压测：

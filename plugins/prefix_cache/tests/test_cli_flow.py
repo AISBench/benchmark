@@ -487,7 +487,7 @@ class MainFlowTest(unittest.TestCase):
                 redirect_stdout(stdout),
             ):
                 self.assertEqual(main(["report", "--manifest", str(manifest)]), 0)
-            report.assert_called_once_with(root / "perf" / "single_1080p", "custom")
+            report.assert_called_once_with(root / "perf", "custom")
             self.assertIn("single_1080p", json.loads(stdout.getvalue()))
 
 
