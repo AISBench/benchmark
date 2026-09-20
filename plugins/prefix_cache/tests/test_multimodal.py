@@ -132,7 +132,7 @@ class MultimodalBuildTest(unittest.TestCase):
             self.assertEqual([part["type"] for part in content], ["image_url"] * 5 + ["text"])
             self.assertTrue(all(part["image_url"]["url"].startswith("data:image/png;base64,") for part in content[:5]))
 
-    def test_generated_config_uses_multimodal_config_factory(self):
+    def test_generated_config_is_standalone_mmengine_config(self):
         config = build_aisbench_config(
             dataset_path="dataset.jsonl",
             dataset_abbr=SINGLE_1080P,
@@ -152,19 +152,29 @@ class MultimodalBuildTest(unittest.TestCase):
             model_attr="service",
             model_max_out_len=9,
         )
-        self.assertIn("create_aisbench_config", config)
+        self.assertNotIn("create_aisbench_config", config)
+        self.assertIn("datasets = [", config)
+        self.assertIn("models = [", config)
         self.assertIn("api_key='secret'", config)
         self.assertIn("stream=False", config)
-        self.assertIn("model_max_out_len=9", config)
+        self.assertIn("max_out_len=9", config)
         self.assertIn("retry=7", config)
         self.assertIn("batch_size=8", config)
         self.assertIn("generation_kwargs={'temperature': 0.25}", config)
         self.assertIn("pred_role='ASSISTANT'", config)
-        self.assertIn("model_abbr='custom-model'", config)
-        self.assertIn("model_attr='service'", config)
-        self.assertIn("image_ref='single_1080p'", config)
+        self.assertIn("abbr='custom-model'", config)
+        self.assertIn("attr='service'", config)
+        self.assertIn("media={'single_1080p': 'data:image/png;base64,YQ=='}", config)
         self.assertEqual(config.count("data:image/png;base64,YQ=="), 1)
         compile(config, "generated.py", "exec")
+        with tempfile.TemporaryDirectory() as folder:
+            config_path = Path(folder) / "multimodal_prefix_cache_perf.py"
+            config_path.write_text(config, encoding="utf-8")
+            from mmengine.config import Config
+
+            parsed = Config.fromfile(config_path, format_python_code=False)
+        self.assertEqual(parsed.datasets[0]["abbr"], SINGLE_1080P)
+        self.assertEqual(parsed.models[0]["max_out_len"], 9)
 
     def test_scenario_prepare_uses_timestamp_layout_and_default_single_scene(self):
         with tempfile.TemporaryDirectory() as folder:
