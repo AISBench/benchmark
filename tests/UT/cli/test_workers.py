@@ -194,7 +194,11 @@ class TestInfer:
                 displayed.append(self.cfg)
 
         displayed = []
-        task_cfg = MockConfigDict(name='task-config')
+        task_cfg = MockConfigDict({
+            'name': 'task-config',
+            'models': [{'abbr': 'display-model'}],
+            'datasets': [[{'abbr': 'display-dataset'}]],
+        })
         mock_partitioner = MagicMock(return_value=[task_cfg])
         mock_partitioners.build.return_value = mock_partitioner
         mock_runner = MagicMock()
@@ -204,7 +208,11 @@ class TestInfer:
                 'partitioner': {},
                 'runner': {'task': {'type': DisplayTask}},
             },
-            'cli_args': MagicMock(merge_ds=False, mode='infer'),
+            'cli_args': {
+                'merge_ds': False,
+                'mode': 'infer',
+                'spec_decode': False,
+            },
         })
 
         with (
