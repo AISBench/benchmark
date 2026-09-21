@@ -106,18 +106,9 @@ CLIENTS = Registry('client', locations=get_locations('clients'))
 PERF_METRIC_CALCULATORS = Registry('perf_metric_calculator', locations=get_locations('calculators'))
 
 
-# 延迟探测插件位置:在全部 Registry 构造完成、registry.py 执行到末尾之后,
-# 把插件子包的位置字符串追加到各 Registry 的 _locations。
-#
-# 这里刻意不导入插件代码。registry.py 会被 utils/config/build.py 在
-# ``ais_bench.benchmark.utils.config`` 初始化期间导入,此刻 utils.config 尚未
-# 初始化完成;一旦探测过程执行插件代码(插件子包 -> benchmark.datasets ->
-# openicl.icl_inferencer -> icl_base_inferencer 的
-# ``from ais_bench.benchmark.utils.config import build_model_from_cfg``),就会
-# 命中半初始化的 utils.config 抛 ImportError,并被下游的 except ImportError
-# 静默吞掉,最终表现为与真实原因完全无关的报错(例如 "Failed to import
-# GSM8KDataset from ais_bench.benchmark.datasets")。导入交给 mmengine Registry
-# 在首次 get() 未命中时通过 import_from_location() 惰性完成。
+# 所有 Registry 构造完成后，再把插件模块路径追加到对应 Registry。
+# 此处只登记路径，不导入插件代码，避免 registry.py 初始化期间发生循环导入；
+# 插件代码由 MMEngine Registry 在首次查找对应组件时按需导入。
 for _registry, _module_dir in (
     (PARTITIONERS, 'partitioners'),
     (RUNNERS, 'runners'),
