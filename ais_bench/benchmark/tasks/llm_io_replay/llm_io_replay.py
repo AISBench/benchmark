@@ -47,6 +47,8 @@ class ReplaySettings:
     requests: int = 0
     timeout: float = 900
     temperature: float = 0.7
+    max_tokens: int | None = None
+    ignore_eos: bool | None = None
     stream: bool = True
     x_app_id: str = ""
     x_app_key: str = ""
@@ -63,6 +65,8 @@ class ReplaySettings:
             raise ValueError("requests cannot be negative")
         if self.timeout <= 0:
             raise ValueError("timeout must be greater than zero")
+        if self.max_tokens is not None and self.max_tokens <= 0:
+            raise ValueError("max_tokens must be greater than zero")
         if not self.model:
             raise ValueError("model must not be empty")
 
@@ -97,6 +101,19 @@ def _config_bool_or_env(
     if key in config and config.get(key) is not None:
         return bool(config.get(key))
     return _env_bool(env_name, default)
+
+
+def _config_optional_bool_or_env(
+    config,
+    key: str,
+    env_name: str,
+) -> bool | None:
+    if key in config and config.get(key) is not None:
+        return bool(config.get(key))
+    value = os.getenv(env_name)
+    if value is None:
+        return None
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def normalize_endpoint(url: str) -> str:
@@ -135,6 +152,8 @@ def convert_to_teleagi_format(
     *,
     model: str,
     default_temperature: float = 0.7,
+    max_tokens: int | None = None,
+    ignore_eos: bool | None = None,
     timestamp_prefix: str = "",
     stream: bool = True,
 ) -> dict:
@@ -165,9 +184,13 @@ def convert_to_teleagi_format(
         "temperature": log_payload.get("temperature", default_temperature),
         "messages": converted_messages,
     }
-    for key in ("tools", "tool_choice", "max_tokens"):
+    for key in ("tools", "tool_choice", "max_tokens", "ignore_eos"):
         if key in log_payload:
             request_body[key] = copy.deepcopy(log_payload[key])
+    if max_tokens is not None:
+        request_body["max_tokens"] = max_tokens
+    if ignore_eos is not None:
+        request_body["ignore_eos"] = ignore_eos
     if stream:
         request_body["stream"] = True
         request_body["stream_options"] = {"include_usage": True}
@@ -775,6 +798,8 @@ class ReplayClient:
             record["payload"],
             model=self.settings.model,
             default_temperature=self.settings.temperature,
+            max_tokens=self.settings.max_tokens,
+            ignore_eos=self.settings.ignore_eos,
             timestamp_prefix=self.timestamp_prefix,
             stream=self.settings.stream,
         )
@@ -948,6 +973,12 @@ class LLMIOReplayTask(BaseTask):
 
     def _settings(self, dataset_cfg: ConfigDict) -> ReplaySettings:
         data_args = dataset_cfg.get("args", {})
+        max_tokens = _config_or_env(
+            self.model_cfg,
+            "max_tokens",
+            "AISBENCH_REPLAY_MAX_TOKENS",
+            None,
+        )
         return ReplaySettings(
             url=_config_or_env(
                 self.model_cfg, "url", "AISBENCH_REPLAY_URL", ""
@@ -986,6 +1017,14 @@ class LLMIOReplayTask(BaseTask):
                     "AISBENCH_REPLAY_TEMPERATURE",
                     0.7,
                 )
+            ),
+            max_tokens=(
+                int(max_tokens) if max_tokens not in (None, "") else None
+            ),
+            ignore_eos=_config_optional_bool_or_env(
+                self.model_cfg,
+                "ignore_eos",
+                "AISBENCH_REPLAY_IGNORE_EOS",
             ),
             stream=(
                 _config_or_env(

@@ -461,4 +461,12 @@ class ArgumentParser():
                             help='Use streaming or non-streaming responses')
         parser.add_argument('--replay-temperature', type=float, default=None,
                             help='Default request temperature')
+        parser.add_argument('--replay-max-tokens', type=int, default=None,
+                            help='Override max_tokens in every replay request')
+        parser.add_argument(
+            '--replay-ignore-eos',
+            action=argparse.BooleanOptionalAction,
+            default=None,
+            help='Override vLLM ignore_eos in every replay request',
+        )
 

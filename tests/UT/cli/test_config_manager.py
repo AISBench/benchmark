@@ -169,6 +169,8 @@ class TestConfigManager(unittest.TestCase):
         self.args.replay_timeout = None
         self.args.replay_mode = None
         self.args.replay_temperature = None
+        self.args.replay_max_tokens = None
+        self.args.replay_ignore_eos = None
 
         # Local tokenizer directory consumed by response anomaly model-path
         # fallback tests.
@@ -473,6 +475,8 @@ class TestConfigManager(unittest.TestCase):
         self.args.replay_concurrency = 100
         self.args.replay_requests = 2500
         self.args.replay_timeout = 900.0
+        self.args.replay_max_tokens = 4096
+        self.args.replay_ignore_eos = False
         config = {
             'models': [{
                 'type': 'LLMIOReplayService',
@@ -495,6 +499,8 @@ class TestConfigManager(unittest.TestCase):
         self.assertEqual(model['x_app_key'], '22222')
         self.assertEqual(model['concurrent'], 100)
         self.assertEqual(model['timeout'], 900.0)
+        self.assertEqual(model['max_tokens'], 4096)
+        self.assertFalse(model['ignore_eos'])
         self.assertEqual(data_args['input_log_file'], '/data/replay.txt')
         self.assertEqual(data_args['requests'], 2500)
 

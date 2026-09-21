@@ -37,6 +37,12 @@ models = [
         mode="stream",
         stream=True,
         temperature=0.7,
+        # Set an integer to override every source payload, e.g. 4096.
+        # None preserves each replay record's max_tokens value.
+        max_tokens=None,
+        # Set True/False to send vLLM's ignore_eos extension explicitly.
+        # None preserves the source value or omits the field when absent.
+        ignore_eos=None,
         x_app_id="1111",
         x_app_key="22222",
         send_legacy_app_headers=True,

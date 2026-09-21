@@ -40,6 +40,7 @@ def test_request_conversion_matches_glm_replay_semantics():
         "model": "chat-pro",
         "temperature": 0.2,
         "max_tokens": 65536,
+        "ignore_eos": False,
         "tool_stream": True,
         "reasoning_effort": "high",
         "tools": [{"type": "function", "function": {"name": "search"}}],
@@ -66,6 +67,7 @@ def test_request_conversion_matches_glm_replay_semantics():
     assert body["model"] == "glm51"
     assert body["temperature"] == 0.2
     assert body["max_tokens"] == 65536
+    assert body["ignore_eos"] is False
     assert body["stream_options"] == {"include_usage": True}
     assert "tool_stream" not in body
     assert "reasoning_effort" not in body
@@ -73,6 +75,24 @@ def test_request_conversion_matches_glm_replay_semantics():
     assert body["messages"][1]["content"] == []
     assert "reasoning_content" not in body["messages"][1]
     assert body["messages"][2]["content"] == ""
+
+
+def test_request_conversion_config_overrides_generation_controls():
+    payload = {
+        "messages": [{"role": "user", "content": "hello"}],
+        "max_tokens": 65536,
+        "ignore_eos": False,
+    }
+
+    body = convert_to_teleagi_format(
+        payload,
+        model="glm51",
+        max_tokens=2048,
+        ignore_eos=True,
+    )
+
+    assert body["max_tokens"] == 2048
+    assert body["ignore_eos"] is True
 
 
 def test_endpoint_and_headers_match_observable_script_behavior():
@@ -303,6 +323,8 @@ def test_task_prefers_config_to_runtime_environment(monkeypatch):
                 url="http://default.invalid",
                 model="glm51",
                 concurrent=100,
+                max_tokens=2048,
+                ignore_eos=True,
             )
         ],
         datasets=[[ConfigDict(abbr="data", args=ConfigDict(requests=2500))]],
@@ -315,12 +337,16 @@ def test_task_prefers_config_to_runtime_environment(monkeypatch):
     assert settings.url == "http://default.invalid"
     assert settings.concurrency == 100
     assert settings.requests == 2500
+    assert settings.max_tokens == 2048
+    assert settings.ignore_eos is True
 
 
 def test_task_uses_runtime_environment_as_missing_config_fallback(monkeypatch):
     monkeypatch.setenv("AISBENCH_REPLAY_URL", "http://127.0.0.1:9999/v1/chat/completions")
     monkeypatch.setenv("AISBENCH_REPLAY_CONCURRENCY", "17")
     monkeypatch.setenv("AISBENCH_REPLAY_REQUESTS", "23")
+    monkeypatch.setenv("AISBENCH_REPLAY_MAX_TOKENS", "1024")
+    monkeypatch.setenv("AISBENCH_REPLAY_IGNORE_EOS", "true")
     cfg = ConfigDict(
         models=[ConfigDict(abbr="model", model="glm51")],
         datasets=[[ConfigDict(abbr="data", args=ConfigDict())]],
@@ -333,6 +359,8 @@ def test_task_uses_runtime_environment_as_missing_config_fallback(monkeypatch):
     assert settings.url == "http://127.0.0.1:9999/v1/chat/completions"
     assert settings.concurrency == 17
     assert settings.requests == 23
+    assert settings.max_tokens == 1024
+    assert settings.ignore_eos is True
 
 
 def test_replay_client_parses_framed_sse_without_network():
@@ -376,6 +404,8 @@ def test_replay_client_parses_framed_sse_without_network():
         url="http://127.0.0.1:8900/v1/chat/completions",
         model="glm51",
         stream=True,
+        max_tokens=128,
+        ignore_eos=True,
     )
     client = ReplayClient(settings, timestamp_prefix="")
     session = FakeSession()
@@ -393,6 +423,8 @@ def test_replay_client_parses_framed_sse_without_network():
     assert result["content_length"] == 2
     assert result["source_line"] == 9
     assert session.request["url"].endswith("/v1/chat/completions")
+    assert session.request["json"]["max_tokens"] == 128
+    assert session.request["json"]["ignore_eos"] is True
     assert len(session.request["json"]["messages"]) == 1
 
 

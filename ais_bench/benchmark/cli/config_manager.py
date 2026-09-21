@@ -829,6 +829,8 @@ class ConfigManager:
             'replay_timeout': 'timeout',
             'replay_mode': 'mode',
             'replay_temperature': 'temperature',
+            'replay_max_tokens': 'max_tokens',
+            'replay_ignore_eos': 'ignore_eos',
         }
         replay_models = []
         for model_cfg in (config.get('models') or []):

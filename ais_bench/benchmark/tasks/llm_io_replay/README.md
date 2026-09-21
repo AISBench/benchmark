@@ -33,7 +33,9 @@ ais_bench ais_bench/configs/performance_benchmark/llm_io_replay_glm51.py \
   --replay-x-app-key 22222 \
   --replay-concurrency 100 \
   --replay-requests 2500 \
-  --replay-timeout 900
+  --replay-timeout 900 \
+  --replay-max-tokens 4096 \
+  --replay-ignore-eos
 ```
 
 CLI values have precedence over the config file. The old
@@ -41,6 +43,12 @@ CLI values have precedence over the config file. The old
 only when the matching config field is absent or `None`. Because command-line
 arguments may be visible in process listings, keep real credentials in a
 protected config file when that matters.
+
+`max_tokens` and `ignore_eos` can also be set under the replay model in the
+Python config. An explicit config/CLI value overrides every source log payload;
+leaving it as `None` preserves the payload value (or omits the field when the
+payload does not contain it). Use `--no-replay-ignore-eos` to explicitly send
+`false` to vLLM.
 
 The intended runtime is Linux. Replay log paths may be absolute Linux paths or
 paths relative to the AISBench repository.
@@ -69,7 +77,8 @@ the output-token count.
 
 ## Compatibility details
 
-- Preserves `messages`, `tools`, `tool_choice`, and `max_tokens`.
+- Preserves `messages`, `tools`, `tool_choice`, `max_tokens`, and `ignore_eos`
+  unless an explicit replay override is configured.
 - Preserves message `tool_calls`, `tool_call_id`, and `name`.
 - Drops `reasoning_content`, `tool_stream`, and `reasoning_effort` from the
   outgoing request, matching the source script.

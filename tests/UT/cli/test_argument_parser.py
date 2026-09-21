@@ -358,6 +358,8 @@ class TestArgumentParser(unittest.TestCase):
             '--replay-timeout', '900',
             '--replay-mode', 'stream',
             '--replay-temperature', '0.7',
+            '--replay-max-tokens', '4096',
+            '--replay-ignore-eos',
         ]
 
         args = ArgumentParser().parse_args()
@@ -375,6 +377,8 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.replay_timeout, 900.0)
         self.assertEqual(args.replay_mode, 'stream')
         self.assertEqual(args.replay_temperature, 0.7)
+        self.assertEqual(args.replay_max_tokens, 4096)
+        self.assertTrue(args.replay_ignore_eos)
 
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
     def test_parse_args_replay_options_default_none(self, mock_get_current_time_str):
@@ -388,8 +392,19 @@ class TestArgumentParser(unittest.TestCase):
             'replay_x_app_id', 'replay_x_app_key', 'replay_concurrency',
             'replay_requests', 'replay_timeout', 'replay_mode',
             'replay_temperature',
+            'replay_max_tokens', 'replay_ignore_eos',
         ):
             self.assertIsNone(getattr(args, attr))
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_replay_ignore_eos_false(self, mock_get_current_time_str):
+        """--no-replay-ignore-eos 应保留显式 False。"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py', '--no-replay-ignore-eos']
+
+        args = ArgumentParser().parse_args()
+
+        self.assertFalse(args.replay_ignore_eos)
 
     def test_parse_args_api_model_invalid_generation_kwargs_json(self):
         """非法 JSON 的 --generation-kwargs 应导致解析失败"""
