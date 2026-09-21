@@ -1,13 +1,17 @@
-"""Replay a complete llm_io log with the core LLMIOReplayTask.
+"""Replay a complete llm_io log with AISBench performance reporting.
 
-Run with ``ais_bench <this-file> --mode infer``. Values may be edited directly
-below or overridden with the corresponding ``--replay-*`` CLI options.
+Run with ``ais_bench <this-file> --mode perf``. All replay values are configured
+directly below; AISBench's generic CLI behavior remains unchanged.
 """
 
 
 datasets = [
     dict(
         abbr="llm-io-replay",
+        # These markers let the standard perf workflow group this custom
+        # dataset without constructing an OpenICL dataset or inferencer.
+        type="LLMIOReplayDataset",
+        infer_cfg=dict(inferencer=dict(type="LLMIOReplayInferencer")),
         # The args marker tells AISBench this custom task owns data loading.
         args=dict(
             input_log_file=(
@@ -22,6 +26,18 @@ datasets = [
         ),
     )
 ]
+
+
+summarizer = dict(
+    attr="performance",
+    type=(
+        "ais_bench.benchmark.tasks.llm_io_replay."
+        "LLMIOReplayPerfSummarizer"
+    ),
+    # Prevent PerfViz from injecting the tokenizer-dependent default
+    # calculator; replay already records and summarizes token metrics.
+    calculator={},
+)
 
 
 models = [

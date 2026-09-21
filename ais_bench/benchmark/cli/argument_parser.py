@@ -21,7 +21,6 @@ class ArgumentParser():
         self._custom_dataset_parser()
         self._agent_parser()
         self._api_model_parser()
-        self._replay_parser()
 
     def parse_args(self):
         args = self.parser.parse_args()
@@ -436,37 +435,3 @@ class ArgumentParser():
         parser.add_argument('--generation-kwargs', type=json.loads, default=None,
                             help='Generation kwargs override as a JSON object, '
                             'e.g. \'{"temperature": 0.01, "ignore_eos": false}\'')
-
-    def _replay_parser(self):
-        """CLI overrides dedicated to the llm_io replay task."""
-        parser = self.parser.add_argument_group('llm_io_replay_args')
-        parser.add_argument('--replay-log-file', type=str, default=None,
-                            help='Path to the llm_io replay log')
-        parser.add_argument('--replay-url', type=str, default=None,
-                            help='Chat-completions endpoint for llm_io replay')
-        parser.add_argument('--replay-model', type=str, default=None,
-                            help='Model name placed in replay requests')
-        parser.add_argument('--replay-x-app-id', type=str, default=None,
-                            help='X-APP-ID value for replay requests')
-        parser.add_argument('--replay-x-app-key', type=str, default=None,
-                            help='X-APP-KEY compatibility value for replay requests')
-        parser.add_argument('--replay-concurrency', type=int, default=None,
-                            help='Maximum concurrent replay requests')
-        parser.add_argument('--replay-requests', type=int, default=None,
-                            help='Number of replay requests; 0 sends every record once')
-        parser.add_argument('--replay-timeout', type=float, default=None,
-                            help='Per-request timeout in seconds')
-        parser.add_argument('--replay-mode', choices=('stream', 'normal'),
-                            default=None,
-                            help='Use streaming or non-streaming responses')
-        parser.add_argument('--replay-temperature', type=float, default=None,
-                            help='Default request temperature')
-        parser.add_argument('--replay-max-tokens', type=int, default=None,
-                            help='Override max_tokens in every replay request')
-        parser.add_argument(
-            '--replay-ignore-eos',
-            action=argparse.BooleanOptionalAction,
-            default=None,
-            help='Override vLLM ignore_eos in every replay request',
-        )
-

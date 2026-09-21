@@ -12,59 +12,49 @@ message histories are never split into separate turns.
 All values can be set directly in
 `ais_bench/configs/performance_benchmark/llm_io_replay_glm51.py`. For example,
 the supplied config already contains `input_log_file`, `url`, `model`,
-`x_app_id`, `x_app_key`, `concurrent`, `requests`, and `timeout`. After editing
-that file, run from the AISBench repository without any exports:
+`x_app_id`, `x_app_key`, `concurrent`, `requests`, `timeout`, `max_tokens`, and
+`ignore_eos`. After editing that file, run from the AISBench repository without
+any exports:
 
 ```bash
 ais_bench ais_bench/configs/performance_benchmark/llm_io_replay_glm51.py \
-  --mode infer
+  --mode perf
 ```
 
-Alternatively, leave the config reusable and override one or more values on
-the CLI:
-
-```bash
-ais_bench ais_bench/configs/performance_benchmark/llm_io_replay_glm51.py \
-  --mode infer \
-  --replay-log-file /data/s9fkf_input_14-25round_150users_2500_redacted_fix.txt \
-  --replay-url http://172.27.13.87:8900/v1/chat/completions \
-  --replay-model glm51 \
-  --replay-x-app-id 1111 \
-  --replay-x-app-key 22222 \
-  --replay-concurrency 100 \
-  --replay-requests 2500 \
-  --replay-timeout 900 \
-  --replay-max-tokens 4096 \
-  --replay-ignore-eos
-```
-
-CLI values have precedence over the config file. The old
-`AISBENCH_REPLAY_*` environment variables remain as a compatibility fallback
-only when the matching config field is absent or `None`. Because command-line
-arguments may be visible in process listings, keep real credentials in a
-protected config file when that matters.
+Do not append `--datasets` to this command. AISBench treats a complete custom
+configuration file and the `--models`/`--datasets` selectors as two alternative
+entry points; selectors are ignored when a custom configuration file is
+provided. The replay dataset is already declared by the config's `datasets`
+list. The old `AISBENCH_REPLAY_*` environment variables remain only as a
+compatibility fallback when the matching config field is absent or `None`.
 
 `max_tokens` and `ignore_eos` can also be set under the replay model in the
-Python config. An explicit config/CLI value overrides every source log payload;
+Python config. An explicit config value overrides every source log payload;
 leaving it as `None` preserves the payload value (or omits the field when the
-payload does not contain it). Use `--no-replay-ignore-eos` to explicitly send
-`false` to vLLM.
+payload does not contain it). Set `ignore_eos=False` in the config to
+explicitly send `false` to vLLM.
 
 The intended runtime is Linux. Replay log paths may be absolute Linux paths or
 paths relative to the AISBench repository.
 
-Set `requests=2300` in the config or pass `--replay-requests 2300` for the
-79dw4 file. A value of `0` sends every loaded record once. If the requested
-count exceeds the number of loaded records, records are cycled in source order,
-matching `glm51_replay_v3.py`.
+Set `requests=2300` in the config for the 79dw4 file. A value of `0` sends every
+loaded record once. If the requested count exceeds the number of loaded
+records, records are cycled in source order, matching `glm51_replay_v3.py`.
 
-The task writes JSON and Markdown reports under:
+The task writes raw JSON and Markdown reports under:
 
 ```text
 outputs/llm_io_replay/predictions/<model-abbr>/
 ```
 
-At the end of inference, the main CLI process also prints AISBench-style
+In `--mode perf`, the replay summarizer also writes the complete report,
+request details, and Markdown summary under:
+
+```text
+outputs/llm_io_replay/performances/<model-abbr>/
+```
+
+During the `PerfViz` stage, the main CLI process prints AISBench-style
 `fancy_grid` tables for request latency (E2EL), TTFT, derived TPOT, per-request
 TPS, typing speed, prefill throughput, token distributions, request-body size,
 common throughput/concurrency metrics, and error groups. The Markdown report
@@ -89,6 +79,6 @@ the output-token count.
 - The source script computes an HMAC but discards it. The task therefore sends
   `Authorization: <x_app_id>` and accepts `x_app_key` only for compatibility.
 
-Use `--mode infer`, not `--mode perf`: this custom task generates its own
-performance summary and does not use the tokenizer-dependent OpenICL
-performance summarizer.
+The config selects `LLMIOReplayPerfSummarizer`, so `--mode perf` uses the
+standard AISBench `Infer -> PerfViz` workflow without invoking the
+tokenizer-dependent OpenICL performance summarizer.

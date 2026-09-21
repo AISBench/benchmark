@@ -1,6 +1,7 @@
 """Core AISBench llm_io replay task."""
 
 from ais_bench.benchmark.tasks.llm_io_replay.llm_io_replay import (
+    LLMIOReplayPerfSummarizer,
     LLMIOReplayTask,
     ReplayClient,
     ReplaySettings,
@@ -19,6 +20,7 @@ from ais_bench.benchmark.tasks.llm_io_replay.parser import (
 
 __all__ = [
     "LLMIOReplayParseError",
+    "LLMIOReplayPerfSummarizer",
     "LLMIOReplayTask",
     "ReplayClient",
     "ReplaySettings",

@@ -673,14 +673,13 @@ class ConfigManager:
             config.merge_from_dict(dict(cli_args = vars(self.args)))
             if config.get('models'):
                 self._apply_cli_api_model_overrides(config['models'])
-            self._apply_cli_replay_overrides(config)
             return config
 
         models = self._load_models_config()
         datasets = self._load_datasets_config()
         summarizer = self._load_summarizers_config()
 
-        config = Config(
+        return Config(
             dict(
                 models=models,
                 datasets=datasets,
@@ -689,8 +688,6 @@ class ConfigManager:
             ),
             format_python_code=False,
         )
-        self._apply_cli_replay_overrides(config)
-        return config
 
     def _load_datasets_config(self):
         datasets = []
@@ -816,51 +813,6 @@ class ConfigManager:
                 if cli_val is None or field not in model_cfg:
                     continue
                 model_cfg[field] = cli_val
-
-    def _apply_cli_replay_overrides(self, config):
-        """Apply explicit ``--replay-*`` values to llm_io replay configs only."""
-        cli_values = vars(self.args)
-        model_fields = {
-            'replay_url': 'url',
-            'replay_model': 'model',
-            'replay_x_app_id': 'x_app_id',
-            'replay_x_app_key': 'x_app_key',
-            'replay_concurrency': 'concurrent',
-            'replay_timeout': 'timeout',
-            'replay_mode': 'mode',
-            'replay_temperature': 'temperature',
-            'replay_max_tokens': 'max_tokens',
-            'replay_ignore_eos': 'ignore_eos',
-        }
-        replay_models = []
-        for model_cfg in (config.get('models') or []):
-            type_name = getattr(
-                model_cfg.get('type'), '__name__', model_cfg.get('type')
-            )
-            if str(type_name).rsplit('.', 1)[-1] == 'LLMIOReplayService':
-                replay_models.append(model_cfg)
-
-        if not replay_models:
-            return
-
-        for model_cfg in replay_models:
-            for cli_name, config_name in model_fields.items():
-                value = cli_values.get(cli_name)
-                if value is not None:
-                    model_cfg[config_name] = value
-
-        dataset_fields = {
-            'replay_log_file': 'input_log_file',
-            'replay_requests': 'requests',
-        }
-        for dataset_cfg in (config.get('datasets') or []):
-            data_args = dataset_cfg.get('args')
-            if not isinstance(data_args, dict) or 'input_log_file' not in data_args:
-                continue
-            for cli_name, config_name in dataset_fields.items():
-                value = cli_values.get(cli_name)
-                if value is not None:
-                    data_args[config_name] = value
 
     def _load_summarizers_config(self):
         # parse summarizer args

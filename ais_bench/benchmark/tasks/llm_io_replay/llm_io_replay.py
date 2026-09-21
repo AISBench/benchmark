@@ -34,6 +34,7 @@ from ais_bench.benchmark.tasks.llm_io_replay.parser import iter_llm_io_records
 from ais_bench.benchmark.utils.core.abbr import (
     dataset_abbr_from_cfg,
     get_infer_output_path,
+    model_abbr_from_cfg,
     task_abbr_from_cfg,
 )
 from ais_bench.benchmark.utils.logging import AISLogger
@@ -1217,6 +1218,70 @@ class LLMIOReplayTask(BaseTask):
                 duration,
             )
             self.logger.info("LLMIO replay report saved to %s", output_path)
+
+
+class LLMIOReplayPerfSummarizer:
+    """Render replay reports during AISBench's standard ``perf`` workflow."""
+
+    def __init__(self, config: ConfigDict, calculator=None) -> None:
+        self.cfg = config
+        self.logger = AISLogger()
+
+    def summarize(self) -> None:
+        found_report = False
+        for model_cfg in self.cfg["models"]:
+            model_abbr = model_abbr_from_cfg(model_cfg)
+            performance_dir = osp.join(
+                self.cfg["work_dir"], "performances", model_abbr
+            )
+            for dataset_cfg in self.cfg["datasets"]:
+                report_path = get_infer_output_path(
+                    model_cfg,
+                    dataset_cfg,
+                    osp.join(self.cfg["work_dir"], "predictions"),
+                )
+                if not osp.isfile(report_path):
+                    self.logger.warning(
+                        "LLMIO replay report not found for performance summary: %s",
+                        report_path,
+                    )
+                    continue
+
+                found_report = True
+                report = mmengine.load(report_path)
+                print(format_terminal_report(report), flush=True)
+
+                mkdir_or_exist(performance_dir)
+                dataset_abbr = dataset_abbr_from_cfg(dataset_cfg)
+                performance_path = osp.join(
+                    performance_dir, f"{dataset_abbr}.json"
+                )
+                details_path = osp.join(
+                    performance_dir, f"{dataset_abbr}_details.json"
+                )
+                markdown_path = osp.join(
+                    performance_dir, f"{dataset_abbr}.md"
+                )
+                mmengine.dump(
+                    report,
+                    performance_path,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                mmengine.dump(
+                    report.get("details", []),
+                    details_path,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                with open(markdown_path, "w", encoding="utf-8") as stream:
+                    stream.write(build_markdown_report(report))
+                self.logger.info(
+                    "Performance Result files located in %s.", performance_dir
+                )
+
+        if not found_report:
+            self.logger.warning("No LLMIO replay reports were summarized.")
 
 
 def parse_args():

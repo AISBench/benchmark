@@ -1,9 +1,12 @@
 import asyncio
+from pathlib import Path
 
+import mmengine
 import pytest
-from mmengine.config import ConfigDict
+from mmengine.config import Config, ConfigDict
 
 from ais_bench.benchmark.tasks.llm_io_replay import (
+    LLMIOReplayPerfSummarizer,
     LLMIOReplayTask,
     ReplayClient,
     ReplaySettings,
@@ -15,6 +18,7 @@ from ais_bench.benchmark.tasks.llm_io_replay import (
     parse_payload,
     summarize_results,
 )
+from ais_bench.benchmark.utils.core.abbr import get_infer_output_path
 
 
 def test_parse_payload_repairs_only_redacted_numeric_tokens():
@@ -361,6 +365,71 @@ def test_task_uses_runtime_environment_as_missing_config_fallback(monkeypatch):
     assert settings.requests == 23
     assert settings.max_tokens == 1024
     assert settings.ignore_eos is True
+
+
+def test_perf_summarizer_prints_and_persists_replay_report(tmp_path, capsys):
+    model_cfg = ConfigDict(abbr="glm51-replay")
+    dataset_cfg = ConfigDict(abbr="llm-io-replay")
+    report = {
+        "task": "llm_io_replay",
+        "input_log_file": "/data/replay_fix.txt",
+        "dataset": dataset_cfg.abbr,
+        "loaded_records": 0,
+        "settings": {
+            "url": "http://127.0.0.1:8005/v1/chat/completions",
+            "model": "glm51",
+            "concurrency": 100,
+            "timeout": 900,
+            "stream": True,
+        },
+        "summary": summarize_results([], 1.0, max_concurrency=100),
+        "details": [],
+    }
+    prediction_path = get_infer_output_path(
+        model_cfg,
+        dataset_cfg,
+        str(tmp_path / "predictions"),
+    )
+    Path(prediction_path).parent.mkdir(parents=True)
+    mmengine.dump(report, prediction_path, ensure_ascii=False, indent=2)
+    cfg = ConfigDict(
+        models=[model_cfg],
+        datasets=[dataset_cfg],
+        work_dir=str(tmp_path),
+        cli_args=ConfigDict(mode="perf"),
+    )
+
+    LLMIOReplayPerfSummarizer(cfg, calculator={}).summarize()
+
+    output = capsys.readouterr().out
+    performance_dir = tmp_path / "performances" / model_cfg.abbr
+    assert "Performance Parameters" in output
+    assert (performance_dir / f"{dataset_cfg.abbr}.json").is_file()
+    assert (performance_dir / f"{dataset_cfg.abbr}_details.json").is_file()
+    assert (performance_dir / f"{dataset_cfg.abbr}.md").is_file()
+
+
+def test_replay_config_uses_standard_perf_workflow_contract():
+    config_path = (
+        Path(__file__).parents[1]
+        / "ais_bench"
+        / "configs"
+        / "performance_benchmark"
+        / "llm_io_replay_glm51.py"
+    )
+
+    cfg = Config.fromfile(str(config_path), format_python_code=False)
+
+    assert cfg.datasets[0].type == "LLMIOReplayDataset"
+    assert (
+        cfg.datasets[0].infer_cfg.inferencer.type
+        == "LLMIOReplayInferencer"
+    )
+    assert cfg.datasets[0].args.input_log_file.endswith("_fix.txt")
+    assert cfg.datasets[0].args.requests == 2500
+    assert cfg.summarizer.attr == "performance"
+    assert cfg.summarizer.type.endswith("LLMIOReplayPerfSummarizer")
+    assert cfg.summarizer.calculator == {}
 
 
 def test_replay_client_parses_framed_sse_without_network():
