@@ -449,7 +449,7 @@ Zipf 分配：
 
 | 字段 | 必填 | 默认值 | 作用 |
 |---|---:|---|---|
-| `inference_url` | 否 | `"http://127.0.0.1:8000/v1/completions"` | `run` 的 vLLM Completions API；probe、warmup 和正式请求均使用。 |
+| `inference_url` | 否 | `"http://127.0.0.1:8000/v1/completions"` | `run` 的 vLLM 推理接口；probe、warmup 和正式请求均使用，接口路径必须与 `prepare`/`run` 的模式匹配。 |
 | `metrics_url` | 否 | `"http://127.0.0.1:8000/metrics"` | `run` 采集 baseline/after 的 Prometheus 地址。 |
 | `reset_url` | 否 | `"http://127.0.0.1:8000/reset_prefix_cache"` | 正式统计前清空 Prefix Cache；为空或失败时仅在显式启用 `assume_empty_cache` 后继续。 |
 | `model` | 否 | `"model-name"` | completion 请求体中的模型名。不会写入最小 `requests.jsonl`。 |
@@ -459,6 +459,8 @@ Zipf 分配：
 | `timeout_seconds` | 否 | `30` | probe、reset、warmup、metrics HTTP 请求超时秒数。 |
 | `api_key` | 否 | `""` | 推理 API Bearer Token。Manifest 不保存明文，只记录是否配置；Scenario 文件本身仍需限制权限。 |
 | `poll_interval_seconds` | 否 | `5.0` | AISBench 正式压测期间轮询 `metrics_url` 的间隔秒数；设为 `0` 可关闭 KV Cache 周期采样，baseline/after 仍会采集。 |
+
+> `inference_url` 的接口路径取决于执行模式：使用 `--mode mm` 时必须配置为 Chat Completions 接口（例如 `http://127.0.0.1:8000/v1/chat/completions`）；使用 `--mode text` 时必须配置为 Completions 接口（例如 `http://127.0.0.1:8000/v1/completions`）。两种接口不能混用。
 
 > `inspect`、`prepare`、`validate` 不访问服务；`run` 消费全部在线字段。当前支持一个 HTTP 入口及其内部多个 DP，不支持多个独立 vLLM 实例。
 

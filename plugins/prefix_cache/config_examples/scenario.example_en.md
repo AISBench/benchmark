@@ -352,7 +352,7 @@ Theoretical watermarks are always re-simulated in final send order. To model a c
 
 | Field | Default | Purpose |
 |---|---|---|
-| `inference_url` | `http://127.0.0.1:8000/v1/completions` | vLLM Completions endpoint for probes, warmup, and formal requests. |
+| `inference_url` | `http://127.0.0.1:8000/v1/completions` | vLLM inference endpoint for probes, warmup, and formal requests. Its path must match the mode used by `prepare`/`run`. |
 | `metrics_url` | `http://127.0.0.1:8000/metrics` | Prometheus baseline/after endpoint. |
 | `reset_url` | `http://127.0.0.1:8000/reset_prefix_cache` | Clears Prefix Cache before formal statistics. Empty/failed reset requires `assume_empty_cache`. |
 | `model` | `model-name` | Model name in completion requests. |
@@ -362,6 +362,8 @@ Theoretical watermarks are always re-simulated in final send order. To model a c
 | `timeout_seconds` | `30` | HTTP timeout for probes, reset, warmup, and metrics. |
 | `api_key` | `""` | Optional Bearer token. Manifest stores only whether it was configured. |
 | `poll_interval_seconds` | `5.0` | KV gauge polling interval during formal scoring; `0` disables polling while baseline/after remain enabled. |
+
+> The `inference_url` path depends on the execution mode. With `--mode mm`, configure the Chat Completions endpoint (for example, `http://127.0.0.1:8000/v1/chat/completions`). With `--mode text`, configure the Completions endpoint (for example, `http://127.0.0.1:8000/v1/completions`). These endpoints are not interchangeable.
 
 Offline commands do not contact the service. The plugin supports one endpoint with internal multiple DP ranks, not multiple independent vLLM instances.
 
