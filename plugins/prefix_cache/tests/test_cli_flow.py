@@ -305,7 +305,7 @@ class MainFlowTest(unittest.TestCase):
                 console_main()
         self.assertEqual(context.exception.code, 3)
 
-    def test_run_passes_reused_timestamp_and_prints_compact_analysis(self):
+    def test_run_passes_reused_timestamp_and_prints_overall_metrics_table(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             scenario = write_case(root)
@@ -340,25 +340,30 @@ class MainFlowTest(unittest.TestCase):
                 redirect_stderr(stderr),
             ):
                 self.assertEqual(main(["run", "--scenario", str(scenario)]), 0)
-            output = json.loads(stdout.getvalue())
-            self.assertEqual(list(output), [
-                "actual",
-                "effective_target_hit_rate",
-                "requested_target_hit_rate",
-                "target_absolute_difference_pp",
-                "target_difference_pp",
-                "target_signed_difference_pp",
-                "theoretical_hit_rate",
-                "theory",
-                "theory_actual_absolute_difference_pp",
-                "theory_actual_difference_pp",
-                "theory_actual_signed_difference_pp",
-                "validation",
-                "warnings",
-                "analysis",
-            ])
-            self.assertNotIn("status", output)
-            self.assertNotIn("runtime", output)
+            output = stdout.getvalue()
+            self.assertIn("Prefix Cache Metric", output)
+            self.assertIn("Overall Target Hit Rate", output)
+            self.assertIn("Overall Theoretical Hit Rate", output)
+            self.assertIn("Overall Actual Hit Rate", output)
+            self.assertIn("Theory vs Actual Difference", output)
+            self.assertIn("Theory vs Target Difference", output)
+            self.assertEqual(output.count("50.0000%"), 2)
+            self.assertEqual(output.count("60.0000%"), 1)
+            theory_actual_line = next(
+                line for line in output.splitlines() if "Theory vs Actual Difference" in line
+            )
+            theory_target_line = next(
+                line for line in output.splitlines() if "Theory vs Target Difference" in line
+            )
+            self.assertIn("0.0000 pp", theory_actual_line)
+            self.assertIn("10.0000 pp", theory_target_line)
+            self.assertIn(
+                f"[INFO] Detailed analysis is available at: {root / 'analysis.json'}",
+                output,
+            )
+            self.assertNotIn("PASS_WITH_WARNING", output)
+            self.assertNotIn("TARGET_DEVIATION", output)
+            self.assertNotIn('"runtime"', output)
             self.assertEqual(stderr.getvalue(), "")
             self.assertEqual(run.call_args.kwargs["execution_timestamp"], "20260825_123456")
 

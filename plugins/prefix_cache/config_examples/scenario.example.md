@@ -617,7 +617,7 @@ validate 日志写入 Manifest 对应时间戳目录的 `log/<run_id>.validate.l
 
 ### 14.4 `run`
 
-`run --scenario` 复用任务时间戳；若该目录还没有工件则自动 prepare。随后依次执行逐 DP probe、reset、可选的每组每 DP warmup、baseline、AISBench perf、after 和指标差分。`--config <path>` 可仅覆盖本次 AISBench 配置。stdout 仅返回命中率摘要字段：`actual`、请求/生效/理论目标、目标偏差、`theory`、理论/实际偏差、`validation`、`warnings`，以及完整结果文件的 `analysis` 路径；完整 analysis 位于 `result/<run_id>.analysis.json`。Prefix Cache 插件日志只写入 `log/<run_id>.run.log`，不回显到 CLI 终端。AISBench 子进程继承 stdout/stderr，其运行输出继续实时显示在 CLI 中。插件日志包含阶段状态、Group/DP 路由、baseline/after、KV 采样及理论/实际差值，但不输出 Prompt 正文、API key 或 Authorization Header。
+`run --scenario` 复用任务时间戳；若该目录还没有工件则自动 prepare。随后依次执行逐 DP probe、reset、可选的每组每 DP warmup、baseline、AISBench perf、after 和指标差分。`--config <path>` 可仅覆盖本次 AISBench 配置。命令结束时，stdout 以 `Prefix Cache Metric | Value` 两列表格仅展示总体目标、理论、实际命中率，以及理论/实际和理论/目标的绝对偏差；命中率使用百分比，偏差使用百分点（`pp`）。表格后输出 `[INFO] Detailed analysis is available at: <path>`，明确完整 `result/<run_id>.analysis.json` 的路径。Prefix Cache 插件日志只写入 `log/<run_id>.run.log`，不回显到 CLI 终端。AISBench 子进程继承 stdout/stderr，其运行输出继续实时显示在 CLI 中。插件日志包含阶段状态、Group/DP 路由、baseline/after、KV 采样及理论/实际差值，但不输出 Prompt 正文、API key 或 Authorization Header。
 
 ### 14.5 `analyze`
 

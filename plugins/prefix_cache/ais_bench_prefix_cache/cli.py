@@ -31,27 +31,58 @@ LOG_NORMAL_FORMAT = "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s"
 logger = logging.getLogger(f"{PLUGIN_LOG_NAME}.cli")
 
 
-_RUN_STDOUT_FIELDS = (
-    "actual",
-    "effective_target_hit_rate",
-    "requested_target_hit_rate",
-    "target_absolute_difference_pp",
-    "target_difference_pp",
-    "target_signed_difference_pp",
-    "theoretical_hit_rate",
-    "theory",
-    "theory_actual_absolute_difference_pp",
-    "theory_actual_difference_pp",
-    "theory_actual_signed_difference_pp",
-    "validation",
-    "warnings",
-    "analysis",
-)
+def _format_hit_rate(value: object) -> str:
+    """Format a 0..1 hit-rate value for the final CLI summary."""
+    if value is None:
+        return "N/A"
+    return f"{float(value) * 100:.4f}%"
 
 
-def _run_stdout_summary(analysis: dict) -> dict:
-    """Return the compact, stable subset printed by the ``run`` command."""
-    return {field: analysis[field] for field in _RUN_STDOUT_FIELDS if field in analysis}
+def _format_percentage_points(value: object) -> str:
+    """Format an already percentage-point based difference value."""
+    if value is None:
+        return "N/A"
+    return f"{float(value):.4f} pp"
+
+
+def _format_run_summary_table(analysis: dict) -> str:
+    """Render the five overall Prefix Cache metrics as a two-column table."""
+    actual = analysis.get("actual")
+    actual_hit_rate = actual.get("global_hit_rate") if isinstance(actual, dict) else None
+    rows = [
+        ("Overall Target Hit Rate", _format_hit_rate(analysis.get("requested_target_hit_rate"))),
+        ("Overall Theoretical Hit Rate", _format_hit_rate(analysis.get("theoretical_hit_rate"))),
+        ("Overall Actual Hit Rate", _format_hit_rate(actual_hit_rate)),
+        (
+            "Theory vs Actual Difference",
+            _format_percentage_points(analysis.get("theory_actual_absolute_difference_pp")),
+        ),
+        (
+            "Theory vs Target Difference",
+            _format_percentage_points(analysis.get("target_absolute_difference_pp")),
+        ),
+    ]
+    headers = ("Prefix Cache Metric", "Value")
+    first_width = max(len(headers[0]), *(len(name) for name, _ in rows))
+    second_width = max(len(headers[1]), *(len(value) for _, value in rows))
+
+    def border(left: str, middle: str, right: str, fill: str) -> str:
+        return left + fill * (first_width + 2) + middle + fill * (second_width + 2) + right
+
+    def row(first: str, second: str) -> str:
+        return f"│ {first:<{first_width}} │ {second:<{second_width}} │"
+
+    lines = [
+        border("╒", "╤", "╕", "═"),
+        row(*headers),
+        border("╞", "╪", "╡", "═"),
+    ]
+    for index, values in enumerate(rows):
+        lines.append(row(*values))
+        if index != len(rows) - 1:
+            lines.append(border("├", "┼", "┤", "─"))
+    lines.append(border("╘", "╧", "╛", "═"))
+    return "\n".join(lines)
 
 
 class PromptProgress:
@@ -297,7 +328,8 @@ def main(argv: list[str] | None = None) -> int:
                 progress=progress.update,
             )
             logger.info("[cli] run_scenario returned status=%s", result.get("status"))
-            print(json.dumps(_run_stdout_summary(result), ensure_ascii=False, indent=2))
+            print(_format_run_summary_table(result))
+            print(f"[INFO] Detailed analysis is available at: {result.get('analysis', 'N/A')}")
         elif args.command == "analyze":
             logger.info(
                 "[cli] analyze manifest=%s baseline=%s after=%s",

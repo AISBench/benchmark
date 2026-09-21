@@ -157,7 +157,7 @@ flowchart LR
 }
 ```
 
-Prefix Cache 插件的阶段日志只写入 `log/<run_id>.run.log`；AISBench 子进程继承 stdout/stderr，进度和性能输出仍实时显示在终端。命令成功时 stdout 仅输出命中率摘要：`actual`、请求/生效/理论目标、目标偏差、`theory`、理论/实际偏差、`validation`、`warnings`，以及指向完整结果文件的 `analysis` 路径；完整结果仍保存在该 `result/<run_id>.analysis.json`。AISBench 返回非零退出码、服务能力不满足或工件校验失败时，`run` 返回错误。
+Prefix Cache 插件的阶段日志只写入 `log/<run_id>.run.log`；AISBench 子进程继承 stdout/stderr，进度和性能输出仍实时显示在终端。命令成功时，stdout 以 `Prefix Cache Metric | Value` 两列表格仅展示总体目标、理论、实际命中率，以及理论/实际和理论/目标的绝对偏差；命中率使用百分比，偏差使用百分点（`pp`）。表格后的 `[INFO] Detailed analysis is available at: <path>` 会给出完整 `result/<run_id>.analysis.json` 路径。AISBench 返回非零退出码、服务能力不满足或工件校验失败时，`run` 返回错误。
 
 ---
 

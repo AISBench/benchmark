@@ -448,7 +448,7 @@ Checks rows, fields, order, correspondence, and SHA-256 without generating or co
 
 ### 14.4 `run`
 
-Reuses or auto-prepares artifacts, then performs per-DP probes, reset, optional Group × DP warmup, baseline, AISBench perf, after capture, and counter deltas. Plugin logs go to `.run.log`; AISBench child stdout/stderr remains visible in the terminal. Stdout returns only the compact hit-rate summary (`actual`, targets and differences, `theory`, theory/actual differences, `validation`, and `warnings`) plus the `analysis` path; the complete analysis remains in `result/<run_id>.analysis.json`.
+Reuses or auto-prepares artifacts, then performs per-DP probes, reset, optional Group × DP warmup, baseline, AISBench perf, after capture, and counter deltas. Plugin logs go to `.run.log`; AISBench child stdout/stderr remains visible in the terminal. At completion, stdout shows only five overall metrics in a two-column `Prefix Cache Metric | Value` table: target, theoretical, and actual hit rates, plus the absolute theory/actual and theory/target differences. Rates use percentages and differences use percentage points (`pp`). A following `[INFO] Detailed analysis is available at: <path>` line identifies the complete `result/<run_id>.analysis.json` file.
 
 ### 14.5 `analyze`
 
