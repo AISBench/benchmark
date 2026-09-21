@@ -5,6 +5,7 @@ import copy
 import json
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import TextIO
 
@@ -35,14 +36,23 @@ def _format_hit_rate(value: object) -> str:
     """Format a 0..1 hit-rate value for the final CLI summary."""
     if value is None:
         return "N/A"
-    return f"{float(value) * 100:.4f}%"
+    return f"{float(value) * 100:.2f}%"
 
 
-def _format_percentage_points(value: object) -> str:
-    """Format an already percentage-point based difference value."""
+def _format_hit_rate_difference(value: object) -> str:
+    """Format the difference between two percentage hit-rate values."""
     if value is None:
         return "N/A"
-    return f"{float(value):.4f} pp"
+    return f"{float(value):.2f}%"
+
+
+def _format_run_summary_heading(analysis: dict) -> str:
+    """Render an AISBench-style heading immediately before the result table."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    return (
+        f"[{timestamp}] [{PLUGIN_LOG_NAME}] [INFO] "
+        f"Prefix Cache Results of task [{analysis.get('run_id', 'unknown')}]:"
+    )
 
 
 def _format_run_summary_table(analysis: dict) -> str:
@@ -55,11 +65,11 @@ def _format_run_summary_table(analysis: dict) -> str:
         ("Overall Actual Hit Rate", _format_hit_rate(actual_hit_rate)),
         (
             "Theory vs Actual Difference",
-            _format_percentage_points(analysis.get("theory_actual_absolute_difference_pp")),
+            _format_hit_rate_difference(analysis.get("theory_actual_absolute_difference_pp")),
         ),
         (
             "Theory vs Target Difference",
-            _format_percentage_points(analysis.get("target_absolute_difference_pp")),
+            _format_hit_rate_difference(analysis.get("target_absolute_difference_pp")),
         ),
     ]
     headers = ("Prefix Cache Metric", "Value")
@@ -328,6 +338,7 @@ def main(argv: list[str] | None = None) -> int:
                 progress=progress.update,
             )
             logger.info("[cli] run_scenario returned status=%s", result.get("status"))
+            print(_format_run_summary_heading(result))
             print(_format_run_summary_table(result))
             print(f"[INFO] Detailed analysis is available at: {result.get('analysis', 'N/A')}")
         elif args.command == "analyze":

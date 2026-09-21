@@ -314,6 +314,7 @@ class MainFlowTest(unittest.TestCase):
             stderr = io.StringIO()
             analysis = {
                 "schema_version": "1.0",
+                "run_id": "pc-test_20260825_123456",
                 "status": "complete",
                 "runtime": {"phases": ["formal"]},
                 "actual": {"global_hit_rate": 0.5},
@@ -341,22 +342,28 @@ class MainFlowTest(unittest.TestCase):
             ):
                 self.assertEqual(main(["run", "--scenario", str(scenario)]), 0)
             output = stdout.getvalue()
+            self.assertRegex(
+                output.splitlines()[0],
+                r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}\] "
+                r"\[ais_bench_prefix_cache\] \[INFO\] "
+                r"Prefix Cache Results of task \[pc-test_20260825_123456\]:$",
+            )
             self.assertIn("Prefix Cache Metric", output)
             self.assertIn("Overall Target Hit Rate", output)
             self.assertIn("Overall Theoretical Hit Rate", output)
             self.assertIn("Overall Actual Hit Rate", output)
             self.assertIn("Theory vs Actual Difference", output)
             self.assertIn("Theory vs Target Difference", output)
-            self.assertEqual(output.count("50.0000%"), 2)
-            self.assertEqual(output.count("60.0000%"), 1)
+            self.assertEqual(output.count("50.00%"), 2)
+            self.assertEqual(output.count("60.00%"), 1)
             theory_actual_line = next(
                 line for line in output.splitlines() if "Theory vs Actual Difference" in line
             )
             theory_target_line = next(
                 line for line in output.splitlines() if "Theory vs Target Difference" in line
             )
-            self.assertIn("0.0000 pp", theory_actual_line)
-            self.assertIn("10.0000 pp", theory_target_line)
+            self.assertIn("0.00%", theory_actual_line)
+            self.assertIn("10.00%", theory_target_line)
             self.assertIn(
                 f"[INFO] Detailed analysis is available at: {root / 'analysis.json'}",
                 output,
