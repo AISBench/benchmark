@@ -490,7 +490,7 @@ class BaseAPIModel(BaseModel):
                     if not chunk:
                         continue
                     chunk = chunk.decode("utf-8")
-                    if chunk.startswith(":"):
+                    if chunk.startswith(":") or chunk.startswith("id:"):
                         continue
                     chunk = chunk.removeprefix("data:").strip()
                     if chunk == "[DONE]":
