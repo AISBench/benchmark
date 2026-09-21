@@ -44,10 +44,10 @@ models = [
     dict(
         attr="service",
         type="LLMIOReplayService",
-        abbr="glm51-llm-io-replay",
+        abbr="llm-io-replay",
         path="",
-        model="glm51",
-        url="http://172.27.13.87:8900/v1/chat/completions",
+        model="",
+        url="http://127.0.0.1:8000/v1/chat/completions",
         concurrent=100,
         timeout=900,
         mode="stream",
