@@ -43,15 +43,16 @@ Applicable to all modes and can be used in combination with accuracy or performa
 
 ### API Model Common Override Parameters
 
-Applicable to service-oriented inference backends (API models such as vLLM, Triton, MindIE, TGI, etc.), used to directly override common fields in the model configuration via the command line without modifying the model configuration files.
+These arguments apply only to service-oriented inference backends whose model configuration has `attr="service"` (API models such as vLLM, Triton, MindIE, and TGI). They directly override common fields in those model configurations without requiring changes to the configuration files. For local models (`attr="local"`), explicitly specified API model arguments are ignored and a warning is logged.
 
 > ⚠️ **Coverage Notes**:
-> - Only fields **already present** in the model config are overridden; no new keys are added (so model classes that do not support a given field do not receive unexpected keywords, preserving backward compatibility).
-> - An explicitly specified parameter overrides the corresponding field in **all executed model configs** (effective across multiple model tasks in the same command).
+> - For each executed model config with `attr="service"`, an explicitly specified parameter overrides the corresponding field (effective across multiple service-model tasks in the same command).
+> - For local model configs (`attr="local"`), all explicitly specified API model arguments are ignored and a warning identifies the ignored arguments.
+> - Only fields **already present** in a service model config are overridden; no new keys are added (so model classes that do not support a given field do not receive unexpected keywords, preserving backward compatibility).
 > - Parameters not explicitly specified are ignored (default `None`), keeping the original values in the config files.
 > - The model-name field is written to `model` or `model_name` depending on the model `type` constructor signature: VLLM classes use `model`, Triton uses `model_name`; when the type accepts neither (e.g. MindIE, TGI), a warning is printed and the value is skipped.
 
-| Parameter | Description | Example |
+| Parameter | Description (`attr="service"` models only) | Example |
 | ---- | ---- | ---- |
 | `--path` | Overrides the `path` field (Tokenizer/model vocabulary path) | `--path /weight/Qwen` |
 | `--model-name` | Overrides the model name, written to `model` or `model_name` based on the model `type` (VLLM→`model`, Triton→`model_name`; warning+skip for MindIE/TGI) | `--model-name Qwen` |

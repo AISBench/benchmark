@@ -40,7 +40,7 @@
 - **\[2026.9.3]** 支持 **Prefix Cache 场景化压测与指标分析**：提供数据生成、请求调度、缓存预热、指标采集与结果分析全链路能力，支持单 Prefix / 多 Prefix Group、目标命中率反算、cold/warmup 双模式与多 DP 定向路由，新增 `prefix_hit_rate` 等指标查询。详见 [Prefix Cache 场景化压测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/prefix_cache.html)。🚀🚀🚀
 - **\[2026.9.2]** 新增 **MRCR 1M 数据集**：支持评测模型的 1M 长上下文检索问答能力，详见 [mrcr](ais_bench/benchmark/configs/datasets/mrcr/README.md)。
 - **\[2026.8.27]** 新增 **corpusQA 1M 数据集**：支持验证模型长序列推理精度能力，详见 [corpusqa](ais_bench/benchmark/configs/datasets/corpusqa/README.md)。
-- **\[2026.8.27]** 新增 **`api_model_args` CLI 命令组**：支持在命令行显式传入 `path`、`model`、`request_rate`、`host_ip`、`host_port`、`url`、`max_out_len`、`generation_kwargs` 等 API 模型通用参数，并在配置加载阶段覆盖所有模型配置中的对应字段，免去临时修改配置文件。🔥🔥🔥
+- **\[2026.8.27]** 新增 **`api_model_args` CLI 命令组**：支持在命令行显式传入 `path`、`model`、`request_rate`、`host_ip`、`host_port`、`url`、`max_out_len`、`generation_kwargs` 等 API 模型通用参数，并在配置加载阶段覆盖 `attr="service"` 的模型配置中的对应字段，免去临时修改配置文件；对于本地模型（`attr="local"`），这些参数会被忽略并打印 warning。🔥🔥🔥
 - **\[2026.8.19]** 新增**推理响应异常检测**功能：在推理评测的同时自动检测大模型响应中的生成异常，覆盖**重复、乱码、生僻字、NaN** 四类异常；命令行增加 `--response-anomaly` 即可零配置开启，检测结果按数据集落盘为 JSONL 供独立审计，**不影响原有精度与性能指标**。🔥🔥🔥 配置与使用详见 [推理响应异常检测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/response_anomaly_detection.html)。
 - **\[2026.8.10]** 支持**投机推理（Speculative Decoding）性能评测**：在既有性能评测流程中新增投机推理指标采集、计算与展示，详见 [投机推理性能评测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/spec_decode.html)。🔥🔥🔥
 - **\[2026.7.27]** 支持 **Multi LoRA 推理评测**：适配推理服务同时加载多个 LoRA 适配器的多租户生产场景，无需按适配器拆分多次独立评测。
@@ -308,7 +308,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 > ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --host-ip 127.0.0.1 --host-port 8000
 > ```
 >
-> 命令行显式指定的参数会覆盖本次执行的所有模型配置中对应字段；仅覆盖配置中**已存在的字段**，未指定的参数保持配置文件原值。更多可覆盖参数及覆盖范围说明请参考 📚 [用户配置参数 - API 模型通用覆盖参数](./docs/source_zh_cn/base_tutorials/all_params/cli_args.md#api-模型通用覆盖参数)。
+> 命令行显式指定的参数仅会覆盖本次执行中 `attr="service"` 的模型配置里的对应字段；对于本地模型（`attr="local"`），这些参数会被忽略并打印 warning。服务化模型中仅覆盖配置里**已存在的字段**，未指定的参数保持配置文件原值。更多可覆盖参数及覆盖范围说明请参考 📚 [用户配置参数 - API 模型通用覆盖参数](./docs/source_zh_cn/base_tutorials/all_params/cli_args.md#api-模型通用覆盖参数)。
 
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPIChat

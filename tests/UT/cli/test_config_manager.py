@@ -419,6 +419,48 @@ class TestConfigManager(unittest.TestCase):
         self.assertEqual(model['model'], 'default')
         self.assertEqual(model['host_port'], 8080)
 
+    def test_apply_cli_api_model_overrides_ignores_local_model_with_warning(self):
+        """API CLI 参数不应覆盖本地模型，并应提示用户参数不受支持"""
+        self.args.path = '/cli/model'
+        self.args.max_out_len = 256
+        self.args.batch_size = 2
+        self.args.generation_kwargs = {'temperature': 0.5}
+        config_manager = ConfigManager(self.args)
+        config_manager.logger = mock.MagicMock()
+        model = {
+            'attr': 'local',
+            'abbr': 'hf-base-model',
+            'path': '/config/model',
+            'max_out_len': 512,
+            'batch_size': 1,
+            'generation_kwargs': {'temperature': 0.01},
+        }
+
+        config_manager._apply_cli_api_model_overrides([model])
+
+        self.assertEqual(model['path'], '/config/model')
+        self.assertEqual(model['max_out_len'], 512)
+        self.assertEqual(model['batch_size'], 1)
+        self.assertEqual(model['generation_kwargs'], {'temperature': 0.01})
+        config_manager.logger.warning.assert_called_once()
+        warning_args = config_manager.logger.warning.call_args.args
+        self.assertIn('--path', warning_args[1])
+        self.assertIn('--max-out-len', warning_args[1])
+        self.assertIn('--batch-size', warning_args[1])
+        self.assertIn('--generation-kwargs', warning_args[1])
+        self.assertEqual(warning_args[2], 'hf-base-model')
+
+    def test_apply_cli_api_model_overrides_local_model_without_cli_values_no_warning(self):
+        """未传 API CLI 参数时，本地模型不需要打印告警"""
+        config_manager = ConfigManager(self.args)
+        config_manager.logger = mock.MagicMock()
+        model = {'attr': 'local', 'abbr': 'hf-base-model', 'batch_size': 1}
+
+        config_manager._apply_cli_api_model_overrides([model])
+
+        self.assertEqual(model['batch_size'], 1)
+        config_manager.logger.warning.assert_not_called()
+
     def test_apply_cli_api_model_overrides_skips_missing_fields(self):
         """只覆盖配置中已存在的字段，缺失字段不新增"""
         self.args.api_key = 'sk-test'
