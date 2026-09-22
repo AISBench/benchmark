@@ -260,7 +260,7 @@ It still creates a `_YYYYMMDD_HHMMSS` timestamp, writes detailed logs to `output
 ### 3.4 `prepare`: generate formal artifacts
 
 ```bash
-ais-bench-prefix-cache prepare --scenario ./scenario.json
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ```
 
 Deterministically generates and validates:
@@ -307,7 +307,7 @@ Normal workflows do not require manually changing `run_id` or `output_dir`, and 
 Files are not overwritten by default. To rebuild explicitly:
 
 ```bash
-ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json --overwrite
 ```
 
 `--overwrite` replaces only the four files for this run in the current timestamp directory; it does not clear the entire output directory. An inspected-only matching Manifest is upgraded automatically, while a prepared Manifest is not reused as an inspect placeholder.
@@ -328,9 +328,9 @@ Detailed logs are written to `log/<run_id_timestamp>.validate.log`; the terminal
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-The end-to-end flow validates or prepares timestamped artifacts, probes each DP, resets Prefix Cache (or records `ASSUME_EMPTY_CACHE`), performs per-Group × DP warmup in warmup mode, captures the formal baseline, runs AISBench `perf`, captures after metrics, calculates per-DP/global actual hit rates, and writes runtime data, actual/theoretical differences, and warnings to `result/<run_id>.analysis.json`. Warmup completes before baseline and is excluded from formal throughput, latency, and hit-rate statistics.
+The end-to-end flow reads the Manifest produced by an explicit `prepare`, infers text/mm mode, validates timestamped artifacts, probes each DP, resets Prefix Cache (or records `ASSUME_EMPTY_CACHE`), performs per-Group × DP warmup in warmup mode, captures the formal baseline, runs AISBench `perf`, captures after metrics, calculates per-DP/global actual hit rates, and writes runtime data, actual/theoretical differences, and warnings to `result/<run_id>.analysis.json`. Warmup completes before baseline and is excluded from formal throughput, latency, and hit-rate statistics.
 
-Plugin flow logs go only to `output_dir_timestamp/log/<run_id_timestamp>.run.log`; they are not echoed to the CLI. At completion, run stdout first prints an AISBench-style `[time] [ais_bench_prefix_cache] [INFO] Prefix Cache Results of task [run_id]:` heading, followed by a two-column `Prefix Cache Metric | Value` table containing only the overall target, theoretical, and actual hit rates, the absolute theory-versus-actual difference, and the absolute theory-versus-target difference. Hit rates and the direct differences between their percentage values are displayed with a percent sign and two decimal places. A separate `[INFO] Detailed analysis is available at: <path>` line follows the table and identifies the complete `analysis.json`; the file remains in `result/<run_id_timestamp>.analysis.json`. AISBench child stdout/stderr remains inherited and visible in the CLI. Logs include execution context, artifact reuse/auto-prepare, probes, reset, every Group × DP warmup, baseline/after metrics, rendered AISBench config and command, KV polling, per-DP deltas, global hit rate, and warnings. Only prompt length and SHA-256 are logged; prompt text, API keys, Authorization headers, and raw request bodies are not.
+Plugin flow logs go only to `output_dir_timestamp/log/<run_id_timestamp>.run.log`; they are not echoed to the CLI. When text mode completes, stdout prints an AISBench-style `[time] [ais_bench_prefix_cache] [INFO] Prefix Cache Results of task [run_id]:` heading, followed by a two-column `Prefix Cache Metric | Value` table containing the overall target, theoretical, and actual hit rates plus the absolute theory-versus-actual and theory-versus-target differences. A following `[INFO] Detailed analysis is available at: <path>` line identifies the complete analysis file under `result/`. In mm mode, stdout prints the AISBench multimodal task result as JSON and performance metrics are available through `report`. AISBench child stdout/stderr remains inherited and visible in the CLI. Logs include execution context, artifact reuse, probes, reset, every Group × DP warmup, baseline/after metrics, rendered AISBench config and command, KV polling, per-DP deltas, global hit rate, and warnings. Only prompt length and SHA-256 are logged; prompt text, API keys, Authorization headers, and raw request bodies are not.
 
 Dataset, Model, and Inferencer code runs inside the formal AISBench child process and uses the AISBench `AISLogger`/handle with debug-level details. With the default `aisbench.work_dir="./outputs/default"`, AISBench writes child output to `./outputs/default/<AISBench timestamp>/logs/infer/*.out`; changing `work_dir` moves these logs. AISBench's global level is INFO by default, so set DEBUG to persist debug messages.
 
@@ -380,7 +380,7 @@ jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
-ais-bench-prefix-cache prepare --scenario ./scenario.json
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest-path>
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
