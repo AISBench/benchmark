@@ -11,7 +11,14 @@ from unittest.mock import patch
 from ais_bench_prefix_cache.artifacts import artifact_paths
 from ais_bench_prefix_cache.config import _manifest, build_dataset_config, build_model_config
 from ais_bench_prefix_cache.metrics import MetricSnapshot, RankMetrics
-from ais_bench_prefix_cache.runtime import _safe_command, _safe_url, render_aisbench_config, run_aisbench_with_polling, run_scenario
+from ais_bench_prefix_cache.runtime import (
+    _expand_aisbench_extra_args,
+    _safe_command,
+    _safe_url,
+    render_aisbench_config,
+    run_aisbench_with_polling,
+    run_scenario,
+)
 from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
 from tests.test_pipeline import write_case
 
@@ -27,6 +34,17 @@ class RuntimeIntegrationTest(unittest.TestCase):
         self.assertEqual(
             _safe_command(["ais-bench", "--api-key", "secret", "--token=abc", "--mode", "perf"]),
             ["ais-bench", "--api-key", "<redacted>", "--token=<redacted>", "--mode", "perf"],
+        )
+
+    def test_extra_args_mapping_expands_values_lists_and_switches(self):
+        self.assertEqual(
+            _expand_aisbench_extra_args({
+                "--num-warmups": 0,
+                "--models": ["model-a", "model-b"],
+                "--debug": True,
+                "--reuse": False,
+            }),
+            ["--num-warmups", "0", "--models", "model-a", "model-b", "--debug"],
         )
 
     def test_dataset_config_reads_user_settings_only_from_scenario(self):
@@ -231,6 +249,9 @@ class RuntimeIntegrationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             source = write_case(root, mode="cold")
+            raw = json.loads(source.read_text(encoding="utf-8"))
+            raw["aisbench"] = {"extra_args": {"--num-warmups": 0, "--debug": True}}
+            source.write_text(json.dumps(raw), encoding="utf-8")
             timestamp = "20260827_123456"
             stamped = with_execution_timestamp(load_scenario(source), timestamp)
             paths = artifact_paths(stamped.output_dir, stamped.run_id)
@@ -284,9 +305,11 @@ class RuntimeIntegrationTest(unittest.TestCase):
                 def snapshot(self):
                     return next(self.snapshots)
 
+            commands = []
+
             class FakePopen:
                 def __init__(self, command, **kwargs):
-                    pass
+                    commands.append(command)
 
                 def poll(self):
                     return 0
@@ -312,6 +335,7 @@ class RuntimeIntegrationTest(unittest.TestCase):
             self.assertTrue(paths.analysis.is_file())
             self.assertEqual(result["analysis"], str(paths.analysis))
             self.assertNotIn("analysis", json.loads(paths.analysis.read_text(encoding="utf-8")))
+            self.assertEqual(commands[0][-3:], ["--num-warmups", "0", "--debug"])
             log_text = "\n".join(captured.output)
             self.assertIn("phase=baseline complete", log_text)
             self.assertIn("phase=formal process_complete", log_text)

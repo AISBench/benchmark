@@ -60,6 +60,20 @@ def _safe_command(command: list[str]) -> list[str]:
     return result
 
 
+def _expand_aisbench_extra_args(extra_args: dict[str, Any]) -> list[str]:
+    """Expand Scenario key/value options into argv entries for AISBench."""
+    result: list[str] = []
+    for option, value in extra_args.items():
+        if value is False:
+            continue
+        result.append(option)
+        if value is True:
+            continue
+        values = value if isinstance(value, list) else [value]
+        result.extend(str(item) for item in values)
+    return result
+
+
 def _snapshot_summary(snapshot: MetricSnapshot) -> dict[str, Any]:
     """Build a compact snapshot summary without logging raw Prometheus text."""
     return {
@@ -529,14 +543,15 @@ def run_scenario(
             work_dir_path = (scenario.source_path.parent / work_dir_path).resolve()
         env["AISBENCH_PREFIX_CACHE_WORK_DIR"] = str(work_dir_path)
     command = [sys.executable, "-m", "ais_bench.benchmark.cli.main", str(generated), "--mode", "perf"]
-    command.extend(map(str, scenario.section("aisbench").get("extra_args", [])))
+    extra_args = _expand_aisbench_extra_args(scenario.section("aisbench").get("extra_args", {}))
+    command.extend(extra_args)
     poll_interval = float(scenario.section("service")["poll_interval_seconds"])
     logger.info(
         "[runtime] phase=formal prepared source_config=%s generated_config=%s work_dir=%s extra_args=%s poll_interval_seconds=%.3f",
         config_path,
         generated,
         work_dir_path if work_dir else None,
-        _safe_command(list(map(str, scenario.section("aisbench").get("extra_args", [])))),
+        _safe_command(extra_args),
         poll_interval,
     )
     returncode, kv_samples = run_aisbench_with_polling(command, env, client, poll_interval)

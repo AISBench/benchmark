@@ -110,7 +110,7 @@ The Scenario uses a strict allowlist; unknown fields are rejected. The complete 
   - `order` supports `strategy`;
 - `service`: `inference_url`, `metrics_url`, `reset_url`, `model`, `dp_size`, `assume_empty_cache`, `engine_label_map`, `timeout_seconds`, `api_key`, and `poll_interval_seconds`;
 - `validation`: `target_warning_pp` and `actual_warning_pp`;
-- `aisbench`: `config`, `work_dir`, `extra_args`, `dataset`, and `model`. Offline commands ignore this section; `run` renders it and starts AISBench perf.
+- `aisbench`: `config`, `work_dir`, `extra_args`, `dataset`, and `model`. `extra_args` maps CLI option names to values; offline commands ignore this section, while `run` expands the options and starts AISBench perf.
   - `dataset`: `abbr`, `input_columns`, `output_column`, `prompt_template`, and `pred_role`. To keep theoretical and actual prompts token-identical, retain the example values for the first three contract fields; `abbr` and `pred_role` may be changed.
   - `model`: `abbr`, `attr`, `stream`, `max_out_len`, `retry`, `batch_size`, and `generation_kwargs`. Older Scenarios receive the example defaults automatically. `attr` currently must be `"service"` to enable AISBench service performance collection, including TTFT.
 
@@ -336,7 +336,7 @@ Dataset, Model, and Inferencer code runs inside the formal AISBench child proces
 
 Formal requests use vLLM SSE streaming by default because `aisbench.model.stream=true`. Start time, first chunk, and later chunk timestamps feed `DefaultPerfSummarizer` metrics TTFT, TPOT, ITL, E2EL, and throughput; summaries are under `aisbench.work_dir/performances/<model-abbr>/`. With `stream=false`, Prefix Cache hit rate still works but full TTFT/TPOT/ITL cannot be computed. DP probes and plugin warmup use separate non-streaming requests before the formal baseline and are excluded from these metrics.
 
-Plugin Group × DP warmup and AISBench's `--num-warmups` are independent. The former is controlled by `prefix_cache.mode="warmup"` and runs before baseline; the latter belongs to the AISBench perf child. To ensure only formal requests follow baseline, use `"extra_args": ["--num-warmups", "0"]`.
+Plugin Group × DP warmup and AISBench's `--num-warmups` are independent. The former is controlled by `prefix_cache.mode="warmup"` and runs before baseline; the latter belongs to the AISBench perf child. To ensure only formal requests follow baseline, use `"extra_args": {"--num-warmups": 0}`. `extra_args` is an object mapping CLI option names to values; `run` expands this entry to `--num-warmups 0` before launching AISBench.
 
 Temporarily override the AISBench config:
 
@@ -356,6 +356,25 @@ ais-bench-prefix-cache analyze \
 ```
 
 This command does not connect to vLLM or run AISBench. It parses two Prometheus text snapshots, recomputes formal counter deltas, and writes analysis next to the Manifest. The current CLI writes `analyze` and `validate` plugin logs to the same `log/<run_id>.validate.log`; a later invocation recreates that log.
+
+`baseline.prom` and `after.prom` are not dataset artifacts produced by `prepare`. They are complete Prometheus text snapshots from the same vLLM `/metrics` endpoint immediately before and after the formal measurement window. For manual collection, reset the cache first; in warmup mode also finish plugin warmup, then capture baseline before the first formal request and after immediately after the last one:
+
+```bash
+METRICS_URL="http://127.0.0.1:8000/metrics"
+curl -fsS "$METRICS_URL" -o baseline.prom
+# Run the formal workload here; do not restart vLLM or reset metrics.
+curl -fsS "$METRICS_URL" -o after.prom
+```
+
+Both files must come from the same service process and include every DP rank. Multi-DP metrics must retain their `engine` labels, and cumulative queries/hits in after must not be lower than baseline. A normal `run` already captures both points and stores the raw text in `<run_id>.analysis.json` at `runtime.metrics_baseline.raw_prometheus` and `runtime.metrics_after.raw_prometheus`; it does not create separate `.prom` files. Export them for later re-analysis with:
+
+```bash
+ANALYSIS="./outputs/<timestamped_run_id>/result/<timestamped_run_id>.analysis.json"
+jq -r '.runtime.metrics_baseline.raw_prometheus' "$ANALYSIS" > baseline.prom
+jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
+```
+
+`analyze` validates the Manifest artifacts, computes per-DP query/hit deltas as `after - baseline`, aggregates the measured hit rate, and compares it with theory. It is useful for historical verification, reprocessing after parser changes, externally driven workloads, and CI checks. A successful `run` has already performed the same online delta analysis, so rerunning `analyze` is normally unnecessary.
 
 ## 4. Recommended workflow
 
