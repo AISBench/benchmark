@@ -421,6 +421,7 @@ def test_replay_config_uses_standard_perf_workflow_contract():
     cfg = Config.fromfile(str(config_path), format_python_code=False)
 
     assert cfg.datasets[0].type == "LLMIOReplayDataset"
+    assert cfg.datasets[0].infer_cfg.retriever == {}
     assert (
         cfg.datasets[0].infer_cfg.inferencer.type
         == "LLMIOReplayInferencer"

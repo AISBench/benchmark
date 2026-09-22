@@ -11,7 +11,13 @@ datasets = [
         # These markers let the standard perf workflow group this custom
         # dataset without constructing an OpenICL dataset or inferencer.
         type="LLMIOReplayDataset",
-        infer_cfg=dict(inferencer=dict(type="LLMIOReplayInferencer")),
+        infer_cfg=dict(
+            # ConfigManager always normalizes an existing infer_cfg through
+            # its retriever entry. The custom replay task does not build it,
+            # so an empty marker is sufficient.
+            retriever={},
+            inferencer=dict(type="LLMIOReplayInferencer"),
+        ),
         # The args marker tells AISBench this custom task owns data loading.
         args=dict(
             input_log_file=(
