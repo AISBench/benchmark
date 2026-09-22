@@ -333,6 +333,8 @@ class RuntimeIntegrationTest(unittest.TestCase):
             self.assertEqual(result["runtime"]["kv_cache_polling"]["count"], 0)
             self.assertIn("global_kv_cache_usage_peak", result["actual"])
             self.assertTrue(paths.analysis.is_file())
+            self.assertEqual(result["analysis"], str(paths.analysis))
+            self.assertNotIn("analysis", json.loads(paths.analysis.read_text(encoding="utf-8")))
             self.assertEqual(commands[0][-3:], ["--num-warmups", "0", "--debug"])
             log_text = "\n".join(captured.output)
             self.assertIn("phase=baseline complete", log_text)

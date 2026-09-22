@@ -157,7 +157,7 @@ Plugin warmup and AISBench's own `--num-warmups` are independent mechanisms. To 
 }
 ```
 
-Prefix Cache phase logs are written only to `log/<run_id>.run.log`. The AISBench child process inherits stdout/stderr, so its progress and performance output remain visible in the terminal. On success, the final stdout object is the complete analysis JSON. A non-zero AISBench exit code, missing service capability, or artifact validation failure makes `run` fail.
+Prefix Cache phase logs are written only to `log/<run_id>.run.log`. The AISBench child process inherits stdout/stderr, so its progress and performance output remain visible in the terminal. On success, stdout first prints a timestamped Prefix Cache result heading containing the `run_id`, followed by only five overall metrics in a two-column `Prefix Cache Metric | Value` table: target, theoretical, and actual hit rates, plus the absolute theory/actual and theory/target differences. Hit rates and the direct differences between their percentage values use a percent sign and two decimal places. The following `[INFO] Detailed analysis is available at: <path>` line gives the complete `result/<run_id>.analysis.json` path. A non-zero AISBench exit code, missing service capability, or artifact validation failure makes `run` fail.
 
 ---
 

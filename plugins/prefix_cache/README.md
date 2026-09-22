@@ -357,7 +357,7 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 完整流程为：校验或自动生成本时间戳的产物；逐 DP 探活；reset Prefix Cache（或按配置记录 `ASSUME_EMPTY_CACHE`）；warmup 模式按每个 `Prefix Group × DP rank` 定向预热；预热完成后采集正式 baseline；运行 AISBench `perf`；采集 after 并计算每 DP、全局实际命中率；最后把 `runtime`、`actual`、理论/实际差值和告警写回 `result/<run_id>.analysis.json`。warmup 在 baseline 之前完成，因此不进入正式吞吐、时延或命中率统计。
 
-`run` 的 Prefix Cache 插件流程日志只写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log`，不会作为插件日志回显到 CLI 终端；stdout 仍输出最终 analysis JSON。AISBench 子进程继续继承 stdout/stderr，其运行过程会实时展示在 CLI 中，不会被插件重定向到 `run.log`。插件日志覆盖执行上下文、产物复用/自动 prepare、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
+`run` 的 Prefix Cache 插件流程日志只写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log`，不会作为插件日志回显到 CLI 终端；命令结束时，stdout 先打印 AISBench 风格的 `[时间] [ais_bench_prefix_cache] [INFO] Prefix Cache Results of task [run_id]:` 标题，再以 `Prefix Cache Metric | Value` 两列表格仅展示总体目标命中率、总体理论命中率、总体实际命中率、理论与实际命中率的绝对偏差、理论与目标命中率的绝对偏差。命中率及两个命中率百分数直接相减得到的偏差均以百分比显示，并保留两位小数。表格后单独输出一行 `[INFO] Detailed analysis is available at: <path>`，指出完整 `analysis.json` 的路径；完整 analysis 仍落盘在 `result/<run_id_时间戳>.analysis.json`。AISBench 子进程继续继承 stdout/stderr，其运行过程会实时展示在 CLI 中，不会被插件重定向到 `run.log`。插件日志覆盖执行上下文、产物复用/自动 prepare、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
 
 Dataset、Model 和 Inferencer 运行在 AISBench 正式任务子进程中，统一使用 AISBench 的 `AISLogger` 和 `ais_bench` handle，详细过程使用 debug 级别。默认 `aisbench.work_dir="./outputs/default"` 时，AISBench 会把该任务 stdout/stderr 写入 `./outputs/default/<AISBench时间戳>/logs/infer/*.out`；若显式修改 `aisbench.work_dir`，日志会随之移动。当前 AISBench 全局日志级别默认为 INFO，只有将其设为 DEBUG 时这些详细日志才会实际写入 `.out`。
 
@@ -537,7 +537,7 @@ CLI 最后一段 JSON 的固定字段为：
 - `prepare`：`full`、`requests`、`manifest`、`analysis`、`log`；
 - `inspect`：上述 inspect 摘要、`log` 和 `manifest`；
 - `validate`：`ok`、`rows`、`run_id`；
-- `run`：更新后的完整 analysis JSON；
+- `run`：两列表格仅展示 5 个总体指标，并在下一行打印完整 `analysis.json` 路径；
 - `analyze`：离线复算后的完整 analysis JSON。validate/run/analyze 均写日志，返回 JSON 当前不单独添加 `log` 字段。
 
 ## 7. 退出码

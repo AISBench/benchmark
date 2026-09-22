@@ -5,6 +5,7 @@ import copy
 import json
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import TextIO
 
@@ -29,6 +30,69 @@ LOG_NORMAL_FORMAT = "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s"
 # 显式挂在 PLUGIN_LOG_NAME 之下（不用 __name__）：python -m 运行时 __name__ 会变成
 # "__main__"，导致日志绕过插件 logger 直接传播到 root。
 logger = logging.getLogger(f"{PLUGIN_LOG_NAME}.cli")
+
+
+def _format_hit_rate(value: object) -> str:
+    """Format a 0..1 hit-rate value for the final CLI summary."""
+    if value is None:
+        return "N/A"
+    return f"{float(value) * 100:.2f}%"
+
+
+def _format_hit_rate_difference(value: object) -> str:
+    """Format the difference between two percentage hit-rate values."""
+    if value is None:
+        return "N/A"
+    return f"{float(value):.2f}%"
+
+
+def _format_run_summary_heading(analysis: dict) -> str:
+    """Render an AISBench-style heading immediately before the result table."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    return (
+        f"[{timestamp}] [{PLUGIN_LOG_NAME}] [INFO] "
+        f"Prefix Cache Results of task [{analysis.get('run_id', 'unknown')}]:"
+    )
+
+
+def _format_run_summary_table(analysis: dict) -> str:
+    """Render the five overall Prefix Cache metrics as a two-column table."""
+    actual = analysis.get("actual")
+    actual_hit_rate = actual.get("global_hit_rate") if isinstance(actual, dict) else None
+    rows = [
+        ("Overall Target Hit Rate", _format_hit_rate(analysis.get("requested_target_hit_rate"))),
+        ("Overall Theoretical Hit Rate", _format_hit_rate(analysis.get("theoretical_hit_rate"))),
+        ("Overall Actual Hit Rate", _format_hit_rate(actual_hit_rate)),
+        (
+            "Theory vs Actual Difference",
+            _format_hit_rate_difference(analysis.get("theory_actual_absolute_difference_pp")),
+        ),
+        (
+            "Theory vs Target Difference",
+            _format_hit_rate_difference(analysis.get("target_absolute_difference_pp")),
+        ),
+    ]
+    headers = ("Prefix Cache Metric", "Value")
+    first_width = max(len(headers[0]), *(len(name) for name, _ in rows))
+    second_width = max(len(headers[1]), *(len(value) for _, value in rows))
+
+    def border(left: str, middle: str, right: str, fill: str) -> str:
+        return left + fill * (first_width + 2) + middle + fill * (second_width + 2) + right
+
+    def row(first: str, second: str) -> str:
+        return f"│ {first:<{first_width}} │ {second:<{second_width}} │"
+
+    lines = [
+        border("╒", "╤", "╕", "═"),
+        row(*headers),
+        border("╞", "╪", "╡", "═"),
+    ]
+    for index, values in enumerate(rows):
+        lines.append(row(*values))
+        if index != len(rows) - 1:
+            lines.append(border("├", "┼", "┤", "─"))
+    lines.append(border("╘", "╧", "╛", "═"))
+    return "\n".join(lines)
 
 
 class PromptProgress:
@@ -274,7 +338,9 @@ def main(argv: list[str] | None = None) -> int:
                 progress=progress.update,
             )
             logger.info("[cli] run_scenario returned status=%s", result.get("status"))
-            print(json.dumps(result, ensure_ascii=False, indent=2))
+            print(_format_run_summary_heading(result))
+            print(_format_run_summary_table(result))
+            print(f"[INFO] Detailed analysis is available at: {result.get('analysis', 'N/A')}")
         elif args.command == "analyze":
             logger.info(
                 "[cli] analyze manifest=%s baseline=%s after=%s",
