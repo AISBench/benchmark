@@ -679,7 +679,15 @@ class ConfigManager:
         datasets = self._load_datasets_config()
         summarizer = self._load_summarizers_config()
 
-        return Config(dict(models=models, datasets=datasets, summarizer=summarizer, cli_args=vars(self.args)), format_python_code=False)
+        return Config(
+            dict(
+                models=models,
+                datasets=datasets,
+                summarizer=summarizer,
+                cli_args=vars(self.args),
+            ),
+            format_python_code=False,
+        )
 
     def _load_datasets_config(self):
         datasets = []
