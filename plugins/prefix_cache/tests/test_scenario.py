@@ -45,6 +45,48 @@ class ValidationHelpersTest(unittest.TestCase):
         self.assertEqual(_mode({"mode": "csv"}, {"fixed", "csv"}, "p"), "csv")
 
 
+class AISBenchExtraArgsTest(unittest.TestCase):
+    def test_key_value_mapping_is_preserved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "scenario.json"
+            data = scenario_dict(Path(folder))
+            data["aisbench"] = {
+                "extra_args": {
+                    "--num-warmups": 0,
+                    "--models": ["model-a", "model-b"],
+                    "--debug": True,
+                    "--reuse": False,
+                }
+            }
+            source.write_text(json.dumps(data), encoding="utf-8")
+            self.assertEqual(load_scenario(source).section("aisbench")["extra_args"], data["aisbench"]["extra_args"])
+
+    def test_flat_string_list_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "scenario.json"
+            data = scenario_dict(Path(folder))
+            data["aisbench"] = {"extra_args": ["--num-warmups", "0"]}
+            source.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ScenarioValidationError, "aisbench.extra_args must be an object"):
+                load_scenario(source)
+
+    def test_invalid_option_name_and_value_are_rejected(self):
+        invalid_values = [
+            ({"num-warmups": 0}, "keys must be non-empty CLI option names"),
+            ({"--num-warmups": None}, "must be a string, number, boolean"),
+            ({"--models": []}, "must be a string, number, boolean"),
+            ({"--models": ["model-a", True]}, "must be a string, number, boolean"),
+        ]
+        for extra_args, message in invalid_values:
+            with self.subTest(extra_args=extra_args), tempfile.TemporaryDirectory() as folder:
+                source = Path(folder) / "scenario.json"
+                data = scenario_dict(Path(folder))
+                data["aisbench"] = {"extra_args": extra_args}
+                source.write_text(json.dumps(data), encoding="utf-8")
+                with self.assertRaisesRegex(ScenarioValidationError, message):
+                    load_scenario(source)
+
+
 class InputConfigTest(unittest.TestCase):
     def test_explicit_mode_valid(self):
         config = {"mode": "explicit", "values": [32, 32, 32, 32]}

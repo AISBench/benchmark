@@ -73,6 +73,36 @@ def _positive(value: Any, path: str) -> int:
     return value
 
 
+def _validate_extra_args(value: Any) -> dict[str, Any]:
+    """Validate the Scenario mapping used to append AISBench CLI options.
+
+    Scalar values become one option value, lists become ``nargs`` values, and
+    booleans represent switch-style options (``true`` emits the option while
+    ``false`` omits it).  Keeping the option name as the JSON key makes the
+    parameter/value relationship explicit and avoids ambiguous flat lists.
+    """
+    extra_args = _require_dict(value, "aisbench.extra_args")
+    for option, option_value in extra_args.items():
+        if not option or not option.startswith("-"):
+            raise ScenarioValidationError(
+                "aisbench.extra_args keys must be non-empty CLI option names starting with '-'"
+            )
+        if isinstance(option_value, bool):
+            continue
+        if isinstance(option_value, (str, int, float)):
+            continue
+        if isinstance(option_value, list) and option_value and all(
+            not isinstance(item, bool) and isinstance(item, (str, int, float))
+            for item in option_value
+        ):
+            continue
+        raise ScenarioValidationError(
+            f"aisbench.extra_args[{option!r}] must be a string, number, boolean, "
+            "or a non-empty list of strings/numbers"
+        )
+    return extra_args
+
+
 def _mode(section: dict[str, Any], allowed: set[str], path: str) -> str:
     """校验 section 的 mode 取值必须在 allowed 集合内，返回 mode。"""
     value = section.get("mode")
@@ -442,7 +472,7 @@ def _validate(raw: dict[str, Any], source: Path, *, mode: str = "text") -> dict[
     aisbench = _require_dict(data["aisbench"], "aisbench")
     aisbench.setdefault("config", "./plugins/prefix_cache/config_examples/prefix_cache_perf.py")
     aisbench.setdefault("work_dir", "./outputs/default")
-    aisbench.setdefault("extra_args", [])
+    aisbench.setdefault("extra_args", {})
     dataset_cfg = _require_dict(aisbench.setdefault("dataset", {}), "aisbench.dataset")
     dataset_cfg.setdefault("abbr", None)
     dataset_cfg.setdefault("input_columns", ["question", "max_out_len"])
@@ -460,10 +490,7 @@ def _validate(raw: dict[str, Any], source: Path, *, mode: str = "text") -> dict[
     for field in ("config", "work_dir"):
         if not isinstance(aisbench[field], str) or not aisbench[field]:
             raise ScenarioValidationError(f"aisbench.{field} must be a non-empty string")
-    if not isinstance(aisbench["extra_args"], list) or any(
-        not isinstance(value, str) for value in aisbench["extra_args"]
-    ):
-        raise ScenarioValidationError("aisbench.extra_args must be a list of strings")
+    _validate_extra_args(aisbench["extra_args"])
     if dataset_cfg["abbr"] is not None and (
         not isinstance(dataset_cfg["abbr"], str) or not dataset_cfg["abbr"]
     ):

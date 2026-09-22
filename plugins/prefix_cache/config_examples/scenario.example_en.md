@@ -382,7 +382,7 @@ Units are percentage points, not relative percent. Both are warning-only and do 
 |---|---|---|
 | `config` | `./plugins/prefix_cache/config_examples/prefix_cache_perf.py` | AISBench Python template rendered by `run`; `--config` can override it for one invocation. |
 | `work_dir` | `./outputs/default` | AISBench base directory; child logs are written below its timestamped `logs/infer/`. |
-| `extra_args` | `[]` | String arguments appended to the AISBench perf command. Example `['--num-warmups','0']` disables AISBench's own warmup, not plugin warmup. |
+| `extra_args` | `{}` | Key/value object appended to the AISBench perf command. `{"--num-warmups":0}` expands to `--num-warmups 0` and disables AISBench warmup, not plugin warmup. Scalars emit one value, arrays emit multiple values, `true` emits a switch without a value, and `false` omits it. |
 | `dataset` | See below | Dataset reader, prompt, and evaluation role. |
 | `model` | See below | API streaming, retry, concurrency, and generation settings. |
 
@@ -408,7 +408,7 @@ Units are percentage points, not relative percent. Both are warning-only and do 
 | `batch_size` | `1` | Positive concurrency base; a cold lane remains serialized by the plugin. |
 | `generation_kwargs` | `{'temperature':0,'ignore_eos':true}` | JSON generation parameters merged into vLLM requests. |
 
-The complete `aisbench` section may be omitted and old Scenarios receive current defaults. `config`/`work_dir` must be non-empty strings and `extra_args` a string list. Plugin types, artifact paths, routing, and inferencer contracts are not replaceable through Scenario.
+The complete `aisbench` section may be omitted and omitted fields receive current defaults. `config` and `work_dir` must be non-empty strings. `extra_args` must be a JSON object whose keys are CLI option names beginning with `-`; the default is `{}`. The old flat string-list form is rejected, so migrate `["--num-warmups","0"]` to `{"--num-warmups":0}`. Plugin types, artifact paths, routing, and inferencer contracts are not replaceable through Scenario.
 
 ## 12. `multimodal`
 
@@ -462,7 +462,7 @@ Checks rows, fields, order, correspondence, and SHA-256 without generating or co
 
 ### 15.4 `run`
 
-Finds the latest prepared Manifest for the Scenario, reuses its execution timestamp, and infers text/mm mode from the Manifest. If none exists, run `prepare --mode text|mm` first. It then runs the matching AISBench flow; text mode additionally performs per-DP probes, reset, optional Group × DP warmup, baseline, after capture, and counter deltas. `--config <path>` is supported only in text mode. Plugin logs go to `.run.log`; AISBench child stdout/stderr remains visible in the terminal. Stdout returns the complete result.
+Finds the latest prepared Manifest for the Scenario, reuses its execution timestamp, and infers text/mm mode from the Manifest. If none exists, run `prepare --mode text|mm` first. It then runs the matching AISBench flow; text mode additionally performs per-DP probes, reset, optional Group × DP warmup, baseline, AISBench perf, after capture, and counter deltas. `--config <path>` is supported only in text mode. At completion, text mode prints a timestamped result heading, a five-metric summary table, and the complete analysis path; mm mode prints the AISBench multimodal task result as JSON and exposes performance metrics through `report`. Plugin logs go to `.run.log`, while AISBench child stdout/stderr remains visible in the terminal.
 
 ### 15.5 `analyze`
 
