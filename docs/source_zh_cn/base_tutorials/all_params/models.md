@@ -28,8 +28,6 @@ AISBench Benchmark 支持多种服务化推理后端，包括 vLLM、SGLang、Tr
 ### 服务化推理后端配置参数说明
 服务化推理后端配置文件采用Python语法格式配置，示例如下：
 
-通用模型配置模板不预置 `response_anomaly`。仅在需要响应异常检测时，在实际模型配置文件的 `models` 列表中找到目标模型，将下例中的 `response_anomaly` 添加到该模型的 `dict` 内；它与 `generation_kwargs`、`pred_postprocessor` 等模型字段同级。不开启异常检测时无需添加。
-
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPI
 

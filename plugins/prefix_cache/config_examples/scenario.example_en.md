@@ -379,7 +379,7 @@ Units are percentage points, not relative percent. Both are warning-only and do 
 |---|---|---|
 | `config` | `./plugins/prefix_cache/config_examples/prefix_cache_perf.py` | AISBench Python template rendered by `run`; `--config` can override it for one invocation. |
 | `work_dir` | `./outputs/default` | AISBench base directory; child logs are written below its timestamped `logs/infer/`. |
-| `extra_args` | `[]` | String arguments appended to the AISBench perf command. Example `['--num-warmups','0']` disables AISBench's own warmup, not plugin warmup. |
+| `extra_args` | `{}` | Key/value object appended to the AISBench perf command. `{"--num-warmups":0}` expands to `--num-warmups 0` and disables AISBench warmup, not plugin warmup. Scalars emit one value, arrays emit multiple values, `true` emits a switch without a value, and `false` omits it. |
 | `dataset` | See below | Dataset reader, prompt, and evaluation role. |
 | `model` | See below | API streaming, retry, concurrency, and generation settings. |
 
@@ -405,7 +405,7 @@ Units are percentage points, not relative percent. Both are warning-only and do 
 | `batch_size` | `1` | Positive concurrency base; a cold lane remains serialized by the plugin. |
 | `generation_kwargs` | `{'temperature':0,'ignore_eos':true}` | JSON generation parameters merged into vLLM requests. |
 
-The complete `aisbench` section may be omitted and old Scenarios receive current defaults. `config`/`work_dir` must be non-empty strings and `extra_args` a string list. Plugin types, artifact paths, routing, and inferencer contracts are not replaceable through Scenario.
+The complete `aisbench` section may be omitted and omitted fields receive current defaults. `config` and `work_dir` must be non-empty strings. `extra_args` must be a JSON object whose keys are CLI option names beginning with `-`; the default is `{}`. The old flat string-list form is rejected, so migrate `["--num-warmups","0"]` to `{"--num-warmups":0}`. Plugin types, artifact paths, routing, and inferencer contracts are not replaceable through Scenario.
 
 ## 12. Meaning of the example
 
@@ -448,7 +448,7 @@ Checks rows, fields, order, correspondence, and SHA-256 without generating or co
 
 ### 14.4 `run`
 
-Reuses or auto-prepares artifacts, then performs per-DP probes, reset, optional Group × DP warmup, baseline, AISBench perf, after capture, and counter deltas. Plugin logs go to `.run.log`; AISBench child stdout/stderr remains visible in the terminal. Stdout returns complete analysis.
+Reuses or auto-prepares artifacts, then performs per-DP probes, reset, optional Group × DP warmup, baseline, AISBench perf, after capture, and counter deltas. Plugin logs go to `.run.log`; AISBench child stdout/stderr remains visible in the terminal. At completion, stdout first prints a timestamped Prefix Cache result heading containing the `run_id`, followed by only five overall metrics in a two-column `Prefix Cache Metric | Value` table: target, theoretical, and actual hit rates, plus the absolute theory/actual and theory/target differences. Hit rates and the direct differences between their percentage values use a percent sign and two decimal places. A following `[INFO] Detailed analysis is available at: <path>` line identifies the complete `result/<run_id>.analysis.json` file.
 
 ### 14.5 `analyze`
 

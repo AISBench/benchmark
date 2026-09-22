@@ -116,7 +116,7 @@ Scenario 采用严格白名单，完整配置层级如下；未列出的字段�
   - `order` 支持 `strategy`；
 - `service`：`inference_url`、`metrics_url`、`reset_url`、`model`、`dp_size`、`assume_empty_cache`、`engine_label_map`、`timeout_seconds`、`api_key`、`poll_interval_seconds`；
 - `validation`：`target_warning_pp`、`actual_warning_pp`；
-- `aisbench`：`config`、`work_dir`、`extra_args`、`dataset`、`model`；离线命令不消费，`run` 用于渲染配置并启动 AISBench perf。
+- `aisbench`：`config`、`work_dir`、`extra_args`、`dataset`、`model`；`extra_args` 是 CLI 参数名到值的对象，离线命令不消费，`run` 会展开参数并启动 AISBench perf。
   - `dataset`：`abbr`、`input_columns`、`output_column`、`prompt_template`、`pred_role`；为保证理论 token 与实际 prompt 一致，前三个数据契约字段必须保持示例值，abbr/pred_role 可改。
   - `model`：`abbr`、`attr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs`；旧 Scenario 省略时自动使用示例默认值。`attr` 当前只能为 `"service"`，用于启用 AISBench service 性能链路和 TTFT 等指标汇总。
 
@@ -357,13 +357,13 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 完整流程为：校验或自动生成本时间戳的产物；逐 DP 探活；reset Prefix Cache（或按配置记录 `ASSUME_EMPTY_CACHE`）；warmup 模式按每个 `Prefix Group × DP rank` 定向预热；预热完成后采集正式 baseline；运行 AISBench `perf`；采集 after 并计算每 DP、全局实际命中率；最后把 `runtime`、`actual`、理论/实际差值和告警写回 `result/<run_id>.analysis.json`。warmup 在 baseline 之前完成，因此不进入正式吞吐、时延或命中率统计。
 
-`run` 的 Prefix Cache 插件流程日志只写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log`，不会作为插件日志回显到 CLI 终端；stdout 仍输出最终 analysis JSON。AISBench 子进程继续继承 stdout/stderr，其运行过程会实时展示在 CLI 中，不会被插件重定向到 `run.log`。插件日志覆盖执行上下文、产物复用/自动 prepare、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
+`run` 的 Prefix Cache 插件流程日志只写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log`，不会作为插件日志回显到 CLI 终端；命令结束时，stdout 先打印 AISBench 风格的 `[时间] [ais_bench_prefix_cache] [INFO] Prefix Cache Results of task [run_id]:` 标题，再以 `Prefix Cache Metric | Value` 两列表格仅展示总体目标命中率、总体理论命中率、总体实际命中率、理论与实际命中率的绝对偏差、理论与目标命中率的绝对偏差。命中率及两个命中率百分数直接相减得到的偏差均以百分比显示，并保留两位小数。表格后单独输出一行 `[INFO] Detailed analysis is available at: <path>`，指出完整 `analysis.json` 的路径；完整 analysis 仍落盘在 `result/<run_id_时间戳>.analysis.json`。AISBench 子进程继续继承 stdout/stderr，其运行过程会实时展示在 CLI 中，不会被插件重定向到 `run.log`。插件日志覆盖执行上下文、产物复用/自动 prepare、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
 
 Dataset、Model 和 Inferencer 运行在 AISBench 正式任务子进程中，统一使用 AISBench 的 `AISLogger` 和 `ais_bench` handle，详细过程使用 debug 级别。默认 `aisbench.work_dir="./outputs/default"` 时，AISBench 会把该任务 stdout/stderr 写入 `./outputs/default/<AISBench时间戳>/logs/infer/*.out`；若显式修改 `aisbench.work_dir`，日志会随之移动。当前 AISBench 全局日志级别默认为 INFO，只有将其设为 DEBUG 时这些详细日志才会实际写入 `.out`。
 
 正式 AISBench 请求默认使用 vLLM SSE 流式响应，因为 `aisbench.model.stream` 默认为 `true`。流式模式会在请求开始、首个响应 chunk 以及后续 chunk 到达时记录时间点，供 `DefaultPerfSummarizer` 计算 TTFT、TPOT、ITL、E2EL 和吞吐量；这些性能汇总文件位于 `aisbench.work_dir/performances/<model-abbr>/`。设为 `false` 后仍可统计 Prefix Cache 命中率，但无法按 chunk 生成完整 TTFT、TPOT 和 ITL。逐 DP 探活和插件 warmup 使用独立的非流式请求，它们发生在正式 baseline 之前，不会混入上述性能指标。
 
-插件的 Group × DP warmup 与 AISBench 自带的 `--num-warmups` 是两套独立机制。前者由 `prefix_cache.mode="warmup"` 控制并发生在 baseline 之前；后者属于 AISBench perf 子进程。如果需要让正式 baseline 之后只包含正式请求，应配置 `"extra_args": ["--num-warmups", "0"]`。
+插件的 Group × DP warmup 与 AISBench 自带的 `--num-warmups` 是两套独立机制。前者由 `prefix_cache.mode="warmup"` 控制并发生在 baseline 之前；后者属于 AISBench perf 子进程。如果需要让正式 baseline 之后只包含正式请求，应配置 `"extra_args": {"--num-warmups": 0}`。`extra_args` 使用“CLI 参数名 → 参数值”的对象结构，`run` 会将其展开为 `--num-warmups 0` 后传给 AISBench。
 
 临时覆盖 Scenario 中的 AISBench 配置：
 
@@ -383,6 +383,25 @@ ais-bench-prefix-cache analyze \
 ```
 
 该命令不连接 vLLM、不运行 AISBench，只解析两份 Prometheus 文本，重新计算正式阶段计数器增量并写回 Manifest 对应的 analysis。当前 CLI 将 `analyze` 和 `validate` 的插件日志写入同一时间戳目录的 `log/<run_id>.validate.log`；连续执行时后一次命令会重新创建该日志文件。
+
+`baseline.prom` 和 `after.prom` 不是 `prepare` 生成的数据集文件，而是同一个 vLLM 服务 `/metrics` 端点在正式统计窗口前后的完整 Prometheus 文本快照。手工采集时，应先完成 reset；warmup 场景还要先完成插件预热，然后在第一条正式请求前保存 baseline，并在最后一条正式请求完成后立即保存 after：
+
+```bash
+METRICS_URL="http://127.0.0.1:8000/metrics"
+curl -fsS "$METRICS_URL" -o baseline.prom
+# 在这里执行正式压测请求，期间不要重启 vLLM 或重置指标
+curl -fsS "$METRICS_URL" -o after.prom
+```
+
+两份快照必须来自同一服务进程并覆盖全部 DP rank；多 DP 指标需保留 `engine` 标签，且 after 中的累计 queries/hits 不得小于 baseline。正常执行 `run` 时，插件已经自动采集这两个时点，并把原始文本写入 `<run_id>.analysis.json` 的 `runtime.metrics_baseline.raw_prometheus` 和 `runtime.metrics_after.raw_prometheus`，但不会额外生成 `.prom` 文件。如需离线复算，可从已有 analysis 导出：
+
+```bash
+ANALYSIS="./outputs/<run_id_时间戳>/result/<run_id_时间戳>.analysis.json"
+jq -r '.runtime.metrics_baseline.raw_prometheus' "$ANALYSIS" > baseline.prom
+jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
+```
+
+`analyze` 会校验 Manifest 引用的数据产物，解析两份快照，按 DP 计算 `after - baseline` 的 queries/hits 增量，再汇总实际命中率并与理论值比较。它适用于历史结果复核、解析逻辑升级后的重算、外部压测流量分析和 CI 校验；成功的 `run` 本身已完成同样的在线差分分析，通常无需再次执行。
 
 ## 4. 推荐工作流
 
@@ -518,7 +537,7 @@ CLI 最后一段 JSON 的固定字段为：
 - `prepare`：`full`、`requests`、`manifest`、`analysis`、`log`；
 - `inspect`：上述 inspect 摘要、`log` 和 `manifest`；
 - `validate`：`ok`、`rows`、`run_id`；
-- `run`：更新后的完整 analysis JSON；
+- `run`：两列表格仅展示 5 个总体指标，并在下一行打印完整 `analysis.json` 路径；
 - `analyze`：离线复算后的完整 analysis JSON。validate/run/analyze 均写日志，返回 JSON 当前不单独添加 `log` 字段。
 
 ## 7. 退出码

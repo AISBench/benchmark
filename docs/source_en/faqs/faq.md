@@ -545,3 +545,46 @@ When a visualization file remains blank for a long time after being opened in a 
       - Step 3: Reopen the file in the browser. (If the page is still blank, refer to the solutions for "Error 1".)
   - **Cause 2**: No network connection, preventing the required `plotly.min.js` file from being loaded.
     - **Solution 1**: Refer to "Solution 2" under "Cause 1"—download the file in an environment with network access and transfer it to the environment where the visualization file is located.
+
+---
+
+## 7. Common Agent Evaluation Issues
+
+### 7.1 Harbor Evaluation Error: failed to create network ... Error response from daemon
+
+**Problem Description:**
+When running evaluations in Agent mode with Harbor (e.g., DeepSWE), trial creation fails with a Docker network creation error similar to the following:
+```
+failed to create network <task>__<suffix>__env_default: Error response from daemon: ...
+```
+
+**Root Cause:**
+In Harbor's sidecar (egress control) mode, each trial creates a dedicated Docker network for network isolation, named in the format `<task>__<random suffix>__env_default`. Docker's default address pools (`172.17.0.0/12` and `192.168.0.0/16`) can only provide about 31 available subnets. When trial containers and networks left over from previous runs are not cleaned up, or when the number of concurrent trials is high, the host's available subnets are exhausted, causing network creation to fail for new cases.
+
+**Recommended Solutions:**
+1. Manually clean up the leftover trial containers and networks. Trial containers are named in the format `<task>__<random suffix>__env-main-1` (main container) and `<task>__<random suffix>__env-harbor-docker-egress-control-sidecar-1` (egress sidecar container), and the corresponding Docker networks are named `<task>__<random suffix>__env_default`:
+
+```shell
+# Clean up containers
+docker ps -a --format '{{.Names}}' \
+  | grep -E '__env-(main|harbor-docker-egress-control-sidecar)-1$' \
+  | xargs -r docker rm -f
+
+# Clean up networks
+docker network ls --format '{{.Name}}' \
+  | grep -E '__env_default$' \
+  | xargs -r -I{} sh -c 'docker network rm {} 2>/dev/null || true'
+
+# Verify the cleanup result
+docker ps -a --format '{{.Names}}' | grep -c '__env-' || echo clean
+docker network ls --format '{{.Name}}' | grep -c '__env_' || echo clean
+```
+
+2. To support higher concurrency (more than ~30 trials), expand Docker's default address pools. Add the following configuration to `/etc/docker/daemon.json` and restart the Docker service (`sudo systemctl restart docker`) for it to take effect:
+```json
+{
+  "default-address-pools": [
+    {"base": "10.0.0.0/8", "size": 24}
+  ]
+}
+```

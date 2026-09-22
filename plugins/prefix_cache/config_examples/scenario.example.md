@@ -484,7 +484,7 @@ Zipf 分配：
 "aisbench": {
   "config": "./plugins/prefix_cache/config_examples/prefix_cache_perf.py",
   "work_dir": "./outputs/default",
-  "extra_args": ["--num-warmups", "0"],
+  "extra_args": {"--num-warmups": 0},
   "dataset": {
     "abbr": null,
     "input_columns": ["question", "max_out_len"],
@@ -511,7 +511,7 @@ Zipf 分配：
 |---|---:|---|---|
 | `config` | 否 | `"./plugins/prefix_cache/config_examples/prefix_cache_perf.py"` | `run` 加载并渲染的 AISBench Python 配置；该默认值适用于按 README 把 Scenario 复制到仓库根目录的工作流，可用 CLI `--config` 临时覆盖。 |
 | `work_dir` | 否 | `"./outputs/default"` | AISBench 正式压测基础目录，相对 Scenario 所在目录解析；AISBench 会在其下追加执行时间戳，并把正式任务 stdout/stderr（包括本插件 Dataset/Model/Inferencer 的 AISLogger 输出）写入 `<时间戳>/logs/infer/*.out`。 |
-| `extra_args` | 否 | `[]` | 追加到 AISBench perf 子进程命令后的字符串参数列表。当前示例配置为 `["--num-warmups", "0"]`，等价于向 AISBench 命令追加 `--num-warmups 0`，关闭 AISBench 框架自身的预热请求。该设置不会关闭 Prefix Cache 插件的 Group × DP warmup。 |
+| `extra_args` | 否 | `{}` | 追加到 AISBench perf 子进程的 CLI 参数键值对象。当前示例 `{"--num-warmups": 0}` 会展开为 `--num-warmups 0`，关闭 AISBench 框架自身的预热请求，但不会关闭 Prefix Cache 插件的 Group × DP warmup。标量值展开为一个值，数组展开为同一参数的多个值；布尔 `true` 只输出参数名，`false` 不输出该参数。 |
 | `dataset` | 否 | 见下表 | AISBench Dataset reader、prompt 和评测展示配置。 |
 | `model` | 否 | 见下表 | AISBench API Model 的流式、重试、并发和请求参数。 |
 
@@ -537,7 +537,7 @@ Zipf 分配：
 | `batch_size` | `1` | AISBench API Model 最大并发基值，必须是正整数；cold 模式同一 lane 仍由插件严格串行。 |
 | `generation_kwargs` | `{"temperature":0,"ignore_eos":true}` | 合并到 vLLM 请求的生成参数对象，可增加 `top_p` 等当前服务支持的 JSON 参数。 |
 
-整个 `aisbench` 段及其 `dataset`、`model` 子段都可省略，旧 Scenario 会补齐与当前行为一致的默认值。`config`、`work_dir` 必须是非空字符串，`extra_args` 必须是字符串列表，其源码默认值仍为 `[]`；当前示例显式使用 `["--num-warmups", "0"]`。插件的 Group × DP warmup 与 AISBench perf 自带预热互相独立：当前设置只关闭后者，使 baseline 之后只包含正式请求；由于示例的 `prefix_cache.mode` 为 `"warmup"`，正式 baseline 之前仍会执行每个 Group × DP 的插件预热。离线命令不消费这些在线参数，`run` 才会渲染配置并启动 AISBench。Python 类型、Manifest 工件路径、DP 路由和 Prefix Cache Inferencer 属于插件内部不变量，不允许在 Scenario 中替换。
+整个 `aisbench` 段及其 `dataset`、`model` 子段都可省略，省略字段会补齐当前默认值。`config`、`work_dir` 必须是非空字符串；`extra_args` 必须是以 CLI 参数名为 key 的 JSON 对象，key 必须以 `-` 开头，默认值为 `{}`。旧的扁平字符串数组格式会在 Scenario 加载阶段被拒绝，应把 `["--num-warmups", "0"]` 迁移为 `{"--num-warmups": 0}`。插件的 Group × DP warmup 与 AISBench perf 自带预热互相独立：当前设置只关闭后者，使 baseline 之后只包含正式请求；由于示例的 `prefix_cache.mode` 为 `"warmup"`，正式 baseline 之前仍会执行每个 Group × DP 的插件预热。离线命令不消费这些在线参数，`run` 才会渲染配置并启动 AISBench。Python 类型、Manifest 工件路径、DP 路由和 Prefix Cache Inferencer 属于插件内部不变量，不允许在 Scenario 中替换。
 
 ## 12. 原示例最终表示的场景
 
@@ -617,7 +617,7 @@ validate 日志写入 Manifest 对应时间戳目录的 `log/<run_id>.validate.l
 
 ### 14.4 `run`
 
-`run --scenario` 复用任务时间戳；若该目录还没有工件则自动 prepare。随后依次执行逐 DP probe、reset、可选的每组每 DP warmup、baseline、AISBench perf、after 和指标差分。`--config <path>` 可仅覆盖本次 AISBench 配置。stdout 返回更新后的完整 analysis；Prefix Cache 插件日志只写入 `log/<run_id>.run.log`，不回显到 CLI 终端。AISBench 子进程继承 stdout/stderr，其运行输出继续实时显示在 CLI 中。插件日志包含阶段状态、Group/DP 路由、baseline/after、KV 采样及理论/实际差值，但不输出 Prompt 正文、API key 或 Authorization Header。
+`run --scenario` 复用任务时间戳；若该目录还没有工件则自动 prepare。随后依次执行逐 DP probe、reset、可选的每组每 DP warmup、baseline、AISBench perf、after 和指标差分。`--config <path>` 可仅覆盖本次 AISBench 配置。命令结束时，stdout 先打印带时间和 `run_id` 的 Prefix Cache 结果标题，再以 `Prefix Cache Metric | Value` 两列表格仅展示总体目标、理论、实际命中率，以及理论/实际和理论/目标的绝对偏差；命中率及两个命中率百分数直接相减得到的偏差均以百分比显示，并保留两位小数。表格后输出 `[INFO] Detailed analysis is available at: <path>`，明确完整 `result/<run_id>.analysis.json` 的路径。Prefix Cache 插件日志只写入 `log/<run_id>.run.log`，不回显到 CLI 终端。AISBench 子进程继承 stdout/stderr，其运行输出继续实时显示在 CLI 中。插件日志包含阶段状态、Group/DP 路由、baseline/after、KV 采样及理论/实际差值，但不输出 Prompt 正文、API key 或 Authorization Header。
 
 ### 14.5 `analyze`
 
