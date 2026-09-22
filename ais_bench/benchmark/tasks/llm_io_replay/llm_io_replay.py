@@ -477,6 +477,11 @@ def _fmt(value, digits: int = 3) -> str:
     return f"{float(value):.{digits}f}"
 
 
+def _fmt_with_unit(value, unit: str, digits: int = 3) -> str:
+    formatted = _fmt(value, digits)
+    return formatted if formatted == "N/A" else f"{formatted}{unit}"
+
+
 def _report_summary(report: dict) -> dict:
     """Return a complete summary, upgrading legacy replay reports in memory."""
 
@@ -513,7 +518,6 @@ def format_terminal_report(report: dict) -> str:
     summary = _report_summary(report)
     performance = [[
         "Stage",
-        "Unit",
         "Average",
         "Max",
         "Min",
@@ -529,42 +533,64 @@ def format_terminal_report(report: dict) -> str:
         performance.append(
             [
                 label,
-                unit,
-                values["mean"],
-                values["max"],
-                values["min"],
-                values["p50"],
-                values["p75"],
-                values["p90"],
-                values["p95"],
-                values["p99"],
+                _fmt_with_unit(values["mean"], unit),
+                _fmt_with_unit(values["max"], unit),
+                _fmt_with_unit(values["min"], unit),
+                _fmt_with_unit(values["p50"], unit),
+                _fmt_with_unit(values["p75"], unit),
+                _fmt_with_unit(values["p90"], unit),
+                _fmt_with_unit(values["p95"], unit),
+                _fmt_with_unit(values["p99"], unit),
                 values["n"],
             ]
         )
 
     common = [
-        ["Common Metric", "Value", "Unit"],
-        ["Benchmark Duration", summary["duration_seconds"], "s"],
-        ["Total Requests", summary["total_requests"], "request"],
-        ["Successful Requests", summary["successful_requests"], "request"],
-        ["Failed Requests", summary["failed_requests"], "request"],
-        ["Success Rate", summary["success_rate"] * 100, "%"],
-        ["Average Concurrency", summary["average_concurrency"], "request"],
-        ["Max Concurrency", summary["max_concurrency"], "request"],
-        ["Request Throughput", summary["request_throughput_rps"], "request/s"],
-        ["Request Throughput", summary["request_throughput_rpm"], "request/min"],
-        ["Total Input Tokens", summary["total_input_tokens"], "token"],
-        ["Total Output Tokens", summary["total_output_tokens"], "token"],
-        ["Total Tokens", summary["total_tokens"], "token"],
-        ["Total Reasoning Tokens", summary["total_reasoning_tokens"], "token"],
+        ["Common Metric", "Value"],
+        ["Benchmark Duration", _fmt_with_unit(summary["duration_seconds"], "s")],
+        ["Total Requests", _fmt_with_unit(summary["total_requests"], "request")],
+        [
+            "Successful Requests",
+            _fmt_with_unit(summary["successful_requests"], "request"),
+        ],
+        ["Failed Requests", _fmt_with_unit(summary["failed_requests"], "request")],
+        ["Success Rate", _fmt_with_unit(summary["success_rate"] * 100, "%")],
+        [
+            "Average Concurrency",
+            _fmt_with_unit(summary["average_concurrency"], "request"),
+        ],
+        ["Max Concurrency", _fmt_with_unit(summary["max_concurrency"], "request")],
+        [
+            "Request Throughput",
+            _fmt_with_unit(summary["request_throughput_rps"], "request/s"),
+        ],
+        [
+            "Request Throughput",
+            _fmt_with_unit(summary["request_throughput_rpm"], "request/min"),
+        ],
+        ["Total Input Tokens", _fmt_with_unit(summary["total_input_tokens"], "token")],
+        ["Total Output Tokens", _fmt_with_unit(summary["total_output_tokens"], "token")],
+        ["Total Tokens", _fmt_with_unit(summary["total_tokens"], "token")],
+        [
+            "Total Reasoning Tokens",
+            _fmt_with_unit(summary["total_reasoning_tokens"], "token"),
+        ],
         [
             "Total Request Body Size",
-            summary["total_request_body_size_bytes"],
-            "byte",
+            _fmt_with_unit(summary["total_request_body_size_bytes"], "byte"),
         ],
-        ["Input Token Throughput", summary["input_token_throughput"], "token/s"],
-        ["Output Token Throughput", summary["output_token_throughput"], "token/s"],
-        ["Total Token Throughput", summary["total_token_throughput"], "token/s"],
+        [
+            "Input Token Throughput",
+            _fmt_with_unit(summary["input_token_throughput"], "token/s"),
+        ],
+        [
+            "Output Token Throughput",
+            _fmt_with_unit(summary["output_token_throughput"], "token/s"),
+        ],
+        [
+            "Total Token Throughput",
+            _fmt_with_unit(summary["total_token_throughput"], "token/s"),
+        ],
     ]
     options = dict(
         headers="firstrow",
@@ -575,16 +601,15 @@ def format_terminal_report(report: dict) -> str:
         missingval="N/A",
     )
     sections = [
-        "Performance Parameters\n" + tabulate.tabulate(performance, **options),
-        "Common Metric\n" + tabulate.tabulate(common, **options),
+        "Performance Parameters\n"
+        + tabulate.tabulate(
+            performance,
+            **options,
+            colalign=("left",) + ("center",) * (len(performance[0]) - 1),
+        ),
+        "Common Metric\n"
+        + tabulate.tabulate(common, **options, colalign=("left", "center")),
     ]
-    if summary["errors"]:
-        errors = [["Error Type", "Count", "Percentage"]]
-        errors.extend(
-            [label, values["count"], values["percentage"]]
-            for label, values in summary["errors"].items()
-        )
-        sections.append("Error Summary\n" + tabulate.tabulate(errors, **options))
     return "\n\n".join(sections)
 
 
@@ -1062,6 +1087,15 @@ class LLMIOReplayTask(BaseTask):
         settings: ReplaySettings,
     ) -> tuple[list[dict], float]:
         request_count = settings.requests or len(records)
+        if self.task_state_manager is not None:
+            self.task_state_manager.update_task_state(
+                {
+                    "status": "running",
+                    "total_count": request_count,
+                    "finish_count": 0,
+                    "progress_description": "LLM IO replay requests",
+                }
+            )
         timestamp_prefix = (
             f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
             if settings.add_timestamp_prefix
@@ -1092,7 +1126,7 @@ class LLMIOReplayTask(BaseTask):
                 results.append(await future)
                 if self.task_state_manager is not None:
                     self.task_state_manager.update_task_state(
-                        {"completed": completed, "total": request_count}
+                        {"finish_count": completed}
                     )
                 if completed % 100 == 0 or completed == request_count:
                     self.logger.info(

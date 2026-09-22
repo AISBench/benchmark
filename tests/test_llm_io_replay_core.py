@@ -273,7 +273,13 @@ def test_terminal_and_markdown_reports_include_complete_metrics():
     assert "Common Metric" in terminal
     assert "E2EL" in terminal
     assert "Benchmark Duration" in terminal
-    assert "HTTP 429" in terminal
+    assert "Unit" not in terminal
+    assert "2.000s" in terminal
+    assert "20.000token" in terminal
+    assert "2request" in terminal
+    assert "Error Summary" not in terminal
+    assert "HTTP 429" not in terminal
+    assert "HTTP 429" in markdown
     for heading in (
         "测试概览",
         "性能参数统计",
@@ -365,6 +371,55 @@ def test_task_uses_runtime_environment_as_missing_config_fallback(monkeypatch):
     assert settings.requests == 23
     assert settings.max_tokens == 1024
     assert settings.ignore_eos is True
+
+
+def test_run_requests_reports_aisbench_progress_fields(monkeypatch):
+    cfg = ConfigDict(
+        models=[ConfigDict(abbr="model", model="glm51")],
+        datasets=[[ConfigDict(abbr="data", args=ConfigDict())]],
+        work_dir="outputs/test",
+        cli_args=ConfigDict(mode="perf", debug=False),
+    )
+    task = LLMIOReplayTask(cfg)
+
+    class FakeTaskStateManager:
+        def __init__(self):
+            self.states = []
+
+        def update_task_state(self, state):
+            self.states.append(state.copy())
+
+    async def fake_send(self, session, request_index, record):
+        return {"request_index": request_index, "success": True}
+
+    monkeypatch.setattr(
+        "ais_bench.benchmark.tasks.llm_io_replay.llm_io_replay.ReplayClient.send",
+        fake_send,
+    )
+    manager = FakeTaskStateManager()
+    task.task_state_manager = manager
+    settings = ReplaySettings(
+        url="http://127.0.0.1:8000/v1/chat/completions",
+        model="glm51",
+        concurrency=2,
+        requests=3,
+    )
+
+    details, _ = asyncio.run(
+        task._run_requests(
+            [{"payload": {"messages": [{"role": "user", "content": "hi"}]}}],
+            settings,
+        )
+    )
+
+    assert len(details) == 3
+    assert manager.states[0] == {
+        "status": "running",
+        "total_count": 3,
+        "finish_count": 0,
+        "progress_description": "LLM IO replay requests",
+    }
+    assert [state["finish_count"] for state in manager.states[1:]] == [1, 2, 3]
 
 
 def test_perf_summarizer_prints_and_persists_replay_report(tmp_path, capsys):
