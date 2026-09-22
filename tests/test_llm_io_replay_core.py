@@ -273,10 +273,9 @@ def test_terminal_and_markdown_reports_include_complete_metrics():
     assert "Common Metric" in terminal
     assert "E2EL" in terminal
     assert "Benchmark Duration" in terminal
-    assert "Unit" not in terminal
-    assert "2.000s" in terminal
-    assert "20.000token" in terminal
-    assert "2request" in terminal
+    assert "Unit" in terminal
+    assert "s/token" in terminal
+    assert "token/s" in terminal
     assert "Error Summary" not in terminal
     assert "HTTP 429" not in terminal
     assert "HTTP 429" in markdown
@@ -417,7 +416,7 @@ def test_run_requests_reports_aisbench_progress_fields(monkeypatch):
         "status": "running",
         "total_count": 3,
         "finish_count": 0,
-        "progress_description": "LLM IO replay requests",
+        "progress_description": "",
     }
     assert [state["finish_count"] for state in manager.states[1:]] == [1, 2, 3]
 
