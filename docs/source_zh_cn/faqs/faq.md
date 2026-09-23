@@ -617,3 +617,46 @@ vim outputs/default/20250711_104313/logs/infer/vllm-api-stream-chat/gsm8k.out
       - 步骤3：重新通过浏览器打开该文件即可。（若仍出现空白页面，则参考“报错内容1”的方案解析）
   - 原因2. 无网络环境，无法加载所需的`plotly.min.js`文件
     - 方案1. 请参考`原因1`的`方案2`，通过在其他有网络环境中下载该文件，再放置到可视化文件所在的环境中。
+
+---
+
+## 7. Agent 测评常见问题
+
+### 7.1 Harbor 测评报错：failed to create network ... Error response from daemon
+
+**问题描述：**
+使用 Agent 模式（Harbor）执行测评（如 DeepSWE）时，trial 创建失败，报错中包含类似如下的 Docker 网络创建失败信息：
+```
+failed to create network <task>__<suffix>__env_default: Error response from daemon: ...
+```
+
+**问题根因：**
+Harbor 在 sidecar（egress control）模式下，每个 trial 会创建一个独立的 Docker 网络用于网络隔离，网络命名格式为 `<task>__<随机后缀>__env_default`。Docker 默认地址池（`172.17.0.0/12` 和 `192.168.0.0/16`）仅能划分出约 31 个可用子网。当历史运行残留的 trial 容器和网络未被清理，或并发 trial 数量较多时，宿主机可用子网耗尽，导致新的 case 创建网络失败。
+
+**建议的处理方式如下：**
+1. 手动清理残留的 trial 容器和网络。trial 容器命名格式为 `<task>__<随机后缀>__env-main-1`（主容器）和 `<task>__<随机后缀>__env-harbor-docker-egress-control-sidecar-1`（egress sidecar 容器），对应的 Docker 网络命名格式为 `<task>__<随机后缀>__env_default`：
+
+```shell
+# 清理容器
+docker ps -a --format '{{.Names}}' \
+  | grep -E '__env-(main|harbor-docker-egress-control-sidecar)-1$' \
+  | xargs -r docker rm -f
+
+# 清理网络
+docker network ls --format '{{.Name}}' \
+  | grep -E '__env_default$' \
+  | xargs -r -I{} sh -c 'docker network rm {} 2>/dev/null || true'
+
+# 验证清理结果
+docker ps -a --format '{{.Names}}' | grep -c '__env-' || echo clean
+docker network ls --format '{{.Name}}' | grep -c '__env_' || echo clean
+```
+
+2. 如需提升并发上限（超过约 30 个 trial），可扩展 Docker 默认地址池。在 `/etc/docker/daemon.json` 中增加如下配置，并重启 Docker 服务（`sudo systemctl restart docker`）使其生效：
+```json
+{
+  "default-address-pools": [
+    {"base": "10.0.0.0/8", "size": 24}
+  ]
+}
+```

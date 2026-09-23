@@ -1,18 +1,22 @@
+import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
-import importlib
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from ais_bench.benchmark.registry import (
-    load_class,
-    get_locations,
-    Registry,
+    LOAD_DATASET,
+    MODELS,
     PARTITIONERS,
     RUNNERS,
     TASKS,
-    MODELS,
-    LOAD_DATASET,
     TEXT_POSTPROCESSORS,
-    build_from_cfg
+    Registry,
+    _submodule_exists,
+    build_from_cfg,
+    get_locations,
+    get_plugin_locations,
+    load_class,
 )
 
 
@@ -35,34 +39,76 @@ class TestRegistry(unittest.TestCase):
         with self.assertRaises(ValueError):
             load_class('unittest.NonexistentClass')
 
-    @patch('ais_bench.benchmark.registry.entry_points')
-    def test_get_locations_basic(self, mock_entry_points):
+    def test_get_locations_basic(self):
         """Test get_locations returns basic location."""
-        mock_entry_points.return_value.select.return_value = []
-
         locations = get_locations('test_module')
 
-        self.assertIn('ais_bench.benchmark.test_module', locations)
+        self.assertEqual(locations, ['ais_bench.benchmark.test_module'])
+
+    def test_submodule_exists_for_directory_file_and_dotted_path(self):
+        """Physical plugin subpackages and modules are detected without import."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / 'models').mkdir()
+            (root / 'metrics.py').touch()
+            (root / 'openicl' / 'icl_inferencer').mkdir(parents=True)
+            pkg = SimpleNamespace(__path__=[tmpdir])
+
+            self.assertTrue(_submodule_exists(pkg, 'models'))
+            self.assertTrue(_submodule_exists(pkg, 'metrics'))
+            self.assertTrue(
+                _submodule_exists(pkg, 'openicl.icl_inferencer'))
+            self.assertFalse(_submodule_exists(pkg, 'datasets'))
+
+    def test_submodule_exists_without_package_path(self):
+        """Non-package entry-point objects cannot contain plugin submodules."""
+        self.assertFalse(_submodule_exists(SimpleNamespace(), 'models'))
+        self.assertFalse(
+            _submodule_exists(SimpleNamespace(__path__=[]), 'models'))
 
     @patch('ais_bench.benchmark.registry.entry_points')
-    @patch('builtins.__import__')
-    def test_get_locations_with_plugin(self, mock_import, mock_entry_points):
-        """Test get_locations with plugin entry point."""
-        mock_entry_point = MagicMock()
-        mock_pkg = MagicMock()
-        mock_pkg.__name__ = 'plugin.package'
-        mock_entry_point.load.return_value = mock_pkg
-        mock_entry_points.return_value.select.return_value = [mock_entry_point]
-        mock_import.return_value = MagicMock()
+    def test_get_plugin_locations_uses_physical_packages_without_import(
+            self, mock_entry_points):
+        """Discovery filters missing modules and never executes submodule code."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            valid_root = root / 'valid_plugin'
+            missing_root = root / 'missing_plugin'
+            (valid_root / 'models').mkdir(parents=True)
+            missing_root.mkdir()
 
-        locations = get_locations('test_module')
+            valid_entry_point = MagicMock()
+            valid_entry_point.load.return_value = SimpleNamespace(
+                __name__='valid_plugin', __path__=[str(valid_root)])
+            missing_entry_point = MagicMock()
+            missing_entry_point.load.return_value = SimpleNamespace(
+                __name__='missing_plugin', __path__=[str(missing_root)])
+            broken_entry_point = MagicMock()
+            broken_entry_point.load.side_effect = RuntimeError('broken plugin')
+            mock_entry_points.return_value.select.return_value = [
+                valid_entry_point,
+                missing_entry_point,
+                broken_entry_point,
+            ]
 
-        # Should have at least the base location, and possibly plugin location
-        self.assertGreaterEqual(len(locations), 1)
-        self.assertIn('ais_bench.benchmark.test_module', locations)
-        # If import succeeds, plugin location should be added
-        if len(locations) > 1:
-            self.assertIn('plugin.package.test_module', locations)
+            with patch('builtins.__import__') as mock_import:
+                locations = get_plugin_locations('models')
+
+        self.assertEqual(locations, ['valid_plugin.models'])
+        mock_entry_points.return_value.select.assert_called_once_with(
+            group='ais_bench.benchmark_plugins')
+        valid_entry_point.load.assert_called_once_with()
+        missing_entry_point.load.assert_called_once_with()
+        broken_entry_point.load.assert_called_once_with()
+        mock_import.assert_not_called()
+
+    @patch('ais_bench.benchmark.registry.entry_points',
+           side_effect=RuntimeError('metadata unavailable'))
+    def test_get_plugin_locations_handles_discovery_failure(
+            self, mock_entry_points):
+        """A metadata discovery failure does not break registry creation."""
+        self.assertEqual(get_plugin_locations('models'), [])
+        mock_entry_points.assert_called_once_with()
 
     def test_registry_register_module(self):
         """Test Registry register_module method."""

@@ -110,7 +110,7 @@ The Scenario uses a strict allowlist; unknown fields are rejected. The complete 
   - `order` supports `strategy`;
 - `service`: `inference_url`, `metrics_url`, `reset_url`, `model`, `dp_size`, `assume_empty_cache`, `engine_label_map`, `timeout_seconds`, `api_key`, and `poll_interval_seconds`;
 - `validation`: `target_warning_pp` and `actual_warning_pp`;
-- `aisbench`: `config`, `work_dir`, `extra_args`, `dataset`, and `model`. Offline commands ignore this section; `run` renders it and starts AISBench perf.
+- `aisbench`: `config`, `work_dir`, `extra_args`, `dataset`, and `model`. `extra_args` maps CLI option names to values; offline commands ignore this section, while `run` expands the options and starts AISBench perf.
   - `dataset`: `abbr`, `input_columns`, `output_column`, `prompt_template`, and `pred_role`. To keep theoretical and actual prompts token-identical, retain the example values for the first three contract fields; `abbr` and `pred_role` may be changed.
   - `model`: `abbr`, `attr`, `stream`, `max_out_len`, `retry`, `batch_size`, and `generation_kwargs`. Older Scenarios receive the example defaults automatically. `attr` currently must be `"service"` to enable AISBench service performance collection, including TTFT.
 
@@ -260,7 +260,7 @@ It still creates a `_YYYYMMDD_HHMMSS` timestamp, writes detailed logs to `output
 ### 3.4 `prepare`: generate formal artifacts
 
 ```bash
-ais-bench-prefix-cache prepare --scenario ./scenario.json
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ```
 
 Deterministically generates and validates:
@@ -307,7 +307,7 @@ Normal workflows do not require manually changing `run_id` or `output_dir`, and 
 Files are not overwritten by default. To rebuild explicitly:
 
 ```bash
-ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json --overwrite
 ```
 
 `--overwrite` replaces only the four files for this run in the current timestamp directory; it does not clear the entire output directory. An inspected-only matching Manifest is upgraded automatically, while a prepared Manifest is not reused as an inspect placeholder.
@@ -328,15 +328,15 @@ Detailed logs are written to `log/<run_id_timestamp>.validate.log`; the terminal
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-The end-to-end flow validates or prepares timestamped artifacts, probes each DP, resets Prefix Cache (or records `ASSUME_EMPTY_CACHE`), performs per-Group × DP warmup in warmup mode, captures the formal baseline, runs AISBench `perf`, captures after metrics, calculates per-DP/global actual hit rates, and writes runtime data, actual/theoretical differences, and warnings to `result/<run_id>.analysis.json`. Warmup completes before baseline and is excluded from formal throughput, latency, and hit-rate statistics.
+The end-to-end flow reads the Manifest produced by an explicit `prepare`, infers text/mm mode, validates timestamped artifacts, probes each DP, resets Prefix Cache (or records `ASSUME_EMPTY_CACHE`), performs per-Group × DP warmup in warmup mode, captures the formal baseline, runs AISBench `perf`, captures after metrics, calculates per-DP/global actual hit rates, and writes runtime data, actual/theoretical differences, and warnings to `result/<run_id>.analysis.json`. Warmup completes before baseline and is excluded from formal throughput, latency, and hit-rate statistics.
 
-Plugin flow logs go only to `output_dir_timestamp/log/<run_id_timestamp>.run.log`; they are not echoed to the CLI. AISBench child stdout/stderr remains inherited and visible in the CLI. Logs include execution context, artifact reuse/auto-prepare, probes, reset, every Group × DP warmup, baseline/after metrics, rendered AISBench config and command, KV polling, per-DP deltas, global hit rate, and warnings. Only prompt length and SHA-256 are logged; prompt text, API keys, Authorization headers, and raw request bodies are not.
+Plugin flow logs go only to `output_dir_timestamp/log/<run_id_timestamp>.run.log`; they are not echoed to the CLI. When text mode completes, stdout prints an AISBench-style `[time] [ais_bench_prefix_cache] [INFO] Prefix Cache Results of task [run_id]:` heading, followed by a two-column `Prefix Cache Metric | Value` table containing the overall target, theoretical, and actual hit rates plus the absolute theory-versus-actual and theory-versus-target differences. A following `[INFO] Detailed analysis is available at: <path>` line identifies the complete analysis file under `result/`. In mm mode, stdout prints the AISBench multimodal task result as JSON and performance metrics are available through `report`. AISBench child stdout/stderr remains inherited and visible in the CLI. Logs include execution context, artifact reuse, probes, reset, every Group × DP warmup, baseline/after metrics, rendered AISBench config and command, KV polling, per-DP deltas, global hit rate, and warnings. Only prompt length and SHA-256 are logged; prompt text, API keys, Authorization headers, and raw request bodies are not.
 
 Dataset, Model, and Inferencer code runs inside the formal AISBench child process and uses the AISBench `AISLogger`/handle with debug-level details. With the default `aisbench.work_dir="./outputs/default"`, AISBench writes child output to `./outputs/default/<AISBench timestamp>/logs/infer/*.out`; changing `work_dir` moves these logs. AISBench's global level is INFO by default, so set DEBUG to persist debug messages.
 
 Formal requests use vLLM SSE streaming by default because `aisbench.model.stream=true`. Start time, first chunk, and later chunk timestamps feed `DefaultPerfSummarizer` metrics TTFT, TPOT, ITL, E2EL, and throughput; summaries are under `aisbench.work_dir/performances/<model-abbr>/`. With `stream=false`, Prefix Cache hit rate still works but full TTFT/TPOT/ITL cannot be computed. DP probes and plugin warmup use separate non-streaming requests before the formal baseline and are excluded from these metrics.
 
-Plugin Group × DP warmup and AISBench's `--num-warmups` are independent. The former is controlled by `prefix_cache.mode="warmup"` and runs before baseline; the latter belongs to the AISBench perf child. To ensure only formal requests follow baseline, use `"extra_args": ["--num-warmups", "0"]`.
+Plugin Group × DP warmup and AISBench's `--num-warmups` are independent. The former is controlled by `prefix_cache.mode="warmup"` and runs before baseline; the latter belongs to the AISBench perf child. To ensure only formal requests follow baseline, use `"extra_args": {"--num-warmups": 0}`. `extra_args` is an object mapping CLI option names to values; `run` expands this entry to `--num-warmups 0` before launching AISBench.
 
 Temporarily override the AISBench config:
 
@@ -357,11 +357,30 @@ ais-bench-prefix-cache analyze \
 
 This command does not connect to vLLM or run AISBench. It parses two Prometheus text snapshots, recomputes formal counter deltas, and writes analysis next to the Manifest. The current CLI writes `analyze` and `validate` plugin logs to the same `log/<run_id>.validate.log`; a later invocation recreates that log.
 
+`baseline.prom` and `after.prom` are not dataset artifacts produced by `prepare`. They are complete Prometheus text snapshots from the same vLLM `/metrics` endpoint immediately before and after the formal measurement window. For manual collection, reset the cache first; in warmup mode also finish plugin warmup, then capture baseline before the first formal request and after immediately after the last one:
+
+```bash
+METRICS_URL="http://127.0.0.1:8000/metrics"
+curl -fsS "$METRICS_URL" -o baseline.prom
+# Run the formal workload here; do not restart vLLM or reset metrics.
+curl -fsS "$METRICS_URL" -o after.prom
+```
+
+Both files must come from the same service process and include every DP rank. Multi-DP metrics must retain their `engine` labels, and cumulative queries/hits in after must not be lower than baseline. A normal `run` already captures both points and stores the raw text in `<run_id>.analysis.json` at `runtime.metrics_baseline.raw_prometheus` and `runtime.metrics_after.raw_prometheus`; it does not create separate `.prom` files. Export them for later re-analysis with:
+
+```bash
+ANALYSIS="./outputs/<timestamped_run_id>/result/<timestamped_run_id>.analysis.json"
+jq -r '.runtime.metrics_baseline.raw_prometheus' "$ANALYSIS" > baseline.prom
+jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
+```
+
+`analyze` validates the Manifest artifacts, computes per-DP query/hit deltas as `after - baseline`, aggregates the measured hit rate, and compares it with theory. It is useful for historical verification, reprocessing after parser changes, externally driven workloads, and CI checks. A successful `run` has already performed the same online delta analysis, so rerunning `analyze` is normally unnecessary.
+
 ## 4. Recommended workflow
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
-ais-bench-prefix-cache prepare --scenario ./scenario.json
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest-path>
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
@@ -470,7 +489,7 @@ The `inspect` terminal JSON includes `run_id`, `mode`, requested/effective/theor
 
 The lightweight inspect Manifest contains `schema_version`, `plugin_version`, `status="inspected"`, `run_id`, Scenario path/hash, `effective_config`, and `inspect` (`timestamp`, `base_run_id`, `base_output_dir`, `sends_requests`, `summary`). `prepare` upgrades it in place to a full `status="prepared"` Manifest with requests, Groups, DP, warmup, and artifacts.
 
-The final CLI JSON contains `full`, `requests`, `manifest`, `analysis`, and `log` for `prepare`; inspect summary plus `log`/`manifest` for `inspect`; `ok`, `rows`, and `run_id` for `validate`; updated full analysis for `run`; and offline analysis for `analyze`. `validate`, `run`, and `analyze` write logs; their returned JSON does not add a separate `log` field.
+The final CLI JSON contains `full`, `requests`, `manifest`, `analysis`, and `log` for `prepare`; inspect summary plus `log`/`manifest` for `inspect`; and `ok`, `rows`, and `run_id` for `validate`. `run` prints only five overall metrics in a two-column table followed by the complete `analysis.json` path, while `analyze` prints its offline analysis. The complete run analysis remains in `result/<run_id>.analysis.json`. `validate`, `run`, and `analyze` write logs; their returned JSON does not add a separate `log` field.
 
 ## 7. Exit codes
 

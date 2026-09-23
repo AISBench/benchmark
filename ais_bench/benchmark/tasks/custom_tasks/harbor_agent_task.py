@@ -286,6 +286,11 @@ class HarborAgentTask(HarborTask):
             kwargs = args["environment_kwargs"]
             if isinstance(kwargs, dict):
                 config.environment.kwargs.update(kwargs)
+        extra_dc = args.get("extra_docker_compose")
+        if extra_dc:
+            config.environment.extra_docker_compose.extend(
+                Path(p) for p in extra_dc
+            )
         for field in (
             "override_cpus",
             "override_memory_mb",

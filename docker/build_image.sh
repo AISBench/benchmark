@@ -221,6 +221,14 @@ if [ ${dockerd_version_status} -ne 0 ]; then
     exit 1
 fi
 
+buildx_version_output=$(docker run --rm ${image_name} docker buildx version 2>&1)
+buildx_version_status=$?
+if [ ${buildx_version_status} -ne 0 ]; then
+    echo "错误：镜像中 docker buildx version 执行失败（退出码: ${buildx_version_status}）"
+    echo "输出：${buildx_version_output}"
+    exit 1
+fi
+
 # dockerd 二进制存在性二次校验（Docker 27.x 输出与 docker --version 同格式，需确保调用的是 dockerd 而非 docker）
 dockerd_which_output=$(docker run --rm ${image_name} which dockerd 2>&1)
 if [ $? -ne 0 ] || [ -z "${dockerd_which_output}" ]; then
@@ -246,14 +254,22 @@ if ! echo "${dockerd_version_output}" | grep -F "Docker version" > /dev/null 2>&
     echo "实际输出：${dockerd_version_output}"
     exit 1
 fi
+# buildx 插件存在性校验（harbor 依赖 docker buildx build）
+if ! echo "${buildx_version_output}" | grep -F "buildx" > /dev/null 2>&1; then
+    echo "错误：buildx 验证失败，未找到预期内容：buildx"
+    echo "实际输出：${buildx_version_output}"
+    exit 1
+fi
 
 # 版本号校验：Docker >= 20.0，Docker Compose >= 2.0.0
 docker_ver=$(echo "${docker_version_output}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 compose_ver=$(echo "${compose_version_output}" | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//')
 dockerd_ver=$(echo "${dockerd_version_output}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+buildx_ver=$(echo "${buildx_version_output}" | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//')
 
 docker_major=$(echo "${docker_ver}" | cut -d. -f1)
 compose_major=$(echo "${compose_ver}" | cut -d. -f1)
+buildx_major=$(echo "${buildx_ver}" | cut -d. -f1)
 
 # 进一步校验：dockerd 与 docker 版本号应一致，确保不是同一二进制被误调用两次
 if [ "${docker_ver}" != "${dockerd_ver}" ]; then
@@ -271,8 +287,16 @@ if [ -z "${compose_ver}" ] || [ "${compose_major}" -lt 2 ]; then
     exit 1
 fi
 
+# buildx 版本为 0.x 系列，仅需确认能解析出版本号（存在性即通过）
+if [ -z "${buildx_ver}" ]; then
+    echo "错误：无法从 docker buildx version 输出中解析出版本号"
+    echo "实际输出：${buildx_version_output}"
+    exit 1
+fi
+
 echo "Docker 验证通过：${docker_ver}"
 echo "Docker Compose 验证通过：${compose_ver}"
+echo "buildx 验证通过：${buildx_ver}"
 echo "dockerd 验证通过：${dockerd_version_output}"
 
 if [ "$push" == "1" ]; then

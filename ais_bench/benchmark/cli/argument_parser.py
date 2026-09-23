@@ -240,6 +240,7 @@ class ArgumentParser():
             dest='agent_kwarg',
             help="Additional agent kwarg in 'key=value' format "
             "(can be used multiple times)",
+            action='append',
             nargs='+',
             type=str,
             default=None,
@@ -250,6 +251,7 @@ class ArgumentParser():
             dest='agent_env',
             help="Environment variable for the agent in 'KEY=VALUE' format "
             "(can be used multiple times)",
+            action='append',
             nargs='+',
             type=str,
             default=None,
@@ -348,6 +350,14 @@ class ArgumentParser():
             default=None,
         )
         parser.add_argument(
+            '--extra-docker-compose',
+            help='Additional Docker Compose overlay file path. '
+            'Can be used multiple times (one file each).',
+            action='append',
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
             '--delete/--no-delete',
             help='Whether to delete the environment after completion',
             action=argparse.BooleanOptionalAction,
@@ -425,4 +435,3 @@ class ArgumentParser():
         parser.add_argument('--generation-kwargs', type=json.loads, default=None,
                             help='Generation kwargs override as a JSON object, '
                             'e.g. \'{"temperature": 0.01, "ignore_eos": false}\'')
-

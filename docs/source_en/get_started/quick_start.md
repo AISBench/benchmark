@@ -131,7 +131,7 @@ The model configuration file `vllm_api_general_chat.py` contains configuration c
 > ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --host-ip 127.0.0.1 --host-port 8000
 > ```
 >
-> An explicitly specified parameter overrides the corresponding field in **all executed model configs**; only fields **already present** in the config are overridden, and unspecified parameters keep their config-file values. For the full overridable parameter list and coverage notes, refer to 📚 [User Configuration Parameters - API Model Common Override Parameters](../base_tutorials/all_params/cli_args.md#api-model-common-override-parameters).
+> An explicitly specified API model parameter overrides the corresponding field only in executed model configs with `attr="service"`; for local models (`attr="local"`), it is ignored and a warning is logged. Only fields **already present** in a service model config are overridden, and unspecified parameters keep their config-file values. For the full overridable parameter list and coverage notes, refer to 📚 [User Configuration Parameters - API Model Common Override Parameters](../base_tutorials/all_params/cli_args.md#api-model-common-override-parameters).
 
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPIChat

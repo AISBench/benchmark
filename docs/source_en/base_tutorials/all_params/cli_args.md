@@ -25,7 +25,7 @@ Applicable to all modes and can be used in combination with accuracy or performa
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
 | `config` | Specifies the path to a custom configuration file. | `ais_bench /path/to/custom_config.py {other optional arguments}` |
 | `--models` | Specifies the name of the model inference backend task (corresponding to a pre-implemented default model configuration file under the path `ais_bench/benchmark/configs/models`). Multiple task names are supported. For details, refer to 📚 [Supported Models](./models.md).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--models vllm_api_general`  |
-| `--datasets` | Specifies the name of the dataset task (corresponding to a pre-implemented default dataset configuration file under the path `ais_bench/benchmark/configs/datasets`). Multiple dataset names are supported. For details, refer to 📚 [Supported Dataset Types](../../get_started/datasets.md).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--datasets gsm8k_gen`    |
+| `--datasets` | Specifies the name of the dataset task (corresponding to a pre-implemented default dataset configuration file under the path `ais_bench/benchmark/configs/datasets`). Multiple dataset names are supported. For details, refer to 📚 [Supported Dataset Types](../../get_started/datasets.md#supported-dataset-types).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--datasets gsm8k_gen`    |
 | `--summarizer` | Specifies the name of the result summary task (corresponding to a pre-implemented default configuration file under the path `ais_bench/benchmark/configs/summarizers`). For details, refer to 📚 [Supported Result Summary Tasks](./summarizer.md).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--summarizer medium`|
 | `--mode` or `-m` | Running mode, optional values: `all`, `infer`, `eval`, `viz`, `perf`, `perf_viz`, `agent`, `agent_viz`; default value is `all`.<br>For details, refer to 📚 [Running Mode Description](./mode.md). | `--mode infer`<br>`-m all`|
 | `--reuse` or `-r`       | Specifies the timestamp in an existing working directory to continue execution and overwrite original results. Used in conjunction with the `--mode` parameter, it can resume interrupted inference, or perform accuracy calculation/visualization result printing based on existing inference results. If no parameter is added, the latest timestamp in the `--work-dir` is automatically selected. | `--reuse 20250126_144254`<br>`-r 20250126_144254` |
@@ -43,15 +43,16 @@ Applicable to all modes and can be used in combination with accuracy or performa
 
 ### API Model Common Override Parameters
 
-Applicable to service-oriented inference backends (API models such as vLLM, Triton, MindIE, TGI, etc.), used to directly override common fields in the model configuration via the command line without modifying the model configuration files.
+These arguments apply only to service-oriented inference backends whose model configuration has `attr="service"` (API models such as vLLM, Triton, MindIE, and TGI). They directly override common fields in those model configurations without requiring changes to the configuration files. For local models (`attr="local"`), explicitly specified API model arguments are ignored and a warning is logged.
 
 > ⚠️ **Coverage Notes**:
-> - Only fields **already present** in the model config are overridden; no new keys are added (so model classes that do not support a given field do not receive unexpected keywords, preserving backward compatibility).
-> - An explicitly specified parameter overrides the corresponding field in **all executed model configs** (effective across multiple model tasks in the same command).
+> - For each executed model config with `attr="service"`, an explicitly specified parameter overrides the corresponding field (effective across multiple service-model tasks in the same command).
+> - For local model configs (`attr="local"`), all explicitly specified API model arguments are ignored and a warning identifies the ignored arguments.
+> - Only fields **already present** in a service model config are overridden; no new keys are added (so model classes that do not support a given field do not receive unexpected keywords, preserving backward compatibility).
 > - Parameters not explicitly specified are ignored (default `None`), keeping the original values in the config files.
 > - The model-name field is written to `model` or `model_name` depending on the model `type` constructor signature: VLLM classes use `model`, Triton uses `model_name`; when the type accepts neither (e.g. MindIE, TGI), a warning is printed and the value is skipped.
 
-| Parameter | Description | Example |
+| Parameter | Description (`attr="service"` models only) | Example |
 | ---- | ---- | ---- |
 | `--path` | Overrides the `path` field (Tokenizer/model vocabulary path) | `--path /weight/Qwen` |
 | `--model-name` | Overrides the model name, written to `model` or `model_name` based on the model `type` (VLLM→`model`, Triton→`model_name`; warning+skip for MindIE/TGI) | `--model-name Qwen` |
@@ -111,6 +112,7 @@ Effective only when `--mode` is `agent` or `agent_viz`. AISBench runs agent eval
 | `--disable-verification` | Disable the verifier | `--disable-verification` |
 | `--force-build` / `--no-force-build` | Whether to force rebuild the environment | `--no-force-build` |
 | `--host-network` | Run all task containers sharing the host network (docker-compose network_mode: host) | `--host-network` |
+| `--extra-docker-compose` | Additional Docker Compose overlay file (repeatable, one file each) | `--extra-docker-compose /path/to/overlay1.yaml --extra-docker-compose /path/to/overlay2.yaml` |
 | `--delete` / `--no-delete` | Whether to delete the environment after completion | `--no-delete` |
 | `--purge-exception-cases` | Delete all case directories that ended with an exception before execution to auto-retry them; **effective only when `--reuse` is set** | `--reuse <ts> --purge-exception-cases` |
 | `-q` / `--quiet` | Suppress per-trial progress output | `--quiet` |

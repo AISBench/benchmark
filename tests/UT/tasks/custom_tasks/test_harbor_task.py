@@ -200,7 +200,7 @@ class TestHarborTask(unittest.TestCase):
             mock_trial = mock.MagicMock()
             mock_trial.exception_info = None
             mock_trial.verifier_result = mock.MagicMock()
-            mock_trial.verifier_result.rewards = {"score": score}
+            mock_trial.verifier_result.rewards = {"reward": score}
             mock_trials.append(mock_trial)
 
         mock_job_result = mock.MagicMock()
@@ -264,7 +264,7 @@ class TestHarborTask(unittest.TestCase):
         mock_trial_2 = mock.MagicMock()
         mock_trial_2.exception_info = None
         mock_trial_2.verifier_result = mock.MagicMock()
-        mock_trial_2.verifier_result.rewards = {"accuracy": 1.0}
+        mock_trial_2.verifier_result.rewards = {"reward": 1.0}
 
         mock_job_result = mock.MagicMock()
         mock_job_result.trial_results = [mock_trial_1, mock_trial_2]

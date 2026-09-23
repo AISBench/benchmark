@@ -24,7 +24,7 @@ ais_bench [OPTIONS]
 | ---- | ---- | ----|
 |`config`|指定自定义配置文件路径|`ais_bench /path/to/custom_config.py {other optional arguments}`|
 | `--models`| 指定模型推理后端任务名称（对应 `ais_bench/benchmark/configs/models` 路径下一个已经实现的默认模型配置文件），支持传入多个任务名称。详情参考📚 [支持的模型](./models.md)。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--models vllm_api_general`  |
-| `--datasets`   | 指定数据集任务名称（对应 `ais_bench/benchmark/configs/datasets` 路径下一个已经实现的默认数据集配置文件），可传入多个。详情参考📚 [支持的数据集类型](../../get_started/datasets.md)。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--datasets gsm8k_gen`    |
+| `--datasets`   | 指定数据集任务名称（对应 `ais_bench/benchmark/configs/datasets` 路径下一个已经实现的默认数据集配置文件），可传入多个。详情参考📚 [支持数据集类型](../../get_started/datasets.md#支持数据集类型)。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--datasets gsm8k_gen`    |
 | `--summarizer` | 指定结果总结任务名称（对应 `ais_bench/benchmark/configs/summarizers` 路径下一个已经实现的默认模型配置文件）。详情参考📚 [支持的结果汇总任务](./summarizer.md) 。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--summarizer medium`|
 | `--mode` 或 `-m`| 运行模式，可选：`all`、`infer`、`eval`、`viz`、`perf`、`perf_viz`、`agent`、`agent_viz`；默认 `all`。<br>详细请见 📚 [运行模式说明](./mode.md)。 | `--mode infer`<br>`-m all`|
 | `--reuse` 或 `-r`| 指定已有工作目录下的时间戳，继续执行并覆盖原有结果。结合`--mode`参数值，可用于推理中断续推，或基于已有推理结果执行精度计算、可视化结果打印。若不加参，则自动选取 `--work-dir` 下最新时间戳。| `--reuse 20250126_144254`<br>`-r 20250126_144254` |
@@ -42,15 +42,16 @@ ais_bench [OPTIONS]
 
 ### API 模型通用覆盖参数
 
-适用于服务化推理后端（API 模型，如 vLLM、Triton、MindIE、TGI 等），用于在不修改模型配置文件的前提下，通过命令行直接覆盖模型配置中的常用字段。
+这些参数仅适用于模型配置中 `attr="service"` 的服务化推理后端（API 模型，如 vLLM、Triton、MindIE、TGI 等），用于在不修改配置文件的前提下，通过命令行直接覆盖这些模型配置中的常用字段。对于本地模型（`attr="local"`），显式指定的 API 模型参数会被忽略并打印 warning。
 
 > ⚠️ **覆盖范围说明**：
-> - 仅覆盖模型配置中**已存在的字段**，不新增字段（避免向不支持某字段的模型类传入多余参数，保证向后兼容）。
-> - 命令行显式指定的参数会覆盖**执行的所有模型配置**中对应的字段（同一命令下多个模型任务均生效）。
+> - 对于每个 `attr="service"` 的模型配置，命令行显式指定的参数会覆盖其中的对应字段（同一命令下多个服务化模型任务均生效）。
+> - 对于本地模型配置（`attr="local"`），所有显式指定的 API 模型参数都会被忽略，并通过 warning 提示被忽略的参数。
+> - 仅覆盖服务化模型配置中**已存在的字段**，不新增字段（避免向不支持某字段的模型类传入多余参数，保证向后兼容）。
 > - 未显式指定的参数不生效（默认 `None`），配置文件中保持原值。
 > - `model` / `model_name` 字段按模型 `type` 的构造签名自动选择写入目标：VLLM 系列写入 `model`，Triton 写入 `model_name`；模型类型两者都不接收（如 MindIE、TGI）时打印 warning 并跳过。
 
-| 参数 | 说明 | 示例 |
+| 参数 | 说明（仅适用于 `attr="service"` 的模型） | 示例 |
 | ---- | ---- | ---- |
 | `--path` | 覆盖模型配置的 `path` 字段（Tokenizer/模型序列化词表文件路径） | `--path /weight/Qwen` |
 | `--model-name` | 覆盖模型名。按模型 `type` 自动写入 `model` 或 `model_name` 字段（VLLM→`model`，Triton→`model_name`；MindIE/TGI 不接收时 warning 跳过） | `--model-name Qwen` |
@@ -106,6 +107,7 @@ ais_bench [OPTIONS]
 | `--disable-verification` | 禁用 verifier | `--disable-verification` |
 | `--force-build` / `--no-force-build` | 是否强制重建环境 | `--no-force-build` |
 | `--host-network` | 所有任务容器共享宿主网络（docker-compose network_mode: host） | `--host-network` |
+| `--extra-docker-compose` | 附加的 Docker Compose overlay 文件（可多次传入，每次一个文件） | `--extra-docker-compose /path/to/overlay1.yaml --extra-docker-compose /path/to/overlay2.yaml` |
 | `--delete` / `--no-delete` | 完成后是否删除环境 | `--no-delete` |
 | `--purge-exception-cases` | 执行前删除所有因异常结束的 case 目录，实现自动重试；**仅在 `--reuse` 指定时生效** | `--reuse <ts> --purge-exception-cases` |
 | `-q` / `--quiet` | 抑制单个 trial 的进度显示 | `--quiet` |

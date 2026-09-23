@@ -479,6 +479,52 @@ class TestHarborAgentTaskJobConfig(unittest.TestCase):
         self.assertEqual(config.environment.env, {"K": "V"})
 
     @mock.patch.dict("sys.modules", _HARBOR_MODULES)
+    def test_apply_environment_with_extra_docker_compose_expect_appends_existing_paths(self):
+        """_apply_environment 收到 extra_docker_compose (list[str]) 时，应把各路径追加为
+        Path 到 config.environment.extra_docker_compose（保留已有值）。"""
+        config = mock.MagicMock()
+        config.environment = mock.MagicMock()
+        config.environment.env = {}
+        config.environment.kwargs = {}
+        # 模拟 harbor EnvironmentConfig.extra_docker_compose 是 list[Path]
+        existing = [Path("/existing.yaml")]
+        config.environment.extra_docker_compose = list(existing)
+        args = {
+            "extra_docker_compose": ["/a.yaml", "/b.yaml"],
+        }
+        self.task._apply_environment(config, args)
+        # extend 行为：原值 + 新值
+        self.assertEqual(
+            [Path(p) for p in config.environment.extra_docker_compose],
+            [Path("/existing.yaml"), Path("/a.yaml"), Path("/b.yaml")],
+        )
+
+    @mock.patch.dict("sys.modules", _HARBOR_MODULES)
+    def test_apply_environment_without_extra_docker_compose_expect_keeps_list_empty(self):
+        """_apply_environment 未收到 extra_docker_compose 时，不应调用 extend，列表保持初始空。"""
+        config = mock.MagicMock()
+        config.environment = mock.MagicMock()
+        config.environment.env = {}
+        config.environment.kwargs = {}
+        config.environment.extra_docker_compose = []
+        self.task._apply_environment(config, {})
+        self.assertEqual(config.environment.extra_docker_compose, [])
+
+    @mock.patch.dict("sys.modules", _HARBOR_MODULES)
+    def test_apply_environment_with_empty_extra_docker_compose_expect_noop(self):
+        """_apply_environment 收到空的 extra_docker_compose 列表时，应为 no-op，不做任何追加。"""
+        config = mock.MagicMock()
+        config.environment = mock.MagicMock()
+        config.environment.env = {}
+        config.environment.kwargs = {}
+        config.environment.extra_docker_compose = []
+        # 空列表 falsy，应当跳过 extend
+        self.task._apply_environment(
+            config, {"extra_docker_compose": []}
+        )
+        self.assertEqual(config.environment.extra_docker_compose, [])
+
+    @mock.patch.dict("sys.modules", _HARBOR_MODULES)
     def test_apply_verifier(self):
         config = mock.MagicMock()
         config.verifier = mock.MagicMock()
