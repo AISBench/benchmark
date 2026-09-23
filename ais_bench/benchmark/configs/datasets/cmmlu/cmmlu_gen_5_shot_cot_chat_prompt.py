@@ -120,7 +120,7 @@ for _name in cmmlu_all_sets:
         evaluator=dict(type=AccEvaluator),
         pred_postprocessor=dict(
             type=match_answer_pattern,
-            answer_pattern=r'(?i)答案\s*:\s*[\W]*([A-D])[\W]*',
+            answer_pattern=r'(?i)答案\s*[:：]\s*[\W]*([A-D])[\W]*',
         )
     )
     cmmlu_datasets.append(
