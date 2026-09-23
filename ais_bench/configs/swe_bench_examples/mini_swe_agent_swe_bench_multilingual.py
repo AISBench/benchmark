@@ -36,6 +36,7 @@ datasets = [
         split="test",
         step_limit=STEP_LIMIT,
         filter_spec="",
+        instance_ids_file="",
         shuffle=False,
     ),
 ]
