@@ -99,9 +99,11 @@ Open-source datasets refer to widely used, publicly accessible datasets in the c
 
 | Dataset Name       | Category                                       | Detailed Introduction & Acquisition Method                                                                                             |
 | ------------------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| DeepSWE            | Software Engineering Tasks (Original/Long-Horizon) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/deep_swe.md)     |
 | SWE-bench          | Software Engineering Tasks (Open-Source)       | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/swe_bench.md)        |
 | SWE-bench Pro      | Software Engineering Tasks (Closed/Long-Horizon) | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/swe_bench_pro.md)    |
 | Terminal-Bench 2.0 | Terminal Task Execution                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/harbor_bench.md)     |
+| Terminal-Bench 2.1 | Terminal Task Execution                        | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/terminal_bench_2_1.md) |
 | τ²-Bench           | Dual-Control Dialogue & Tool Calling           | [Detailed Introduction](https://github.com/AISBench/benchmark/tree/master/docs/source_en/extended_benchmark/agent/tau2_bench.md)       |
 
 ### Configuring Open-Source Datasets

@@ -99,9 +99,11 @@ AISBench Benchmark当前支持的数据集类型如下：
 
 | 数据集名称         | 分类                       | 详细介绍&获取方式                                                                                                                 |
 | ------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| DeepSWE           | 软件工程任务（原创长时域） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/deep_swe.md)              |
 | SWE-bench          | 软件工程任务（开源）        | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/swe_bench.md)             |
 | SWE-bench Pro      | 软件工程任务（闭源/长时域） | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/swe_bench_pro.md)         |
 | Terminal-Bench 2.0 | 终端任务执行               | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/harbor_bench.md)          |
+| Terminal-Bench 2.1 | 终端任务执行               | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/terminal_bench_2_1.md)    |
 | τ²-Bench           | 双控环境对话与工具调用      | [详细介绍](https://github.com/AISBench/benchmark/tree/master/docs/source_zh_cn/extended_benchmark/agent/tau2_bench.md)            |
 
 ### 配置开源数据集
