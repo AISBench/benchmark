@@ -41,7 +41,7 @@ mme_datasets = [
     dict(
         abbr="mme",
         type=MMEDataset,
-        path=r"C:\需求\MME\MME\data",
+        path="ais_bench/datasets/MME/data",
         reader_cfg=mme_reader_cfg,
         infer_cfg=mme_infer_cfg,
         eval_cfg=mme_eval_cfg,
