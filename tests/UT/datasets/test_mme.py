@@ -87,7 +87,9 @@ class TestMMEDataset(unittest.TestCase):
             self.assertEqual(prompt_mm[1]["text"], dataset[0]["question"])
 
     def test_config_uses_required_local_data_path(self):
-        self.assertEqual(mme_datasets[0]["path"], r"C:\需求\MME\MME\data")
+        self.assertEqual(
+            mme_datasets[0]["path"], "ais_bench/datasets/MME/data"
+        )
 
     def test_missing_required_column_raises(self):
         with tempfile.TemporaryDirectory() as tmpdir:

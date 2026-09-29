@@ -12,20 +12,19 @@ MME 是一个用于评估多模态大语言模型图像理解能力的综合评�
 ## 数据集部署
 
 - 可以从 Hugging Face 数据集页面 🔗 [https://huggingface.co/datasets/darkyarding/MME/tree/main](https://huggingface.co/datasets/darkyarding/MME/tree/main) 获取数据集。
-- MME 数据集使用 Parquet 格式，共包含两个 test 分片。本适配默认从 `C:\需求\MME\MME\data` 目录读取全部 `.parquet` 文件。
-- 下载后，在 `C:\需求\MME` 目录下执行 `tree MME /F` 检查目录结构。如果目录结构如下所示，则数据集部署成功：
+- MME 数据集使用 Parquet 格式，共包含两个 test 分片。本适配默认从 benchmark 仓库内的 `ais_bench/datasets/MME/data` 目录读取全部 `.parquet` 文件。
+- 下载后，在 benchmark 仓库根目录执行 `tree ais_bench\datasets\MME /F` 检查目录结构。如果目录结构如下所示，则数据集部署成功：
 
     ```text
-    MME/
-    ├── .gitattributes
-    ├── MME_Benchmark_release_version.zip
-    ├── README.md
-    └── data/
-        ├── test-00000-of-00002.parquet
-        └── test-00001-of-00002.parquet
+    ais_bench/
+    └── datasets/
+        └── MME/
+            └── data/
+                ├── test-00000-of-00002.parquet
+                └── test-00001-of-00002.parquet
     ```
 
-  其中，评测实际使用的是 `data/` 目录下的两个 Parquet 分片；仓库根目录中的 zip 压缩包不参与本适配的数据加载。
+  评测直接使用 `data/` 目录下的两个 Parquet 分片，目录中不需要保留原始 zip 压缩包。
 
 - 每条 Parquet 数据应包含以下字段：
 

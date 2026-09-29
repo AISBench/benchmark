@@ -12,20 +12,19 @@ MME is a comprehensive benchmark for evaluating image understanding in multimoda
 ## Dataset Setup
 
 - Download the dataset from the Hugging Face dataset page: [https://huggingface.co/datasets/darkyarding/MME/tree/main](https://huggingface.co/datasets/darkyarding/MME/tree/main).
-- MME is provided in Parquet format and contains two test shards. The bundled config reads all `.parquet` files from `C:\需求\MME\MME\data`.
-- After downloading, run `tree MME /F` from `C:\需求\MME` to check the directory structure. The dataset is ready when it looks like this:
+- MME is provided in Parquet format and contains two test shards. The bundled config reads all `.parquet` files from `ais_bench/datasets/MME/data` inside the benchmark repository.
+- After downloading, run `tree ais_bench\datasets\MME /F` from the benchmark repository root. The dataset is ready when it looks like this:
 
     ```text
-    MME/
-    ├── .gitattributes
-    ├── MME_Benchmark_release_version.zip
-    ├── README.md
-    └── data/
-        ├── test-00000-of-00002.parquet
-        └── test-00001-of-00002.parquet
+    ais_bench/
+    └── datasets/
+        └── MME/
+            └── data/
+                ├── test-00000-of-00002.parquet
+                └── test-00001-of-00002.parquet
     ```
 
-  Evaluation uses the two Parquet shards under `data/`. The zip archive in the repository root is not used by this adapter.
+  Evaluation reads the two Parquet shards under `data/` directly; the original zip archive is not required in this directory.
 
 - Each Parquet record must contain the following fields:
 
