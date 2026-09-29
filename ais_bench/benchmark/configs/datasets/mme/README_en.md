@@ -42,7 +42,7 @@ MME is a comprehensive benchmark for evaluating image understanding in multimoda
 
 | Task | Description | Metrics | Few-Shot | Prompt Format | Source Config |
 | --- | --- | --- | --- | --- | --- |
-| mme_gen_base64 | MME multimodal image understanding benchmark | ACC, ACC+, MME Score | 0-shot | Multimodal base64 | mme_gen_base64.py |
+| mme_gen_base64 | MME multimodal image understanding benchmark | 14 task scores | 0-shot | Multimodal base64 | mme_gen_base64.py |
 
 Data loading and prompt message construction follow the InfoVQA style, with the image before the text. The prompt uses the `question` from Parquet verbatim and does not append an additional answer instruction. Images are encoded as base64 data URLs with the matching JPEG or PNG MIME type.
 
@@ -51,9 +51,36 @@ Data loading and prompt message construction follow the InfoVQA style, with the 
 
 Evaluation reports:
 
-- Overall and per-task `ACC` and `ACC+`;
-- The official `Perception`, `Cognition`, and `MME Score` totals;
+- The CLI, `mme.json`, and summary files expose only the 14 official task scores in official order, where `score = ACC + ACC+`;
+- `<work_dir>/results/<model>/mme_results/mme_metrics.json` groups tasks under `Perception` and `Cognition` and stores each task's `ACC`, `ACC+`, and `score`, together with each group's `total_score`;
 - 14 task-specific txt result files under `<work_dir>/results/<model>/mme_results/`.
+
+`mme_metrics.json` uses the following structure:
+
+```json
+{
+    "Perception": {
+        "total_score": 1647.3155262104842,
+        "tasks": {
+            "existence": {
+                "ACC": 100.0,
+                "ACC+": 100.0,
+                "score": 200.0
+            }
+        }
+    },
+    "Cognition": {
+        "total_score": 751.7857142857142,
+        "tasks": {
+            "code_reasoning": {
+                "ACC": 97.5,
+                "ACC+": 95.0,
+                "score": 192.5
+            }
+        }
+    }
+}
+```
 
 Each line in a result file uses the following four-column format:
 

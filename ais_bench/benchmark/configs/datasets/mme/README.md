@@ -42,7 +42,7 @@ MME 是一个用于评估多模态大语言模型图像理解能力的综合评�
 
 | 任务名称 | 简介 | 评估指标 | Few-Shot | Prompt 格式 | 对应源码配置文件路径 |
 | --- | --- | --- | --- | --- | --- |
-| mme_gen_base64 | MME 多模态图像理解评测集 | ACC、ACC+、MME Score | 0-shot | 多模态 base64 格式 | mme_gen_base64.py |
+| mme_gen_base64 | MME 多模态图像理解评测集 | 14 个子任务 score | 0-shot | 多模态 base64 格式 | mme_gen_base64.py |
 
 数据加载与 prompt 消息构造参照 InfoVQA：图片在前、文本在后；prompt 直接使用 Parquet 中的 `question` 原文，不追加额外回答指令。图片会根据真实格式编码为 JPEG 或 PNG 的 base64 data URL。
 
@@ -51,9 +51,36 @@ MME 是一个用于评估多模态大语言模型图像理解能力的综合评�
 
 评测完成后会输出：
 
-- 整体以及各子任务的 `ACC` 和 `ACC+`；
-- `Perception`、`Cognition` 和 `MME Score` 官方汇总分数；
+- CLI、`mme.json` 和 summary 文件仅展示官方顺序的 14 个子任务 `score`，其中 `score = ACC + ACC+`；
+- `<work_dir>/results/<model>/mme_results/mme_metrics.json` 按 `Perception` 和 `Cognition` 分组，详细保存各子任务的 `ACC`、`ACC+`、`score` 以及分组 `total_score`；
 - `<work_dir>/results/<model>/mme_results/` 目录下按子任务生成的 14 个 txt 结果文件。
+
+`mme_metrics.json` 的结构如下：
+
+```json
+{
+    "Perception": {
+        "total_score": 1647.3155262104842,
+        "tasks": {
+            "existence": {
+                "ACC": 100.0,
+                "ACC+": 100.0,
+                "score": 200.0
+            }
+        }
+    },
+    "Cognition": {
+        "total_score": 751.7857142857142,
+        "tasks": {
+            "code_reasoning": {
+                "ACC": 97.5,
+                "ACC+": 95.0,
+                "score": 192.5
+            }
+        }
+    }
+}
+```
 
 每个 txt 文件中的单行格式如下：
 

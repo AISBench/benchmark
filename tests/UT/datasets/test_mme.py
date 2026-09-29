@@ -1,4 +1,5 @@
 import base64
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,7 +8,8 @@ import pandas as pd
 
 from ais_bench.benchmark.configs.datasets.mme.mme_gen_base64 import (
     mme_datasets, mme_infer_cfg)
-from ais_bench.benchmark.datasets.mme import MMEDataset, MMEEvaluator
+from ais_bench.benchmark.datasets.mme import (MME_TASKS, MMEDataset,
+                                               MMEEvaluator)
 from ais_bench.benchmark.openicl.icl_prompt_template import MMPromptTemplate
 
 
@@ -150,13 +152,12 @@ class TestMMEEvaluator(unittest.TestCase):
                 self._references(),
             )
 
-            self.assertEqual(result["ACC"], 75.0)
-            self.assertEqual(result["ACC+"], 50.0)
-            self.assertEqual(result["existence/ACC"], 100.0)
-            self.assertEqual(result["existence/ACC+"], 100.0)
-            self.assertEqual(result["Perception"], 200.0)
-            self.assertEqual(result["Cognition"], 50.0)
-            self.assertEqual(result["MME Score"], 250.0)
+            self.assertEqual(
+                [key for key in result if key != "details"],
+                ["existence/score", "commonsense_reasoning/score"],
+            )
+            self.assertEqual(result["existence/score"], 200.0)
+            self.assertEqual(result["commonsense_reasoning/score"], 50.0)
 
             result_dir = Path(tmpdir) / "mme_results"
             existence_lines = (result_dir / "existence.txt").read_text(
@@ -165,6 +166,57 @@ class TestMMEEvaluator(unittest.TestCase):
             self.assertEqual(len(existence_lines), 2)
             self.assertEqual(len(existence_lines[0].split("\t")), 4)
             self.assertIn("yes reason", existence_lines[0])
+
+            metric_report = json.loads(
+                (result_dir / "mme_metrics.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(metric_report["Perception"]["total_score"], 200.0)
+            self.assertEqual(
+                metric_report["Perception"]["tasks"]["existence"],
+                {"ACC": 100.0, "ACC+": 100.0, "score": 200.0},
+            )
+            self.assertEqual(metric_report["Cognition"]["total_score"], 50.0)
+            self.assertEqual(
+                metric_report["Cognition"]["tasks"]["commonsense_reasoning"],
+                {"ACC": 50.0, "ACC+": 0.0, "score": 50.0},
+            )
+
+    def test_cli_metrics_contain_only_14_task_scores_in_official_order(self):
+        references = []
+        predictions = []
+        for task_name in MME_TASKS:
+            question_id = f"{task_name}/1"
+            references.extend(
+                [
+                    {
+                        "question_id": question_id,
+                        "image_name": f"{task_name}.jpg",
+                        "question": "Is A present?",
+                        "answer": "Yes",
+                        "category": task_name,
+                    },
+                    {
+                        "question_id": question_id,
+                        "image_name": f"{task_name}.jpg",
+                        "question": "Is B absent?",
+                        "answer": "No",
+                        "category": task_name,
+                    },
+                ]
+            )
+            predictions.extend(["yes", "no"])
+
+        result = MMEEvaluator(write_results=False).score(
+            predictions, references
+        )
+
+        metric_keys = [key for key in result if key != "details"]
+        self.assertEqual(
+            metric_keys,
+            [f"{task_name}/score" for task_name in MME_TASKS],
+        )
+        self.assertEqual(len(metric_keys), 14)
+        self.assertTrue(all(result[key] == 200.0 for key in metric_keys))
 
     def test_prediction_parser_matches_official_prefix_rule(self):
         self.assertEqual(MMEEvaluator.parse_pred_answer("yes"), "yes")
@@ -185,8 +237,7 @@ class TestMMEEvaluator(unittest.TestCase):
     def test_empty_input(self):
         evaluator = MMEEvaluator(write_results=False)
         result = evaluator.score([], [])
-        self.assertEqual(result["ACC"], 0.0)
-        self.assertEqual(result["ACC+"], 0.0)
+        self.assertEqual(result, {"details": []})
 
 
 if __name__ == "__main__":

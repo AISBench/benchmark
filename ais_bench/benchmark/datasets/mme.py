@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 from collections import OrderedDict
 from pathlib import Path
@@ -234,6 +235,41 @@ class MMEEvaluator(BaseEvaluator):
                         )
         self.logger.info(f"MME result txt files saved to {results_dir}")
 
+    def _write_metric_report(self, task_metrics):
+        if not self.write_results:
+            return
+        if not hasattr(self, "_out_dir"):
+            self.logger.warning(
+                "MME metric report was not written because evaluator "
+                "output directory is unavailable"
+            )
+            return
+
+        grouped_metrics = OrderedDict()
+        for group_name, task_names in (
+            ("Perception", PERCEPTION_TASKS),
+            ("Cognition", COGNITION_TASKS),
+        ):
+            group_tasks = OrderedDict(
+                (task_name, task_metrics[task_name])
+                for task_name in task_names
+                if task_name in task_metrics
+            )
+            total_score = sum(
+                metrics["score"] for metrics in group_tasks.values()
+            )
+            grouped_metrics[group_name] = OrderedDict(
+                (("total_score", total_score), ("tasks", group_tasks))
+            )
+
+        results_dir = Path(self._out_dir) / self.results_subdir
+        results_dir.mkdir(parents=True, exist_ok=True)
+        report_path = results_dir / "mme_metrics.json"
+        with report_path.open("w", encoding="utf-8", newline="\n") as file:
+            json.dump(grouped_metrics, file, ensure_ascii=False, indent=4)
+            file.write("\n")
+        self.logger.info(f"MME metric report saved to {report_path}")
+
     def score(self, predictions, references):
         if len(predictions) != len(references):
             raise ValueError(
@@ -241,14 +277,7 @@ class MMEEvaluator(BaseEvaluator):
                 f"({len(references)}) have different length"
             )
         if not predictions:
-            return {
-                "ACC": 0.0,
-                "ACC+": 0.0,
-                "Perception": 0.0,
-                "Cognition": 0.0,
-                "MME Score": 0.0,
-                "details": [],
-            }
+            return {"details": []}
 
         category_records = OrderedDict()
         details = []
@@ -299,12 +328,7 @@ class MMEEvaluator(BaseEvaluator):
         )
         self._write_result_files(category_pairs)
 
-        result = {}
-        total_correct = 0
-        total_questions = 0
-        total_pair_correct = 0
-        total_pairs = 0
-        task_scores = {}
+        task_metrics = {}
         for category, pairs in category_pairs.items():
             records = category_records[category]
             correct = sum(record["correct"] for record in records)
@@ -316,23 +340,18 @@ class MMEEvaluator(BaseEvaluator):
             acc_plus = 100.0 * pair_correct / len(pairs)
             task_score = acc + acc_plus
 
-            result[f"{category}/ACC"] = acc
-            result[f"{category}/ACC+"] = acc_plus
-            result[f"{category}/score"] = task_score
-            task_scores[category] = task_score
-            total_correct += correct
-            total_questions += len(records)
-            total_pair_correct += pair_correct
-            total_pairs += len(pairs)
+            task_metrics[category] = OrderedDict(
+                (("ACC", acc), ("ACC+", acc_plus), ("score", task_score))
+            )
 
-        result["ACC"] = 100.0 * total_correct / total_questions
-        result["ACC+"] = 100.0 * total_pair_correct / total_pairs
-        result["Perception"] = sum(
-            task_scores.get(category, 0.0) for category in PERCEPTION_TASKS
+        self._write_metric_report(task_metrics)
+
+        # Keep the standard AISBench result compact: the CLI and summary files
+        # expose only the 14 official task scores, in official MME order.
+        result = OrderedDict(
+            (f"{category}/score", task_metrics[category]["score"])
+            for category in MME_TASKS
+            if category in task_metrics
         )
-        result["Cognition"] = sum(
-            task_scores.get(category, 0.0) for category in COGNITION_TASKS
-        )
-        result["MME Score"] = result["Perception"] + result["Cognition"]
         result["details"] = details
         return result
