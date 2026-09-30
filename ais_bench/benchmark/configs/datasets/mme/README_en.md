@@ -41,7 +41,7 @@ MME is a comprehensive benchmark for evaluating image understanding in multimoda
 
 | Task | Description | Metrics | Few-Shot | Prompt Format | Source Config |
 | --- | --- | --- | --- | --- | --- |
-| mme_gen_base64 | MME multimodal image understanding benchmark | 14 task scores | 0-shot | Multimodal base64 | mme_gen_base64.py |
+| mme_gen_base64 | MME multimodal image understanding benchmark | 14 task scores + 2 group totals | 0-shot | Multimodal base64 | mme_gen_base64.py |
 
 Data loading and prompt message construction follow the InfoVQA style, with the image before the text. The prompt uses the `question` from Parquet verbatim and does not append an additional answer instruction. Images are encoded as base64 data URLs with the matching JPEG or PNG MIME type.
 
@@ -50,7 +50,7 @@ Data loading and prompt message construction follow the InfoVQA style, with the 
 
 Evaluation reports:
 
-- The CLI, `mme.json`, and summary files expose only the 14 official task scores in official order, where `score = ACC + ACC+`;
+- The CLI, `mme.json`, and summary files expose the 14 official task scores in official order, followed by the `Perception` and `Cognition` group `total_score` values, where each task `score = ACC + ACC+`;
 - `<work_dir>/results/<model>/mme_results/mme_metrics.json` groups tasks under `Perception` and `Cognition` and stores each task's `ACC`, `ACC+`, and `score`, together with each group's `total_score`;
 - 14 task-specific txt result files under `<work_dir>/results/<model>/mme_results/`.
 

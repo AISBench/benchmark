@@ -156,10 +156,17 @@ class TestMMEEvaluator(unittest.TestCase):
 
             self.assertEqual(
                 [key for key in result if key != "details"],
-                ["existence/score", "commonsense_reasoning/score"],
+                [
+                    "existence/score",
+                    "commonsense_reasoning/score",
+                    "Perception",
+                    "Cognition",
+                ],
             )
             self.assertEqual(result["existence/score"], 200.0)
             self.assertEqual(result["commonsense_reasoning/score"], 50.0)
+            self.assertEqual(result["Perception"], 200.0)
+            self.assertEqual(result["Cognition"], 50.0)
 
             result_dir = Path(tmpdir) / "mme_results"
             existence_lines = (result_dir / "existence.txt").read_text(
@@ -183,7 +190,7 @@ class TestMMEEvaluator(unittest.TestCase):
                 {"ACC": 50.0, "ACC+": 0.0, "score": 50.0},
             )
 
-    def test_cli_metrics_contain_only_14_task_scores_in_official_order(self):
+    def test_cli_metrics_contain_task_scores_and_group_totals(self):
         references = []
         predictions = []
         for task_name in MME_TASKS:
@@ -215,10 +222,51 @@ class TestMMEEvaluator(unittest.TestCase):
         metric_keys = [key for key in result if key != "details"]
         self.assertEqual(
             metric_keys,
-            [f"{task_name}/score" for task_name in MME_TASKS],
+            [f"{task_name}/score" for task_name in MME_TASKS]
+            + ["Perception", "Cognition"],
         )
-        self.assertEqual(len(metric_keys), 14)
-        self.assertTrue(all(result[key] == 200.0 for key in metric_keys))
+        self.assertEqual(len(metric_keys), 16)
+        self.assertTrue(
+            all(
+                result[f"{task_name}/score"] == 200.0
+                for task_name in MME_TASKS
+            )
+        )
+        self.assertEqual(result["Perception"], 2000.0)
+        self.assertEqual(result["Cognition"], 800.0)
+
+    def test_group_totals_match_official_calculation(self):
+        official_scores = {
+            "existence": 200.0,
+            "count": 178.33333333333331,
+            "position": 185.0,
+            "color": 185.0,
+            "posters": 173.12925170068027,
+            "celebrity": 152.3529411764706,
+            "scene": 146.25,
+            "landmark": 140.0,
+            "artwork": 109.75,
+            "OCR": 177.5,
+            "commonsense_reasoning": 174.28571428571428,
+            "numerical_calculation": 200.0,
+            "text_translation": 185.0,
+            "code_reasoning": 192.5,
+        }
+        task_metrics = {
+            task_name: {"score": score}
+            for task_name, score in official_scores.items()
+        }
+
+        grouped_metrics = MMEEvaluator._group_metrics(task_metrics)
+
+        self.assertEqual(
+            grouped_metrics["Perception"]["total_score"],
+            1647.3155262104842,
+        )
+        self.assertEqual(
+            grouped_metrics["Cognition"]["total_score"],
+            751.7857142857142,
+        )
 
     def test_prediction_parser_matches_official_prefix_rule(self):
         self.assertEqual(MMEEvaluator.parse_pred_answer("yes"), "yes")

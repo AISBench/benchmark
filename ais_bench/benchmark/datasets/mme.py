@@ -235,16 +235,8 @@ class MMEEvaluator(BaseEvaluator):
                         )
         self.logger.info(f"MME result txt files saved to {results_dir}")
 
-    def _write_metric_report(self, task_metrics):
-        if not self.write_results:
-            return
-        if not hasattr(self, "_out_dir"):
-            self.logger.warning(
-                "MME metric report was not written because evaluator "
-                "output directory is unavailable"
-            )
-            return
-
+    @staticmethod
+    def _group_metrics(task_metrics):
         grouped_metrics = OrderedDict()
         for group_name, task_names in (
             ("Perception", PERCEPTION_TASKS),
@@ -261,6 +253,17 @@ class MMEEvaluator(BaseEvaluator):
             grouped_metrics[group_name] = OrderedDict(
                 (("total_score", total_score), ("tasks", group_tasks))
             )
+        return grouped_metrics
+
+    def _write_metric_report(self, grouped_metrics):
+        if not self.write_results:
+            return
+        if not hasattr(self, "_out_dir"):
+            self.logger.warning(
+                "MME metric report was not written because evaluator "
+                "output directory is unavailable"
+            )
+            return
 
         results_dir = Path(self._out_dir) / self.results_subdir
         results_dir.mkdir(parents=True, exist_ok=True)
@@ -344,14 +347,17 @@ class MMEEvaluator(BaseEvaluator):
                 (("ACC", acc), ("ACC+", acc_plus), ("score", task_score))
             )
 
-        self._write_metric_report(task_metrics)
+        grouped_metrics = self._group_metrics(task_metrics)
+        self._write_metric_report(grouped_metrics)
 
-        # Keep the standard AISBench result compact: the CLI and summary files
-        # expose only the 14 official task scores, in official MME order.
+        # Keep task scores in official MME order, followed by the two official
+        # group totals printed by calculation.py.
         result = OrderedDict(
             (f"{category}/score", task_metrics[category]["score"])
             for category in MME_TASKS
             if category in task_metrics
         )
+        result["Perception"] = grouped_metrics["Perception"]["total_score"]
+        result["Cognition"] = grouped_metrics["Cognition"]["total_score"]
         result["details"] = details
         return result
