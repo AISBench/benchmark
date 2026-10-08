@@ -151,6 +151,36 @@ class TestOpenICLEvalTask(unittest.TestCase):
         self.assertIn("/usr/bin/python", cmd)
         self.assertIn("/path/to/config.py", cmd)
 
+    def test_get_loggable_result_excludes_per_sample_artifacts(self):
+        result = {
+            'pass@1': 89.18,
+            'detail': {'pass@1': {0: 100.0, 1: 0.0}},
+            'details': [{'correct': True}, {'correct': False}],
+            'extracted_predictions': {0: ['generated code']},
+            'eval_results': {0: [[True, True]]},
+        }
+
+        loggable_result = OpenICLEvalTask._get_loggable_result(result)
+
+        self.assertEqual(loggable_result, {'pass@1': 89.18})
+        self.assertIn('eval_results', result)
+
+    def test_get_loggable_result_excludes_model_postprocess_artifacts(self):
+        result = {
+            'accuracy': 90.0,
+            'model_postprocess_pass@1': 91.0,
+            'model_postprocess_detail': {'pass@1': {0: 100.0}},
+            'model_postprocess_extracted_predictions': {0: ['code']},
+            'model_postprocess_eval_results': {0: [[True]]},
+        }
+
+        loggable_result = OpenICLEvalTask._get_loggable_result(result)
+
+        self.assertEqual(loggable_result, {
+            'accuracy': 90.0,
+            'model_postprocess_pass@1': 91.0,
+        })
+
     @patch('ais_bench.benchmark.tasks.openicl_eval.AISLogger')
     @patch('ais_bench.benchmark.tasks.openicl_eval.ICL_EVALUATORS')
     @patch('ais_bench.benchmark.tasks.openicl_eval.build_dataset_from_cfg')
@@ -161,7 +191,12 @@ class TestOpenICLEvalTask(unittest.TestCase):
         mock_logger_class.return_value = mock_logger
 
         mock_evaluator = MagicMock()
-        mock_evaluator.evaluate.return_value = {"accuracy": 0.9}
+        mock_evaluator.evaluate.return_value = {
+            "accuracy": 0.9,
+            "detail": {"accuracy": {0: 1.0}},
+            "extracted_predictions": {0: ["generated code"]},
+            "eval_results": {0: [[True]]},
+        }
         mock_evaluator.score.return_value = {"accuracy": 0.9}
         mock_evaluators.build.return_value = mock_evaluator
 
@@ -217,6 +252,25 @@ class TestOpenICLEvalTask(unittest.TestCase):
         task._score()
 
         mock_evaluators.build.assert_called_once()
+        task_log = next(
+            call.args[0]
+            for call in mock_logger.info.call_args_list
+            if call.args and call.args[0].startswith('Task ')
+        )
+        self.assertIn("'accuracy': 0.9", task_log)
+        self.assertNotIn('detail', task_log)
+        self.assertNotIn('extracted_predictions', task_log)
+        self.assertNotIn('eval_results', task_log)
+
+        result_file = get_infer_output_path(
+            task.model_cfg,
+            task.dataset_cfg,
+            os.path.join(task.work_dir, 'results'),
+        )
+        with open(result_file, 'rb') as f:
+            saved_result = orjson.loads(f.read())
+        self.assertIn('extracted_predictions', saved_result)
+        self.assertIn('eval_results', saved_result)
 
     @patch('ais_bench.benchmark.tasks.openicl_eval.AISLogger')
     def test_score_with_invalid_k_n(self, mock_logger_class):
@@ -2090,4 +2144,3 @@ class TestOpenICLEvalTask(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

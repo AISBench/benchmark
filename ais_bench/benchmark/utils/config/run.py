@@ -1,15 +1,13 @@
 # flake8: noqa
 # yapf: disable
-from ais_bench.benchmark.partitioners import NaivePartitioner
-from ais_bench.benchmark.runners import LocalRunner
-from ais_bench.benchmark.tasks import OpenICLEvalTask, OpenICLApiInferTask
 from ais_bench.benchmark.utils.logging import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 from ais_bench.benchmark.utils.logging.error_codes import UTILS_CODES
-from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
-from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
-from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
-from ais_bench.benchmark.openicl.icl_evaluator import AccEvaluator
+
+# NOTE: partitioner / runner / task / openicl classes are imported lazily
+# inside the functions below. Their submodules transitively pull in torch and
+# other heavyweight dependencies, which would otherwise break the
+# dependency-isolated agent environment.
 
 logger = AISLogger()
 
@@ -25,6 +23,17 @@ def try_fill_in_custom_cfgs(config):
         return config
 
     for dataset_cfg in config["datasets"]:
+        # agent-style datasets carry only 'args' (harbor job settings) and
+        # never use the openicl infer/reader/eval pipeline; skipping the
+        # dummy fill keeps the openicl + huggingface `datasets` imports out
+        # of the dependency-isolated agent environment.
+        if "args" in dataset_cfg:
+            continue
+        from ais_bench.benchmark.openicl.icl_evaluator import AccEvaluator
+        from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
+        from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate
+        from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
+
         if "infer_cfg" not in dataset_cfg:
             logger.debug(f"Filling in infer config for dataset {dataset_cfg['abbr']}")
             dataset_cfg["infer_cfg"] = dict(
@@ -61,6 +70,10 @@ def get_models_attr(cfg):
 
 
 def fill_infer_cfg(cfg, args):
+    from ais_bench.benchmark.partitioners import NaivePartitioner
+    from ais_bench.benchmark.runners import LocalRunner
+    from ais_bench.benchmark.tasks import OpenICLApiInferTask
+
     logger.debug(f"Filling inference config with max_num_workers={args.max_num_workers}, max_workers_per_gpu={args.max_workers_per_gpu}, debug={args.debug}")
     new_cfg = dict(infer=dict(
         partitioner=dict(type=get_config_type(NaivePartitioner)),
@@ -84,6 +97,10 @@ def fill_infer_cfg(cfg, args):
 
 
 def fill_eval_cfg(cfg, args):
+    from ais_bench.benchmark.partitioners import NaivePartitioner
+    from ais_bench.benchmark.runners import LocalRunner
+    from ais_bench.benchmark.tasks import OpenICLEvalTask
+
     logger.debug(f"Filling evaluation config with max_num_workers={args.max_num_workers}, max_workers_per_gpu={args.max_workers_per_gpu}, debug={args.debug}")
     new_cfg = dict(eval=dict(
         partitioner=dict(type=get_config_type(NaivePartitioner)),

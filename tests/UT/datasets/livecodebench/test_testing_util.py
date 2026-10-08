@@ -23,7 +23,11 @@ try:
         reliability_guard
     )
     TESTING_UTIL_AVAILABLE = True
-except ImportError:
+except Exception:
+    # pyext (a third-party livecodebench dependency) can be incompatible with
+    # the installed IPython (AttributeError on IPython.core.oinspect.getargspec),
+    # which surfaces as a non-ImportError failure. Treat it as unavailable so
+    # collection never crashes and the whole suite can still run/skip.
     TESTING_UTIL_AVAILABLE = False
 
 
@@ -213,6 +217,24 @@ class TestCallMethod(TestingUtilTestBase):
         result = call_method(test_func, "test input")
         self.assertEqual(result, "test result")
 
+    def test_call_method_supports_stdin_buffer(self):
+        """测试sys.stdin.buffer可以读取二进制输入"""
+        def test_func():
+            return sys.stdin.buffer.read()
+
+        result = call_method(test_func, "hello\nworld\n")
+        self.assertEqual(result, b"hello\nworld\n")
+
+    def test_call_method_shares_text_and_binary_stream_position(self):
+        """测试文本和二进制输入共享同一个底层流位置"""
+        def test_func():
+            first_line = sys.stdin.buffer.readline().decode('utf-8').strip()
+            second_line = input().strip()
+            return first_line, second_line
+
+        result = call_method(test_func, "第一行\nsecond line\n")
+        self.assertEqual(result, ("第一行", "second line"))
+
 
 class TestReliabilityGuardTestingUtil(TestingUtilTestBase):
     """测试reliability_guard函数（testing_util中的）"""
@@ -227,4 +249,3 @@ class TestReliabilityGuardTestingUtil(TestingUtilTestBase):
 
 if __name__ == '__main__':
     unittest.main()
-

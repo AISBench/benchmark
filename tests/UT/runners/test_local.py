@@ -138,7 +138,7 @@ class TestLocalRunner(unittest.TestCase):
             
             with patch('ais_bench.benchmark.runners.local.task_abbr_from_cfg', return_value="task1"):
                 with patch('ais_bench.benchmark.runners.local.is_npu_available', return_value=False):
-                    with patch('ais_bench.benchmark.runners.local.torch.cuda.device_count', return_value=2):
+                    with patch('torch.cuda.device_count', return_value=2):
                         status = runner.launch(tasks)
             
             mock_run_debug.assert_called_once()
@@ -169,7 +169,7 @@ class TestLocalRunner(unittest.TestCase):
             
             with patch('ais_bench.benchmark.runners.local.task_abbr_from_cfg', return_value="task1"):
                 with patch('ais_bench.benchmark.runners.local.is_npu_available', return_value=False):
-                    with patch('ais_bench.benchmark.runners.local.torch.cuda.device_count', return_value=2):
+                    with patch('torch.cuda.device_count', return_value=2):
                         status = runner.launch(tasks)
             
             mock_run_normal.assert_called_once()
@@ -204,7 +204,7 @@ class TestLocalRunner(unittest.TestCase):
                 
                 with patch('ais_bench.benchmark.runners.local.task_abbr_from_cfg', return_value="task1"):
                     with patch('ais_bench.benchmark.runners.local.is_npu_available', return_value=False):
-                        with patch('ais_bench.benchmark.runners.local.torch.cuda.device_count', return_value=2):
+                        with patch('torch.cuda.device_count', return_value=2):
                             status = runner.launch(tasks)
                             
                             # 验证从环境变量中读取了GPU IDs
@@ -505,7 +505,7 @@ class TestLocalRunner(unittest.TestCase):
                     with patch('ais_bench.benchmark.runners.local.is_npu_available', return_value=True):
                         mock_npu = MagicMock()
                         mock_npu.device_count.return_value = 2
-                        with patch('ais_bench.benchmark.runners.local.torch.npu', mock_npu, create=True):
+                        with patch('torch.npu', mock_npu, create=True):
                             status = runner.launch(tasks)
                             
                             # 验证使用了NPU设备
@@ -775,7 +775,7 @@ class TestLocalRunner(unittest.TestCase):
                     mock_run_normal.return_value = [("task1", 0)]
                     
                     with patch('ais_bench.benchmark.runners.local.is_npu_available', return_value=False):
-                        with patch('ais_bench.benchmark.runners.local.torch.cuda.device_count', return_value=2):
+                        with patch('torch.cuda.device_count', return_value=2):
                             with patch('ais_bench.benchmark.runners.local.TasksMonitor') as mock_monitor:
                                 # Mock monitor_process函数中的TasksMonitor
                                 mock_monitor_instance = MagicMock()

@@ -200,7 +200,7 @@ class TestHarborTask(unittest.TestCase):
             mock_trial = mock.MagicMock()
             mock_trial.exception_info = None
             mock_trial.verifier_result = mock.MagicMock()
-            mock_trial.verifier_result.rewards = {"score": score}
+            mock_trial.verifier_result.rewards = {"reward": score}
             mock_trials.append(mock_trial)
 
         mock_job_result = mock.MagicMock()
@@ -264,7 +264,7 @@ class TestHarborTask(unittest.TestCase):
         mock_trial_2 = mock.MagicMock()
         mock_trial_2.exception_info = None
         mock_trial_2.verifier_result = mock.MagicMock()
-        mock_trial_2.verifier_result.rewards = {"accuracy": 1.0}
+        mock_trial_2.verifier_result.rewards = {"reward": 1.0}
 
         mock_job_result = mock.MagicMock()
         mock_job_result.trial_results = [mock_trial_1, mock_trial_2]
@@ -685,6 +685,8 @@ class TestHarborTaskRunWithProgress(unittest.TestCase):
         run_async.return_value = (mock_job, mock_job_result)
 
         mock_config = mock.MagicMock()
+        mock_config.jobs_dir = Path(self.temp_dir)
+        mock_config.job_name = "details"
         job, result = task._run_with_tqdm(mock_config, 10)
         self.assertEqual(job, mock_job)
         self.assertEqual(result, mock_job_result)
@@ -719,6 +721,8 @@ class TestHarborTaskRunWithProgress(unittest.TestCase):
         run_async.return_value = (mock_job, mock_job_result)
 
         mock_config = mock.MagicMock()
+        mock_config.jobs_dir = Path(self.temp_dir)
+        mock_config.job_name = "details"
         job, result = task._run_with_tqdm(mock_config, 10)
         self.assertEqual(job, mock_job)
 

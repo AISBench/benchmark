@@ -7,3 +7,4 @@ Supported Evaluation Scenarios
    accuracy_benchmark
    accuracy_benchmark_local
    performance_benchmark
+   agent_benchmark

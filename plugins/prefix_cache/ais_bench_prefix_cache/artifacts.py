@@ -6,9 +6,12 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
-from .errors import ArtifactValidationError
+from .errors import ArtifactValidationError, PrefixCacheError
+
+if TYPE_CHECKING:
+    from .scenario import Scenario
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +23,76 @@ class ArtifactPaths:
     requests: Path   # <run_id>.requests.jsonl：发给推理服务的请求本体
     manifest: Path   # <run_id>.manifest.json：运行元信息与配置指纹
     analysis: Path   # <run_id>.analysis.json：汇总/校验结果
+
+
+def find_latest_execution_manifest(
+    scenario: "Scenario",
+    allowed_statuses: set[str] | None = None,
+) -> tuple[str, Path, dict[str, Any]] | None:
+    """Find the newest matching timestamped Manifest for a base scenario.
+
+    The Manifest itself is the cross-command hand-off record.  A lightweight
+    inspect Manifest has ``status=inspected``; a generated dataset Manifest has
+    ``status=prepared``.  Legacy generated Manifests without a status are
+    treated as prepared when they contain the normal ``artifacts`` section.
+    """
+    from .scenario import with_execution_timestamp
+
+    parent = scenario.output_dir.parent
+    prefix = f"{scenario.output_dir.name}_"
+    try:
+        candidates = sorted(
+            (
+                item
+                for item in parent.iterdir()
+                if item.is_dir() and item.name.startswith(prefix)
+            ),
+            key=lambda item: item.name,
+            reverse=True,
+        )
+    except OSError:
+        return None
+    try:
+        scenario_sha256 = sha256_file(scenario.source_path)
+    except OSError:
+        return None
+    for output_dir in candidates:
+        timestamp = output_dir.name[len(prefix):]
+        try:
+            stamped = with_execution_timestamp(scenario, timestamp)
+        except PrefixCacheError:  # malformed directory suffixes are ignored
+            continue
+        if stamped.output_dir.resolve() != output_dir.resolve():
+            continue
+        manifest_path = artifact_paths(stamped.output_dir, stamped.run_id).manifest
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            effective_run = manifest["effective_config"]["run"]
+        except (KeyError, OSError, TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(effective_run, dict):
+            continue
+        status = manifest.get("status")
+        if status is None and "artifacts" in manifest:
+            status = "prepared"
+        if allowed_statuses is not None and status not in allowed_statuses:
+            continue
+        if manifest.get("schema_version") != "1.0":
+            continue
+        if manifest.get("run_id") != stamped.run_id:
+            continue
+        if manifest.get("scenario_sha256") != scenario_sha256:
+            continue
+        if effective_run.get("run_id") != stamped.run_id:
+            continue
+        try:
+            configured_output = Path(effective_run["output_dir"]).resolve()
+        except (KeyError, TypeError):
+            continue
+        if configured_output != stamped.output_dir.resolve():
+            continue
+        return timestamp, manifest_path, manifest
+    return None
 
 
 def sha256_file(path: Path) -> str:
@@ -62,8 +135,8 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]], overwrite: bool) -> 
     """把多行记录写成 JSONL（每行一个对象），返回写入行数。"""
     materialized = list(rows)
     logger.info("[artifacts] write_jsonl path=%s overwrite=%s rows=%d", path, overwrite, len(materialized))
-    # Preserve insertion order: requests.jsonl has a documented public field
-    # order (question, answer, max_tokens).
+    # Preserve insertion order: requests.jsonl always starts with question and
+    # answer, followed by the optional configured output key.
     text = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in materialized)
     _atomic_text(path, text, overwrite)
     return len(materialized)
@@ -99,8 +172,14 @@ def validate_artifacts(manifest_path: Path) -> dict[str, Any]:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ArtifactValidationError(f"cannot read Manifest {manifest_path}: {exc}") from exc
+    if manifest.get("status") == "inspected":
+        raise ArtifactValidationError(
+            "inspect Manifest does not contain prepared artifacts; run prepare first"
+        )
     base = manifest_path.parent
     files = manifest.get("artifacts", {})
+    if not isinstance(files, dict) or "full" not in files or "requests" not in files:
+        raise ArtifactValidationError("Manifest does not contain required prepared artifacts")
     full_path = base / files["full"]["name"]
     requests_path = base / files["requests"]["name"]
     logger.info("[artifacts] validate_artifacts run_id=%s artifacts=%s", manifest["run_id"], files)
@@ -109,13 +188,26 @@ def validate_artifacts(manifest_path: Path) -> dict[str, Any]:
     logger.info("[artifacts] validate_artifacts full_rows=%d request_rows=%d expected_count=%s", len(full_rows), len(request_rows), manifest["requests"]["count"])
     if len(full_rows) != len(request_rows) or len(full_rows) != manifest["requests"]["count"]:
         raise ArtifactValidationError("artifact row counts do not match")
+    effective_config = manifest.get("effective_config")
+    if isinstance(effective_config, dict) and isinstance(effective_config.get("output"), dict):
+        output_key = effective_config["output"].get("output_key")
+    else:
+        # 兼容 0.2.0 及更早版本：旧 Manifest 没有 output 配置，requests 固定带 max_tokens。
+        output_key = "max_tokens"
+    if output_key not in (None, "max_tokens", "output_tokens"):
+        raise ArtifactValidationError("Manifest output.output_key is invalid")
+    expected_request_fields = ["question", "answer"]
+    if output_key is not None:
+        expected_request_fields.append(output_key)
     for index, (full, request) in enumerate(zip(full_rows, request_rows)):
-        # 校验顺序一致、requests 字段集合严格为 {question, answer, max_tokens} 且与 full 对齐。
+        # 校验顺序一致、requests 字段集合符合 output 配置且值与 full 对齐。
         if full["sequence_index"] != index:
             raise ArtifactValidationError(f"full row {index} has invalid sequence_index")
-        if set(request) != {"question", "answer", "max_tokens"}:
+        if list(request) != expected_request_fields:
             raise ArtifactValidationError(f"requests row {index} has unexpected fields")
-        if any(request[key] != full[key] for key in request):
+        if request["question"] != full["question"] or request["answer"] != full["answer"]:
+            raise ArtifactValidationError(f"requests row {index} differs from full row")
+        if output_key is not None and request[output_key] != full["max_tokens"]:
             raise ArtifactValidationError(f"requests row {index} differs from full row")
     for key, path in (("full", full_path), ("requests", requests_path)):
         expected = files[key]["sha256"]

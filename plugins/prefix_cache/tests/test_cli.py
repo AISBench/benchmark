@@ -68,7 +68,10 @@ class CLITest(unittest.TestCase):
                 redirect_stdout(stdout),
                 redirect_stderr(stderr),
             ):
-                self.assertEqual(main(["prepare", "--scenario", str(scenario)]), 0)
+                self.assertEqual(
+                    main(["prepare", "--mode", "text", "--scenario", str(scenario)]),
+                    0,
+                )
 
             output = json.loads(stdout.getvalue())
             self.assertEqual(output["manifest"], str(paths.manifest))

@@ -1,6 +1,5 @@
 import os
 
-from transformers import AutoTokenizer, PreTrainedTokenizerFast
 from typing import List, Tuple
 
 from ais_bench.benchmark.utils.logging import AISLogger
@@ -24,6 +23,10 @@ def load_tokenizer(tokenizer_path: str, trust_remote_code=False):
     Raises:
         FileOperationError: If tokenizer path doesn't exist or loading fails
     """
+    # transformers is imported lazily so this module (and anything importing
+    # it) stays importable in the dependency-isolated agent environment.
+    from transformers import AutoTokenizer, PreTrainedTokenizerFast
+
     logger.debug(f"Attempting to load tokenizer from: {tokenizer_path}")
 
     if not os.path.exists(tokenizer_path):

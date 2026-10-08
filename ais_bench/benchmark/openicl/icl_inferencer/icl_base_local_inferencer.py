@@ -6,7 +6,6 @@ import uuid
 from typing import List, Optional
 from abc import abstractmethod
 
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from ais_bench.benchmark.openicl.icl_retriever import BaseRetriever
@@ -118,8 +117,11 @@ class BaseLocalInferencer(BaseInferencer):
             self.output_handler.write_to_json(out_path, self.perf_mode)
 
     @staticmethod
-    def get_dataloader(datalist: List[List], batch_size: int) -> DataLoader:
+    def get_dataloader(datalist: List[List], batch_size: int) -> "DataLoader":
         """Return a dataloader of the input data list."""
+        # torch is imported lazily to keep the module importable in
+        # dependency-isolated (non-torch) environments.
+        from torch.utils.data import DataLoader
         logger = AISLogger()
         logger.info(f"Get dataloader with data list length: {len(datalist)}, batch size: {batch_size}")
         def custom_collate_fn(batch):

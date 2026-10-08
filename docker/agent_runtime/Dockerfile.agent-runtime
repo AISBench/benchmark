@@ -1,0 +1,130 @@
+# AISBench Agent Runtime Dockerfile (harbor-only 精简版)
+#
+# 在现有 aisbench_benchmark 基础镜像（已含 docker engine + compose + ais_bench）之上，
+# 追加 harbor 隔离 venv，构建 harbor 测评运行环境：
+#   - harbor 从 AISBench/harbor fork 的 git 仓库直接安装（带 deps_path / --agent-deps
+#     功能；upstream PyPI 同版本号 0.21.0 无此字段，故不能用 PyPI 包）。
+#     GitHub 访问经 gh-proxy.com 镜像前缀加速，仓库地址可用构建参数覆盖
+#   - venv 内放置 ais_bench wrapper（shebang 指向 venv python），让 harbor_agent_task.py
+#     的 subprocess 用 venv python，正确加载 venv-local 的 harbor 包
+#
+# 构建上下文布局：
+#   ./Dockerfile.agent-runtime
+#   ./patches/harbor_compose_patch.py
+#
+# 构建方式（BASE_IMAGE 换成实际基镜像 tag）：
+#   docker build --network host \
+#       -f Dockerfile.agent-runtime \
+#       -t aisbench/agent-runtime:harbor-only \
+#       --build-arg BASE_IMAGE=ghcr.io/aisbench/aisbench_benchmark:v3.1-<date>-master-ubuntu24.04-py312-aarch64 \
+#       .
+#
+# 使用方式（DinD 模式，推荐直接用 start_agent_runtime.sh 一键拉起）：
+#   ./start_agent_runtime.sh \
+#       --image aisbench/agent-runtime:harbor-only \
+#       --dataset /path/to/terminal-bench-2 \
+#       --case-images /path/to/case-images.tar.gz \
+#       --agent-deps /path/to/agent-deps \
+#       --agent terminus-2
+#   docker exec -it agent-runtime bash
+#   agent_env harbor                          # 激活 harbor venv
+#   ais_bench ais_bench/configs/agent_example/harbor_agent_task.py --mode agent ...
+#
+# 关键点：外层容器必须 --cgroupns=host 并 rw 挂载宿主 /sys/fs/cgroup，
+# 否则内层 runc 会报 "cannot enter cgroupv2 ... it is in threaded mode"。
+# 手动 docker run 的完整参数见 start_agent_runtime.sh。
+# 详细步骤见 USAGE.md。
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# agent runtime 相关路径
+ENV AGENT_VENVS_ROOT=/opt/venvs
+ENV AGENT_PACKS_ROOT=/opt/agent-resources/packs
+
+RUN mkdir -p ${AGENT_VENVS_ROOT} ${AGENT_PACKS_ROOT}
+
+# ============================================================
+# venv: harbor
+# harbor 隔离在独立 venv，不污染 ais_bench 主环境。
+# harbor 本体从 AISBench/harbor fork 仓库直接安装（deps_path 功能），
+# git 访问经 gh-proxy.com 镜像加速，依赖包从华为镜像解析。
+#
+# --system-site-packages: venv 能看到基镜像里已装好的 ais_bench_benchmark
+# --copies: 强制拷贝 python 二进制，避免 symlink 丢失 venv 身份
+# ============================================================
+ARG HARBOR_REPO=https://gh-proxy.com/https://github.com/AISBench/harbor.git
+RUN python3.12 -m venv ${AGENT_VENVS_ROOT}/harbor --system-site-packages --copies && \
+    ${AGENT_VENVS_ROOT}/harbor/bin/pip install --no-cache-dir --upgrade pip \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --default-timeout=120 --retries=5 && \
+    ${AGENT_VENVS_ROOT}/harbor/bin/pip install --no-cache-dir \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --default-timeout=120 --retries=5 \
+        "harbor @ git+${HARBOR_REPO}"
+
+# ============================================================
+# harbor venv 内放置 ais_bench 命令（关键）
+# harbor_agent_task.py 用 sys.executable 启动子进程：若主进程是系统 python，
+# 子进程找不到 venv-local 的 harbor 包。wrapper 的 shebang 指向 venv python，
+# 用户 agent_env harbor 后 PATH 命中它 → 主进程 sys.executable 即 venv python
+# ============================================================
+RUN cat > ${AGENT_VENVS_ROOT}/harbor/bin/ais_bench <<'PYEOF'
+#!/opt/venvs/harbor/bin/python
+# -*- coding: utf-8 -*-
+"""harbor venv 内置 ais_bench wrapper
+启动时使用 harbor venv 的 python，让 subprocess.Popen 启动 harbor venv 的 python，
+从而能正确加载 venv local site-packages（AISBench fork harbor 在此）。
+"""
+import re
+import sys
+try:
+    from ais_bench.benchmark.cli.main import main
+except ImportError as e:
+    sys.stderr.write(f"[error] failed to import ais_bench: {e}\n")
+    sys.stderr.write("[hint] 检查 harbor venv 是否启用 --system-site-packages（需看到系统 ais_bench）\n")
+    sys.exit(2)
+if __name__ == "__main__":
+    sys.argv[0] = re.sub(r"(-script\.pyw|\.exe)?$", "", sys.argv[0])
+    sys.exit(main())
+PYEOF
+RUN chmod +x ${AGENT_VENVS_ROOT}/harbor/bin/ais_bench
+
+# ============================================================
+# Patch harbor 的 docker compose 模板
+# openEuler/RHEL 宿主默认 seccomp profile 拦截 clone3，内层 trial 容器中
+# OpenBLAS/NumPy 初始化线程会报 pthread_create failed: Operation not permitted。
+# patch 给所有模板的 main service 补 security_opt: [seccomp=unconfined]，
+# 并补 network_mode: host（已显式声明 network_mode 的模板如 no-network 不覆盖）。
+# DinD 模式下此 patch 无副作用（子容器本就用 Docker 官方默认 profile）
+# ============================================================
+COPY patches/harbor_compose_patch.py /tmp/harbor_compose_patch.py
+RUN HARBOR_DIR=$(${AGENT_VENVS_ROOT}/harbor/bin/python -c "import harbor, os; print(os.path.dirname(harbor.__file__))") && \
+    for f in ${HARBOR_DIR}/environments/docker/docker-compose-*.yaml; do \
+        [ -f "$f" ] || continue; \
+        cp "$f" "$f.bak"; \
+        python3.12 /tmp/harbor_compose_patch.py "$f"; \
+    done && \
+    rm -f /tmp/harbor_compose_patch.py
+
+# ============================================================
+# 便捷函数：激活 harbor venv
+# 用户在容器内 `agent_env harbor` 激活后，可照常执行原生 ais_bench / harbor 命令
+# ============================================================
+RUN cat >> /etc/bash.bashrc <<'EOF'
+
+# AISBench Agent venv 激活便捷函数
+agent_env() {
+    case "$1" in
+        harbor) source /opt/venvs/harbor/bin/activate ;;
+        *) echo "usage: agent_env harbor" ;;
+    esac
+}
+EOF
+
+WORKDIR /benchmark

@@ -32,8 +32,6 @@ The model configurations corresponding to different service-oriented backends ar
 ### Parameter Description for Service-Oriented Inference Backend Configuration
 The configuration file for the service-oriented inference backend is configured using Python syntax, as shown in the example below:
 
-The common model templates do not preconfigure `response_anomaly`. Add the `response_anomaly` block shown below only when response anomaly detection is needed: locate the target model in the `models` list of the model configuration file and add it inside that model's `dict`, at the same level as fields such as `generation_kwargs` and `pred_postprocessor`. It is not required when anomaly detection is disabled.
-
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPI
 

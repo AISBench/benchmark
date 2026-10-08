@@ -24,7 +24,7 @@ logger = AISLogger()
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Data directory relative to repository root (resolved via get_data_path).
-_DATA_REL_PATH: str = 'ais_bench/datasets/aa_lcr'
+_DATA_REL_PATH: str = 'ais_bench/datasets/AA-LCR'
 
 # Document corpus ZIP filename within the data directory.
 _DOC_ZIP_REL_PATH: str = os.path.join(
@@ -32,7 +32,7 @@ _DOC_ZIP_REL_PATH: str = os.path.join(
 )
 
 # Cache subdirectory where the ZIP is extracted.
-DEFAULT_CACHE_SUBDIR: str = 'aa_lcr'
+DEFAULT_CACHE_SUBDIR: str = 'AA-LCR'
 DEFAULT_EXTRACTED_DIR_NAME: str = 'lcr'
 
 # Default cache root – user-level so the corpus survives package updates.
@@ -78,7 +78,7 @@ def _ensure_text_dir_downloaded() -> Path:
     """Ensure AA-LCR extracted texts are available locally.
 
     Looks for the document corpus ZIP at the relative path
-    ``ais_bench/datasets/aa_lcr/extracted_text/AA-LCR_extracted-text.zip``
+    ``ais_bench/datasets/AA-LCR/extracted_text/AA-LCR_extracted-text.zip``
     (resolved via :func:`get_data_path`), extracts it into the cache
     directory on first use, and returns the path to the ``lcr/`` directory
     containing the ``.txt`` files.  Subsequent calls return the cached path
@@ -102,7 +102,7 @@ def _ensure_text_dir_downloaded() -> Path:
         raise FileNotFoundError(
             f'AA-LCR document corpus ZIP not found at: {local_zip}\n'
             'Please ensure the file is placed at '
-            'ais_bench/datasets/aa_lcr/extracted_text/'
+            'ais_bench/datasets/AA-LCR/extracted_text/'
             'AA-LCR_extracted-text.zip relative to the repository root.'
         )
 
@@ -268,7 +268,7 @@ class AALCRDataset(BaseDataset):
 
         Args:
             path: Local path to the dataset metadata directory
-                (e.g. ``ais_bench/datasets/aa_lcr``).
+                (e.g. ``ais_bench/datasets/AA-LCR``).
             name: Dataset configuration / subset name.
 
         Returns:
@@ -292,7 +292,7 @@ class AALCRDataset(BaseDataset):
             raise FileNotFoundError(
                 f'AA-LCR CSV metadata file not found at: {csv_path}\n'
                 'Please ensure the file is placed at '
-                'ais_bench/datasets/aa_lcr/AA-LCR_Dataset.csv '
+                'ais_bench/datasets/AA-LCR/AA-LCR_Dataset.csv '
                 'relative to the repository root.'
             )
 

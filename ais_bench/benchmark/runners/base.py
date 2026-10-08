@@ -64,6 +64,7 @@ class TasksMonitor:
         self.refresh_interval = refresh_interval
         self.run_in_background = self.is_running_in_background() if not self.is_debug else True
         self.last_table = None
+        self._stop_board_flag = False
         self.logger.info(f"Launch TasksMonitor, "
                     f"PID: {os.getpid()}, "
                     f"Refresh interval: {self.refresh_interval}, "
@@ -115,6 +116,11 @@ class TasksMonitor:
         else:
             self.logger.debug("Running task progress monitor in background mode")
             self._update_tasks_progress()
+
+    def stop_state_board(self):
+        """Ask the board loop to exit early (e.g. when the run is interrupted)
+        instead of waiting for all tasks to finish."""
+        self._stop_board_flag = True
 
     def _is_all_task_done(self):
         unfinished_tasks = []
@@ -221,6 +227,9 @@ class TasksMonitor:
     def _update_tasks_progress(self):
         pbar = tqdm(total=len(self.tasks_state_map), desc="Monitoring tasks progress")
         while True:
+            if self._stop_board_flag:
+                pbar.close()
+                break
             self._refresh_task_state()
             _ = self._get_task_states()
             cur_count = 0
@@ -246,9 +255,13 @@ class TasksMonitor:
         last_refresh_time = time.time()
         page_size = curses.LINES - 10  # reserve space for title and prompt
         stop_screen_refresh = False  # 添加停止屏幕刷新的标志
+        full_table = ""
 
         try:
             while True:
+                if self._stop_board_flag:
+                    self.last_table = full_table
+                    break
                 # function of key input
                 try:
                     key = stdscr.getch()

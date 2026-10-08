@@ -23,6 +23,7 @@ class OmniDocBenchDataset(BaseDataset):
     @staticmethod
     def load(path, image_path):
         path = get_data_path(path, local_mode=True)
+        image_path = get_data_path(image_path, local_mode=True)
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         dataset = []
