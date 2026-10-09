@@ -2,17 +2,19 @@
 
 ## 概述
 
-AISBench Prefix Cache 插件用于构造具有可控公共前缀的数据集，先计算理论 Prefix Cache 命中率，再通过 AISBench 和 vLLM 采集实际命中率。它适用于验证不同输入长度、公共前缀比例、Prefix Group、请求顺序以及单入口多 DP 对缓存命中率的影响。
+AISBench Prefix Cache 插件用于构造具有可控公共前缀的数据集，先离线计算理论 Prefix Cache 命中率，再通过 AISBench 与 vLLM 采集实际命中率。它适用于验证输入长度、公共前缀比例、Prefix Group、请求顺序以及单入口多 DP 对缓存命中率的影响。
 
-当前插件提供五个命令：
+插件提供五个子命令：
 
-- `inspect`：预览场景、可达范围和长度分布；
-- `prepare`：生成正式请求、Manifest 和理论分析；
-- `validate`：校验已有产物是否被修改、截断或换序；
-- `run`：探活、reset、按组逐 DP 预热并运行 AISBench 正式压测；
-- `analyze`：使用两份 Prometheus 快照离线复算实际命中率。
+| 命令 | 作用 | 是否访问服务 |
+|---|---|---|
+| `inspect` | 预览场景配置、理论命中率可达范围与长度分布。 | 否 |
+| `prepare` | 生成正式请求数据、Manifest 与理论分析。 | 否 |
+| `validate` | 校验已有产物是否被修改、截断或换序。 | 否 |
+| `run` | 探活、reset、按组逐 DP 预热并执行 AISBench 正式压测。 | 是 |
+| `analyze` | 使用两份 Prometheus 快照离线复算实际命中率。 | 否 |
 
-`inspect`、`prepare`、`validate` 完全离线；只有 `run` 连接 vLLM。当前支持一个 HTTP 入口及其内部单 DP 或多 DP，不支持多个独立推理服务实例。
+只有 `run` 连接 vLLM。当前支持一个 HTTP 入口及其内部单 DP 或多 DP，不支持多个独立推理服务实例。固定图片的多模态压测（`prepare --mode mm`）见 [MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)。
 
 ---
 
@@ -23,19 +25,21 @@ AISBench Prefix Cache 插件用于构造具有可控公共前缀的数据集，�
 3. **与目标 vLLM 服务一致的 tokenizer**。tokenizer 不一致会造成 token 长度、Block 边界和理论命中率偏差。
 4. **GSM8K JSONL 语料**。每个非空行必须是 JSON 对象，并包含 Scenario 中 `corpus.field` 指定的文本字段，默认是 `question`。
 5. **正确的 Prefix Cache Block 大小**。`tokenizer.block_size` 必须与目标服务实际值一致。
-6. **在线 run 所需服务能力**：`/v1/completions`、`/metrics`、可选 `/reset_prefix_cache`，多 DP 时还需支持 `X-data-parallel-rank` 和分 DP `engine` 指标标签。
+6. **在线 `run` 所需服务能力**：`/v1/completions`、`/metrics`、可选 `/reset_prefix_cache`；多 DP 时还需支持 `X-data-parallel-rank` 定向路由和带 `engine` 标签的分 DP 指标。
 
 ---
 
 ## 安装
 
-以下命令假设当前目录是 AISBench 仓库根目录：
+以下命令假设当前目录是 AISBench 仓库根目录。推荐使用 Conda 管理环境：
 
 ```shell
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-python -m pip install -e ./plugins/prefix_cache
+conda create --name ais_bench python=3.10 -y
+conda activate ais_bench
+pip3 install -e ./plugins/prefix_cache
+pip3 install -e ./ --use-pep517
+pip3 install -r requirements/api.txt
+pip3 install -r requirements/extra.txt
 ais-bench-prefix-cache --help
 ```
 
@@ -43,7 +47,7 @@ ais-bench-prefix-cache --help
 
 ---
 
-## 快速使用
+## 快速开始
 
 复制示例 Scenario：
 
@@ -51,8 +55,7 @@ ais-bench-prefix-cache --help
 cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 ```
 
-至少检查 `tokenizer.path`、`tokenizer.block_size` 和 `corpus.path`。需要模拟 cold 多 DP 路由或生成 warmup 计划时，还应让 `service.dp_size` 与目标服务一致。
-执行在线压测前还要核对 `service` 下的 URL、`model` 以及 `aisbench.config`。
+至少检查 `tokenizer.path`、`tokenizer.block_size` 和 `corpus.path`。需要模拟 cold 多 DP 路由或生成 warmup 计划时，还应让 `service.dp_size` 与目标服务一致。执行在线压测前还要核对 `service` 下的 URL、`model` 以及 `aisbench.config`。
 
 一个最小示例：
 
@@ -89,17 +92,38 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 }
 ```
 
-依次执行：
+示例中各字段的含义：
+
+| 字段 | 说明 |
+|---|---|
+| `run.run_id` | 任务名称；执行时会自动追加时间戳。 |
+| `run.random_seed` | 数据生成和随机选择的全局种子，相同配置可复现。 |
+| `run.output_dir` | Prefix Cache 产物基础目录。 |
+| `tokenizer.path` | Tokenizer 路径，必须与目标 vLLM 服务一致。 |
+| `tokenizer.block_size` | Prefix Cache Block 大小，必须与服务实际值一致。 |
+| `corpus.path` / `corpus.field` | GSM8K JSONL 语料路径和问题文本字段名。 |
+| `corpus.selection.mode` | 语料选择模式；`random` 表示按种子确定性打乱。 |
+| `requests.count` | 正式请求总数。 |
+| `requests.input_length` | 输入 token 长度规则；示例为固定 1024 token。 |
+| `requests.output_length` | 最大输出 token 长度规则；示例为固定 32 token。 |
+| `prefix_cache.mode` | 缓存模式：`cold` 或 `warmup`；示例为 `warmup`。 |
+| `prefix_cache.target_hit_rate` | 期望的全局 Prefix Cache 命中率。 |
+| `prefix_cache.seed_blocks` | 每条请求唯一 seed 占用的 Block 数。 |
+| `prefix_cache.groups` | Prefix Group 数量与分配规则；示例为 1 组、均匀分配。 |
+| `prefix_cache.order.strategy` | 正式请求排列策略；示例为按组交错。 |
+| `service.dp_size` | 单实例内部 DP rank 数量。 |
+
+完整参数见下文[「Scenario 参数说明」](#scenario-参数说明)。多模态压测还需追加 `multimodal` 段，见[「多模态场景（`--mode mm`）」](#多模态场景--mode-mm)。
+
+依次执行推荐工作流：
 
 ```shell
 ais-bench-prefix-cache inspect --scenario ./scenario.json
-ais-bench-prefix-cache prepare --scenario ./scenario.json
-ais-bench-prefix-cache validate --manifest \
-  ./outputs/gsm8k-prefix-cache-60_<时间戳>/result/gsm8k-prefix-cache-60_<时间戳>.manifest.json
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-`run` 的正式 AISBench 请求默认使用 vLLM SSE 流式响应（`aisbench.model.stream=true`），按请求开始、首个响应 chunk 和后续 chunk 的时间点生成 TTFT、TPOT、ITL、E2EL 与吞吐量指标。设为 `false` 后仍可统计 Prefix Cache 命中率，但不能按 chunk 生成完整 TTFT、TPOT 和 ITL。探活和插件 warmup 使用 baseline 前的独立非流式请求，不进入正式性能统计。
+时间戳目录名可从 `inspect` / `prepare` 输出 JSON 的 `manifest` 字段获取。`prepare` 必须显式指定 `--mode text`（多模态为 `--mode mm`）；`run` 执行前需要先完成 `prepare`。
 
 已有 Prometheus 快照时，可在不连接 vLLM 的情况下复算：
 
@@ -112,56 +136,119 @@ ais-bench-prefix-cache analyze \
 
 ---
 
-## `run`：在线执行 Prefix Cache 压测
+## 命令详解
+
+### `inspect`：检查配置和理论范围
+
+```shell
+ais-bench-prefix-cache inspect --scenario ./scenario.json
+```
+
+作用：
+
+- 加载 tokenizer 和 GSM8K 语料，在临时目录构造数据并计算目标可达范围；
+- 展示 requested / effective / theoretical 命中率、组分布、输入/输出长度摘要和 cold DP 路由；
+- 不访问 vLLM、不发送请求。
+
+其中 requested 是 Scenario 请求的目标命中率，effective 是求解器选择的最近可达目标，theoretical 是按最终发送顺序模拟的理论值。
+
+每次 `inspect` 创建新的 `_YYYYMMDD_HHMMSS` 时间戳目录，产物包括：
+
+- `output_dir_<时间戳>/log/<run_id>_<时间戳>.inspect.log`：详细日志；
+- `output_dir_<时间戳>/result/<run_id>_<时间戳>.manifest.json`：轻量 Manifest，`status="inspected"`，摘要在 `inspect.summary`；
+- stdout 输出 JSON 摘要，主要字段如下。
+
+| 字段 | 说明 |
+|---|---|
+| `run_id` | Scenario 中未追加时间戳的任务名。 |
+| `mode` | `cold` 或 `warmup` 模式。 |
+| `requested_target_hit_rate` | 用户请求的目标命中率。 |
+| `effective_target_hit_rate` | 最近可达目标命中率。 |
+| `theoretical_hit_rate` | 预计理论命中率。 |
+| `reachable_min` / `reachable_max` | 全局最小/最大可达命中率。 |
+| `target_reachable` | 请求目标是否处于可达区间。 |
+| `group_reachability` | 各 Prefix Group 的可达范围。 |
+| `groups` | 各 Group 的请求数量。 |
+| `input_tokens` / `output_tokens` | 输入/输出长度统计和总 token 数。 |
+| `dp_route_counts` | 各 DP rank 的正式请求数。 |
+| `sends_requests` | 是否发送在线请求；inspect 固定为 `false`。 |
+| `log` / `manifest` | 日志文件和 inspect Manifest 路径。 |
+
+后续 `prepare` / `run` 可通过匹配的 Manifest 复用同一时间戳目录。
+
+### `prepare`：生成正式数据产物
+
+```shell
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
+```
+
+- `--mode`：必填。`text` 生成文本压测数据；`mm` 生成多模态压测数据（见[多模态场景（`--mode mm`）](#多模态场景--mode-mm)和 [MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)）。
+- `--scenario`：Scenario 文件路径。
+- `--overwrite`：可选。只覆盖本次时间戳目录内该 run 对应的产物文件，不会清理整个输出目录。
+
+`prepare` 根据 Scenario 确定性生成并校验四个文件：
+
+- `result/<run_id>_<时间戳>.full.jsonl`
+- `result/<run_id>_<时间戳>.requests.jsonl`
+- `result/<run_id>_<时间戳>.manifest.json`（`status="prepared"`）
+- `result/<run_id>_<时间戳>.analysis.json`（`status="prepared"`）
+
+执行时先在 stderr 显示 prompt 生成进度，最后一行结果 JSON 写入 stdout：
+
+```text
+Generate prompts [###############---------------] 50/100  50%
+Generate prompts [##############################] 100/100 100%
+{"full":"...","requests":"...","manifest":"...","analysis":"...","log":"..."}
+```
+
+例如配置为 `run_id: gsm8k-prefix-cache-60`、`output_dir: ./outputs/gsm8k-prefix-cache-60` 时，实际目录为：
+
+```text
+./outputs/gsm8k-prefix-cache-60_20260825_123456/
+├── log/
+│   └── gsm8k-prefix-cache-60_20260825_123456.prepare.log
+└── result/
+    ├── gsm8k-prefix-cache-60_20260825_123456.full.jsonl
+    ├── gsm8k-prefix-cache-60_20260825_123456.requests.jsonl
+    ├── gsm8k-prefix-cache-60_20260825_123456.manifest.json
+    └── gsm8k-prefix-cache-60_20260825_123456.analysis.json
+```
+
+`prepare` 会自动发现最近一次与当前 Scenario SHA-256 匹配的 `inspected` Manifest，并在同一路径把它升级为正式 `prepared` Manifest；否则创建新时间戳。修改 Scenario 后旧 Manifest 自动失配并创建新时间戳，正常工作流不需要手动修改 `run_id` 或 `output_dir`。
+
+### `run`：执行 vLLM Prefix Cache 压测
 
 ```shell
 ais-bench-prefix-cache run --scenario ./scenario.json
 ais-bench-prefix-cache run --scenario ./scenario.json --config ./my_prefix_cache_perf.py
 ```
 
-`--scenario` 提供数据构造、服务、验证和 AISBench 参数。可选的 `--config` 只覆盖本次运行使用的 AISBench Python 模板，不修改 Scenario。`run` 会自动复用匹配的 inspect/prepared Manifest；目标时间戳目录中没有正式产物时会先执行 prepare。
+- `--scenario`：提供数据构造、服务、验证和 AISBench 参数。
+- `--config`：可选，仅 text 模式支持，临时覆盖本次运行使用的 AISBench Python 配置模板，不修改 Scenario。
 
-完整在线时序如下：
+`run` 执行前需要已有匹配的 `prepared` Manifest（即先执行 `prepare`），执行时自动识别 text/mm 模式并复用同时间戳产物。完整流程为：
 
-```mermaid
-flowchart LR
-    S[加载 Scenario] --> P[复用或自动 prepare]
-    P --> V[validate 产物]
-    V --> C[逐 DP precheck]
-    C --> R[reset Prefix Cache]
-    R --> W{warmup 模式?}
-    W -->|是| U[逐 Group × DP 预热]
-    W -->|否| B[抓取 baseline]
-    U --> B
-    B --> G[渲染临时 AISBench 配置]
-    G --> F[AISBench perf 正式请求]
-    F --> K[运行期 KV 周期采样]
-    K --> A[抓取 after]
-    A --> D[after - baseline]
-    D --> O[回写 analysis.json]
-```
+1. 校验本时间戳的产物；
+2. 逐 DP 探活，多 DP 请求使用 `X-data-parallel-rank` 定向路由；
+3. reset Prefix Cache；未配置 `reset_url` 或 reset 失败时，只有 `service.assume_empty_cache=true` 才会告警后继续；
+4. warmup 模式按 Manifest 的 `warmup.plan` 逐 `Prefix Group × DP rank` 定向预热；
+5. 采集 baseline，将 Scenario 中的 AISBench 配置渲染为临时 Python 配置并以 `perf` 模式启动 AISBench 正式请求；期间按 `service.poll_interval_seconds` 周期采样 KV Cache 用量（设为 `0` 可关闭）；
+6. 采集 after，以 `after - baseline` 计算每 DP 和全局实际命中率，并把 `runtime`、`actual`、理论/实际差值和告警写回 analysis。
 
-各阶段的边界：
+产物包括：
 
-1. `precheck` 对每个 DP rank 发送探针并验证 queries、hits 和 KV 指标是否可解析；多 DP 请求使用 `X-data-parallel-rank` 定向路由。
-2. `reset` 调用 `service.reset_url`。未配置或失败时，只有 `service.assume_empty_cache=true` 才会告警后继续。
-3. warmup 模式按 Manifest 的计划预热每个 `Prefix Group × DP rank`。插件完成 warmup 后才抓取 baseline，因此 probe 和 warmup 产生的累计 counter 会被差分扣除。
-4. 正式阶段把 Scenario 中的 `aisbench.dataset`、`aisbench.model`、工件路径和服务地址渲染为临时 Python 配置，再以 `perf` 模式启动 AISBench。期间按 `service.poll_interval_seconds` 采集 KV Cache 瞬时用量；设为 `0` 可关闭周期采样。
-5. AISBench 成功结束后抓取 after，以 `after - baseline` 计算每 DP 和全局 queries、hits、实际命中率，并将理论/实际偏差写回 analysis。
+- `log/<run_id>_<时间戳>.run.log`：插件阶段日志，不回显到终端；
+- `result/<run_id>_<时间戳>.analysis.json`：追加 `runtime`、`actual` 和偏差字段，`status="complete"`；
+- AISBench 子进程结果：默认写入 `aisbench.work_dir`（`./outputs/default`），TTFT/TPOT/ITL 等性能汇总位于 `performances/<model-abbr>/`，可用 `ais-bench-prefix-cache report --manifest <manifest路径>` 查看；
+- stdout：先打印 AISBench 风格的结果标题，再以 `Prefix Cache Metric | Value` 两列表格展示总体目标命中率、总体理论命中率、总体实际命中率、理论与实际偏差、理论与目标偏差，最后输出完整 analysis 路径。
 
-插件 warmup 与 AISBench 自带的 `--num-warmups` 是两个独立机制。若要求 baseline 后只包含正式请求，应在 Scenario 中设置：
+补充说明：
 
-```json
-"aisbench": {
-  "extra_args": {"--num-warmups": 0}
-}
-```
+- 正式请求默认使用 vLLM SSE 流式响应（`aisbench.model.stream=true`），生成 TTFT、TPOT、ITL、E2EL 与吞吐量指标；设为 `false` 后仍可统计 Prefix Cache 命中率，但不能生成完整 TTFT、TPOT 和 ITL。
+- 插件 warmup 与 AISBench 自带的 `--num-warmups` 是两套独立机制。若要求 baseline 后只包含正式请求，应在 Scenario 中设置 `"extra_args": {"--num-warmups": 0}`（示例 Scenario 已默认配置）。
+- 多 DP 使用同一个 HTTP 入口，要求服务支持 `X-data-parallel-rank` 定向路由及带 `engine` 标签的分 DP Prometheus 指标。
 
-Prefix Cache 插件的阶段日志只写入 `log/<run_id>.run.log`；AISBench 子进程继承 stdout/stderr，进度和性能输出仍实时显示在终端。命令成功时，stdout 先打印带时间和 `run_id` 的 Prefix Cache 结果标题，再以 `Prefix Cache Metric | Value` 两列表格仅展示总体目标、理论、实际命中率，以及理论/实际和理论/目标的绝对偏差；命中率及两个命中率百分数直接相减得到的偏差均以百分比显示，并保留两位小数。表格后的 `[INFO] Detailed analysis is available at: <path>` 会给出完整 `result/<run_id>.analysis.json` 路径。AISBench 返回非零退出码、服务能力不满足或工件校验失败时，`run` 返回错误。
-
----
-
-## `analyze`：使用 Prometheus 快照离线复算
+### `analyze`：使用 Prometheus 快照离线复算
 
 ```shell
 ais-bench-prefix-cache analyze \
@@ -170,24 +257,22 @@ ais-bench-prefix-cache analyze \
   --after ./after.prom
 ```
 
-`analyze` 适合已有压测前后 `/metrics` 文本、需要重新套用当前解析规则或复核命中率的场景。它不连接 vLLM、不发送请求，也不启动 AISBench。
-
-- `--manifest`：prepared Manifest；命令先校验 full/requests 行数、顺序和 SHA-256，再从 `effective_config.service` 读取 `dp_size`、`engine_label_map` 和告警阈值。
+- `--manifest`：prepared Manifest；命令先校验产物完整性，再从 `effective_config.service` 读取 `dp_size`、`engine_label_map` 和告警阈值。
 - `--baseline`：正式统计窗口开始前保存的完整 Prometheus 文本。
 - `--after`：正式统计窗口结束后保存的完整 Prometheus 文本；queries/hits 是累计 counter，应不小于 baseline。
 
-`baseline.prom` 和 `after.prom` 不是 `prepare` 生成的数据集产物，而是同一个 vLLM 进程 `/metrics` 端点的完整文本快照。手工采集时，先完成 reset；warmup 模式还要完成插件 warmup，然后在第一条正式请求之前采集 baseline，并在最后一条正式请求完成后立即采集 after：
+该命令不连接 vLLM、不运行 AISBench，只解析两份快照，按 DP 计算增量后汇总实际命中率并与理论值比较，以 `status="analyzed"` 写回 Manifest 对应的 analysis 文件，stdout 输出完整 analysis JSON。插件日志写入 `log/<run_id>_<时间戳>.validate.log`。
+
+`baseline.prom` 和 `after.prom` 不是 `prepare` 生成的数据集文件，而是同一个 vLLM 服务 `/metrics` 端点在正式统计窗口前后的完整文本快照。手工采集时，应先完成 reset；warmup 场景还要先完成插件预热，然后在第一条正式请求前保存 baseline，并在最后一条正式请求完成后立即保存 after：
 
 ```shell
 METRICS_URL="http://127.0.0.1:8000/metrics"
 curl -fsS "$METRICS_URL" -o baseline.prom
-# 在这里执行正式压测；期间不要重启 vLLM 或重置指标
+# 在这里执行正式压测请求，期间不要重启 vLLM 或重置指标
 curl -fsS "$METRICS_URL" -o after.prom
 ```
 
-两份文件必须来自同一服务进程并覆盖全部 DP rank。多 DP 指标必须保留 `engine` 标签；由于 queries/hits 是累计 counter，after 值不能小于 baseline。
-
-正常执行 `run` 时，插件已经自动采集前后快照，并将原始 Prometheus 文本写入 analysis JSON 的 `runtime.metrics_baseline.raw_prometheus` 和 `runtime.metrics_after.raw_prometheus`，但不会额外落盘为 `.prom` 文件。可按需导出后重新执行 `analyze`：
+两份快照必须来自同一服务进程并覆盖全部 DP rank，多 DP 指标需保留 `engine` 标签。正常执行 `run` 时插件已自动采集这两个时点，并把原始文本写入 analysis 的 `runtime.metrics_baseline.raw_prometheus` 和 `runtime.metrics_after.raw_prometheus`，如需离线复算可导出：
 
 ```shell
 ANALYSIS="./outputs/<run_id_时间戳>/result/<run_id_时间戳>.analysis.json"
@@ -195,47 +280,13 @@ jq -r '.runtime.metrics_baseline.raw_prometheus' "$ANALYSIS" > baseline.prom
 jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
 ```
 
-命令解析两个快照，按 DP 计算 queries/hits 差值，再汇总 `actual.global_hit_rate`，比较 `theoretical_hit_rate` 并生成 `ACTUAL_DEVIATION` 告警。它适合历史结果复核、指标解析逻辑升级后的重算、外部压测流量分析和 CI 校验；成功的 `run` 已在线完成同样的差分分析，通常不必再次执行。结果以 `status="analyzed"` 写回 Manifest 所索引的 analysis 文件，`runtime` 只包含 `metrics_baseline` 和 `metrics_after`。离线快照没有正式运行期间的采样序列，因此不会生成 `runtime.kv_cache_polling` 或运行期 KV 均值/峰值；Prometheus 指标也没有 Prefix Group 标签，所以实际值只能按 DP 和全局统计，组级数据仍是理论值。
-
-当前 CLI 将 `analyze` 与 `validate` 的插件日志写入同一个 `log/<run_id>.validate.log` 文件名，后执行的命令会重新创建该文件。stdout 返回更新后的完整 analysis JSON。目标或实际偏差只产生 `PASS_WITH_WARNING`，不改变原本成功的退出码。
+`analyze` 适用于历史结果复核、解析逻辑升级后的重算、外部压测流量分析和 CI 校验；成功的 `run` 已在线完成同样的差分分析，通常无需再次执行。
 
 ---
 
-## 工作原理
+## Scenario 参数说明
 
-```mermaid
-flowchart LR
-    S[Scenario] --> I[inspect 预览]
-    I --> P[prepare 构造 Prompt]
-    P --> G[公共前缀]
-    P --> U[全局唯一 Seed]
-    P --> N[GSM8K 自然后缀]
-    G --> T[顺序感知理论水位模拟]
-    U --> T
-    N --> T
-    T --> A[full / requests / Manifest / analysis]
-    A --> V[validate 完整性校验]
-```
-
-每条正式请求由三部分构成：
-
-```text
-公共前缀 + 全局唯一 seed + GSM8K 自然后缀
-```
-
-- 公共前缀按 `block_size` 对齐，是理论命中的主要来源；
-- seed 长度为 `seed_blocks × block_size`，每条请求全局唯一，防止公共前缀之后继续误共享；
-- 自然后缀从 GSM8K 问题中选择、拼接并截断，使非共享区保持自然语言形态。
-
-插件根据目标全局命中率反求每条请求的公共前缀长度，并按照最终请求顺序模拟缓存水位。最终命中 token 总量优先精确匹配最近可达目标；在终值相同的方案中，warmup 均衡分配前缀，cold 按 Prefix Group/DP lane 水位优先选择累计率低超调、少回落并逐步贴近目标的方案。后置 lane 首次 miss 或容量不足时严格单调可能不可行，但不会再默认采用“前段明显冲高、尾部短前缀回调”的顺序填满方式。
-
----
-
-## Scenario 核心配置
-
-完整逐字段参考见 [Scenario 配置参数说明](../../../plugins/prefix_cache/config_examples/scenario.example.md)。
-
-### 完整字段索引
+完整逐字段参考见 [Scenario 配置参数说明](../../../plugins/prefix_cache/config_examples/scenario.example.md)。Scenario 采用严格白名单，未列出的字段会被拒绝；省略的字段使用示例默认值。
 
 | 配置路径 | 简短说明 |
 |---|---|
@@ -332,8 +383,9 @@ flowchart LR
 | `aisbench.model.retry` | API 请求失败重试次数。 |
 | `aisbench.model.batch_size` | AISBench API 最大并发基值。 |
 | `aisbench.model.generation_kwargs` | 透传给 vLLM 的生成参数。 |
-
-Scenario 会拒绝白名单之外的字段。离线计算使用 `service.dp_size`；`run` 使用服务 URL、model、reset/空缓存策略、指标映射、超时、API key 以及整个 `aisbench` 段。
+| `multimodal` | 多模态压测（`--mode mm`）的图片场景配置。 |
+| `multimodal.mmmu_parquet_dir` | MMMU Parquet 目录；`--mode mm` 时必填，相对路径以 Scenario 文件目录为基准。 |
+| `multimodal.scenarios` | 图片场景列表；可省略，默认 `["single_1080p"]`。 |
 
 ### 输入和输出长度
 
@@ -373,78 +425,54 @@ Scenario 会拒绝白名单之外的字段。离线计算使用 `service.dp_size
 - `zipf`：使用 `exponent` 控制热点集中程度；
 - `weights`：通过 `weights` 提供每组相对权重。
 
-每个 Prefix Group 独立生成 canonical 前缀、维护缓存水位并统计理论命中率。`groups.overrides.group-N` 可以独立覆盖输入长度、输出长度和语料选择方式。
-
-### requests.jsonl 输出字段
-
-```json
-"output": {"output_key": null}
-```
-
-默认 `null` 时每行只有 `question`、`answer`。也可配置 `"max_tokens"` 或 `"output_tokens"` 作为第三字段名；两者的值都来自内部最大输出 token 数。`full.jsonl.max_tokens` 始终保留，AISBench 从 full 读取生成长度，因此默认省略不影响运行。
+每个 Prefix Group 独立生成 canonical 前缀并统计理论命中率。`groups.overrides.group-N` 可以独立覆盖输入长度、输出长度和语料选择方式。
 
 ### 请求顺序
 
 `prefix_cache.order.strategy` 支持：
 
-- `sequential`；
-- `within_group_shuffle`；
-- `interleave`；
-- `global_shuffle`；
-- `input_len_asc`。
+- `sequential`：保持数据生成阶段的稳定顺序；
+- `within_group_shuffle`：每个 Prefix Group 内确定性打乱；
+- `interleave`：不同 Prefix Group 按轮次交错；
+- `global_shuffle`：所有请求全局确定性打乱；
+- `input_len_asc`：每个 Group 内按输入长度从短到长排序，再按组轮转交错。
 
-理论命中率始终按重排后的最终发送顺序计算。要模拟“无预热、短请求到长请求逐步建立 Cache”，请同时使用 `prefix_cache.mode="cold"` 和 `order.strategy="input_len_asc"`。prepare 会先按组内输入长度升序生成产物；run 时 `LaneSequencer` 保证每个 `(group_id, dp_rank)` lane 只有在前一条请求完成后才放行下一条。不同 Group/DP 的独立 Cache 仍可并行。
+理论命中率始终按最终发送顺序重新模拟。要模拟“无预热、短请求到长请求逐步建立 Cache”，请同时使用 `prefix_cache.mode="cold"` 和 `order.strategy="input_len_asc"`。
 
----
+### cold 与 warmup
 
-## cold 与 warmup
+`prefix_cache.mode` 支持两种模式：
 
-### cold
+- `cold`：每个 `(group_id, dp_rank)` lane 从零缓存水位开始，同一组的请求按组内出现顺序 round-robin 路由到各 DP rank；
+- `warmup`：为每个 `Prefix Group × DP rank` 生成预热计划（写入 Manifest 的 `warmup.plan`），`run` 会在正式 baseline 之前定向发送预热请求。warmup 请求不写入 `requests.jsonl`，也不进入正式请求数量和理论统计分母。
 
-- 每个 `(group_id, dp_rank)` lane 从零缓存水位开始；
-- 同一组的正式请求按组内出现顺序 round-robin 路由到各 DP rank；
-- `full.jsonl` 记录 `dp_rank` 和 `lane_sequence`；
-- 理论命中率按每个 lane 独立模拟后进行 token 加权汇总。
+### 多模态场景（`--mode mm`）
 
-### warmup
+多模态模式与纯文本共用同一个 Scenario JSON 和命令入口，在文本配置基础上追加 `multimodal` 段即可：
 
-- 为每个 `Prefix Group × DP rank` 生成一条预热计划；
-- 预热计划写入 Manifest 的 `warmup.plan`；
-- warmup 请求不写入 `requests.jsonl`，不进入正式请求数量和理论统计分母；
-- `prepare` 只生成预热计划；`run` 会在正式 baseline 之前把计划逐 `Prefix Group × DP rank` 定向发送。
-
----
-
-## 理论命中率和可达性
-
-对于某个独立缓存 lane，请求到达前水位为 `watermark`，请求共享前缀为 `shared_prefix_tokens`，理论命中 token 为：
-
-```text
-hit_tokens = min(shared_prefix_tokens, watermark)
-watermark_after = max(watermark, shared_prefix_tokens)
+```json
+{
+  "multimodal": {
+    "mmmu_parquet_dir": "../../../../MMMU",
+    "scenarios": ["single_1080p", "multi_720p_5"]
+  }
+}
 ```
 
-全局命中率使用 token 加权口径：
+- `multimodal.mmmu_parquet_dir`：必填，MMMU Parquet 数据目录，相对路径以 Scenario 文件目录为基准；
+- `multimodal.scenarios`：可选，默认只生成 `single_1080p`；支持：
+  - `single_1080p`：每请求 1 张相同的原生 1920×1080 MMMU 图片；
+  - `multi_720p_5`：每请求重复同一张原生 1280×720 MMMU 图片 5 次。
 
-```text
-global_hit_rate = sum(theoretical_hit_tokens) / sum(actual_input_tokens)
-```
+多模态模式复用文本配置中的 `tokenizer.path`、`corpus`、`requests`、`run.output_dir`、`service` 和 `aisbench` 段；但 `requests.input_length` / `requests.output_length` 必须为 `fixed`，且不使用 `tokenizer.block_size` 和 `prefix_cache` 段（可省略，保留也不会对多模态文本长度施加 Block、共享前缀或非共享区限制）。`run`、`validate`、`report` 从 prepare 生成的 Manifest 中读取 `benchmark_mode`，不再接收 `--mode`。
 
-插件同时输出：
-
-- `requested_target_hit_rate`：Scenario 请求目标；
-- `effective_target_hit_rate`：求解器选择的最近可达目标；
-- `theoretical_hit_rate`：按最终顺序模拟的理论值；
-- `reachable_min`、`reachable_max`：当前约束下的理论范围；
-- `target_reachable`：请求目标是否位于可达范围内。
-
-Block 对齐、唯一 seed、自然后缀、Prefix Group、顺序和 cold DP lane 都可能使某个目标不可达。
+图片按原生尺寸从 MMMU Parquet 的 `image_1`～`image_7` bytes 字段中严格选择，不进行缩放；图片编码为 Base64 data URL 发送，服务端无需访问本地 MMMU 路径。`stream=true` 是获得有效 TTFT、TPOT、ITL 的必要条件。完整说明见 [MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)。
 
 ---
 
-## 输出目录和时间戳
+## 产物说明
 
-时间戳格式为 `_YYYYMMDD_HHMMSS`。推荐工作流中，inspect 创建时间戳和轻量 Manifest，prepare 与 run 通过 Manifest 复用该任务：
+所有正式数据产物位于时间戳输出目录的 `result/` 下，详细日志位于同级 `log/` 下：
 
 ```text
 outputs/gsm8k-prefix-cache-60_20260825_123456/
@@ -460,44 +488,36 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
     └── gsm8k-prefix-cache-60_20260825_123456.analysis.json
 ```
 
-不会再生成 `<output_dir>.inspect.json`。inspect 将摘要写入时间戳目录的 `result/<run_id_时间戳>.manifest.json`，状态为 `inspected`；prepare 在 Scenario SHA-256、run/output 和状态均匹配时原位升级为 `prepared`，run 可继续复用。Scenario 内容改变后旧 Manifest 会自动失配。
-
----
-
-## 产物说明
-
 | 产物 | 作用 |
 |---|---|
 | `full.jsonl` | 完整审计数据，包括组、DP lane、输入长度、公共前缀、唯一 seed、GSM8K 来源、理论水位和碰撞状态。 |
 | `requests.jsonl` | 最小 AISBench 请求；默认只有 `question`、`answer`，可由 `output.output_key` 追加 `max_tokens` 或 `output_tokens`。 |
-| `manifest.json` | 有效配置、输入哈希、tokenizer 指纹、长度分布、可达范围、组、DP、warmup 和产物哈希。 |
-| `analysis.json` | requested/effective/theoretical/actual 命中率、baseline/after、理论分组统计、理论/实际分 DP 统计、偏差与 warnings。 |
+| `manifest.json` | 复现和校验入口：有效配置、输入哈希、tokenizer 指纹、长度分布、可达范围、组、DP、warmup 计划和产物哈希。 |
+| `analysis.json` | requested/effective/theoretical/actual 命中率、baseline/after 快照、分组/分 DP 统计、偏差与 warnings。 |
 
 `service.api_key` 明文不会写入 Manifest，只记录 `api_key_configured`。
 
-固定字段索引如下。标为“可选”或“阶段性”的字段只在对应配置或执行阶段出现。
-
 ### `requests.jsonl` 字段
 
-| 字段 | 简短说明 |
+| 字段 | 说明 |
 |---|---|
 | `question` | 发送给模型的完整 Prompt。 |
-| `answer` | AISBench 使用的参考答案。 |
+| `answer` | AISBench 使用的参考答案，当前固定为 `"none"`。 |
 | `max_tokens` | 可选的最大输出 token 数。 |
 | `output_tokens` | `max_tokens` 的可选别名。 |
 
-`max_tokens` 和 `output_tokens` 由 `output.output_key` 二选一追加；默认都不出现。
+`max_tokens` 和 `output_tokens` 由 `output.output_key` 二选一追加；默认 `null` 时都不出现。`full.jsonl.max_tokens` 始终保留，AISBench 从 full 读取生成长度，因此默认省略不影响运行。
 
 ### `full.jsonl` 字段
 
-| 字段 | 简短说明 |
+| 字段 | 说明 |
 |---|---|
 | `request_id` | 全局唯一的请求标识。 |
 | `sequence_index` | 最终发送顺序中的全局序号。 |
 | `group_id` | 请求所属 Prefix Group。 |
 | `occurrence_index_within_group` | 请求在组内的出现序号。 |
-| `dp_rank` | cold 模式下的目标 DP rank。 |
-| `lane_sequence` | `(group_id, dp_rank)` lane 内序号。 |
+| `dp_rank` | cold 模式下的目标 DP rank；warmup 正式请求为 `null`。 |
+| `lane_sequence` | `(group_id, dp_rank)` lane 内序号；warmup 为 `null`。 |
 | `target_input_tokens` | 配置期望的输入 token 数。 |
 | `actual_input_tokens` | Tokenizer 验证后的实际输入 token 数。 |
 | `max_tokens` | 该请求允许生成的最大 token 数。 |
@@ -517,40 +537,38 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 | `theoretical_hit_rate` | 当前请求理论命中率。 |
 | `divergence_block_sha256` | 用于验证分歧 Block 的摘要。 |
 | `divergence_unique` | 分歧 Block 是否全局唯一。 |
-| `collision_status` | 前缀或 seed 碰撞检查结果。 |
+| `collision_status` | 前缀或 seed 碰撞检查结果，成功产物为 `"pass"`。 |
 
 ### `manifest.json` 顶层字段
 
-| 字段 | 简短说明 |
+| 字段 | 说明 |
 |---|---|
 | `schema_version` | Manifest 数据结构版本。 |
 | `plugin_version` | 生成产物的插件版本。 |
 | `status` | `inspected` 或 `prepared` 状态。 |
 | `run_id` | 带执行时间戳的任务标识。 |
-| `scenario_path` | 原始 Scenario 文件路径。 |
-| `scenario_sha256` | 原始 Scenario 文件摘要。 |
-| `effective_config` | 补齐默认值后的有效配置。 |
-| `effective_config_sha256` | 有效配置摘要。 |
+| `scenario_path` / `scenario_sha256` | 原始 Scenario 路径及摘要。 |
+| `effective_config` / `effective_config_sha256` | 补齐默认值后的有效配置及其摘要。 |
 | `corpus_sha256` | GSM8K 语料文件摘要。 |
 | `tokenizer` | Tokenizer 身份和 Block 信息。 |
 | `requests` | 请求数、总 token 和长度摘要。 |
 | `prefix_cache` | 模式、命中率和可达性结果。 |
 | `groups` | 每个 Prefix Group 的独立统计。 |
 | `dp` | DP 数量和 cold 路由策略。 |
-| `warmup` | Group × DP 预热计划。 |
+| `warmup` | 是否启用及 Group × DP 预热计划。 |
 | `divergence` | seed/分歧块唯一性汇总。 |
 | `artifacts` | 各产物路径、大小和摘要。 |
 | `inspect` | inspect-only Manifest 的预览信息。 |
 
-正式 Manifest 使用除 `inspect` 外的上述字段；inspect-only Manifest 的 `status="inspected"`，并在 `inspect.summary` 中保存预览结果。
+正式 Manifest 使用除 `inspect` 外的上述字段；inspect-only Manifest 的 `status="inspected"`，预览结果保存在 `inspect.summary`。
 
 ### `analysis.json` 顶层字段
 
-| 字段 | 简短说明 |
+| 字段 | 说明 |
 |---|---|
 | `schema_version` | Analysis 数据结构版本。 |
 | `run_id` | 对应的带时间戳任务标识。 |
-| `status` | `prepared` 或 `complete` 状态。 |
+| `status` | `prepared`、`complete`（run 后）或 `analyzed`（analyze 后）状态。 |
 | `requested_target_hit_rate` | Scenario 请求的目标命中率。 |
 | `effective_target_hit_rate` | 求解器选择的最近可达目标。 |
 | `theoretical_hit_rate` | 按最终顺序模拟的理论命中率。 |
@@ -560,36 +578,11 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 | `validation` | 可达性、状态和告警策略。 |
 | `theory` | 理论 token、Group 和 DP 统计。 |
 | `warnings` | 本次产生的告警列表。 |
-| `runtime` | run 阶段、预热和指标快照信息。 |
-| `actual` | 指标差分得到的实际命中统计。 |
+| `runtime` | baseline/after 快照、KV 采样等运行期信息；由 run/analyze 追加。 |
+| `actual` | 指标差分得到的实际命中统计；由 run/analyze 追加。 |
 | `theory_actual_difference_pp` | 实际值与理论值的绝对百分点差。 |
 | `theory_actual_signed_difference_pp` | 实际值减理论值的带符号百分点差。 |
 | `theory_actual_absolute_difference_pp` | 实际值与理论值的绝对百分点差。 |
-
-`runtime`、`actual` 和三个 `theory_actual_*` 字段由 run/analyze 阶段追加。
-
-### inspect stdout 字段
-
-| 字段 | 简短说明 |
-|---|---|
-| `run_id` | Scenario 中未追加时间戳的任务名。 |
-| `mode` | `cold` 或 `warmup` 模式。 |
-| `requested_target_hit_rate` | 用户请求的目标命中率。 |
-| `effective_target_hit_rate` | 最近可达目标命中率。 |
-| `theoretical_hit_rate` | 预计理论命中率。 |
-| `reachable_min` | 全局最小可达命中率。 |
-| `reachable_max` | 全局最大可达命中率。 |
-| `target_reachable` | 请求目标是否处于可达区间。 |
-| `group_reachability` | 各 Group 的可达范围。 |
-| `groups` | 各 Group 的请求数量。 |
-| `input_tokens` | 输入长度统计和总 token 数。 |
-| `output_tokens` | 输出长度统计和总 token 数。 |
-| `dp_route_counts` | 各 DP rank 的正式请求数。 |
-| `sends_requests` | 是否发送在线请求；inspect 固定为 false。 |
-| `log` | inspect 日志文件路径。 |
-| `manifest` | inspect-only Manifest 文件路径。 |
-
-各字段类型和嵌套含义以 [Prefix Cache 插件 README](../../../plugins/prefix_cache/README.md) 与 [Scenario 完整字段说明](../../../plugins/prefix_cache/config_examples/scenario.example.md) 为准。
 
 ---
 
@@ -601,38 +594,12 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 | `TARGET_DEVIATION` | 理论值与请求目标的绝对差超过 `validation.target_warning_pp`。 |
 | `ACTUAL_DEVIATION` | 实际值与理论值的绝对差超过 `validation.actual_warning_pp`。 |
 
-这些告警只把展示状态改为 `PASS_WITH_WARNING`；`warning_only=true`、`affects_exit_code=false`，不会改变成功退出码。Scenario、产物、服务能力或 AISBench 执行错误才返回非零退出码。
+这些告警只把 `analysis.json` 的展示状态改为 `PASS_WITH_WARNING`，不改变成功退出码。配置错误、产物损坏、服务能力不足或 AISBench 执行失败才会返回非零退出码。
 
 ---
 
-## 常见问题
+## 更多资料
 
-### 为什么理论命中率没有精确等于目标？
-
-公共前缀必须按 Block 对齐，同时还要为唯一 seed 和自然后缀预留空间。cold 模式还受首次 miss、请求顺序、组和 DP lane 水位约束。请先运行 `inspect`，检查 `reachable_min`、`reachable_max` 和 `target_reachable`。
-
-### 为什么 warmup 不进入正式统计？
-
-warmup 只负责建立缓存。如果计入正式请求数、吞吐、时延或命中率，结果会混入准备阶段成本。
-
-### 为什么 prepare 报同名文件已存在？
-
-prepare 可能复用了已有正式产物的 inspect 时间戳。重新执行 `inspect` 可获得新时间戳；只有明确要重建同一目录时才使用：
-
-```shell
-ais-bench-prefix-cache prepare --scenario ./scenario.json --overwrite
-```
-
-### 为什么 tokenizer round-trip 失败？
-
-插件要求 canonical 前缀、seed 和最终 prompt 在 tokenizer 编解码后保持一致。请确认 tokenizer 文件完整、`trust_remote_code` 设置正确，并与目标服务使用同一 tokenizer 版本。
-
----
-
-## 当前范围
-
-- 支持单个 HTTP 入口对应的多 DP 数据规划；
-- 不支持多个独立推理服务实例；
-- `run` 支持每个 Prefix Group × 每个 DP 独立预热、正式 AISBench 压测与 Prometheus 指标采集；warmup 在 baseline 之前完成，不进入正式统计；
-- `analyze` 支持用保存的 baseline/after `.prom` 文件离线复算；
-- 详细配置和全部 JSON 字段契约以 [Prefix Cache 插件 README](../../../plugins/prefix_cache/README.md) 与 [Scenario 完整字段说明](../../../plugins/prefix_cache/config_examples/scenario.example.md) 为准。
+- [Prefix Cache 插件 README](../../../plugins/prefix_cache/README.md)
+- [Scenario 配置参数说明](../../../plugins/prefix_cache/config_examples/scenario.example.md)
+- [多模态压测 MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)
