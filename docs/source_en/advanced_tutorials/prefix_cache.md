@@ -57,14 +57,14 @@ The following commands assume that the current directory is the AISBench reposit
 **Dataset generation only**: when using only the offline commands `inspect`, `prepare`, `validate`, and `analyze`, installing the plugin itself is sufficient:
 
 ```shell
+conda create --name ais_bench python=3.10 -y
+conda activate ais_bench
 pip3 install -e ./plugins/prefix_cache
 ```
 
 **Online benchmarking**: `run` starts AISBench in `perf` mode, so first install AISBench and its service-benchmark dependencies following the [AISBench installation guide](../get_started/install.md) (a Conda environment is recommended):
 
 ```shell
-conda create --name ais_bench python=3.10 -y
-conda activate ais_bench
 pip3 install -e ./plugins/prefix_cache
 pip3 install -e ./ --use-pep517
 pip3 install -r requirements/api.txt

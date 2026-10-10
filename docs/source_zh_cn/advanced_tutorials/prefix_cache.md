@@ -57,15 +57,14 @@ flowchart LR
 **仅生成数据集**：只使用 `inspect`、`prepare`、`validate`、`analyze` 等离线命令时，安装插件本身即可：
 
 ```shell
+conda create --name ais_bench python=3.10 -y
+conda activate ais_bench
 pip3 install -e ./plugins/prefix_cache
 ```
 
 **执行在线压测**：`run` 需要以 `perf` 模式启动 AISBench 正式压测，请先参考 [AISBench 工具安装文档](../get_started/install.md) 安装 AISBench 及服务化压测依赖（推荐使用 Conda 管理环境）：
 
 ```shell
-conda create --name ais_bench python=3.10 -y
-conda activate ais_bench
-pip3 install -e ./plugins/prefix_cache
 pip3 install -e ./ --use-pep517
 pip3 install -r requirements/api.txt
 pip3 install -r requirements/extra.txt
