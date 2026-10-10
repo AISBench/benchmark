@@ -72,6 +72,7 @@ AISBench Benchmark当前支持的数据集类型如下：
 | HLE          | 多模态理解（图+文）          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/hle/README.md)          |
 | InfoVQA      | 多模态理解（图+文）          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/infovqa/README.md)      |
 | MathVision   | 多模态理解（图+文）          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mathvision/README.md)   |
+| MME          | 多模态理解（图+文）          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mme/README.md)          |
 | MMMU         | 多模态理解（图+文）          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu/README.md)         |
 | MMMU_Pro     | 多模态理解（图+文）          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmmu_pro/README.md)     |
 | MMStar       | 多模态理解（图+文）          | [详细介绍](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/configs/datasets/mmstar/README.md)       |
