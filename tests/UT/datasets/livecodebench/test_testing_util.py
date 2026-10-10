@@ -199,6 +199,46 @@ class TestRunTest(TestingUtilTestBase):
             # 只测试函数可以被导入和调用
             self.assertTrue(callable(run_test))
 
+    def test_problem_specific_stdio_judge(self):
+        from types import SimpleNamespace
+        from ais_bench.benchmark.datasets.livecodebench import testing_util
+
+        sample = {
+            'question_id': 'abc397_d',
+            'input_output': json.dumps({
+                'inputs': ['27'], 'outputs': ['3 0'], 'fn_name': None,
+            }),
+        }
+        fake_module = SimpleNamespace(code=lambda: print(-1))
+        with patch.object(testing_util, 'reliability_guard'), \
+             patch.object(testing_util.RuntimeModule, 'from_string',
+                          return_value=fake_module):
+            results, _ = run_test(sample, test='print(-1)')
+        self.assertEqual(results, [True])
+
+    def test_problem_specific_call_judge(self):
+        from types import SimpleNamespace
+        from ais_bench.benchmark.datasets.livecodebench import testing_util
+
+        sample = {
+            'question_id': '3763',
+            'input_output': json.dumps({
+                'inputs': ['[[0,0,2],[1,1,1]]'],
+                'outputs': ['1.16667'],
+                'fn_name': 'separateSquares',
+            }),
+        }
+
+        class Solution:
+            def separateSquares(self, squares):
+                return 7 / 6
+
+        with patch.object(testing_util, 'reliability_guard'), \
+             patch.object(testing_util.RuntimeModule, 'from_string',
+                          return_value=SimpleNamespace(Solution=Solution)):
+            results, _ = run_test(sample, test='class Solution: pass')
+        self.assertEqual(results, [True])
+
 
 class TestCallMethod(TestingUtilTestBase):
     """测试call_method函数"""
