@@ -4,6 +4,27 @@
 
 The AISBench Prefix Cache plugin generates datasets with controlled shared prefixes, calculates the theoretical Prefix Cache hit rate offline, and then uses AISBench and vLLM to collect the actual hit rate. It evaluates how input lengths, shared-prefix ratios, Prefix Groups, request ordering, and multiple DP ranks behind one endpoint affect cache hits.
 
+The overall workflow: samples are selected from the GSM8K corpus according to the Scenario configuration and, together with the tokenizer, are turned offline into requests with controlled shared prefixes along with a theoretical hit rate; `run` sends the requests to vLLM for the benchmark; finally, the difference between the Prometheus metrics captured before and after the benchmark yields the actual hit rate, which is compared against the theoretical value:
+
+```mermaid
+flowchart LR
+    C[GSM8K JSONL corpus] --> PR[prepare: offline dataset generation]
+    TK[Tokenizer] --> PR
+    SC[Scenario configuration<br/>request count, input/output lengths, target hit rate,<br/>Prefix Groups, request ordering, DP size] --> PR
+    PR --> D1[requests.jsonl / full.jsonl<br/>requests with controlled shared prefixes]
+    PR --> D2[manifest.json / analysis.json<br/>including the theoretical hit rate]
+    D1 --> RU[run: probe, reset, per Group × DP warmup]
+    RU --> AI[AISBench formal requests]
+    AI --> VL[vLLM service<br/>Prefix Cache]
+    VL --> PF[AISBench performance summaries<br/>TTFT / TPOT / ITL]
+    VL --> PM[Prometheus /metrics]
+    PM --> SN[baseline / after metric snapshots]
+    SN --> DF[after - baseline delta<br/>actual hit rate]
+    DF --> D2
+    SN -. saved snapshot files .-> AZ[analyze: offline recomputation]
+    AZ -.-> D2
+```
+
 The plugin provides five subcommands:
 
 | Command | Purpose | Contacts service |
@@ -31,23 +52,27 @@ Only `run` connects to vLLM. One HTTP endpoint with one or more internal DP rank
 
 ## Installation
 
-The following commands assume that the current directory is the AISBench repository root:
+The following commands assume that the current directory is the AISBench repository root.
+
+**Dataset generation only**: when using only the offline commands `inspect`, `prepare`, `validate`, and `analyze`, installing the plugin itself is sufficient:
 
 ```shell
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-python -m pip install -e ./plugins/prefix_cache
+pip3 install -e ./plugins/prefix_cache
+```
+
+**Online benchmarking**: `run` starts AISBench in `perf` mode, so first install AISBench and its service-benchmark dependencies following the [AISBench installation guide](../get_started/install.md) (a Conda environment is recommended):
+
+```shell
+conda create --name ais_bench python=3.10 -y
+conda activate ais_bench
+pip3 install -e ./plugins/prefix_cache
+pip3 install -e ./ --use-pep517
+pip3 install -r requirements/api.txt
+pip3 install -r requirements/extra.txt
 ais-bench-prefix-cache --help
 ```
 
-The editable (`-e`) installs normally make source changes available without reinstalling the packages. Installing the plugin registers the Prefix Cache Dataset, Inferencer, and vLLM API Model plugin entry points, plus the `ais-bench-prefix-cache` command-line tool.
-
-If the command is not found, use the equivalent form:
-
-```shell
-python -m ais_bench_prefix_cache.cli --help
-```
+The editable (`-e`) installs normally make source changes available without reinstalling the packages.
 
 ---
 
@@ -124,8 +149,6 @@ Run the recommended workflow in order:
 ```shell
 ais-bench-prefix-cache inspect --scenario ./scenario.json
 ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
-ais-bench-prefix-cache validate --manifest \
-  ./outputs/gsm8k-prefix-cache-60_<timestamp>/result/gsm8k-prefix-cache-60_<timestamp>.manifest.json
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 

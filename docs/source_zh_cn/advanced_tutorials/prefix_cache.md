@@ -4,6 +4,27 @@
 
 AISBench Prefix Cache 插件用于构造具有可控公共前缀的数据集，先离线计算理论 Prefix Cache 命中率，再通过 AISBench 与 vLLM 采集实际命中率。它适用于验证输入长度、公共前缀比例、Prefix Group、请求顺序以及单入口多 DP 对缓存命中率的影响。
 
+插件整体流程：按 Scenario 配置从 GSM8K 语料中选取样本，结合 tokenizer 离线构造带可控公共前缀的请求数据并计算理论命中率；`run` 将请求发送到 vLLM 执行压测；最后通过 Prometheus 指标在压测前后的差分得到实际命中率，并与理论值对比：
+
+```mermaid
+flowchart LR
+    C[GSM8K JSONL 语料] --> PR[prepare：离线生成数据集]
+    TK[Tokenizer] --> PR
+    SC[Scenario 配置<br/>请求数量、输入/输出长度、目标命中率、<br/>Prefix Group、请求顺序、DP 数] --> PR
+    PR --> D1[requests.jsonl / full.jsonl<br/>带可控公共前缀的请求]
+    PR --> D2[manifest.json / analysis.json<br/>含理论命中率]
+    D1 --> RU[run：探活、reset、逐 Group × DP 预热]
+    RU --> AI[AISBench 正式请求]
+    AI --> VL[vLLM 服务<br/>Prefix Cache]
+    VL --> PF[AISBench 性能汇总<br/>TTFT / TPOT / ITL]
+    VL --> PM[Prometheus /metrics]
+    PM --> SN[baseline / after 指标快照]
+    SN --> DF[after - baseline 差分<br/>实际命中率]
+    DF --> D2
+    SN -. 保存的快照文件 .-> AZ[analyze：离线复算]
+    AZ -.-> D2
+```
+
 插件提供五个子命令：
 
 | 命令 | 作用 | 是否访问服务 |
@@ -31,7 +52,15 @@ AISBench Prefix Cache 插件用于构造具有可控公共前缀的数据集，�
 
 ## 安装
 
-以下命令假设当前目录是 AISBench 仓库根目录。推荐使用 Conda 管理环境：
+以下命令假设当前目录是 AISBench 仓库根目录。
+
+**仅生成数据集**：只使用 `inspect`、`prepare`、`validate`、`analyze` 等离线命令时，安装插件本身即可：
+
+```shell
+pip3 install -e ./plugins/prefix_cache
+```
+
+**执行在线压测**：`run` 需要以 `perf` 模式启动 AISBench 正式压测，请先参考 [AISBench 工具安装文档](../get_started/install.md) 安装 AISBench 及服务化压测依赖（推荐使用 Conda 管理环境）：
 
 ```shell
 conda create --name ais_bench python=3.10 -y
@@ -120,6 +149,8 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 ```shell
 ais-bench-prefix-cache inspect --scenario ./scenario.json
 ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
+ais-bench-prefix-cache validate --manifest \
+  ./outputs/gsm8k-prefix-cache-60_<时间戳>/result/gsm8k-prefix-cache-60_<时间戳>.manifest.json
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
@@ -215,6 +246,25 @@ Generate prompts [##############################] 100/100 100%
 ```
 
 `prepare` 会自动发现最近一次与当前 Scenario SHA-256 匹配的 `inspected` Manifest，并在同一路径把它升级为正式 `prepared` Manifest；否则创建新时间戳。修改 Scenario 后旧 Manifest 自动失配并创建新时间戳，正常工作流不需要手动修改 `run_id` 或 `output_dir`。
+
+### `validate`：校验已有产物
+
+```shell
+ais-bench-prefix-cache validate --manifest \
+  ./outputs/gsm8k-prefix-cache-60_<时间戳>/result/gsm8k-prefix-cache-60_<时间戳>.manifest.json
+```
+
+- `--manifest`：待校验的 Manifest 路径，校验逻辑根据 Manifest 的 `benchmark_mode` 自动区分 text/mm。
+
+作用：不生成数据、不访问 vLLM，只检查：
+
+- Manifest、full 和 requests 行数是否一致；
+- `sequence_index` 是否连续；
+- requests 是否严格只含 `question`、`answer` 以及 `output.output_key` 指定的可选第三字段；
+- requests 与 full 是否逐行对应；
+- full 和 requests 的 SHA-256 是否匹配 Manifest。
+
+它用于发现文件被手工编辑、截断、换序或使用了错误版本。stdout 输出 `ok`、`rows`、`run_id`，详细日志写入 Manifest 所在时间戳目录的 `log/<run_id>_<时间戳>.validate.log`。
 
 ### `run`：执行 vLLM Prefix Cache 压测
 

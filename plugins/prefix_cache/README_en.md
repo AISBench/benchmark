@@ -13,11 +13,13 @@ See the [Scenario example](config_examples/scenario.example.json), [complete fie
 The environment must provide:
 
 - Python 3.10 or newer;
-- An AISBench checkout whose dependencies can be imported;
-- `transformers` for loading the tokenizer that matches the vLLM model;
-- `datasets` and `aiohttp` for AISBench Dataset and API load testing;
 - A GSM8K JSONL file with at least a `question` field on every line;
 - For online `run`, a vLLM Completions service with Prefix Cache enabled.
+
+Dependencies are installed in one of two scenarios (see section 2):
+
+- Offline dataset generation only (`inspect` / `prepare` / `validate` / `analyze`): installing the plugin itself is sufficient; `transformers`, `datasets`, `aiohttp`, and other dependencies are installed automatically with the plugin;
+- Online load testing (`run`): AISBench and its service-benchmark dependencies must be installed first, following the [AISBench installation guide](../../docs/source_en/get_started/install.md).
 
 The tokenizer used during data generation must be identical to the model tokenizer used by vLLM. Otherwise local token lengths, block boundaries, and theoretical hit rates will not match server behavior.
 
@@ -25,37 +27,32 @@ The tokenizer used during data generation must be identical to the model tokeniz
 
 The commands below assume the current directory is the AISBench repository root containing `setup.py`, `ais_bench/`, and `plugins/`.
 
-### 2.1 Create an isolated environment (recommended)
+### 2.1 Install the plugin only (offline dataset generation)
 
 ```bash
-python -m venv .venv
+pip3 install -e ./plugins/prefix_cache
 ```
 
-Creates an isolated Python environment in the repository, preventing plugin dependencies from interfering with system packages.
+When using only the offline commands `inspect`, `prepare`, `validate`, and `analyze`, installing the plugin itself is sufficient. This installs the `ais_bench_prefix_cache` package and its dependencies (including `transformers`, `datasets`, and `aiohttp`), registers the Prefix Cache Dataset, Inferencer, and vLLM API Model entry points, and installs the `ais-bench-prefix-cache` CLI.
+
+### 2.2 Full installation (online load testing with `run`)
+
+`run` starts AISBench in `perf` mode, so first install AISBench and its service-benchmark dependencies following the [AISBench installation guide](../../docs/source_en/get_started/install.md) (a Conda environment is recommended):
 
 ```bash
-source .venv/bin/activate
+conda create --name ais_bench python=3.10 -y
+conda activate ais_bench
+pip3 install -e ./plugins/prefix_cache
+pip3 install -e ./ --use-pep517
+pip3 install -r requirements/api.txt
+pip3 install -r requirements/extra.txt
 ```
 
-Activates the environment in Linux Bash. Subsequent `python` and `pip` commands use `.venv`; alternatively call `.venv/bin/python` explicitly.
+- `pip3 install -e ./plugins/prefix_cache`: installs this plugin (see 2.1);
+- `pip3 install -e ./ --use-pep517`: installs the AISBench checkout and its dependencies in editable mode; `-e` points imports at the working tree, so source changes normally do not require reinstalling;
+- `pip3 install -r requirements/api.txt` and `pip3 install -r requirements/extra.txt`: AISBench dependencies required for service benchmarking (vLLM and other API services).
 
-### 2.2 Install AISBench
-
-```bash
-python -m pip install -e .
-```
-
-Installs the checkout and its dependencies in editable mode. `-e` points imports at the working tree, so source changes normally do not require reinstalling. Skip this step if a matching `ais-bench-benchmark` is already installed.
-
-### 2.3 Install the Prefix Cache plugin
-
-```bash
-python -m pip install -e ./plugins/prefix_cache
-```
-
-This installs the `ais_bench_prefix_cache` package, registers the Prefix Cache Dataset, Inferencer, and vLLM API Model entry points, and installs the `ais-bench-prefix-cache` CLI.
-
-### 2.4 Verify the installation
+### 2.3 Verify the installation
 
 ```bash
 ais-bench-prefix-cache --help
