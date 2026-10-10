@@ -15,11 +15,13 @@ Scenario 示例见 [config_examples/scenario.example.json](config_examples/scena
 运行环境需要满足：
 
 - Python 3.10 或更高版本；
-- 当前 AISBench 仓库及其依赖可以正常导入；
-- `transformers`：加载与 vLLM 模型一致的 tokenizer；
-- `datasets` 和 `aiohttp`：AISBench Dataset 与 API 压测依赖；
 - 一份 GSM8K JSONL 文件，每行至少包含 `question` 字段；
 - 在线 `run` 还需要一个启用 Prefix Cache 的 vLLM Completions 服务。
+
+依赖安装分两种场景（见第 2 节）：
+
+- 仅离线生成数据集（`inspect` / `prepare` / `validate` / `analyze`）：安装插件本身即可，`transformers`、`datasets`、`aiohttp` 等依赖随插件自动安装；
+- 在线压测（`run`）：需要完整安装 AISBench 及服务化压测依赖，参考 [AISBench 工具安装文档](../../docs/source_zh_cn/get_started/install.md)。
 
 数据生成时使用的 tokenizer 必须与 vLLM 服务端模型一致。否则本地计算的 token 长度、Block 边界和理论命中率会与服务端实际行为不一致。
 
@@ -27,41 +29,38 @@ Scenario 示例见 [config_examples/scenario.example.json](config_examples/scena
 
 以下命令假设当前目录是 AISBench 仓库根目录，即包含 `setup.py`、`ais_bench/` 和 `plugins/` 的目录。
 
-### 2.1 创建隔离环境（推荐）
+### 2.1 仅安装插件（离线数据生成）
 
 ```bash
-python -m venv .venv
+pip3 install -e ./plugins/prefix_cache
 ```
 
-作用：在当前仓库创建独立 Python 环境，避免插件依赖与系统 Python 中的其他包互相影响。
+只使用 `inspect`、`prepare`、`validate`、`analyze` 等离线命令时，安装插件本身即可。这条命令会：
 
-```bash
-source .venv/bin/activate
-```
-
-作用：在 Linux Bash 中启用该虚拟环境。后续 `python` 和 `pip` 都会使用 `.venv` 中的解释器和依赖。如果不激活，也可以直接使用 `.venv/bin/python` 执行后续命令。
-
-### 2.2 安装 AISBench
-
-```bash
-python -m pip install -e .
-```
-
-作用：以 editable 模式安装当前 AISBench 仓库及其依赖。`-e` 表示直接引用工作区源码，后续修改源码后通常不需要重新安装。如果环境中已经安装了与当前源码匹配的 `ais-bench-benchmark`，可以跳过此步。
-
-### 2.3 安装 Prefix Cache 插件
-
-```bash
-python -m pip install -e ./plugins/prefix_cache
-```
-
-这条命令会：
-
-1. 安装 `ais_bench_prefix_cache` Python 包；
+1. 安装 `ais_bench_prefix_cache` Python 包及其依赖（含 `transformers`、`datasets`、`aiohttp`）；
 2. 注册 Prefix Cache Dataset、Inferencer 和 vLLM API Model 的 AISBench 插件入口；
 3. 安装 `ais-bench-prefix-cache` 命令行入口。
 
-### 2.4 验证安装
+### 2.2 完整安装（在线压测 `run`）
+
+`run` 需要以 `perf` 模式启动 AISBench 正式压测，请先按 [AISBench 工具安装文档](../../docs/source_zh_cn/get_started/install.md) 安装 AISBench 及服务化压测依赖（推荐使用 Conda 管理环境）：
+
+```bash
+conda create --name ais_bench python=3.10 -y
+conda activate ais_bench
+pip3 install -e ./plugins/prefix_cache
+pip3 install -e ./ --use-pep517
+pip3 install -r requirements/api.txt
+pip3 install -r requirements/extra.txt
+```
+
+各命令的作用：
+
+- `pip3 install -e ./plugins/prefix_cache`：安装本插件，作用见 2.1；
+- `pip3 install -e ./ --use-pep517`：以 editable 模式安装当前 AISBench 仓库及其依赖；`-e` 表示直接引用工作区源码，后续修改源码后通常不需要重新安装；
+- `pip3 install -r requirements/api.txt`、`pip3 install -r requirements/extra.txt`：服务化压测（vLLM 等 API 服务）所需的 AISBench 依赖。
+
+### 2.3 验证安装
 
 ```bash
 ais-bench-prefix-cache --help
