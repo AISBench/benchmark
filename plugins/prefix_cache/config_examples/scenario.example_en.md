@@ -27,6 +27,7 @@ This document explains every field in [scenario.example.json](scenario.example.j
 | `service` | No | vLLM endpoints, metrics, reset, DP routing, and timeouts. |
 | `validation` | No | Warning thresholds for rate differences. |
 | `aisbench` | No | AISBench config, work directory, and extra CLI arguments used by `run`. |
+| `multimodal` | In `--mode mm` | MMMU Parquet directory and selected multimodal scenarios. |
 
 Nested objects also use strict allowlists. In particular, `corpus.selection` accepts `mode`, `values`, `indices`, and `question_sha256`; input/output length objects accept the modes and fields described below; `aisbench.dataset` accepts `abbr`, `input_columns`, `output_column`, `prompt_template`, and `pred_role`; and `aisbench.model` accepts `abbr`, `attr`, `stream`, `max_out_len`, `retry`, `batch_size`, and `generation_kwargs`.
 
@@ -351,7 +352,7 @@ Theoretical watermarks are always re-simulated in final send order. To model a c
 
 | Field | Default | Purpose |
 |---|---|---|
-| `inference_url` | `http://127.0.0.1:8000/v1/completions` | vLLM Completions endpoint for probes, warmup, and formal requests. |
+| `inference_url` | `http://127.0.0.1:8000/v1/completions` | vLLM inference endpoint for probes, warmup, and formal requests. Its path must match the mode used by `prepare`/`run`. |
 | `metrics_url` | `http://127.0.0.1:8000/metrics` | Prometheus baseline/after endpoint. |
 | `reset_url` | `http://127.0.0.1:8000/reset_prefix_cache` | Clears Prefix Cache before formal statistics. Empty/failed reset requires `assume_empty_cache`. |
 | `model` | `model-name` | Model name in completion requests. |
@@ -361,6 +362,8 @@ Theoretical watermarks are always re-simulated in final send order. To model a c
 | `timeout_seconds` | `30` | HTTP timeout for probes, reset, warmup, and metrics. |
 | `api_key` | `""` | Optional Bearer token. Manifest stores only whether it was configured. |
 | `poll_interval_seconds` | `5.0` | KV gauge polling interval during formal scoring; `0` disables polling while baseline/after remain enabled. |
+
+> The `inference_url` path depends on the execution mode. With `--mode mm`, configure the Chat Completions endpoint (for example, `http://127.0.0.1:8000/v1/chat/completions`). With `--mode text`, configure the Completions endpoint (for example, `http://127.0.0.1:8000/v1/completions`). These endpoints are not interchangeable.
 
 Offline commands do not contact the service. The plugin supports one endpoint with internal multiple DP ranks, not multiple independent vLLM instances.
 
@@ -379,7 +382,7 @@ Units are percentage points, not relative percent. Both are warning-only and do 
 |---|---|---|
 | `config` | `./plugins/prefix_cache/config_examples/prefix_cache_perf.py` | AISBench Python template rendered by `run`; `--config` can override it for one invocation. |
 | `work_dir` | `./outputs/default` | AISBench base directory; child logs are written below its timestamped `logs/infer/`. |
-| `extra_args` | `[]` | String arguments appended to the AISBench perf command. Example `['--num-warmups','0']` disables AISBench's own warmup, not plugin warmup. |
+| `extra_args` | `{}` | Key/value object appended to the AISBench perf command. `{"--num-warmups":0}` expands to `--num-warmups 0` and disables AISBench warmup, not plugin warmup. Scalars emit one value, arrays emit multiple values, `true` emits a switch without a value, and `false` omits it. |
 | `dataset` | See below | Dataset reader, prompt, and evaluation role. |
 | `model` | See below | API streaming, retry, concurrency, and generation settings. |
 
@@ -405,30 +408,41 @@ Units are percentage points, not relative percent. Both are warning-only and do 
 | `batch_size` | `1` | Positive concurrency base; a cold lane remains serialized by the plugin. |
 | `generation_kwargs` | `{'temperature':0,'ignore_eos':true}` | JSON generation parameters merged into vLLM requests. |
 
-The complete `aisbench` section may be omitted and old Scenarios receive current defaults. `config`/`work_dir` must be non-empty strings and `extra_args` a string list. Plugin types, artifact paths, routing, and inferencer contracts are not replaceable through Scenario.
+The complete `aisbench` section may be omitted and omitted fields receive current defaults. `config` and `work_dir` must be non-empty strings. `extra_args` must be a JSON object whose keys are CLI option names beginning with `-`; the default is `{}`. The old flat string-list form is rejected, so migrate `["--num-warmups","0"]` to `{"--num-warmups":0}`. Plugin types, artifact paths, routing, and inferencer contracts are not replaceable through Scenario.
 
-## 12. Meaning of the example
+## 12. `multimodal`
+
+```json
+"multimodal": {
+  "mmmu_parquet_dir": "../../../../MMMU",
+  "scenarios": ["single_1080p"]
+}
+```
+
+`mmmu_parquet_dir` is required by `prepare --mode mm` and relative paths resolve from the Scenario directory. `scenarios` defaults to `['single_1080p']`; accepted values are `single_1080p` and `multi_720p_5`, including both together. MM mode reuses `tokenizer/corpus/requests/run/service/aisbench` and requires fixed input/output lengths. It does not read `tokenizer.block_size` or use `prefix_cache`, so block and non-shared-region constraints do not apply to 30-token multimodal text; those fields may be omitted from an MM-only Scenario. See [MULTIMODAL.md](../MULTIMODAL.md).
+
+## 13. Meaning of the example
 
 The example generates 100 fixed-1024-token formal requests, one uniform Group, a 60% target, one unique 16-token seed, and a 16-token non-shared reserve. Requests are interleaved, warmup mode is enabled, and two DP ranks share one vLLM endpoint. Two per-DP warmup requests are planned and excluded from formal statistics. `--num-warmups 0` disables AISBench's own warmup. Differences above 1 pp (target) or 5 pp (actual) are warnings only.
 
-## 13. Recommended checking order
+## 14. Recommended checking order
 
 ```bash
 ais-bench-prefix-cache inspect --scenario ./scenario.json
-ais-bench-prefix-cache prepare --scenario ./scenario.json
+ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ais-bench-prefix-cache validate --manifest <manifest-path>
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
 Review requested/effective/theoretical rates, reachability, Group distribution, `warmup.plan`, warnings, length summaries, per-request `request_random_seed`, and divergence collision status.
 
-## 14. CLI behavior and return fields
+## 15. CLI behavior and return fields
 
-### 14.1 `inspect`
+### 15.1 `inspect`
 
 Loads tokenizer/GSM8K and computes reachability without sending requests. It creates a fresh timestamp, writes `log/<run_id_timestamp>.inspect.log`, writes a lightweight `status="inspected"` Manifest under `result/`, and returns its `log` and `manifest` paths.
 
-### 14.2 `prepare`
+### 15.2 `prepare`
 
 Reuses the latest matching inspect timestamp or creates a new one. It upgrades the lightweight Manifest to `prepared`, shows prompt progress on stderr, and returns:
 
@@ -442,15 +456,15 @@ Reuses the latest matching inspect timestamp or creates a new one. It upgrades t
 
 `--overwrite` affects only the four formal artifacts in the selected timestamp directory.
 
-### 14.3 `validate`
+### 15.3 `validate`
 
 Checks rows, fields, order, correspondence, and SHA-256 without generating or contacting a service. It returns `ok`, `rows`, and `run_id`; details go to the Manifest timestamp's validate log.
 
-### 14.4 `run`
+### 15.4 `run`
 
-Reuses or auto-prepares artifacts, then performs per-DP probes, reset, optional Group × DP warmup, baseline, AISBench perf, after capture, and counter deltas. Plugin logs go to `.run.log`; AISBench child stdout/stderr remains visible in the terminal. Stdout returns complete analysis.
+Finds the latest prepared Manifest for the Scenario, reuses its execution timestamp, and infers text/mm mode from the Manifest. If none exists, run `prepare --mode text|mm` first. It then runs the matching AISBench flow; text mode additionally performs per-DP probes, reset, optional Group × DP warmup, baseline, AISBench perf, after capture, and counter deltas. `--config <path>` is supported only in text mode. At completion, text mode prints a timestamped result heading, a five-metric summary table, and the complete analysis path; mm mode prints the AISBench multimodal task result as JSON and exposes performance metrics through `report`. Plugin logs go to `.run.log`, while AISBench child stdout/stderr remains visible in the terminal.
 
-### 14.5 `analyze`
+### 15.5 `analyze`
 
 `analyze --manifest <path> --baseline <before.prom> --after <after.prom>` performs offline counter-delta analysis and updates analysis without contacting the service. It shares the validate log filename.
 

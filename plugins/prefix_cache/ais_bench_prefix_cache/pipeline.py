@@ -370,6 +370,7 @@ def prepare_scenario(
     manifest = {
         "schema_version": "1.0",
         "plugin_version": __version__,
+        "benchmark_mode": "text",
         "status": "prepared",
         "run_id": scenario.run_id,
         "scenario_path": str(scenario.source_path),

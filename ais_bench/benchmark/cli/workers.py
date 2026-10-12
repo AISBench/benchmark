@@ -310,10 +310,10 @@ class Infer(BaseWorker):
     def _merge_spec_decode_errors(before_error: str | None, after_error: str | None) -> str | None:
         """Merge before/after error messages, preserving both when possible."""
         if not after_error:
-            return before_error
+            return f"[before] {before_error}" if before_error else None
         if before_error:
-            return f"{before_error}; {after_error}"
-        return after_error
+            return f"[before] {before_error}; [after] {after_error}"
+        return f"[after] {after_error}"
 
     @staticmethod
     def _log_spec_decode_result(url: str, spec_stats: dict | None, error: str | None) -> None:

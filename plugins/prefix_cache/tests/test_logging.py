@@ -54,6 +54,38 @@ class AISBenchIntegrationLoggingTest(unittest.TestCase):
                 self.assertTrue(calls)
                 self.assertEqual(set(calls), {"debug"})
 
+    def test_multimodal_chat_logs_final_prompt_at_info(self):
+        path = (
+            PLUGIN_ROOT
+            / "ais_bench_prefix_cache"
+            / "models"
+            / "vllm_prefix_cache_chat_api.py"
+        )
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+        methods = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.AsyncFunctionDef)
+            and node.name == "get_request_body"
+        ]
+        self.assertEqual(len(methods), 1)
+
+        info_calls = [
+            node
+            for node in ast.walk(methods[0])
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "logger"
+            and node.func.attr == "info"
+        ]
+        self.assertEqual(len(info_calls), 1)
+        self.assertIn(
+            "multimodal request prompt=%s",
+            info_calls[0].args[0].value,
+        )
+
     def test_example_runner_falls_back_to_outputs_default(self):
         path = PLUGIN_ROOT / "config_examples" / "prefix_cache_perf.py"
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

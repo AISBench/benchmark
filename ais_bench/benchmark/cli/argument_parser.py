@@ -435,4 +435,3 @@ class ArgumentParser():
         parser.add_argument('--generation-kwargs', type=json.loads, default=None,
                             help='Generation kwargs override as a JSON object, '
                             'e.g. \'{"temperature": 0.01, "ignore_eos": false}\'')
-

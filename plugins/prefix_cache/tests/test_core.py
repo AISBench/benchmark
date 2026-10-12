@@ -94,7 +94,7 @@ class CoreTest(unittest.TestCase):
             self.assertEqual(effective["aisbench"], {
                 "config": "./plugins/prefix_cache/config_examples/prefix_cache_perf.py",
                 "work_dir": "./outputs/default",
-                "extra_args": [],
+                "extra_args": {},
                 "dataset": {
                     "abbr": None,
                     "input_columns": ["question", "max_out_len"],

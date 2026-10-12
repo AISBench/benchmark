@@ -53,6 +53,16 @@ class OpenICLEvalTask(BaseTask):
     log_subdir = 'logs/eval'
     output_subdir = 'results'
 
+    # Evaluators may return per-sample artifacts alongside aggregate metrics.
+    # Keep those artifacts in the result file, but do not serialize them into
+    # the task summary log where they can produce megabytes of output.
+    _LOG_EXCLUDED_RESULT_KEYS = frozenset({
+        'details',
+        'detail',
+        'extracted_predictions',
+        'eval_results',
+    })
+
     def __init__(self, cfg: ConfigDict):
         super().__init__(cfg)
         self.num_gpus = max(
@@ -70,6 +80,16 @@ class OpenICLEvalTask(BaseTask):
         python = sys.executable
         command = f'{python} {script_path} {cfg_path}'
         return template.format(task_cmd=command)
+
+    @classmethod
+    def _get_loggable_result(cls, result):
+        """Return aggregate results suitable for the task summary log."""
+        return {
+            key: value
+            for key, value in result.items()
+            if key.removeprefix('model_postprocess_')
+            not in cls._LOG_EXCLUDED_RESULT_KEYS
+        }
 
     def run(self, task_state_manager: TaskStateManager):
         self.task_state_manager = task_state_manager
@@ -316,9 +336,10 @@ class OpenICLEvalTask(BaseTask):
                         pred_strs, model_pred_strs,
                         test_set[self.output_column], details, model_details,
                         pred_dicts)
-                    self.logger.warning(
-                        f"result['details'] : {result['details']}"),
                     result['type'] = result['details'].pop('type', None)
+                    self.logger.debug(
+                        "Formatted evaluation details for %d samples.",
+                        len(result['details']))
                     if self.cal_extract_rate:
                         # Calculate the extraction success rate for prediction
                         result['extract_rate'] = self.extract_rate(result)
@@ -337,21 +358,12 @@ class OpenICLEvalTask(BaseTask):
                 f'Task {task_abbr_from_cfg(self.cfg)}: {result["error"]}')
             return
         elif model_result is None:
-            result_wo_details = {
-                i: result[i]
-                for i in result if i != 'details'
-            }
+            result_wo_details = self._get_loggable_result(result)
             self.logger.info(
                 f'Task {task_abbr_from_cfg(self.cfg)}: {result_wo_details}')
         else:
-            result_wo_details = {
-                i: result[i]
-                for i in result if i != 'details'
-            }
-            model_result_wo_details = {
-                i: model_result[i]
-                for i in model_result if i != 'details'
-            }
+            result_wo_details = self._get_loggable_result(result)
+            model_result_wo_details = self._get_loggable_result(model_result)
             self.logger.info(
                 f'Task {task_abbr_from_cfg(self.cfg)}: {result_wo_details}')
             self.logger.info(
@@ -535,4 +547,3 @@ if __name__ == '__main__':
     logger.info(f'Evaluation task time elapsed: {end_time - start_time:.2f}s')
     task_state_manager.update_task_state({"status": "finish"})
     manager_t.join()
-

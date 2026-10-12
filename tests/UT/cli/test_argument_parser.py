@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import sys
 from ais_bench.benchmark.cli.argument_parser import ArgumentParser
 
@@ -368,7 +368,5 @@ class TestArgumentParser(unittest.TestCase):
             self.assertTrue(hasattr(args, 'host_port'))  # api_model_args
             self.assertTrue(hasattr(args, 'generation_kwargs'))  # api_model_args
             self.assertTrue(hasattr(args, 'trust_remote_code'))  # api_model_args
-
-
 if __name__ == '__main__':
     unittest.main()

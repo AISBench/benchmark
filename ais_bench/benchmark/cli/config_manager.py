@@ -679,7 +679,15 @@ class ConfigManager:
         datasets = self._load_datasets_config()
         summarizer = self._load_summarizers_config()
 
-        return Config(dict(models=models, datasets=datasets, summarizer=summarizer, cli_args=vars(self.args)), format_python_code=False)
+        return Config(
+            dict(
+                models=models,
+                datasets=datasets,
+                summarizer=summarizer,
+                cli_args=vars(self.args),
+            ),
+            format_python_code=False,
+        )
 
     def _load_datasets_config(self):
         datasets = []
@@ -776,15 +784,32 @@ class ConfigManager:
     def _apply_cli_api_model_overrides(self, models):
         """Override each model config with API model args explicitly given on the CLI.
 
-        Only fields already present in a model config are overwritten (no new
-        keys are injected), so that classes not supporting a given param (e.g.
-        MindieStreamApi) are not passed unexpected keywords. The model-name field
-        is resolved by the model `type` signature.
+        Local models do not support these API-only arguments. Explicit CLI
+        values are ignored for them with a warning. For service models, only
+        fields already present in a model config are overwritten (no new keys
+        are injected), so that classes not supporting a given param (e.g.
+        MindieStreamApi) are not passed unexpected keywords. The model-name
+        field is resolved by the model `type` signature.
         """
         fields = ["path", "request_rate", "retry", "api_key", "host_ip",
                   "host_port", "url", "max_out_len", "batch_size",
                   "trust_remote_code", "generation_kwargs"]
         for model_cfg in models:
+            if model_cfg.get("attr", "service") != "service":
+                unsupported_args = [
+                    "--model-name" if field == "model_name"
+                    else f"--{field.replace('_', '-')}"
+                    for field in ["model_name", *fields]
+                    if getattr(self.args, field, None) is not None
+                ]
+                if unsupported_args:
+                    self.logger.warning(
+                        "CLI API model argument(s) %s are not supported for "
+                        "local model %s and will be ignored",
+                        ", ".join(unsupported_args),
+                        model_cfg.get("abbr", "<unknown>"),
+                    )
+                continue
             # 1) model/model_name depends on the type: overwrite if accepted,
             #    otherwise warn and skip.
             model_val = getattr(self.args, "model_name", None)

@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 from enum import Enum
 # for capturing the stdout
-from io import StringIO
+from io import BytesIO, StringIO, TextIOWrapper
 # used for testing the code that reads from input
 from unittest.mock import mock_open, patch
 import inspect
@@ -670,16 +670,13 @@ def call_method(method, inputs):
     if isinstance(inputs, list):
         inputs = '\n'.join(inputs)
 
-    inputs_line_iterator = iter(inputs.split('\n'))
-
     # sys.setrecursionlimit(10000)
 
     # @patch('builtins.input', side_effect=inputs.split("\n"))
     @patch('builtins.open', mock_open(read_data=inputs))
-    @patch('sys.stdin', StringIO(inputs))
-    @patch('sys.stdin.readline', lambda *args: next(inputs_line_iterator))
-    @patch('sys.stdin.readlines', lambda *args: inputs.split('\n'))
-    @patch('sys.stdin.read', lambda *args: inputs)
+    @patch(
+        'sys.stdin',
+        TextIOWrapper(BytesIO(inputs.encode('utf-8')), encoding='utf-8'))
     # @patch('sys.stdout.write', print)
     def _inner_call_method(_method):
         try:

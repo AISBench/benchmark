@@ -133,7 +133,7 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 > ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_chat_prompt --host-ip 127.0.0.1 --host-port 8000
 > ```
 >
-> 命令行显式指定的参数会覆盖本次执行的所有模型配置中对应字段；仅覆盖配置中**已存在的字段**，未指定的参数保持配置文件原值。更多可覆盖参数及覆盖范围说明请参考 📚 [用户配置参数 - API 模型通用覆盖参数](../base_tutorials/all_params/cli_args.md#api-模型通用覆盖参数)。
+> 命令行显式指定的 API 模型参数仅会覆盖本次执行中 `attr="service"` 的模型配置里的对应字段；对于本地模型（`attr="local"`），这些参数会被忽略并打印 warning。服务化模型中仅覆盖配置里**已存在的字段**，未指定的参数保持配置文件原值。更多可覆盖参数及覆盖范围说明请参考 📚 [用户配置参数 - API 模型通用覆盖参数](../base_tutorials/all_params/cli_args.md#api-模型通用覆盖参数)。
 
 ```python
 from ais_bench.benchmark.models import VLLMCustomAPIChat

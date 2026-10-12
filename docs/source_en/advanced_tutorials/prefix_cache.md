@@ -153,11 +153,11 @@ Plugin warmup and AISBench's own `--num-warmups` are independent mechanisms. To 
 
 ```json
 "aisbench": {
-  "extra_args": ["--num-warmups", "0"]
+  "extra_args": {"--num-warmups": 0}
 }
 ```
 
-Prefix Cache phase logs are written only to `log/<run_id>.run.log`. The AISBench child process inherits stdout/stderr, so its progress and performance output remain visible in the terminal. On success, the final stdout object is the complete analysis JSON. A non-zero AISBench exit code, missing service capability, or artifact validation failure makes `run` fail.
+Prefix Cache phase logs are written only to `log/<run_id>.run.log`. The AISBench child process inherits stdout/stderr, so its progress and performance output remain visible in the terminal. On success, stdout first prints a timestamped Prefix Cache result heading containing the `run_id`, followed by only five overall metrics in a two-column `Prefix Cache Metric | Value` table: target, theoretical, and actual hit rates, plus the absolute theory/actual and theory/target differences. Hit rates and the direct differences between their percentage values use a percent sign and two decimal places. The following `[INFO] Detailed analysis is available at: <path>` line gives the complete `result/<run_id>.analysis.json` path. A non-zero AISBench exit code, missing service capability, or artifact validation failure makes `run` fail.
 
 ---
 
@@ -176,7 +176,26 @@ Use `analyze` when pre- and post-benchmark `/metrics` text has already been save
 - `--baseline`: complete Prometheus text captured before the formal measurement window.
 - `--after`: complete Prometheus text captured after the window. Queries and hits are cumulative counters, so their values must not be lower than the baseline.
 
-The command parses both snapshots, subtracts per-DP queries and hits, aggregates `actual.global_hit_rate`, compares it with `theoretical_hit_rate`, and emits `ACTUAL_DEVIATION` when required. It writes `status="analyzed"` to the analysis artifact indexed by the Manifest; `runtime` contains only `metrics_baseline` and `metrics_after`. Offline snapshots have no formal-run sampling sequence, so `runtime.kv_cache_polling` and run-time KV averages/peaks are not produced. Prometheus metrics also have no Prefix Group label, so actual statistics are per-DP and global, while group-level statistics remain theoretical.
+`baseline.prom` and `after.prom` are not dataset artifacts created by `prepare`; they are complete text snapshots from the same vLLM process's `/metrics` endpoint. For manual collection, finish reset first and, in warmup mode, finish plugin warmup. Capture baseline before the first formal request and after immediately after the last one:
+
+```shell
+METRICS_URL="http://127.0.0.1:8000/metrics"
+curl -fsS "$METRICS_URL" -o baseline.prom
+# Run the formal workload here; do not restart vLLM or reset metrics.
+curl -fsS "$METRICS_URL" -o after.prom
+```
+
+Both files must come from one service process and cover every DP rank. Multi-DP metrics must retain their `engine` labels. Because queries and hits are cumulative counters, after values must not be lower than baseline.
+
+A normal `run` already captures both snapshots and embeds the raw Prometheus text in the analysis JSON at `runtime.metrics_baseline.raw_prometheus` and `runtime.metrics_after.raw_prometheus`; it does not create separate `.prom` files. Export them when a later offline pass is needed:
+
+```shell
+ANALYSIS="./outputs/<timestamped_run_id>/result/<timestamped_run_id>.analysis.json"
+jq -r '.runtime.metrics_baseline.raw_prometheus' "$ANALYSIS" > baseline.prom
+jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
+```
+
+The command parses both snapshots, subtracts per-DP queries and hits, aggregates `actual.global_hit_rate`, compares it with `theoretical_hit_rate`, and emits `ACTUAL_DEVIATION` when required. It is intended for historical verification, reprocessing after parser changes, externally driven workloads, and CI checks; a successful `run` has already performed the same online delta analysis. It writes `status="analyzed"` to the analysis artifact indexed by the Manifest; `runtime` contains only `metrics_baseline` and `metrics_after`. Offline snapshots have no formal-run sampling sequence, so `runtime.kv_cache_polling` and run-time KV averages/peaks are not produced. Prometheus metrics also have no Prefix Group label, so actual statistics are per-DP and global, while group-level statistics remain theoretical.
 
 The current CLI uses the same `log/<run_id>.validate.log` filename for `analyze` and `validate`; the later command recreates that file. Stdout contains the updated complete analysis JSON. Target or actual deviations produce only `PASS_WITH_WARNING` and do not change an otherwise successful exit code.
 
@@ -298,7 +317,7 @@ See the [complete Scenario field reference](../../../plugins/prefix_cache/config
 | `aisbench` | AISBench formal benchmark launch configuration. |
 | `aisbench.config` | Path to the AISBench Python configuration template. |
 | `aisbench.work_dir` | Base directory for AISBench results. |
-| `aisbench.extra_args` | Arguments appended to the AISBench command. |
+| `aisbench.extra_args` | Key/value object for extra CLI options; values may be scalar, lists, or boolean switches. |
 | `aisbench.dataset` | Dataset reader and Prompt mapping configuration. |
 | `aisbench.dataset.abbr` | Dataset display name; `null` generates one. |
 | `aisbench.dataset.input_columns` | Input columns used by the Dataset reader. |
