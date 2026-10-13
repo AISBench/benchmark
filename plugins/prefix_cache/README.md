@@ -1,8 +1,8 @@
-# AISBench Prefix Cache 数据生成与压测插件
+# AISBench Prefix Cache 变长与指定命中率数据生成/压测和多模态数据生成
 
 简体中文 | [English](README_en.md)
 
-这是一个独立的 AISBench 插件，用于构造具有可控公共前缀的数据集，并比较 vLLM Prefix Cache 的理论与实际命中率。它同时提供离线的 `inspect` / `prepare` / `validate`，在线的 `run`，以及使用已保存 Prometheus 快照复算的 `analyze`。
+这是一个独立的 AISBench 插件，可生成两类数据集并比较 vLLM Prefix Cache 的理论与实际命中率：纯文本数据集支持可控变长的输入/输出长度、公共前缀比例、Prefix Group 分组和请求顺序，并可指定全局理论 Prefix Cache 命中率；多模态数据集基于 MMMU 图片生成固定图片场景。它同时提供离线的 `inspect` / `prepare` / `validate`，在线的 `run`，以及使用已保存 Prometheus 快照复算的 `analyze`。
 
 固定图片的多模态理解数据构造与压测（1319 条单图 1080P、1319 条五图 720P、30-token GSM8K 文本、256-token 输出，以及 TTFT/TPOT/ITL 验收）见 [MULTIMODAL.md](MULTIMODAL.md)。
 
@@ -15,11 +15,13 @@ Scenario 示例见 [config_examples/scenario.example.json](config_examples/scena
 运行环境需要满足：
 
 - Python 3.10 或更高版本；
-- 当前 AISBench 仓库及其依赖可以正常导入；
-- `transformers`：加载与 vLLM 模型一致的 tokenizer；
-- `datasets` 和 `aiohttp`：AISBench Dataset 与 API 压测依赖；
-- 一份 GSM8K JSONL 文件，每行至少包含 `question` 字段；
+- **JSONL 语料**。每个非空行必须是 JSON 对象，并包含 `corpus.field` 指定的文本字段，默认是 GSM8K 数据集中的 `question`；若想用类似 GSM8K 的语料，需参考 GSM8K 格式。
 - 在线 `run` 还需要一个启用 Prefix Cache 的 vLLM Completions 服务。
+
+依赖安装分两种场景（见第 2 节）：
+
+- 仅离线生成数据集（`inspect` / `prepare` / `validate` / `analyze`）：安装插件本身即可，`transformers`、`datasets`、`aiohttp` 等依赖随插件自动安装；
+- 在线压测（`run`）：需要完整安装 AISBench 及服务化压测依赖，参考 [AISBench 工具安装文档](../../docs/source_zh_cn/get_started/install.md)。
 
 数据生成时使用的 tokenizer 必须与 vLLM 服务端模型一致。否则本地计算的 token 长度、Block 边界和理论命中率会与服务端实际行为不一致。
 
@@ -27,41 +29,37 @@ Scenario 示例见 [config_examples/scenario.example.json](config_examples/scena
 
 以下命令假设当前目录是 AISBench 仓库根目录，即包含 `setup.py`、`ais_bench/` 和 `plugins/` 的目录。
 
-### 2.1 创建隔离环境（推荐）
+### 2.1 仅安装插件（离线数据生成）
 
 ```bash
-python -m venv .venv
+conda create --name ais_bench python=3.10 -y
+conda activate ais_bench
+pip3 install -e ./plugins/prefix_cache
 ```
 
-作用：在当前仓库创建独立 Python 环境，避免插件依赖与系统 Python 中的其他包互相影响。
+只使用 `inspect`、`prepare`、`validate`、`analyze` 等离线命令时，安装插件本身即可。这条命令会：
 
-```bash
-source .venv/bin/activate
-```
-
-作用：在 Linux Bash 中启用该虚拟环境。后续 `python` 和 `pip` 都会使用 `.venv` 中的解释器和依赖。如果不激活，也可以直接使用 `.venv/bin/python` 执行后续命令。
-
-### 2.2 安装 AISBench
-
-```bash
-python -m pip install -e .
-```
-
-作用：以 editable 模式安装当前 AISBench 仓库及其依赖。`-e` 表示直接引用工作区源码，后续修改源码后通常不需要重新安装。如果环境中已经安装了与当前源码匹配的 `ais-bench-benchmark`，可以跳过此步。
-
-### 2.3 安装 Prefix Cache 插件
-
-```bash
-python -m pip install -e ./plugins/prefix_cache
-```
-
-这条命令会：
-
-1. 安装 `ais_bench_prefix_cache` Python 包；
+1. 安装 `ais_bench_prefix_cache` Python 包及其依赖（含 `transformers`、`datasets`、`aiohttp`）；
 2. 注册 Prefix Cache Dataset、Inferencer 和 vLLM API Model 的 AISBench 插件入口；
 3. 安装 `ais-bench-prefix-cache` 命令行入口。
 
-### 2.4 验证安装
+### 2.2 完整安装（在线压测 `run`）
+
+`run` 需要以 `perf` 模式启动 AISBench 正式压测，请先按 [AISBench 工具安装文档](../../docs/source_zh_cn/get_started/install.md) 安装 AISBench 及服务化压测依赖（推荐使用 Conda 管理环境）：
+
+```bash
+pip3 install -e ./ --use-pep517
+pip3 install -r requirements/api.txt
+pip3 install -r requirements/extra.txt
+ais-bench-prefix-cache --help
+```
+
+各命令的作用：
+
+- `pip3 install -e ./ --use-pep517`：以 editable 模式安装当前 AISBench 仓库及其依赖；`-e` 表示直接引用工作区源码，后续修改源码后通常不需要重新安装；
+- `pip3 install -r requirements/api.txt`、`pip3 install -r requirements/extra.txt`：服务化压测（vLLM 等 API 服务）所需的 AISBench 依赖。
+
+### 2.3 验证安装
 
 ```bash
 ais-bench-prefix-cache --help
@@ -101,140 +99,103 @@ Scenario 中省略的字段会使用 `scenario.example.json` 的当前值作为�
 
 ### 3.2 Prefix Cache 数据构造参数
 
-Scenario 采用严格白名单，完整配置层级如下；未列出的字段会被拒绝：
+Scenario 采用严格白名单，未列出的字段会被拒绝；省略的字段使用示例默认值。各字段逐项含义见 [Scenario 完整字段说明](config_examples/scenario.example.md)。
 
-- `schema_version`；
-- `run`：`run_id`、`random_seed`、`output_dir`、`overwrite`；
-- `tokenizer`：`path`、`block_size`、`revision`、`trust_remote_code`；
-- `corpus`：`path`、`field`、`selection`；`selection` 支持 `mode`、`values`、`indices`、`question_sha256`；
-- `requests`：`count`、`input_length`、`output_length`；
-  - `input_length` 支持 `mode`、`value`、`values`、`ranges`、`min`、`max`、`mean`、`std`、`path`，其中 `ranges` 项只允许 `min`、`max`、`count`；
-  - `output_length` 支持 `mode`、`value`、`min`、`max`、`mean`、`std`、`path`；
-- `output`：`output_key`，允许 `null`、`"max_tokens"`、`"output_tokens"`；
-- `prefix_cache`：`mode`、`target_hit_rate`、`seed_blocks`、`minimum_non_shared_length`、`groups`、`order`；
-  - `groups` 支持 `count`、`assignment`、`overrides`；
-  - `assignment` 支持 `mode`、`exponent`、`weights`；
-  - 每个 `overrides.group-N` 支持 `input_length`、`output_length`、`corpus_selection`；
-  - `order` 支持 `strategy`；
-- `service`：`inference_url`、`metrics_url`、`reset_url`、`model`、`dp_size`、`assume_empty_cache`、`engine_label_map`、`timeout_seconds`、`api_key`、`poll_interval_seconds`；
-- `validation`：`target_warning_pp`、`actual_warning_pp`；
-- `aisbench`：`config`、`work_dir`、`extra_args`、`dataset`、`model`；`extra_args` 是 CLI 参数名到值的对象，离线命令不消费，`run` 会展开参数并启动 AISBench perf。
-  - `dataset`：`abbr`、`input_columns`、`output_column`、`prompt_template`、`pred_role`；为保证理论 token 与实际 prompt 一致，前三个数据契约字段必须保持示例值，abbr/pred_role 可改。
-  - `model`：`abbr`、`attr`、`stream`、`max_out_len`、`retry`、`batch_size`、`generation_kwargs`；旧 Scenario 省略时自动使用示例默认值。`attr` 当前只能为 `"service"`，用于启用 AISBench service 性能链路和 TTFT 等指标汇总。
-
-各字段逐项含义见 [Scenario 完整字段说明](config_examples/scenario.example.md)。
-
-#### requests.jsonl 输出字段
-
-```json
-"output": {"output_key": null}
-```
-
-该配置参考 `extract_qa.py --output-key`：
-
-- `null`：默认，只输出 `question`、`answer`；
-- `"max_tokens"`：追加 `max_tokens`；
-- `"output_tokens"`：追加 `output_tokens`，值仍来自本请求生成的 `max_tokens`。
-
-无论公开的 requests 文件是否带第三字段，完整审计文件 `full.jsonl` 都保留 `max_tokens`，AISBench Dataset 也从 full 文件读取 `max_out_len`，因此默认省略不会改变实际生成长度。
-
-#### 输入长度模式
-
-`requests.input_length` 控制每条正式请求的总输入 token 数。总长度由公共前缀、全局唯一 seed 和 GSM8K 自然后缀共同组成。
-
-固定长度：
-
-```json
-"input_length": {"mode": "fixed", "value": 1024}
-```
-
-显式长度列表：
-
-```json
-"input_length": {
-  "mode": "explicit",
-  "values": [512, 768, 1024, 2048]
-}
-```
-
-`values` 必须全部为正整数。作为全局配置时，元素数量必须等于 `requests.count`；作为 Prefix Group 覆盖配置时，元素数量必须等于该组实际请求数。
-
-多个闭区间采样：
-
-```json
-"input_length": {
-  "mode": "range",
-  "ranges": [
-    {"min": 512, "max": 1024, "count": 80},
-    {"min": 2048, "max": 4096, "count": 20}
-  ]
-}
-```
-
-每个区间包含 `min` 和 `max`，所有 `count` 之和必须等于对应的请求数量。采样由 `run.random_seed` 确定，相同配置可重复生成相同长度序列。
-
-截断正态分布：
-
-```json
-"input_length": {
-  "mode": "truncated_normal",
-  "min": 512,
-  "max": 2048,
-  "mean": 1024,
-  "std": 256
-}
-```
-
-只接受 `[min,max]` 内的整数采样。`mean` 默认取区间中点；`std` 默认根据区间宽度推导，显式设置时必须大于 0；`min=max` 等价于固定长度。
-
-CSV 长度文件：
-
-```json
-"input_length": {"mode": "csv", "path": "./input_lengths.csv"}
-```
-
-CSV 行数必须等于对应请求数，并包含 `input_prompt_tokens`、`content_tokens` 或 `input_tokens` 中的一列。
-
-#### 最小非共享长度与唯一 seed
-
-```json
-"prefix_cache": {
-  "seed_blocks": 1,
-  "minimum_non_shared_length": 16
-}
-```
-
-唯一 seed 长度按下式计算：
-
-```text
-seed_tokens = seed_blocks × tokenizer.block_size
-```
-
-`minimum_non_shared_length` 默认等于 `seed_tokens`，不能小于 seed 长度。公共前缀的最大长度为：
-
-```text
-floor((input_length - minimum_non_shared_length) / block_size) × block_size
-```
-
-当最小非共享长度大于 seed 长度时，剩余空间由 GSM8K 自然后缀填充。每条正式请求都会使用实际参与构造的确定性 `request_random_seed` 生成差异 seed，seed token 序列在整个数据集中保持唯一，避免公共前缀结束后继续误共享。
-
-Scenario 加载阶段会检查每种输入长度模式的最小值是否能容纳非共享区，不满足时在生成数据前直接报错。
-
-#### 请求顺序策略
-
-```json
-"order": {"strategy": "input_len_asc"}
-```
-
-支持以下策略：
-
-- `sequential`：保持数据生成阶段的稳定顺序；
-- `within_group_shuffle`：每个 Prefix Group 内确定性打乱，再按组输出；
-- `interleave`：不同 Prefix Group 按轮次交错；
-- `global_shuffle`：所有请求全局确定性打乱；
-- `input_len_asc`：每个 Prefix Group 内按输入长度从短到长排序，再按组轮转交错；相同长度保持原始顺序。
-
-理论命中率始终按照最终发送顺序重新模拟。使用 `input_len_asc` + `cold` 时，短到长顺序会贯穿四个阶段：prepare 先重排长度和 Group，`requests.jsonl` / `full.jsonl` 按该顺序落盘，Dataset 校验 `sequence_index` 与行号一致，Inferencer 最后用 `LaneSequencer` 按 `(Prefix Group, DP rank)` 的 `lane_sequence` 串行放行。只有前一条请求完成后才发送同一 lane 的下一条，因此即使 AISBench 并发创建任务，也能模拟“首次请求无缓存，后续短请求到长请求逐步建立 Cache”。不同 Group 或 DP 的缓存彼此独立，仍可并发，不要求全局串行。
+| 配置路径 | 简短说明 |
+|---|---|
+| `schema_version` | Scenario 配置格式版本。 |
+| `run` | 任务标识、随机性和输出控制。 |
+| `run.run_id` | 任务名称；执行时会追加时间戳。 |
+| `run.random_seed` | 数据生成和随机选择的全局种子。 |
+| `run.output_dir` | Prefix Cache 产物基础目录。 |
+| `run.overwrite` | 是否允许覆盖同名正式产物。 |
+| `tokenizer` | Tokenizer 加载与 Block 配置。 |
+| `tokenizer.path` | Tokenizer 模型或目录路径。 |
+| `tokenizer.block_size` | Prefix Cache 的 token Block 大小。 |
+| `tokenizer.revision` | Tokenizer 仓库版本；`null` 表示默认版本。 |
+| `tokenizer.trust_remote_code` | 是否信任 Tokenizer 自定义代码。 |
+| `corpus` | 自然后缀语料配置。 |
+| `corpus.path` | JSONL 语料文件路径；语料格式需与 GSM8K 一致。 |
+| `corpus.field` | JSONL 中的问题文本字段名，默认 `question`。 |
+| `corpus.selection` | 语料样本选择规则。 |
+| `corpus.selection.mode` | 选择模式：`random`（按 `run.random_seed` 确定性打乱）、`indices`（按零基行号选择）、`question_sha256`（按规范化 question 的 SHA-256 选择）、`mixed`（先加入 `indices`，再加入 `question_sha256`）。 |
+| `corpus.selection.values` | 非 mixed 模式的行号或哈希值列表；指定样本不足时按已选顺序循环复用。 |
+| `corpus.selection.indices` | mixed 模式的零基行号列表。 |
+| `corpus.selection.question_sha256` | mixed 模式的问题 SHA-256 列表；与 `indices` 不能同时为空。 |
+| `requests` | 正式请求数量和长度分布。 |
+| `requests.count` | 正式请求总数。 |
+| `requests.input_length` | 输入 token 长度生成规则；所有长度必须为正整数，数量必须等于对应请求数。 |
+| `requests.input_length.mode` | 输入长度模式：`fixed`（固定长度）、`explicit`（显式长度列表）、`range`（一个或多个闭区间采样）、`truncated_normal`（截断正态分布，只接受 `[min,max]` 内的整数采样）、`csv`（从 CSV 文件读取）。 |
+| `requests.input_length.value` | `fixed` 模式的固定长度。 |
+| `requests.input_length.values` | `explicit` 模式的长度列表；元素数量必须等于对应请求数。 |
+| `requests.input_length.ranges` | `range` 模式的区间列表；所有区间 `count` 之和必须等于对应请求数。 |
+| `requests.input_length.ranges[].min` | 单个采样区间下界（含）。 |
+| `requests.input_length.ranges[].max` | 单个采样区间上界（含）。 |
+| `requests.input_length.ranges[].count` | 单个区间生成的请求数。 |
+| `requests.input_length.min` | `truncated_normal` 分布下界；`min=max` 等价于固定长度。 |
+| `requests.input_length.max` | `truncated_normal` 分布上界。 |
+| `requests.input_length.mean` | `truncated_normal` 均值；默认取区间中点。 |
+| `requests.input_length.std` | `truncated_normal` 标准差；默认按区间宽度推导，显式设置时必须大于 0。 |
+| `requests.input_length.path` | `csv` 模式的长度文件路径；需包含 `input_prompt_tokens`、`content_tokens` 或 `input_tokens` 中的一列，行数必须等于对应请求数。 |
+| `requests.output_length` | 最大输出 token 长度生成规则；所有长度必须为正整数，数量必须等于对应请求数。 |
+| `requests.output_length.mode` | 输出长度模式：`fixed`（固定长度）、`uniform`（区间均匀采样）、`truncated_normal`（截断正态分布）、`csv`（从 CSV 文件读取）。 |
+| `requests.output_length.value` | `fixed` 模式的固定长度。 |
+| `requests.output_length.min` | `uniform` / `truncated_normal` 模式下界。 |
+| `requests.output_length.max` | `uniform` / `truncated_normal` 模式上界。 |
+| `requests.output_length.mean` | `truncated_normal` 均值；默认取区间中点。 |
+| `requests.output_length.std` | `truncated_normal` 标准差。 |
+| `requests.output_length.path` | `csv` 模式的长度文件路径；列名必须为 `output_tokens`，行数必须等于对应请求数。 |
+| `output` | 精简请求文件的字段控制。 |
+| `output.output_key` | 可选输出长度字段名：`null`（默认，每行只有 `question`、`answer`）、`"max_tokens"` 或 `"output_tokens"`（追加第三字段，值来自该请求的最大输出 token 数）；`full.jsonl` 始终保留 `max_tokens`，省略不影响运行。 |
+| `prefix_cache` | Prefix Cache 数据和运行策略。 |
+| `prefix_cache.mode` | 缓存模式：`cold`（每个 `(group_id, dp_rank)` lane 从零缓存水位开始，同一组的请求按组内出现顺序 round-robin 路由到各 DP rank）或 `warmup`（为每个 `Prefix Group × DP rank` 生成预热计划写入 Manifest 的 `warmup.plan`，`run` 在正式 baseline 之前定向预热；warmup 请求不写入 `requests.jsonl`，也不进入正式统计）。 |
+| `prefix_cache.target_hit_rate` | 期望的全局 Prefix Cache 命中率。 |
+| `prefix_cache.seed_blocks` | 每条请求唯一 seed 占用的 Block 数；seed 长度为 `seed_blocks × block_size`，seed token 序列全局唯一，防止公共前缀结束后继续误共享。 |
+| `prefix_cache.minimum_non_shared_length` | 每条请求至少保留的非共享 token 数；默认等于 seed 长度，不能小于 seed 长度；公共前缀最大长度为 `floor((input_length - minimum_non_shared_length) / block_size) × block_size`。 |
+| `prefix_cache.groups` | Prefix Group 数量、分配和覆盖配置；每个 Group 独立生成 canonical 前缀并统计理论命中率。 |
+| `prefix_cache.groups.count` | Prefix Group 总数。 |
+| `prefix_cache.groups.assignment` | 请求到 Group 的分配规则。 |
+| `prefix_cache.groups.assignment.mode` | Group 分配模式：`uniform`（尽量均匀分配）、`zipf`（用 `exponent` 控制热点集中程度）、`weights`（用 `weights` 提供各组相对权重）。 |
+| `prefix_cache.groups.assignment.exponent` | `zipf` 分布热点指数。 |
+| `prefix_cache.groups.assignment.weights` | `weights` 模式的各组相对权重。 |
+| `prefix_cache.groups.overrides` | 各 Group 的可选独立覆盖。 |
+| `prefix_cache.groups.overrides.group-N.input_length` | 指定 Group 的输入长度规则；数量必须等于该组实际请求数。 |
+| `prefix_cache.groups.overrides.group-N.output_length` | 指定 Group 的输出长度规则；数量必须等于该组实际请求数。 |
+| `prefix_cache.groups.overrides.group-N.corpus_selection` | 指定 Group 的语料选择规则。 |
+| `prefix_cache.order` | 正式请求排列规则；理论命中率始终按最终发送顺序重新模拟。 |
+| `prefix_cache.order.strategy` | 排列策略：`sequential`（保持生成顺序）、`within_group_shuffle`（每个 Group 内确定性打乱）、`interleave`（不同 Group 按轮次交错）、`global_shuffle`（全局确定性打乱）、`input_len_asc`（每个 Group 内按输入长度从短到长排序，再按组轮转交错）。要模拟“无预热、短请求到长请求逐步建立 Cache”，使用 `cold` + `input_len_asc`。 |
+| `service` | 在线推理服务与指标采集配置。 |
+| `service.inference_url` | vLLM 推理接口地址。 |
+| `service.metrics_url` | Prometheus 指标接口地址。 |
+| `service.reset_url` | Prefix Cache 重置接口地址。 |
+| `service.model` | 请求体中的服务模型名。 |
+| `service.dp_size` | 单实例内部 DP rank 数量。 |
+| `service.assume_empty_cache` | 无重置接口时是否假定缓存为空。 |
+| `service.engine_label_map` | Prometheus engine 标签到 DP rank 的映射。 |
+| `service.timeout_seconds` | 探活、预热和指标请求超时秒数。 |
+| `service.api_key` | 推理服务鉴权密钥；不会明文落盘。 |
+| `service.poll_interval_seconds` | 正式压测期间 KV 指标采样间隔；设为 `0` 可关闭。 |
+| `validation` | 结果偏差告警阈值。 |
+| `validation.target_warning_pp` | 理论值偏离目标的告警百分点。 |
+| `validation.actual_warning_pp` | 实际值偏离理论值的告警百分点。 |
+| `aisbench` | AISBench 正式压测启动配置。 |
+| `aisbench.config` | AISBench Python 配置模板路径。 |
+| `aisbench.work_dir` | AISBench 结果基础目录。 |
+| `aisbench.extra_args` | 附加 CLI 参数键值对象；参数名映射到单值、多值列表或布尔开关；离线命令不消费，`run` 会展开参数并启动 AISBench perf。 |
+| `aisbench.dataset` | Dataset reader 和 Prompt 映射配置；为保证理论 token 与实际 prompt 一致，`input_columns`、`output_column`、`prompt_template` 三个数据契约字段必须保持示例值，`abbr` / `pred_role` 可改。 |
+| `aisbench.dataset.abbr` | Dataset 展示简称；`null` 时自动生成。 |
+| `aisbench.dataset.input_columns` | Dataset reader 的输入列。 |
+| `aisbench.dataset.output_column` | Dataset reader 的参考答案列。 |
+| `aisbench.dataset.prompt_template` | 正式请求的 Prompt 模板。 |
+| `aisbench.dataset.pred_role` | 预测结果的角色名称。 |
+| `aisbench.model` | AISBench API Model 配置；旧 Scenario 省略时自动使用示例默认值。 |
+| `aisbench.model.abbr` | Model 展示简称；`null` 时自动生成。 |
+| `aisbench.model.attr` | 模型属性；当前只能为 `"service"`，用于启用 AISBench service 性能链路和 TTFT 等指标汇总。 |
+| `aisbench.model.stream` | 是否使用 SSE 流式响应。 |
+| `aisbench.model.max_out_len` | Model 层的兜底最大输出长度。 |
+| `aisbench.model.retry` | API 请求失败重试次数。 |
+| `aisbench.model.batch_size` | AISBench API 最大并发基值。 |
+| `aisbench.model.generation_kwargs` | 透传给 vLLM 的生成参数。 |
 
 #### 可达性与长度统计
 
