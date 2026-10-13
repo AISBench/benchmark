@@ -98,8 +98,6 @@ git commit -s -m "[docs] 更新贡献指南"
 Signed-off-by: Your Name <your.email@example.com>
 ```
 
-DCO 签署与 PR 模板中的 CLA 是两项不同要求。添加 `Signed-off-by` 不代表已完成 CLA 签署；CLA 应按仓库提供的流程单独确认。
-
 ## 3. 填写 PR 描述
 
 创建 PR 时，请完整填写仓库自动提供的 [PR 模板](https://github.com/AISBench/benchmark/blob/master/.github/pull_request_template.md)，保留模板章节，并如实勾选检查项。
@@ -156,8 +154,6 @@ Relates to #123
 不适用的可选章节可填写“不适用”及简要原因。
 
 涉及 API、配置格式、默认行为变更或移除已弃用功能时，应在编码前讨论，尽量保持兼容。无法兼容时提供迁移指南，并同步更新相关中英双语文档、测试和 CHANGELOG。
-
-模板中的 CLA 检查项应按仓库提供的签署流程完成。如果未找到签署入口，请在 PR 中联系维护者确认，未完成时不要勾选。
 
 ## 4. 提交前自检
 
