@@ -120,11 +120,17 @@ class TestReadAndClearStatuses(unittest.TestCase):
         with open(p, "w", encoding="utf-8") as f:
             json.dump([{"k": 1}], f)
 
-        # Mock open to raise IOError when writing to the file
+        # Mock the file object's flush to raise IOError during the clear phase,
+        # since the new code uses a single r+ handle with truncate+flush.
         original_open = open
-        def mock_open(file_path, mode='r', *args, **kwargs):
-            if mode == 'w' and file_path == p:
-                raise IOError("Permission denied")
+        def mock_open(file_path, mode='r+', *args, **kwargs):
+            if file_path == p:
+                real_file = original_open(file_path, mode, *args, **kwargs)
+                original_flush = real_file.flush
+                def failing_flush(*a, **kw):
+                    raise IOError("Permission denied")
+                real_file.flush = failing_flush
+                return real_file
             return original_open(file_path, mode, *args, **kwargs)
 
         with patch('builtins.open', side_effect=mock_open):
