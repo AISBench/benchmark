@@ -3,7 +3,6 @@ from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.datasets import MooncakeTraceDataset, MooncakeTraceEvaluator
 from ais_bench.benchmark.openicl.icl_evaluator import AccEvaluator
-import os
 
 mooncake_trace_reader_cfg = dict[str, list[str] | str](
     input_columns=["prompt", "timestamp","max_out_len"],
@@ -23,9 +22,10 @@ mooncake_trace_eval_cfg = dict(
     evaluator=dict(type=MooncakeTraceEvaluator)
 )
 
-# 获取当前配置文件所在目录，然后找到测试数据文件
-_current_dir = os.path.dirname(os.path.abspath(__file__))
-_test_data_path = os.path.join(_current_dir, '..', 'test_mooncake_trace.jsonl')
+# 测试数据文件位于本配置文件的上一级目录（ais_bench/benchmark/configs/datasets/test_mooncake_trace.jsonl）
+# 注意：py3.11及以上版本 mmengine 懒加载会把 `import os` 等模块导入转换为 LazyObject，调用 os.path.* 会抛 RuntimeError，
+# 因此这里使用字符串操作拼接路径，避免依赖 os 模块。
+_test_data_path = __file__.rsplit('/', 2)[0] + '/test_mooncake_trace.jsonl'
 
 mooncake_trace_datasets = [
     dict(
