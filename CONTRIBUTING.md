@@ -82,6 +82,24 @@ PR 标题和 Commit Message 使用以下格式：
 
 一个 Commit 只完成一个逻辑变更。复杂变更应在 Commit 正文中说明动机与取舍。
 
+### DCO 和 Signed-off-by
+
+AISBench 使用 [Developer Certificate of Origin (DCO)](https://developercertificate.org/)。每个 Commit 都必须包含 `Signed-off-by` 行，表示您确认贡献是原创的，或者您有权提交该贡献，并同意按项目的 Apache License 2.0 发布。
+
+使用 `git commit -s` 自动添加签署行：
+
+```bash
+git commit -s -m "[docs] 更新贡献指南"
+```
+
+`-s` 使用 Git 中配置的姓名与邮箱，生成如下格式：
+
+```text
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+DCO 签署与 PR 模板中的 CLA 是两项不同要求。添加 `Signed-off-by` 不代表已完成 CLA 签署；CLA 应按仓库提供的流程单独确认。
+
 ## 3. 填写 PR 描述
 
 创建 PR 时，请完整填写仓库自动提供的 [PR 模板](https://github.com/AISBench/benchmark/blob/master/.github/pull_request_template.md)，保留模板章节，并如实勾选检查项。
