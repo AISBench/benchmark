@@ -1,0 +1,12 @@
+ARG BASE_IMAGE
+ARG AGENT
+FROM ${BASE_IMAGE}
+ARG AGENT
+
+# aider: pip install from aliyun mirror (QEMU-friendly)
+RUN if [ "$AGENT" = "aider" ]; then \
+        pip install --break-system-packages aider-chat \
+            --index-url https://mirrors.aliyun.com/pypi/simple/; \
+    else \
+        echo "Unknown agent: $AGENT" && exit 1; \
+    fi
