@@ -36,9 +36,9 @@
 
 ## 🔥 最新进展
 
-- **\[2026.9.22]** 支持 **Prefix Cache 多模态数据集生成**：基于 MMMU 图片生成固定图片场景的多模态压测数据集（单图 1080P 或五图 720P 二选一），与纯文本模式共用同一套 Scenario 配置与命令入口，`prepare --mode mm` 一键生成并压测。详见 [Prefix Cache 场景化压测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/prefix_cache.html)。🚀🚀🚀
+- **\[2026.9.22]** 支持 **多模态变长数据集生成**：基于 MMMU 图片生成变长输入多模态压测数据集（单图 1080P 或五图 720P 二选一），与纯文本模式共用同一套 Scenario 配置与命令入口，`prepare --mode mm` 一键生成并压测。详见 [多模态数据集生成与压测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/prefix_cache.html)。🚀🚀🚀
 - **\[2026.9.12]Agent测评完全对接harbor框架，并提供一键部署的离线测评解决方案**：Agent测评完全支持Harbor适配的agent以及harbor格式的数据集，同时为常用agent（包括claude-code，terminus-2，mini-swe-agent等）以及当前常用的agent数据集（SWE-Bench，terminal-bench，DeepSWE）提供了一键部署的离线测评解决方案。使用说明见 👉 [基于Harbor框架的agent测评](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/agent_benchmark.html)。🔥🔥🔥🚀🚀🚀
-- **\[2026.9.3]** 支持 **Prefix Cache 场景化压测与指标分析**：提供数据生成、请求调度、缓存预热、指标采集与结果分析全链路能力，支持单 Prefix / 多 Prefix Group、目标命中率反算、cold/warmup 双模式与多 DP 定向路由，新增 `prefix_hit_rate` 等指标查询。详见 [Prefix Cache 场景化压测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/prefix_cache.html)。🚀🚀🚀
+- **\[2026.9.3]** 支持 **变长与指定prefix cache命中率数据生成/压测**：提供变长数据集生成（输入/输出长度支持 固定、显式逐条、区间、截断正态、CSV 五种模式，可生成指定理论命中率的数据集）、请求调度、缓存预热、指标采集与结果分析全链路能力，支持单 Prefix / 多 Prefix Group、目标命中率反算、cold/warmup 双模式与多 DP 定向路由，新增 `prefix_hit_rate` 等指标查询。详见 [变长与指定prefix cache命中率数据生成/压测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/prefix_cache.html)。🚀🚀🚀
 - **\[2026.9.2]** 新增 **MRCR 1M 数据集**：支持评测模型的 1M 长上下文检索问答能力，详见 [mrcr](ais_bench/benchmark/configs/datasets/mrcr/README.md)。
 - **\[2026.8.27]** 新增 **corpusQA 1M 数据集**：支持验证模型长序列推理精度能力，详见 [corpusqa](ais_bench/benchmark/configs/datasets/corpusqa/README.md)。
 - **\[2026.8.27]** 新增 **`api_model_args` CLI 命令组**：支持在命令行显式传入 `path`、`model`、`request_rate`、`host_ip`、`host_port`、`url`、`max_out_len`、`generation_kwargs` 等 API 模型通用参数，并在配置加载阶段覆盖 `attr="service"` 的模型配置中的对应字段，免去临时修改配置文件；对于本地模型（`attr="local"`），这些参数会被忽略并打印 warning。🔥🔥🔥
