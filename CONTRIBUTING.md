@@ -2,6 +2,8 @@
 
 欢迎向 [AISBench/benchmark](https://github.com/AISBench/benchmark) 提交 Pull Request（PR）。本指南说明提交代码时应遵循的 PR 规范与代码风格。
 
+本文件是贡献规范的统一入口。[中文开发指南](docs/source_zh_cn/develop_guide/contributing.md)和[英文开发指南](docs/source_en/develop_guide/contributing.md)提供本地化说明、环境准备与组件开发资料；其中的 PR 要求、提交规范和质量检查应与本文件保持一致。
+
 ## 1. 准备变更
 
 - 所有代码变更通过 PR 提交到 `AISBench/benchmark` 的 `master` 分支。
