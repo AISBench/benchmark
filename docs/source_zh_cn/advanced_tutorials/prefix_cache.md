@@ -180,7 +180,7 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 
 作用：
 
-- 加载 tokenizer 和 GSM8K 语料，在临时目录构造数据并计算目标可达范围；
+- 只解析 Scenario，生成长度、分组、顺序、cold DP 路由和共享前缀理论计划，不加载 tokenizer/GSM8K、不构造 prompt；
 - 展示 requested / effective / theoretical 命中率、组分布、输入/输出长度摘要和 cold DP 路由；
 - 不访问 vLLM、不发送请求。
 
@@ -201,14 +201,19 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 | `theoretical_hit_rate`            | 预计理论命中率。                      |
 | `reachable_min` / `reachable_max` | 全局最小/最大可达命中率。                 |
 | `target_reachable`                | 请求目标是否处于可达区间。                 |
+| `trajectory`                      | 求解策略、轨迹状态（`PASS`/`BEST_EFFORT`）和问题列表。 |
 | `group_reachability`              | 各 Prefix Group 的可达范围。         |
 | `groups`                          | 各 Group 的请求数量。                |
 | `input_tokens` / `output_tokens`  | 输入/输出长度统计和总 token 数。          |
 | `dp_route_counts`                 | 各 DP rank 的正式请求数。             |
 | `sends_requests`                  | 是否发送在线请求；inspect 固定为 `false`。 |
+| `planning_only`                   | 固定为 `true`，表示只做配置级理论规划。       |
+| `content_validation_deferred_to_prepare` | 固定为 `true`，语料、canonical 前缀和 tokenizer round-trip 留到 prepare 校验。 |
 | `log` / `manifest`                | 日志文件和 inspect Manifest 路径。    |
 
 后续 `prepare` / `run` 可通过匹配的 Manifest 复用同一时间戳目录。
+
+大规模 cold 场景按 `(Prefix Group, DP rank)` 分 lane 进行近线性构造，让累计命中率平缓上升并精确落到有效目标；小型不规则场景保留受限 beam search。数学上无法同时满足精确目标与单调轨迹时，状态为 `BEST_EFFORT` 并只告警。
 
 ### `prepare`：生成正式数据产物
 

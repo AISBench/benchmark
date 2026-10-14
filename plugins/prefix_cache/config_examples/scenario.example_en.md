@@ -440,7 +440,7 @@ Review requested/effective/theoretical rates, reachability, Group distribution, 
 
 ### 15.1 `inspect`
 
-Loads tokenizer/GSM8K and computes reachability without sending requests. It creates a fresh timestamp, writes `log/<run_id_timestamp>.inspect.log`, writes a lightweight `status="inspected"` Manifest under `result/`, and returns its `log` and `manifest` paths.
+Parses the Scenario and reuses prepare's length, Group, order, DP-route, and shared-prefix planning logic without loading tokenizer/GSM8K, constructing prompts, or writing temporary formal artifacts. Corpus selection, canonical-prefix construction, and tokenizer round-trip validation are deferred to prepare. Inspect creates a fresh timestamp, writes `log/<run_id_timestamp>.inspect.log`, writes a lightweight `status="inspected"` Manifest under `result/`, and returns its `log` and `manifest` paths.
 
 ### 15.2 `prepare`
 
@@ -522,13 +522,14 @@ Artifact metadata uses `name`, `path`, `rows` (JSONL only), `bytes`, and `sha256
 |---|---|
 | `schema_version`, `run_id`, `status` | Analysis contract, timestamped ID, and `prepared`/`complete`/`analyzed` state. |
 | `requested_target_hit_rate`, `effective_target_hit_rate`, `theoretical_hit_rate` | Requested, nearest reachable, and final theoretical rates. |
+| `trajectory` | Solver `strategy`, `PASS`/`BEST_EFFORT` status, and issues that prevent a fully smooth trajectory. |
 | `target_difference_pp`, `target_signed_difference_pp`, `target_absolute_difference_pp` | Target deviations; the first currently equals absolute deviation. |
 | `validation` | Status, reachability, warning-only flag, and exit-code effect. |
 | `theory` | Global, Group, and cold-DP input/hit token totals and rates. |
 | `runtime` | Online phases, probes, reset/warmup, AISBench exit code, and metric snapshots. |
 | `actual` | Formal after-baseline query/hit deltas and KV usage. |
 | `theory_actual_difference_pp` and signed/absolute variants | Actual-versus-theory differences. |
-| `warnings` | `TARGET_UNREACHABLE`, `TARGET_DEVIATION`, `ACTUAL_DEVIATION`, or `ASSUME_EMPTY_CACHE`. |
+| `warnings` | `TARGET_UNREACHABLE`, `TARGET_DEVIATION`, `TRAJECTORY_BEST_EFFORT`, `ACTUAL_DEVIATION`, or `ASSUME_EMPTY_CACHE`. |
 
 ### 17.1 Validation and warnings
 
@@ -556,7 +557,7 @@ Baseline counters may include probe requests because Prometheus counters do not 
 
 ## 18. Inspect summary and lightweight Manifest
 
-Inspect stdout contains `run_id`, `mode`, requested/effective/theoretical rates, reachability, `group_reachability`, `groups`, input/output summaries plus totals, `dp_route_counts`, `sends_requests=false`, `log`, and `manifest`.
+Inspect stdout contains `run_id`, `mode`, requested/effective/theoretical rates, reachability, `trajectory`, `group_reachability`, `groups`, input/output summaries plus totals, `dp_route_counts`, `sends_requests=false`, `planning_only=true`, `content_validation_deferred_to_prepare=true`, `log`, and `manifest`.
 
 The lightweight Manifest has `schema_version`, `plugin_version`, `status="inspected"`, timestamped `run_id`, Scenario path/hash, `effective_config`, and `inspect` (`timestamp`, `base_run_id`, `base_output_dir`, `sends_requests`, and `summary`). `prepare` upgrades it in place to a full `prepared` Manifest. Reuse checks the Manifest version, status, timestamp format, timestamped run/output, and Scenario SHA-256.
 

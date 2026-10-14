@@ -1,6 +1,7 @@
 import json
 import itertools
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -372,6 +373,47 @@ class CoreTest(unittest.TestCase):
             all(later + 1e-12 >= earlier for earlier, later in zip(rates, rates[1:])),
             rates,
         )
+        self.assertLessEqual(max(rates), result.effective_hit_rate + 1e-12)
+        self.assertAlmostEqual(rates[-1], result.effective_hit_rate)
+
+    def test_large_monotonic_cold_solver_is_fast_exact_and_non_overshooting(self):
+        count = 1818
+        lengths = [29_580 + index * 90 for index in range(count)]
+        groups = [f"group-{index % 6}" for index in range(count)]
+        ranks, lanes = assign_cold_routes(groups, 1)
+        started = time.perf_counter()
+        result = solve_prefix_lengths(
+            lengths, [1] * count, groups, ranks, lanes,
+            128, 128, "cold", 0.9,
+        )
+        elapsed = time.perf_counter() - started
+
+        self.assertEqual(result.strategy, "scalable_lane_convergent")
+        self.assertEqual(result.trajectory_status, "PASS")
+        self.assertFalse(result.trajectory_issues)
+        self.assertLess(elapsed, 5.0)
+        self.assertLessEqual(
+            abs(result.effective_hit_tokens - round(sum(lengths) * 0.9)),
+            64,
+        )
+
+        plans = [
+            RequestPlan(
+                f"r{index}", index, group, index, rank, lane,
+                length, length, 1, prefix, 128, length - prefix - 128,
+            )
+            for index, (length, group, rank, lane, prefix) in enumerate(
+                zip(lengths, groups, ranks, lanes, result.shared_prefix_tokens)
+            )
+        ]
+        rows = simulate_theory(plans, "cold", verbose=False).rows
+        cumulative_input = cumulative_hit = 0
+        rates = []
+        for row in rows:
+            cumulative_input += row.actual_input_tokens
+            cumulative_hit += row.theoretical_hit_tokens
+            rates.append(cumulative_hit / cumulative_input)
+        self.assertTrue(all(later + 1e-12 >= earlier for earlier, later in zip(rates, rates[1:])))
         self.assertLessEqual(max(rates), result.effective_hit_rate + 1e-12)
         self.assertAlmostEqual(rates[-1], result.effective_hit_rate)
 

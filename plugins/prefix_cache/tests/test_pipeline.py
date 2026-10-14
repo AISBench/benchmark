@@ -126,11 +126,16 @@ class PipelineTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             scenario = write_case(root)
-            summary = inspect_scenario(scenario, tokenizer_loader=lambda _: FakeTokenizer())
+            def tokenizer_must_not_load(_):
+                raise AssertionError("inspect must not load a tokenizer")
+
+            summary = inspect_scenario(scenario, tokenizer_loader=tokenizer_must_not_load)
             self.assertIn("reachable_min", summary)
             self.assertIn("reachable_max", summary)
             self.assertEqual(sum(summary["groups"].values()), 8)
             self.assertFalse(summary["sends_requests"])
+            self.assertTrue(summary["planning_only"])
+            self.assertTrue(summary["content_validation_deferred_to_prepare"])
             self.assertFalse((root / "out").exists())
 
     def test_deterministic_content_hashes(self):

@@ -182,7 +182,7 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 
 This command:
 
-- loads the tokenizer and the GSM8K corpus, constructs data in a temporary directory, and calculates the reachable range of the target hit rate;
+- parses the Scenario and builds only the length, Group, order, cold-DP route, and theoretical shared-prefix plan; it does not load the tokenizer/GSM8K or construct prompts;
 - displays the requested / effective / theoretical hit rates, group distribution, input/output length summaries, and cold DP routing;
 - never contacts vLLM and sends no requests.
 
@@ -203,14 +203,19 @@ Every `inspect` creates a new `_YYYYMMDD_HHMMSS` timestamp directory. Its artifa
 | `theoretical_hit_rate` | Predicted theoretical hit rate. |
 | `reachable_min` / `reachable_max` | Minimum/maximum globally reachable hit rate. |
 | `target_reachable` | Whether the target is inside the reachable range. |
+| `trajectory` | Solver strategy, trajectory status (`PASS`/`BEST_EFFORT`), and issue list. |
 | `group_reachability` | Reachable range of every Group. |
 | `groups` | Request count for every Group. |
 | `input_tokens` / `output_tokens` | Length statistics and total token count. |
 | `dp_route_counts` | Formal request count for every DP rank. |
 | `sends_requests` | Whether online requests are sent; always `false` for inspect. |
+| `planning_only` | Always `true`; inspect performs configuration-level theoretical planning only. |
+| `content_validation_deferred_to_prepare` | Always `true`; corpus, canonical-prefix, and tokenizer round-trip validation is deferred to prepare. |
 | `log` / `manifest` | Paths to the log file and the inspect Manifest. |
 
 Subsequent `prepare` / `run` invocations can reuse the same timestamp directory through the matching Manifest.
+
+Large cold scenarios use a near-linear lane construction per `(Prefix Group, DP rank)`, making cumulative hit rate rise smoothly to the exact effective target. Small irregular cases retain bounded beam search. If exact target and monotonic trajectory are mathematically incompatible, the result is marked `BEST_EFFORT` and only warns.
 
 ### `prepare`: Generate formal artifacts
 
