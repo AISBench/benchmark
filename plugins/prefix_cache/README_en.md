@@ -1,8 +1,8 @@
-# AISBench Prefix Cache Data Generation and Load-Testing Plugin
+# AISBench Prefix Cache Variable-Length and Target-Hit-Rate Dataset Generation/Benchmarking and Multimodal Dataset Generation
 
 [中文](README.md) | English
 
-This standalone AISBench plugin builds datasets with controllable shared prefixes and compares theoretical and measured vLLM Prefix Cache hit rates. It provides offline `inspect`, `prepare`, and `validate` commands, online `run`, and offline `analyze` from saved Prometheus snapshots.
+This standalone AISBench plugin generates two kinds of datasets and compares theoretical and measured vLLM Prefix Cache hit rates: pure-text datasets support controllable variable-length input/output, shared-prefix ratios, Prefix Group assignment, and request ordering, with a specifiable global theoretical Prefix Cache hit rate; multimodal datasets generate fixed image scenarios from MMMU images. It provides offline `inspect`, `prepare`, and `validate` commands, online `run`, and offline `analyze` from saved Prometheus snapshots.
 
 The plugin adds code only under `plugins/prefix_cache`; AISBench core logic is unchanged.
 
@@ -13,11 +13,13 @@ See the [Scenario example](config_examples/scenario.example.json), [complete fie
 The environment must provide:
 
 - Python 3.10 or newer;
-- An AISBench checkout whose dependencies can be imported;
-- `transformers` for loading the tokenizer that matches the vLLM model;
-- `datasets` and `aiohttp` for AISBench Dataset and API load testing;
-- A GSM8K JSONL file with at least a `question` field on every line;
+- **A JSONL corpus**. Every non-empty line must be a JSON object containing the text field selected by `corpus.field`; the default is the `question` field of the GSM8K dataset. To use a GSM8K-like corpus, follow the GSM8K format.
 - For online `run`, a vLLM Completions service with Prefix Cache enabled.
+
+Dependencies are installed in one of two scenarios (see section 2):
+
+- Offline dataset generation only (`inspect` / `prepare` / `validate` / `analyze`): installing the plugin itself is sufficient; `transformers`, `datasets`, `aiohttp`, and other dependencies are installed automatically with the plugin;
+- Online load testing (`run`): AISBench and its service-benchmark dependencies must be installed first, following the [AISBench installation guide](../../docs/source_en/get_started/install.md).
 
 The tokenizer used during data generation must be identical to the model tokenizer used by vLLM. Otherwise local token lengths, block boundaries, and theoretical hit rates will not match server behavior.
 
@@ -25,37 +27,31 @@ The tokenizer used during data generation must be identical to the model tokeniz
 
 The commands below assume the current directory is the AISBench repository root containing `setup.py`, `ais_bench/`, and `plugins/`.
 
-### 2.1 Create an isolated environment (recommended)
+### 2.1 Install the plugin only (offline dataset generation)
 
 ```bash
-python -m venv .venv
+conda create --name ais_bench python=3.10 -y
+conda activate ais_bench
+pip3 install -e ./plugins/prefix_cache
 ```
 
-Creates an isolated Python environment in the repository, preventing plugin dependencies from interfering with system packages.
+When using only the offline commands `inspect`, `prepare`, `validate`, and `analyze`, installing the plugin itself is sufficient. This installs the `ais_bench_prefix_cache` package and its dependencies (including `transformers`, `datasets`, and `aiohttp`), registers the Prefix Cache Dataset, Inferencer, and vLLM API Model entry points, and installs the `ais-bench-prefix-cache` CLI.
+
+### 2.2 Full installation (online load testing with `run`)
+
+`run` starts AISBench in `perf` mode, so first install AISBench and its service-benchmark dependencies following the [AISBench installation guide](../../docs/source_en/get_started/install.md) (a Conda environment is recommended):
 
 ```bash
-source .venv/bin/activate
+pip3 install -e ./ --use-pep517
+pip3 install -r requirements/api.txt
+pip3 install -r requirements/extra.txt
+ais-bench-prefix-cache --help
 ```
 
-Activates the environment in Linux Bash. Subsequent `python` and `pip` commands use `.venv`; alternatively call `.venv/bin/python` explicitly.
+- `pip3 install -e ./ --use-pep517`: installs the AISBench checkout and its dependencies in editable mode; `-e` points imports at the working tree, so source changes normally do not require reinstalling;
+- `pip3 install -r requirements/api.txt` and `pip3 install -r requirements/extra.txt`: AISBench dependencies required for service benchmarking (vLLM and other API services).
 
-### 2.2 Install AISBench
-
-```bash
-python -m pip install -e .
-```
-
-Installs the checkout and its dependencies in editable mode. `-e` points imports at the working tree, so source changes normally do not require reinstalling. Skip this step if a matching `ais-bench-benchmark` is already installed.
-
-### 2.3 Install the Prefix Cache plugin
-
-```bash
-python -m pip install -e ./plugins/prefix_cache
-```
-
-This installs the `ais_bench_prefix_cache` package, registers the Prefix Cache Dataset, Inferencer, and vLLM API Model entry points, and installs the `ais-bench-prefix-cache` CLI.
-
-### 2.4 Verify the installation
+### 2.3 Verify the installation
 
 ```bash
 ais-bench-prefix-cache --help
@@ -93,140 +89,103 @@ Defaults, constraints, and modes are documented in the [Scenario field reference
 
 ### 3.2 Prefix Cache data-construction parameters
 
-The Scenario uses a strict allowlist; unknown fields are rejected. The complete hierarchy is:
+The Scenario uses a strict allowlist: unknown fields are rejected, and omitted fields fall back to the example defaults. See the [Scenario complete field reference](config_examples/scenario.example_en.md) for each field.
 
-- `schema_version`;
-- `run`: `run_id`, `random_seed`, `output_dir`, `overwrite`;
-- `tokenizer`: `path`, `block_size`, `revision`, `trust_remote_code`;
-- `corpus`: `path`, `field`, `selection`; selection supports `mode`, `values`, `indices`, and `question_sha256`;
-- `requests`: `count`, `input_length`, `output_length`;
-  - `input_length` supports `mode`, `value`, `values`, `ranges`, `min`, `max`, `mean`, `std`, and `path`; each `ranges` item allows only `min`, `max`, and `count`;
-  - `output_length` supports `mode`, `value`, `min`, `max`, `mean`, `std`, and `path`;
-- `output`: `output_key`, which may be `null`, `"max_tokens"`, or `"output_tokens"`;
-- `prefix_cache`: `mode`, `target_hit_rate`, `seed_blocks`, `minimum_non_shared_length`, `groups`, and `order`;
-  - `groups` supports `count`, `assignment`, and `overrides`;
-  - `assignment` supports `mode`, `exponent`, and `weights`;
-  - each `overrides.group-N` supports `input_length`, `output_length`, and `corpus_selection`;
-  - `order` supports `strategy`;
-- `service`: `inference_url`, `metrics_url`, `reset_url`, `model`, `dp_size`, `assume_empty_cache`, `engine_label_map`, `timeout_seconds`, `api_key`, and `poll_interval_seconds`;
-- `validation`: `target_warning_pp` and `actual_warning_pp`;
-- `aisbench`: `config`, `work_dir`, `extra_args`, `dataset`, and `model`. `extra_args` maps CLI option names to values; offline commands ignore this section, while `run` expands the options and starts AISBench perf.
-  - `dataset`: `abbr`, `input_columns`, `output_column`, `prompt_template`, and `pred_role`. To keep theoretical and actual prompts token-identical, retain the example values for the first three contract fields; `abbr` and `pred_role` may be changed.
-  - `model`: `abbr`, `attr`, `stream`, `max_out_len`, `retry`, `batch_size`, and `generation_kwargs`. Older Scenarios receive the example defaults automatically. `attr` currently must be `"service"` to enable AISBench service performance collection, including TTFT.
-
-See the [Scenario complete field reference](config_examples/scenario.example_en.md) for each field.
-
-#### `requests.jsonl` output fields
-
-```json
-"output": {"output_key": null}
-```
-
-This follows `extract_qa.py --output-key`:
-
-- `null` (default): write only `question` and `answer`;
-- `"max_tokens"`: append `max_tokens`;
-- `"output_tokens"`: append `output_tokens`, whose value still comes from this request's `max_tokens`.
-
-The audit `full.jsonl` always retains `max_tokens`, and the AISBench Dataset reads `max_out_len` from it, so omitting the public third field does not change generation length.
-
-#### Input-length modes
-
-`requests.input_length` controls the total input-token length of every formal request. It is composed of the shared prefix, globally unique seed, and GSM8K natural suffix.
-
-Fixed length:
-
-```json
-"input_length": {"mode": "fixed", "value": 1024}
-```
-
-Explicit list:
-
-```json
-"input_length": {
-  "mode": "explicit",
-  "values": [512, 768, 1024, 2048]
-}
-```
-
-`values` must contain positive integers. Globally, its length must equal `requests.count`; for a Prefix Group override, it must equal that group's request count.
-
-Multiple closed intervals:
-
-```json
-"input_length": {
-  "mode": "range",
-  "ranges": [
-    {"min": 512, "max": 1024, "count": 80},
-    {"min": 2048, "max": 4096, "count": 20}
-  ]
-}
-```
-
-Each interval contains `min` and `max`; the sum of all `count` values must equal the applicable request count. Sampling is controlled by `run.random_seed`, so the same configuration reproduces the same sequence.
-
-Truncated normal distribution:
-
-```json
-"input_length": {
-  "mode": "truncated_normal",
-  "min": 512,
-  "max": 2048,
-  "mean": 1024,
-  "std": 256
-}
-```
-
-Only integer samples in `[min,max]` are accepted. `mean` defaults to the interval midpoint; `std` is derived from the width unless set explicitly, in which case it must be positive. `min=max` is equivalent to fixed length.
-
-CSV length file:
-
-```json
-"input_length": {"mode": "csv", "path": "./input_lengths.csv"}
-```
-
-The CSV row count must equal the applicable request count and contain one of `input_prompt_tokens`, `content_tokens`, or `input_tokens`.
-
-#### Minimum non-shared length and unique seed
-
-```json
-"prefix_cache": {
-  "seed_blocks": 1,
-  "minimum_non_shared_length": 16
-}
-```
-
-The unique seed length is:
-
-```text
-seed_tokens = seed_blocks × tokenizer.block_size
-```
-
-`minimum_non_shared_length` defaults to `seed_tokens` and cannot be smaller. The maximum public-prefix length is:
-
-```text
-floor((input_length - minimum_non_shared_length) / block_size) × block_size
-```
-
-If the minimum non-shared length exceeds the seed length, the remaining space is filled with the GSM8K natural suffix. Every formal request receives a deterministic `request_random_seed`; its difference seed is globally unique so that tokens after the shared prefix cannot be accidentally reused.
-
-Scenario loading checks that every input-length mode can accommodate the non-shared region and fails before generation when it cannot.
-
-#### Request-order strategies
-
-```json
-"order": {"strategy": "input_len_asc"}
-```
-
-Supported strategies:
-
-- `sequential`: retain the stable data-generation order;
-- `within_group_shuffle`: deterministically shuffle within each Prefix Group, then output by group;
-- `interleave`: interleave different Prefix Groups round by round;
-- `global_shuffle`: deterministically shuffle all requests;
-- `input_len_asc`: sort each Prefix Group from short to long, then rotate across groups; equal lengths retain original order.
-
-Theoretical hit rate is always re-simulated in final send order. With `input_len_asc` + `cold`, the short-to-long sequence passes through four stages: `prepare` reorders lengths and Groups; `requests.jsonl`/`full.jsonl` persist that order; Dataset validates `sequence_index`; and the Inferencer releases requests serially by `(Prefix Group, DP rank)` `lane_sequence`. A request on a lane is sent only after its predecessor completes, so AISBench task concurrency still models a cold first request followed by progressively longer requests that build Cache. Groups and DP ranks have independent watermarks and may run concurrently; global serialization is not required.
+| Configuration path | Brief description |
+|---|---|
+| `schema_version` | Scenario configuration format version. |
+| `run` | Task identity, randomness, and output controls. |
+| `run.run_id` | Task name; a timestamp is appended at execution. |
+| `run.random_seed` | Global seed for generation and random selection. |
+| `run.output_dir` | Base directory for Prefix Cache artifacts. |
+| `run.overwrite` | Whether existing formal artifacts may be overwritten. |
+| `tokenizer` | Tokenizer loading and Block configuration. |
+| `tokenizer.path` | Tokenizer model or directory path. |
+| `tokenizer.block_size` | Prefix Cache Block size in tokens. |
+| `tokenizer.revision` | Tokenizer repository revision; `null` uses the default. |
+| `tokenizer.trust_remote_code` | Whether to trust custom Tokenizer code. |
+| `corpus` | Natural-suffix corpus configuration. |
+| `corpus.path` | Path to the JSONL corpus; the format must match GSM8K. |
+| `corpus.field` | JSONL field containing question text; defaults to `question`. |
+| `corpus.selection` | Corpus sample-selection rule. |
+| `corpus.selection.mode` | Selection mode: `random` (deterministic shuffle by `run.random_seed`), `indices` (zero-based line numbers), `question_sha256` (SHA-256 of the normalized question), `mixed` (`indices` first, then `question_sha256`). |
+| `corpus.selection.values` | Index or hash list for a non-mixed mode; when fewer records are specified than required, the selected sequence is reused cyclically. |
+| `corpus.selection.indices` | Zero-based index list for mixed mode. |
+| `corpus.selection.question_sha256` | Question SHA-256 list for mixed mode; cannot be empty together with `indices`. |
+| `requests` | Formal request count and length distributions. |
+| `requests.count` | Total number of formal requests. |
+| `requests.input_length` | Input-token length generation rule; all lengths must be positive integers and their count must equal the corresponding request count. |
+| `requests.input_length.mode` | Input-length mode: `fixed` (one fixed length), `explicit` (an explicit list of lengths), `range` (sampling from one or more inclusive ranges), `truncated_normal` (a bounded normal distribution accepting only integer samples within `[min,max]`), `csv` (read from a CSV file). |
+| `requests.input_length.value` | Fixed length used by `fixed` mode. |
+| `requests.input_length.values` | Length list used by `explicit` mode; the number of elements must equal the corresponding request count. |
+| `requests.input_length.ranges` | Range list used by `range` mode; the sum of all range `count` values must equal the corresponding request count. |
+| `requests.input_length.ranges[].min` | Lower bound of one sampling range (inclusive). |
+| `requests.input_length.ranges[].max` | Upper bound of one sampling range (inclusive). |
+| `requests.input_length.ranges[].count` | Number of requests generated from one range. |
+| `requests.input_length.min` | Lower bound of the truncated normal distribution; `min=max` is equivalent to a fixed length. |
+| `requests.input_length.max` | Upper bound of the truncated normal distribution. |
+| `requests.input_length.mean` | Mean of the truncated normal distribution; defaults to the midpoint of the range. |
+| `requests.input_length.std` | Standard deviation of the truncated normal distribution; derived from the range width by default and must be greater than 0 when set explicitly. |
+| `requests.input_length.path` | Length-file path used by `csv` mode; must contain one of the `input_prompt_tokens`, `content_tokens`, or `input_tokens` columns, with a row count equal to the corresponding request count. |
+| `requests.output_length` | Maximum output-token length generation rule; all lengths must be positive integers and their count must equal the corresponding request count. |
+| `requests.output_length.mode` | Output-length mode: `fixed` (one fixed length), `uniform` (uniform sampling within a range), `truncated_normal` (a bounded normal distribution), `csv` (read from a CSV file). |
+| `requests.output_length.value` | Fixed length used by `fixed` mode. |
+| `requests.output_length.min` | Lower bound for `uniform` / `truncated_normal` mode. |
+| `requests.output_length.max` | Upper bound for `uniform` / `truncated_normal` mode. |
+| `requests.output_length.mean` | Mean of the truncated normal distribution; defaults to the midpoint of the range. |
+| `requests.output_length.std` | Standard deviation of the truncated normal distribution. |
+| `requests.output_length.path` | Length-file path used by `csv` mode; the column must be named `output_tokens`, with a row count equal to the corresponding request count. |
+| `output` | Field controls for the compact request file. |
+| `output.output_key` | Optional output-length key: `null` (default; each row contains only `question` and `answer`), `"max_tokens"`, or `"output_tokens"` (appends the third field carrying the request's maximum output tokens); `full.jsonl` always retains `max_tokens`, so omitting it does not affect execution. |
+| `prefix_cache` | Prefix Cache data and runtime strategy. |
+| `prefix_cache.mode` | Cache mode: `cold` (every `(group_id, dp_rank)` lane starts from an empty cache watermark, and requests in a group are routed round-robin to DP ranks in group occurrence order) or `warmup` (one warmup item is generated for every `Prefix Group × DP rank` and written to `warmup.plan` in the Manifest; `run` sends each item to its designated target before the formal baseline; warmup requests are not written to `requests.jsonl` and are excluded from formal statistics). |
+| `prefix_cache.target_hit_rate` | Requested global Prefix Cache hit rate. |
+| `prefix_cache.seed_blocks` | Number of Blocks used by each unique seed; the seed length is `seed_blocks × block_size`, and the seed token sequence is globally unique, preventing accidental sharing beyond the intended prefix. |
+| `prefix_cache.minimum_non_shared_length` | Minimum non-shared tokens retained per request; defaults to the seed length and cannot be smaller; the maximum shared-prefix length is `floor((input_length - minimum_non_shared_length) / block_size) × block_size`. |
+| `prefix_cache.groups` | Prefix Group count, assignment, and overrides; each Group has its own canonical prefix and theoretical statistics. |
+| `prefix_cache.groups.count` | Total number of Prefix Groups. |
+| `prefix_cache.groups.assignment` | Rule assigning requests to Groups. |
+| `prefix_cache.groups.assignment.mode` | Group-assignment mode: `uniform` (distribute requests as evenly as possible), `zipf` (use `exponent` to control hotspot concentration), `weights` (provide relative group weights in `weights`). |
+| `prefix_cache.groups.assignment.exponent` | Hotspot exponent for Zipf assignment. |
+| `prefix_cache.groups.assignment.weights` | Relative group weights for `weights` mode. |
+| `prefix_cache.groups.overrides` | Optional per-Group overrides. |
+| `prefix_cache.groups.overrides.group-N.input_length` | Input-length rule for one Group; the count must equal the number of requests assigned to that group. |
+| `prefix_cache.groups.overrides.group-N.output_length` | Output-length rule for one Group; the count must equal the number of requests assigned to that group. |
+| `prefix_cache.groups.overrides.group-N.corpus_selection` | Corpus-selection rule for one Group. |
+| `prefix_cache.order` | Formal request ordering rule; the theoretical hit rate is always recomputed using the final reordered request sequence. |
+| `prefix_cache.order.strategy` | Ordering strategy: `sequential` (keep the stable generation order), `within_group_shuffle` (deterministic shuffle inside every Group), `interleave` (round-robin across different Groups), `global_shuffle` (deterministic global shuffle), `input_len_asc` (ascending input length within every Group, then round-robin across groups). To model an unwarmed cache growing from short to long requests, use `cold` + `input_len_asc`. |
+| `service` | Online inference service and metric collection. |
+| `service.inference_url` | vLLM inference endpoint. |
+| `service.metrics_url` | Prometheus metrics endpoint. |
+| `service.reset_url` | Prefix Cache reset endpoint. |
+| `service.model` | Service model name sent in the request body. |
+| `service.dp_size` | Number of DP ranks inside one instance. |
+| `service.assume_empty_cache` | Assume an empty cache when reset is unavailable. |
+| `service.engine_label_map` | Mapping from Prometheus engine label to DP rank. |
+| `service.timeout_seconds` | Timeout for probes, warmup, and metrics requests. |
+| `service.api_key` | Service credential; never persisted in plaintext. |
+| `service.poll_interval_seconds` | KV metric sampling interval during the formal run; set to `0` to disable. |
+| `validation` | Result-deviation warning thresholds. |
+| `validation.target_warning_pp` | Warning threshold for theory-versus-target deviation. |
+| `validation.actual_warning_pp` | Warning threshold for actual-versus-theory deviation. |
+| `aisbench` | AISBench formal benchmark launch configuration. |
+| `aisbench.config` | Path to the AISBench Python configuration template. |
+| `aisbench.work_dir` | Base directory for AISBench results. |
+| `aisbench.extra_args` | Key/value object for extra CLI options; values may be scalar, lists, or boolean switches; offline commands ignore this section, while `run` expands the options and starts AISBench perf. |
+| `aisbench.dataset` | Dataset reader and Prompt mapping configuration; to keep theoretical and actual prompts token-identical, retain the example values for `input_columns`, `output_column`, and `prompt_template`; `abbr` and `pred_role` may be changed. |
+| `aisbench.dataset.abbr` | Dataset display name; `null` generates one. |
+| `aisbench.dataset.input_columns` | Input columns used by the Dataset reader. |
+| `aisbench.dataset.output_column` | Reference-answer column used by the reader. |
+| `aisbench.dataset.prompt_template` | Prompt template for formal requests. |
+| `aisbench.dataset.pred_role` | Role name assigned to predictions. |
+| `aisbench.model` | AISBench API Model configuration; older Scenarios receive the example defaults automatically. |
+| `aisbench.model.abbr` | Model display name; `null` generates one. |
+| `aisbench.model.attr` | Model attribute; currently must be `"service"` to enable AISBench service performance collection, including TTFT. |
+| `aisbench.model.stream` | Whether to use SSE streaming responses. |
+| `aisbench.model.max_out_len` | Model-level fallback maximum output length. |
+| `aisbench.model.retry` | Number of retries after API failures. |
+| `aisbench.model.batch_size` | Base AISBench API concurrency. |
+| `aisbench.model.generation_kwargs` | Generation arguments forwarded to vLLM. |
 
 #### Reachability and length statistics
 
