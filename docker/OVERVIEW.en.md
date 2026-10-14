@@ -1,7 +1,7 @@
 # Docker Image Overview
 
 ## Quick Reference
-- AISBench Benchmark is maintained by the [AISBench AI System Performance Benchmark Committee](https://www.aisbench.com/about).
+- AISBench Benchmark is maintained by the AISBench AI System Performance Benchmark Committee.
 
 - Image Overview
 
