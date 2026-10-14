@@ -16,6 +16,11 @@ from .errors import ArtifactValidationError, PromptRoundTripError, ScenarioValid
 
 logger = logging.getLogger(__name__)
 
+_ColdObjective = tuple[float, float, float, float]
+_ColdStateKey = tuple[tuple[int, ...], int]
+_ColdStateValue = tuple[_ColdObjective, tuple[int, ...]]
+_ColdStates = dict[_ColdStateKey, _ColdStateValue]
+
 
 class TokenizerLike(Protocol):
     def encode(self, text: str, add_special_tokens: bool = False) -> list[int]: ...
@@ -474,6 +479,105 @@ def _balanced_warmup_prefixes(
     return prefixes
 
 
+def _cold_beam_lane_layout(
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+) -> tuple[list[int], list[tuple[int, ...]], int]:
+    """Map requests to independent ``(group, rank)`` beam-search lanes."""
+    lane_index: dict[tuple[str, int], int] = {}
+    request_lanes: list[int] = []
+    for group, rank in zip(group_ids, ranks):
+        key = (group, int(rank or 0))
+        if key not in lane_index:
+            lane_index[key] = len(lane_index)
+        request_lanes.append(lane_index[key])
+    lane_requests = [
+        tuple(index for index, request_lane in enumerate(request_lanes) if request_lane == lane)
+        for lane in range(len(lane_index))
+    ]
+    return request_lanes, lane_requests, len(lane_index)
+
+
+class _ColdFutureCapacity:
+    """Cached upper bound for the remaining cold-lane hit capacity."""
+
+    def __init__(self, caps: Sequence[int], lane_requests: Sequence[Sequence[int]]) -> None:
+        self._caps = caps
+        self._lane_requests = lane_requests
+
+    @lru_cache(maxsize=65_536)
+    def lane_units(self, start: int, lane: int, watermark: int) -> int:
+        future_hits = 0
+        future_watermark = watermark
+        for index in self._lane_requests[lane]:
+            if index < start:
+                continue
+            cap = self._caps[index]
+            future_hits += min(cap, future_watermark)
+            future_watermark = max(future_watermark, cap)
+        return future_hits
+
+    def total_units(self, start: int, watermarks: tuple[int, ...]) -> int:
+        return sum(
+            self.lane_units(start, lane, watermark)
+            for lane, watermark in enumerate(watermarks)
+        )
+
+
+def _advance_cold_beam(
+    states: _ColdStates,
+    index: int,
+    cap: int,
+    lane: int,
+    cumulative_input: int,
+    previous_input: int,
+    desired_hit_units: int,
+    block_size: int,
+    target_rate: float,
+    future_capacity: _ColdFutureCapacity,
+) -> _ColdStates:
+    """Expand one request across every retained cold beam state."""
+    next_states: _ColdStates = {}
+    for (watermarks, hit_units), (objective, prefixes) in states.items():
+        watermark = watermarks[lane]
+        previous_rate = hit_units * block_size / previous_input if previous_input else 0.0
+        for prefix_units in range(cap + 1):
+            next_hit_units = hit_units + min(prefix_units, watermark)
+            if next_hit_units > desired_hit_units:
+                continue
+            next_watermarks_list = list(watermarks)
+            next_watermarks_list[lane] = max(watermark, prefix_units)
+            next_watermarks = tuple(next_watermarks_list)
+            if next_hit_units + future_capacity.total_units(index + 1, next_watermarks) < desired_hit_units:
+                continue
+
+            current_rate = next_hit_units * block_size / cumulative_input if cumulative_input else 0.0
+            overshoot = max(0.0, current_rate - target_rate)
+            next_objective = (
+                max(objective[0], overshoot),
+                objective[1] + overshoot,
+                objective[2] + max(0.0, previous_rate - current_rate),
+                objective[3] + abs(current_rate - target_rate),
+            )
+            state_key = (next_watermarks, next_hit_units)
+            next_value = (next_objective, prefixes + (prefix_units,))
+            previous = next_states.get(state_key)
+            if previous is None or next_value < previous:
+                next_states[state_key] = next_value
+    return next_states
+
+
+def _prune_cold_beam(states: _ColdStates, beam_width: int) -> _ColdStates:
+    """Retain the best deterministic cold-search states."""
+    if len(states) <= beam_width:
+        return states
+    ranked = sorted(
+        states.items(),
+        key=lambda item: (item[1][0], -sum(item[0][0]), item[1][1]),
+    )[:beam_width]
+    return dict(ranked)
+
+
 def _target_convergent_cold_prefixes(
     input_lengths: Sequence[int],
     group_ids: Sequence[str],
@@ -490,111 +594,23 @@ def _target_convergent_cold_prefixes(
     final effective target, then cumulative-rate declines, then distance from
     the target.  Final hit tokens remain an exact hard constraint.
     """
-    lane_keys: list[tuple[str, int]] = []
-    lane_index: dict[tuple[str, int], int] = {}
-    request_lanes: list[int] = []
-    for group, rank in zip(group_ids, ranks):
-        key = (group, int(rank or 0))
-        if key not in lane_index:
-            lane_index[key] = len(lane_keys)
-            lane_keys.append(key)
-        request_lanes.append(lane_index[key])
-
+    request_lanes, lane_requests, lane_count = _cold_beam_lane_layout(group_ids, ranks)
     total_input = sum(input_lengths)
     target_rate = desired_hit_units * block_size / total_input if total_input else 0.0
     cumulative_inputs = list(itertools.accumulate(input_lengths))
-
-    lane_requests = [
-        tuple(index for index, request_lane in enumerate(request_lanes) if request_lane == lane)
-        for lane in range(len(lane_keys))
-    ]
-
-    @lru_cache(maxsize=65_536)
-    def maximum_lane_future_units(start: int, lane: int, watermark: int) -> int:
-        """Return one lane's remaining capacity.
-
-        The old cache keyed this calculation by the complete watermark tuple,
-        which made practically every lookup unique.  Lane contributions are
-        independent, so a compact ``(start, lane, watermark)`` key provides
-        useful reuse for the bounded small-scenario beam search.
-        """
-        future_hits = 0
-        future_watermark = watermark
-        for index in lane_requests[lane]:
-            if index < start:
-                continue
-            cap = caps[index]
-            future_hits += min(cap, future_watermark)
-            future_watermark = max(future_watermark, cap)
-        return future_hits
-
-    def maximum_future_units(start: int, watermarks: tuple[int, ...]) -> int:
-        return sum(
-            maximum_lane_future_units(start, lane, watermark)
-            for lane, watermark in enumerate(watermarks)
-        )
-
-    # key=(lane watermarks, cumulative hit units), value=(objective, prefixes).
-    # Objective values are rates, so scenarios with different token lengths use
-    # the same semantics and deterministic tuple comparison.
-    initial_watermarks = (0,) * len(lane_keys)
-    states: dict[
-        tuple[tuple[int, ...], int],
-        tuple[tuple[float, float, float, float], tuple[int, ...]],
-    ] = {(initial_watermarks, 0): ((0.0, 0.0, 0.0, 0.0), ())}
+    future_capacity = _ColdFutureCapacity(caps, lane_requests)
+    initial_watermarks = (0,) * lane_count
+    states: _ColdStates = {(initial_watermarks, 0): ((0.0, 0.0, 0.0, 0.0), ())}
 
     for index, cap in enumerate(caps):
-        next_states: dict[
-            tuple[tuple[int, ...], int],
-            tuple[tuple[float, float, float, float], tuple[int, ...]],
-        ] = {}
-        lane = request_lanes[index]
-        cumulative_input = cumulative_inputs[index]
-        previous_input = cumulative_inputs[index - 1] if index else 0
-        for (watermarks, hit_units), (objective, prefixes) in states.items():
-            watermark = watermarks[lane]
-            previous_rate = hit_units * block_size / previous_input if previous_input else 0.0
-            for prefix_units in range(cap + 1):
-                hit_increment = min(prefix_units, watermark)
-                next_hit_units = hit_units + hit_increment
-                if next_hit_units > desired_hit_units:
-                    continue
-                next_watermarks_list = list(watermarks)
-                next_watermarks_list[lane] = max(watermark, prefix_units)
-                next_watermarks = tuple(next_watermarks_list)
-                if next_hit_units + maximum_future_units(index + 1, next_watermarks) < desired_hit_units:
-                    continue
-
-                current_rate = next_hit_units * block_size / cumulative_input if cumulative_input else 0.0
-                overshoot = max(0.0, current_rate - target_rate)
-                decline = max(0.0, previous_rate - current_rate)
-                gap = abs(current_rate - target_rate)
-                next_objective = (
-                    max(objective[0], overshoot),
-                    objective[1] + overshoot,
-                    objective[2] + decline,
-                    objective[3] + gap,
-                )
-                state_key = (next_watermarks, next_hit_units)
-                next_prefixes = prefixes + (prefix_units,)
-                previous = next_states.get(state_key)
-                if previous is None or (next_objective, next_prefixes) < previous:
-                    next_states[state_key] = (next_objective, next_prefixes)
-
+        next_states = _advance_cold_beam(
+            states, index, cap, request_lanes[index], cumulative_inputs[index],
+            cumulative_inputs[index - 1] if index else 0, desired_hit_units,
+            block_size, target_rate, future_capacity,
+        )
         if not next_states:
             return None
-        if len(next_states) > beam_width:
-            ranked = sorted(
-                next_states.items(),
-                key=lambda item: (
-                    item[1][0],
-                    -sum(item[0][0]),
-                    item[1][1],
-                ),
-            )[:beam_width]
-            states = dict(ranked)
-        else:
-            states = next_states
+        states = _prune_cold_beam(next_states, beam_width)
 
     exact = [value for (_, hit_units), value in states.items() if hit_units == desired_hit_units]
     if not exact:
