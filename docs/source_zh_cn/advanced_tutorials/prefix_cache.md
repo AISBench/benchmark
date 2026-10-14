@@ -221,7 +221,7 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ```
 
-- `--mode`：必填。`text` 生成文本压测数据；`mm` 生成多模态压测数据（见[多模态数据集生成与压测](#多模态数据集生成与压测)和 [MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)）。
+- `--mode`：必填。`text` 生成文本压测数据；`mm` 生成多模态压测数据（见[多模态数据集生成与压测](#多模态数据集生成与压测)和 [MULTIMODAL.md](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/MULTIMODAL.md)）。
 - `--scenario`：Scenario 文件路径。
 - `--overwrite`：可选。只覆盖本次时间戳目录内该 run 对应的产物文件，不会清理整个输出目录。
 
@@ -344,7 +344,7 @@ jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
 
 ## Scenario 参数说明
 
-完整逐字段参考见 [Scenario 配置参数说明](../../../plugins/prefix_cache/config_examples/scenario.example.md)。Scenario 采用严格白名单，未列出的字段会被拒绝；省略的字段使用示例默认值。
+完整逐字段参考见 [Scenario 配置参数说明](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/config_examples/scenario.example.md)。Scenario 采用严格白名单，未列出的字段会被拒绝；省略的字段使用示例默认值。
 
 | 配置路径                                                     | 简短说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -588,7 +588,7 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 多模态模式复用文本配置中的 `tokenizer.path`、`corpus`、`requests`、`run.output_dir`、`service` 和 `aisbench` 段；但 `requests.input_length` / `requests.output_length` 必须为 `fixed`，且不使用 `tokenizer.block_size` 和 `prefix_cache` 段（可省略，保留也不会对多模态文本长度施加 Block、共享前缀或非共享区限制）。`run`、`validate`、`report` 从 prepare 生成的 Manifest 中读取 `benchmark_mode`，不再接收 `--mode`。
 
-图片按原生尺寸从 MMMU Parquet 的 `image_1`～`image_7` bytes 字段中严格选择，不进行缩放；图片编码为 Base64 data URL 发送，服务端无需访问本地 MMMU 路径。`stream=true` 是获得有效 TTFT、TPOT、ITL 的必要条件。完整说明见 [MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)。
+图片按原生尺寸从 MMMU Parquet 的 `image_1`～`image_7` bytes 字段中严格选择，不进行缩放；图片编码为 Base64 data URL 发送，服务端无需访问本地 MMMU 路径。`stream=true` 是获得有效 TTFT、TPOT、ITL 的必要条件。完整说明见 [MULTIMODAL.md](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/MULTIMODAL.md)。
 
 ***
 
@@ -606,7 +606,7 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 ## 更多资料
 
-- [Prefix Cache 插件 README](../../../plugins/prefix_cache/README.md)
-- [Scenario 配置参数说明](../../../plugins/prefix_cache/config_examples/scenario.example.md)
-- [多模态压测 MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)
+- [Prefix Cache 插件 README](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/README.md)
+- [Scenario 配置参数说明](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/config_examples/scenario.example.md)
+- [多模态压测 MULTIMODAL.md](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/MULTIMODAL.md)
 

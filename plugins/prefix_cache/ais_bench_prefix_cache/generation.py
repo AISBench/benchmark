@@ -146,8 +146,10 @@ def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: in
             rng.shuffle(cycle)
             selected.extend(cycle)
         result = selected[:count]
-        logger.info("[gen] select_gsm8k mode=random selected=%d", len(result))
-        logger.debug("[gen] select_gsm8k mode=random line_indices=%s", [item.line_index for item in result])
+        logger.info(
+            "[gen] select_gsm8k mode=random selected=%d line_indices=%s",
+            len(result), [item.line_index for item in result],
+        )
         return result
     values = config.get("values")
     if values is None:
@@ -178,8 +180,10 @@ def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: in
         raise ScenarioValidationError("specified GSM8K selection is empty")
     # 不足 count 时循环复用已选中的记录。
     result = [selected[i % len(selected)] for i in range(count)]
-    logger.info("[gen] select_gsm8k selected=%d", len(result))
-    logger.debug("[gen] select_gsm8k line_indices=%s", [item.line_index for item in result])
+    logger.info(
+        "[gen] select_gsm8k selected=%d line_indices=%s",
+        len(result), [item.line_index for item in result],
+    )
     return result
 
 
@@ -306,8 +310,10 @@ def assign_groups(count: int, config: dict[str, Any], seed: int) -> list[str]:
     if mode == "zipf":
         # zipf 模式下打乱顺序，避免长尾集中在头部。
         random.Random(seed).shuffle(groups)
-    logger.info("[gen] assign_groups distribution=%s", {group: groups.count(group) for group in sorted(set(groups))})
-    logger.debug("[gen] assign_groups groups=%s", groups)
+    logger.info(
+        "[gen] assign_groups distribution=%s groups=%s",
+        {group: groups.count(group) for group in sorted(set(groups))}, groups,
+    )
     return groups
 
 
@@ -321,11 +327,11 @@ def order_indices(group_ids: Sequence[str], strategy: str, seed: int, input_leng
     indices = list(range(len(group_ids)))
     rng = random.Random(seed)
     if strategy == "sequential":
-        logger.debug("[gen] order_indices strategy=sequential result=%s", indices)
+        logger.info("[gen] order_indices strategy=sequential result=%s", indices)
         return indices
     if strategy == "global_shuffle":
         rng.shuffle(indices)
-        logger.debug("[gen] order_indices strategy=global_shuffle result=%s", indices)
+        logger.info("[gen] order_indices strategy=global_shuffle result=%s", indices)
         return indices
     # 按分组把请求装进桶，再按策略重排桶内顺序。
     buckets: dict[str, list[int]] = {}
@@ -342,13 +348,13 @@ def order_indices(group_ids: Sequence[str], strategy: str, seed: int, input_leng
         for group in sorted(buckets):
             rng.shuffle(buckets[group])
             result.extend(buckets[group])
-        logger.debug("[gen] order_indices strategy=within_group_shuffle result=%s", result)
+        logger.info("[gen] order_indices strategy=within_group_shuffle result=%s", result)
         return result
     # interleave：用 zip_longest 把各组的请求轮流取出，实现交错。
     result = []
     for row in itertools.zip_longest(*(buckets[group] for group in sorted(buckets))):
         result.extend(index for index in row if index is not None)
-    logger.debug("[gen] order_indices strategy=interleave result=%s", result)
+    logger.info("[gen] order_indices strategy=interleave result=%s", result)
     return result
 
 
@@ -377,8 +383,10 @@ def assign_cold_routes(group_ids: Sequence[str], dp_size: int, explicit: Sequenc
         lane = (group, rank)
         lane_sequences.append(lane_seen.get(lane, 0))
         lane_seen[lane] = lane_sequences[-1] + 1
-    logger.info("[gen] assign_cold_routes lanes=%d", len(set(zip(group_ids, ranks))))
-    logger.debug("[gen] assign_cold_routes ranks=%s lane_sequences=%s", ranks, lane_sequences)
+    logger.info(
+        "[gen] assign_cold_routes lanes=%d ranks=%s lane_sequences=%s",
+        len(set(zip(group_ids, ranks))), ranks, lane_sequences,
+    )
     return ranks, lane_sequences
 
 
@@ -746,13 +754,13 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     在最终命中 token 精确的前提下，warmup 按累计输入比例均衡分配；cold 使用
     lane 水位感知搜索，优先减少累计命中率超调与回落。搜索受限时回退精确构造。
     """
-    logger.info("[gen] solve_prefix_lengths requests=%d block_size=%d minimum_non_shared_tokens=%d mode=%s target_hit_rate=%.4f", len(input_lengths), block_size, minimum_non_shared_tokens, mode, target_hit_rate)
     logger.info(
-        "[gen] solve_prefix_lengths lengths min=%d max=%d total=%d groups=%d lanes=%d",
+        "[gen] solve_prefix_lengths requests=%d block_size=%d minimum_non_shared_tokens=%d mode=%s target_hit_rate=%.4f lengths_min=%d lengths_max=%d lengths_total=%d groups=%d lanes=%d input_lengths=%s output_lengths=%s group_ids=%s ranks=%s lane_sequences=%s",
+        len(input_lengths), block_size, minimum_non_shared_tokens, mode, target_hit_rate,
         min(input_lengths), max(input_lengths), sum(input_lengths),
         len(set(group_ids)), len(set(zip(group_ids, (int(rank or 0) for rank in ranks)))) if mode == "cold" else len(set(group_ids)),
+        list(input_lengths), list(output_lengths), list(group_ids), list(ranks), list(lane_sequences),
     )
-    logger.debug("[gen] solve_prefix_lengths input_lengths=%s output_lengths=%s group_ids=%s ranks=%s lane_sequences=%s", list(input_lengths), list(output_lengths), list(group_ids), list(ranks), list(lane_sequences))
     # 只保存每条请求的最大 Block 容量。旧实现物化 0..cap 的所有候选，长输入
     # 场景会在搜索开始前就创建上百万个 Python 整数；实际只有 beam 才需要枚举范围。
     caps = [max(0, (length - minimum_non_shared_tokens) // block_size) for length in input_lengths]
@@ -883,10 +891,9 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
             f"Prefix Cache solver constructed {best_hit} hit tokens; expected {desired_hit_tokens}"
         )
     logger.info(
-        "[gen] solve_prefix_lengths strategy=%s desired_hit=%d prefixes_count=%d prefix_min=%d prefix_max=%d best_error=%d best_hit=%d",
-        strategy, desired_hit_tokens, len(prefixes), min(prefixes), max(prefixes), best_error, best_hit,
+        "[gen] solve_prefix_lengths strategy=%s desired_hit=%d prefixes_count=%d prefix_min=%d prefix_max=%d best_error=%d best_hit=%d chosen_prefixes=%s",
+        strategy, desired_hit_tokens, len(prefixes), min(prefixes), max(prefixes), best_error, best_hit, prefixes,
     )
-    logger.debug("[gen] solve_prefix_lengths chosen_prefixes=%s", prefixes)
     final_plans = _plans_for_prefixes(
         input_lengths, output_lengths, group_ids, ranks, lane_sequences, prefixes,
     )
@@ -1015,7 +1022,7 @@ def build_unique_seed(tokenizer: TokenizerLike | None, safe_ids: Sequence[int], 
     用 SHA-256 派生的字节流从 safe_ids 中抽样；若与已用 seed 重复或无法
     round-trip，则换 nonce 重试。
     """
-    logger.debug("[gen] build_unique_seed request_id=%s seed_length=%d random_seed=%d safe_ids=%d exclude=%d", request_id, seed_length, random_seed, len(safe_ids), len(exclude) if exclude else 0)
+    logger.info("[gen] build_unique_seed request_id=%s seed_length=%d random_seed=%d safe_ids=%d exclude=%d", request_id, seed_length, random_seed, len(safe_ids), len(exclude) if exclude else 0)
     if seed_length < 1 or len(safe_ids) < 2:
         raise ArtifactValidationError("seed generation requires positive length and at least two safe tokens")
     used = exclude if exclude is not None else set()
@@ -1024,12 +1031,12 @@ def build_unique_seed(tokenizer: TokenizerLike | None, safe_ids: Sequence[int], 
         stream = itertools.cycle(digest)
         seed = tuple(safe_ids[next(stream) % len(safe_ids)] for _ in range(seed_length))
         if seed in used:
-            logger.debug("[gen] build_unique_seed retry request_id=%s nonce=%d reason=duplicate_seed", request_id, nonce)
+            logger.info("[gen] build_unique_seed retry request_id=%s nonce=%d reason=duplicate_seed", request_id, nonce)
             continue
         if tokenizer is not None and not _seed_round_trips(tokenizer, seed):
-            logger.debug("[gen] build_unique_seed retry request_id=%s nonce=%d reason=round_trip_failure", request_id, nonce)
+            logger.info("[gen] build_unique_seed retry request_id=%s nonce=%d reason=round_trip_failure", request_id, nonce)
             continue
-        logger.debug("[gen] build_unique_seed request_id=%s nonce=%d seed=%s", request_id, nonce, seed)
+        logger.info("[gen] build_unique_seed request_id=%s nonce=%d seed=%s", request_id, nonce, seed)
         return seed
     raise ArtifactValidationError(f"unable to construct a unique round-trip-safe seed for {request_id}")
 
@@ -1054,7 +1061,7 @@ def _repeat_tokens(
     token_cache: dict[tuple[str, bool], tuple[int, ...]] | None = None,
 ) -> tuple[list[int], tuple[int, ...], tuple[str, ...]]:
     """循环拼接语料记录直至 token 数达到 target，返回 tokens 及来源索引/hash。"""
-    logger.debug("[gen] _repeat_tokens records=%d target=%d", len(records), target)
+    logger.info("[gen] _repeat_tokens records=%d target=%d", len(records), target)
     tokens: list[int] = []
     indices: list[int] = []
     hashes: list[str] = []
@@ -1072,7 +1079,7 @@ def _repeat_tokens(
         indices.append(record.line_index)
         hashes.append(record.question_sha256)
         if len(tokens) >= target:
-            logger.debug("[gen] _repeat_tokens result tokens=%d indices=%d hashes=%d", len(tokens[:target]), len(indices), len(hashes))
+            logger.info("[gen] _repeat_tokens result tokens=%d indices=%d hashes=%d", len(tokens[:target]), len(indices), len(hashes))
             return tokens[:target], tuple(indices), tuple(hashes)
     raise ArtifactValidationError("cannot build tokens from empty GSM8K records")
 
@@ -1139,16 +1146,16 @@ def build_prompt(
 
     返回 (文本, 实际token, 后缀来源索引, 后缀来源hash)，并校验 round-trip。
     """
-    logger.debug("[gen] build_prompt group=%s shared_prefix_tokens=%d seed_len=%d target_tokens=%d suffix_records=%d", canonical.group_id, shared_prefix_tokens, len(seed), target_tokens, len(suffix_records))
+    logger.info("[gen] build_prompt group=%s shared_prefix_tokens=%d seed_len=%d target_tokens=%d suffix_records=%d", canonical.group_id, shared_prefix_tokens, len(seed), target_tokens, len(suffix_records))
     suffix_len = target_tokens - shared_prefix_tokens - len(seed)
-    logger.debug("[gen] build_prompt suffix_len=%d", suffix_len)
+    logger.info("[gen] build_prompt suffix_len=%d", suffix_len)
     if suffix_len < 0:
         raise ArtifactValidationError("prefix and seed exceed target input length")
     suffix, indices, hashes = _repeat_tokens(suffix_records, tokenizer, suffix_len, token_cache) if suffix_len else ([], (), ())
     expected = list(canonical.token_ids[:shared_prefix_tokens]) + list(seed) + suffix
     text = tokenizer.decode(expected, skip_special_tokens=False)
     actual = tokenizer.encode(text, add_special_tokens=False)
-    logger.debug("[gen] build_prompt group=%s expected_tokens=%d actual_tokens=%d text_len=%d suffix_indices=%d", canonical.group_id, len(expected), len(actual), len(text), len(indices))
+    logger.info("[gen] build_prompt group=%s expected_tokens=%d actual_tokens=%d text_len=%d suffix_indices=%d", canonical.group_id, len(expected), len(actual), len(text), len(indices))
     if actual != expected:
         raise PromptRoundTripError("prompt token layout changed after decode/re-encode")
     return text, tuple(actual), indices, hashes

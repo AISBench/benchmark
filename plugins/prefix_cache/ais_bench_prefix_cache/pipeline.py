@@ -55,7 +55,7 @@ def _request_random_seed(global_seed: int, request_id: str) -> int:
     """由全局种子 + 请求 id 派生每条请求的确定性随机种子（可复现）。"""
     digest = hashlib.sha256(f"{global_seed}:{request_id}".encode("utf-8")).digest()
     result = int.from_bytes(digest[:8], "big")
-    logger.debug("[prepare] _request_random_seed global_seed=%d request_id=%s -> %d", global_seed, request_id, result)
+    logger.info("[prepare] _request_random_seed global_seed=%d request_id=%s -> %d", global_seed, request_id, result)
     return result
 
 
@@ -142,14 +142,14 @@ def _build_prompt_with_seed_retry(
     token_cache: dict[tuple[str, bool], tuple[int, ...]] | None = None,
 ):
     """构造 prompt；若 round-trip 失败则换一个唯一 seed 重试，最多 64 次。"""
-    logger.debug("[prepare] _build_prompt_with_seed_retry request_id=%s prefix_len=%d target_tokens=%d seed_length=%d random_seed=%d rotated_pool=%d", request_id, prefix_len, target_tokens, seed_length, random_seed, len(rotated_pool))
+    logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s prefix_len=%d target_tokens=%d seed_length=%d random_seed=%d rotated_pool=%d", request_id, prefix_len, target_tokens, seed_length, random_seed, len(rotated_pool))
     for attempt in range(64):
         try:
             result = build_prompt(
                 tokenizer, canonical, prefix_len, seeds[request_id], rotated_pool,
                 target_tokens, token_cache,
             )
-            logger.debug("[prepare] _build_prompt_with_seed_retry request_id=%s attempt=%d ok", request_id, attempt)
+            logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s attempt=%d ok", request_id, attempt)
             return result
         except PromptRoundTripError:
             # seed 可能导致 decode/re-encode 后 token 布局变化，重新生成一个不重复的 seed。
@@ -207,13 +207,10 @@ def _plan_request_shape(scenario: Scenario, effective: dict[str, Any]) -> tuple[
         scenario.cache_mode, pc_cfg["target_hit_rate"],
     )
     logger.info(
-        "[plan] requests=%d input_min=%d input_max=%d input_total=%d groups=%s dp_size=%d strategy=%s",
+        "[plan] requests=%d input_min=%d input_max=%d input_total=%d group_distribution=%s dp_size=%d strategy=%s input_lengths=%s output_lengths=%s groups=%s ranks=%s lanes=%s prefixes=%s",
         count, min(input_lengths), max(input_lengths), sum(input_lengths),
         {group: groups.count(group) for group in sorted(set(groups))}, scenario.dp_size,
         pc_cfg["order"]["strategy"],
-    )
-    logger.debug(
-        "[plan] input_lengths=%s output_lengths=%s groups=%s ranks=%s lanes=%s prefixes=%s",
         input_lengths, output_lengths, groups, ranks, lanes, solve.shared_prefix_tokens,
     )
     return input_lengths, output_lengths, groups, ranks, lanes, solve
@@ -250,10 +247,10 @@ def prepare_scenario(
     # 阶段1：生成长度、分组、顺序、cold 路由，并求解共享前缀。
     input_lengths, output_lengths, groups, ranks, lanes, solve = _plan_request_shape(scenario, effective)
     logger.info(
-        "[prepare] planned requests=%d input_min=%d input_max=%d input_total=%d output_min=%d output_max=%d",
+        "[prepare] planned requests=%d input_min=%d input_max=%d input_total=%d output_min=%d output_max=%d group_distribution=%s",
         count, min(input_lengths), max(input_lengths), sum(input_lengths), min(output_lengths), max(output_lengths),
+        {group: groups.count(group) for group in sorted(set(groups))},
     )
-    logger.info("[prepare] groups distribution=%s", {group: groups.count(group) for group in sorted(set(groups))})
     records = load_gsm8k(Path(corpus_cfg["path"]), corpus_cfg["field"])
     logger.info("[prepare] records=%d", len(records))
     # 阶段2：按每个组的 corpus override 构造独立语料池。
@@ -273,11 +270,12 @@ def prepare_scenario(
     minimum_non_shared_length = pc_cfg["minimum_non_shared_length"]
     logger.info("[prepare] seed_length=%d minimum_non_shared_length=%d", seed_length, minimum_non_shared_length)
     logger.info(
-        "[prepare] solve prefixes_count=%d prefix_min=%d prefix_max=%d",
+        "[prepare] solve prefixes_count=%d prefix_min=%d prefix_max=%d shared_prefix_tokens=%s requested_hit_tokens=%d effective_hit_tokens=%d effective_hit_rate=%.4f min_reachable_rate=%.4f max_reachable_rate=%.4f target_reachable=%s adjusted=%s reason=%s",
         len(solve.shared_prefix_tokens), min(solve.shared_prefix_tokens), max(solve.shared_prefix_tokens),
+        solve.shared_prefix_tokens, solve.requested_hit_tokens, solve.effective_hit_tokens,
+        solve.effective_hit_rate, solve.min_reachable_rate, solve.max_reachable_rate,
+        solve.target_reachable, solve.adjusted, solve.reason,
     )
-    logger.debug("[prepare] solve shared_prefix_tokens=%s", solve.shared_prefix_tokens)
-    logger.info("[prepare] solve requested_hit_tokens=%d effective_hit_tokens=%d effective_hit_rate=%.4f min_reachable_rate=%.4f max_reachable_rate=%.4f target_reachable=%s adjusted=%s reason=%s", solve.requested_hit_tokens, solve.effective_hit_tokens, solve.effective_hit_rate, solve.min_reachable_rate, solve.max_reachable_rate, solve.target_reachable, solve.adjusted, solve.reason)
     max_by_group = {group: max((prefix for prefix, current in zip(solve.shared_prefix_tokens, groups) if current == group), default=0) for group in sorted(set(groups))}
     group_sources = {group: group_pools[group] for group in sorted(set(groups))}
     logger.info("[prepare] max_by_group=%s", max_by_group)
@@ -295,8 +293,10 @@ def prepare_scenario(
         request_id: _request_random_seed(seed + 5, request_id)
         for request_id in request_ids
     }
-    logger.info("[prepare] request_ids count=%d first=%s last=%s", len(request_ids), request_ids[0], request_ids[-1])
-    logger.debug("[prepare] request_random_seeds=%s", request_random_seeds)
+    logger.info(
+        "[prepare] request_ids count=%d first=%s last=%s request_random_seeds=%s",
+        len(request_ids), request_ids[0], request_ids[-1], request_random_seeds,
+    )
     seeds: dict[str, tuple[int, ...]] = {}
     used_seeds: set[tuple[int, ...]] = set()
     for request_id in request_ids:
@@ -306,7 +306,7 @@ def prepare_scenario(
         )
         used_seeds.add(request_seed)
         seeds[request_id] = request_seed
-        logger.debug("[prepare] request_id=%s seed=%s used_seeds=%d", request_id, request_seed, len(used_seeds))
+        logger.info("[prepare] request_id=%s seed=%s used_seeds=%d", request_id, request_seed, len(used_seeds))
     plans: list[RequestPlan] = []
     occurrences: dict[str, int] = {}
     corpus_token_cache: dict[tuple[str, bool], tuple[int, ...]] = {}
@@ -320,7 +320,7 @@ def prepare_scenario(
         pool = group_pools[group]
         # 组内循环轮换语料池，保证不同请求的后缀不同但前缀可共享。
         rotated_pool = pool[occurrence % len(pool):] + pool[:occurrence % len(pool)]
-        logger.debug("[prepare] build plan index=%d request_id=%s group=%s occurrence=%d prefix_len=%d pool_size=%d rotation_offset=%d", index, request_id, group, occurrence, prefix_len, len(pool), occurrence % len(pool))
+        logger.info("[prepare] build plan index=%d request_id=%s group=%s occurrence=%d prefix_len=%d pool_size=%d rotation_offset=%d", index, request_id, group, occurrence, prefix_len, len(pool), occurrence % len(pool))
         text, tokens, suffix_indices, suffix_hashes = _build_prompt_with_seed_retry(
             tokenizer, canonical[group], prefix_len, seeds, request_id,
             rotated_pool, input_lengths[index], safe_ids, seed_length,

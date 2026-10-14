@@ -223,7 +223,7 @@ Large cold scenarios use a near-linear lane construction per `(Prefix Group, DP 
 ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ```
 
-- `--mode`: required. `text` generates text-benchmark data; `mm` generates multimodal data (see [Multimodal Dataset Generation and Benchmarking](#multimodal-dataset-generation-and-benchmarking) and [MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)).
+- `--mode`: required. `text` generates text-benchmark data; `mm` generates multimodal data (see [Multimodal Dataset Generation and Benchmarking](#multimodal-dataset-generation-and-benchmarking) and [MULTIMODAL.md](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/MULTIMODAL.md)).
 - `--scenario`: path to the Scenario file.
 - `--overwrite`: optional. Replaces only the artifact files of this run inside the current timestamp directory; it does not clear the entire output directory.
 
@@ -346,7 +346,7 @@ jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
 
 ## Scenario Configuration
 
-See the [complete Scenario field reference](../../../plugins/prefix_cache/config_examples/scenario.example_en.md). The Scenario uses a strict whitelist: unknown fields are rejected, and omitted fields fall back to the example defaults.
+See the [complete Scenario field reference](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/config_examples/scenario.example_en.md). The Scenario uses a strict whitelist: unknown fields are rejected, and omitted fields fall back to the example defaults.
 
 | Configuration path | Brief description |
 |---|---|
@@ -590,7 +590,7 @@ Simply append a `multimodal` section on top of the text configuration:
 
 The multimodal mode reuses the `tokenizer.path`, `corpus`, `requests`, `run.output_dir`, `service`, and `aisbench` sections of the text configuration. However, `requests.input_length` / `requests.output_length` must be `fixed`, and `tokenizer.block_size` and the `prefix_cache` section are not used (they may be omitted, and keeping them does not impose Block, shared-prefix, or non-shared-region constraints on multimodal text lengths). `run`, `validate`, and `report` read `benchmark_mode` from the Manifest produced by `prepare` and no longer accept `--mode`.
 
-Images are selected strictly at native size from the `image_1`–`image_7` bytes fields of the MMMU Parquet without scaling; they are sent as Base64 data URLs, so the server does not need access to the local MMMU path. `stream=true` is required for valid TTFT, TPOT, and ITL metrics. See [MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md) for the complete guide.
+Images are selected strictly at native size from the `image_1`–`image_7` bytes fields of the MMMU Parquet without scaling; they are sent as Base64 data URLs, so the server does not need access to the local MMMU path. `stream=true` is required for valid TTFT, TPOT, and ITL metrics. See [MULTIMODAL.md](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/MULTIMODAL.md) for the complete guide.
 
 ***
 
@@ -608,6 +608,6 @@ These warnings only change the displayed validation state in `analysis.json` to 
 
 ## Further Reading
 
-- [Prefix Cache plugin README](../../../plugins/prefix_cache/README_en.md)
-- [Complete Scenario field reference](../../../plugins/prefix_cache/config_examples/scenario.example_en.md)
-- [Multimodal benchmark MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)
+- [Prefix Cache plugin README](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/README_en.md)
+- [Complete Scenario field reference](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/config_examples/scenario.example_en.md)
+- [Multimodal benchmark MULTIMODAL.md](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/MULTIMODAL.md)
