@@ -161,6 +161,36 @@ def _build_prompt_with_seed_retry(
     raise ArtifactValidationError(f"unable to construct a round-trip-safe prompt for {request_id}")
 
 
+def _apply_group_length_overrides(
+    input_lengths: list[int],
+    output_lengths: list[int],
+    groups: Sequence[str],
+    overrides: dict[str, Any],
+    seed: int,
+) -> None:
+    """Apply per-group input/output length overrides in place."""
+    for group_index, group in enumerate(sorted(set(groups))):
+        positions = [index for index, value in enumerate(groups) if value == group]
+        override = overrides.get(group, {})
+        if "input_length" in override:
+            values = build_input_lengths(
+                override["input_length"], len(positions), seed + 100 + group_index,
+            )
+            if len(values) != len(positions):
+                raise ArtifactValidationError(
+                    f"{group} input_length generated {len(values)} values; "
+                    f"expected {len(positions)}"
+                )
+            for position, value in zip(positions, values):
+                input_lengths[position] = value
+        if "output_length" in override:
+            values = build_output_lengths(
+                override["output_length"], len(positions), seed + 200 + group_index,
+            )
+            for position, value in zip(positions, values):
+                output_lengths[position] = value
+
+
 def _plan_request_shape(scenario: Scenario, effective: dict[str, Any]) -> tuple[
     list[int], list[int], list[str], list[int | None], list[int | None], SolveResult,
 ]:
@@ -177,20 +207,10 @@ def _plan_request_shape(scenario: Scenario, effective: dict[str, Any]) -> tuple[
     input_lengths = build_input_lengths(request_cfg["input_length"], count, seed)
     output_lengths = build_output_lengths(request_cfg["output_length"], count, seed + 1)
     groups = assign_groups(count, pc_cfg["groups"], seed + 2)
-    overrides = pc_cfg["groups"].get("overrides", {})
-    for group_index, group in enumerate(sorted(set(groups))):
-        positions = [index for index, value in enumerate(groups) if value == group]
-        override = overrides.get(group, {})
-        if "input_length" in override:
-            values = build_input_lengths(override["input_length"], len(positions), seed + 100 + group_index)
-            if len(values) != len(positions):
-                raise ArtifactValidationError(f"{group} input_length generated {len(values)} values; expected {len(positions)}")
-            for position, value in zip(positions, values):
-                input_lengths[position] = value
-        if "output_length" in override:
-            values = build_output_lengths(override["output_length"], len(positions), seed + 200 + group_index)
-            for position, value in zip(positions, values):
-                output_lengths[position] = value
+    _apply_group_length_overrides(
+        input_lengths, output_lengths, groups,
+        pc_cfg["groups"].get("overrides", {}), seed,
+    )
 
     ordering = order_indices(groups, pc_cfg["order"]["strategy"], seed + 4, input_lengths)
     input_lengths = [input_lengths[index] for index in ordering]
@@ -198,8 +218,8 @@ def _plan_request_shape(scenario: Scenario, effective: dict[str, Any]) -> tuple[
     groups = [groups[index] for index in ordering]
     if scenario.cache_mode == "cold":
         ranks_raw, lane_raw = assign_cold_routes(groups, scenario.dp_size)
-        ranks: list[int | None] = [rank for rank in ranks_raw]
-        lanes: list[int | None] = [lane for lane in lane_raw]
+        ranks: list[int | None] = list(ranks_raw)
+        lanes: list[int | None] = list(lane_raw)
     else:
         ranks = [None] * count
         lanes = [None] * count
