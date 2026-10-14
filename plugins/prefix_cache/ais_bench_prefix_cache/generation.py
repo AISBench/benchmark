@@ -575,11 +575,11 @@ def _target_convergent_cold_prefixes(
                     objective[2] + decline,
                     objective[3] + gap,
                 )
-                key = (next_watermarks, next_hit_units)
+                state_key = (next_watermarks, next_hit_units)
                 next_prefixes = prefixes + (prefix_units,)
-                previous = next_states.get(key)
+                previous = next_states.get(state_key)
                 if previous is None or (next_objective, next_prefixes) < previous:
-                    next_states[key] = (next_objective, next_prefixes)
+                    next_states[state_key] = (next_objective, next_prefixes)
 
         if not next_states:
             return None
@@ -601,6 +601,66 @@ def _target_convergent_cold_prefixes(
         return None
     _, chosen_units = min(exact)
     return [units * block_size for units in chosen_units]
+
+
+def _waterfill_capped_units(
+    total_units: int,
+    weights: Sequence[int],
+    capacities: Sequence[int],
+) -> tuple[list[float], list[int]]:
+    """Return continuous water-fill values and their floored integers."""
+    positive_weights = [max(1, weight) for weight in weights]
+    low = 0.0
+    high = 1.0
+    while sum(min(capacity, high * weight) for weight, capacity in zip(positive_weights, capacities)) < total_units:
+        high *= 2.0
+    for _ in range(80):
+        middle = (low + high) / 2.0
+        allocated = sum(
+            min(capacity, middle * weight)
+            for weight, capacity in zip(positive_weights, capacities)
+        )
+        if allocated < total_units:
+            low = middle
+        else:
+            high = middle
+
+    real_values = [
+        min(float(capacity), high * weight)
+        for weight, capacity in zip(positive_weights, capacities)
+    ]
+    values = [min(capacity, int(math.floor(value + 1e-12))) for value, capacity in zip(real_values, capacities)]
+    return real_values, values
+
+
+def _place_capped_remainder(
+    values: list[int],
+    real_values: Sequence[float],
+    capacities: Sequence[int],
+    remaining: int,
+    monotonic: bool,
+) -> bool:
+    """Place residual units by largest remainder under capacity constraints."""
+    order = sorted(
+        range(len(values)),
+        key=lambda index: (real_values[index] - values[index], index),
+        reverse=True,
+    )
+    while remaining:
+        progressed = False
+        for index in order:
+            if values[index] >= capacities[index]:
+                continue
+            if monotonic and index + 1 < len(values) and values[index] + 1 > values[index + 1]:
+                continue
+            values[index] += 1
+            remaining -= 1
+            progressed = True
+            if not remaining:
+                break
+        if not progressed:
+            return False
+    return True
 
 
 def _capped_proportional_units(
@@ -626,68 +686,29 @@ def _capped_proportional_units(
     if any(weight < 0 for weight in weights) or any(capacity < 0 for capacity in capacities):
         return None
 
-    positive_weights = [max(1, weight) for weight in weights]
-    low = 0.0
-    high = 1.0
-    while sum(min(capacity, high * weight) for weight, capacity in zip(positive_weights, capacities)) < total_units:
-        high *= 2.0
-    for _ in range(80):
-        middle = (low + high) / 2.0
-        allocated = sum(
-            min(capacity, middle * weight)
-            for weight, capacity in zip(positive_weights, capacities)
-        )
-        if allocated < total_units:
-            low = middle
-        else:
-            high = middle
-
-    real_values = [
-        min(float(capacity), high * weight)
-        for weight, capacity in zip(positive_weights, capacities)
-    ]
-    values = [min(capacity, int(math.floor(value + 1e-12))) for value, capacity in zip(real_values, capacities)]
-    remaining = total_units - sum(values)
-    order = sorted(
-        range(len(values)),
-        key=lambda index: (real_values[index] - values[index], index),
-        reverse=True,
-    )
-    while remaining:
-        progressed = False
-        for index in order:
-            if values[index] >= capacities[index]:
-                continue
-            if monotonic and index + 1 < len(values) and values[index] + 1 > values[index + 1]:
-                continue
-            values[index] += 1
-            remaining -= 1
-            progressed = True
-            if not remaining:
-                break
-        if not progressed:
-            return None
+    real_values, values = _waterfill_capped_units(total_units, weights, capacities)
+    if not _place_capped_remainder(
+        values, real_values, capacities, total_units - sum(values), monotonic,
+    ):
+        return None
     if monotonic and any(later < earlier for earlier, later in zip(values, values[1:])):
         return None
     return values
 
 
-def _scalable_cold_prefixes(
+def _cold_lane_layout(
     input_lengths: Sequence[int],
     group_ids: Sequence[str],
     ranks: Sequence[int | None],
     caps: Sequence[int],
-    desired_hit_units: int,
-    block_size: int,
-) -> list[int] | None:
-    """Construct a smooth exact cold schedule in near-linear time.
-
-    For a lane with non-decreasing prefix capacities, choose a non-decreasing
-    hit sequence ``h``.  Setting request ``i``'s prefix to ``h[i + 1]`` (and
-    the last request to ``h[-1]``) makes the cold-cache simulator produce
-    exactly ``h``: the previous request grows the watermark needed by the next
-    one.  This avoids enumerating every prefix length for every beam state.
-    """
+) -> tuple[
+    dict[tuple[str, int], list[int]],
+    list[tuple[str, int]],
+    list[int],
+    list[int],
+    dict[tuple[str, int], list[int]],
+] | None:
+    """Collect monotonic lane metadata required by the scalable solver."""
     lane_indices: dict[tuple[str, int], list[int]] = {}
     for index, (group, rank) in enumerate(zip(group_ids, ranks)):
         lane_indices.setdefault((group, int(rank or 0)), []).append(index)
@@ -708,6 +729,20 @@ def _scalable_cold_prefixes(
         lane_uppers[key] = uppers
         lane_capacities.append(sum(uppers))
         lane_weights.append(sum(lane_lengths))
+    return lane_indices, lane_keys, lane_capacities, lane_weights, lane_uppers
+
+
+def _allocate_cold_hit_units(
+    input_lengths: Sequence[int],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    lane_indices: dict[tuple[str, int], list[int]],
+    lane_keys: Sequence[tuple[str, int]],
+    lane_capacities: Sequence[int],
+    lane_weights: Sequence[int],
+    lane_uppers: dict[tuple[str, int], list[int]],
+) -> list[int] | None:
+    """Allocate an exact monotonic hit sequence across independent lanes."""
 
     lane_targets = _capped_proportional_units(
         desired_hit_units,
@@ -731,6 +766,17 @@ def _scalable_cold_prefixes(
             return None
         for index, units in zip(indices, lane_hits):
             hit_units[index] = units
+    return hit_units
+
+
+def _cold_prefixes_from_hits(
+    hit_units: Sequence[int],
+    caps: Sequence[int],
+    lane_indices: dict[tuple[str, int], list[int]],
+    desired_hit_units: int,
+    block_size: int,
+) -> list[int] | None:
+    """Materialize prefixes that make the cold simulator reproduce hits."""
 
     prefixes = [0] * len(caps)
     for indices in lane_indices.values():
@@ -742,6 +788,339 @@ def _scalable_cold_prefixes(
     if any(prefix > cap * block_size for prefix, cap in zip(prefixes, caps)):
         return None
     return prefixes
+
+
+def _scalable_cold_prefixes(
+    input_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+) -> list[int] | None:
+    """Construct a smooth exact cold schedule in near-linear time.
+
+    For a lane with non-decreasing prefix capacities, choose a non-decreasing
+    hit sequence ``h``.  Setting request ``i``'s prefix to ``h[i + 1]`` (and
+    the last request to ``h[-1]``) makes the cold-cache simulator produce
+    exactly ``h``: the previous request grows the watermark needed by the next
+    one.  This avoids enumerating every prefix length for every beam state.
+    """
+    layout = _cold_lane_layout(input_lengths, group_ids, ranks, caps)
+    if layout is None:
+        return None
+    lane_indices, lane_keys, lane_capacities, lane_weights, lane_uppers = layout
+    hit_units = _allocate_cold_hit_units(
+        input_lengths, caps, desired_hit_units, lane_indices, lane_keys,
+        lane_capacities, lane_weights, lane_uppers,
+    )
+    if hit_units is None:
+        return None
+    return _cold_prefixes_from_hits(
+        hit_units, caps, lane_indices, desired_hit_units, block_size,
+    )
+
+
+def _theory_for_prefixes(
+    input_lengths: Sequence[int],
+    output_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    lane_sequences: Sequence[int | None],
+    prefixes: Sequence[int],
+    mode: str,
+) -> TheorySummary:
+    """Simulate one candidate prefix schedule with the production model."""
+    plans = _plans_for_prefixes(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences, prefixes,
+    )
+    warm = None
+    if mode == "warmup":
+        warm = {
+            group: max(
+                (prefix for prefix, current in zip(prefixes, group_ids) if current == group),
+                default=0,
+            )
+            for group in set(group_ids)
+        }
+    return simulate_theory(plans, mode, warm, verbose=False)
+
+
+def _nearest_reachable_hit_units(
+    target_tokens: int,
+    max_hit: int,
+    block_size: int,
+) -> int:
+    """Select the block-aligned reachable hit total nearest the target."""
+    max_hit_units = max_hit // block_size
+    lower_units = max(0, min(max_hit_units, target_tokens // block_size))
+    upper_units = max(0, min(max_hit_units, lower_units + 1))
+    return min(
+        {lower_units, upper_units, 0, max_hit_units},
+        key=lambda units: (abs(units * block_size - target_tokens), units),
+    )
+
+
+def _target_prefix_schedule(
+    input_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+    mode: str,
+) -> tuple[list[int] | None, str]:
+    """Choose the smooth solver appropriate for mode and problem size."""
+    if mode == "warmup":
+        return (
+            _balanced_warmup_prefixes(
+                input_lengths, caps, desired_hit_units, block_size,
+            ),
+            "target_convergent",
+        )
+
+    estimated_transitions = 256 * sum(cap + 1 for cap in caps)
+    if estimated_transitions <= 2_000_000:
+        return (
+            _target_convergent_cold_prefixes(
+                input_lengths, group_ids, ranks, caps,
+                desired_hit_units, block_size,
+            ),
+            "target_convergent",
+        )
+
+    prefixes = _scalable_cold_prefixes(
+        input_lengths, group_ids, ranks, caps,
+        desired_hit_units, block_size,
+    )
+    logger.info(
+        "[gen] solve_prefix_lengths scalable cold path transitions=%d selected=%s",
+        estimated_transitions, prefixes is not None,
+    )
+    strategy = "scalable_lane_convergent" if prefixes is not None else "target_convergent"
+    return prefixes, strategy
+
+
+def _warmup_fallback_prefixes(
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+) -> tuple[list[int], int]:
+    """Build the legacy exact warmup allocation and return unconsumed units."""
+    prefixes = [0] * len(caps)
+    remaining_units = desired_hit_units
+    for index, cap in enumerate(caps):
+        assigned = min(cap, remaining_units)
+        prefixes[index] = assigned * block_size
+        remaining_units -= assigned
+    return prefixes, remaining_units
+
+
+def _cold_fallback_prefixes(
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+) -> tuple[list[int], int]:
+    """Build the legacy exact cold allocation and return unconsumed units."""
+    prefixes = [0] * len(caps)
+    remaining_units = desired_hit_units
+    lanes: dict[tuple[str, int], list[int]] = {}
+    for index, (group, rank) in enumerate(zip(group_ids, ranks)):
+        lanes.setdefault((group, int(rank or 0)), []).append(index)
+
+    for lane_indices in lanes.values():
+        anchor = max(lane_indices, key=lambda index: (caps[index], -index))
+        lane_capacity = sum(caps[index] for index in lane_indices if index != anchor)
+        lane_units = min(lane_capacity, remaining_units)
+        lane_remaining = lane_units
+        for index in lane_indices:
+            if index == anchor:
+                continue
+            assigned = min(caps[index], lane_remaining)
+            prefixes[index] = assigned * block_size
+            lane_remaining -= assigned
+        if lane_remaining:
+            raise ArtifactValidationError("cold Prefix Cache lane construction did not consume its target")
+        prefixes[anchor] = max(
+            (prefixes[index] for index in lane_indices if index != anchor),
+            default=0,
+        )
+        remaining_units -= lane_units
+    return prefixes, remaining_units
+
+
+def _exact_fallback_prefixes(
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+    mode: str,
+) -> list[int]:
+    """Construct an exact legacy schedule when a smooth solver has no path."""
+    if mode == "warmup":
+        prefixes, remaining_units = _warmup_fallback_prefixes(
+            caps, desired_hit_units, block_size,
+        )
+    else:
+        prefixes, remaining_units = _cold_fallback_prefixes(
+            group_ids, ranks, caps, desired_hit_units, block_size,
+        )
+    if remaining_units:
+        raise ArtifactValidationError("Prefix Cache solver could not construct the selected reachable target")
+    return prefixes
+
+
+def _rate_trajectory_issues(label: str, rows: Sequence[RequestPlan]) -> list[str]:
+    """Return monotonicity and overshoot diagnostics for one request stream."""
+    cumulative_input = 0
+    cumulative_hit = 0
+    rates: list[float] = []
+    for row in rows:
+        cumulative_input += row.actual_input_tokens
+        cumulative_hit += row.theoretical_hit_tokens
+        rates.append(cumulative_hit / cumulative_input if cumulative_input else 0.0)
+
+    issues: list[str] = []
+    if any(later + 1e-12 < earlier for earlier, later in zip(rates, rates[1:])):
+        issues.append(f"{label} cumulative hit rate is not monotonic")
+    if rates and max(rates) > rates[-1] + 1e-12:
+        issues.append(f"{label} cumulative hit rate overshoots its final rate")
+    return issues
+
+
+def _prefix_trajectory_issues(
+    rows: Sequence[RequestPlan],
+    mode: str,
+) -> list[str]:
+    """Collect global and per-lane trajectory diagnostics."""
+    issues = _rate_trajectory_issues("global", rows)
+    if mode != "cold":
+        return issues
+
+    lane_rows: dict[tuple[str, int], list[RequestPlan]] = {}
+    for row in rows:
+        lane_rows.setdefault((row.group_id, int(row.dp_rank or 0)), []).append(row)
+    for lane, current_rows in lane_rows.items():
+        issues.extend(_rate_trajectory_issues(f"lane {lane[0]}/dp-{lane[1]}", current_rows))
+    return issues
+
+
+def _target_adjustment_reason(
+    target_tokens: int,
+    zero_hit: int,
+    max_hit: int,
+    adjusted: bool,
+) -> str | None:
+    """Explain why the selected block-aligned target differs from the request."""
+    if target_tokens > max_hit:
+        return "target exceeds maximum reachable hit rate"
+    if target_tokens < zero_hit:
+        return "target is below minimum reachable hit rate"
+    if adjusted:
+        return "block alignment prevents an exact target hit count"
+    return None
+
+
+def _validated_prefix_theory(
+    input_lengths: Sequence[int],
+    output_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    lane_sequences: Sequence[int | None],
+    caps: Sequence[int],
+    prefixes: Sequence[int],
+    block_size: int,
+    mode: str,
+    strategy: str,
+    target_tokens: int,
+    desired_hit_tokens: int,
+) -> tuple[TheorySummary, int, int]:
+    """Validate capacities and exact hits, returning theory/error/hits."""
+    if any(prefix > cap * block_size for prefix, cap in zip(prefixes, caps)):
+        raise ArtifactValidationError("Prefix Cache trajectory solver exceeded a request prefix capacity")
+    if strategy == "target_convergent" and mode == "cold":
+        logger.info("[gen] solve_prefix_lengths target-convergent cold schedule selected")
+
+    theory = _theory_for_prefixes(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences,
+        prefixes, mode,
+    )
+    hit_tokens = theory.total_hit_tokens
+    error = abs(hit_tokens - target_tokens)
+    if hit_tokens != desired_hit_tokens:
+        raise ArtifactValidationError(
+            f"Prefix Cache solver constructed {hit_tokens} hit tokens; expected {desired_hit_tokens}"
+        )
+    logger.info(
+        "[gen] solve_prefix_lengths strategy=%s desired_hit=%d prefixes_count=%d prefix_min=%d prefix_max=%d best_error=%d best_hit=%d chosen_prefixes=%s",
+        strategy, desired_hit_tokens, len(prefixes), min(prefixes), max(prefixes),
+        error, hit_tokens, prefixes,
+    )
+    return theory, error, hit_tokens
+
+
+def _trajectory_diagnostics(
+    theory: TheorySummary,
+    mode: str,
+) -> tuple[str, list[str]]:
+    """Return and log the trajectory validation status."""
+    issues = _prefix_trajectory_issues(theory.rows, mode)
+    status = "PASS" if not issues else "BEST_EFFORT"
+    if issues:
+        logger.warning(
+            "[gen] solve_prefix_lengths trajectory_status=%s issues=%s",
+            status, issues,
+        )
+    else:
+        logger.info("[gen] solve_prefix_lengths trajectory_status=PASS")
+    return status, issues
+
+
+def _assemble_solve_result(
+    prefixes: Sequence[int],
+    group_ids: Sequence[str],
+    target_hit_rate: float,
+    target_tokens: int,
+    total_input: int,
+    zero_theory: TheorySummary,
+    max_theory: TheorySummary,
+    best_hit: int,
+    strategy: str,
+    trajectory_status: str,
+    trajectory_issues: Sequence[str],
+) -> SolveResult:
+    """Assemble reachability metadata around an already validated schedule."""
+    zero_hit = zero_theory.total_hit_tokens
+    max_hit = max_theory.total_hit_tokens
+    effective_rate = best_hit / total_input if total_input else 0.0
+    min_rate = zero_hit / total_input if total_input else 0.0
+    max_rate = max_hit / total_input if total_input else 0.0
+    logger.info(
+        "[gen] solve_prefix_lengths zero_hit=%d zero_rate=%.4f max_hit=%d max_rate=%.4f effective_hit=%d effective_rate=%.4f",
+        zero_hit, min_rate, max_hit, max_rate, best_hit, effective_rate,
+    )
+    group_reachability = {
+        group: {
+            "min_reachable_rate": float(zero_theory.group_stats[group]["hit_rate"]),
+            "max_reachable_rate": float(max_theory.group_stats[group]["hit_rate"]),
+        }
+        for group in sorted(set(group_ids))
+    }
+    target_reachable = min_rate <= target_hit_rate <= max_rate
+    adjusted = best_hit != target_tokens
+    reason = _target_adjustment_reason(target_tokens, zero_hit, max_hit, adjusted)
+    logger.info(
+        "[gen] solve_prefix_lengths group_reachability=%s target_reachable=%s adjusted=%s reason=%s",
+        group_reachability, target_reachable, adjusted, reason,
+    )
+    return SolveResult(
+        tuple(prefixes), target_tokens, best_hit, effective_rate, min_rate, max_rate,
+        target_reachable, group_reachability, adjusted, reason, strategy,
+        trajectory_status, tuple(trajectory_issues),
+    )
 
 
 def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[int], group_ids: Sequence[str], ranks: Sequence[int | None], lane_sequences: Sequence[int | None], block_size: int, minimum_non_shared_tokens: int, mode: str, target_hit_rate: float) -> SolveResult:
@@ -773,195 +1152,58 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     target_tokens = int(total_input * target_hit_rate + 0.5)
     logger.info("[gen] solve_prefix_lengths total_input=%d target_tokens=%d", total_input, target_tokens)
 
-    def score(prefixes: Sequence[int]) -> tuple[int, int]:
-        """给出一组共享前缀长度，模拟缓存水位后返回 (命中误差, 命中token数)。"""
-        # 按候选前缀构造临时请求计划，并模拟真实缓存水位下的理论命中 token 数。
-        plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, prefixes)
-        # warmup 模式下用各组前缀最大值作为预热水位，模拟缓存已被写满。
-        warm = {group: max((prefix for prefix, current in zip(prefixes, group_ids) if current == group), default=0) for group in set(group_ids)} if mode == "warmup" else None
-        hit = simulate_theory(plans, mode, warm, verbose=False).total_hit_tokens
-        return abs(hit - target_tokens), hit
-
     # 先评估可达性上下界。旧实现先做局部搜索、最后才计算边界，导致目标高于
     # reachable_max 时仍可能停在次优局部解。边界现在是求解输入而非事后报告。
     zero_prefixes = [0] * len(caps)
-    zero_plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, zero_prefixes)
-    zero_warm = {group: 0 for group in set(group_ids)} if mode == "warmup" else None
-    zero_theory = simulate_theory(zero_plans, mode, zero_warm, verbose=False)
-    zero_hit = zero_theory.total_hit_tokens
+    zero_theory = _theory_for_prefixes(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences,
+        zero_prefixes, mode,
+    )
     max_prefixes = [cap * block_size for cap in caps]
-    max_plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, max_prefixes)
-    max_warm = {
-        group: max((prefix for prefix, current in zip(max_prefixes, group_ids) if current == group), default=0)
-        for group in set(group_ids)
-    } if mode == "warmup" else None
-    max_theory = simulate_theory(max_plans, mode, max_warm, verbose=False)
+    max_theory = _theory_for_prefixes(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences,
+        max_prefixes, mode,
+    )
     max_hit = max_theory.total_hit_tokens
 
     # 所有共享前缀和理论命中量都是 block_size 的整数倍。按 Block 单位选取距
     # target_tokens 最近、且落在可达边界内的目标命中量。
-    max_hit_units = max_hit // block_size
-    lower_units = max(0, min(max_hit_units, target_tokens // block_size))
-    upper_units = max(0, min(max_hit_units, lower_units + 1))
-    desired_hit_units = min(
-        {lower_units, upper_units, 0, max_hit_units},
-        key=lambda units: (abs(units * block_size - target_tokens), units),
+    desired_hit_units = _nearest_reachable_hit_units(
+        target_tokens, max_hit, block_size,
     )
     desired_hit_tokens = desired_hit_units * block_size
 
-    strategy = "target_convergent"
-    if mode == "warmup":
-        # warmup 后每个前缀 token 都命中。按累计输入比例分摊目标 Block，
-        # 让累计命中率从第一条开始贴近目标并保持稳定，不再先填满前几条。
-        prefixes = _balanced_warmup_prefixes(
-            input_lengths, caps, desired_hit_units, block_size,
-        )
-    else:
-        # The bounded beam is useful for small irregular cases, but its
-        # transition count is roughly beam_width * sum(cap + 1).  Large
-        # monotonic lanes use an exact constructive schedule instead.
-        estimated_transitions = 256 * sum(cap + 1 for cap in caps)
-        if estimated_transitions > 2_000_000:
-            prefixes = _scalable_cold_prefixes(
-                input_lengths, group_ids, ranks, caps,
-                desired_hit_units, block_size,
-            )
-            if prefixes is not None:
-                strategy = "scalable_lane_convergent"
-            logger.info(
-                "[gen] solve_prefix_lengths scalable cold path transitions=%d selected=%s",
-                estimated_transitions, prefixes is not None,
-            )
-        else:
-            prefixes = _target_convergent_cold_prefixes(
-                input_lengths, group_ids, ranks, caps,
-                desired_hit_units, block_size,
-            )
+    prefixes: list[int] | None
+    prefixes, strategy = _target_prefix_schedule(
+        input_lengths, group_ids, ranks, caps,
+        desired_hit_units, block_size, mode,
+    )
 
     if not prefixes and desired_hit_units:
         # 极端多 lane/大状态空间下 beam 可能无法保留精确路径。此时回退旧的
         # 精确 lane 构造，宁可牺牲轨迹平滑，也不能牺牲最终 target-driven 精度。
         strategy = "exact_lane_fallback"
-        prefixes = [0] * len(caps)
-        remaining_units = desired_hit_units
-        if mode == "warmup":
-            for index, cap in enumerate(caps):
-                assigned = min(cap, remaining_units)
-                prefixes[index] = assigned * block_size
-                remaining_units -= assigned
-        else:
-            # cold 模式按 (group, DP rank) 独立维护水位。对任一 lane：
-            # lane_hit = sum(prefix_i) - max(prefix_i)。选容量最大的请求作为
-            # anchor，即可精确构造任意 0..lane_max 的 Block 命中量。
-            lanes: dict[tuple[str, int], list[int]] = {}
-            for index, (group, rank) in enumerate(zip(group_ids, ranks)):
-                lanes.setdefault((group, int(rank or 0)), []).append(index)
-            for lane_indices in lanes.values():
-                anchor = max(lane_indices, key=lambda index: (caps[index], -index))
-                lane_capacity = sum(caps[index] for index in lane_indices if index != anchor)
-                lane_units = min(lane_capacity, remaining_units)
-                lane_remaining = lane_units
-                for index in lane_indices:
-                    if index == anchor:
-                        continue
-                    assigned = min(caps[index], lane_remaining)
-                    prefixes[index] = assigned * block_size
-                    lane_remaining -= assigned
-                if lane_remaining:
-                    raise ArtifactValidationError("cold Prefix Cache lane construction did not consume its target")
-                prefixes[anchor] = max((prefixes[index] for index in lane_indices if index != anchor), default=0)
-                remaining_units -= lane_units
-        if remaining_units:
-            raise ArtifactValidationError("Prefix Cache solver could not construct the selected reachable target")
+        prefixes = _exact_fallback_prefixes(
+            group_ids, ranks, caps, desired_hit_units, block_size, mode,
+        )
 
     if not prefixes:
         prefixes = [0] * len(caps)
 
     # The trajectory solver is a secondary objective only.  Verify its exact
     # total below with the same cache simulator used by the generated Manifest.
-    if any(prefix > cap * block_size for prefix, cap in zip(prefixes, caps)):
-        raise ArtifactValidationError("Prefix Cache trajectory solver exceeded a request prefix capacity")
-
-    if strategy == "target_convergent" and mode == "cold":
-        logger.info("[gen] solve_prefix_lengths target-convergent cold schedule selected")
-
-    best_error, best_hit = score(prefixes)
-    if best_hit != desired_hit_tokens:
-        raise ArtifactValidationError(
-            f"Prefix Cache solver constructed {best_hit} hit tokens; expected {desired_hit_tokens}"
-        )
-    logger.info(
-        "[gen] solve_prefix_lengths strategy=%s desired_hit=%d prefixes_count=%d prefix_min=%d prefix_max=%d best_error=%d best_hit=%d chosen_prefixes=%s",
-        strategy, desired_hit_tokens, len(prefixes), min(prefixes), max(prefixes), best_error, best_hit, prefixes,
+    final_theory, _, best_hit = _validated_prefix_theory(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences,
+        caps, prefixes, block_size, mode, strategy, target_tokens,
+        desired_hit_tokens,
     )
-    final_plans = _plans_for_prefixes(
-        input_lengths, output_lengths, group_ids, ranks, lane_sequences, prefixes,
+    trajectory_status, trajectory_issues = _trajectory_diagnostics(
+        final_theory, mode,
     )
-    final_warm = {
-        group: max((prefix for prefix, current in zip(prefixes, group_ids) if current == group), default=0)
-        for group in set(group_ids)
-    } if mode == "warmup" else None
-    final_theory = simulate_theory(final_plans, mode, final_warm, verbose=False)
-    trajectory_issues: list[str] = []
-
-    def inspect_rates(label: str, rows: Sequence[RequestPlan]) -> None:
-        cumulative_input = 0
-        cumulative_hit = 0
-        rates: list[float] = []
-        for row in rows:
-            cumulative_input += row.actual_input_tokens
-            cumulative_hit += row.theoretical_hit_tokens
-            rates.append(cumulative_hit / cumulative_input if cumulative_input else 0.0)
-        if any(later + 1e-12 < earlier for earlier, later in zip(rates, rates[1:])):
-            trajectory_issues.append(f"{label} cumulative hit rate is not monotonic")
-        if rates and max(rates) > rates[-1] + 1e-12:
-            trajectory_issues.append(f"{label} cumulative hit rate overshoots its final rate")
-
-    inspect_rates("global", final_theory.rows)
-    if mode == "cold":
-        lane_rows: dict[tuple[str, int], list[RequestPlan]] = {}
-        for row in final_theory.rows:
-            lane_rows.setdefault((row.group_id, int(row.dp_rank or 0)), []).append(row)
-        for lane, rows in lane_rows.items():
-            inspect_rates(f"lane {lane[0]}/dp-{lane[1]}", rows)
-    trajectory_status = "PASS" if not trajectory_issues else "BEST_EFFORT"
-    if trajectory_issues:
-        logger.warning(
-            "[gen] solve_prefix_lengths trajectory_status=%s issues=%s",
-            trajectory_status, trajectory_issues,
-        )
-    else:
-        logger.info("[gen] solve_prefix_lengths trajectory_status=PASS")
-    # 实际/最低/最高可达的命中率。
-    effective_rate = best_hit / total_input if total_input else 0.0
-    min_rate = zero_hit / total_input if total_input else 0.0
-    max_rate = max_hit / total_input if total_input else 0.0
-    logger.info("[gen] solve_prefix_lengths zero_hit=%d zero_rate=%.4f max_hit=%d max_rate=%.4f effective_hit=%d effective_rate=%.4f", zero_hit, min_rate, max_hit, max_rate, best_hit, effective_rate)
-    # 按组给出可达命中率区间，便于定位是哪个组导致目标不可达。
-    group_reachability = {
-        group: {
-            "min_reachable_rate": float(zero_theory.group_stats[group]["hit_rate"]),
-            "max_reachable_rate": float(max_theory.group_stats[group]["hit_rate"]),
-        }
-        for group in sorted(set(group_ids))
-    }
-    # 目标命中率落在 [min_rate, max_rate] 区间内即为可达。
-    target_reachable = min_rate <= target_hit_rate <= max_rate
-    # 无法精确命中目标时标记 adjusted，并区分目标越界与单纯 Block 对齐残差。
-    adjusted = best_hit != target_tokens
-    if target_tokens > max_hit:
-        reason = "target exceeds maximum reachable hit rate"
-    elif target_tokens < zero_hit:
-        reason = "target is below minimum reachable hit rate"
-    elif adjusted:
-        reason = "block alignment prevents an exact target hit count"
-    else:
-        reason = None
-    logger.info("[gen] solve_prefix_lengths group_reachability=%s target_reachable=%s adjusted=%s reason=%s", group_reachability, target_reachable, adjusted, reason)
-    return SolveResult(
-        tuple(prefixes), target_tokens, best_hit, effective_rate, min_rate, max_rate,
-        target_reachable, group_reachability, adjusted,
-        reason, strategy, trajectory_status, tuple(trajectory_issues),
+    return _assemble_solve_result(
+        prefixes, group_ids, target_hit_rate, target_tokens, total_input,
+        zero_theory, max_theory, best_hit, strategy, trajectory_status,
+        trajectory_issues,
     )
 
 
@@ -1120,6 +1362,8 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
             indices, hashes = source_indices, source_hashes
             if tuple(token_ids[:block_size]) in first_blocks:
                 raise ArtifactValidationError(f"canonical prefixes collide in first block for {group} after deterministic fallback")
+        if indices is None or hashes is None:
+            raise ArtifactValidationError(f"canonical prefix sources are missing for {group}")
         first_block = tuple(token_ids[:block_size])
         first_blocks.add(first_block)
         text = tokenizer.decode(token_ids, skip_special_tokens=False)
