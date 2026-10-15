@@ -649,9 +649,10 @@ def prepare_scenario(
     request_cfg = effective["requests"]
     pc_cfg = effective["prefix_cache"]
     corpus_cfg = effective["corpus"]
-    logger.info("[prepare] overwrite=%s request_cfg=%s", overwrite, request_cfg)
-    logger.info("[prepare] pc_cfg=%s", pc_cfg)
-    logger.info("[prepare] corpus_cfg=%s", corpus_cfg)
+    logger.info(
+        "[prepare] overwrite=%s request_cfg=%s pc_cfg=%s corpus_cfg=%s",
+        overwrite, request_cfg, pc_cfg, corpus_cfg,
+    )
     count = request_cfg["count"]
     seed = scenario.random_seed
     logger.info("[prepare] count=%d seed=%d", count, seed)
@@ -672,10 +673,14 @@ def prepare_scenario(
     )
     seed_length = scenario.block_size * pc_cfg["seed_blocks"]
     minimum_non_shared_length = pc_cfg["minimum_non_shared_length"]
-    logger.info("[prepare] seed_length=%d minimum_non_shared_length=%d", seed_length, minimum_non_shared_length)
     logger.info(
-        "[prepare] solve prefixes_count=%d prefix_min=%d prefix_max=%d shared_prefix_tokens=%s requested_hit_tokens=%d effective_hit_tokens=%d effective_hit_rate=%.4f min_reachable_rate=%.4f max_reachable_rate=%.4f target_reachable=%s adjusted=%s reason=%s",
-        len(solve.shared_prefix_tokens), min(solve.shared_prefix_tokens), max(solve.shared_prefix_tokens),
+        "[prepare] seed_length=%d minimum_non_shared_length=%d solve "
+        "prefixes_count=%d prefix_min=%d prefix_max=%d shared_prefix_tokens=%s "
+        "requested_hit_tokens=%d effective_hit_tokens=%d effective_hit_rate=%.4f "
+        "min_reachable_rate=%.4f max_reachable_rate=%.4f target_reachable=%s "
+        "adjusted=%s reason=%s",
+        seed_length, minimum_non_shared_length, len(solve.shared_prefix_tokens),
+        min(solve.shared_prefix_tokens), max(solve.shared_prefix_tokens),
         solve.shared_prefix_tokens, solve.requested_hit_tokens, solve.effective_hit_tokens,
         solve.effective_hit_rate, solve.min_reachable_rate, solve.max_reachable_rate,
         solve.target_reachable, solve.adjusted, solve.reason,
@@ -684,8 +689,10 @@ def prepare_scenario(
     group_sources: dict[str, Sequence[GSMRecord]] = {
         group: group_pools[group] for group in sorted(set(groups))
     }
-    logger.info("[prepare] max_by_group=%s", max_by_group)
-    logger.info("[prepare] group_sources sizes=%s", {group: len(pool) for group, pool in group_sources.items()})
+    logger.info(
+        "[prepare] max_by_group=%s group_sources sizes=%s",
+        max_by_group, {group: len(pool) for group, pool in group_sources.items()},
+    )
     # 阶段6：加载 tokenizer，为每个组构造 canonical 前缀并选出边界安全的 seed token。
     tokenizer = (tokenizer_loader or _tokenizer_loader)(scenario)
     logger.info("[prepare] tokenizer=%s vocab_size=%d", f"{tokenizer.__class__.__module__}.{tokenizer.__class__.__qualname__}", len(tokenizer))
@@ -706,8 +713,12 @@ def prepare_scenario(
     logger.info("[prepare] warm_watermarks=%s", warm_watermarks)
     # 阶段8：按缓存水位模拟理论命中率，并生成 full/requests 行。
     theory = simulate_theory(plans, scenario.cache_mode, warm_watermarks)
-    logger.info("[prepare] theory total_input_tokens=%d total_hit_tokens=%d global_hit_rate=%.4f", theory.total_input_tokens, theory.total_hit_tokens, theory.global_hit_rate)
-    logger.info("[prepare] theory group_stats=%s dp_stats=%s", theory.group_stats, theory.dp_stats)
+    logger.info(
+        "[prepare] theory total_input_tokens=%d total_hit_tokens=%d "
+        "global_hit_rate=%.4f group_stats=%s dp_stats=%s",
+        theory.total_input_tokens, theory.total_hit_tokens,
+        theory.global_hit_rate, theory.group_stats, theory.dp_stats,
+    )
     full_rows = [
         row.to_dict() | {
             "theoretical_hit_rate": row.theoretical_hit_tokens / row.actual_input_tokens if row.actual_input_tokens else 0.0,
@@ -738,8 +749,11 @@ def prepare_scenario(
         solve, theory, pc_cfg["target_hit_rate"],
         effective["validation"]["target_warning_pp"],
     )
-    logger.info("[prepare] signed_difference_pp=%.4f absolute_difference_pp=%.4f", signed_difference_pp, absolute_difference_pp)
-    logger.info("[prepare] warnings=%s validation_status=%s", warnings, validation_status)
+    logger.info(
+        "[prepare] signed_difference_pp=%.4f absolute_difference_pp=%.4f "
+        "warnings=%s validation_status=%s",
+        signed_difference_pp, absolute_difference_pp, warnings, validation_status,
+    )
     analysis = _build_prepared_analysis(
         scenario, pc_cfg, solve, theory, signed_difference_pp,
         absolute_difference_pp, warnings, validation_status,

@@ -433,8 +433,11 @@ def simulate_theory(plans: Sequence[RequestPlan], mode: str, warmup_watermarks: 
     group_stats = {key: stats(value) for key, value in group_totals.items()}
     dp_stats = {key: stats(value) for key, value in dp_totals.items()}
     if verbose:
-        logger.info("[gen] simulate_theory total_input_tokens=%d total_hit_tokens=%d global_hit_rate=%.4f", total_input, total_hit, global_rate)
-        logger.info("[gen] simulate_theory group_stats=%s dp_stats=%s", group_stats, dp_stats)
+        logger.info(
+            "[gen] simulate_theory total_input_tokens=%d total_hit_tokens=%d "
+            "global_hit_rate=%.4f group_stats=%s dp_stats=%s",
+            total_input, total_hit, global_rate, group_stats, dp_stats,
+        )
     return TheorySummary(tuple(rows), total_input, total_hit, global_rate, group_stats, dp_stats)
 
 
