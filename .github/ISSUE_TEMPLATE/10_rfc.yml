@@ -1,0 +1,164 @@
+name: 📜 Request for comments (RFC)
+description: 征集重大架构调整的反馈意见
+title: "[RFC]: "
+labels: ["rfc"]
+
+body:
+  - type: textarea
+    id: basic_info
+    attributes:
+      label: 0. 基础信息
+      description:
+      value: |
+        **状态（Status）：** Draft / Reviewing / Approved / Rejected / Superseded
+        **作者（Authors）：** @Your_community
+        **创建日期（Created）：** YYYY-MM-DD
+        **更新日期（Updated）：** YYYY-MM-DD
+        **相关 Issue/PR：** #123（关联 Issue/PR 以便追踪背景）
+
+      placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: 1. 概述
+      description: 说明提案的背景、动机、目标等。
+      value: |
+        #### 1.1 简介
+        *1~2段简洁概括，说明本提案的核心目标、解决的问题、核心价值，无冗余技术细节。*
+
+        #### 1.2 动机
+        *根据本提案的上下文背景信息，概括相关的使用场景或用例、当前痛点（可附具体用户案例支撑）、说明本提案的必要性、用户价值、不做此提案的影响。*
+
+        #### 1.3 目标
+        *要达成的目标、非目标（即边界说明，明确哪些问题不在本次讨论或实现范围内，防止需求蔓延）。*
+
+      placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: usecase
+    attributes:
+      label: 2. 用例分析
+      description:
+      value: |
+        *针对本提案的各场景用例，描述其主要包含哪些功能点、要实现的关键性能指标、安全隐私以及DFX（兼容性、可维护性、可测试性、可靠性...）要求等。若涉及，还可以包括使用限制、约束和要求等信息。*
+      placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: design_details
+    attributes:
+      label: 3. 方案设计
+      description: 描述总体方案设计，DFX设计，编程与调用设计(编程模型、接口定义、使用说明)等内容。
+      value: |
+        #### 3.1 总体方案
+        *根据本提案的场景用例及功能特点，阐述整体设计思路、技术方案、核心逻辑，可包括选择什么软/硬件平台、操作系统、编程模型、使用什么算法，系统架构如何布局，UI如何呈现等。并给出相应的限制和约束说明，如在什么场景或前置条件下，可以达成xx性能指标。*
+        *根据实现方案的复杂度，可选择采用自然语言，并结合架构图、时序图、活动图或状态机（算法）等适合的方式来辅助设计。*
+
+        #### 3.2 技术选型
+        *列出考虑过但放弃的其他方案，给出优劣对比，说明不选择的理由。*
+
+        #### 3.3 功能与性能设计
+        *结合场景用例分析的结果，对本提案的相关功能及性能指标影响展开设计，如功能的实现方案、运行的核心流程（文字描述或流程图）、数据模型定义或变更（若涉及）、影响范围等。*
+
+        #### 3.4 安全隐私与DFX设计
+        *结合场景用例，对本提案所涉及的安全隐私及DFX（兼容性、可维护性、可测试性、可靠性...）等属性影响进行设计。*
+
+        #### 3.5 编程与调用设计
+        *若本提案相关特性/功能组件/模块等支持被开发者集成调用（二次开发），则需要提供便捷易用的编程与调用能力。要站在开发者如何进行编程开发、接口调用及系统集成的使用方式上，给出相应的编程模型定义和设计，包括各要素的可获取方式和途径。*
+
+        ##### 3.5.1 编程模型基本设计
+        *开发环境设计：​明确好开发者使用的软​/硬件环境、开发​&调试工具链、编程框架、要提供的加速库或算子等。*
+        *开发约束：开发者使用过程中的约束和限制说明，如硬件平台、编程语言限制等。*
+        *可验收设计：提供相应功能、性能指标等的验收环境、标准或用例设计，保证最终的实现可达成既定目标。*
+
+        ##### 3.5.2 接口定义与设计
+        *给出相关组件/模块被集成调用的API定义或变更、对接上下游主流生态技术栈的适配方案、提供功能被使用或集成的参考代码或方法等。*
+
+        ###### 3.5.2.1 xxx（API1 Name）
+        * *接口描述：xxx*
+        * *接口原型：xxx*
+        * *输入/输出参数：*
+
+        | 参数名称 | 输入/输出 | 类型 | 描述 | 取值范围 |
+        | --- | --- | --- | --- | --- |
+        |   |   |   |   |   |
+
+        * *返回参数：*
+
+        | 参数名称 | 类型 | 描述 | 取值范围 |
+        | --- | --- | --- | --- |
+        |   |   |   |   |
+
+        * *异常处理：xxx*
+        * *约束说明：xxx*
+        * *变更说明：xxx*
+        * *调用参考代码：xxx*
+
+        ###### 3.5.2.2 xxx（API2 Name）
+        *...*
+
+        ##### 3.5.3 编程手册设计
+        *为了帮助开发者能快速上手开发，要设计好本提案相关特性/功能的《编程手册》，要包含哪些内容和章节，单独输出还是共用，在已有的手册中更新还是输出等。确保最后输出的《编程手册》中有相关变更内容。*
+    placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: 4. 测试设计
+      description:
+      value: |
+        *介绍该功能的测试方法以及测试用例设计，包括单元测试（unit test），集成测试（integration test），端到端测试（e2e test）等。*
+      placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: drawbacks
+    attributes:
+      label: 5. 缺点和风险
+      description:
+      placeholder: |
+      value: |
+        *说明潜在风险（Breaking Change、性能回退、复杂度提升、引入的安全问题）、负面影响（对现有功能/用户的冲击）、实现成本（代码量/维护成本/人力投入）、是否有API或版本兼容性、旧版本迁移方案问题等，给出应对措施。*
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 6. 现有技术
+      description:
+      placeholder: |
+      value: |
+        *参考其他项目/社区的类似设计，说明借鉴与差异。*
+
+  - type: textarea
+    id: unresolved_questions
+    attributes:
+      label: 7. 未解决问题
+      description:
+      placeholder: |
+      value: |
+        *待社区讨论/决策的开放问题，如硬件适配范围、参数默认值等（需在RFC通过前解决）。*
+
+  - type: textarea
+    id: appendix
+    attributes:
+      label: 附录
+      description:
+      placeholder: |
+      value: |
+        * **参考资料链接**
+        * **术语表**
+        * **文档更新计划**
+
+  - type: markdown
+    attributes:
+      value: >
+        欢迎加入社区，感谢您对社区的贡献 🎉!

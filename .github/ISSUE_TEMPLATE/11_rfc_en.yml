@@ -1,0 +1,164 @@
+name: 📜 Request for comments (RFC)
+description: Solicit feedback on major architectural changes
+title: "[RFC]: "
+labels: ["rfc"]
+
+body:
+  - type: textarea
+    id: basic_info
+    attributes:
+      label: 0. Basic Information
+      description:
+      value: |
+        **Status:** Draft / Reviewing / Approved / Rejected / Superseded
+        **Authors:** @Your_community
+        **Created:** YYYY-MM-DD
+        **Updated:** YYYY-MM-DD
+        **Related Issue/PR:** #123 (link the related Issue/PR to track the background)
+
+      placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: 1. Overview
+      description: Explain the background, motivation, and goals of the proposal.
+      value: |
+        #### 1.1 Introduction
+        *In 1~2 concise paragraphs, describe the core goal, problems solved, and core value of this proposal, without redundant technical details.*
+
+        #### 1.2 Motivation
+        *Based on the context of this proposal, summarize the relevant use cases/scenarios, current pain points (with supporting concrete user cases), and explain the necessity, user value, and the impact of not pursuing this proposal.*
+
+        #### 1.3 Goals
+        *The goals to achieve and the non-goals (i.e., boundary description clarifying which issues are out of scope for this discussion or implementation, to prevent scope creep).*
+
+      placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: usecase
+    attributes:
+      label: 2. Use Case Analysis
+      description:
+      value: |
+        *For each scenario/use case of this proposal, describe the main functional points, key performance indicators to achieve, security and privacy requirements, and DFX (compatibility, maintainability, testability, reliability, ...) requirements. If applicable, also include usage limitations, constraints, and requirements.*
+      placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: design_details
+    attributes:
+      label: 3. Solution Design
+      description: Describe the overall solution design, DFX design, and programming/invocation design (programming model, interface definition, usage instructions), etc.
+      value: |
+        #### 3.1 Overall Solution
+        *Based on the scenarios, use cases, and functional characteristics of this proposal, elaborate on the overall design approach, technical solution, and core logic. This may include which software/hardware platform, operating system, programming model, and algorithms to choose, how to lay out the system architecture, and how the UI is presented. Provide the corresponding limitations and constraints, e.g., under what scenarios or preconditions the xx performance indicators can be achieved.*
+        *Depending on the complexity of the implementation, you may use natural language combined with architecture diagrams, sequence diagrams, activity diagrams, or state machines (algorithms) as appropriate to assist the design.*
+
+        #### 3.2 Technology Selection
+        *List other options considered but abandoned, provide pros and cons comparison, and explain the reasons for not choosing them.*
+
+        #### 3.3 Functional and Performance Design
+        *Combining the results of the use case analysis, design the impact on the relevant functions and performance indicators of this proposal, such as the implementation approach, the core runtime process (text description or flowchart), data model definition or changes (if applicable), and impact scope.*
+
+        #### 3.4 Security, Privacy, and DFX Design
+        *Combining the use cases, design the impact on the security, privacy, and DFX (compatibility, maintainability, testability, reliability, ...) attributes involved in this proposal.*
+
+        #### 3.5 Programming and Invocation Design
+        *If the features/components/modules related to this proposal support being integrated and invoked by developers (secondary development), convenient and easy-to-use programming and invocation capabilities must be provided. From the perspective of how developers perform programming development, interface invocation, and system integration, provide the corresponding programming model definitions and design, including how each element can be obtained and accessed.*
+
+        ##### 3.5.1 Basic Design of the Programming Model
+        *Development environment design: Clearly define the software/hardware environment used by developers, the development & debugging toolchain, the programming framework, and the acceleration libraries or operators to be provided.*
+        *Development constraints: Constraints and limitations during developer usage, such as hardware platform and programming language restrictions.*
+        *Acceptance design: Provide the acceptance environment, standards, or use case design for the corresponding functions and performance indicators, to ensure the final implementation can achieve the established goals.*
+
+        ##### 3.5.2 Interface Definition and Design
+        *Provide the API definitions or changes for the relevant components/modules to be integrated and invoked, the adaptation plan for interfacing with mainstream upstream/downstream ecosystem technology stacks, and the reference code or methods for using or integrating the functions.*
+
+        ###### 3.5.2.1 xxx (API1 Name)
+        * *Interface description: xxx*
+        * *Interface prototype: xxx*
+        * *Input/output parameters:*
+
+        | Parameter Name | Input/Output | Type | Description | Value Range |
+        | --- | --- | --- | --- | --- |
+        |   |   |   |   |   |
+
+        * *Return parameters:*
+
+        | Parameter Name | Type | Description | Value Range |
+        | --- | --- | --- | --- |
+        |   |   |   |   |
+
+        * *Exception handling: xxx*
+        * *Constraint description: xxx*
+        * *Change description: xxx*
+        * *Invocation reference code: xxx*
+
+        ###### 3.5.2.2 xxx (API2 Name)
+        *...*
+
+        ##### 3.5.3 Programming Manual Design
+        *To help developers get started quickly, design the Programming Manual related to the features/functions of this proposal, including which contents and chapters it should contain, whether to output it separately or share it, and whether to update it within the existing manual or output a new one. Ensure the finally output Programming Manual contains the relevant changes.*
+    placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: 4. Test Design
+      description:
+      value: |
+        *Introduce the test methods and test case design for this feature, including unit tests, integration tests, end-to-end (e2e) tests, etc.*
+      placeholder: |
+    validations:
+      required: true
+
+  - type: textarea
+    id: drawbacks
+    attributes:
+      label: 5. Drawbacks and Risks
+      description:
+      placeholder: |
+      value: |
+        *Explain potential risks (breaking changes, performance regression, increased complexity, introduced security issues), negative impacts (impact on existing features/users), implementation cost (code size/maintenance cost/manpower investment), whether there are API or version compatibility issues, and migration plans for older versions, along with countermeasures.*
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 6. Prior Art
+      description:
+      placeholder: |
+      value: |
+        *Refer to similar designs in other projects/communities, and explain what is borrowed and how it differs.*
+
+  - type: textarea
+    id: unresolved_questions
+    attributes:
+      label: 7. Unresolved Questions
+      description:
+      placeholder: |
+      value: |
+        *Open questions to be discussed/decided by the community, such as the scope of hardware adaptation and default parameter values (must be resolved before the RFC is approved).*
+
+  - type: textarea
+    id: appendix
+    attributes:
+      label: Appendix
+      description:
+      placeholder: |
+      value: |
+        * **Reference links**
+        * **Glossary**
+        * **Documentation update plan**
+
+  - type: markdown
+    attributes:
+      value: >
+        Welcome to join the community, and thank you for your contribution 🎉!

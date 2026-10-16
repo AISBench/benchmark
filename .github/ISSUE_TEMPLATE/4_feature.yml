@@ -1,41 +1,36 @@
-name: 🔬 功能需求
-description: 提出新功能建议或现有功能优化
-title: "[需求] "
-labels: ["enhancement", "需求讨论"]
+name: ✨ Feature request
+description: 新功能的讨论提案
+title: "[Feature]: "
+labels: ["feature"]
+
 body:
-  - type: textarea
-    id: problem
+  - type: markdown
     attributes:
-      label: 问题/痛点描述
-      description: 当前设计为何无法满足需求？是否与具体场景相关？
-    validations:
-      required: true
+      value: >
+        **提交提案之前，请先检索仓库内是否已有相同的提案，如已有请在同一提案中进行讨论。**
   - type: textarea
-    id: solution
+    id: requirement
     attributes:
-      label: 建议方案
-      description: 描述设想的解决方案或优化方向
+      label: 💻 需求背景、当前现状、期望实现的功能内容、具体的设计方案、以及测试方案
+      description: >
+        请清晰简洁地描述你提议的功能，同时说明提出该需求的原因，例如使用的场景、当前无法满足场景的具体原因。
+        你的功能请求是否关联某个具体问题？例如：*"我正在开发 X 功能，希望能支持 Y 特性来解决相关问题"*。
+        请在此附上你所了解到的与此有关的连接，以便社区开发者可以详细了解对应内容。
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: 备选方案
-      description: 是否考虑过其他实现方式？
-      placeholder: 例：通过扩展插件实现 vs 修改核心代码
-    validations:
-      required: false
+      label: 替代方案
+      description: >
+        如果你考虑过其他可实现的解决方案或替代功能，欢迎在此描述。
   - type: textarea
-    id: value
+    id: additional_notes
     attributes:
-      label: 预期价值
-      description: 此功能对哪些用户群体有帮助？如何提升体验？
-    validations:
-      required: true
-  - type: checkboxes
-    id: contribution
+      label: 补充说明
+      description: >
+        可在此添加与该功能请求相关的其他说明或截图。
+  - type: markdown
     attributes:
-      label: 参与意向
-      options:
-        - label: "我愿意参与此功能的开发或测试"
-          required: false
+      value: >
+        欢迎加入社区，感谢您对社区的贡献 🎉!
