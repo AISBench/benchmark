@@ -597,7 +597,7 @@ Manifest 还会记录输入/输出长度的 min/max/mean/P50/P90/P95/P99 与分�
 
 ### 15.1 `inspect`
 
-`inspect` 会加载 tokenizer 和 GSM8K，在临时目录复用完整 prepare 流程计算可达范围，但不发送请求，也不保留 full/requests/analysis 三类正式数据产物；只在正式 `result/` 目录写入轻量 Manifest。
+`inspect` 只解析 Scenario 并复用 prepare 的长度、分组、排序、DP 路由和共享前缀求解逻辑，不加载 tokenizer/GSM8K、不构造 prompt，也不写临时 full/requests/analysis；只在正式 `result/` 目录写入轻量 Manifest。语料选择、canonical 前缀和 tokenizer round-trip 校验由 `prepare` 完成。
 
 - 每次执行生成新时间戳；
 - 日志写入 `output_dir_时间戳/log/<run_id_时间戳>.inspect.log`；
@@ -840,12 +840,13 @@ Manifest 不保存 `service.api_key` 明文；它会被替换为 `effective_conf
 | `requested_target_hit_rate` | Scenario 请求目标。 |
 | `effective_target_hit_rate` | 最近可达目标。 |
 | `theoretical_hit_rate` | 最终顺序理论值。 |
+| `trajectory` | `strategy` 为求解策略，`status` 为 `PASS` 或 `BEST_EFFORT`，`issues` 记录无法完全平滑的原因。 |
 | `target_difference_pp` | 当前等于目标绝对偏差。 |
 | `target_signed_difference_pp` | `theoretical - requested` 的带符号百分点差。 |
 | `target_absolute_difference_pp` | 目标绝对偏差。 |
 | `validation` | 展示状态和可达性。 |
 | `theory` | 全局、分组和分 DP 理论 token 统计。 |
-| `warnings` | 目标不可达或偏差告警列表。 |
+| `warnings` | 目标不可达、偏差或 `TRAJECTORY_BEST_EFFORT` 告警列表。 |
 | `runtime` | run/analyze 的 baseline/after 分 DP 累计指标；run 还记录阶段、探活、reset/warmup 与 AISBench 退出码。 |
 | `actual` | 分 DP 与全局正式增量 queries、hits、hit rate。 |
 | `theory_actual_difference_pp` | 实际与理论的绝对百分点差。 |
@@ -966,14 +967,17 @@ inspect stdout JSON 字段：
 | `run_id`、`mode` | 基础运行 ID 和缓存模式。 |
 | `requested_target_hit_rate` | Scenario 请求目标。 |
 | `effective_target_hit_rate` | 求解器选择的可达目标。 |
-| `theoretical_hit_rate` | 临时构造数据的理论值。 |
+| `theoretical_hit_rate` | 配置级理论计划的命中率。 |
 | `reachable_min`、`reachable_max` | 全局可达范围。 |
 | `target_reachable` | 请求目标是否可达。 |
+| `trajectory` | 求解策略、`PASS`/`BEST_EFFORT` 状态和问题列表。 |
 | `group_reachability` | 每组的 `reachable_min`、`reachable_max`。 |
 | `groups` | 每组正式请求数量。 |
 | `input_tokens`、`output_tokens` | 长度摘要，并额外包含 `total`。 |
 | `dp_route_counts` | cold 下各 DP rank 请求数；warmup 通常为空对象。 |
 | `sends_requests` | 固定为 `false`，表示不访问推理服务。 |
+| `planning_only` | 固定为 `true`，表示未生成 prompt。 |
+| `content_validation_deferred_to_prepare` | 固定为 `true`，表示内容与 tokenizer 校验留到 prepare。 |
 | `log` | inspect 日志路径。 |
 | `manifest` | 本次 inspect 轻量 Manifest 路径。 |
 

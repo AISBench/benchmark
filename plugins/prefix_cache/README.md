@@ -207,9 +207,20 @@ Scenario 采用严格白名单，未列出的字段会被拒绝；省略的字�
 - requested、effective 和 theoretical hit rate；
 - 理论值减目标值的带符号偏差和绝对偏差。
 
-目标高于 `reachable_max` 或低于 `reachable_min` 时，求解器直接选择对应边界解；目标位于区间内时，按 Block 单位选择最近可达命中量。最终 hit token 精度是硬约束，在此基础上再优化请求过程：warmup 按累计输入比例均衡分配前缀；cold 按 `(Prefix Group, DP rank)` 独立水位搜索，依次最小化累计命中率的最大超调、总超调和回落，再尽快贴近目标。因此不会再把大部分前缀集中到前几条、最后用零/短前缀回调。
+目标高于 `reachable_max` 或低于 `reachable_min` 时，求解器直接选择对应边界解；目标位于区间内时，按 Block 单位选择最近可达命中量。最终 hit token 精度是硬约束，在此基础上再优化请求过程：warmup 按累计输入比例均衡分配前缀；cold 的小型、不规则场景使用受限 beam search，大型且 lane 内长度单调的场景按 `(Prefix Group, DP rank)` 分解，先按容量和输入 token 分配目标，再构造逐步增长的 lane 水位。后者不再枚举每条请求的全部前缀候选，每条独立 lane 的累计命中率平缓收敛到其目标，不会先明显超过目标再用短前缀回调。
 
-严格单调并非所有顺序都可实现，例如后置 Prefix Group/DP lane 的首次 cold 请求必然 miss，或某条请求没有足够前缀容量。此时求解器仍优先选择超调和回落最小的精确总量解；极端搜索空间下会回退到确定性的 exact lane construction，确保最终 effective/theoretical 命中率不被轨迹优化破坏。
+设 `N` 为请求数、`cap_i` 为第 `i` 条请求可用的 Prefix Block 数、`T` 为生成 prompt 的输入 token 总数。内部规划路径如下：
+
+| 模式/条件 | 规划路径 | 规划复杂度与行为 |
+| --- | --- | --- |
+| warmup | 累计输入比例分配 | `O(N)`；精确命中 Block 对齐后的目标。 |
+| cold 且 `256 × Σ(cap_i + 1) <= 2,000,000` | 受限 beam search | 最多保留 256 个状态；状态转移总量受阈值限制。 |
+| cold、大于上述阈值且 lane 内长度/容量非递减 | scalable lane 构造 | 以线性扫描和余数排序为主，`O(N log N)`、`O(N)` 空间。 |
+| cold、大于阈值但 lane 不满足 scalable 前提 | exact lane fallback | 保证最终 hit token 精确，并在 `trajectory.issues` 中记录具体回退原因。 |
+
+`inspect` 只执行规划，不处理全部 prompt token；`prepare` 还必须完成 tokenizer round-trip 和 JSONL 写入，所以端到端复杂度约为 `O(T + N log N)`，实际墙钟时间取决于 tokenizer、CPU、磁盘和 prompt 总长度，不作为固定性能承诺。1818 请求、总输入 156,377,088 token、`block_size=128` 的大规格验证场景估算为 312,524,800 次 beam 状态转移，因此会直接选择 scalable 路径，而不会执行完整 beam 枚举。
+
+严格单调并非所有顺序都可实现，例如某条请求没有足够前缀容量。cold 模式按真实缓存共享边界分别检查每个 `(Prefix Group, DP rank)` lane；不同 lane 的首次请求必然 miss，不再把这种合法的全局累计回落误报为轨迹异常。某一 lane 本身无法平滑或求解器进入精确回退时，`trajectory.status` 记为 `BEST_EFFORT`，`issues` 说明原因，同时追加只告警的 `TRAJECTORY_BEST_EFFORT`；满足约束时状态为 `PASS`。
 
 Manifest 的输入和输出长度摘要包含 `min`、`max`、`mean`、`p50`、`p90`、`p95`、`p99` 以及最多十个长度分桶。`inspect` 也会展示这些摘要和组级可达范围。
 
@@ -219,6 +230,7 @@ Manifest 的输入和输出长度摘要包含 `min`、`max`、`mean`、`p50`、`
 
 - 目标超出可达区间时记录 `TARGET_UNREACHABLE`；
 - 理论值与目标相差超过 `target_warning_pp` 时记录 `TARGET_DEVIATION`。
+- 请求顺序或容量无法满足平滑轨迹时记录 `TRAJECTORY_BEST_EFFORT`。
 
 这些状态和差异只用于展示，`warning_only=true` 且 `affects_exit_code=false`。在线实际值与理论值超过 `actual_warning_pp` 时也只记录 `ACTUAL_DEVIATION`；配置、产物、服务能力或 AISBench 执行错误才会失败。
 
@@ -230,14 +242,16 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 
 作用：
 
-- 加载 tokenizer 和 GSM8K；
-- 在临时目录构造数据并计算目标可达范围；
+- 只解析并校验 Scenario，生成确定性的长度、分组、顺序和 cold DP 路由计划，不加载 tokenizer 或 GSM8K；
+- 直接计算目标可达范围和共享前缀理论计划，不构造 prompt、不写临时 full/requests/analysis；
 - 展示 requested/effective/theoretical hit rate；
 - 展示组分布、输入/输出长度和 cold DP 路由摘要；
 - 不访问 vLLM、不发送请求，也不在 Scenario 的 `output_dir` 留下四类正式数据产物；
 - 与 `prepare` 一样生成 `_YYYYMMDD_HHMMSS` 时间戳，并把详细日志缓存到 `output_dir_时间戳/log/<run_id_时间戳>.inspect.log`；
 - 成功后在 `output_dir_时间戳/result/` 写入同名轻量 `manifest.json`，其 `status="inspected"`，并把 inspect 摘要保存在 `inspect.summary`；不会再生成 `<output_dir>.inspect.json`；
 - 输出的 JSON 摘要包含 `log` 和 `manifest` 路径，可直接定位日志与检查结果。
+
+`planning_only=true` 表示这是配置级理论规划；`content_validation_deferred_to_prepare=true` 表示语料选择、canonical 前缀构造以及 tokenizer round-trip 校验留到 `prepare` 执行。
 
 ### 3.4 `prepare`：生成正式数据产物
 
@@ -465,7 +479,7 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 - `tokenizer`：`path`、`revision`、`class`、`vocab_size`、`special_token_ids`、`block_size`、`fingerprint_sha256`；
 - `requests`：`count`、`total_input_tokens`、`input_length_summary`、`output_length_summary`；每个 summary 包含 `min`、`max`、`mean`、`p50`、`p90`、`p95`、`p99`、`bins`，每个 bin 包含 `min`、`max`、`count`；
-- `prefix_cache`：`mode`、`requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`、`reachable_min`、`reachable_max`、`target_reachable`、`minimum_non_shared_length`、`adjusted`、`reason`、`validation_status`、`target_signed_difference_pp`、`target_absolute_difference_pp`；
+- `prefix_cache`：`mode`、`requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`、`reachable_min`、`reachable_max`、`target_reachable`、`minimum_non_shared_length`、`adjusted`、`reason`、`validation_status`、`target_signed_difference_pp`、`target_absolute_difference_pp`、`trajectory`（求解策略、轨迹状态和问题列表）；
 - `groups.<group_id>`：`canonical_prefix_sha256`、`canonical_prefix_tokens`、`max_shared_prefix_tokens`、`gsm_indices`、`gsm_question_sha256`、`reachable_min`、`reachable_max`、`theoretical_hit_rate`；
 - `dp`：`size`、`cold_route_strategy`；warmup 模式的路由策略为 `null`；
 - `warmup`：`enabled`、`plan`；plan 每项包含 `request_id`、`group_id`、`dp_rank`、`prompt`、`input_tokens`、`shared_prefix_tokens`、`max_tokens`、`included_in_formal_statistics`；
@@ -480,6 +494,7 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 - `schema_version`、`run_id`、`status`；
 - `requested_target_hit_rate`、`effective_target_hit_rate`、`theoretical_hit_rate`；
+- `trajectory`：`strategy`、`status`、`issues`；
 - `target_difference_pp`、`target_signed_difference_pp`、`target_absolute_difference_pp`，其中 `target_difference_pp` 当前等于绝对偏差；
 - `validation`：`status`、`target_reachable`、`warning_only`、`affects_exit_code`；
 - `theory`：`input_tokens`、`hit_tokens`、`groups`、`dp`；每个组或 DP 统计包含 `input_tokens`、`hit_tokens`、`hit_rate`；

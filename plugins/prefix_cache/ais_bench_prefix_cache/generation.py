@@ -16,6 +16,20 @@ from .errors import ArtifactValidationError, PromptRoundTripError, ScenarioValid
 
 logger = logging.getLogger(__name__)
 
+_ColdObjective = tuple[float, float, float, float]
+_ColdStateKey = tuple[tuple[int, ...], int]
+_ColdStateValue = tuple[_ColdObjective, tuple[int, ...]]
+_ColdStates = dict[_ColdStateKey, _ColdStateValue]
+_ColdLaneLayout = tuple[
+    dict[tuple[str, int], list[int]],
+    list[tuple[str, int]],
+    list[int],
+    list[int],
+    dict[tuple[str, int], list[int]],
+]
+_COLD_BEAM_WIDTH = 256
+_COLD_BEAM_TRANSITION_LIMIT = 2_000_000
+
 
 class TokenizerLike(Protocol):
     def encode(self, text: str, add_special_tokens: bool = False) -> list[int]: ...
@@ -95,6 +109,9 @@ class SolveResult:
     group_reachability: dict[str, dict[str, float]]  # 各组的可达区间
     adjusted: bool                          # 是否因约束无法精确命中目标
     reason: str | None                      # 无法精确命中的原因
+    strategy: str = "unknown"               # 实际采用的求解策略
+    trajectory_status: str = "PASS"         # PASS / BEST_EFFORT
+    trajectory_issues: tuple[str, ...] = () # 无法完全满足平滑轨迹时的诊断
 
 
 def normalize_question(value: str) -> str:
@@ -143,7 +160,10 @@ def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: in
             rng.shuffle(cycle)
             selected.extend(cycle)
         result = selected[:count]
-        logger.info("[gen] select_gsm8k mode=random selected=%d line_indices=%s", len(result), [item.line_index for item in result])
+        logger.info(
+            "[gen] select_gsm8k mode=random selected=%d line_indices=%s",
+            len(result), [item.line_index for item in result],
+        )
         return result
     values = config.get("values")
     if values is None:
@@ -174,7 +194,10 @@ def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: in
         raise ScenarioValidationError("specified GSM8K selection is empty")
     # 不足 count 时循环复用已选中的记录。
     result = [selected[i % len(selected)] for i in range(count)]
-    logger.info("[gen] select_gsm8k selected=%d line_indices=%s", len(result), [item.line_index for item in result])
+    logger.info(
+        "[gen] select_gsm8k selected=%d line_indices=%s",
+        len(result), [item.line_index for item in result],
+    )
     return result
 
 
@@ -301,7 +324,10 @@ def assign_groups(count: int, config: dict[str, Any], seed: int) -> list[str]:
     if mode == "zipf":
         # zipf 模式下打乱顺序，避免长尾集中在头部。
         random.Random(seed).shuffle(groups)
-    logger.info("[gen] assign_groups groups=%s distribution=%s", groups, {group: groups.count(group) for group in sorted(set(groups))})
+    logger.info(
+        "[gen] assign_groups distribution=%s groups=%s",
+        {group: groups.count(group) for group in sorted(set(groups))}, groups,
+    )
     return groups
 
 
@@ -371,7 +397,10 @@ def assign_cold_routes(group_ids: Sequence[str], dp_size: int, explicit: Sequenc
         lane = (group, rank)
         lane_sequences.append(lane_seen.get(lane, 0))
         lane_seen[lane] = lane_sequences[-1] + 1
-    logger.info("[gen] assign_cold_routes ranks=%s lane_sequences=%s", ranks, lane_sequences)
+    logger.info(
+        "[gen] assign_cold_routes lanes=%d ranks=%s lane_sequences=%s",
+        len(set(zip(group_ids, ranks))), ranks, lane_sequences,
+    )
     return ranks, lane_sequences
 
 
@@ -413,8 +442,11 @@ def simulate_theory(plans: Sequence[RequestPlan], mode: str, warmup_watermarks: 
     group_stats = {key: stats(value) for key, value in group_totals.items()}
     dp_stats = {key: stats(value) for key, value in dp_totals.items()}
     if verbose:
-        logger.info("[gen] simulate_theory total_input_tokens=%d total_hit_tokens=%d global_hit_rate=%.4f", total_input, total_hit, global_rate)
-        logger.info("[gen] simulate_theory group_stats=%s dp_stats=%s", group_stats, dp_stats)
+        logger.info(
+            "[gen] simulate_theory total_input_tokens=%d total_hit_tokens=%d "
+            "global_hit_rate=%.4f group_stats=%s dp_stats=%s",
+            total_input, total_hit, global_rate, group_stats, dp_stats,
+        )
     return TheorySummary(tuple(rows), total_input, total_hit, global_rate, group_stats, dp_stats)
 
 
@@ -459,6 +491,113 @@ def _balanced_warmup_prefixes(
     return prefixes
 
 
+def _cold_beam_lane_layout(
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+) -> tuple[list[int], list[tuple[int, ...]], int]:
+    """Map requests to independent ``(group, rank)`` beam-search lanes."""
+    lane_index: dict[tuple[str, int], int] = {}
+    request_lanes: list[int] = []
+    for group, rank in zip(group_ids, ranks):
+        key = (group, int(rank or 0))
+        if key not in lane_index:
+            lane_index[key] = len(lane_index)
+        request_lanes.append(lane_index[key])
+    lane_requests = [
+        tuple(index for index, request_lane in enumerate(request_lanes) if request_lane == lane)
+        for lane in range(len(lane_index))
+    ]
+    return request_lanes, lane_requests, len(lane_index)
+
+
+class _ColdFutureCapacity:
+    """Cached upper bound for the remaining cold-lane hit capacity."""
+
+    def __init__(self, caps: Sequence[int], lane_requests: Sequence[Sequence[int]]) -> None:
+        caps_snapshot = tuple(caps)
+        lane_requests_snapshot = tuple(tuple(indices) for indices in lane_requests)
+
+        # Keep the LRU wrapper on this solver instance.  Decorating the module-
+        # level method directly makes the shared function cache retain ``self``
+        # and, transitively, every scenario's caps/lane request collections.
+        @lru_cache(maxsize=65_536)
+        def lane_units(start: int, lane: int, watermark: int) -> int:
+            future_hits = 0
+            future_watermark = watermark
+            for index in lane_requests_snapshot[lane]:
+                if index < start:
+                    continue
+                cap = caps_snapshot[index]
+                future_hits += min(cap, future_watermark)
+                future_watermark = max(future_watermark, cap)
+            return future_hits
+
+        self._lane_units = lane_units
+
+    def lane_units(self, start: int, lane: int, watermark: int) -> int:
+        return self._lane_units(start, lane, watermark)
+
+    def total_units(self, start: int, watermarks: tuple[int, ...]) -> int:
+        return sum(
+            self.lane_units(start, lane, watermark)
+            for lane, watermark in enumerate(watermarks)
+        )
+
+
+def _advance_cold_beam(
+    states: _ColdStates,
+    index: int,
+    cap: int,
+    lane: int,
+    cumulative_input: int,
+    previous_input: int,
+    desired_hit_units: int,
+    block_size: int,
+    target_rate: float,
+    future_capacity: _ColdFutureCapacity,
+) -> _ColdStates:
+    """Expand one request across every retained cold beam state."""
+    next_states: _ColdStates = {}
+    for (watermarks, hit_units), (objective, prefixes) in states.items():
+        watermark = watermarks[lane]
+        previous_rate = hit_units * block_size / previous_input if previous_input else 0.0
+        for prefix_units in range(cap + 1):
+            next_hit_units = hit_units + min(prefix_units, watermark)
+            if next_hit_units > desired_hit_units:
+                continue
+            next_watermarks_list = list(watermarks)
+            next_watermarks_list[lane] = max(watermark, prefix_units)
+            next_watermarks = tuple(next_watermarks_list)
+            if next_hit_units + future_capacity.total_units(index + 1, next_watermarks) < desired_hit_units:
+                continue
+
+            current_rate = next_hit_units * block_size / cumulative_input if cumulative_input else 0.0
+            overshoot = max(0.0, current_rate - target_rate)
+            next_objective = (
+                max(objective[0], overshoot),
+                objective[1] + overshoot,
+                objective[2] + max(0.0, previous_rate - current_rate),
+                objective[3] + abs(current_rate - target_rate),
+            )
+            state_key = (next_watermarks, next_hit_units)
+            next_value = (next_objective, prefixes + (prefix_units,))
+            previous = next_states.get(state_key)
+            if previous is None or next_value < previous:
+                next_states[state_key] = next_value
+    return next_states
+
+
+def _prune_cold_beam(states: _ColdStates, beam_width: int) -> _ColdStates:
+    """Retain the best deterministic cold-search states."""
+    if len(states) <= beam_width:
+        return states
+    ranked = sorted(
+        states.items(),
+        key=lambda item: (item[1][0], -sum(item[0][0]), item[1][1]),
+    )[:beam_width]
+    return dict(ranked)
+
+
 def _target_convergent_cold_prefixes(
     input_lengths: Sequence[int],
     group_ids: Sequence[str],
@@ -466,7 +605,7 @@ def _target_convergent_cold_prefixes(
     caps: Sequence[int],
     desired_hit_units: int,
     block_size: int,
-    beam_width: int = 256,
+    beam_width: int = _COLD_BEAM_WIDTH,
 ) -> list[int] | None:
     """Find an exact cold schedule with low cumulative-rate overshoot.
 
@@ -475,98 +614,567 @@ def _target_convergent_cold_prefixes(
     final effective target, then cumulative-rate declines, then distance from
     the target.  Final hit tokens remain an exact hard constraint.
     """
-    lane_keys: list[tuple[str, int]] = []
-    lane_index: dict[tuple[str, int], int] = {}
-    request_lanes: list[int] = []
-    for group, rank in zip(group_ids, ranks):
-        key = (group, int(rank or 0))
-        if key not in lane_index:
-            lane_index[key] = len(lane_keys)
-            lane_keys.append(key)
-        request_lanes.append(lane_index[key])
-
+    request_lanes, lane_requests, lane_count = _cold_beam_lane_layout(group_ids, ranks)
     total_input = sum(input_lengths)
     target_rate = desired_hit_units * block_size / total_input if total_input else 0.0
     cumulative_inputs = list(itertools.accumulate(input_lengths))
-
-    @lru_cache(maxsize=65_536)
-    def maximum_future_units(start: int, watermarks: tuple[int, ...]) -> int:
-        future_watermarks = list(watermarks)
-        future_hits = 0
-        for index in range(start, len(caps)):
-            lane = request_lanes[index]
-            cap = caps[index]
-            future_hits += min(cap, future_watermarks[lane])
-            future_watermarks[lane] = max(future_watermarks[lane], cap)
-        return future_hits
-
-    # key=(lane watermarks, cumulative hit units), value=(objective, prefixes).
-    # Objective values are rates, so scenarios with different token lengths use
-    # the same semantics and deterministic tuple comparison.
-    initial_watermarks = (0,) * len(lane_keys)
-    states: dict[
-        tuple[tuple[int, ...], int],
-        tuple[tuple[float, float, float, float], tuple[int, ...]],
-    ] = {(initial_watermarks, 0): ((0.0, 0.0, 0.0, 0.0), ())}
+    future_capacity = _ColdFutureCapacity(caps, lane_requests)
+    initial_watermarks = (0,) * lane_count
+    states: _ColdStates = {(initial_watermarks, 0): ((0.0, 0.0, 0.0, 0.0), ())}
 
     for index, cap in enumerate(caps):
-        next_states: dict[
-            tuple[tuple[int, ...], int],
-            tuple[tuple[float, float, float, float], tuple[int, ...]],
-        ] = {}
-        lane = request_lanes[index]
-        cumulative_input = cumulative_inputs[index]
-        previous_input = cumulative_inputs[index - 1] if index else 0
-        for (watermarks, hit_units), (objective, prefixes) in states.items():
-            watermark = watermarks[lane]
-            previous_rate = hit_units * block_size / previous_input if previous_input else 0.0
-            for prefix_units in range(cap + 1):
-                hit_increment = min(prefix_units, watermark)
-                next_hit_units = hit_units + hit_increment
-                if next_hit_units > desired_hit_units:
-                    continue
-                next_watermarks_list = list(watermarks)
-                next_watermarks_list[lane] = max(watermark, prefix_units)
-                next_watermarks = tuple(next_watermarks_list)
-                if next_hit_units + maximum_future_units(index + 1, next_watermarks) < desired_hit_units:
-                    continue
-
-                current_rate = next_hit_units * block_size / cumulative_input if cumulative_input else 0.0
-                overshoot = max(0.0, current_rate - target_rate)
-                decline = max(0.0, previous_rate - current_rate)
-                gap = abs(current_rate - target_rate)
-                next_objective = (
-                    max(objective[0], overshoot),
-                    objective[1] + overshoot,
-                    objective[2] + decline,
-                    objective[3] + gap,
-                )
-                key = (next_watermarks, next_hit_units)
-                next_prefixes = prefixes + (prefix_units,)
-                previous = next_states.get(key)
-                if previous is None or (next_objective, next_prefixes) < previous:
-                    next_states[key] = (next_objective, next_prefixes)
-
+        next_states = _advance_cold_beam(
+            states, index, cap, request_lanes[index], cumulative_inputs[index],
+            cumulative_inputs[index - 1] if index else 0, desired_hit_units,
+            block_size, target_rate, future_capacity,
+        )
         if not next_states:
             return None
-        if len(next_states) > beam_width:
-            ranked = sorted(
-                next_states.items(),
-                key=lambda item: (
-                    item[1][0],
-                    -sum(item[0][0]),
-                    item[1][1],
-                ),
-            )[:beam_width]
-            states = dict(ranked)
-        else:
-            states = next_states
+        states = _prune_cold_beam(next_states, beam_width)
 
     exact = [value for (_, hit_units), value in states.items() if hit_units == desired_hit_units]
     if not exact:
         return None
     _, chosen_units = min(exact)
     return [units * block_size for units in chosen_units]
+
+
+def _waterfill_capped_units(
+    total_units: int,
+    weights: Sequence[int],
+    capacities: Sequence[int],
+) -> tuple[list[float], list[int]]:
+    """Return continuous water-fill values and their floored integers."""
+    positive_weights = [max(1, weight) for weight in weights]
+    low = 0.0
+    high = 1.0
+    while sum(min(capacity, high * weight) for weight, capacity in zip(positive_weights, capacities)) < total_units:
+        high *= 2.0
+    for _ in range(80):
+        middle = (low + high) / 2.0
+        allocated = sum(
+            min(capacity, middle * weight)
+            for weight, capacity in zip(positive_weights, capacities)
+        )
+        if allocated < total_units:
+            low = middle
+        else:
+            high = middle
+
+    real_values = [
+        min(float(capacity), high * weight)
+        for weight, capacity in zip(positive_weights, capacities)
+    ]
+    values = [min(capacity, int(math.floor(value + 1e-12))) for value, capacity in zip(real_values, capacities)]
+    return real_values, values
+
+
+def _place_capped_remainder(
+    values: list[int],
+    real_values: Sequence[float],
+    capacities: Sequence[int],
+    remaining: int,
+    monotonic: bool,
+) -> bool:
+    """Place residual units by largest remainder under capacity constraints."""
+    order = sorted(
+        range(len(values)),
+        key=lambda index: (real_values[index] - values[index], index),
+        reverse=True,
+    )
+    while remaining:
+        progressed = False
+        for index in order:
+            if values[index] >= capacities[index]:
+                continue
+            if monotonic and index + 1 < len(values) and values[index] + 1 > values[index + 1]:
+                continue
+            values[index] += 1
+            remaining -= 1
+            progressed = True
+            if not remaining:
+                break
+        if not progressed:
+            return False
+    return True
+
+
+def _capped_proportional_units(
+    total_units: int,
+    weights: Sequence[int],
+    capacities: Sequence[int],
+    *,
+    monotonic: bool = False,
+) -> list[int] | None:
+    """Allocate integer units proportionally without exceeding capacities.
+
+    A continuous water-fill is rounded down first; the remaining fewer-than-N
+    units are placed by largest remainder.  ``monotonic`` additionally keeps
+    the allocation non-decreasing, which lets a cold lane's hit sequence map
+    directly to cache watermarks.
+    """
+    if total_units < 0 or total_units > sum(capacities):
+        return None
+    if not capacities:
+        return [] if total_units == 0 else None
+    if total_units == 0:
+        return [0] * len(capacities)
+    if any(weight < 0 for weight in weights) or any(capacity < 0 for capacity in capacities):
+        return None
+
+    real_values, values = _waterfill_capped_units(total_units, weights, capacities)
+    if not _place_capped_remainder(
+        values, real_values, capacities, total_units - sum(values), monotonic,
+    ):
+        return None
+    if monotonic and any(later < earlier for earlier, later in zip(values, values[1:])):
+        return None
+    return values
+
+
+def _cold_lane_layout(
+    input_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+) -> tuple[_ColdLaneLayout | None, str | None]:
+    """Collect monotonic lane metadata required by the scalable solver."""
+    lane_indices: dict[tuple[str, int], list[int]] = {}
+    for index, (group, rank) in enumerate(zip(group_ids, ranks)):
+        lane_indices.setdefault((group, int(rank or 0)), []).append(index)
+
+    lane_keys = list(lane_indices)
+    lane_capacities: list[int] = []
+    lane_weights: list[int] = []
+    lane_uppers: dict[tuple[str, int], list[int]] = {}
+    for key in lane_keys:
+        indices = lane_indices[key]
+        lane_caps = [caps[index] for index in indices]
+        lane_lengths = [input_lengths[index] for index in indices]
+        if any(later < earlier for earlier, later in zip(lane_caps, lane_caps[1:])):
+            return None, (
+                f"scalable lane {key[0]}/dp-{key[1]} has non-monotonic "
+                "prefix capacities"
+            )
+        if any(later < earlier for earlier, later in zip(lane_lengths, lane_lengths[1:])):
+            return None, (
+                f"scalable lane {key[0]}/dp-{key[1]} has non-monotonic "
+                "input lengths"
+            )
+        uppers = [0] + lane_caps[:-1]
+        lane_uppers[key] = uppers
+        lane_capacities.append(sum(uppers))
+        lane_weights.append(sum(lane_lengths))
+    return (
+        lane_indices, lane_keys, lane_capacities, lane_weights, lane_uppers,
+    ), None
+
+
+def _allocate_cold_hit_units(
+    input_lengths: Sequence[int],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    lane_indices: dict[tuple[str, int], list[int]],
+    lane_keys: Sequence[tuple[str, int]],
+    lane_capacities: Sequence[int],
+    lane_weights: Sequence[int],
+    lane_uppers: dict[tuple[str, int], list[int]],
+) -> list[int] | None:
+    """Allocate an exact monotonic hit sequence across independent lanes."""
+
+    lane_targets = _capped_proportional_units(
+        desired_hit_units,
+        lane_weights,
+        lane_capacities,
+    )
+    if lane_targets is None:
+        return None
+
+    hit_units = [0] * len(caps)
+    for key, lane_target in zip(lane_keys, lane_targets):
+        indices = lane_indices[key]
+        uppers = lane_uppers[key]
+        lane_hits = _capped_proportional_units(
+            lane_target,
+            [input_lengths[index] for index in indices],
+            uppers,
+            monotonic=True,
+        )
+        if lane_hits is None:
+            return None
+        for index, units in zip(indices, lane_hits):
+            hit_units[index] = units
+    return hit_units
+
+
+def _cold_prefixes_from_hits(
+    hit_units: Sequence[int],
+    caps: Sequence[int],
+    lane_indices: dict[tuple[str, int], list[int]],
+    desired_hit_units: int,
+    block_size: int,
+) -> list[int] | None:
+    """Materialize prefixes that make the cold simulator reproduce hits."""
+
+    prefixes = [0] * len(caps)
+    for indices in lane_indices.values():
+        for position, index in enumerate(indices):
+            source = position + 1 if position + 1 < len(indices) else position
+            prefixes[index] = hit_units[indices[source]] * block_size
+    if sum(hit_units) != desired_hit_units:
+        return None
+    if any(prefix > cap * block_size for prefix, cap in zip(prefixes, caps)):
+        return None
+    return prefixes
+
+
+def _scalable_cold_prefixes(
+    input_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+) -> tuple[list[int] | None, str | None]:
+    """Construct a smooth exact cold schedule in near-linear time.
+
+    For a lane with non-decreasing prefix capacities, choose a non-decreasing
+    hit sequence ``h``.  Setting request ``i``'s prefix to ``h[i + 1]`` (and
+    the last request to ``h[-1]``) makes the cold-cache simulator produce
+    exactly ``h``: the previous request grows the watermark needed by the next
+    one.  This avoids enumerating every prefix length for every beam state.
+    """
+    layout, reason = _cold_lane_layout(input_lengths, group_ids, ranks, caps)
+    if layout is None:
+        return None, reason
+    lane_indices, lane_keys, lane_capacities, lane_weights, lane_uppers = layout
+    hit_units = _allocate_cold_hit_units(
+        input_lengths, caps, desired_hit_units, lane_indices, lane_keys,
+        lane_capacities, lane_weights, lane_uppers,
+    )
+    if hit_units is None:
+        return None, "scalable lane allocation could not satisfy the exact monotonic target"
+    prefixes = _cold_prefixes_from_hits(
+        hit_units, caps, lane_indices, desired_hit_units, block_size,
+    )
+    if prefixes is None:
+        return None, "scalable lane watermarks could not reproduce the exact target within capacity"
+    return prefixes, None
+
+
+def _theory_for_prefixes(
+    input_lengths: Sequence[int],
+    output_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    lane_sequences: Sequence[int | None],
+    prefixes: Sequence[int],
+    mode: str,
+) -> TheorySummary:
+    """Simulate one candidate prefix schedule with the production model."""
+    plans = _plans_for_prefixes(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences, prefixes,
+    )
+    warm = None
+    if mode == "warmup":
+        warm = {
+            group: max(
+                (prefix for prefix, current in zip(prefixes, group_ids) if current == group),
+                default=0,
+            )
+            for group in set(group_ids)
+        }
+    return simulate_theory(plans, mode, warm, verbose=False)
+
+
+def _nearest_reachable_hit_units(
+    target_tokens: int,
+    max_hit: int,
+    block_size: int,
+) -> int:
+    """Select the block-aligned reachable hit total nearest the target."""
+    max_hit_units = max_hit // block_size
+    lower_units = max(0, min(max_hit_units, target_tokens // block_size))
+    upper_units = max(0, min(max_hit_units, lower_units + 1))
+    return min(
+        {lower_units, upper_units, 0, max_hit_units},
+        key=lambda units: (abs(units * block_size - target_tokens), units),
+    )
+
+
+def _target_prefix_schedule(
+    input_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+    mode: str,
+) -> tuple[list[int] | None, str, str | None]:
+    """Choose the smooth solver appropriate for mode and problem size."""
+    if not desired_hit_units:
+        return [0] * len(caps), "target_convergent", None
+    if mode == "warmup":
+        warmup_prefixes = _balanced_warmup_prefixes(
+            input_lengths, caps, desired_hit_units, block_size,
+        )
+        reason = None if warmup_prefixes else (
+            "balanced warmup allocation could not reproduce the exact target"
+        )
+        return warmup_prefixes, "target_convergent", reason
+
+    candidate_count = sum(cap + 1 for cap in caps)
+    estimated_transitions = _COLD_BEAM_WIDTH * candidate_count
+    if estimated_transitions <= _COLD_BEAM_TRANSITION_LIMIT:
+        beam_prefixes = _target_convergent_cold_prefixes(
+            input_lengths, group_ids, ranks, caps,
+            desired_hit_units, block_size, _COLD_BEAM_WIDTH,
+        )
+        reason = None if beam_prefixes else (
+            "bounded beam search exhausted before retaining an exact target path"
+        )
+        return beam_prefixes, "target_convergent", reason
+
+    scalable_prefixes, reason = _scalable_cold_prefixes(
+        input_lengths, group_ids, ranks, caps,
+        desired_hit_units, block_size,
+    )
+    logger.info(
+        "[gen] solve_prefix_lengths scalable cold path transitions=%d limit=%d "
+        "beam_width=%d selected=%s fallback_reason=%s",
+        estimated_transitions, _COLD_BEAM_TRANSITION_LIMIT,
+        _COLD_BEAM_WIDTH, scalable_prefixes is not None, reason,
+    )
+    strategy = "scalable_lane_convergent" if scalable_prefixes is not None else "target_convergent"
+    return scalable_prefixes, strategy, reason
+
+
+def _warmup_fallback_prefixes(
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+) -> tuple[list[int], int]:
+    """Build the legacy exact warmup allocation and return unconsumed units."""
+    prefixes = [0] * len(caps)
+    remaining_units = desired_hit_units
+    for index, cap in enumerate(caps):
+        assigned = min(cap, remaining_units)
+        prefixes[index] = assigned * block_size
+        remaining_units -= assigned
+    return prefixes, remaining_units
+
+
+def _cold_fallback_prefixes(
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+) -> tuple[list[int], int]:
+    """Build the legacy exact cold allocation and return unconsumed units."""
+    prefixes = [0] * len(caps)
+    remaining_units = desired_hit_units
+    lanes: dict[tuple[str, int], list[int]] = {}
+    for index, (group, rank) in enumerate(zip(group_ids, ranks)):
+        lanes.setdefault((group, int(rank or 0)), []).append(index)
+
+    for lane_indices in lanes.values():
+        anchor = max(lane_indices, key=lambda index: (caps[index], -index))
+        lane_capacity = sum(caps[index] for index in lane_indices if index != anchor)
+        lane_units = min(lane_capacity, remaining_units)
+        lane_remaining = lane_units
+        for index in lane_indices:
+            if index == anchor:
+                continue
+            assigned = min(caps[index], lane_remaining)
+            prefixes[index] = assigned * block_size
+            lane_remaining -= assigned
+        if lane_remaining:
+            raise ArtifactValidationError("cold Prefix Cache lane construction did not consume its target")
+        prefixes[anchor] = max(
+            (prefixes[index] for index in lane_indices if index != anchor),
+            default=0,
+        )
+        remaining_units -= lane_units
+    return prefixes, remaining_units
+
+
+def _exact_fallback_prefixes(
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    caps: Sequence[int],
+    desired_hit_units: int,
+    block_size: int,
+    mode: str,
+) -> list[int]:
+    """Construct an exact legacy schedule when a smooth solver has no path."""
+    if mode == "warmup":
+        prefixes, remaining_units = _warmup_fallback_prefixes(
+            caps, desired_hit_units, block_size,
+        )
+    else:
+        prefixes, remaining_units = _cold_fallback_prefixes(
+            group_ids, ranks, caps, desired_hit_units, block_size,
+        )
+    if remaining_units:
+        raise ArtifactValidationError("Prefix Cache solver could not construct the selected reachable target")
+    return prefixes
+
+
+def _rate_trajectory_issues(label: str, rows: Sequence[RequestPlan]) -> list[str]:
+    """Return monotonicity and overshoot diagnostics for one request stream."""
+    cumulative_input = 0
+    cumulative_hit = 0
+    rates: list[float] = []
+    for row in rows:
+        cumulative_input += row.actual_input_tokens
+        cumulative_hit += row.theoretical_hit_tokens
+        rates.append(cumulative_hit / cumulative_input if cumulative_input else 0.0)
+
+    issues: list[str] = []
+    if any(later + 1e-12 < earlier for earlier, later in zip(rates, rates[1:])):
+        issues.append(f"{label} cumulative hit rate is not monotonic")
+    if rates and max(rates) > rates[-1] + 1e-12:
+        issues.append(f"{label} cumulative hit rate overshoots its final rate")
+    return issues
+
+
+def _prefix_trajectory_issues(
+    rows: Sequence[RequestPlan],
+    mode: str,
+) -> list[str]:
+    """Collect trajectory diagnostics at the cache-sharing scope.
+
+    Warmup requests share one pre-established global schedule.  Cold requests
+    instead build independent ``(group, dp_rank)`` watermarks; the first request
+    in every lane must miss, so interleaving lanes can legitimately lower the
+    global cumulative rate even when every lane is smooth.
+    """
+    if mode != "cold":
+        return _rate_trajectory_issues("global", rows)
+
+    issues: list[str] = []
+    lane_rows: dict[tuple[str, int], list[RequestPlan]] = {}
+    for row in rows:
+        lane_rows.setdefault((row.group_id, int(row.dp_rank or 0)), []).append(row)
+    for lane, current_rows in lane_rows.items():
+        issues.extend(_rate_trajectory_issues(f"lane {lane[0]}/dp-{lane[1]}", current_rows))
+    return issues
+
+
+def _target_adjustment_reason(
+    target_tokens: int,
+    zero_hit: int,
+    max_hit: int,
+    adjusted: bool,
+) -> str | None:
+    """Explain why the selected block-aligned target differs from the request."""
+    if target_tokens > max_hit:
+        return "target exceeds maximum reachable hit rate"
+    if target_tokens < zero_hit:
+        return "target is below minimum reachable hit rate"
+    if adjusted:
+        return "block alignment prevents an exact target hit count"
+    return None
+
+
+def _validated_prefix_theory(
+    input_lengths: Sequence[int],
+    output_lengths: Sequence[int],
+    group_ids: Sequence[str],
+    ranks: Sequence[int | None],
+    lane_sequences: Sequence[int | None],
+    caps: Sequence[int],
+    prefixes: Sequence[int],
+    block_size: int,
+    mode: str,
+    strategy: str,
+    target_tokens: int,
+    desired_hit_tokens: int,
+) -> tuple[TheorySummary, int, int]:
+    """Validate capacities and exact hits, returning theory/error/hits."""
+    if any(prefix > cap * block_size for prefix, cap in zip(prefixes, caps)):
+        raise ArtifactValidationError("Prefix Cache trajectory solver exceeded a request prefix capacity")
+    if strategy == "target_convergent" and mode == "cold":
+        logger.info("[gen] solve_prefix_lengths target-convergent cold schedule selected")
+
+    theory = _theory_for_prefixes(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences,
+        prefixes, mode,
+    )
+    hit_tokens = theory.total_hit_tokens
+    error = abs(hit_tokens - target_tokens)
+    if hit_tokens != desired_hit_tokens:
+        raise ArtifactValidationError(
+            f"Prefix Cache solver constructed {hit_tokens} hit tokens; expected {desired_hit_tokens}"
+        )
+    logger.info(
+        "[gen] solve_prefix_lengths strategy=%s desired_hit=%d prefixes_count=%d prefix_min=%d prefix_max=%d best_error=%d best_hit=%d chosen_prefixes=%s",
+        strategy, desired_hit_tokens, len(prefixes), min(prefixes), max(prefixes),
+        error, hit_tokens, prefixes,
+    )
+    return theory, error, hit_tokens
+
+
+def _trajectory_diagnostics(
+    theory: TheorySummary,
+    mode: str,
+) -> tuple[str, list[str]]:
+    """Return and log the trajectory validation status."""
+    issues = _prefix_trajectory_issues(theory.rows, mode)
+    status = "PASS" if not issues else "BEST_EFFORT"
+    if issues:
+        logger.warning(
+            "[gen] solve_prefix_lengths trajectory_status=%s issues=%s",
+            status, issues,
+        )
+    else:
+        logger.info("[gen] solve_prefix_lengths trajectory_status=PASS")
+    return status, issues
+
+
+def _assemble_solve_result(
+    prefixes: Sequence[int],
+    group_ids: Sequence[str],
+    target_hit_rate: float,
+    target_tokens: int,
+    total_input: int,
+    zero_theory: TheorySummary,
+    max_theory: TheorySummary,
+    best_hit: int,
+    strategy: str,
+    trajectory_status: str,
+    trajectory_issues: Sequence[str],
+) -> SolveResult:
+    """Assemble reachability metadata around an already validated schedule."""
+    zero_hit = zero_theory.total_hit_tokens
+    max_hit = max_theory.total_hit_tokens
+    effective_rate = best_hit / total_input if total_input else 0.0
+    min_rate = zero_hit / total_input if total_input else 0.0
+    max_rate = max_hit / total_input if total_input else 0.0
+    logger.info(
+        "[gen] solve_prefix_lengths zero_hit=%d zero_rate=%.4f max_hit=%d max_rate=%.4f effective_hit=%d effective_rate=%.4f",
+        zero_hit, min_rate, max_hit, max_rate, best_hit, effective_rate,
+    )
+    group_reachability = {
+        group: {
+            "min_reachable_rate": float(zero_theory.group_stats[group]["hit_rate"]),
+            "max_reachable_rate": float(max_theory.group_stats[group]["hit_rate"]),
+        }
+        for group in sorted(set(group_ids))
+    }
+    target_reachable = min_rate <= target_hit_rate <= max_rate
+    adjusted = best_hit != target_tokens
+    reason = _target_adjustment_reason(target_tokens, zero_hit, max_hit, adjusted)
+    logger.info(
+        "[gen] solve_prefix_lengths group_reachability=%s target_reachable=%s adjusted=%s reason=%s",
+        group_reachability, target_reachable, adjusted, reason,
+    )
+    return SolveResult(
+        tuple(prefixes), target_tokens, best_hit, effective_rate, min_rate, max_rate,
+        target_reachable, group_reachability, adjusted, reason, strategy,
+        trajectory_status, tuple(trajectory_issues),
+    )
 
 
 def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[int], group_ids: Sequence[str], ranks: Sequence[int | None], lane_sequences: Sequence[int | None], block_size: int, minimum_non_shared_tokens: int, mode: str, target_hit_rate: float) -> SolveResult:
@@ -579,154 +1187,84 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     在最终命中 token 精确的前提下，warmup 按累计输入比例均衡分配；cold 使用
     lane 水位感知搜索，优先减少累计命中率超调与回落。搜索受限时回退精确构造。
     """
-    logger.info("[gen] solve_prefix_lengths requests=%d block_size=%d minimum_non_shared_tokens=%d mode=%s target_hit_rate=%.4f", len(input_lengths), block_size, minimum_non_shared_tokens, mode, target_hit_rate)
-    logger.info("[gen] solve_prefix_lengths input_lengths=%s output_lengths=%s group_ids=%s ranks=%s lane_sequences=%s", list(input_lengths), list(output_lengths), list(group_ids), list(ranks), list(lane_sequences))
-    # 每条请求的共享前缀长度候选集：必须是 block_size 的整数倍（前缀要按 block 对齐
-    # 才能命中缓存），且最大只能取到 (length - minimum_non_shared_tokens) 向下对齐的值，
-    # 从而保证每条请求都留足非共享区（seed + 自然后缀）。
-    candidates = [list(range(0, max(0, ((length - minimum_non_shared_tokens) // block_size) * block_size) + 1, block_size)) for length in input_lengths]
-    logger.info("[gen] solve_prefix_lengths candidates=%s", candidates)
+    logger.info(
+        "[gen] solve_prefix_lengths requests=%d block_size=%d minimum_non_shared_tokens=%d mode=%s target_hit_rate=%.4f lengths_min=%d lengths_max=%d lengths_total=%d groups=%d lanes=%d input_lengths=%s output_lengths=%s group_ids=%s ranks=%s lane_sequences=%s",
+        len(input_lengths), block_size, minimum_non_shared_tokens, mode, target_hit_rate,
+        min(input_lengths), max(input_lengths), sum(input_lengths),
+        len(set(group_ids)), len(set(zip(group_ids, (int(rank or 0) for rank in ranks)))) if mode == "cold" else len(set(group_ids)),
+        list(input_lengths), list(output_lengths), list(group_ids), list(ranks), list(lane_sequences),
+    )
+    # 只保存每条请求的最大 Block 容量。旧实现物化 0..cap 的所有候选，长输入
+    # 场景会在搜索开始前就创建上百万个 Python 整数；实际只有 beam 才需要枚举范围。
+    caps = [max(0, (length - minimum_non_shared_tokens) // block_size) for length in input_lengths]
+    logger.info(
+        "[gen] solve_prefix_lengths caps count=%d min=%d max=%d total=%d",
+        len(caps), min(caps), max(caps), sum(caps),
+    )
     total_input = sum(input_lengths)
     # 把目标命中率换算成目标命中 token 总数（四舍五入），作为搜索的靶心。
     target_tokens = int(total_input * target_hit_rate + 0.5)
     logger.info("[gen] solve_prefix_lengths total_input=%d target_tokens=%d", total_input, target_tokens)
 
-    def score(prefixes: Sequence[int]) -> tuple[int, int]:
-        """给出一组共享前缀长度，模拟缓存水位后返回 (命中误差, 命中token数)。"""
-        # 按候选前缀构造临时请求计划，并模拟真实缓存水位下的理论命中 token 数。
-        plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, prefixes)
-        # warmup 模式下用各组前缀最大值作为预热水位，模拟缓存已被写满。
-        warm = {group: max((prefix for prefix, current in zip(prefixes, group_ids) if current == group), default=0) for group in set(group_ids)} if mode == "warmup" else None
-        hit = simulate_theory(plans, mode, warm, verbose=False).total_hit_tokens
-        return abs(hit - target_tokens), hit
-
     # 先评估可达性上下界。旧实现先做局部搜索、最后才计算边界，导致目标高于
     # reachable_max 时仍可能停在次优局部解。边界现在是求解输入而非事后报告。
-    zero_prefixes = [0] * len(candidates)
-    zero_plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, zero_prefixes)
-    zero_warm = {group: 0 for group in set(group_ids)} if mode == "warmup" else None
-    zero_theory = simulate_theory(zero_plans, mode, zero_warm)
-    zero_hit = zero_theory.total_hit_tokens
-    max_prefixes = [values[-1] for values in candidates]
-    max_plans = _plans_for_prefixes(input_lengths, output_lengths, group_ids, ranks, lane_sequences, max_prefixes)
-    max_warm = {
-        group: max((prefix for prefix, current in zip(max_prefixes, group_ids) if current == group), default=0)
-        for group in set(group_ids)
-    } if mode == "warmup" else None
-    max_theory = simulate_theory(max_plans, mode, max_warm)
+    zero_prefixes = [0] * len(caps)
+    zero_theory = _theory_for_prefixes(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences,
+        zero_prefixes, mode,
+    )
+    max_prefixes = [cap * block_size for cap in caps]
+    max_theory = _theory_for_prefixes(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences,
+        max_prefixes, mode,
+    )
     max_hit = max_theory.total_hit_tokens
 
     # 所有共享前缀和理论命中量都是 block_size 的整数倍。按 Block 单位选取距
     # target_tokens 最近、且落在可达边界内的目标命中量。
-    max_hit_units = max_hit // block_size
-    lower_units = max(0, min(max_hit_units, target_tokens // block_size))
-    upper_units = max(0, min(max_hit_units, lower_units + 1))
-    desired_hit_units = min(
-        {lower_units, upper_units, 0, max_hit_units},
-        key=lambda units: (abs(units * block_size - target_tokens), units),
+    desired_hit_units = _nearest_reachable_hit_units(
+        target_tokens, max_hit, block_size,
     )
     desired_hit_tokens = desired_hit_units * block_size
 
-    caps = [values[-1] // block_size for values in candidates]
-    strategy = "target_convergent"
-    if mode == "warmup":
-        # warmup 后每个前缀 token 都命中。按累计输入比例分摊目标 Block，
-        # 让累计命中率从第一条开始贴近目标并保持稳定，不再先填满前几条。
-        prefixes = _balanced_warmup_prefixes(
-            input_lengths, caps, desired_hit_units, block_size,
-        )
-    else:
-        prefixes = _target_convergent_cold_prefixes(
-            input_lengths, group_ids, ranks, caps,
-            desired_hit_units, block_size,
-        )
+    prefixes: list[int] | None
+    prefixes, strategy, fallback_reason = _target_prefix_schedule(
+        input_lengths, group_ids, ranks, caps,
+        desired_hit_units, block_size, mode,
+    )
 
     if not prefixes and desired_hit_units:
         # 极端多 lane/大状态空间下 beam 可能无法保留精确路径。此时回退旧的
         # 精确 lane 构造，宁可牺牲轨迹平滑，也不能牺牲最终 target-driven 精度。
         strategy = "exact_lane_fallback"
-        prefixes = [0] * len(candidates)
-        remaining_units = desired_hit_units
-        if mode == "warmup":
-            for index, cap in enumerate(caps):
-                assigned = min(cap, remaining_units)
-                prefixes[index] = assigned * block_size
-                remaining_units -= assigned
-        else:
-            # cold 模式按 (group, DP rank) 独立维护水位。对任一 lane：
-            # lane_hit = sum(prefix_i) - max(prefix_i)。选容量最大的请求作为
-            # anchor，即可精确构造任意 0..lane_max 的 Block 命中量。
-            lanes: dict[tuple[str, int], list[int]] = {}
-            for index, (group, rank) in enumerate(zip(group_ids, ranks)):
-                lanes.setdefault((group, int(rank or 0)), []).append(index)
-            for lane_indices in lanes.values():
-                anchor = max(lane_indices, key=lambda index: (caps[index], -index))
-                lane_capacity = sum(caps[index] for index in lane_indices if index != anchor)
-                lane_units = min(lane_capacity, remaining_units)
-                lane_remaining = lane_units
-                for index in lane_indices:
-                    if index == anchor:
-                        continue
-                    assigned = min(caps[index], lane_remaining)
-                    prefixes[index] = assigned * block_size
-                    lane_remaining -= assigned
-                if lane_remaining:
-                    raise ArtifactValidationError("cold Prefix Cache lane construction did not consume its target")
-                prefixes[anchor] = max((prefixes[index] for index in lane_indices if index != anchor), default=0)
-                remaining_units -= lane_units
-        if remaining_units:
-            raise ArtifactValidationError("Prefix Cache solver could not construct the selected reachable target")
+        prefixes = _exact_fallback_prefixes(
+            group_ids, ranks, caps, desired_hit_units, block_size, mode,
+        )
+        logger.warning(
+            "[gen] solve_prefix_lengths exact fallback selected reason=%s",
+            fallback_reason,
+        )
 
     if not prefixes:
-        prefixes = [0] * len(candidates)
+        prefixes = [0] * len(caps)
 
     # The trajectory solver is a secondary objective only.  Verify its exact
     # total below with the same cache simulator used by the generated Manifest.
-    if any(prefix > values[-1] for prefix, values in zip(prefixes, candidates)):
-        raise ArtifactValidationError("Prefix Cache trajectory solver exceeded a request prefix capacity")
-
-    if strategy == "target_convergent" and mode == "cold":
-        logger.info("[gen] solve_prefix_lengths target-convergent cold schedule selected")
-
-    best_error, best_hit = score(prefixes)
-    if best_hit != desired_hit_tokens:
-        raise ArtifactValidationError(
-            f"Prefix Cache solver constructed {best_hit} hit tokens; expected {desired_hit_tokens}"
-        )
-    logger.info(
-        "[gen] solve_prefix_lengths strategy=%s desired_hit=%d chosen_prefixes=%s best_error=%d best_hit=%d",
-        strategy, desired_hit_tokens, prefixes, best_error, best_hit,
+    final_theory, _, best_hit = _validated_prefix_theory(
+        input_lengths, output_lengths, group_ids, ranks, lane_sequences,
+        caps, prefixes, block_size, mode, strategy, target_tokens,
+        desired_hit_tokens,
     )
-    # 实际/最低/最高可达的命中率。
-    effective_rate = best_hit / total_input if total_input else 0.0
-    min_rate = zero_hit / total_input if total_input else 0.0
-    max_rate = max_hit / total_input if total_input else 0.0
-    logger.info("[gen] solve_prefix_lengths zero_hit=%d zero_rate=%.4f max_hit=%d max_rate=%.4f effective_hit=%d effective_rate=%.4f", zero_hit, min_rate, max_hit, max_rate, best_hit, effective_rate)
-    # 按组给出可达命中率区间，便于定位是哪个组导致目标不可达。
-    group_reachability = {
-        group: {
-            "min_reachable_rate": float(zero_theory.group_stats[group]["hit_rate"]),
-            "max_reachable_rate": float(max_theory.group_stats[group]["hit_rate"]),
-        }
-        for group in sorted(set(group_ids))
-    }
-    # 目标命中率落在 [min_rate, max_rate] 区间内即为可达。
-    target_reachable = min_rate <= target_hit_rate <= max_rate
-    # 无法精确命中目标时标记 adjusted，并区分目标越界与单纯 Block 对齐残差。
-    adjusted = best_hit != target_tokens
-    if target_tokens > max_hit:
-        reason = "target exceeds maximum reachable hit rate"
-    elif target_tokens < zero_hit:
-        reason = "target is below minimum reachable hit rate"
-    elif adjusted:
-        reason = "block alignment prevents an exact target hit count"
-    else:
-        reason = None
-    logger.info("[gen] solve_prefix_lengths group_reachability=%s target_reachable=%s adjusted=%s reason=%s", group_reachability, target_reachable, adjusted, reason)
-    return SolveResult(
-        tuple(prefixes), target_tokens, best_hit, effective_rate, min_rate, max_rate,
-        target_reachable, group_reachability, adjusted,
-        reason,
+    trajectory_status, trajectory_issues = _trajectory_diagnostics(
+        final_theory, mode,
+    )
+    if fallback_reason:
+        trajectory_status = "BEST_EFFORT"
+        trajectory_issues.append(f"smooth schedule fallback: {fallback_reason}")
+    return _assemble_solve_result(
+        prefixes, group_ids, target_hit_rate, target_tokens, total_input,
+        zero_theory, max_theory, best_hit, strategy, trajectory_status,
+        trajectory_issues,
     )
 
 
@@ -819,14 +1357,25 @@ def build_unique_seed_tokens(safe_ids: Sequence[int], request_ids: Sequence[str]
     return result
 
 
-def _repeat_tokens(records: Sequence[GSMRecord], tokenizer: TokenizerLike, target: int) -> tuple[list[int], tuple[int, ...], tuple[str, ...]]:
+def _repeat_tokens(
+    records: Sequence[GSMRecord],
+    tokenizer: TokenizerLike,
+    target: int,
+    token_cache: dict[tuple[str, bool], tuple[int, ...]] | None = None,
+) -> tuple[list[int], tuple[int, ...], tuple[str, ...]]:
     """循环拼接语料记录直至 token 数达到 target，返回 tokens 及来源索引/hash。"""
     logger.info("[gen] _repeat_tokens records=%d target=%d", len(records), target)
     tokens: list[int] = []
     indices: list[int] = []
     hashes: list[str] = []
     for record in itertools.cycle(records):
-        piece = tokenizer.encode((" " if tokens else "") + record.question, add_special_tokens=False)
+        cache_key = (record.question_sha256, bool(tokens))
+        piece_tuple = token_cache.get(cache_key) if token_cache is not None else None
+        if piece_tuple is None:
+            piece_tuple = tuple(tokenizer.encode((" " if tokens else "") + record.question, add_special_tokens=False))
+            if token_cache is not None:
+                token_cache[cache_key] = piece_tuple
+        piece = list(piece_tuple)
         if not piece:
             continue
         tokens.extend(piece)
@@ -874,6 +1423,8 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
             indices, hashes = source_indices, source_hashes
             if tuple(token_ids[:block_size]) in first_blocks:
                 raise ArtifactValidationError(f"canonical prefixes collide in first block for {group} after deterministic fallback")
+        if indices is None or hashes is None:
+            raise ArtifactValidationError(f"canonical prefix sources are missing for {group}")
         first_block = tuple(token_ids[:block_size])
         first_blocks.add(first_block)
         text = tokenizer.decode(token_ids, skip_special_tokens=False)
@@ -887,7 +1438,15 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
     return result
 
 
-def build_prompt(tokenizer: TokenizerLike, canonical: CanonicalPrefix, shared_prefix_tokens: int, seed: Sequence[int], suffix_records: Sequence[GSMRecord], target_tokens: int) -> tuple[str, tuple[int, ...], tuple[int, ...], tuple[str, ...]]:
+def build_prompt(
+    tokenizer: TokenizerLike,
+    canonical: CanonicalPrefix,
+    shared_prefix_tokens: int,
+    seed: Sequence[int],
+    suffix_records: Sequence[GSMRecord],
+    target_tokens: int,
+    token_cache: dict[tuple[str, bool], tuple[int, ...]] | None = None,
+) -> tuple[str, tuple[int, ...], tuple[int, ...], tuple[str, ...]]:
     """按 共享前缀 + 唯一seed + 自然后缀 拼接出目标长度的 prompt 文本。
 
     返回 (文本, 实际token, 后缀来源索引, 后缀来源hash)，并校验 round-trip。
@@ -897,7 +1456,7 @@ def build_prompt(tokenizer: TokenizerLike, canonical: CanonicalPrefix, shared_pr
     logger.info("[gen] build_prompt suffix_len=%d", suffix_len)
     if suffix_len < 0:
         raise ArtifactValidationError("prefix and seed exceed target input length")
-    suffix, indices, hashes = _repeat_tokens(suffix_records, tokenizer, suffix_len) if suffix_len else ([], (), ())
+    suffix, indices, hashes = _repeat_tokens(suffix_records, tokenizer, suffix_len, token_cache) if suffix_len else ([], (), ())
     expected = list(canonical.token_ids[:shared_prefix_tokens]) + list(seed) + suffix
     text = tokenizer.decode(expected, skip_special_tokens=False)
     actual = tokenizer.encode(text, add_special_tokens=False)
