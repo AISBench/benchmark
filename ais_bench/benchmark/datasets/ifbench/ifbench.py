@@ -120,7 +120,7 @@ def test_instruction_following_loose(inp: InputExample, response: str) -> Output
         f"  inp.key: {inp.key}  instruction_id_list: {inp.instruction_id_list}\n"
         f"  inp.prompt: {inp.prompt}\n"
         f"  inp.kwargs: {inp.kwargs}\n"
-        f"  response: {response}\n"
+        f"  response  : {response}\n"
         f"  r (split lines): {r}\n"
         f"  response_remove_first: '{response_remove_first}'\n"
         f"  response_remove_last: '{response_remove_last}'\n"
