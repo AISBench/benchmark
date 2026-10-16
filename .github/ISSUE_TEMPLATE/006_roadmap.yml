@@ -47,7 +47,7 @@ body:
       label: 补充说明 | Additional Notes
       description: 以下内容将自动包含在您的issue中 | The following content will be automatically included in your issue
       value: |
-        👉 如果您想要的特性不在路线图中，欢迎在此主题中发表评论或者提交[功能需求issue](https://github.com/AISBench/benchmark/issues/new?template=4_feature.yml)
-         | If any of the features you want are not in the roadmap, please feel free to comment or submit a [feature request issue](https://github.com/AISBench/benchmark/issues/new?template=8_feature_en.yml)
+        👉 如果您想要的特性不在路线图中，欢迎在此主题中发表评论或者提交[功能需求issue](https://github.com/AISBench/benchmark/issues/new?template=004_feature.yml)
+         | If any of the features you want are not in the roadmap, please feel free to comment or submit a [feature request issue](https://github.com/AISBench/benchmark/issues/new?template=010_feature_en.yml)
     validations:
       required: false

@@ -1,22 +1,19 @@
 name: 📜 Request for comments (RFC)
 description: 征集重大架构调整的反馈意见
 title: "[RFC]: "
-labels: ["rfc"]
+labels: ["RFC"]
 
 body:
   - type: textarea
     id: basic_info
     attributes:
       label: 0. 基础信息
-      description:
       value: |
         **状态（Status）：** Draft / Reviewing / Approved / Rejected / Superseded
         **作者（Authors）：** @Your_community
         **创建日期（Created）：** YYYY-MM-DD
         **更新日期（Updated）：** YYYY-MM-DD
         **相关 Issue/PR：** #123（关联 Issue/PR 以便追踪背景）
-
-      placeholder: |
     validations:
       required: true
 
@@ -34,8 +31,6 @@ body:
 
         #### 1.3 目标
         *要达成的目标、非目标（即边界说明，明确哪些问题不在本次讨论或实现范围内，防止需求蔓延）。*
-
-      placeholder: |
     validations:
       required: true
 
@@ -43,10 +38,8 @@ body:
     id: usecase
     attributes:
       label: 2. 用例分析
-      description:
       value: |
         *针对本提案的各场景用例，描述其主要包含哪些功能点、要实现的关键性能指标、安全隐私以及DFX（兼容性、可维护性、可测试性、可靠性...）要求等。若涉及，还可以包括使用限制、约束和要求等信息。*
-      placeholder: |
     validations:
       required: true
 
@@ -105,7 +98,6 @@ body:
 
         ##### 3.5.3 编程手册设计
         *为了帮助开发者能快速上手开发，要设计好本提案相关特性/功能的《编程手册》，要包含哪些内容和章节，单独输出还是共用，在已有的手册中更新还是输出等。确保最后输出的《编程手册》中有相关变更内容。*
-    placeholder: |
     validations:
       required: true
 
@@ -113,10 +105,8 @@ body:
     id: test_plan
     attributes:
       label: 4. 测试设计
-      description:
       value: |
         *介绍该功能的测试方法以及测试用例设计，包括单元测试（unit test），集成测试（integration test），端到端测试（e2e test）等。*
-      placeholder: |
     validations:
       required: true
 
@@ -124,8 +114,6 @@ body:
     id: drawbacks
     attributes:
       label: 5. 缺点和风险
-      description:
-      placeholder: |
       value: |
         *说明潜在风险（Breaking Change、性能回退、复杂度提升、引入的安全问题）、负面影响（对现有功能/用户的冲击）、实现成本（代码量/维护成本/人力投入）、是否有API或版本兼容性、旧版本迁移方案问题等，给出应对措施。*
 
@@ -133,8 +121,6 @@ body:
     id: alternatives
     attributes:
       label: 6. 现有技术
-      description:
-      placeholder: |
       value: |
         *参考其他项目/社区的类似设计，说明借鉴与差异。*
 
@@ -142,8 +128,6 @@ body:
     id: unresolved_questions
     attributes:
       label: 7. 未解决问题
-      description:
-      placeholder: |
       value: |
         *待社区讨论/决策的开放问题，如硬件适配范围、参数默认值等（需在RFC通过前解决）。*
 
@@ -151,8 +135,6 @@ body:
     id: appendix
     attributes:
       label: 附录
-      description:
-      placeholder: |
       value: |
         * **参考资料链接**
         * **术语表**

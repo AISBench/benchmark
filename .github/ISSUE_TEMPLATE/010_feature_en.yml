@@ -1,0 +1,36 @@
+name: ✨ Feature request (EN)
+description: Discussion proposal for new features
+title: "[Feature]: "
+labels: ["feature"]
+
+body:
+  - type: markdown
+    attributes:
+      value: >
+        **Before submitting a proposal, please first search the repository to check whether the same proposal already exists. If it does, please discuss it in that same proposal.**
+  - type: textarea
+    id: requirement
+    attributes:
+      label: 💻 Requirement background, current status, expected feature, detailed design, and test plan
+      description: >
+        Please clearly and concisely describe the feature you are proposing, and explain the reason for the request, such as the usage scenario and the specific reason why the current scenario cannot be satisfied.
+        Is your feature request related to a specific issue? For example: *"I am developing feature X and hope to support feature Y to solve the related problem"*.
+        Please attach any related links you are aware of so that community developers can understand the corresponding content in detail.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: >
+        If you have considered other feasible solutions or alternative features, feel free to describe them here.
+  - type: textarea
+    id: additional_notes
+    attributes:
+      label: Additional Notes
+      description: >
+        You may add other notes or screenshots related to this feature request here.
+  - type: markdown
+    attributes:
+      value: >
+        Welcome to join the community, and thank you for your contribution 🎉!
