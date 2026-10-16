@@ -1,22 +1,19 @@
-name: 📜 Request for comments (RFC)
+name: 📜 Request for comments (RFC) (EN)
 description: Solicit feedback on major architectural changes
 title: "[RFC]: "
-labels: ["rfc"]
+labels: ["RFC"]
 
 body:
   - type: textarea
     id: basic_info
     attributes:
       label: 0. Basic Information
-      description:
       value: |
         **Status:** Draft / Reviewing / Approved / Rejected / Superseded
         **Authors:** @Your_community
         **Created:** YYYY-MM-DD
         **Updated:** YYYY-MM-DD
         **Related Issue/PR:** #123 (link the related Issue/PR to track the background)
-
-      placeholder: |
     validations:
       required: true
 
@@ -34,8 +31,6 @@ body:
 
         #### 1.3 Goals
         *The goals to achieve and the non-goals (i.e., boundary description clarifying which issues are out of scope for this discussion or implementation, to prevent scope creep).*
-
-      placeholder: |
     validations:
       required: true
 
@@ -43,10 +38,8 @@ body:
     id: usecase
     attributes:
       label: 2. Use Case Analysis
-      description:
       value: |
         *For each scenario/use case of this proposal, describe the main functional points, key performance indicators to achieve, security and privacy requirements, and DFX (compatibility, maintainability, testability, reliability, ...) requirements. If applicable, also include usage limitations, constraints, and requirements.*
-      placeholder: |
     validations:
       required: true
 
@@ -105,7 +98,6 @@ body:
 
         ##### 3.5.3 Programming Manual Design
         *To help developers get started quickly, design the Programming Manual related to the features/functions of this proposal, including which contents and chapters it should contain, whether to output it separately or share it, and whether to update it within the existing manual or output a new one. Ensure the finally output Programming Manual contains the relevant changes.*
-    placeholder: |
     validations:
       required: true
 
@@ -113,10 +105,8 @@ body:
     id: test_plan
     attributes:
       label: 4. Test Design
-      description:
       value: |
         *Introduce the test methods and test case design for this feature, including unit tests, integration tests, end-to-end (e2e) tests, etc.*
-      placeholder: |
     validations:
       required: true
 
@@ -124,8 +114,6 @@ body:
     id: drawbacks
     attributes:
       label: 5. Drawbacks and Risks
-      description:
-      placeholder: |
       value: |
         *Explain potential risks (breaking changes, performance regression, increased complexity, introduced security issues), negative impacts (impact on existing features/users), implementation cost (code size/maintenance cost/manpower investment), whether there are API or version compatibility issues, and migration plans for older versions, along with countermeasures.*
 
@@ -133,8 +121,6 @@ body:
     id: alternatives
     attributes:
       label: 6. Prior Art
-      description:
-      placeholder: |
       value: |
         *Refer to similar designs in other projects/communities, and explain what is borrowed and how it differs.*
 
@@ -142,8 +128,6 @@ body:
     id: unresolved_questions
     attributes:
       label: 7. Unresolved Questions
-      description:
-      placeholder: |
       value: |
         *Open questions to be discussed/decided by the community, such as the scope of hardware adaptation and default parameter values (must be resolved before the RFC is approved).*
 
@@ -151,8 +135,6 @@ body:
     id: appendix
     attributes:
       label: Appendix
-      description:
-      placeholder: |
       value: |
         * **Reference links**
         * **Glossary**

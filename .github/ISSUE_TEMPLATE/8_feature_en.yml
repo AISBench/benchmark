@@ -1,5 +1,5 @@
-name: ✨ Feature request
-description: 新功能的讨论提案
+name: ✨ Feature request (EN)
+description: Discussion proposal for new features
 title: "[Feature]: "
 labels: ["feature"]
 
@@ -7,30 +7,30 @@ body:
   - type: markdown
     attributes:
       value: >
-        **提交提案之前，请先检索仓库内是否已有相同的提案，如已有请在同一提案中进行讨论。**
+        **Before submitting a proposal, please first search the repository to check whether the same proposal already exists. If it does, please discuss it in that same proposal.**
   - type: textarea
     id: requirement
     attributes:
-      label: 💻 需求背景、当前现状、期望实现的功能内容、具体的设计方案、以及测试方案
+      label: 💻 Requirement background, current status, expected feature, detailed design, and test plan
       description: >
-        请清晰简洁地描述你提议的功能，同时说明提出该需求的原因，例如使用的场景、当前无法满足场景的具体原因。
-        你的功能请求是否关联某个具体问题？例如：*"我正在开发 X 功能，希望能支持 Y 特性来解决相关问题"*。
-        请在此附上你所了解到的与此有关的连接，以便社区开发者可以详细了解对应内容。
+        Please clearly and concisely describe the feature you are proposing, and explain the reason for the request, such as the usage scenario and the specific reason why the current scenario cannot be satisfied.
+        Is your feature request related to a specific issue? For example: *"I am developing feature X and hope to support feature Y to solve the related problem"*.
+        Please attach any related links you are aware of so that community developers can understand the corresponding content in detail.
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: 替代方案
+      label: Alternative Solutions
       description: >
-        如果你考虑过其他可实现的解决方案或替代功能，欢迎在此描述。
+        If you have considered other feasible solutions or alternative features, feel free to describe them here.
   - type: textarea
     id: additional_notes
     attributes:
-      label: 补充说明
+      label: Additional Notes
       description: >
-        可在此添加与该功能请求相关的其他说明或截图。
+        You may add other notes or screenshots related to this feature request here.
   - type: markdown
     attributes:
       value: >
-        欢迎加入社区，感谢您对社区的贡献 🎉!
+        Welcome to join the community, and thank you for your contribution 🎉!
