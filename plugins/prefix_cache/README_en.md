@@ -191,9 +191,20 @@ The Scenario uses a strict allowlist: unknown fields are rejected, and omitted f
 
 The solver computes global and per-Group `reachable_min`/`reachable_max`, whether `target_reachable`, requested/effective/theoretical hit rates, and signed/absolute theoretical-minus-target differences.
 
-If the target is outside the reachable interval, the corresponding boundary solution is selected. Otherwise the nearest block-granular hit total is used. Hit-token precision is a hard constraint. Warmup balances prefixes by cumulative input. Cold uses bounded beam search for small irregular cases; for large monotonic lanes it decomposes by `(Prefix Group, DP rank)`, allocates hit units by capacity and input tokens, and constructs progressively increasing watermarks in near-linear time. It does not enumerate every prefix candidate, and the cumulative rate rises toward the target instead of overshooting early and being corrected by short prefixes at the end.
+If the target is outside the reachable interval, the corresponding boundary solution is selected. Otherwise the nearest block-granular hit total is used. Hit-token precision is a hard constraint. Warmup balances prefixes by cumulative input. Cold uses bounded beam search for small irregular cases; for large monotonic lanes it decomposes by `(Prefix Group, DP rank)`, allocates hit units by capacity and input tokens, and constructs progressively increasing lane watermarks. It does not enumerate every prefix candidate, and each independent lane converges toward its target instead of overshooting early and being corrected by short prefixes at the end.
 
-Strict monotonicity is not always possible: a first request on a later Group/DP lane necessarily misses, and some requests lack prefix capacity. The solver keeps the exact total and uses the smoothest feasible schedule. Such a result records `trajectory.status="BEST_EFFORT"`, explanatory `issues`, and a warning-only `TRAJECTORY_BEST_EFFORT`; a fully smooth schedule records `PASS`.
+Let `N` be the request count, `cap_i` the available Prefix Blocks for request `i`, and `T` the total input tokens in generated prompts. The planner selects these paths:
+
+| Mode/condition | Planning path | Complexity and behavior |
+| --- | --- | --- |
+| warmup | Cumulative-input proportional allocation | `O(N)`; exactly reaches the block-aligned target. |
+| cold and `256 × Σ(cap_i + 1) <= 2,000,000` | Bounded beam search | Keeps at most 256 states; total state transitions are threshold-bounded. |
+| cold, above the threshold, with non-decreasing lengths/capacities in every lane | Scalable lane construction | Linear scans plus remainder sorting: `O(N log N)` time and `O(N)` space. |
+| cold, above the threshold, but incompatible with scalable lane construction | Exact lane fallback | Preserves the exact final hit-token total and records the concrete fallback reason in `trajectory.issues`. |
+
+`inspect` performs planning only. `prepare` additionally performs tokenizer round trips and JSONL writes, so its end-to-end complexity is approximately `O(T + N log N)`. Wall time depends on the tokenizer, CPU, storage, and total prompt length and is not a fixed performance guarantee. The large validation scenario with 1,818 requests, 156,377,088 total input tokens, and `block_size=128` estimates 312,524,800 beam transitions, so it selects the scalable path directly instead of enumerating the complete beam.
+
+Strict monotonicity is not always possible when a request lacks prefix capacity. Cold diagnostics are evaluated independently at the actual cache-sharing scope, `(Prefix Group, DP rank)`. The compulsory first miss of another lane therefore no longer produces a false global trajectory warning. If a lane itself cannot be smoothed or the solver uses the exact fallback, the result records `trajectory.status="BEST_EFFORT"`, explanatory `issues`, and a warning-only `TRAJECTORY_BEST_EFFORT`; a fully smooth schedule records `PASS`.
 
 Manifest input/output length summaries contain `min`, `max`, `mean`, `p50`, `p90`, `p95`, `p99`, and up to ten bins. `inspect` shows these summaries and Group-level reachability.
 

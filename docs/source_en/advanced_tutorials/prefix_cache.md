@@ -215,7 +215,18 @@ Every `inspect` creates a new `_YYYYMMDD_HHMMSS` timestamp directory. Its artifa
 
 Subsequent `prepare` / `run` invocations can reuse the same timestamp directory through the matching Manifest.
 
-Large cold scenarios use a near-linear lane construction per `(Prefix Group, DP rank)`, making cumulative hit rate rise smoothly to the exact effective target. Small irregular cases retain bounded beam search. If exact target and monotonic trajectory are mathematically incompatible, the result is marked `BEST_EFFORT` and only warns.
+Large cold scenarios construct independent `(Prefix Group, DP rank)` lanes so that each lane's cumulative hit rate converges smoothly to its effective target. Small irregular cases retain bounded beam search. Cold trajectories are checked per lane, so another lane's compulsory first miss is not reported as a global regression. If a lane cannot be smoothed or the exact fallback is used, the result is marked `BEST_EFFORT` and only warns.
+
+Let `N` be the request count, `cap_i` the available Prefix Blocks for request `i`, and `T` the total input tokens in generated prompts:
+
+| Condition | Planning path | Complexity/limit |
+| --- | --- | --- |
+| warmup | Cumulative-input proportional allocation | `O(N)`. |
+| cold and `256 × Σ(cap_i + 1) <= 2,000,000` | Bounded beam search | Keeps at most 256 states; transitions are threshold-bounded. |
+| cold, above the threshold, with non-decreasing lengths/capacities in every lane | Scalable lane construction | `O(N log N)` time and `O(N)` space. |
+| cold, above the threshold, but incompatible with scalable construction | Exact lane fallback | Preserves the exact final hit-token total and records the fallback reason in `trajectory.issues`. |
+
+`inspect` performs planning only. `prepare` additionally constructs, tokenizer-round-trips, and writes `T` input tokens, for an end-to-end complexity of approximately `O(T + N log N)`. Wall time depends on the tokenizer, CPU, storage, and total prompt length. The large validation scenario with 1,818 requests, 156,377,088 total input tokens, and `block_size=128` estimates 312,524,800 beam transitions and therefore selects the scalable path directly.
 
 ### `prepare`: Generate formal artifacts
 

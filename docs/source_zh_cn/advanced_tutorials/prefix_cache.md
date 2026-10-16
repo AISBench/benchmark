@@ -213,7 +213,18 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 
 后续 `prepare` / `run` 可通过匹配的 Manifest 复用同一时间戳目录。
 
-大规模 cold 场景按 `(Prefix Group, DP rank)` 分 lane 进行近线性构造，让累计命中率平缓上升并精确落到有效目标；小型不规则场景保留受限 beam search。数学上无法同时满足精确目标与单调轨迹时，状态为 `BEST_EFFORT` 并只告警。
+大规模 cold 场景按 `(Prefix Group, DP rank)` 分 lane 构造，使每条独立 lane 的累计命中率平缓收敛到有效目标；小型不规则场景保留受限 beam search。cold 轨迹按 lane 检查，不会把另一个 lane 的首次必然 miss 误报为全局回落。某条 lane 无法平滑或进入精确回退时，状态为 `BEST_EFFORT` 并只告警。
+
+设 `N` 为请求数、`cap_i` 为请求 `i` 可用的 Prefix Block 数、`T` 为全部生成 prompt 的输入 token 数：
+
+| 条件 | 规划路径 | 复杂度/限制 |
+| --- | --- | --- |
+| warmup | 累计输入比例分配 | `O(N)`。 |
+| cold 且 `256 × Σ(cap_i + 1) <= 2,000,000` | 受限 beam search | 最多保留 256 个状态，状态转移受阈值限制。 |
+| cold、大于阈值且 lane 内长度/容量非递减 | scalable lane 构造 | `O(N log N)` 时间、`O(N)` 空间。 |
+| cold、大于阈值但不满足 scalable 前提 | exact lane fallback | 保证最终 hit token 精确，并在 `trajectory.issues` 记录回退原因。 |
+
+`inspect` 只执行上述规划；`prepare` 还要对总计 `T` 个输入 token 进行 prompt 构造、tokenizer round-trip 和落盘，端到端约为 `O(T + N log N)`。实际时间由 tokenizer、CPU、磁盘和 prompt 总长度决定。1818 请求、总输入 156,377,088 token、`block_size=128` 的大规格验证场景估算为 312,524,800 次 beam 状态转移，因此直接选择 scalable 路径。
 
 ### `prepare`：生成正式数据产物
 

@@ -207,9 +207,20 @@ Scenario 采用严格白名单，未列出的字段会被拒绝；省略的字�
 - requested、effective 和 theoretical hit rate；
 - 理论值减目标值的带符号偏差和绝对偏差。
 
-目标高于 `reachable_max` 或低于 `reachable_min` 时，求解器直接选择对应边界解；目标位于区间内时，按 Block 单位选择最近可达命中量。最终 hit token 精度是硬约束，在此基础上再优化请求过程：warmup 按累计输入比例均衡分配前缀；cold 的小型、不规则场景使用受限 beam search，大型且 lane 内长度单调的场景按 `(Prefix Group, DP rank)` 分解，先按容量和输入 token 分配目标，再在线性规模内构造逐步增长的水位。后者不再枚举每条请求的全部前缀候选，累计命中率平缓上升到目标，不会先明显超过目标再用短前缀回调。
+目标高于 `reachable_max` 或低于 `reachable_min` 时，求解器直接选择对应边界解；目标位于区间内时，按 Block 单位选择最近可达命中量。最终 hit token 精度是硬约束，在此基础上再优化请求过程：warmup 按累计输入比例均衡分配前缀；cold 的小型、不规则场景使用受限 beam search，大型且 lane 内长度单调的场景按 `(Prefix Group, DP rank)` 分解，先按容量和输入 token 分配目标，再构造逐步增长的 lane 水位。后者不再枚举每条请求的全部前缀候选，每条独立 lane 的累计命中率平缓收敛到其目标，不会先明显超过目标再用短前缀回调。
 
-严格单调并非所有顺序都可实现，例如后置 Prefix Group/DP lane 的首次 cold 请求必然 miss，或某条请求没有足够前缀容量。此时求解器仍优先保证精确总量并尽量平滑，`trajectory.status` 记为 `BEST_EFFORT`，`issues` 说明原因，同时追加只告警的 `TRAJECTORY_BEST_EFFORT`；满足约束时状态为 `PASS`。
+设 `N` 为请求数、`cap_i` 为第 `i` 条请求可用的 Prefix Block 数、`T` 为生成 prompt 的输入 token 总数。内部规划路径如下：
+
+| 模式/条件 | 规划路径 | 规划复杂度与行为 |
+| --- | --- | --- |
+| warmup | 累计输入比例分配 | `O(N)`；精确命中 Block 对齐后的目标。 |
+| cold 且 `256 × Σ(cap_i + 1) <= 2,000,000` | 受限 beam search | 最多保留 256 个状态；状态转移总量受阈值限制。 |
+| cold、大于上述阈值且 lane 内长度/容量非递减 | scalable lane 构造 | 以线性扫描和余数排序为主，`O(N log N)`、`O(N)` 空间。 |
+| cold、大于阈值但 lane 不满足 scalable 前提 | exact lane fallback | 保证最终 hit token 精确，并在 `trajectory.issues` 中记录具体回退原因。 |
+
+`inspect` 只执行规划，不处理全部 prompt token；`prepare` 还必须完成 tokenizer round-trip 和 JSONL 写入，所以端到端复杂度约为 `O(T + N log N)`，实际墙钟时间取决于 tokenizer、CPU、磁盘和 prompt 总长度，不作为固定性能承诺。1818 请求、总输入 156,377,088 token、`block_size=128` 的大规格验证场景估算为 312,524,800 次 beam 状态转移，因此会直接选择 scalable 路径，而不会执行完整 beam 枚举。
+
+严格单调并非所有顺序都可实现，例如某条请求没有足够前缀容量。cold 模式按真实缓存共享边界分别检查每个 `(Prefix Group, DP rank)` lane；不同 lane 的首次请求必然 miss，不再把这种合法的全局累计回落误报为轨迹异常。某一 lane 本身无法平滑或求解器进入精确回退时，`trajectory.status` 记为 `BEST_EFFORT`，`issues` 说明原因，同时追加只告警的 `TRAJECTORY_BEST_EFFORT`；满足约束时状态为 `PASS`。
 
 Manifest 的输入和输出长度摘要包含 `min`、`max`、`mean`、`p50`、`p90`、`p95`、`p99` 以及最多十个长度分桶。`inspect` 也会展示这些摘要和组级可达范围。
 
