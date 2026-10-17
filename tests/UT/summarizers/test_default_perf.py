@@ -133,6 +133,108 @@ class TestDefaultPerfSummarizer(unittest.TestCase):
         self.assertEqual(result["ttft"], 1)
         mock_conn.close.assert_called_once()
 
+    @patch('ais_bench.benchmark.summarizers.default_perf.init_db')
+    @patch('ais_bench.benchmark.summarizers.default_perf.load_all_numpy_from_db')
+    @patch('ais_bench.benchmark.summarizers.default_perf.AISTokenizer')
+    def test_calc_perf_data_uses_service_token_counts_without_loading_tokenizer(
+        self, mock_aistokenizer, mock_load_all_numpy_from_db, mock_init_db
+    ):
+        mock_init_db.return_value = MagicMock()
+        mock_load_all_numpy_from_db.return_value = {}
+        mock_aistokenizer.side_effect = ModuleNotFoundError("encoding_dsv4")
+        manager_list = []
+        perf_data = {
+            "success": True,
+            "input": "test input",
+            "prediction": "test output",
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "time_points": [0, 1, 2],
+            "db_name": "test_db",
+        }
+
+        summarizer = DefaultPerfSummarizer(self.config, self.calculator_cfg)
+        summarizer._calc_perf_data(manager_list, self.model_cfg, "/tmp/db", [perf_data])
+
+        self.assertEqual(manager_list[0]["input_tokens"], 10)
+        self.assertEqual(manager_list[0]["output_tokens"], 5)
+        mock_aistokenizer.assert_not_called()
+
+    @patch('ais_bench.benchmark.summarizers.default_perf.is_mm_prompt', return_value=False)
+    @patch('ais_bench.benchmark.summarizers.default_perf.init_db')
+    @patch('ais_bench.benchmark.summarizers.default_perf.load_all_numpy_from_db')
+    @patch('ais_bench.benchmark.summarizers.default_perf.AISTokenizer')
+    def test_calc_perf_data_loads_tokenizer_for_missing_input_count(
+        self,
+        mock_aistokenizer,
+        mock_load_all_numpy_from_db,
+        mock_init_db,
+        mock_is_mm_prompt,
+    ):
+        mock_init_db.return_value = MagicMock()
+        mock_load_all_numpy_from_db.return_value = {}
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.encode.return_value = [1, 2, 3]
+        mock_aistokenizer.return_value = mock_tokenizer
+        manager_list = []
+        perf_data = {
+            "success": True,
+            "input": "test input",
+            "prediction": "test output",
+            "input_tokens": 0,
+            "output_tokens": 5,
+            "time_points": [0, 1, 2],
+            "db_name": "test_db",
+        }
+
+        summarizer = DefaultPerfSummarizer(self.config, self.calculator_cfg)
+        summarizer._calc_perf_data(manager_list, self.model_cfg, "/tmp/db", [perf_data])
+
+        self.assertEqual(manager_list[0]["input_tokens"], 3)
+        mock_aistokenizer.assert_called_once_with("test/path/model", False)
+        mock_tokenizer.encode.assert_called_once_with("test input")
+        mock_is_mm_prompt.assert_called_once_with("test input")
+
+    @patch('ais_bench.benchmark.summarizers.default_perf.load_tokenizer')
+    def test_validate_tokenizer_skips_load_when_service_counts_are_available(
+        self, mock_load_tokenizer
+    ):
+        perf_data_map = {
+            "test_db": [{
+                "success": True,
+                "input": "test input",
+                "prediction": "test output",
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "time_points": [0, 1, 2],
+            }]
+        }
+        summarizer = DefaultPerfSummarizer(self.config, self.calculator_cfg)
+
+        summarizer._validate_tokenizer_if_needed(self.model_cfg, perf_data_map)
+
+        mock_load_tokenizer.assert_not_called()
+
+    @patch('ais_bench.benchmark.summarizers.default_perf.load_tokenizer')
+    def test_validate_tokenizer_loads_for_missing_input_count(self, mock_load_tokenizer):
+        perf_data_map = {
+            "test_db": [{
+                "success": True,
+                "input": "test input",
+                "prediction": "test output",
+                "input_tokens": 0,
+                "output_tokens": 5,
+                "time_points": [0, 1, 2],
+            }]
+        }
+        summarizer = DefaultPerfSummarizer(self.config, self.calculator_cfg)
+
+        summarizer._validate_tokenizer_if_needed(self.model_cfg, perf_data_map)
+
+        mock_load_tokenizer.assert_called_once_with(
+            tokenizer_path="test/path/model", trust_remote_code=False
+        )
+
     @patch('ais_bench.benchmark.summarizers.default_perf.build_model_from_cfg')
     @patch('ais_bench.benchmark.summarizers.default_perf.AISTokenizer')
     @patch('ais_bench.benchmark.summarizers.default_perf.load_tokenizer')
