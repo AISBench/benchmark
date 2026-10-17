@@ -63,11 +63,43 @@ signal.signal(signal.SIGALRM, timeout_handler)
 # used to capture stdout as a list
 # from https://stackoverflow.com/a/16571630/6416660
 # alternative use redirect_stdout() from contextlib
+class _StdoutWithBuffer(StringIO):
+    """StringIO that also exposes a binary ``.buffer`` view, like real stdout.
+
+    Generated solutions often use ``sys.stdout.buffer.write(...)`` for fast
+    output. A plain StringIO has no ``buffer`` attribute, so such solutions
+    used to fail with an AttributeError and were counted as runtime errors.
+    The bytes written through ``.buffer`` are decoded and forwarded to this
+    same StringIO, so ``getvalue()`` still returns the complete output.
+    """
+
+    class _Buffer:
+
+        def __init__(self, owner):
+            self._owner = owner
+
+        def write(self, data):
+            if isinstance(data, (bytes, bytearray)):
+                data = data.decode()
+            return self._owner.write(data)
+
+        def writelines(self, lines):
+            for line in lines:
+                self.write(line)
+
+        def flush(self):
+            pass
+
+    def __init__(self):
+        super().__init__()
+        self.buffer = _StdoutWithBuffer._Buffer(self)
+
+
 class Capturing(list):
 
     def __enter__(self):
         self._stdout = sys.stdout
-        sys.stdout = self._stringio = StringIO()
+        sys.stdout = self._stringio = _StdoutWithBuffer()
         # Make closing the StringIO a no-op
         self._stringio.close = lambda x: 1
         return self
