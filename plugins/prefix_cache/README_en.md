@@ -191,9 +191,20 @@ The Scenario uses a strict allowlist: unknown fields are rejected, and omitted f
 
 The solver computes global and per-Group `reachable_min`/`reachable_max`, whether `target_reachable`, requested/effective/theoretical hit rates, and signed/absolute theoretical-minus-target differences.
 
-If the target is outside the reachable interval, the corresponding boundary solution is selected. Otherwise the nearest block-granular hit total is used. Hit-token precision is a hard constraint; then the solver optimizes the trajectory: warmup balances prefixes by cumulative input, while cold independently searches `(Prefix Group, DP rank)` watermarks, minimizing maximum overshoot, total overshoot, and fallback before approaching the target. This avoids concentrating most prefixes in the first few requests and correcting with zero/short prefixes at the end.
+If the target is outside the reachable interval, the corresponding boundary solution is selected. Otherwise the nearest block-granular hit total is used. Hit-token precision is a hard constraint. Warmup balances prefixes by cumulative input. Cold uses bounded beam search for small irregular cases; for large monotonic lanes it decomposes by `(Prefix Group, DP rank)`, allocates hit units by capacity and input tokens, and constructs progressively increasing lane watermarks. It does not enumerate every prefix candidate, and each independent lane converges toward its target instead of overshooting early and being corrected by short prefixes at the end.
 
-Strict monotonicity is not always possible: a first request on a later Group/DP lane necessarily misses, and some requests lack prefix capacity. The solver therefore prioritizes the smallest overshoot and fallback for the exact total; in extreme search spaces it falls back to deterministic exact lane construction so trajectory optimization cannot change the final effective/theoretical rate.
+Let `N` be the request count, `cap_i` the available Prefix Blocks for request `i`, and `T` the total input tokens in generated prompts. The planner selects these paths:
+
+| Mode/condition | Planning path | Complexity and behavior |
+| --- | --- | --- |
+| warmup | Cumulative-input proportional allocation | `O(N)`; exactly reaches the block-aligned target. |
+| cold and `256 × Σ(cap_i + 1) <= 2,000,000` | Bounded beam search | Keeps at most 256 states; total state transitions are threshold-bounded. |
+| cold, above the threshold, with non-decreasing lengths/capacities in every lane | Scalable lane construction | Linear scans plus remainder sorting: `O(N log N)` time and `O(N)` space. |
+| cold, above the threshold, but incompatible with scalable lane construction | Exact lane fallback | Preserves the exact final hit-token total and records the concrete fallback reason in `trajectory.issues`. |
+
+`inspect` performs planning only. `prepare` additionally performs tokenizer round trips and JSONL writes, so its end-to-end complexity is approximately `O(T + N log N)`. Wall time depends on the tokenizer, CPU, storage, and total prompt length and is not a fixed performance guarantee. The large validation scenario with 1,818 requests, 156,377,088 total input tokens, and `block_size=128` estimates 312,524,800 beam transitions, so it selects the scalable path directly instead of enumerating the complete beam.
+
+Strict monotonicity is not always possible when a request lacks prefix capacity. Cold diagnostics are evaluated independently at the actual cache-sharing scope, `(Prefix Group, DP rank)`. The compulsory first miss of another lane therefore no longer produces a false global trajectory warning. If a lane itself cannot be smoothed or the solver uses the exact fallback, the result records `trajectory.status="BEST_EFFORT"`, explanatory `issues`, and a warning-only `TRAJECTORY_BEST_EFFORT`; a fully smooth schedule records `PASS`.
 
 Manifest input/output length summaries contain `min`, `max`, `mean`, `p50`, `p90`, `p95`, `p99`, and up to ten bins. `inspect` shows these summaries and Group-level reachability.
 
@@ -203,6 +214,7 @@ Manifest input/output length summaries contain `min`, `max`, `mean`, `p50`, `p90
 
 - targets outside the reachable interval record `TARGET_UNREACHABLE`;
 - theoretical/target differences above `target_warning_pp` record `TARGET_DEVIATION`.
+- an infeasible smooth trajectory records `TRAJECTORY_BEST_EFFORT`.
 
 These are display-only: `warning_only=true` and `affects_exit_code=false`. Actual/theoretical differences above `actual_warning_pp` similarly record `ACTUAL_DEVIATION`; configuration, artifact, service-capability, and AISBench execution failures are fatal.
 
@@ -212,9 +224,11 @@ These are display-only: `warning_only=true` and `affects_exit_code=false`. Actua
 ais-bench-prefix-cache inspect --scenario ./scenario.json
 ```
 
-This command loads the tokenizer and GSM8K, constructs data in a temporary directory, calculates reachability, and displays requested/effective/theoretical hit rates, Group distribution, input/output lengths, and cold DP routing. It never contacts vLLM, sends requests, or leaves the four formal data artifacts in the Scenario `output_dir`.
+This command validates the Scenario and builds only the deterministic length, Group, order, cold-DP route, and theoretical prefix plan. It does not load the tokenizer or GSM8K, construct prompts, or write temporary full/requests/analysis artifacts. It displays requested/effective/theoretical hit rates, reachability, Group distribution, input/output lengths, and cold DP routing without contacting vLLM.
 
 It still creates a `_YYYYMMDD_HHMMSS` timestamp, writes detailed logs to `output_dir_timestamp/log/<run_id_timestamp>.inspect.log`, and writes a lightweight `manifest.json` under `output_dir_timestamp/result/` with `status="inspected"` and the summary in `inspect.summary`. No standalone `<output_dir>.inspect.json` is created. The JSON summary includes `log` and `manifest` paths.
+
+`planning_only=true` identifies configuration-level planning. `content_validation_deferred_to_prepare=true` means corpus selection, canonical-prefix construction, and tokenizer round-trip validation are performed later by `prepare`.
 
 ### 3.4 `prepare`: generate formal artifacts
 
@@ -436,7 +450,7 @@ Important nested fields include tokenizer metadata; request count and `*_length_
 
 ### `<run_id>.analysis.json`
 
-Fixed fields include `schema_version`, `run_id`, `status`, requested/effective/theoretical hit rates, target differences (`target_difference_pp` currently equals absolute difference), `validation` (`status`, `target_reachable`, `warning_only`, `affects_exit_code`), `theory` (`input_tokens`, `hit_tokens`, `groups`, `dp`), and a `warnings` array. `TARGET_UNREACHABLE` carries the requested target and reachable bounds; `TARGET_DEVIATION` carries `difference_pp`.
+Fixed fields include `schema_version`, `run_id`, `status`, requested/effective/theoretical hit rates, `trajectory` (`strategy`, `status`, `issues`), target differences (`target_difference_pp` currently equals absolute difference), `validation` (`status`, `target_reachable`, `warning_only`, `affects_exit_code`), `theory` (`input_tokens`, `hit_tokens`, `groups`, `dp`), and a `warnings` array. `TARGET_UNREACHABLE` carries the requested target and reachable bounds; `TARGET_DEVIATION` carries `difference_pp`; `TRAJECTORY_BEST_EFFORT` explains an infeasible smooth trajectory.
 
 Generation finishes with `status="prepared"`; `run` changes it to `"complete"`; offline `analyze` uses `"analyzed"`. Online runs add `runtime.metrics_baseline/metrics_after` (raw Prometheus and per-DP cumulative values), `actual`, theory/actual differences, and `validation.actual_status`. Warnings affect presentation only and not a successful exit code.
 
@@ -444,7 +458,7 @@ During formal scoring, `run` polls `metrics_url` every `service.poll_interval_se
 
 ### `inspect` Manifest and CLI result fields
 
-The `inspect` terminal JSON includes `run_id`, `mode`, requested/effective/theoretical rates, reachability, `group_reachability`, `groups`, input/output tokens, `dp_route_counts`, `sends_requests` (always `false`), `log`, and `manifest`.
+The `inspect` terminal JSON includes `run_id`, `mode`, requested/effective/theoretical rates, reachability, `trajectory`, `group_reachability`, `groups`, input/output tokens, `dp_route_counts`, `sends_requests` (always `false`), `planning_only`, `content_validation_deferred_to_prepare`, `log`, and `manifest`.
 
 The lightweight inspect Manifest contains `schema_version`, `plugin_version`, `status="inspected"`, `run_id`, Scenario path/hash, `effective_config`, and `inspect` (`timestamp`, `base_run_id`, `base_output_dir`, `sends_requests`, `summary`). `prepare` upgrades it in place to a full `status="prepared"` Manifest with requests, Groups, DP, warmup, and artifacts.
 
