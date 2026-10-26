@@ -182,7 +182,7 @@ ais-bench-prefix-cache inspect --scenario ./scenario.json
 
 This command:
 
-- loads the tokenizer and the GSM8K corpus, constructs data in a temporary directory, and calculates the reachable range of the target hit rate;
+- parses the Scenario and builds only the length, Group, order, cold-DP route, and theoretical shared-prefix plan; it does not load the tokenizer/GSM8K or construct prompts;
 - displays the requested / effective / theoretical hit rates, group distribution, input/output length summaries, and cold DP routing;
 - never contacts vLLM and sends no requests.
 
@@ -203,14 +203,30 @@ Every `inspect` creates a new `_YYYYMMDD_HHMMSS` timestamp directory. Its artifa
 | `theoretical_hit_rate` | Predicted theoretical hit rate. |
 | `reachable_min` / `reachable_max` | Minimum/maximum globally reachable hit rate. |
 | `target_reachable` | Whether the target is inside the reachable range. |
+| `trajectory` | Solver strategy, trajectory status (`PASS`/`BEST_EFFORT`), and issue list. |
 | `group_reachability` | Reachable range of every Group. |
 | `groups` | Request count for every Group. |
 | `input_tokens` / `output_tokens` | Length statistics and total token count. |
 | `dp_route_counts` | Formal request count for every DP rank. |
 | `sends_requests` | Whether online requests are sent; always `false` for inspect. |
+| `planning_only` | Always `true`; inspect performs configuration-level theoretical planning only. |
+| `content_validation_deferred_to_prepare` | Always `true`; corpus, canonical-prefix, and tokenizer round-trip validation is deferred to prepare. |
 | `log` / `manifest` | Paths to the log file and the inspect Manifest. |
 
 Subsequent `prepare` / `run` invocations can reuse the same timestamp directory through the matching Manifest.
+
+Large cold scenarios construct independent `(Prefix Group, DP rank)` lanes, preserve exact final hits, and aim for smooth cumulative rates. Small cases retain bounded beam search scored per lane. Scalable construction requires non-decreasing Prefix Block capacities within each lane, but not non-decreasing input lengths. Length jumps and capacity constraints can still cause declines, so strict monotonicity is not guaranteed. Cold diagnostics use one-Block rounding intervals based on cumulative input at each position and compare against historical peak intervals to detect accumulated drift. Material declines, overshoot, or exact fallback produce a warning-only `BEST_EFFORT` status.
+
+Let `N` be the request count, `cap_i` the available Prefix Blocks for request `i`, and `T` the total input tokens in generated prompts:
+
+| Condition | Planning path | Complexity/limit |
+| --- | --- | --- |
+| warmup | Cumulative-input proportional allocation | `O(N)`. |
+| cold and `256 × Σ(cap_i + 1) <= 2,000,000` | Bounded beam search | Keeps at most 256 states; tries scalable construction if no exact path survives. |
+| cold, above the threshold or after beam failure | Scalable lane construction | `O(N log N)` time and `O(N)` space when lane capacities are non-decreasing and allocation succeeds. |
+| cold, incompatible with scalable construction or allocation failure | Exact lane fallback | Preserves exact final hits and records the reason without retrying beam on large cases. |
+
+`inspect` performs planning only. With the fast planning path, `prepare` additionally constructs, tokenizer-round-trips, and writes `T` input tokens, for approximately `O(T + N log N)` end-to-end work. Wall time depends on the tokenizer, CPU, storage, and total prompt length.
 
 ### `prepare`: Generate formal artifacts
 
@@ -218,7 +234,7 @@ Subsequent `prepare` / `run` invocations can reuse the same timestamp directory 
 ais-bench-prefix-cache prepare --mode text --scenario ./scenario.json
 ```
 
-- `--mode`: required. `text` generates text-benchmark data; `mm` generates multimodal data (see [Multimodal Dataset Generation and Benchmarking](#multimodal-dataset-generation-and-benchmarking) and [MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)).
+- `--mode`: required. `text` generates text-benchmark data; `mm` generates multimodal data (see [Multimodal Dataset Generation and Benchmarking](#multimodal-dataset-generation-and-benchmarking) and [MULTIMODAL.md](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/MULTIMODAL.md)).
 - `--scenario`: path to the Scenario file.
 - `--overwrite`: optional. Replaces only the artifact files of this run inside the current timestamp directory; it does not clear the entire output directory.
 
@@ -341,7 +357,7 @@ jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
 
 ## Scenario Configuration
 
-See the [complete Scenario field reference](../../../plugins/prefix_cache/config_examples/scenario.example_en.md). The Scenario uses a strict whitelist: unknown fields are rejected, and omitted fields fall back to the example defaults.
+See the [complete Scenario field reference](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/config_examples/scenario.example_en.md). The Scenario uses a strict whitelist: unknown fields are rejected, and omitted fields fall back to the example defaults.
 
 | Configuration path | Brief description |
 |---|---|
@@ -585,7 +601,7 @@ Simply append a `multimodal` section on top of the text configuration:
 
 The multimodal mode reuses the `tokenizer.path`, `corpus`, `requests`, `run.output_dir`, `service`, and `aisbench` sections of the text configuration. However, `requests.input_length` / `requests.output_length` must be `fixed`, and `tokenizer.block_size` and the `prefix_cache` section are not used (they may be omitted, and keeping them does not impose Block, shared-prefix, or non-shared-region constraints on multimodal text lengths). `run`, `validate`, and `report` read `benchmark_mode` from the Manifest produced by `prepare` and no longer accept `--mode`.
 
-Images are selected strictly at native size from the `image_1`–`image_7` bytes fields of the MMMU Parquet without scaling; they are sent as Base64 data URLs, so the server does not need access to the local MMMU path. `stream=true` is required for valid TTFT, TPOT, and ITL metrics. See [MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md) for the complete guide.
+Images are selected strictly at native size from the `image_1`–`image_7` bytes fields of the MMMU Parquet without scaling; they are sent as Base64 data URLs, so the server does not need access to the local MMMU path. `stream=true` is required for valid TTFT, TPOT, and ITL metrics. See [MULTIMODAL.md](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/MULTIMODAL.md) for the complete guide.
 
 ***
 
@@ -603,6 +619,6 @@ These warnings only change the displayed validation state in `analysis.json` to 
 
 ## Further Reading
 
-- [Prefix Cache plugin README](../../../plugins/prefix_cache/README_en.md)
-- [Complete Scenario field reference](../../../plugins/prefix_cache/config_examples/scenario.example_en.md)
-- [Multimodal benchmark MULTIMODAL.md](../../../plugins/prefix_cache/MULTIMODAL.md)
+- [Prefix Cache plugin README](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/README_en.md)
+- [Complete Scenario field reference](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/config_examples/scenario.example_en.md)
+- [Multimodal benchmark MULTIMODAL.md](https://github.com/AISBench/benchmark/blob/master/plugins/prefix_cache/MULTIMODAL.md)
