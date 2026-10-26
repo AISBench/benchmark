@@ -187,6 +187,8 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 
 整个字段省略时默认 `{"mode":"fixed","value":1024}`；fixed 模式省略 `value` 时也默认 1024。
 
+长度分布与发送顺序共同影响 cold 轨迹。大规格快速 scalable 路径要求每个 `(Prefix Group, DP rank)` lane 的可用容量 `cap_i = max(0, (input_length_i - minimum_non_shared_length) // block_size)` 非递减，并且比例分配成功；长度在同一容量区间内下降仍可尝试。随机长度可搭配 `prefix_cache.order.strategy="input_len_asc"` 满足容量条件。若保留随机顺序并使容量下降，会使用精确 fallback，最终目标命中量仍精确，但平滑性为 `BEST_EFFORT`。即使容量递增，末尾长请求等约束也可能造成累计命中率回落；一个 Block 量化区间内的波动不告警。
+
 #### 固定长度
 
 ```json

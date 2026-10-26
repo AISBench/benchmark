@@ -7,6 +7,7 @@ import json
 import logging
 import math
 import random
+from collections import Counter
 from dataclasses import asdict, dataclass, replace
 from functools import lru_cache
 from pathlib import Path
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 _ColdObjective = tuple[float, float, float, float]
 _ColdStateKey = tuple[tuple[int, ...], int]
-_ColdStateValue = tuple[_ColdObjective, tuple[int, ...]]
+_ColdStateValue = tuple[_ColdObjective, tuple[int, ...], tuple[int, ...]]
 _ColdStates = dict[_ColdStateKey, _ColdStateValue]
 _ColdLaneLayout = tuple[
     dict[tuple[str, int], list[int]],
@@ -34,6 +35,11 @@ _COLD_BEAM_TRANSITION_LIMIT = 2_000_000
 class TokenizerLike(Protocol):
     def encode(self, text: str, add_special_tokens: bool = False) -> list[int]: ...
     def decode(self, token_ids: Sequence[int], skip_special_tokens: bool = False) -> str: ...
+
+
+# Retain the tokenizer alongside its cached tokens so its identity cannot be
+# reused while entries survive. Tokenizer configuration must stay immutable.
+CorpusTokenCache = dict[tuple[int, str, bool], tuple[TokenizerLike, tuple[int, ...]]]
 
 
 @dataclass(frozen=True)
@@ -146,7 +152,7 @@ def load_gsm8k(path: Path, field: str = "question") -> list[GSMRecord]:
 
 def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: int, seed: int) -> list[GSMRecord]:
     """按 selection 配置（random/indices/question_sha256/mixed）选出 count 条语料。"""
-    logger.info("[gen] select_gsm8k mode=%s config=%s count=%d seed=%d", config["mode"], config, count, seed)
+    logger.info("[gen] select_gsm8k mode=%s config_keys=%s count=%d seed=%d", config["mode"], sorted(config), count, seed)
     mode = config["mode"]
     by_index = {item.line_index: item for item in records}
     by_hash: dict[str, list[GSMRecord]] = {}
@@ -161,14 +167,14 @@ def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: in
             selected.extend(cycle)
         result = selected[:count]
         logger.info(
-            "[gen] select_gsm8k mode=random selected=%d line_indices=%s",
-            len(result), [item.line_index for item in result],
+            "[gen] select_gsm8k mode=random selected=%d line_index_preview=%s (first 5)",
+            len(result), [item.line_index for item in result[:5]],
         )
         return result
     values = config.get("values")
     if values is None:
         values = config.get("indices" if mode == "indices" else "question_sha256", [])
-    logger.info("[gen] select_gsm8k values=%s", values)
+    logger.info("[gen] select_gsm8k value_count=%d value_preview=%s (first 5)", len(values), values[:5])
     if mode == "indices":
         try:
             selected = [by_index[int(value)] for value in values]
@@ -195,8 +201,8 @@ def select_gsm8k(records: Sequence[GSMRecord], config: dict[str, Any], count: in
     # 不足 count 时循环复用已选中的记录。
     result = [selected[i % len(selected)] for i in range(count)]
     logger.info(
-        "[gen] select_gsm8k selected=%d line_indices=%s",
-        len(result), [item.line_index for item in result],
+        "[gen] select_gsm8k selected=%d line_index_preview=%s (first 5)",
+        len(result), [item.line_index for item in result[:5]],
     )
     return result
 
@@ -213,15 +219,15 @@ def _csv_values(path: str, aliases: Sequence[str]) -> list[int]:
     values = [int(row[column]) for row in rows]
     if not values or any(value < 1 for value in values):
         raise ScenarioValidationError(f"CSV column {column} must contain positive integers")
-    logger.info("[gen] _csv_values rows=%d column=%s values=%s", len(rows), column, values)
+    logger.info("[gen] _csv_values rows=%d column=%s value_preview=%s (first 5)", len(rows), column, values[:5])
     return values
 
 
 def _log_lengths(label: str, values: list[int]) -> list[int]:
     """带日志返回长度序列（供各生成函数复用）。"""
     logger.info(
-        "[gen] %s count=%d min=%d max=%d mean=%.2f values=%s",
-        label, len(values), min(values), max(values), sum(values) / len(values), values,
+        "[gen] %s count=%d min=%d max=%d mean=%.2f value_preview=%s (first 5)",
+        label, len(values), min(values), max(values), sum(values) / len(values), values[:5],
     )
     return values
 
@@ -229,7 +235,7 @@ def _log_lengths(label: str, values: list[int]) -> list[int]:
 def build_input_lengths(config: dict[str, Any], count: int, seed: int) -> list[int]:
     """按输入长度配置生成 count 条请求的输入长度序列。"""
     mode = config["mode"]
-    logger.info("[gen] build_input_lengths mode=%s config=%s count=%d seed=%d", mode, config, count, seed)
+    logger.info("[gen] build_input_lengths mode=%s config_keys=%s count=%d seed=%d", mode, sorted(config), count, seed)
     if mode == "fixed":
         return _log_lengths("build_input_lengths", [int(config["value"])] * count)
     if mode == "explicit":
@@ -295,7 +301,7 @@ def assign_groups(count: int, config: dict[str, Any], seed: int) -> list[str]:
     支持 uniform / zipf / weights 三种分配模式；用 Largest Remainder 法
     把配额小数部分均摊到各分组，保证总数恰为 count。
     """
-    logger.info("[gen] assign_groups count=%d config=%s seed=%d", count, config, seed)
+    logger.info("[gen] assign_groups count=%d group_count=%d assignment=%s seed=%d", count, config["count"], config["assignment"], seed)
     group_count = int(config["count"])
     assignment = config["assignment"]
     mode = assignment["mode"]
@@ -325,8 +331,8 @@ def assign_groups(count: int, config: dict[str, Any], seed: int) -> list[str]:
         # zipf 模式下打乱顺序，避免长尾集中在头部。
         random.Random(seed).shuffle(groups)
     logger.info(
-        "[gen] assign_groups distribution=%s groups=%s",
-        {group: groups.count(group) for group in sorted(set(groups))}, groups,
+        "[gen] assign_groups distribution=%s group_preview=%s (first 5)",
+        dict(Counter(groups)), groups[:5],
     )
     return groups
 
@@ -341,11 +347,11 @@ def order_indices(group_ids: Sequence[str], strategy: str, seed: int, input_leng
     indices = list(range(len(group_ids)))
     rng = random.Random(seed)
     if strategy == "sequential":
-        logger.info("[gen] order_indices strategy=sequential result=%s", indices)
+        logger.info("[gen] order_indices strategy=sequential result_preview=%s (first 5)", indices[:5])
         return indices
     if strategy == "global_shuffle":
         rng.shuffle(indices)
-        logger.info("[gen] order_indices strategy=global_shuffle result=%s", indices)
+        logger.info("[gen] order_indices strategy=global_shuffle result_preview=%s (first 5)", indices[:5])
         return indices
     # 按分组把请求装进桶，再按策略重排桶内顺序。
     buckets: dict[str, list[int]] = {}
@@ -362,13 +368,13 @@ def order_indices(group_ids: Sequence[str], strategy: str, seed: int, input_leng
         for group in sorted(buckets):
             rng.shuffle(buckets[group])
             result.extend(buckets[group])
-        logger.info("[gen] order_indices strategy=within_group_shuffle result=%s", result)
+        logger.info("[gen] order_indices strategy=within_group_shuffle result_preview=%s (first 5)", result[:5])
         return result
     # interleave：用 zip_longest 把各组的请求轮流取出，实现交错。
     result = []
     for row in itertools.zip_longest(*(buckets[group] for group in sorted(buckets))):
         result.extend(index for index in row if index is not None)
-    logger.info("[gen] order_indices strategy=interleave result=%s", result)
+    logger.info("[gen] order_indices strategy=interleave result_preview=%s (first 5)", result[:5])
     return result
 
 
@@ -378,7 +384,7 @@ def assign_cold_routes(group_ids: Sequence[str], dp_size: int, explicit: Sequenc
     默认按组内出现次序轮转到各 DP 卡（group_round_robin）；显式 routes 可覆盖。
     lane 序列用于让同一 (group, rank) 上的请求按序发送。
     """
-    logger.info("[gen] assign_cold_routes count=%d dp_size=%d explicit=%s", len(group_ids), dp_size, explicit)
+    logger.info("[gen] assign_cold_routes count=%d dp_size=%d explicit_preview=%s (first 5)", len(group_ids), dp_size, explicit[:5] if explicit is not None else None)
     if explicit is not None:
         if len(explicit) != len(group_ids) or any(rank < 0 or rank >= dp_size for rank in explicit):
             raise ScenarioValidationError("explicit DP routes are invalid")
@@ -398,8 +404,8 @@ def assign_cold_routes(group_ids: Sequence[str], dp_size: int, explicit: Sequenc
         lane_sequences.append(lane_seen.get(lane, 0))
         lane_seen[lane] = lane_sequences[-1] + 1
     logger.info(
-        "[gen] assign_cold_routes lanes=%d ranks=%s lane_sequences=%s",
-        len(set(zip(group_ids, ranks))), ranks, lane_sequences,
+        "[gen] assign_cold_routes lanes=%d rank_preview=%s lane_sequence_preview=%s (first 5)",
+        len(set(zip(group_ids, ranks))), ranks[:5], lane_sequences[:5],
     )
     return ranks, lane_sequences
 
@@ -414,7 +420,8 @@ def simulate_theory(plans: Sequence[RequestPlan], mode: str, warmup_watermarks: 
         logger.info("[gen] simulate_theory plans=%d mode=%s warmup_watermarks=%s", len(plans), mode, warmup_watermarks)
     watermarks: dict[object, int] = {}
     if mode == "warmup":
-        watermarks.update(warmup_watermarks or {})
+        for group, level in (warmup_watermarks or {}).items():
+            watermarks[group] = level
     rows: list[RequestPlan] = []
     group_totals: dict[str, list[int]] = {}
     dp_totals: dict[int, list[int]] = {}
@@ -558,11 +565,12 @@ def _advance_cold_beam(
 ) -> _ColdStates:
     """Expand one request across every retained cold beam state."""
     next_states: _ColdStates = {}
-    for (watermarks, hit_units), (objective, prefixes) in states.items():
+    for (watermarks, hit_units), (objective, prefixes, lane_hits) in states.items():
         watermark = watermarks[lane]
-        previous_rate = hit_units * block_size / previous_input if previous_input else 0.0
+        previous_rate = lane_hits[lane] * block_size / previous_input if previous_input else 0.0
         for prefix_units in range(cap + 1):
-            next_hit_units = hit_units + min(prefix_units, watermark)
+            added_units = min(prefix_units, watermark)
+            next_hit_units = hit_units + added_units
             if next_hit_units > desired_hit_units:
                 continue
             next_watermarks_list = list(watermarks)
@@ -571,7 +579,9 @@ def _advance_cold_beam(
             if next_hit_units + future_capacity.total_units(index + 1, next_watermarks) < desired_hit_units:
                 continue
 
-            current_rate = next_hit_units * block_size / cumulative_input if cumulative_input else 0.0
+            next_lane_hits = list(lane_hits)
+            next_lane_hits[lane] += added_units
+            current_rate = next_lane_hits[lane] * block_size / cumulative_input if cumulative_input else 0.0
             overshoot = max(0.0, current_rate - target_rate)
             next_objective = (
                 max(objective[0], overshoot),
@@ -580,7 +590,7 @@ def _advance_cold_beam(
                 objective[3] + abs(current_rate - target_rate),
             )
             state_key = (next_watermarks, next_hit_units)
-            next_value = (next_objective, prefixes + (prefix_units,))
+            next_value = (next_objective, prefixes + (prefix_units,), tuple(next_lane_hits))
             previous = next_states.get(state_key)
             if previous is None or next_value < previous:
                 next_states[state_key] = next_value
@@ -610,22 +620,27 @@ def _target_convergent_cold_prefixes(
     """Find an exact cold schedule with low cumulative-rate overshoot.
 
     States retain independent watermarks for every ``(group, rank)`` lane.
-    The lexicographic objective first minimizes peak/total overshoot above the
-    final effective target, then cumulative-rate declines, then distance from
-    the target.  Final hit tokens remain an exact hard constraint.
+    The lexicographic objective first minimizes per-lane peak/total overshoot
+    above the final effective target, then per-lane rate declines and distance
+    from the target. Final hit tokens remain an exact hard constraint. Lane hit
+    totals travel with the retained path; feasibility keys and beam width stay
+    unchanged to avoid expanding the candidate space for these diagnostics.
     """
     request_lanes, lane_requests, lane_count = _cold_beam_lane_layout(group_ids, ranks)
     total_input = sum(input_lengths)
     target_rate = desired_hit_units * block_size / total_input if total_input else 0.0
-    cumulative_inputs = list(itertools.accumulate(input_lengths))
     future_capacity = _ColdFutureCapacity(caps, lane_requests)
     initial_watermarks = (0,) * lane_count
-    states: _ColdStates = {(initial_watermarks, 0): ((0.0, 0.0, 0.0, 0.0), ())}
+    states: _ColdStates = {(initial_watermarks, 0): ((0.0, 0.0, 0.0, 0.0), (), (0,) * lane_count)}
+    lane_inputs = [0] * lane_count
 
     for index, cap in enumerate(caps):
+        lane = request_lanes[index]
+        previous_input = lane_inputs[lane]
+        lane_inputs[lane] += input_lengths[index]
         next_states = _advance_cold_beam(
-            states, index, cap, request_lanes[index], cumulative_inputs[index],
-            cumulative_inputs[index - 1] if index else 0, desired_hit_units,
+            states, index, cap, lane, lane_inputs[lane],
+            previous_input, desired_hit_units,
             block_size, target_rate, future_capacity,
         )
         if not next_states:
@@ -635,7 +650,7 @@ def _target_convergent_cold_prefixes(
     exact = [value for (_, hit_units), value in states.items() if hit_units == desired_hit_units]
     if not exact:
         return None
-    _, chosen_units = min(exact)
+    _, chosen_units, _ = min(exact)
     return [units * block_size for units in chosen_units]
 
 
@@ -755,11 +770,6 @@ def _cold_lane_layout(
             return None, (
                 f"scalable lane {key[0]}/dp-{key[1]} has non-monotonic "
                 "prefix capacities"
-            )
-        if any(later < earlier for earlier, later in zip(lane_lengths, lane_lengths[1:])):
-            return None, (
-                f"scalable lane {key[0]}/dp-{key[1]} has non-monotonic "
-                "input lengths"
             )
         uppers = [0] + lane_caps[:-1]
         lane_uppers[key] = uppers
@@ -925,20 +935,24 @@ def _target_prefix_schedule(
 
     candidate_count = sum(cap + 1 for cap in caps)
     estimated_transitions = _COLD_BEAM_WIDTH * candidate_count
+    beam_reason = None
     if estimated_transitions <= _COLD_BEAM_TRANSITION_LIMIT:
         beam_prefixes = _target_convergent_cold_prefixes(
             input_lengths, group_ids, ranks, caps,
             desired_hit_units, block_size, _COLD_BEAM_WIDTH,
         )
-        reason = None if beam_prefixes else (
-            "bounded beam search exhausted before retaining an exact target path"
-        )
-        return beam_prefixes, "target_convergent", reason
+        if beam_prefixes is not None:
+            return beam_prefixes, "target_convergent", None
+        beam_reason = "bounded beam search exhausted before retaining an exact target path"
 
     scalable_prefixes, reason = _scalable_cold_prefixes(
         input_lengths, group_ids, ranks, caps,
         desired_hit_units, block_size,
     )
+    if scalable_prefixes is not None:
+        reason = None
+    elif beam_reason:
+        reason = f"{beam_reason}; {reason}"
     logger.info(
         "[gen] solve_prefix_lengths scalable cold path transitions=%d limit=%d "
         "beam_width=%d selected=%s fallback_reason=%s",
@@ -1021,20 +1035,34 @@ def _exact_fallback_prefixes(
     return prefixes
 
 
-def _rate_trajectory_issues(label: str, rows: Sequence[RequestPlan]) -> list[str]:
-    """Return monotonicity and overshoot diagnostics for one request stream."""
+def _rate_trajectory_issues(label: str, rows: Sequence[RequestPlan], block_size: int = 0) -> list[str]:
+    """Ignore one-block rounding noise, but detect sustained or larger drift.
+
+    Compare each rate to the preceding peak, rather than just its neighbour,
+    so repeated sub-block declines cannot hide a substantial overall decline.
+    The tolerance uses the cumulative input at each point; a final-denominator
+    tolerance would incorrectly reject normal rounding in early requests.
+    """
     cumulative_input = 0
     cumulative_hit = 0
-    rates: list[float] = []
+    peak_lower_rate = 0.0
+    declined = False
+    overshot = False
+    total_input = sum(row.actual_input_tokens for row in rows)
+    final_rate = sum(row.theoretical_hit_tokens for row in rows) / total_input if total_input else 0.0
     for row in rows:
         cumulative_input += row.actual_input_tokens
         cumulative_hit += row.theoretical_hit_tokens
-        rates.append(cumulative_hit / cumulative_input if cumulative_input else 0.0)
+        rate = cumulative_hit / cumulative_input if cumulative_input else 0.0
+        tolerance = max(1e-12, block_size / cumulative_input) if cumulative_input else 1e-12
+        declined |= rate + tolerance + 1e-12 < peak_lower_rate
+        overshot |= rate > final_rate + tolerance + 1e-12
+        peak_lower_rate = max(peak_lower_rate, rate - tolerance)
 
     issues: list[str] = []
-    if any(later + 1e-12 < earlier for earlier, later in zip(rates, rates[1:])):
+    if declined:
         issues.append(f"{label} cumulative hit rate is not monotonic")
-    if rates and max(rates) > rates[-1] + 1e-12:
+    if overshot:
         issues.append(f"{label} cumulative hit rate overshoots its final rate")
     return issues
 
@@ -1042,6 +1070,7 @@ def _rate_trajectory_issues(label: str, rows: Sequence[RequestPlan]) -> list[str
 def _prefix_trajectory_issues(
     rows: Sequence[RequestPlan],
     mode: str,
+    block_size: int = 0,
 ) -> list[str]:
     """Collect trajectory diagnostics at the cache-sharing scope.
 
@@ -1051,14 +1080,14 @@ def _prefix_trajectory_issues(
     global cumulative rate even when every lane is smooth.
     """
     if mode != "cold":
-        return _rate_trajectory_issues("global", rows)
+        return _rate_trajectory_issues("global", rows, block_size)
 
     issues: list[str] = []
     lane_rows: dict[tuple[str, int], list[RequestPlan]] = {}
     for row in rows:
         lane_rows.setdefault((row.group_id, int(row.dp_rank or 0)), []).append(row)
     for lane, current_rows in lane_rows.items():
-        issues.extend(_rate_trajectory_issues(f"lane {lane[0]}/dp-{lane[1]}", current_rows))
+        issues.extend(_rate_trajectory_issues(f"lane {lane[0]}/dp-{lane[1]}", current_rows, block_size))
     return issues
 
 
@@ -1109,9 +1138,9 @@ def _validated_prefix_theory(
             f"Prefix Cache solver constructed {hit_tokens} hit tokens; expected {desired_hit_tokens}"
         )
     logger.info(
-        "[gen] solve_prefix_lengths strategy=%s desired_hit=%d prefixes_count=%d prefix_min=%d prefix_max=%d best_error=%d best_hit=%d chosen_prefixes=%s",
+        "[gen] solve_prefix_lengths strategy=%s desired_hit=%d prefixes_count=%d prefix_min=%d prefix_max=%d best_error=%d best_hit=%d prefix_preview=%s (first 5)",
         strategy, desired_hit_tokens, len(prefixes), min(prefixes), max(prefixes),
-        error, hit_tokens, prefixes,
+        error, hit_tokens, prefixes[:5],
     )
     return theory, error, hit_tokens
 
@@ -1119,9 +1148,10 @@ def _validated_prefix_theory(
 def _trajectory_diagnostics(
     theory: TheorySummary,
     mode: str,
+    block_size: int,
 ) -> tuple[str, list[str]]:
     """Return and log the trajectory validation status."""
-    issues = _prefix_trajectory_issues(theory.rows, mode)
+    issues = _prefix_trajectory_issues(theory.rows, mode, block_size)
     status = "PASS" if not issues else "BEST_EFFORT"
     if issues:
         logger.warning(
@@ -1188,11 +1218,11 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
     lane 水位感知搜索，优先减少累计命中率超调与回落。搜索受限时回退精确构造。
     """
     logger.info(
-        "[gen] solve_prefix_lengths requests=%d block_size=%d minimum_non_shared_tokens=%d mode=%s target_hit_rate=%.4f lengths_min=%d lengths_max=%d lengths_total=%d groups=%d lanes=%d input_lengths=%s output_lengths=%s group_ids=%s ranks=%s lane_sequences=%s",
+        "[gen] solve_prefix_lengths requests=%d block_size=%d minimum_non_shared_tokens=%d mode=%s target_hit_rate=%.4f lengths_min=%d lengths_max=%d lengths_total=%d groups=%d lanes=%d input_preview=%s output_preview=%s group_preview=%s rank_preview=%s lane_sequence_preview=%s (first 5)",
         len(input_lengths), block_size, minimum_non_shared_tokens, mode, target_hit_rate,
         min(input_lengths), max(input_lengths), sum(input_lengths),
         len(set(group_ids)), len(set(zip(group_ids, (int(rank or 0) for rank in ranks)))) if mode == "cold" else len(set(group_ids)),
-        list(input_lengths), list(output_lengths), list(group_ids), list(ranks), list(lane_sequences),
+        input_lengths[:5], output_lengths[:5], group_ids[:5], ranks[:5], lane_sequences[:5],
     )
     # 只保存每条请求的最大 Block 容量。旧实现物化 0..cap 的所有候选，长输入
     # 场景会在搜索开始前就创建上百万个 Python 整数；实际只有 beam 才需要枚举范围。
@@ -1256,7 +1286,7 @@ def solve_prefix_lengths(input_lengths: Sequence[int], output_lengths: Sequence[
         desired_hit_tokens,
     )
     trajectory_status, trajectory_issues = _trajectory_diagnostics(
-        final_theory, mode,
+        final_theory, mode, block_size,
     )
     if fallback_reason:
         trajectory_status = "BEST_EFFORT"
@@ -1339,7 +1369,7 @@ def build_unique_seed(tokenizer: TokenizerLike | None, safe_ids: Sequence[int], 
         if tokenizer is not None and not _seed_round_trips(tokenizer, seed):
             logger.info("[gen] build_unique_seed retry request_id=%s nonce=%d reason=round_trip_failure", request_id, nonce)
             continue
-        logger.info("[gen] build_unique_seed request_id=%s nonce=%d seed=%s", request_id, nonce, seed)
+        logger.info("[gen] build_unique_seed request_id=%s nonce=%d seed_preview=%s (first 8)", request_id, nonce, seed[:8])
         return seed
     raise ArtifactValidationError(f"unable to construct a unique round-trip-safe seed for {request_id}")
 
@@ -1361,7 +1391,7 @@ def _repeat_tokens(
     records: Sequence[GSMRecord],
     tokenizer: TokenizerLike,
     target: int,
-    token_cache: dict[tuple[str, bool], tuple[int, ...]] | None = None,
+    token_cache: CorpusTokenCache | None = None,
 ) -> tuple[list[int], tuple[int, ...], tuple[str, ...]]:
     """循环拼接语料记录直至 token 数达到 target，返回 tokens 及来源索引/hash。"""
     logger.info("[gen] _repeat_tokens records=%d target=%d", len(records), target)
@@ -1369,12 +1399,14 @@ def _repeat_tokens(
     indices: list[int] = []
     hashes: list[str] = []
     for record in itertools.cycle(records):
-        cache_key = (record.question_sha256, bool(tokens))
-        piece_tuple = token_cache.get(cache_key) if token_cache is not None else None
-        if piece_tuple is None:
+        cache_key = (id(tokenizer), record.question_sha256, bool(tokens))
+        cached = token_cache.get(cache_key) if token_cache is not None else None
+        if cached is None:
             piece_tuple = tuple(tokenizer.encode((" " if tokens else "") + record.question, add_special_tokens=False))
             if token_cache is not None:
-                token_cache[cache_key] = piece_tuple
+                token_cache[cache_key] = (tokenizer, piece_tuple)
+        else:
+            _, piece_tuple = cached
         piece = list(piece_tuple)
         if not piece:
             continue
@@ -1399,7 +1431,7 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
         source_records = list(group_sources[group])
         if not source_records:
             raise ArtifactValidationError(f"canonical prefix source is empty for {group}")
-        token_ids = indices = hashes = None
+        selected: tuple[list[int], tuple[int, ...], tuple[str, ...]] | None = None
         # 尝试不同旋转起点，找到首个 block 不与其他组冲突的版本。
         for offset in range(len(source_records)):
             rotated = source_records[offset:] + source_records[:offset]
@@ -1407,10 +1439,10 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
                 rotated, tokenizer, max(max_lengths[group], block_size)
             )
             if tuple(candidate_tokens[:block_size]) not in first_blocks:
-                token_ids, indices, hashes = candidate_tokens, candidate_indices, candidate_hashes
+                selected = candidate_tokens, candidate_indices, candidate_hashes
                 logger.info("[gen] build_canonical_prefixes group=%s accepted rotation offset=%d", group, offset)
                 break
-        if token_ids is None:
+        if selected is None:
             # Explicitly duplicated corpus selections can make every source rotation
             # identical. Add a deterministic group marker only in that collision case
             # so one bad override cannot abort the whole dataset generation.
@@ -1420,11 +1452,10 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
                 source_records, tokenizer, max(max_lengths[group], block_size)
             )
             token_ids = marker + source_tokens
-            indices, hashes = source_indices, source_hashes
+            selected = token_ids, source_indices, source_hashes
             if tuple(token_ids[:block_size]) in first_blocks:
                 raise ArtifactValidationError(f"canonical prefixes collide in first block for {group} after deterministic fallback")
-        if indices is None or hashes is None:
-            raise ArtifactValidationError(f"canonical prefix sources are missing for {group}")
+        token_ids, indices, hashes = selected
         first_block = tuple(token_ids[:block_size])
         first_blocks.add(first_block)
         text = tokenizer.decode(token_ids, skip_special_tokens=False)
@@ -1434,7 +1465,7 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
             raise ArtifactValidationError(f"canonical prefix does not round-trip for {group}")
         digest = hashlib.sha256(bytes(str(token_ids), "utf-8")).hexdigest()
         result[group] = CanonicalPrefix(group, text, tuple(token_ids), digest, indices, hashes)
-        logger.info("[gen] build_canonical_prefixes group=%s tokens=%d text_len=%d sha256=%s gsm_indices=%s", group, len(token_ids), len(text), digest, indices)
+        logger.info("[gen] build_canonical_prefixes group=%s tokens=%d text_len=%d sha256=%s source_count=%d source_preview=%s (first 5)", group, len(token_ids), len(text), digest, len(indices), indices[:5])
     return result
 
 
@@ -1445,11 +1476,12 @@ def build_prompt(
     seed: Sequence[int],
     suffix_records: Sequence[GSMRecord],
     target_tokens: int,
-    token_cache: dict[tuple[str, bool], tuple[int, ...]] | None = None,
+    token_cache: CorpusTokenCache | None = None,
 ) -> tuple[str, tuple[int, ...], tuple[int, ...], tuple[str, ...]]:
     """按 共享前缀 + 唯一seed + 自然后缀 拼接出目标长度的 prompt 文本。
 
     返回 (文本, 实际token, 后缀来源索引, 后缀来源hash)，并校验 round-trip。
+    token_cache 按 tokenizer 实例隔离；实例存活期间不可修改其分词配置。
     """
     logger.info("[gen] build_prompt group=%s shared_prefix_tokens=%d seed_len=%d target_tokens=%d suffix_records=%d", canonical.group_id, shared_prefix_tokens, len(seed), target_tokens, len(suffix_records))
     suffix_len = target_tokens - shared_prefix_tokens - len(seed)

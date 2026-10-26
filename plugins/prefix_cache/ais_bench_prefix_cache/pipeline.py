@@ -5,6 +5,8 @@ import hashlib
 import json
 import logging
 import math
+import warnings as python_warnings
+from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -13,6 +15,7 @@ from .artifacts import ArtifactPaths, artifact_paths, sha256_file, validate_arti
 from .errors import ArtifactValidationError, PromptRoundTripError
 from .generation import (
     CanonicalPrefix,
+    CorpusTokenCache,
     GSMRecord,
     RequestPlan,
     SolveResult,
@@ -142,7 +145,7 @@ def _build_prompt_with_seed_retry(
     safe_ids: list[int],
     seed_length: int,
     random_seed: int,
-    token_cache: dict[tuple[str, bool], tuple[int, ...]] | None = None,
+    token_cache: CorpusTokenCache | None = None,
 ):
     """构造 prompt；若 round-trip 失败则换一个唯一 seed 重试，最多 64 次。"""
     logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s prefix_len=%d target_tokens=%d seed_length=%d random_seed=%d rotated_pool=%d", request_id, prefix_len, target_tokens, seed_length, random_seed, len(rotated_pool))
@@ -187,6 +190,11 @@ def _apply_group_length_overrides(
             values = build_output_lengths(
                 override["output_length"], len(positions), seed + 200 + group_index,
             )
+            if len(values) != len(positions):
+                raise ArtifactValidationError(
+                    f"{group} output_length generated {len(values)} values; "
+                    f"expected {len(positions)}"
+                )
             for position, value in zip(positions, values):
                 output_lengths[position] = value
 
@@ -230,11 +238,11 @@ def _plan_request_shape(scenario: Scenario, effective: dict[str, Any]) -> tuple[
         scenario.cache_mode, pc_cfg["target_hit_rate"],
     )
     logger.info(
-        "[plan] requests=%d input_min=%d input_max=%d input_total=%d group_distribution=%s dp_size=%d strategy=%s input_lengths=%s output_lengths=%s groups=%s ranks=%s lanes=%s prefixes=%s",
+        "[plan] requests=%d input_min=%d input_max=%d input_total=%d group_distribution=%s dp_size=%d strategy=%s input_preview=%s output_preview=%s group_preview=%s rank_preview=%s lane_preview=%s prefix_preview=%s (first 5)",
         count, min(input_lengths), max(input_lengths), sum(input_lengths),
-        {group: groups.count(group) for group in sorted(set(groups))}, scenario.dp_size,
+        dict(Counter(groups)), scenario.dp_size,
         pc_cfg["order"]["strategy"],
-        input_lengths, output_lengths, groups, ranks, lanes, solve.shared_prefix_tokens,
+        input_lengths[:5], output_lengths[:5], groups[:5], ranks[:5], lanes[:5], solve.shared_prefix_tokens[:5],
     )
     return input_lengths, output_lengths, groups, ranks, lanes, solve
 
@@ -253,8 +261,8 @@ def _build_group_pools(
         override = overrides.get(group, {})
         selection = override.get("corpus_selection", default_selection)
         logger.info(
-            "[prepare] group=%s group_index=%d positions_count=%d override=%s selection=%s",
-            group, group_index, len(group_positions), override, selection,
+            "[prepare] group=%s group_index=%d positions_count=%d override_keys=%s selection_mode=%s",
+            group, group_index, len(group_positions), sorted(override), selection["mode"],
         )
         group_pools[group] = select_gsm8k(
             records, selection, max(2, len(group_positions)), seed + 300 + group_index,
@@ -277,8 +285,9 @@ def _build_request_seed_material(
         for request_id in request_ids
     }
     logger.info(
-        "[prepare] request_ids count=%d first=%s last=%s request_random_seeds=%s",
-        len(request_ids), request_ids[0], request_ids[-1], request_random_seeds,
+        "[prepare] request_ids count=%d first=%s last=%s random_seed_preview=%s (first 5)",
+        len(request_ids), request_ids[0], request_ids[-1],
+        {key: request_random_seeds[key] for key in request_ids[:5]},
     )
     seeds: dict[str, tuple[int, ...]] = {}
     used_seeds: set[tuple[int, ...]] = set()
@@ -289,7 +298,7 @@ def _build_request_seed_material(
         )
         used_seeds.add(request_seed)
         seeds[request_id] = request_seed
-        logger.info("[prepare] request_id=%s seed=%s used_seeds=%d", request_id, request_seed, len(used_seeds))
+        logger.info("[prepare] request_id=%s seed_preview=%s (first 8) used_seeds=%d", request_id, request_seed[:8], len(used_seeds))
     return request_ids, request_random_seeds, seeds
 
 
@@ -309,12 +318,12 @@ def _generate_request_plans(
     safe_ids: list[int],
     seed_length: int,
     progress: Callable[[int, int], None] | None,
-) -> tuple[list[RequestPlan], dict[tuple[str, bool], tuple[int, ...]]]:
+) -> tuple[list[RequestPlan], CorpusTokenCache]:
     """Construct every prompt and its immutable request plan."""
     count = len(request_ids)
     plans: list[RequestPlan] = []
     occurrences: dict[str, int] = {}
-    corpus_token_cache: dict[tuple[str, bool], tuple[int, ...]] = {}
+    corpus_token_cache: CorpusTokenCache = {}
     if progress is not None:
         progress(0, count)
 
@@ -389,11 +398,11 @@ def _build_warmup_plan(
         for group in sorted(canonical)
         for rank in range(scenario.dp_size)
     ]
-    logger.info("[prepare] warmup warm_ids=%s", warm_ids)
+    logger.info("[prepare] warmup requests=%d request_id_preview=%s (first 5)", len(warm_ids), warm_ids[:5])
     warm_seeds = build_unique_seed_tokens(
         safe_ids, warm_ids, seed_length, seed + 6, tokenizer,
     )
-    logger.info("[prepare] warmup warm_seeds=%s", warm_seeds)
+    logger.info("[prepare] warmup seed_count=%d seed_preview=%s (first 8 tokens of first 5 requests)", len(warm_seeds), {key: warm_seeds[key][:8] for key in warm_ids[:5]})
     warmup_plan: list[dict[str, Any]] = []
     for group in sorted(canonical):
         for rank in range(scenario.dp_size):
@@ -451,7 +460,7 @@ def _prepare_validation(
 
 def _build_prepared_analysis(
     scenario: Scenario,
-    pc_cfg: dict[str, Any],
+    effective: dict[str, Any],
     solve: SolveResult,
     theory: TheorySummary,
     signed_difference_pp: float,
@@ -464,7 +473,7 @@ def _build_prepared_analysis(
         "schema_version": "1.0",
         "run_id": scenario.run_id,
         "status": "prepared",
-        "requested_target_hit_rate": pc_cfg["target_hit_rate"],
+        "requested_target_hit_rate": effective["prefix_cache"]["target_hit_rate"],
         "effective_target_hit_rate": solve.effective_hit_rate,
         "theoretical_hit_rate": theory.global_hit_rate,
         "trajectory": {
@@ -492,6 +501,7 @@ def _build_prepared_analysis(
 
 
 def _build_prepared_manifest(
+    *,
     scenario: Scenario,
     effective: dict[str, Any],
     corpus_cfg: dict[str, Any],
@@ -650,8 +660,10 @@ def prepare_scenario(
     pc_cfg = effective["prefix_cache"]
     corpus_cfg = effective["corpus"]
     logger.info(
-        "[prepare] overwrite=%s request_cfg=%s pc_cfg=%s corpus_cfg=%s",
-        overwrite, request_cfg, pc_cfg, corpus_cfg,
+        "[prepare] overwrite=%s requests=%d input_mode=%s output_mode=%s cache_mode=%s corpus_path=%s corpus_field=%s selection_mode=%s",
+        overwrite, request_cfg["count"], request_cfg["input_length"]["mode"],
+        request_cfg["output_length"]["mode"], pc_cfg["mode"], corpus_cfg["path"],
+        corpus_cfg["field"], corpus_cfg["selection"]["mode"],
     )
     count = request_cfg["count"]
     seed = scenario.random_seed
@@ -661,13 +673,13 @@ def prepare_scenario(
     logger.info(
         "[prepare] planned requests=%d input_min=%d input_max=%d input_total=%d output_min=%d output_max=%d group_distribution=%s",
         count, min(input_lengths), max(input_lengths), sum(input_lengths), min(output_lengths), max(output_lengths),
-        {group: groups.count(group) for group in sorted(set(groups))},
+        dict(Counter(groups)),
     )
     records = load_gsm8k(Path(corpus_cfg["path"]), corpus_cfg["field"])
     logger.info("[prepare] records=%d", len(records))
     # 阶段2：按每个组的 corpus override 构造独立语料池。
     overrides = pc_cfg["groups"].get("overrides", {})
-    logger.info("[prepare] overrides=%s", overrides)
+    logger.info("[prepare] override_groups=%s", sorted(overrides))
     group_pools = _build_group_pools(
         records, groups, overrides, corpus_cfg["selection"], seed,
     )
@@ -675,13 +687,13 @@ def prepare_scenario(
     minimum_non_shared_length = pc_cfg["minimum_non_shared_length"]
     logger.info(
         "[prepare] seed_length=%d minimum_non_shared_length=%d solve "
-        "prefixes_count=%d prefix_min=%d prefix_max=%d shared_prefix_tokens=%s "
+        "prefixes_count=%d prefix_min=%d prefix_max=%d prefix_preview=%s (first 5) "
         "requested_hit_tokens=%d effective_hit_tokens=%d effective_hit_rate=%.4f "
         "min_reachable_rate=%.4f max_reachable_rate=%.4f target_reachable=%s "
         "adjusted=%s reason=%s",
         seed_length, minimum_non_shared_length, len(solve.shared_prefix_tokens),
         min(solve.shared_prefix_tokens), max(solve.shared_prefix_tokens),
-        solve.shared_prefix_tokens, solve.requested_hit_tokens, solve.effective_hit_tokens,
+        solve.shared_prefix_tokens[:5], solve.requested_hit_tokens, solve.effective_hit_tokens,
         solve.effective_hit_rate, solve.min_reachable_rate, solve.max_reachable_rate,
         solve.target_reachable, solve.adjusted, solve.reason,
     )
@@ -697,7 +709,7 @@ def prepare_scenario(
     tokenizer = (tokenizer_loader or _tokenizer_loader)(scenario)
     logger.info("[prepare] tokenizer=%s vocab_size=%d", f"{tokenizer.__class__.__module__}.{tokenizer.__class__.__qualname__}", len(tokenizer))
     canonical = build_canonical_prefixes(tokenizer, group_sources, max_by_group, scenario.block_size)
-    logger.info("[prepare] canonical=%s", {group: {"sha256": item.sha256, "tokens": len(item.token_ids), "gsm_indices": list(item.gsm_indices), "gsm_hashes": list(item.gsm_hashes)} for group, item in canonical.items()})
+    logger.info("[prepare] canonical=%s", {group: {"sha256": item.sha256, "tokens": len(item.token_ids), "source_count": len(item.gsm_indices), "source_preview": item.gsm_indices[:5]} for group, item in canonical.items()})
     safe_ids = find_boundary_safe_token_ids(tokenizer, max(2, min(64, len(tokenizer))))
     logger.info("[prepare] safe_ids count=%d safe_ids=%s", len(safe_ids), safe_ids)
     # 阶段7：为每条请求生成唯一 seed，再按 shared_prefix + seed + 自然后缀拼 prompt。
@@ -755,18 +767,20 @@ def prepare_scenario(
         signed_difference_pp, absolute_difference_pp, warnings, validation_status,
     )
     analysis = _build_prepared_analysis(
-        scenario, pc_cfg, solve, theory, signed_difference_pp,
+        scenario, effective, solve, theory, signed_difference_pp,
         absolute_difference_pp, warnings, validation_status,
     )
-    logger.info("[prepare] analysis=%s", analysis)
+    logger.info("[prepare] analysis status=%s theoretical_hit_rate=%.6f validation=%s path=%s", analysis["status"], theory.global_hit_rate, validation_status, paths.analysis)
     write_json(paths.analysis, analysis, overwrite)
     manifest = _build_prepared_manifest(
-        scenario, effective, corpus_cfg, tokenizer, input_lengths,
-        output_lengths, theory, solve, canonical, max_by_group,
-        minimum_non_shared_length, validation_status, signed_difference_pp,
-        absolute_difference_pp, warmup_plan, paths,
+        scenario=scenario, effective=effective, corpus_cfg=corpus_cfg,
+        tokenizer=tokenizer, input_lengths=input_lengths, output_lengths=output_lengths,
+        theory=theory, solve=solve, canonical=canonical, max_by_group=max_by_group,
+        minimum_non_shared_length=minimum_non_shared_length,
+        validation_status=validation_status, signed_difference_pp=signed_difference_pp,
+        absolute_difference_pp=absolute_difference_pp, warmup_plan=warmup_plan, paths=paths,
     )
-    logger.info("[prepare] manifest=%s", json.dumps(manifest, ensure_ascii=False))
+    logger.info("[prepare] manifest status=%s requests=%d groups=%d path=%s", manifest["status"], count, len(canonical), paths.manifest)
     _write_prepared_manifest(paths, manifest, overwrite, scenario)
     validate_artifacts(paths.manifest)
     logger.info("[prepare] prepare_scenario done paths=%s", {key: str(value) for key, value in paths.__dict__.items()})
@@ -779,8 +793,16 @@ def inspect_scenario(path: Path | str, tokenizer_loader: Callable[[Scenario], An
     Content selection, canonical-prefix round trips and artifact generation are
     intentionally deferred to ``prepare``.  Inspect still uses the exact same
     length/group/order/route solver, so its reachability numbers match prepare.
+    ``tokenizer_loader`` is deprecated and ignored for source compatibility.
     """
-    logger.info("[inspect] inspect_scenario path=%s tokenizer_loader=%s", path, tokenizer_loader)
+    if tokenizer_loader is not None:
+        python_warnings.warn(
+            "inspect_scenario(tokenizer_loader=...) is deprecated and ignored; "
+            "pass tokenizer_loader to prepare_scenario for content validation",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    logger.info("[inspect] inspect_scenario path=%s", path)
     scenario = load_scenario(path)
     logger.info("[inspect] scenario run_id=%s cache_mode=%s dp_size=%d block_size=%d source_path=%s", scenario.run_id, scenario.cache_mode, scenario.dp_size, scenario.block_size, scenario.source_path)
     effective = scenario.to_effective_dict()

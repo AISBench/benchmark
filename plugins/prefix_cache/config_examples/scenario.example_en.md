@@ -158,6 +158,8 @@ shared prefix + globally unique seed + GSM8K natural suffix
 
 Omitting the object defaults to `{"mode":"fixed","value":1024}`.
 
+The length distribution and send order jointly affect cold trajectories. The scalable path for large cases requires non-decreasing capacity `cap_i = max(0, (input_length_i - minimum_non_shared_length) // block_size)` within each `(Prefix Group, DP rank)` lane and a successful proportional allocation. Lengths may decrease within the same capacity band. Use `prefix_cache.order.strategy="input_len_asc"` with random lengths to satisfy the capacity condition. Random ordering with decreasing capacities uses the exact fallback: final hits remain exact, but smoothness is `BEST_EFFORT`. Even increasing capacities cannot guarantee monotonic rates when later long requests are limited by earlier watermarks. Fluctuations within one-Block rounding intervals do not warn.
+
 #### Fixed
 
 ```json
