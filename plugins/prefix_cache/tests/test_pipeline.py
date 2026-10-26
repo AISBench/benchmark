@@ -142,12 +142,14 @@ class PipelineTest(unittest.TestCase):
             self.assertFalse((root / "out").exists())
 
     def test_output_override_count_mismatch_fails_instead_of_truncating(self):
-        with patch("ais_bench_prefix_cache.pipeline.build_output_lengths", return_value=[1]):
-            with self.assertRaisesRegex(ArtifactValidationError, "g0 output_length generated 1 values; expected 2"):
-                _apply_group_length_overrides(
-                    [32, 32], [1, 1], ["g0", "g0"],
-                    {"g0": {"output_length": {"mode": "fixed", "value": 1}}}, 42,
-                )
+        with (
+            patch("ais_bench_prefix_cache.pipeline.build_output_lengths", return_value=[1]),
+            self.assertRaisesRegex(ArtifactValidationError, "g0 output_length generated 1 values; expected 2"),
+        ):
+            _apply_group_length_overrides(
+                [32, 32], [1, 1], ["g0", "g0"],
+                {"g0": {"output_length": {"mode": "fixed", "value": 1}}}, 42,
+            )
 
     def test_deterministic_content_hashes(self):
         hashes = []
