@@ -155,10 +155,13 @@ class DefaultPerfSummarizer:
                 pass # Prefer service-returned "prompt_tokens".
             elif is_mm_prompt(perf_data["input"]):
                 perf_data["input_tokens"] = 0  # multi-modal input does not support input_tokens
-            elif "input_tokens" not in perf_data or perf_data.get("input_tokens") is None:
-                perf_data["input_tokens"] = len(tokenizer.encode(perf_data["input"])) # input_tokens is not provided, calculate it
+            else:
+                # `Output` initializes the counters to 0, so a missing value is
+                # indistinguishable from "not reported" by the key alone.
+                perf_data["input_tokens"] = len(tokenizer.encode(perf_data["input"]))
 
-            if "output_tokens" not in perf_data or perf_data.get("output_tokens") is None:
+            output_tokens = perf_data.get("output_tokens")
+            if (output_tokens is None or output_tokens <= 0) and isinstance(perf_data.get("prediction"), str):
                 perf_data["output_tokens"] = len(tokenizer.encode(perf_data["prediction"]))
             perf_data.pop("input")
             perf_data.pop("prediction")

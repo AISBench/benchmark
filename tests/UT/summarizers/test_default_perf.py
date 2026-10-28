@@ -131,6 +131,9 @@ class TestDefaultPerfSummarizer(unittest.TestCase):
         self.assertEqual(result["end_time"], 3)
         self.assertEqual(result["latency"], 3)
         self.assertEqual(result["ttft"], 1)
+        # The service reported output_tokens=0 (i.e. nothing reported); the
+        # summarizer must fall back to the tokenizer instead of keeping 0.
+        self.assertEqual(result["output_tokens"], len("test output"))
         mock_conn.close.assert_called_once()
 
     @patch('ais_bench.benchmark.summarizers.default_perf.build_model_from_cfg')
