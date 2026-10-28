@@ -191,8 +191,15 @@ class VLLMCustomAPI(BaseAPIModel):
 
     def get_prompt_logprobs(self, data: dict):
         choices = data.get("choices", [])
-        prompt_logprobs = [item.get("prompt_logprobs", {}) for item in choices if item is not None][0]
-        return prompt_logprobs
+        # vLLM returns choices[].prompt_logprobs; take the first choice. Guard the empty
+        # case (no choices / all None) so the caller's _calc_ppl raises the dedicated
+        # PPL_COMPUTE_ERROR_NO_VALID_TOKENS instead of an opaque IndexError here.
+        prompt_logprobs = [
+            item.get("prompt_logprobs", {})
+            for item in choices
+            if item is not None
+        ]
+        return prompt_logprobs[0] if prompt_logprobs else []
 
 class VLLMCustomAPIStream(VLLMCustomAPI):
 

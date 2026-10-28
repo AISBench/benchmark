@@ -453,6 +453,47 @@ class TestVLLMCustomAPI(unittest.TestCase):
         expected_ppl = -(-0.5 - 0.7) / 2
         self.assertAlmostEqual(ppl, expected_ppl, places=5)
 
+    def test_get_prompt_logprobs_normal(self):
+        """测试get_prompt_logprobs正常解析第一个choice的prompt_logprobs"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+
+        data = {
+            "choices": [
+                {"prompt_logprobs": [{"1": {"logprob": -0.5}}]},
+                {"prompt_logprobs": [{"2": {"logprob": -0.3}}]},
+            ]
+        }
+        result = model.get_prompt_logprobs(data)
+        self.assertEqual(result, [{"1": {"logprob": -0.5}}])
+
+    def test_get_prompt_logprobs_empty_choices(self):
+        """测试get_prompt_logprobs在choices为空时返回空list而非IndexError。
+
+        修复前：``[...][0]`` 对空 choices 抛 IndexError；修复后返回 []，交由
+        ``_calc_ppl`` 抛 PPL_COMPUTE_ERROR_NO_VALID_TOKENS 这个有意义的错误。
+        """
+        model = VLLMCustomAPI(**self.default_kwargs)
+
+        # choices 缺失
+        self.assertEqual(model.get_prompt_logprobs({}), [])
+        # choices 为空列表
+        self.assertEqual(model.get_prompt_logprobs({"choices": []}), [])
+        # choices 全为 None（被过滤后为空）
+        self.assertEqual(model.get_prompt_logprobs({"choices": [None]}), [])
+
+    def test_get_prompt_logprobs_none_filtered(self):
+        """测试get_prompt_logprobs跳过None的choice，取第一个有效的"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+
+        data = {
+            "choices": [
+                None,
+                {"prompt_logprobs": [{"1": {"logprob": -0.5}}]},
+            ]
+        }
+        result = model.get_prompt_logprobs(data)
+        self.assertEqual(result, [{"1": {"logprob": -0.5}}])
+
 
 class TestVLLMCustomAPILora(unittest.TestCase):
     """针对 Multi-LoRA 兼容性扩展的 UT（completions API）。"""
