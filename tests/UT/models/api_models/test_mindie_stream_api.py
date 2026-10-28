@@ -236,6 +236,33 @@ class TestMindieStreamApi(unittest.TestCase):
         model = MindieStreamApi(**self.default_kwargs)
         self.assertTrue(model.is_api)
 
+    def _run_parse(self, parse_name, api_response):
+        async def run():
+            model = MindieStreamApi(**self.default_kwargs)
+            output = Output()
+            await getattr(model, parse_name)(api_response, output)
+            return output
+        return asyncio.run(run())
+
+    def test_parse_stream_response_records_output_tokens_from_final_chunk(self):
+        """MindIE reports token usage under details.generated_tokens on the final chunk"""
+        output = self._run_parse("parse_stream_response", {"token": {"text": "Hel"}})
+        self.assertEqual(output.output_tokens, 0)
+
+        output = self._run_parse(
+            "parse_stream_response",
+            {"generated_text": "Hello world!", "details": {"generated_tokens": 12}},
+        )
+        self.assertEqual(output.content, "Hello world!")
+        self.assertEqual(output.output_tokens, 12)
+
+    def test_parse_stream_response_without_details_keeps_token_count(self):
+        """A response without a usage block must not crash or invent a count"""
+        output = self._run_parse("parse_stream_response", {"generated_text": "hi"})
+
+        self.assertEqual(output.content, "hi")
+        self.assertEqual(output.output_tokens, 0)
+
 
 class TestMindieStreamApiLora(unittest.TestCase):
     """针对 Multi-LoRA 兼容性扩展的 UT（MindIE 通过 parameters.adapter_id 路由 LoRA）。"""

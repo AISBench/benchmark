@@ -123,3 +123,5 @@ class MindieStreamApi(BaseAPIModel):
     async def parse_stream_response(self, api_response: dict, output: Output):
         generated_text = api_response.get("generated_text", "")
         output.content = generated_text
+        # The token count is only reported on the final chunk.
+        self._update_usage_from_details(api_response, output)

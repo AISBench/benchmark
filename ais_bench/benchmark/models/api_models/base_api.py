@@ -249,6 +249,21 @@ class BaseAPIModel(BaseModel):
             return val > 0
         return False
 
+    @staticmethod
+    def _update_usage_from_details(api_response: dict, output: Output) -> None:
+        """Fill token counters from a ``details`` block reported by the service.
+
+        TGI / Triton / MindIE expose token usage as ``details.generated_tokens``
+        (cumulative for streaming) instead of the OpenAI ``usage`` object. Without
+        this, every performance report for those backends shows zero throughput.
+        """
+        details = api_response.get("details")
+        if not isinstance(details, dict):
+            return
+        generated_tokens = details.get("generated_tokens")
+        if isinstance(generated_tokens, int) and not isinstance(generated_tokens, bool):
+            output.output_tokens = generated_tokens
+
     async def parse_text_response(self, data, output):
         raise AISBenchNotImplementedError(
             MODEL_CODES.PARSE_TEXT_RSP_NOT_IMPLEMENTED,
