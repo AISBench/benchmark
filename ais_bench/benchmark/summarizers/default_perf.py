@@ -89,6 +89,47 @@ class DefaultPerfSummarizer:
             model_abbrs.append(model_abbr)
         self.model_abbrs = model_abbrs
 
+    @staticmethod
+    def _has_positive_token_count(perf_data: dict, key: str) -> bool:
+        """Return whether a performance record contains a usable token count."""
+        value = perf_data.get(key)
+        return (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and value > 0
+        )
+
+    @classmethod
+    def _perf_data_needs_tokenizer(cls, perf_data: dict) -> bool:
+        """Return whether a successful record needs local tokenization."""
+        if not perf_data.get("success") or perf_data.get("time_points") is None:
+            return False
+
+        input_needs_tokenizer = (
+            not cls._has_positive_token_count(perf_data, "input_tokens")
+            and not is_mm_prompt(perf_data.get("input"))
+        )
+        output_needs_tokenizer = (
+            "output_tokens" not in perf_data or perf_data.get("output_tokens") is None
+        )
+        return input_needs_tokenizer or output_needs_tokenizer
+
+    @classmethod
+    def _validate_tokenizer_if_needed(
+        cls, model_cfg: dict, db_perf_data_map: dict
+    ) -> None:
+        """Validate the local tokenizer only when a record needs fallback counts."""
+        needs_tokenizer = any(
+            cls._perf_data_needs_tokenizer(perf_data)
+            for perf_datas in db_perf_data_map.values()
+            for perf_data in perf_datas
+        )
+        if needs_tokenizer:
+            load_tokenizer(
+                tokenizer_path=model_cfg.get("path"),
+                trust_remote_code=model_cfg.get("trust_remote_code", False),
+            )
+
     def _get_dataset_abbr(self, dataset_group):
         """Get dataset abbreviation.
         If dataset_group is a single dataset, return its abbreviation.
@@ -118,7 +159,17 @@ class DefaultPerfSummarizer:
             model_cfg: Model configuration
             perf_datas: Raw performance data
         """
-        tokenizer = AISTokenizer(model_cfg.get("path"), model_cfg.get("trust_remote_code", False))
+        tokenizer = None
+
+        def get_tokenizer():
+            nonlocal tokenizer
+            if tokenizer is None:
+                tokenizer = AISTokenizer(
+                    model_cfg.get("path"),
+                    model_cfg.get("trust_remote_code", False),
+                )
+            return tokenizer
+
         conn = init_db(db_file_path)
         all_numpy_data = load_all_numpy_from_db(conn)
 
@@ -151,15 +202,19 @@ class DefaultPerfSummarizer:
             if time_points is None: # jsonl is saved but database not committed, mainly on process is killed unexpectedly
                 manager_list.append({"success": False})
                 continue
-            if perf_data.get("input_tokens") is not None and perf_data.get("input_tokens") > 0:
-                pass # Prefer service-returned "prompt_tokens".
-            elif is_mm_prompt(perf_data["input"]):
-                perf_data["input_tokens"] = 0  # multi-modal input does not support input_tokens
-            elif "input_tokens" not in perf_data or perf_data.get("input_tokens") is None:
-                perf_data["input_tokens"] = len(tokenizer.encode(perf_data["input"])) # input_tokens is not provided, calculate it
+            if not self._has_positive_token_count(perf_data, "input_tokens"):
+                if is_mm_prompt(perf_data["input"]):
+                    # Multi-modal input does not support local token counting.
+                    perf_data["input_tokens"] = 0
+                else:
+                    perf_data["input_tokens"] = len(
+                        get_tokenizer().encode(perf_data["input"])
+                    )
 
             if "output_tokens" not in perf_data or perf_data.get("output_tokens") is None:
-                perf_data["output_tokens"] = len(tokenizer.encode(perf_data["prediction"]))
+                perf_data["output_tokens"] = len(
+                    get_tokenizer().encode(perf_data["prediction"])
+                )
             perf_data.pop("input")
             perf_data.pop("prediction")
             perf_data.pop("db_name")
@@ -263,8 +318,7 @@ class DefaultPerfSummarizer:
 
         details_perf_datas = defaultdict(list)
 
-        # check tokenizer
-        load_tokenizer(tokenizer_path=model_cfg.get("path"), trust_remote_code=model_cfg.get("trust_remote_code", False))
+        self._validate_tokenizer_if_needed(model_cfg, db_perf_data_map)
 
         with multiprocessing.Manager() as manager:
             manager_list = manager.list()
