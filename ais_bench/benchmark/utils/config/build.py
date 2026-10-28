@@ -61,9 +61,18 @@ def _validate_model_cfg(model_cfg: ConfigDict) -> dict:
         ),
     }
 
+    # An explicit `url` takes precedence over host_ip/host_port at runtime
+    # (see BaseAPIModel._get_base_url), so those two fields are not required
+    # and must not be validated when a custom URL is given.
+    url = model_cfg.get("url")
+    has_custom_url = isinstance(url, str) and bool(url.strip())
+
     for key, value in model_cfg.items():
         if key == "type":
             continue  # Not configurable; skip validation
+
+        if has_custom_url and key in ("host_ip", "host_port"):
+            continue
 
         if key == "host_ip":
             if value == "localhost":
