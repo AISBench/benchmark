@@ -10,6 +10,7 @@ from ais_bench.benchmark.models import VLLMCustomAPI
 from ais_bench.benchmark.models.api_models import base_api
 from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.utils.prompt import PromptList
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchValueError
 
 
 class TestVLLMCustomAPI(unittest.TestCase):
@@ -147,6 +148,19 @@ class TestVLLMCustomAPI(unittest.TestCase):
 
         # 验证stream选项是否正确设置
         self.assertTrue(request_body["stream"])
+
+    async def test_get_request_body_max_out_len_non_positive(self):
+        """测试max_out_len <= 0抛出AISBenchValueError，避免把非正值透传给服务端"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+
+        # 测试max_out_len = 0
+        with self.assertRaises(AISBenchValueError):
+            await model.get_request_body("test prompt", 0, output)
+
+        # 测试max_out_len = -1
+        with self.assertRaises(AISBenchValueError):
+            await model.get_request_body("test prompt", -1, output)
 
     async def test_parse_text_response(self):
         """测试parse_text_response方法"""
@@ -313,6 +327,9 @@ class TestVLLMCustomAPI(unittest.TestCase):
 
     def test_get_request_body_stream_enabled_wrapper(self):
         self.run_async_test(self.test_get_request_body_stream_enabled())
+
+    def test_get_request_body_max_out_len_non_positive_wrapper(self):
+        self.run_async_test(self.test_get_request_body_max_out_len_non_positive())
 
     def test_parse_text_response_wrapper(self):
         self.run_async_test(self.test_parse_text_response())
