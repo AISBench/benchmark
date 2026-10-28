@@ -1,7 +1,6 @@
 apted
 distance
 editdistance
-ipdb
 jieba
 Levenshtein
 lxml
