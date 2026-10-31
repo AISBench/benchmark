@@ -30,6 +30,7 @@ from ais_bench.benchmark.utils.logging.exceptions import AISBenchDataContentErro
 from ais_bench.benchmark.utils.logging.error_codes import SUMM_CODES
 from ais_bench.benchmark.utils.file.load_tokenizer import load_tokenizer, AISTokenizer
 from ais_bench.benchmark.utils.visualization.rps_distribution_plot import add_actual_rps_to_chart
+from ais_bench.benchmark.summarizers.perf_batch import aggregate_batch_perf
 
 
 def model_abbr_from_cfg_used_in_summarizer(model):
@@ -77,7 +78,16 @@ class DefaultPerfSummarizer:
                 str(dataset_cfg['type']) + "_"  # same dataset type
                 + str(dataset_cfg["infer_cfg"]["inferencer"]) # same inferencer with the same args
             )
-            dataset_groups[data_key].append(dataset_cfg)
+            group = dataset_groups[data_key]
+            # 多组合 sweep 会为每个并发档复制一份数据集配置（仅 test_range 不同，
+            # abbr 相同）。同组内按 abbr 去重，避免同一份 details 被加载多次导致
+            # 指标翻倍，也保证文件路径仍按数据集 abbr 定位。
+            abbr = dataset_cfg.get("abbr")
+            if abbr is not None and any(
+                item.get("abbr") == abbr for item in group
+            ):
+                continue
+            group.append(dataset_cfg)
         self.dataset_groups = dataset_groups
 
         self.work_dir = self.cfg["work_dir"]
@@ -485,3 +495,10 @@ class DefaultPerfSummarizer:
 
         # Output to screen
         self._output_to_screen(perf_tables)
+
+        # 多组合并发批量压测：聚合各组合结果，产出 CSV 与 HTML 报告
+        # （manifest 缺失或单组合时汇总器内部直接跳过，零开销）
+        try:
+            aggregate_batch_perf(self.work_dir)
+        except Exception as exc:  # 汇总失败不影响性能结果与退出码
+            self.logger.warning(f"Batch perf aggregation skipped: {exc}")

@@ -2,11 +2,15 @@ import argparse
 import json
 from ais_bench.benchmark.cli.utils import (
     get_current_time_str,
+    validate_batch_size,
     validate_max_workers,
     validate_max_workers_per_gpu,
     validate_num_prompts,
     validate_num_warmups,
-    validate_pressure_time
+    validate_prefix_len,
+    validate_pressure_time,
+    validate_request_count,
+    validate_request_size,
 )
 from ais_bench.benchmark.cli.utils import DEFAULT_PRESSURE_TIME
 
@@ -21,6 +25,7 @@ class ArgumentParser():
         self._custom_dataset_parser()
         self._agent_parser()
         self._api_model_parser()
+        self._synthetic_dataset_parser()
 
     def parse_args(self):
         args = self.parser.parse_args()
@@ -115,8 +120,11 @@ class ArgumentParser():
         parser.add_argument(
             '--num-prompts',
             help='Num Prompts, Specify the number of prompts to infer and evaluate. '
-            'Must be integer >= 1, If not provided, all prompts will be inferred and evaluated. ',
+            'Must be integer >= 1, If not provided, all prompts will be inferred and evaluated. '
+            'Accepts 1..N integers; with multiple values each one pairs with the '
+            'corresponding --batch-size value (or a single --batch-size broadcasts).',
             type=validate_num_prompts,
+            nargs='+',
             default=None
         )
         parser.add_argument(
@@ -424,8 +432,11 @@ class ArgumentParser():
                             help='Endpoint url override')
         parser.add_argument('--max-out-len', type=int, default=None,
                             help='Max output length override')
-        parser.add_argument('--batch-size', type=int, default=None,
-                            help='Batch size override in the range (0, 100000]')
+        parser.add_argument('--batch-size', type=validate_batch_size, nargs='+',
+                            default=None,
+                            help='Batch size override in the range (0, 100000]. '
+                            'Accepts 1..N integers; multiple values expand into one '
+                            'serial sweep combination per concurrency level.')
         parser.add_argument(
             '--trust-remote-code',
             action=argparse.BooleanOptionalAction,
@@ -434,4 +445,42 @@ class ArgumentParser():
         )
         parser.add_argument('--generation-kwargs', type=json.loads, default=None,
                             help='Generation kwargs override as a JSON object, '
-                            'e.g. \'{"temperature": 0.01, "ignore_eos": false}\'')
+                            'e.g. \'{"temperature": 0.01, "ignore_eos": false}\'. '
+                            'The `stream` key is not allowed here, use --stream instead.')
+        parser.add_argument('--model-abbr', type=str, default=None,
+                            help='Model abbr override; each sweep combination appends -bs{N}')
+        parser.add_argument(
+            '--stream',
+            action=argparse.BooleanOptionalAction,
+            default=None,
+            help='Stream override (--stream / --no-stream); only streaming can measure TTFT/TPOT'
+        )
+        parser.add_argument(
+            '--use-timestamp',
+            action=argparse.BooleanOptionalAction,
+            default=None,
+            help='use_timestamp override (--use-timestamp / --no-use-timestamp); '
+            'request_rate is ignored when enabled'
+        )
+
+    def _synthetic_dataset_parser(self):
+        """这些参数用于覆盖随机合成数据集配置，均为单值，1:1 映射配置字段。"""
+        parser = self.parser.add_argument_group('synthetic_dataset_args')
+        parser.add_argument('--request-count', type=validate_request_count, default=None,
+                            help='Override RequestCount of the single random synthetic dataset '
+                            '(sample pool size, 1 <= v <= 2^20)')
+        parser.add_argument('--tokenid-config-request-size', type=validate_request_size,
+                            default=None,
+                            help='Override TokenIdConfig.RequestSize of the synthetic dataset '
+                            '(total input length in tokens, 1 <= v <= 2^20)')
+        parser.add_argument('--tokenid-config-prefix-len', type=validate_prefix_len,
+                            default=None,
+                            help='Override TokenIdConfig.PrefixLen of the synthetic dataset '
+                            '(absolute token count, 0 <= v <= RequestSize)')
+        parser.add_argument('--string-config-input', type=json.loads, default=None,
+                            help='Override StringConfig.Input as a JSON object, '
+                            'e.g. \'{"Method": "uniform", "Params": {"MinValue": 1, "MaxValue": 1024}}\'')
+        parser.add_argument('--string-config-output', type=json.loads, default=None,
+                            help='Override StringConfig.Output as a JSON object')
+        parser.add_argument('--dataset-abbr', type=str, default=None,
+                            help='Dataset abbr override (no suffix is appended)')

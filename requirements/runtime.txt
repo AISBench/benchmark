@@ -11,6 +11,7 @@ gradio-client
 httpx
 immutabledict
 importlib-metadata
+jinja2
 jieba
 jsonlines
 mmengine-lite
