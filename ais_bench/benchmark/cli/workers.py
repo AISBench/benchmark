@@ -102,6 +102,7 @@ class Infer(BaseWorker):
             runner_cfg['max_num_workers'] = self.args.max_num_workers
             runner_cfg['max_workers_per_gpu'] = self.args.max_workers_per_gpu
             runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
+            runner_cfg['sweep_cooldown_s'] = cfg.get('sweep_cooldown_s', 0)
 
         if cfg.get('infer'):
             new_cfg = dict(infer=cfg.infer)

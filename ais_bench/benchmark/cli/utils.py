@@ -13,6 +13,9 @@ DATASETS_NEED_MODELS = ["ais_bench.benchmark.datasets.synthetic.SyntheticDataset
 MAX_NUM_WORKERS = int(os.cpu_count() * 0.8)
 DEFAULT_PRESSURE_TIME = 15
 MAX_PRESSURE_TIME = 60 * 60 * 24  # 24 hours
+MAX_BATCH_SIZE = 100000
+MAX_REQUEST_COUNT = 2 ** 20
+MAX_REQUEST_SIZE = 2 ** 20
 
 logger = AISLogger()
 
@@ -63,8 +66,12 @@ def fill_model_path_if_datasets_need(model_cfg, dataset_cfg):
         dataset_cfg.update({"model_path": model_path, "trust_remote_code": trust_remote_code})
 
 
-def fill_test_range_use_num_prompts(num_prompts: int, dataset_cfg: dict):
+def fill_test_range_use_num_prompts(num_prompts, dataset_cfg: dict):
     if not num_prompts:
+        return
+    # 列表形态说明本次运行是多组合 sweep，test_range 由展开器逐副本写入，
+    # 这里必须跳过，避免把列表拼进 test_range 字符串。
+    if isinstance(num_prompts, (list, tuple)):
         return
     reader_cfg = dataset_cfg["reader_cfg"]
     if "test_range" in reader_cfg:
@@ -185,4 +192,28 @@ validate_pressure_time = create_int_validator(
     min_value=1,
     max_value=MAX_PRESSURE_TIME,
     error_message_suffix=f"(maximum: {MAX_PRESSURE_TIME} seconds, which is 24 hours)"
+)
+
+validate_batch_size = create_int_validator(
+    param_name="--batch-size",
+    min_value=1,
+    max_value=MAX_BATCH_SIZE,
+)
+
+validate_request_count = create_int_validator(
+    param_name="--request-count",
+    min_value=1,
+    max_value=MAX_REQUEST_COUNT,
+)
+
+validate_request_size = create_int_validator(
+    param_name="--tokenid-config-request-size",
+    min_value=1,
+    max_value=MAX_REQUEST_SIZE,
+)
+
+validate_prefix_len = create_int_validator(
+    param_name="--tokenid-config-prefix-len",
+    min_value=0,
+    error_message_suffix="(an absolute token count is required; fractions/ratios are not supported)",
 )

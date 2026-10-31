@@ -57,11 +57,13 @@ class LocalRunner(BaseRunner):
                  debug: bool = False,
                  max_workers_per_gpu: int = 1,
                  keep_tmp_file: bool = False,
+                 sweep_cooldown_s: int = 0,
                  **kwargs):
         super().__init__(task=task, debug=debug)
         self.max_num_workers = max_num_workers
         self.max_workers_per_gpu = max_workers_per_gpu
         self.keep_tmp_file = keep_tmp_file
+        self.sweep_cooldown_s = sweep_cooldown_s
         for k, v in kwargs.items():
             self.logger.warning(f'Ignored argument in {self.__module__}: {k}={v}')
 
@@ -205,6 +207,15 @@ class LocalRunner(BaseRunner):
                     break
                 lock.release()
                 time.sleep(1)
+
+            # 多组合串行压测时的档间冷却：仅串行生效，避免上一档的 in-flight
+            # 请求/连接残留污染下一档性能数据。
+            if index > 0 and self.sweep_cooldown_s and self.max_num_workers == 1:
+                self.logger.info(
+                    f"Cooldown {self.sweep_cooldown_s}s before launching task "
+                    f"{index + 1}/{len(tasks)} ({task.name})"
+                )
+                time.sleep(self.sweep_cooldown_s)
 
             res = self._launch(task, gpu_ids, index)
 

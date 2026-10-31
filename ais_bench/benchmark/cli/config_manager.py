@@ -1,6 +1,7 @@
 import os
 import os.path as osp
 import inspect
+import json
 import tabulate
 from mmengine.config import Config
 
@@ -11,6 +12,11 @@ from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
 from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
 from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
+from ais_bench.benchmark.cli.sweep import (
+    MANIFEST_FILENAME,
+    _normalize_sweep_arg,
+    expand_sweep_combinations,
+)
 
 RESPONSE_ANOMALY_TOP_LOGPROBS = 20
 
@@ -113,11 +119,53 @@ class ConfigManager:
         self.cfg = self._get_config_from_arg()
         self._init_response_anomaly_config()
         self._update_and_init_work_dir()
+        self._expand_sweep_configs()
         self._inject_response_anomaly_payload_storage()
         self._fill_dataset_configs()
         self._update_cfg_of_workflow(workflow)
         self._dump_and_reload_config()
         return self.cfg
+
+    def _expand_sweep_configs(self):
+        """按 `--batch-size`/`--num-prompts` 展开多组合配置并落盘 manifest。"""
+        cli_args = self.cfg.get('cli_args') or {}
+        result = expand_sweep_combinations(
+            self.cfg.get('models') or [],
+            self.cfg.get('datasets') or [],
+            cli_args,
+        )
+        self.cfg['models'] = result.models
+        self.cfg['datasets'] = result.datasets
+        if result.combinations:
+            self.cfg['model_dataset_combinations'] = result.combinations
+        if result.sweep_cooldown_s:
+            self.cfg['sweep_cooldown_s'] = result.sweep_cooldown_s
+        if result.manifest is not None:
+            self._write_manifest(result.manifest)
+
+    def _write_manifest(self, manifest):
+        """原子写入 `<work_dir>/combos_manifest.json`；失败仅告警不阻断。"""
+        work_dir = self.cfg.get('work_dir')
+        if not work_dir:
+            return
+        path = osp.join(work_dir, MANIFEST_FILENAME)
+        tmp_path = f'{path}.tmp{os.getpid()}'
+        try:
+            os.makedirs(work_dir, exist_ok=True)
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(manifest, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, path)
+        except (OSError, TypeError) as exc:
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except OSError:
+                pass
+            self.logger.warning(f'Failed to write sweep manifest {path}: {exc}')
+            return
+        self.logger.info(f'Sweep manifest written to {path}')
 
     def _init_response_anomaly_config(self):
         """Normalize the optional response anomaly detection configuration."""
@@ -600,7 +648,9 @@ class ConfigManager:
         for dataset_cfg in self.cfg["datasets"]:
             if dataset_cfg.get("infer_cfg", None) is None:
                 continue
-            fill_test_range_use_num_prompts(self.cfg["cli_args"].get("num_prompts"), dataset_cfg)
+            fill_test_range_use_num_prompts(
+                _normalize_sweep_arg(self.cfg["cli_args"].get("num_prompts")), dataset_cfg
+            )
             fill_model_path_if_datasets_need(self.cfg["models"][0], dataset_cfg)
             retriever_cfg = dataset_cfg["infer_cfg"]["retriever"]
             infer_cfg = dataset_cfg["infer_cfg"]
@@ -829,6 +879,12 @@ class ConfigManager:
                 cli_val = getattr(self.args, field, None)
                 if cli_val is None or field not in model_cfg:
                     continue
+                if field == "batch_size":
+                    # 多档 sweep 时 batch_size 是列表，由组合展开器逐副本写入；
+                    # 单值（含长度 1 列表）在此归一成 int 覆盖既有键。
+                    cli_val = _normalize_sweep_arg(cli_val)
+                    if not isinstance(cli_val, int):
+                        continue
                 model_cfg[field] = cli_val
 
     def _load_summarizers_config(self):
@@ -918,9 +974,12 @@ class ConfigManager:
         recur_convert_config_type(self.cfg)
         self.cfg.dump(output_config_path)
         # eval nums set
-        if (self.args.num_prompts and self.args.num_prompts < 0) or self.args.num_prompts == 0:
+        num_prompts = _normalize_sweep_arg(self.args.num_prompts)
+        if isinstance(num_prompts, int) and num_prompts <= 0:
             raise CommandError(TMAN_CODES.INVALID_ARG_VALUE_IN_CMD, "'--num-prompts' must be a positive integer greater than 0.")
-        self.cfg['num_prompts'] = self.args.num_prompts
+        # 多档 sweep 时 num_prompts 已逐组合写入数据集副本的 test_range，
+        # 顶层字段只承载单值语义，列表形态记 None。
+        self.cfg['num_prompts'] = num_prompts if isinstance(num_prompts, int) else None
         # Config is intentally reloaded here to avoid initialized
         # types cannot be serialized
         try:

@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+{{ marker | safe }}
+{% macro bi(zh, en) -%}
+<span data-i18n-zh="{{ zh }}" data-i18n-en="{{ en }}">{{ zh }}</span>
+{%- endmacro %}
+{% macro chart_tabs(charts, prefix) -%}
+<div class="tab-group">
+  <div class="tab-nav">
+    {% for chart in charts %}
+    <button class="tab-btn {{ 'active' if loop.first else '' }}" type="button"
+            data-tab="{{ prefix }}-{{ loop.index0 }}">{{ bi(chart.title_zh, chart.title_en) }}</button>
+    {% endfor %}
+  </div>
+  {% for chart in charts %}
+  <div class="tab-pane {{ 'active' if loop.first else '' }}" id="{{ prefix }}-{{ loop.index0 }}">
+    <div class="chart-wrap">{{ chart.html | safe }}</div>
+  </div>
+  {% endfor %}
+</div>
+{%- endmacro %}
+<html lang="zh-CN" data-lang="zh" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AISBench 性能测试报告</title>
+<script>
+/* 首屏前应用语言，默认中文；用户上次选择记在 localStorage */
+(function () {
+  var lang = 'zh';
+  try {
+    var saved = localStorage.getItem('ais-bench-lang');
+    if (saved === 'zh' || saved === 'en') { lang = saved; }
+  } catch (e) {}
+  document.documentElement.setAttribute('data-lang', lang);
+  document.documentElement.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+}());
+</script>
+<script>
+/* 首屏前应用主题，避免闪烁 */
+(function () {
+  var theme = 'dark';
+  try {
+    var saved = localStorage.getItem('ais-bench-theme');
+    if (saved === 'light' || saved === 'dark') {
+      theme = saved;
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      theme = 'light';
+    }
+  } catch (e) {
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      theme = 'light';
+    }
+  }
+  document.documentElement.setAttribute('data-theme', theme);
+}());
+</script>
+<script src="{{ plotly_cdn }}"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c0c1a;
+  --bg-card: #12122b;
+  --bg-sub: #16163a;
+  --bg-hover: #1b1b3a;
+  --border: rgba(129, 109, 248, 0.14);
+  --border-strong: rgba(129, 109, 248, 0.30);
+  --text: #e2e8f0;
+  --text-muted: #8896aa;
+  --text-dim: #5c6480;
+  --accent: #816DF8;
+  --accent-weak: rgba(129, 109, 248, 0.14);
+  --blue: #63b3ed;
+  --green: #34d399;
+  --yellow: #fbbf24;
+  --red: #f87171;
+  --header-bg: linear-gradient(140deg, #0e0e28 0%, #13163a 55%, #0b1024 100%);
+  --shadow: none;
+}
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f6fb;
+  --bg-card: #ffffff;
+  --bg-sub: #f7f7fd;
+  --bg-hover: #f0f0fa;
+  --border: rgba(91, 63, 214, 0.14);
+  --border-strong: rgba(91, 63, 214, 0.32);
+  --text: #1f2333;
+  --text-muted: #5c6480;
+  --text-dim: #8b91a7;
+  --accent: #5B3FD6;
+  --accent-weak: rgba(91, 63, 214, 0.08);
+  --blue: #2b6cb0;
+  --green: #0f9c7e;
+  --yellow: #b7791f;
+  --red: #c53030;
+  --header-bg: linear-gradient(140deg, #ffffff 0%, #f3f1ff 55%, #eef6ff 100%);
+  --shadow: 0 1px 3px rgba(31, 35, 51, 0.06);
+}
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Microsoft YaHei", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.container { max-width: 1280px; margin: 0 auto; padding: 0 24px 64px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Header ─────────────────────────────────────────────── */
+.report-header {
+  background: var(--header-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 26px 30px 22px;
+  margin: 24px 0 18px;
+  box-shadow: var(--shadow);
+}
+.header-eyebrow {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 10px;
+}
+.header-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--accent-weak); color: var(--accent);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+}
+.report-title { font-size: 26px; font-weight: 700; margin: 0 0 14px; letter-spacing: -0.01em; }
+.meta-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.meta-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  font-size: 12px;
+}
+.meta-chip-label { color: var(--text-muted); }
+.meta-chip-value { color: var(--text); font-weight: 600; }
+.header-actions { display: inline-flex; gap: 8px; }
+.theme-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: transparent;
+  color: var(--text-muted); font-size: 12px; font-family: inherit;
+}
+.theme-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── TOC ────────────────────────────────────────────────── */
+.toc {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 8px 10px; margin-bottom: 26px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.toc a {
+  padding: 5px 12px; border-radius: 7px;
+  color: var(--text-muted); font-size: 13px;
+}
+.toc a:hover { background: var(--accent-weak); color: var(--accent); text-decoration: none; }
+
+/* ── Section ────────────────────────────────────────────── */
+.section { margin-bottom: 40px; scroll-margin-top: 70px; }
+.section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.section-icon { display: inline-flex; color: var(--accent); }
+.section-title { font-size: 19px; font-weight: 650; margin: 0; }
+.section-sub { color: var(--text-muted); font-size: 13px; margin: -8px 0 14px; }
+
+/* ── Card ───────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; margin-bottom: 16px; overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.card-title { font-size: 14px; font-weight: 650; }
+.card-badge {
+  padding: 2px 9px; border-radius: 999px;
+  background: var(--accent-weak); color: var(--accent);
+  font-size: 12px; font-weight: 600;
+}
+.card-body { padding: 16px 18px; }
+
+/* ── Table ──────────────────────────────────────────────── */
+.table-wrap { width: 100%; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td {
+  padding: 8px 12px; text-align: right;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--bg-sub); color: var(--text-muted);
+  font-weight: 600; font-size: 12px; letter-spacing: 0.01em;
+}
+tbody tr:hover td { background: var(--bg-hover); }
+tbody tr:last-child td { border-bottom: none; }
+td.text, th.text { text-align: left; white-space: normal; }
+td.label { text-align: left; color: var(--accent); font-weight: 600; width: 34%; }
+tr.fail td { color: var(--text-dim); }
+tr.fail td:last-child { color: var(--red); font-weight: 600; }
+.badge-success { color: var(--green); font-weight: 600; }
+.badge-fail { color: var(--red); font-weight: 600; }
+/* 详细性能指标表：表头与单元格统一左对齐 */
+table.align-left th, table.align-left td { text-align: left; }
+
+/* ── Stat grid ──────────────────────────────────────────── */
+.stat-grid {
+  /* 运行摘要固定 4 列 × 4 行（16 项指标按顺序填充） */
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px; background: var(--border);
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+}
+.stat-item {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 14px; background: var(--bg-card);
+}
+.stat-key { color: var(--text-muted); font-size: 12px; }
+.stat-val { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* ── Tabs ───────────────────────────────────────────────── */
+.tab-nav {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 10px 14px 0; border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  padding: 7px 14px; cursor: pointer; font-family: inherit; font-size: 13px;
+  color: var(--text-muted); background: transparent;
+  border: none; border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+}
+.tab-btn:hover { color: var(--text); background: var(--bg-hover); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-pane { display: none; padding: 12px 14px 14px; }
+.tab-pane.active { display: block; }
+.chart-wrap { width: 100%; height: 380px; }
+/* 隐藏 tab 内渲染时容器宽度为 0，plotly 会回退到默认 700px；强制跟随容器并在切换 tab 时重绘 */
+.chart-wrap .plotly-graph-div { width: 100% !important; }
+
+/* ── Details ────────────────────────────────────────────── */
+details.ds-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; margin-bottom: 12px; overflow: hidden;
+  box-shadow: var(--shadow);
+}
+details.ds-card > summary {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 14px 18px; cursor: pointer; list-style: none;
+  font-weight: 600;
+}
+details.ds-card > summary::-webkit-details-marker { display: none; }
+details.ds-card > summary:hover { background: var(--bg-hover); }
+.ds-summary-left { display: inline-flex; align-items: center; gap: 10px; }
+.ds-arrow { display: inline-flex; color: var(--accent); transition: transform 0.15s; }
+details[open] .ds-arrow { transform: rotate(90deg); }
+.ds-body { padding: 4px 18px 18px; }
+.sub-card {
+  background: var(--bg-sub); border: 1px solid var(--border);
+  border-radius: 10px; margin-top: 14px; overflow: hidden;
+}
+.sub-card-header {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+}
+.sub-card .table-wrap { max-height: 420px; overflow: auto; }
+
+/* ── Notes ──────────────────────────────────────────────── */
+.note-list { margin: 0; padding-left: 18px; color: var(--text-muted); }
+.note-list li { margin-bottom: 6px; }
+.muted { color: var(--text-muted); }
+.empty {
+  padding: 28px 18px; text-align: center; color: var(--text-muted);
+  border: 1px dashed var(--border-strong); border-radius: 10px;
+}
+@media (max-width: 720px) {
+  .container { padding: 0 12px 40px; }
+  .report-header { padding: 20px; }
+  .report-title { font-size: 21px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="report-header">
+  <div class="header-eyebrow">
+    <span class="header-badge">{{ bi('AISBench · 批量压测', 'AISBench · Batch Sweep') }}</span>
+    <span class="header-actions">
+      <button id="lang-toggle" class="theme-btn" type="button">EN</button>
+      <button id="theme-toggle" class="theme-btn" type="button">浅色主题</button>
+    </span>
+  </div>
+  <h1 class="report-title">{{ bi('AISBench 性能测试报告', 'AISBench Performance Test Report') }}</h1>
+  <div class="meta-chips">
+    <div class="meta-chip">
+      <span class="meta-chip-label">{{ bi('模型', 'Model') }}</span>
+      <span class="meta-chip-value">{{ model_label }}</span>
+    </div>
+    <div class="meta-chip">
+      <span class="meta-chip-label">{{ bi('数据集', 'Dataset') }}</span>
+      <span class="meta-chip-value">{{ dataset_label }}</span>
+    </div>
+    <div class="meta-chip">
+      <span class="meta-chip-label">{{ bi('任务数', 'Tasks') }}</span>
+      <span class="meta-chip-value">{{ combo_count }}</span>
+    </div>
+    <div class="meta-chip">
+      <span class="meta-chip-label">{{ bi('生成时间', 'Generated at') }}</span>
+      <span class="meta-chip-value">{{ generated_at }}</span>
+    </div>
+    <div class="meta-chip">
+      <span class="meta-chip-label">{{ bi('版本', 'ais_bench') }}</span>
+      <span class="meta-chip-value">{{ ais_bench_version }}</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#overview">{{ bi('总览', 'Overview') }}</a>
+  <a href="#latency">{{ bi('时延分析', 'Latency Analysis') }}</a>
+  <a href="#throughput">{{ bi('吞吐分析', 'Throughput Analysis') }}</a>
+  <a href="#details">{{ bi('逐任务详情', 'Task Details') }}</a>
+  <a href="#notes">{{ bi('口径与说明', 'Notes') }}</a>
+</nav>
+
+<!-- ── Overview ───────────────────────────────────────────── -->
+<section class="section" id="overview">
+  <div class="section-header">
+    <span class="section-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/>
+      </svg>
+    </span>
+    <h2 class="section-title">{{ bi('总览', 'Overview') }}</h2>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{{ bi('基础信息', 'Basic Information') }}</span></div>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          {% for zh, en, value in basic_info %}
+          <tr><td class="label">{{ bi(zh, en) }}</td><td class="text">{{ value }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">{{ bi('详细性能指标', 'Detailed Performance Metrics') }}</span>
+      <span class="card-badge">{{ combo_count }} {{ bi('个任务', 'tasks') }}</span>
+    </div>
+    <div class="table-wrap">
+      <table class="align-left">
+        <thead>
+          <tr>{% for header in overview_headers %}<th>{{ header }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in report_rows %}
+          <tr class="{{ 'fail' if row.status == 'fail' else '' }}">
+            {% for cell in row.cells %}
+            {% if loop.last %}
+            <td><span class="{{ 'badge-success' if row.status == 'success' else 'badge-fail' }}">{{ cell }}</span></td>
+            {% else %}
+            <td>{{ cell }}</td>
+            {% endif %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{{ bi('最佳性能配置', 'Best Performance Configuration') }}</span></div>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr>
+            <td class="label">{{ bi('最高输出吞吐', 'Highest output throughput') }}</td>
+            <td class="text">
+              {% if best.throughput %}
+              {{ best.throughput.throughput_tok_s }} token/s · Batch Size {{ best.throughput.batch_size }}
+              · RPS {{ best.throughput.request_throughput }} · {{ bi('成功率', 'Success rate') }} {{ best.throughput.success_rate_text }}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td class="label">{{ bi('最低平均 TTFT', 'Lowest average TTFT') }}</td>
+            <td class="text">
+              {% if best.ttft %}
+              {{ best.ttft.ttft_avg }} ms · Batch Size {{ best.ttft.batch_size }}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">{{ bi('性能建议', 'Performance Recommendations') }}</span></div>
+    <div class="card-body">
+      <ul class="note-list">
+        {% for zh, en in recommendations %}<li>{{ bi(zh, en) }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ── Latency Analysis ───────────────────────────────────── -->
+<section class="section" id="latency">
+  <div class="section-header">
+    <span class="section-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </svg>
+    </span>
+    <h2 class="section-title">{{ bi('时延分析', 'Latency Analysis') }}</h2>
+  </div>
+  {% if charts.latency %}
+  <div class="card">
+    <div class="tab-group">
+      <div class="tab-nav">
+        {% for chart in charts.latency %}
+        <button class="tab-btn {{ 'active' if loop.first else '' }}" type="button"
+                data-tab="latency-tab-{{ loop.index0 }}">{{ bi(chart.title_zh, chart.title_en) }}</button>
+        {% endfor %}
+      </div>
+      {% for chart in charts.latency %}
+      <div class="tab-pane {{ 'active' if loop.first else '' }}" id="latency-tab-{{ loop.index0 }}">
+        <div class="chart-wrap">{{ chart.html | safe }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty">{{ bi('暂无时延曲线（plotly 缺失或无非流式可用结果）。', 'No latency curves available (plotly missing or no usable streaming results).') }}</div>
+  {% endif %}
+</section>
+
+<!-- ── Throughput Analysis ────────────────────────────────── -->
+<section class="section" id="throughput">
+  <div class="section-header">
+    <span class="section-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+    </span>
+    <h2 class="section-title">{{ bi('吞吐分析', 'Throughput Analysis') }}</h2>
+  </div>
+  {% if charts.throughput %}
+  <div class="card">
+    <div class="tab-group">
+      <div class="tab-nav">
+        {% for chart in charts.throughput %}
+        <button class="tab-btn {{ 'active' if loop.first else '' }}" type="button"
+                data-tab="throughput-tab-{{ loop.index0 }}">{{ bi(chart.title_zh, chart.title_en) }}</button>
+        {% endfor %}
+      </div>
+      {% for chart in charts.throughput %}
+      <div class="tab-pane {{ 'active' if loop.first else '' }}" id="throughput-tab-{{ loop.index0 }}">
+        <div class="chart-wrap">{{ chart.html | safe }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty">{{ bi('暂无吞吐曲线（plotly 缺失或无可用结果）。', 'No throughput curves available (plotly missing or no usable results).') }}</div>
+  {% endif %}
+</section>
+
+<!-- ── Per-Run Details ────────────────────────────────────── -->
+<section class="section" id="details">
+  <div class="section-header">
+    <span class="section-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 11l3 3L22 4"/>
+        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+      </svg>
+    </span>
+    <h2 class="section-title">{{ bi('逐任务详情', 'Task Details') }}</h2>
+  </div>
+  {% if details %}
+    {% for detail in details %}
+    <details class="ds-card">
+      <summary>
+        <span class="ds-summary-left">
+          <span class="ds-arrow">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </span>
+          <span>{{ detail.label }}</span>
+        </span>
+        <span class="card-badge">{{ bi(detail.badge_zh, detail.badge_en) }}</span>
+      </summary>
+      <div class="ds-body">
+        <div class="sub-card">
+          <div class="sub-card-header">{{ bi('运行摘要', 'Run Summary') }}</div>
+          <div class="stat-grid">
+            {% for key, value in detail.stats %}
+            <div class="stat-item">
+              <span class="stat-key">{{ key }}</span>
+              <span class="stat-val">{{ value }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="sub-card">
+          <div class="sub-card-header">{{ bi('指标统计', 'Metric Statistics') }}</div>
+          {% if detail.metric_table %}
+          <div class="table-wrap">
+            <table class="align-left">
+              <thead>
+                <tr>{% for col in detail.metric_headers %}<th>{{ col }}</th>{% endfor %}</tr>
+              </thead>
+              <tbody>
+                {% for row in detail.metric_table %}
+                <tr>{% for val in row %}<td>{{ val if val != '' else '—' }}</td>{% endfor %}</tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="card-body muted">{{ bi('未找到该任务的指标统计（synthetic.csv 缺失或不可解析）。', 'No metric statistics found for this task (synthetic.csv missing or unparsable).') }}</div>
+          {% endif %}
+        </div>
+
+        <div class="sub-card">
+          <div class="sub-card-header">{{ bi('百分位曲线', 'Percentile Curves') }}</div>
+          {% if detail.metric_charts %}
+          {{ chart_tabs(detail.metric_charts, 'metric-run-' ~ loop.index0) }}
+          {% else %}
+          <div class="card-body muted">{{ bi('未找到该任务的百分位曲线（perf CSV 缺失或指标不可用）。', 'No percentile curves found for this task (perf CSV missing or metrics unavailable).') }}</div>
+          {% endif %}
+        </div>
+
+        <div class="sub-card">
+          <div class="sub-card-header">
+            {{ bi('请求明细（共 %d 条）' % detail.request_total,
+                  'Request Details (%d requests)' % detail.request_total) }}
+          </div>
+          {% if detail.request_charts %}
+          {{ chart_tabs(detail.request_charts, 'request-run-' ~ loop.index0) }}
+          {% else %}
+          <div class="card-body muted">{{ bi('未找到该任务的请求明细（details jsonl 缺失或不可解析）。', 'No request details found for this task (details jsonl missing or unparsable).') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </details>
+    {% endfor %}
+  {% else %}
+  <div class="empty">{{ bi('无可用结果。', 'No usable results.') }}</div>
+  {% endif %}
+</section>
+
+<!-- ── Notes ──────────────────────────────────────────────── -->
+<section class="section" id="notes">
+  <div class="section-header">
+    <span class="section-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+    </span>
+    <h2 class="section-title">{{ bi('口径与说明', 'Notes') }}</h2>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">{{ bi('指标定义', 'Metric Definitions') }}</h3>
+      <ul class="note-list">
+        <li>{{ bi('Gen. tok/s / Output Tok Throughput：输出 token 吞吐，来源 performances 聚合结果。',
+                    'Gen. tok/s / Output Tok Throughput: output token throughput, taken from the aggregated performances results.') }}</li>
+        <li>{{ bi('RPS：请求吞吐（req/s）；Total Tok Throughput = 输入 + 输出 token 吞吐。',
+                    'RPS: request throughput (req/s); Total Tok Throughput = input + output token throughput.') }}</li>
+        <li>{{ bi('Avg/P99 Lat.(s)：端到端时延 E2EL 的平均值与 P99，单位秒。',
+                    'Avg/P99 Lat.(s): mean and P99 of end-to-end latency (E2EL), in seconds.') }}</li>
+        <li>{{ bi('TTFT/TPOT/ITL 单位 ms；仅 stream=true 且 ttft_valid=true 的任务有意义，否则置空（不填 0）。',
+                    'TTFT/TPOT/ITL are in ms; only meaningful when stream=true and ttft_valid=true, otherwise left empty (never filled with 0).') }}</li>
+        <li>{{ bi('Success Rate：成功请求数 / 总请求数；Batch Size 为客户端最大并发请求数（并发窗口），请求完成后立即补位，不存在固定波次。',
+                    'Success Rate: successful requests / total requests; Batch Size is the client-side maximum concurrent requests (concurrency window) with immediate backfilling, so there are no fixed waves.') }}</li>
+      </ul>
+
+      <h3 class="card-title" style="margin-top:18px;">{{ bi('缺失说明', 'Missing Data') }}</h3>
+      <p class="muted">{{ bi('Task Status=fail 的任务在汇总表灰显，且不进入任何曲线与最佳配置比较；全部为 fail 时仍产出本报告，以空态提示无可用结果。',
+                             'Tasks with Task Status=fail are greyed out in the summary table and excluded from all curves and best-configuration comparison; the report is still produced when every task fails, showing an empty state.') }}</p>
+
+      <h3 class="card-title" style="margin-top:18px;">{{ bi('运行期告警', 'Runtime Warnings') }}</h3>
+      {% if warnings %}
+      <ul class="note-list">{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+      {% else %}
+      <p class="muted">{{ bi('无。', 'None.') }}</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+</div>
+<script>
+(function () {
+  var LANG_KEY = 'ais-bench-lang';
+  var DOC_TITLES = {
+    zh: 'AISBench 性能测试报告',
+    en: 'AISBench Performance Test Report'
+  };
+  var THEME_LABELS = {
+    zh: { toLight: '浅色主题', toDark: '深色主题' },
+    en: { toLight: 'Light theme', toDark: 'Dark theme' }
+  };
+  var langToggle = document.getElementById('lang-toggle');
+  var themeToggle = document.getElementById('theme-toggle');
+
+  function currentLang() {
+    return document.documentElement.getAttribute('data-lang') === 'en' ? 'en' : 'zh';
+  }
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') || 'dark';
+  }
+  function syncThemeLabel() {
+    var labels = THEME_LABELS[currentLang()] || THEME_LABELS.zh;
+    themeToggle.textContent = currentTheme() === 'dark' ? labels.toLight : labels.toDark;
+  }
+  /* 全量应用语言：静态文案来自 data-i18n-zh / data-i18n-en，指标名与数据不受影响 */
+  function applyLang(lang) {
+    document.documentElement.setAttribute('data-lang', lang);
+    document.documentElement.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+    document.title = DOC_TITLES[lang];
+    document.querySelectorAll('[data-i18n-zh]').forEach(function (el) {
+      var text = lang === 'zh'
+        ? el.getAttribute('data-i18n-zh')
+        : el.getAttribute('data-i18n-en');
+      if (text !== null) { el.textContent = text; }
+    });
+    langToggle.textContent = lang === 'zh' ? 'EN' : '中文';
+    syncThemeLabel();
+  }
+
+  applyLang(currentLang());
+  langToggle.addEventListener('click', function () {
+    var next = currentLang() === 'zh' ? 'en' : 'zh';
+    try { localStorage.setItem(LANG_KEY, next); } catch (e) {}
+    applyLang(next);
+  });
+  themeToggle.addEventListener('click', function () {
+    var next = currentTheme() === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('ais-bench-theme', next); } catch (e) {}
+    syncThemeLabel();
+  });
+
+  /* 补齐 tab / 折叠区内首屏隐藏的图：可见后按容器实际宽度重绘，保证各模块图表尺寸一致 */
+  function resizeCharts(scope) {
+    if (!window.Plotly || !scope) { return; }
+    scope.querySelectorAll('.js-plotly-plot').forEach(function (chart) {
+      if (chart.offsetParent === null) { return; }  /* 仍隐藏的图跳过，避免按 0 宽度重绘 */
+      try { window.Plotly.Plots.resize(chart); } catch (e) {}
+    });
+  }
+
+  document.querySelectorAll('details').forEach(function (item) {
+    item.addEventListener('toggle', function () {
+      if (item.open) { resizeCharts(item); }
+    });
+  });
+
+  document.querySelectorAll('.tab-group').forEach(function (group) {
+    var buttons = group.querySelectorAll('.tab-btn');
+    var panes = group.querySelectorAll('.tab-pane');
+    buttons.forEach(function (button) {
+      button.addEventListener('click', function () {
+        buttons.forEach(function (item) { item.classList.remove('active'); });
+        panes.forEach(function (pane) { pane.classList.remove('active'); });
+        button.classList.add('active');
+        var pane = group.querySelector('#' + button.getAttribute('data-tab'));
+        if (pane) {
+          pane.classList.add('active');
+          resizeCharts(pane);
+        }
+      });
+    });
+  });
+}());
+</script>
+</body>
+</html>
