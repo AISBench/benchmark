@@ -3,6 +3,7 @@
 ## 一. 简介
 
 多档并发场景是常见的多任务组合性能压测场景，旨在通过分析不同并发度的性能测试结果，找到模型的性能瓶颈。
+
 本文档提供 AISBench 支持的命令行使用样例。具体而言，一次命令即可把并发数（`--batch-size`）与请求条数（`--num-prompts`）展开为多组任务，跑完后统一汇总为 CSV 与 HTML 报告，用于对比不同并发档下的吞吐与时延表现：
 
 - **吞吐维度**：请求吞吐量、输出 Token 吞吐量随并发上升是否仍在增长
@@ -23,19 +24,19 @@
 
 ```bash
 ais_bench \
-  --models vllm_api_stream_chat \    # 使用流式对话模型
-  --datasets synthetic_gen_tokenid \ # 使用随机token id数据集
-  --mode perf \                      # 性能测试场景
-  --tokenid-config-request-size 8192 \ # 单请求token数量（输入长度）
-  --tokenid-config-prefix-len 0 \ # 请求的公共前缀token数量（前缀长度）
-  --batch-size 1 8 16 32 40 50 64 \ # 请求发送的最大并发数
-  --num-prompts 1 8 16 32 40 50 64 \ # 请求发送总数
-  --request-count 64 \ # 随机合成数据集生成的请求总数（大于等于请求发送总数）
-  --path /mnt/weight/Qwen3.8-27B-w8a8 \ # Tokenizer/模型序列化词表文件路径
-  --model-name qwen3.8 \ # 服务端已加载模型名称
-  --max-out-len 1024 \ # 推理服务输出最大token数（输出长度）
-  --num-warmups 16 \ # 发送请求前预热次数
-  --generation-kwargs '{"ignore_eos":true}' # 推理服务输出忽略eos
+  --models vllm_api_stream_chat \            # 使用流式对话模型
+  --datasets synthetic_gen_tokenid \         # 使用随机token id数据集
+  --mode perf \                              # 性能测试场景
+  --tokenid-config-request-size 8192 \       # 单请求token数量（输入长度）
+  --tokenid-config-prefix-len 0 \            # 请求的公共前缀token数量（前缀长度）
+  --batch-size 1 8 \                         # 请求发送的最大并发数
+  --num-prompts 1 8 \                        # 请求发送总数
+  --request-count 8 \                        # 随机合成数据集生成的请求总数（大于等于请求发送总数）
+  --path /mnt/weight/Qwen3.8-27B-w8a8 \      # Tokenizer/模型序列化词表文件路径
+  --model-name qwen3.8 \                     # 服务端已加载模型名称
+  --max-out-len 1024 \                       # 推理服务输出最大token数（输出长度）
+  --num-warmups 16 \                         # 发送请求前预热次数
+  --generation-kwargs '{"ignore_eos":true}'  # 推理服务输出忽略eos
 ```
 
 说明：
@@ -55,12 +56,12 @@ ais_bench \
 
 ```
 Base path of result&log : outputs/default/20251102_103326
-+---------------------------------------+-----------+-------------+-----------+-----------+
-| Task Name                             |  Process  | Progress    | Time Cost | Status    |
-+---------------------------------------+-----------+-------------+-----------+-----------+
-| vllm_api_stream_chat-bs1/synthetic                 |   1024    | [#########] | 0:01:12   | finished  |
-| vllm_api_stream_chat-bs8/synthetic                 |   1024    | [######    ] | 0:02:05   | inferencing |
-+---------------------------------------+-----------+-------------+-----------+-----------+
++------------------------------------+---------+-------------+-----------+-------------+
+| Task Name                          | Process | Progress    | Time Cost | Status      |
++------------------------------------+---------+-------------+-----------+-------------+
+| vllm_api_stream_chat-bs1/synthetic |   1024  | [#########] |  0:01:12  | finished    |
+| vllm_api_stream_chat-bs8/synthetic |   1024  | [#####    ] |  0:02:05  | inferencing |
++------------------------------------+---------+-------------+-----------+-------------+
 ```
 
 **产物结构**
