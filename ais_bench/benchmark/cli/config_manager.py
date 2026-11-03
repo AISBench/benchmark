@@ -12,8 +12,8 @@ from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
 from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
 from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
+from ais_bench.benchmark.utils.perf_manifest import MANIFEST_FILENAME
 from ais_bench.benchmark.cli.sweep import (
-    MANIFEST_FILENAME,
     _normalize_sweep_arg,
     expand_sweep_combinations,
 )
@@ -133,6 +133,7 @@ class ConfigManager:
             self.cfg.get('models') or [],
             self.cfg.get('datasets') or [],
             cli_args,
+            combinations=self.cfg.get('model_dataset_combinations') or None,
         )
         self.cfg['models'] = result.models
         self.cfg['datasets'] = result.datasets
@@ -973,13 +974,10 @@ class ConfigManager:
 
         recur_convert_config_type(self.cfg)
         self.cfg.dump(output_config_path)
-        # eval nums set
+        # eval nums set：仅做合法性校验；多档条数由各组合的 test_range 与 manifest 承载
         num_prompts = _normalize_sweep_arg(self.args.num_prompts)
         if isinstance(num_prompts, int) and num_prompts <= 0:
             raise CommandError(TMAN_CODES.INVALID_ARG_VALUE_IN_CMD, "'--num-prompts' must be a positive integer greater than 0.")
-        # 多档 sweep 时 num_prompts 已逐组合写入数据集副本的 test_range，
-        # 顶层字段只承载单值语义，列表形态记 None。
-        self.cfg['num_prompts'] = num_prompts if isinstance(num_prompts, int) else None
         # Config is intentally reloaded here to avoid initialized
         # types cannot be serialized
         try:

@@ -19,6 +19,7 @@ from ais_bench.benchmark.calculators.base_perf_metric_calculator import (
     BasePerfMetricCalculator,
 )
 from ais_bench.benchmark.utils.logging.logger import AISLogger
+from ais_bench.benchmark.utils.perf_details import derive_request_metrics
 from ais_bench.benchmark.utils.core.abbr import model_abbr_from_cfg
 from ais_bench.benchmark.utils.config import build_perf_metric_calculator_from_cfg, build_model_from_cfg
 from ais_bench.benchmark.utils.prompt import is_mm_prompt
@@ -176,21 +177,19 @@ class DefaultPerfSummarizer:
 
             perf_data["start_time"] = time_points[0]
             perf_data["end_time"] = time_points[-1]
-            perf_data["latency"] = time_points[-1] - time_points[0]
+            derived = derive_request_metrics(time_points, perf_data["output_tokens"])
+            perf_data["latency"] = derived["latency"]
             # Non-streaming: TTFT/TPOT are meaningless — set to 0 so the
             # calculator removes them, and Prefill Token Throughput is skipped.
             if not model_cfg.get("stream", True):
                 perf_data["ttft"] = 0
                 perf_data["tpot"] = 0
             else:
-                perf_data["ttft"] = time_points[1] - time_points[0]
+                perf_data["ttft"] = derived["ttft"]
                 perf_data["tpot"] = (
-                    (perf_data["latency"] - perf_data["ttft"])
-                    / (perf_data["output_tokens"] - 1)
-                    if perf_data["output_tokens"] > 1
-                    else 0
+                    derived["tpot"] if derived["tpot"] is not None else 0
                 )
-            perf_data["itl"] = np.diff(time_points[1:]) if len(time_points) > 2 else []
+            perf_data["itl"] = derived["itl"] if len(time_points) > 2 else []
             perf_data["generate_tokens_speed"] = (
                 perf_data["output_tokens"] / perf_data["latency"]
             )
@@ -500,5 +499,11 @@ class DefaultPerfSummarizer:
         # （manifest 缺失或单组合时汇总器内部直接跳过，零开销）
         try:
             aggregate_batch_perf(self.work_dir)
-        except Exception as exc:  # 汇总失败不影响性能结果与退出码
+        except (ImportError, OSError) as exc:
             self.logger.warning(f"Batch perf aggregation skipped: {exc}")
+        except Exception as exc:  # 汇总失败不影响性能结果与退出码
+            # 未预期异常仍降级，但保留堆栈，避免真实 bug 被静默吞掉
+            self.logger.warning(
+                f"Batch perf aggregation failed unexpectedly: {exc}",
+                exc_info=True,
+            )

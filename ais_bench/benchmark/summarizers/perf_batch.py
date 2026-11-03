@@ -22,16 +22,28 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from ais_bench.benchmark import __version__
-from ais_bench.benchmark.cli.sweep import MANIFEST_FILENAME
 from ais_bench.benchmark.utils.logging.logger import AISLogger
+from ais_bench.benchmark.utils.perf_details import derive_request_metrics
+from ais_bench.benchmark.utils.perf_manifest import MANIFEST_FILENAME
 
 logger = AISLogger()
+
+# 可预期的渲染失败：依赖缺失、落盘失败、模板语法/运行时错误。
+# jinja2 是可选依赖，缺失时在下方补入其异常类型。
+EXPECTED_RENDER_ERRORS: Tuple[type, ...] = (ImportError, OSError)
+try:
+    from jinja2 import TemplateError as _JinjaTemplateError
+
+    EXPECTED_RENDER_ERRORS += (_JinjaTemplateError,)
+except ImportError:  # pragma: no cover - 可选依赖缺失环境
+    pass
 
 SUMMARY_CSV_NAME = "batch_perf_summary.csv"
 REPORT_HTML_NAME = "batch_perf_report.html"
 REPORT_MARKER = "<!-- ais-bench-perf-render:v1 -->"
 TEMPLATE_NAME = "batch_perf_report.html.j2"
-# 与 EvalScope PLOTLY_CDN_URL 对齐：单文件报告只引一次 CDN，不内联 JS
+# 报告消费端（内网/离线机器）通常无外网，默认内联本机 plotly 包内的
+# plotly.min.js；仅当本机缺少该文件时回退到 CDN，并在报告说明区提示
 PLOTLY_CDN_URL = "https://cdn.plot.ly/plotly-2.27.0.min.js"
 # 图表文字色取中间灰：报告默认深色主题，但切到浅色主题后仍需可读
 CHART_TEXT_COLOR = "#7f8a9e"
@@ -120,6 +132,8 @@ METRIC_CHART_SPECS = [
 
 # 逐请求曲线超过该点数时只画线不画点，避免密集遮挡
 DETAIL_MARKER_LIMIT = 200
+# 逐请求曲线最多内联的点数：超出后等距采样，避免单个组合撑爆 HTML 体积
+MAX_DETAIL_POINTS = 5000
 
 _NUMBER_PATTERN = re.compile(r"^\s*(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)")
 
@@ -197,11 +211,20 @@ def _load_perf_csv(path: Path) -> Dict[Tuple[str, str], Dict[str, Optional[float
 
 
 def _csv_stat(table, param: str, stat: str,
-              stage: str = "total") -> Optional[float]:
-    stage_map = table.get((param, stage))
-    if not stage_map:
-        return None
-    return stage_map.get(stat)
+              stage: Optional[str] = None) -> Optional[float]:
+    """取参数统计值；未指定阶段时优先 `total`，缺失则回退第一个阶段。
+
+    `perf` 汇总的 stage 是 `total`，`perf/stable_stage` 是 `stable`，
+    回退策略与 `_common_metric` 保持一致。
+    """
+    if stage is not None:
+        stage_map = table.get((param, stage))
+        return stage_map.get(stat) if stage_map else None
+    stage_map = table.get((param, "total"))
+    if stage_map is None:
+        stage_map = next(
+            (value for (name, _), value in table.items() if name == param), None)
+    return stage_map.get(stat) if stage_map else None
 
 
 def _manifest_path(work_dir: Path) -> Path:
@@ -227,10 +250,23 @@ def _is_truthy(value) -> bool:
     return bool(value)
 
 
-def _build_row(work_dir: Path, combo: dict) -> dict:
+def _is_safe_abbr(abbr) -> bool:
+    """abbr 参与输出路径拼接，拒绝空值、分隔符与相对路径片段。"""
+    if not isinstance(abbr, str) or not abbr:
+        return False
+    return Path(abbr).name == abbr and abbr not in (".", "..")
+
+
+def _build_row(work_dir: Path, combo: dict) -> Optional[dict]:
     """单个组合的汇总行（数值态，格式化在落盘/渲染时统一做）。"""
     model_abbr = combo.get("model_abbr")
     dataset_abbr = combo.get("dataset_abbr")
+    if not _is_safe_abbr(model_abbr) or not _is_safe_abbr(dataset_abbr):
+        logger.warning(
+            "Skip combo with unsafe abbr (possible path traversal): "
+            "model=%r dataset=%r", model_abbr, dataset_abbr,
+        )
+        return None
     model_cfg = combo.get("model_config") or {}
     dataset_cfg = combo.get("dataset_config") or {}
     stream = _is_truthy(model_cfg.get("stream", False))
@@ -406,9 +442,20 @@ def _metric_rows_for_row(row: dict, work_dir: Path) -> Tuple[List[str], List[Lis
 def _expand_summary_rows(rows: List[dict], work_dir: Path) -> List[List[str]]:
     """把"一组合一行"展开为「身份列 + 指标行」，身份列每行重复填充。"""
     expanded: List[List[str]] = []
+    warned_extra: set = set()
     for row in rows:
         identity = _identity_values(row)
-        _, metric_rows = _metric_rows_for_row(row, work_dir)
+        header, metric_rows = _metric_rows_for_row(row, work_dir)
+        extra_headers = tuple(header[len(PERF_METRIC_HEADERS):])
+        if extra_headers and extra_headers not in warned_extra:
+            warned_extra.add(extra_headers)
+            logger.warning(
+                "Batch perf summary CSV keeps only the first %d metric column(s); "
+                "extra column(s) %s from dataset %s are omitted",
+                len(PERF_METRIC_HEADERS),
+                ", ".join(extra_headers),
+                row.get("dataset_abbr"),
+            )
         if not metric_rows:
             expanded.append(identity + [""] * len(PERF_METRIC_HEADERS))
             continue
@@ -483,6 +530,45 @@ def _sorted_groups(rows: List[dict]) -> List[Tuple[Tuple, List[dict]]]:
     for group_rows in groups.values():
         group_rows.sort(key=lambda item: (item.get("batch_size") or 0))
     return sorted(groups.items(), key=lambda item: str(item[0]))
+
+
+def _group_label(row: dict) -> str:
+    """可比分组标签：与容量曲线图的前缀保持一致。"""
+    return "{}/{} (size={}, prefix={})".format(
+        _display(row.get("model_abbr")),
+        _display(row.get("dataset_abbr")),
+        _display(row.get("request_size")),
+        _display(row.get("prefix_len")),
+    )
+
+
+def _escape_chart_text(text) -> str:
+    """转义图表标签中的尖括号。
+
+    plotly 的 `to_html` 把图形 JSON 原样内联进 `<script>`，而 trace name 里会拼入
+    CLI 传入的 model_abbr/dataset_abbr；不依赖 plotly 自身是否转义 `</`，这里先
+    把 `<`/`>` 换成实体，避免标签提前闭合脚本（持久化 XSS）。
+    """
+    if text is None:
+        return ""
+    return str(text).replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _plotly_inline_js() -> Optional[str]:
+    """读取本机 plotly 包内置的 plotly.min.js，用于离线打开的单文件报告。
+
+    返回 None 表示内联不可用，调用方回退到 CDN。
+    """
+    try:
+        from plotly.offline import get_plotlyjs
+
+        return get_plotlyjs()
+    except (ImportError, OSError, ValueError) as exc:
+        logger.warning(
+            f"Failed to inline plotly.min.js, fall back to CDN "
+            f"{PLOTLY_CDN_URL}: {exc}"
+        )
+        return None
 
 
 def _figure_html(figure) -> str:
@@ -579,6 +665,17 @@ def _build_metric_charts(metric_rows: List[List[str]]) -> List[dict]:
     return charts
 
 
+def _limit_detail_rows(rows: List[dict]) -> List[dict]:
+    """逐请求曲线最多保留 MAX_DETAIL_POINTS 个点：超出后等距采样并保留末条。"""
+    if len(rows) <= MAX_DETAIL_POINTS:
+        return rows
+    step = (len(rows) + MAX_DETAIL_POINTS - 1) // MAX_DETAIL_POINTS
+    sampled = rows[::step]
+    if sampled[-1] is not rows[-1]:
+        sampled.append(rows[-1])
+    return sampled
+
+
 def _build_request_charts(detail_rows: List[dict]) -> List[dict]:
     """请求明细折线图：延迟 / TTFT-TPOT-ITL / 输入输出 token / 成功失败。"""
     try:
@@ -670,7 +767,9 @@ def _build_charts(rows: List[dict]) -> Dict[str, List[dict]]:
     def group_prefix(row: dict) -> str:
         if not multi_group:
             return ""
-        return (f"{row.get('model_abbr')}/{row.get('dataset_abbr')} "
+        model = _escape_chart_text(row.get("model_abbr"))
+        dataset = _escape_chart_text(row.get("dataset_abbr"))
+        return (f"{model}/{dataset} "
                 f"(size={row.get('request_size')}, prefix={row.get('prefix_len')}) ")
 
     def add(category: str, title_zh: str, title_en: str,
@@ -867,22 +966,24 @@ def _load_detail_rows(perf_dir: Path, dataset_abbr: str) -> List[dict]:
                              "tpot": None, "itl": None, "input_len": input_tokens,
                              "output_len": None})
                 continue
-            latency = float(time_points[-1] - time_points[0])
-            ttft = float(time_points[1] - time_points[0])
             output_tokens = record.get("output_tokens")
+            derived = derive_request_metrics(time_points, output_tokens)
+            # 公共函数统一返回秒，此处按报告口径换算为毫秒
+            latency = float(derived["latency"]) * 1000
+            ttft = float(derived["ttft"]) * 1000
             tpot = None
-            if isinstance(output_tokens, int) and output_tokens > 1:
-                tpot = (latency - ttft) / (output_tokens - 1) * 1000
+            if derived["tpot"] is not None:
+                tpot = float(derived["tpot"]) * 1000
             # 平均 ITL：首个 token 之后相邻 token 的间隔均值（与 EvalScope 的 avg inter-token latency 同口径）
             itl = None
-            gaps = np.diff(time_points[1:])
+            gaps = derived["itl"]
             if gaps.size:
                 itl = float(gaps.mean()) * 1000
             rows.append(
                 {
                     "success": True,
-                    "latency": latency * 1000,
-                    "ttft": ttft * 1000,
+                    "latency": latency,
+                    "ttft": ttft,
                     "tpot": tpot,
                     "itl": itl,
                     "input_len": input_tokens,
@@ -896,7 +997,7 @@ def _load_template():
     """惰性导入 jinja2 并加载模板（依赖缺失返回 None）。"""
     try:
         from jinja2 import Environment, FileSystemLoader, select_autoescape
-    except Exception as exc:
+    except ImportError as exc:
         logger.warning(f"jinja2 is unavailable, skip HTML report: {exc}")
         return None
     template_dir = Path(__file__).resolve().parent / "templates"
@@ -912,26 +1013,37 @@ def _load_template():
     return env.get_template(TEMPLATE_NAME)
 
 
-def _best_configs(rows: List[dict]) -> dict:
-    """最佳配置：最高吞吐与最低平均 TTFT 两个口径分别标注。"""
-    ok_rows = [row for row in rows if row.get("status") == "success"]
-    best_throughput = None
-    for row in ok_rows:
-        value = row.get("throughput_tok_s")
-        if value is None:
-            continue
-        if best_throughput is None or value > best_throughput["throughput_tok_s"]:
-            best_throughput = row
-    best_ttft = None
-    for row in ok_rows:
-        if not row.get("ttft_valid"):
-            continue
-        value = row.get("ttft_avg")
-        if value is None:
-            continue
-        if best_ttft is None or value < best_ttft["ttft_avg"]:
-            best_ttft = row
-    return {"throughput": best_throughput, "ttft": best_ttft}
+def _best_configs(rows: List[dict]) -> List[dict]:
+    """最佳配置：按可比分组分别取最高吞吐与最低平均 TTFT，组间不混算。"""
+    groups = _sorted_groups(rows)
+    if not groups:
+        # 全部失败时保留一张空卡片，与分组前的展示一致
+        return [{"label": "", "throughput": None, "ttft": None}]
+    multi_group = len(groups) > 1
+    best_groups: List[dict] = []
+    for _, group_rows in groups:
+        best_throughput = None
+        for row in group_rows:
+            value = row.get("throughput_tok_s")
+            if value is None:
+                continue
+            if best_throughput is None or value > best_throughput["throughput_tok_s"]:
+                best_throughput = row
+        best_ttft = None
+        for row in group_rows:
+            if not row.get("ttft_valid"):
+                continue
+            value = row.get("ttft_avg")
+            if value is None:
+                continue
+            if best_ttft is None or value < best_ttft["ttft_avg"]:
+                best_ttft = row
+        best_groups.append({
+            "label": _group_label(group_rows[0]) if multi_group else "",
+            "throughput": best_throughput,
+            "ttft": best_ttft,
+        })
+    return best_groups
 
 
 def _saturation_note(rows: List[dict]) -> Tuple[str, str]:
@@ -963,6 +1075,22 @@ def _saturation_note(rows: List[dict]) -> Tuple[str, str]:
     return ("未饱和：吞吐仍随并发上升，可继续增大 batch_size 观察拐点。",
             "Not saturated: throughput still grows with concurrency; "
             "keep increasing batch_size to locate the knee.")
+
+
+def _saturation_notes(rows: List[dict]) -> List[Tuple[str, str]]:
+    """按可比分组分别给出饱和判定，多组时在文案中标注所属组。"""
+    groups = _sorted_groups(rows)
+    if not groups:
+        return [_saturation_note(rows)]
+    multi_group = len(groups) > 1
+    notes: List[Tuple[str, str]] = []
+    for _, group_rows in groups:
+        zh, en = _saturation_note(group_rows)
+        if multi_group:
+            label = _group_label(group_rows[0])
+            zh, en = f"[{label}] {zh}", f"[{label}] {en}"
+        notes.append((zh, en))
+    return notes
 
 
 def _display(value) -> str:
@@ -1016,40 +1144,49 @@ def _basic_info(rows: List[dict], first_combo: dict) -> List[Tuple[str, str, str
     return [(zh, en, _display(value)) for zh, en, value in fields]
 
 
-def _recommendations(rows: List[dict], best: dict) -> List[Tuple[str, str]]:
-    """性能建议：饱和判定 + 最佳档位 + 延迟增长 + 失败组合提示（中英双语）。"""
-    notes = [_saturation_note(rows)]
-    best_throughput = best.get("throughput")
-    if best_throughput:
+def _recommendations(rows: List[dict], best_groups: List[dict]) -> List[Tuple[str, str]]:
+    """性能建议：按组饱和判定 + 最佳档位 + 时延增长 + 失败组合提示（中英双语）。"""
+    notes = list(_saturation_notes(rows))
+    for group in best_groups:
+        best_throughput = group.get("throughput")
+        if not best_throughput:
+            continue
+        prefix = f"[{group['label']}] " if group.get("label") else ""
         batch_size = _display(best_throughput.get("batch_size"))
         tok_s = _display(best_throughput.get("throughput_tok_s"))
         rps = _display(best_throughput.get("request_throughput"))
         success = _display(best_throughput.get("success_rate_text"))
         notes.append(
-            ("建议并发档：batch_size={}，输出吞吐 {} token/s，RPS {}，成功率 {}。".format(
+            (prefix + "建议并发档：batch_size={}，输出吞吐 {} token/s，RPS {}，成功率 {}。".format(
                 batch_size, tok_s, rps, success),
-             "Recommended concurrency: batch_size={}, output throughput {} token/s, "
+             prefix + "Recommended concurrency: batch_size={}, output throughput {} token/s, "
              "RPS {}, success rate {}.".format(batch_size, tok_s, rps, success))
         )
-    latencies = sorted(
-        (row.get("batch_size") or 0, row.get("e2el_avg_s"))
-        for row in rows
-        if row.get("status") == "success" and row.get("e2el_avg_s") is not None
-    )
-    if len(latencies) >= 2:
+    groups = _sorted_groups(rows)
+    multi_group = len(groups) > 1
+    for _, group_rows in groups:
+        latencies = sorted(
+            (row.get("batch_size") or 0, row.get("e2el_avg_s"))
+            for row in group_rows
+            if row.get("e2el_avg_s") is not None
+        )
+        if len(latencies) < 2:
+            continue
         first_batch, first_latency = latencies[0]
         last_batch, last_latency = latencies[-1]
-        if first_latency:
-            ratio = round(last_latency / first_latency, 2)
-            notes.append(
-                ("端到端平均时延从 batch_size={} 的 {} s 增长到 batch_size={} 的 {} s（{}×）。".format(
-                    first_batch, _display(first_latency), last_batch,
-                    _display(last_latency), ratio),
-                 "Average end-to-end latency grows from {} s at batch_size={} "
-                 "to {} s at batch_size={} ({}x).".format(
-                    _display(first_latency), first_batch,
-                    _display(last_latency), last_batch, ratio))
-            )
+        if not first_latency:
+            continue
+        prefix = f"[{_group_label(group_rows[0])}] " if multi_group else ""
+        ratio = round(last_latency / first_latency, 2)
+        notes.append(
+            (prefix + "端到端平均时延从 batch_size={} 的 {} s 增长到 batch_size={} 的 {} s（{}×）。".format(
+                first_batch, _display(first_latency), last_batch,
+                _display(last_latency), ratio),
+             prefix + "Average end-to-end latency grows from {} s at batch_size={} "
+             "to {} s at batch_size={} ({}x).".format(
+                _display(first_latency), first_batch,
+                _display(last_latency), last_batch, ratio))
+        )
     failed = [row for row in rows if row.get("status") == "fail"]
     if failed:
         notes.append(
@@ -1085,6 +1222,15 @@ def render_batch_perf_report(rows: List[dict], manifest: dict,
                 continue
             perf_dir = out_dir / "performances" / str(row.get("model_abbr"))
             detail_rows = _load_detail_rows(perf_dir, str(row.get("dataset_abbr")))
+            detail_total = len(detail_rows)
+            detail_rows = _limit_detail_rows(detail_rows)
+            if detail_total > len(detail_rows):
+                logger.warning(
+                    "Request detail charts for model %s / dataset %s are sampled "
+                    "(%d of %d requests) to keep the HTML report small",
+                    row.get("model_abbr"), row.get("dataset_abbr"),
+                    len(detail_rows), detail_total,
+                )
             metric_headers, metric_rows = _metric_rows_for_row(row, out_dir)
             details.append(
                 {
@@ -1103,20 +1249,30 @@ def render_batch_perf_report(rows: List[dict], manifest: dict,
                     "metric_table": metric_rows,
                     "metric_charts": _build_metric_charts(metric_rows),
                     "request_charts": _build_request_charts(detail_rows),
-                    "request_total": len(detail_rows),
+                    "request_total": detail_total,
                 }
             )
 
         combos = manifest.get("combos") or []
         first_combo = combos[0] if combos else {}
         first_model_cfg = first_combo.get("model_config") or {}
-        best = {
-            key: (_format_row(value) if value else None)
-            for key, value in _best_configs(rows).items()
-        }
+        # 最佳配置按可比分组给出：组间输入规格/口径不可比，不跨组混算
+        best_groups = [
+            {
+                "label": group["label"],
+                "throughput": (_format_row(group["throughput"])
+                               if group["throughput"] else None),
+                "ttft": _format_row(group["ttft"]) if group["ttft"] else None,
+            }
+            for group in _best_configs(rows)
+        ]
+        # 优先内联 plotly，保证离线机器打开报告也能出图；失败才回退 CDN
+        plotly_js = _plotly_inline_js()
         context = {
             "marker": REPORT_MARKER,
             "plotly_cdn": PLOTLY_CDN_URL,
+            "plotly_inline": plotly_js is not None,
+            "plotly_js": plotly_js or "",
             "generated_at": datetime.now().isoformat(timespec="seconds"),
             "ais_bench_version": __version__,
             "schema_version": manifest.get("schema_version"),
@@ -1130,9 +1286,9 @@ def render_batch_perf_report(rows: List[dict], manifest: dict,
             "overview_headers": OVERVIEW_HEADERS,
             "report_rows": report_rows,
             "charts": charts,
-            "best": best,
-            "saturation": _saturation_note(rows)[0],
-            "recommendations": _recommendations(rows, best),
+            "best_groups": best_groups,
+            "saturation": "；".join(note[0] for note in _saturation_notes(rows)),
+            "recommendations": _recommendations(rows, best_groups),
             "details": details,
             "warnings": warnings or [],
         }
@@ -1155,8 +1311,15 @@ def render_batch_perf_report(rows: List[dict], manifest: dict,
                 pass
             raise
         return path
-    except Exception as exc:
+    except EXPECTED_RENDER_ERRORS as exc:
         logger.warning(f"Failed to render batch perf report: {exc}")
+        return None
+    except Exception as exc:
+        # 未预期异常同样降级，但保留堆栈，避免模板变量/库版本等真实 bug 被吞掉
+        logger.warning(
+            f"Unexpected error while rendering batch perf report: {exc}",
+            exc_info=True,
+        )
         return None
 
 
@@ -1177,7 +1340,10 @@ def aggregate_batch_perf(work_dir, manifest: Optional[dict] = None,
         logger.debug("Single combo run, skip batch perf aggregation.")
         return BatchPerfArtifacts()
 
-    rows = [_build_row(work_path, combo) for combo in combos]
+    rows = [
+        row for row in (_build_row(work_path, combo) for combo in combos)
+        if row is not None
+    ]
     # 行序按 batch_size 升序，"并发-吞吐曲线"可直接从表读出
     rows.sort(key=lambda row: (row.get("batch_size") or 0))
     failed = [row.get("model_abbr") for row in rows if row.get("status") == "fail"]
@@ -1195,7 +1361,13 @@ def aggregate_batch_perf(work_dir, manifest: Optional[dict] = None,
         return BatchPerfArtifacts()
     logger.info(f"Batch perf summary written to {csv_path}")
 
-    html_path = render_batch_perf_report(rows, manifest, list(warnings or []), work_path)
+    # 展开期告警（并发窗口跑不满、非流式无 TTFT 等）随 manifest 落盘，与调用方
+    # 传入的告警合并后写入报告，保证报告"运行期告警"区不为空
+    merged_warnings: List[str] = []
+    for warning in list(manifest.get("warnings") or []) + list(warnings or []):
+        if warning not in merged_warnings:
+            merged_warnings.append(warning)
+    html_path = render_batch_perf_report(rows, manifest, merged_warnings, work_path)
     if html_path is not None:
         logger.info(f"Batch perf report written to {html_path}")
     return BatchPerfArtifacts(csv_path=csv_path, html_path=html_path)

@@ -810,6 +810,8 @@ class TestConfigManager(unittest.TestCase):
 
         # 验证结果
         mock_cfg.dump.assert_called_once()
+        # 顶层 num_prompts 无消费方，不再写入落盘配置
+        mock_cfg.__setitem__.assert_not_called()
         mock_fromfile.assert_called_once()
 
     @mock.patch('os.makedirs')
@@ -1478,6 +1480,18 @@ class TestSweepPairing(unittest.TestCase):
             TMAN_CODES.INVALID_ARG_VALUE_IN_CMD.full_code,
         )
 
+    def test_duplicate_batch_size_raises(self):
+        """重复并发档会拼出相同的 -bs{N} 后缀，需前置报错而非输出路径冲突"""
+        with self.assertRaises(AISBenchConfigError) as cm:
+            validate_pairing([8, 8], [4, 8])
+        self.assertEqual(
+            cm.exception.error_code_str,
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD.full_code,
+        )
+        self.assertIn("duplicate", str(cm.exception))
+        with self.assertRaises(AISBenchConfigError):
+            validate_pairing([8, 16, 8], None)
+
     def test_window_not_saturated_warning(self):
         """batch_size 大于生效请求数时，并发窗口跑不满 → WARNING"""
         _, warnings = validate_pairing(16, 8, request_count=8)
@@ -1678,6 +1692,28 @@ class TestExpandSweepCombinations(unittest.TestCase):
         }
         self.assertEqual(len(output_pairs), 4)
 
+    def test_combination_count_scales_with_batches_models_datasets(self):
+        """档位数 × 模型数 × 数据集数 全量相乘：2×2×2=8，且 model abbr 唯一"""
+        gsm8k = self._dataset(abbr="gsm8k")
+        gsm8k["type"] = "ais_bench.benchmark.datasets.gsm8k.GSM8KDataset"
+
+        result = expand_sweep_combinations(
+            [self._model(abbr="qwen"), self._model(abbr="qwen2")],
+            [self._dataset(), gsm8k],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+        )
+
+        self.assertEqual(len(result.models), 2 * 2)
+        self.assertEqual(len(result.combinations), 2 * 2 * 2)
+        self.assertEqual(len(result.manifest["combos"]), 8)
+        model_abbrs = [model["abbr"] for model in result.models]
+        self.assertEqual(len(model_abbrs), len(set(model_abbrs)))
+        pairs = {
+            (combo["models"][0]["abbr"], combo["datasets"][0]["abbr"])
+            for combo in result.combinations
+        }
+        self.assertEqual(len(pairs), 8)
+
     def test_manifest_is_desensitized(self):
         manifest = expand_sweep_combinations(
             [self._model(api_key="sk-secret")], [self._dataset()],
@@ -1701,6 +1737,156 @@ class TestExpandSweepCombinations(unittest.TestCase):
         self.assertEqual(
             [combo["model_config"]["model_name"] for combo in manifest["combos"]],
             ["Qwen3.8-27B-w8a8", "Qwen3.8-27B-w8a8"],
+        )
+
+    def test_existing_combinations_preserved(self):
+        """配置已有 model_dataset_combinations 时按配对逐档展开，不改写成全笛卡尔"""
+        models = [self._model(abbr="qwen"), self._model(abbr="qwen2")]
+        datasets = [self._dataset(abbr="synthetic")]
+        gsm8k = self._dataset(abbr="gsm8k")
+        gsm8k["type"] = "ais_bench.benchmark.datasets.gsm8k.GSM8KDataset"
+        datasets.append(gsm8k)
+
+        result = expand_sweep_combinations(
+            models, datasets,
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+            combinations=[
+                dict(models=[models[0]], datasets=[datasets[0]]),
+                dict(models=[models[1]], datasets=[datasets[0], datasets[1]]),
+            ],
+        )
+
+        pairs = [
+            (combo["models"][0]["abbr"], combo["datasets"][0]["abbr"])
+            for combo in result.combinations
+        ]
+        self.assertEqual(
+            pairs,
+            [
+                ("qwen-bs1", "synthetic"),
+                ("qwen2-bs1", "synthetic"),
+                ("qwen2-bs1", "gsm8k"),
+                ("qwen-bs8", "synthetic"),
+                ("qwen2-bs8", "synthetic"),
+                ("qwen2-bs8", "gsm8k"),
+            ],
+        )
+        self.assertEqual(len(result.manifest["combos"]), 6)
+
+    def test_stream_override_skipped_for_local_model(self):
+        """--stream 不对本地模型注入配置，也不触发非流式告警"""
+        result = expand_sweep_combinations(
+            [self._model(attr="local", stream=False)], [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8], stream=True),
+        )
+
+        self.assertTrue(all(model["stream"] is False for model in result.models))
+        self.assertFalse(any(
+            "non-streaming" in warning
+            for warning in result.manifest["warnings"]
+        ))
+
+    def test_stream_override_requires_existing_key(self):
+        """仅覆盖已存在的字段，避免向不接受该参数的模型注入多余 kwarg"""
+        model = self._model()
+        model.pop("stream")
+        result = expand_sweep_combinations(
+            [model], [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8], stream=True),
+        )
+
+        self.assertTrue(all("stream" not in item for item in result.models))
+
+    def test_request_count_warns_on_non_synthetic_dataset(self):
+        """--request-count 对非合成数据集不生效，需显式告警"""
+        dataset = {
+            "type": "Gsm8kDataset",
+            "abbr": "gsm8k",
+            "path": "dummy",
+            "reader_cfg": {"test_range": ":5"},
+        }
+        result = expand_sweep_combinations(
+            [self._model()], [dataset],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8], request_count=10),
+        )
+
+        self.assertTrue(any(
+            "ignored for non-synthetic" in warning
+            for warning in result.manifest["warnings"]
+        ))
+
+    def test_dataset_abbr_requires_single_dataset(self):
+        """--dataset-abbr 配多个数据集会撞 abbr，需前置报错"""
+        with self.assertRaises(AISBenchConfigError) as ctx:
+            expand_sweep_combinations(
+                [self._model()],
+                [self._dataset(), self._dataset(abbr="synthetic_2")],
+                self._args(dataset_abbr="shared"),
+            )
+
+        self.assertIn("requires exactly one dataset", str(ctx.exception))
+
+    def test_v04_accepts_existing_file_path(self):
+        """V04 与运行时一致使用 os.path.exists，文件路径也应通过"""
+        result = expand_sweep_combinations(
+            [self._model(path=os.path.abspath(__file__))],
+            [self._dataset()],
+            self._args(),
+        )
+
+        self.assertEqual(len(result.models), 1)
+
+    def test_v04_reports_all_models(self):
+        """多个模型路径非法时应全部报告，而不是只报第一条"""
+        with self.assertRaises(AISBenchConfigError) as ctx:
+            expand_sweep_combinations(
+                [self._model(abbr="m1", path="/no/such/path_a"),
+                 self._model(abbr="m2", path="/no/such/path_b")],
+                [self._dataset()],
+                self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("m1", message)
+        self.assertIn("m2", message)
+
+    def test_sweep_combo_count_limit(self):
+        """多档展开超过上限时前置报错，提示拆批执行"""
+        gsm8k = {
+            "type": "Gsm8kDataset",
+            "abbr": "gsm8k",
+            "path": "dummy",
+            "reader_cfg": {"test_range": ":5"},
+        }
+        batch_sizes = list(range(1, 102))
+        with self.assertRaises(AISBenchConfigError) as ctx:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset(), gsm8k],
+                self._args(batch_size=batch_sizes, num_prompts=[1] * len(batch_sizes)),
+            )
+
+        self.assertIn("exceeding the limit", str(ctx.exception))
+
+    def test_multi_sweep_requires_perf_mode(self):
+        """多档 sweep 会把副本写回 cfg，非 perf 模式无统一去重，需前置报错"""
+        with self.assertRaises(AISBenchConfigError) as cm:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset()],
+                self._args(mode="all", batch_size=[1, 8]),
+            )
+        self.assertIn("only supported in", str(cm.exception))
+
+    def test_multiple_synthetic_datasets_allowed_without_sweep(self):
+        """配置文件路径/单档运行沿用既有行为，多合成数据集不被 V07 拦截"""
+        result = expand_sweep_combinations(
+            [self._model()], [self._dataset(), self._dataset(abbr="synthetic2")],
+            self._args(),
+        )
+
+        self.assertEqual(result.combinations, [])
+        self.assertEqual(
+            [dataset["abbr"] for dataset in result.datasets],
+            ["synthetic", "synthetic2"],
         )
 
     def test_multiple_synthetic_datasets_rejected(self):

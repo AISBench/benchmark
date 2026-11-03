@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from unittest import mock
 
 from ais_bench.benchmark.summarizers import perf_batch
+from ais_bench.benchmark.utils.perf_details import derive_request_metrics
 from ais_bench.benchmark.summarizers.perf_batch import (
     CSV_HEADERS,
     REPORT_HTML_NAME,
@@ -59,7 +60,8 @@ def _make_manifest(combos):
 
 def _write_perf(work_dir, model_abbr, dataset_abbr, throughput=1000.0,
                 total=10, success=10, duration_ms=2000.0,
-                ttft_average=12.5, tpot_average=3.5, itl_p99=4.2):
+                ttft_average=12.5, tpot_average=3.5, itl_p99=4.2,
+                stage="total"):
     perf_dir = Path(work_dir) / "performances" / model_abbr
     perf_dir.mkdir(parents=True, exist_ok=True)
     common = {
@@ -75,16 +77,18 @@ def _write_perf(work_dir, model_abbr, dataset_abbr, throughput=1000.0,
     rows = [
         ["Performance Parameters", "Stage", "Average", "Min", "Max",
          "Median", "P75", "P90", "P99"],
-        ["TTFT", "total", str(ttft_average), "1", "30", "10", "15", "20", "25"],
-        ["TPOT", "total", str(tpot_average), "1", "5", "3", "3.4", "4", "4.5"],
-        ["ITL", "total", "3.0", "1", "5", "3", "3.2", "3.8", str(itl_p99)],
+        ["TTFT", stage, str(ttft_average), "1", "30", "10", "15", "20", "25"],
+        ["TPOT", stage, str(tpot_average), "1", "5", "3", "3.4", "4", "4.5"],
+        ["ITL", stage, "3.0", "1", "5", "3", "3.2", "3.8", str(itl_p99)],
     ]
     with open(perf_dir / f"{dataset_abbr}.csv", "w", encoding="utf-8", newline="") as file:
         csv.writer(file).writerows(rows)
 
 
-def _write_manifest(work_dir, combos):
+def _write_manifest(work_dir, combos, warnings=None):
     manifest = _make_manifest(combos)
+    if warnings is not None:
+        manifest["warnings"] = list(warnings)
     with open(Path(work_dir) / "combos_manifest.json", "w", encoding="utf-8") as file:
         json.dump(manifest, file)
     return manifest
@@ -189,6 +193,18 @@ class TestAggregateBatchPerf(unittest.TestCase):
             for key in ("Average", "Min", "Max", "Median", "P75", "P90", "P99"):
                 self.assertEqual(row[key], "", f"{key} should be empty")
 
+    def test_stable_stage_metrics_used(self):
+        """perf/stable_stage 的 stage 是 stable，时延指标需回退取值而非留空"""
+        combo = _make_combo(0, 4, "m-bs4")
+        _write_perf(self.work_dir, "m-bs4", "synthetic", stage="stable",
+                    ttft_average=20.0, tpot_average=4.0)
+
+        row = perf_batch._build_row(self.work_dir, combo)
+
+        self.assertEqual(row["ttft_avg"], 20.0)
+        self.assertEqual(row["ttft_p99"], 25.0)
+        self.assertEqual(row["tpot_avg"], 4.0)
+
     def test_csv_formula_injection_escaped(self):
         """文本列以 = + - @ 开头时加前缀引号，避免 CSV 公式注入"""
         combo = _make_combo(0, 4, "=cmd|'/c calc'!A1")
@@ -288,6 +304,49 @@ class TestRenderBatchPerfReport(unittest.TestCase):
         self.assertNotIn("<script>alert(1)</script>", content)
         self.assertIn("AISBench 性能测试报告", content)
 
+    def test_plotly_inlined_by_default(self):
+        """默认内联 plotly.min.js，离线机器打开报告也能出图"""
+        if perf_batch._load_template() is None:
+            self.skipTest("jinja2 or report template is unavailable")
+        with mock.patch.object(
+            perf_batch, "_plotly_inline_js",
+            return_value="window.__INLINE_PLOTLY__ = 1;",
+        ):
+            path = render_batch_perf_report(
+                self.rows, _make_manifest(self.combos), [], self.work_dir
+            )
+        content = path.read_text(encoding="utf-8")
+        self.assertIn("window.__INLINE_PLOTLY__ = 1;", content)
+        self.assertNotIn("cdn.plot.ly", content)
+
+    def test_plotly_cdn_fallback_noted(self):
+        """内联不可用时回退 CDN，并在说明区提示离线限制"""
+        if perf_batch._load_template() is None:
+            self.skipTest("jinja2 or report template is unavailable")
+        with mock.patch.object(perf_batch, "_plotly_inline_js", return_value=None):
+            path = render_batch_perf_report(
+                self.rows, _make_manifest(self.combos), [], self.work_dir
+            )
+        content = path.read_text(encoding="utf-8")
+        self.assertIn(
+            'src="https://cdn.plot.ly/plotly-2.27.0.min.js"', content)
+        self.assertIn("未内联 plotly", content)
+
+    def test_manifest_warnings_in_report(self):
+        """manifest 落盘的展开期告警需透传到报告，不依赖调用方再次传入"""
+        if perf_batch._load_template() is None:
+            self.skipTest("jinja2 or report template is unavailable")
+        _write_manifest(
+            self.work_dir, self.combos,
+            warnings=["`--batch-size`=16 is greater than the effective request count"],
+        )
+
+        artifacts = aggregate_batch_perf(self.work_dir)
+
+        self.assertIsNotNone(artifacts.html_path)
+        content = artifacts.html_path.read_text(encoding="utf-8")
+        self.assertIn("greater than the effective request count", content)
+
     def test_render_failure_degrades_to_none(self):
         """渲染异常只告警，返回 None，不影响已落盘的 CSV"""
         _write_manifest(self.work_dir, self.combos)
@@ -299,6 +358,39 @@ class TestRenderBatchPerfReport(unittest.TestCase):
         self.assertIsNone(artifacts.html_path)
         self.assertTrue((self.work_dir / SUMMARY_CSV_NAME).exists())
         self.assertFalse((self.work_dir / REPORT_HTML_NAME).exists())
+
+    def test_unexpected_render_error_keeps_traceback(self):
+        """未预期异常仍降级，但要带堆栈，避免真实 bug 被静默吞掉"""
+        _write_manifest(self.work_dir, self.combos)
+        with mock.patch.object(
+            perf_batch, "_build_charts", side_effect=RuntimeError("boom")
+        ), mock.patch.object(perf_batch.logger, "warning") as warn:
+            artifacts = aggregate_batch_perf(self.work_dir)
+
+        self.assertIsNone(artifacts.html_path)
+        self.assertTrue(any(
+            call.kwargs.get("exc_info") for call in warn.call_args_list
+        ))
+
+    def test_template_error_is_expected_failure(self):
+        """模板语法/运行时错误属于可预期失败，告警不带堆栈"""
+        try:
+            from jinja2 import TemplateError
+        except ImportError:
+            self.skipTest("jinja2 is unavailable")
+        _write_manifest(self.work_dir, self.combos)
+        template = mock.MagicMock()
+        template.render.side_effect = TemplateError("bad template")
+        with mock.patch.object(
+            perf_batch, "_load_template", return_value=template
+        ), mock.patch.object(perf_batch.logger, "warning") as warn:
+            artifacts = aggregate_batch_perf(self.work_dir)
+
+        self.assertIsNone(artifacts.html_path)
+        self.assertFalse(any(
+            call.kwargs.get("exc_info") for call in warn.call_args_list
+        ))
+        self.assertTrue(warn.called)
 
     def test_missing_combo_not_in_details(self):
         """fail 组合只进汇总表，不进入逐组合详情与曲线"""
@@ -352,6 +444,235 @@ class TestPerfBatchHelpers(unittest.TestCase):
         self.assertIn("接近饱和", _saturation_note([row(4, 1000), row(16, 1020)])[0])
         self.assertIn("已饱和", _saturation_note([row(4, 1000), row(16, 900)])[0])
         self.assertIn("已过载", _saturation_note([row(4, 1000), row(16, 1200, 90)])[0])
+
+
+class TestAbbrPathSafety(unittest.TestCase):
+    def test_unsafe_abbr_skipped(self):
+        """abbr 含路径分隔符/.. 时跳过该组合，避免读写越出工作目录"""
+        for abbr in ("../evil", "a/b", "..", ""):
+            combo = _make_combo(1, 8, abbr)
+            self.assertIsNone(perf_batch._build_row(Path("."), combo), abbr)
+
+    def test_safe_abbr_kept(self):
+        combo = _make_combo(1, 8, "qwen-bs8")
+        row = perf_batch._build_row(Path("."), combo)
+        self.assertIsNotNone(row)
+        self.assertEqual(row["model_abbr"], "qwen-bs8")
+
+
+class TestDerivedMetrics(unittest.TestCase):
+    """公共函数返回秒，调用方自行换算：保证抽取前后报告数值与单位不变。"""
+
+    def test_shared_metrics_are_seconds(self):
+        derived = derive_request_metrics([0.0, 0.5, 1.5, 4.0], 4)
+        self.assertEqual(derived["latency"], 4.0)
+        self.assertEqual(derived["ttft"], 0.5)
+        self.assertAlmostEqual(derived["tpot"], (4.0 - 0.5) / 3)
+        self.assertEqual(list(derived["itl"]), [1.0, 2.5])
+        # 输出 token 不足 2 时不计算 TPOT；点数不足 3 时 ITL 为空
+        self.assertIsNone(derive_request_metrics([0.0, 1.0], None)["tpot"])
+        self.assertIsNone(derive_request_metrics([0.0, 1.0], 1)["tpot"])
+        self.assertEqual(derive_request_metrics([0.0, 1.0], 2)["itl"].size, 0)
+
+    def test_detail_rows_keep_ms_units(self):
+        """perf_batch 逐请求曲线仍以毫秒输出，数值与抽取前公式一致"""
+        with TemporaryDirectory() as tmp:
+            perf_dir = Path(tmp)
+            records = [
+                {"db_name": "d", "success": True,
+                 "time_points": [0.0, 0.5, 1.5, 4.0], "output_tokens": 4},
+                {"db_name": "d", "success": True,
+                 "time_points": [0.0, 1.0], "output_tokens": None},
+            ]
+            (perf_dir / "synthetic_details.jsonl").write_text(
+                "\n".join(json.dumps(record) for record in records),
+                encoding="utf-8",
+            )
+            rows = perf_batch._load_detail_rows(perf_dir, "synthetic")
+
+        self.assertEqual(rows[0]["latency"], 4000.0)
+        self.assertEqual(rows[0]["ttft"], 500.0)
+        self.assertAlmostEqual(rows[0]["tpot"], 3500.0 / 3)
+        self.assertAlmostEqual(rows[0]["itl"], 1750.0)
+        self.assertEqual(rows[1]["latency"], 1000.0)
+        self.assertEqual(rows[1]["ttft"], 1000.0)
+        self.assertIsNone(rows[1]["tpot"])
+        self.assertIsNone(rows[1]["itl"])
+
+
+class TestComparableGroupConclusions(unittest.TestCase):
+    """最佳配置/饱和判定/时延增长需按可比分组给出，组间不混算。"""
+
+    @staticmethod
+    def _row(batch_size, *, request_size=1024, throughput=1000.0,
+             ttft=10.0, e2el=1.0, success_rate=100):
+        return {
+            "status": "success",
+            "batch_size": batch_size,
+            "model_abbr": "m",
+            "dataset_abbr": "synthetic",
+            "stream": True,
+            "ttft_valid": True,
+            "use_timestamp": False,
+            "request_size": request_size,
+            "prefix_len": 0,
+            "throughput_tok_s": throughput,
+            "ttft_avg": ttft,
+            "e2el_avg_s": e2el,
+            "request_throughput": 10.0,
+            "success_rate": success_rate,
+            "success_rate_text": f"{success_rate}%",
+        }
+
+    def _multi_group_rows(self):
+        return [
+            self._row(4, request_size=1024, throughput=900.0, ttft=12.0, e2el=1.0),
+            self._row(16, request_size=1024, throughput=1200.0, ttft=20.0, e2el=1.2),
+            self._row(4, request_size=8192, throughput=100.0, ttft=30.0, e2el=5.0),
+            self._row(16, request_size=8192, throughput=90.0, ttft=40.0, e2el=6.0),
+        ]
+
+    def test_best_configs_per_group(self):
+        """最高吞吐/最低 TTFT 只在组内比较，不被其它组数据带偏"""
+        best = perf_batch._best_configs(self._multi_group_rows())
+
+        self.assertEqual(len(best), 2)
+        by_label = {group["label"]: group for group in best}
+        small = by_label["m/synthetic (size=1024, prefix=0)"]
+        large = by_label["m/synthetic (size=8192, prefix=0)"]
+        self.assertEqual(small["throughput"]["batch_size"], 16)
+        self.assertEqual(large["throughput"]["batch_size"], 4)
+        self.assertEqual(small["ttft"]["batch_size"], 4)
+        self.assertEqual(large["ttft"]["batch_size"], 4)
+
+    def test_saturation_per_group(self):
+        """饱和判定按组给出，多组时标注所属组"""
+        notes = perf_batch._saturation_notes(self._multi_group_rows())
+
+        self.assertEqual(len(notes), 2)
+        self.assertIn("未饱和", notes[0][0])
+        self.assertIn("已饱和", notes[1][0])
+        self.assertIn("size=1024", notes[0][0])
+        self.assertIn("size=8192", notes[1][0])
+
+    def test_latency_growth_per_group(self):
+        """时延增长说明按组计算，不出现跨组首末档对比"""
+        rows = self._multi_group_rows()
+        notes = perf_batch._recommendations(rows, perf_batch._best_configs(rows))
+        growth = [zh for zh, _ in notes if "端到端平均时延" in zh]
+
+        self.assertEqual(len(growth), 2)
+        self.assertIn("size=1024", growth[0])
+        self.assertIn("size=8192", growth[1])
+        # 组内分别为 1.0→1.2 与 5.0→6.0；跨组会得到 6.0×
+        self.assertTrue(all("1.2×" in note for note in growth), growth)
+
+    def test_single_group_output_unchanged(self):
+        """单组时标签为空、文案与分组前一致"""
+        rows = [
+            self._row(4, throughput=1000.0),
+            self._row(16, throughput=1200.0),
+        ]
+        best = perf_batch._best_configs(rows)
+        self.assertEqual(len(best), 1)
+        self.assertEqual(best[0]["label"], "")
+        self.assertEqual(perf_batch._saturation_notes(rows),
+                         [perf_batch._saturation_note(rows)])
+        notes = perf_batch._recommendations(rows, best)
+        self.assertTrue(all(not zh.startswith("[") for zh, _ in notes), notes)
+
+
+class TestChartLabelEscaping(unittest.TestCase):
+    """trace name 会内联进 plotly 的 <script>，用户可控 abbr 不能提前闭合脚本。"""
+
+    PAYLOAD = "</script><script>alert(1)</script>"
+
+    def _rows(self):
+        rows = []
+        for request_size in (1024, 8192):
+            rows.append({
+                "status": "success",
+                "batch_size": 4,
+                "model_abbr": self.PAYLOAD,
+                "dataset_abbr": "synthetic",
+                "stream": True,
+                "ttft_valid": True,
+                "use_timestamp": False,
+                "request_size": request_size,
+                "prefix_len": 0,
+                "e2el_avg_s": 1.0,
+                "e2el_p99_s": 1.5,
+                "ttft_avg": 10.0,
+                "ttft_p99": 12.0,
+                "tpot_avg": 1.0,
+                "tpot_p99": 1.2,
+                "request_throughput": 10.0,
+                "throughput_tok_s": 100.0,
+                "total_throughput_tok_s": 120.0,
+                "success_rate": 100,
+            })
+        return rows
+
+    def test_user_abbr_cannot_close_script_tag(self):
+        charts = perf_batch._build_charts(self._rows())
+        if not (charts.get("latency") or charts.get("throughput")):
+            self.skipTest("plotly is unavailable")
+
+        chart_count = sum(len(items) for items in charts.values())
+        html_text = "".join(
+            chart["html"] for items in charts.values() for chart in items
+        )
+        self.assertNotIn("<script>alert(1)</script>", html_text)
+        self.assertNotIn("</script><script>", html_text)
+        self.assertIn("&lt;/script&gt;", html_text)
+        # 只剩 plotly 自己为每张图输出的闭合标签
+        self.assertEqual(html_text.count("</script>"), chart_count)
+
+
+class TestDetailSampling(unittest.TestCase):
+    def test_detail_rows_sampled(self):
+        """逐请求点数超限时等距采样，保留首末点"""
+        rows = list(range(perf_batch.MAX_DETAIL_POINTS * 2))
+        sampled = perf_batch._limit_detail_rows(rows)
+
+        self.assertLessEqual(len(sampled), perf_batch.MAX_DETAIL_POINTS + 1)
+        self.assertEqual(sampled[0], rows[0])
+        self.assertEqual(sampled[-1], rows[-1])
+
+    def test_detail_rows_kept_when_small(self):
+        rows = list(range(10))
+        self.assertEqual(perf_batch._limit_detail_rows(rows), rows)
+
+
+class TestExtraMetricColumns(unittest.TestCase):
+    def test_extra_columns_warned(self):
+        """calculator 自定义统计项超出固定列宽时需告警，避免静默丢弃"""
+        row = {"model_abbr": "m", "dataset_abbr": "synthetic", "status": "success"}
+        header = ["Metric"] + ["Total"] * len(perf_batch.PERF_METRIC_HEADERS) + ["Extra"]
+        metric_row = ["TTFT"] + ["1"] * (len(header) - 1)
+        with TemporaryDirectory() as tmp, \
+                mock.patch.object(perf_batch, "_read_metric_rows",
+                                  return_value=(header, [metric_row])), \
+                mock.patch.object(perf_batch.logger, "warning") as warn:
+            expanded = perf_batch._expand_summary_rows([row], Path(tmp))
+
+        self.assertTrue(warn.called)
+        self.assertIn("Extra", str(warn.call_args))
+        for values in expanded:
+            self.assertEqual(len(values),
+                             len(perf_batch.IDENTITY_COLUMNS)
+                             + len(perf_batch.PERF_METRIC_HEADERS))
+
+
+class TestTemplatePackaging(unittest.TestCase):
+    def test_template_declared_in_manifest(self):
+        """报告模板需随包分发：位于包内且登记到 MANIFEST.in"""
+        template = (Path(perf_batch.__file__).resolve().parent
+                    / "templates" / perf_batch.TEMPLATE_NAME)
+        self.assertTrue(template.exists(), f"template missing: {template}")
+        manifest = (Path(__file__).resolve().parents[3] / "MANIFEST.in").read_text(
+            encoding="utf-8")
+        self.assertIn("summarizers/templates *.j2", manifest)
 
 
 if __name__ == "__main__":

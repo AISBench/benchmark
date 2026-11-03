@@ -54,7 +54,9 @@
   document.documentElement.setAttribute('data-theme', theme);
 }());
 </script>
-<script src="{{ plotly_cdn }}"></script>
+{% if plotly_inline %}<script>{{ plotly_js | safe }}</script>
+{% else %}<script src="{{ plotly_cdn }}"></script>
+{% endif %}
 <style>
 *, *::before, *::after { box-sizing: border-box; }
 :root,
@@ -392,23 +394,27 @@ details[open] .ds-arrow { transform: rotate(90deg); }
     <div class="table-wrap">
       <table>
         <tbody>
+          {% for group in best_groups %}
           <tr>
             <td class="label">{{ bi('最高输出吞吐', 'Highest output throughput') }}</td>
             <td class="text">
-              {% if best.throughput %}
-              {{ best.throughput.throughput_tok_s }} token/s · Batch Size {{ best.throughput.batch_size }}
-              · RPS {{ best.throughput.request_throughput }} · {{ bi('成功率', 'Success rate') }} {{ best.throughput.success_rate_text }}
+              {% if group.throughput %}
+              {% if group.label %}<span class="muted">{{ group.label }}</span> · {% endif %}
+              {{ group.throughput.throughput_tok_s }} token/s · Batch Size {{ group.throughput.batch_size }}
+              · RPS {{ group.throughput.request_throughput }} · {{ bi('成功率', 'Success rate') }} {{ group.throughput.success_rate_text }}
               {% else %}<span class="muted">—</span>{% endif %}
             </td>
           </tr>
           <tr>
             <td class="label">{{ bi('最低平均 TTFT', 'Lowest average TTFT') }}</td>
             <td class="text">
-              {% if best.ttft %}
-              {{ best.ttft.ttft_avg }} ms · Batch Size {{ best.ttft.batch_size }}
+              {% if group.ttft %}
+              {% if group.label %}<span class="muted">{{ group.label }}</span> · {% endif %}
+              {{ group.ttft.ttft_avg }} ms · Batch Size {{ group.ttft.batch_size }}
               {% else %}<span class="muted">—</span>{% endif %}
             </td>
           </tr>
+          {% endfor %}
         </tbody>
       </table>
     </div>
@@ -590,6 +596,10 @@ details[open] .ds-arrow { transform: rotate(90deg); }
     <div class="card-body">
       <h3 class="card-title">{{ bi('指标定义', 'Metric Definitions') }}</h3>
       <ul class="note-list">
+        {% if not plotly_inline %}
+        <li>{{ bi('本报告未内联 plotly（生成环境缺少 plotly 包），图表依赖 ' ~ plotly_cdn ~ '；请在可访问外网的机器打开，或在装有 plotly 的环境重新生成报告。',
+                    'This report does not inline plotly (the plotly package was unavailable when it was generated) and loads charts from ' ~ plotly_cdn ~ '; open it on a machine with internet access, or regenerate the report where plotly is installed.') }}</li>
+        {% endif %}
         <li>{{ bi('Gen. tok/s / Output Tok Throughput：输出 token 吞吐，来源 performances 聚合结果。',
                     'Gen. tok/s / Output Tok Throughput: output token throughput, taken from the aggregated performances results.') }}</li>
         <li>{{ bi('RPS：请求吞吐（req/s）；Total Tok Throughput = 输入 + 输出 token 吞吐。',

@@ -8,6 +8,10 @@ from ais_bench.benchmark import __version__
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
+from ais_bench.benchmark.utils.perf_manifest import (
+    MANIFEST_FILENAME,
+    MANIFEST_SCHEMA_VERSION,
+)
 from ais_bench.benchmark.cli.utils import (
     DATASETS_NEED_MODELS,
     MAX_BATCH_SIZE,
@@ -20,8 +24,8 @@ logger = AISLogger()
 
 # 多组合 sweep 的内部调度字段（非 CLI、不进 manifest）
 SWEEP_COOLDOWN_SECONDS = 5
-MANIFEST_FILENAME = "combos_manifest.json"
-MANIFEST_SCHEMA_VERSION = 1
+# 多档展开的组合数上限：避免档位数 × 模型数 × 数据集数一次性生成上百个任务
+MAX_SWEEP_COMBOS = 200
 
 
 @dataclass
@@ -78,6 +82,7 @@ def validate_pairing(left: Union[int, List[int], None],
     """`--batch-size` ↔ `--num-prompts` 配对校验。
 
     - 双列表等长 → 按下标一一配对
+    - `--batch-size` 取值必须唯一，重复会拼出相同的 `-bs{N}` abbr 后缀 → 抛错
     - 双列表不等长 → 抛 AISBenchConfigError（不静默截断）
     - 一侧列表一侧标量 → 抛 AISBenchConfigError（不支持广播，必须一一对应）
     - 双标量（含单值列表归一后的单档）配对为一个组合，同样走并发窗口检查
@@ -115,6 +120,25 @@ def validate_pairing(left: Union[int, List[int], None],
         )
     else:
         pairs = [(left, right)]
+
+    # 同一并发档重复出现会拼出相同的 `-bs{N}` 后缀，导致输出路径冲突，提前报错
+    duplicated_batch_sizes: List[int] = []
+    seen_batch_sizes = set()
+    for batch_size, _ in pairs:
+        if batch_size is None:
+            continue
+        if batch_size in seen_batch_sizes and batch_size not in duplicated_batch_sizes:
+            duplicated_batch_sizes.append(batch_size)
+        seen_batch_sizes.add(batch_size)
+    if duplicated_batch_sizes:
+        raise AISBenchConfigError(
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+            f"`--batch-size` contains duplicate value(s): "
+            f"{', '.join(str(item) for item in duplicated_batch_sizes)}; each "
+            f"`--batch-size` value must be unique, otherwise the generated abbr "
+            f"suffix (`-bs{{N}}`) collides.",
+        )
+
     if test_range_set:
         return pairs, warnings
 
@@ -180,13 +204,35 @@ def _dataset_request_count(datasets: List[dict], cli_args: dict) -> Optional[int
 
 
 def _apply_model_sweep_overrides(model_cfg: dict, cli_args: dict) -> None:
-    """新增模型侧字段覆盖：不要求配置已存在该键。"""
+    """模型侧字段覆盖：与 CLI API 覆盖策略一致，仅 service 模型且配置已存在该键时生效。"""
     if cli_args.get("model_abbr") is not None:
         model_cfg["abbr"] = cli_args["model_abbr"]
-    if cli_args.get("stream") is not None:
-        model_cfg["stream"] = cli_args["stream"]
-    if cli_args.get("use_timestamp") is not None:
-        model_cfg["use_timestamp"] = cli_args["use_timestamp"]
+
+    keys = ("stream", "use_timestamp")
+    if model_cfg.get("attr", "service") != "service":
+        unsupported = [f"--{key.replace('_', '-')}" for key in keys
+                       if cli_args.get(key) is not None]
+        if unsupported:
+            logger.warning(
+                "CLI sweep argument(s) %s are not supported for local model %s "
+                "and will be ignored",
+                ", ".join(unsupported),
+                model_cfg.get("abbr", "<unknown>"),
+            )
+        return
+
+    for key in keys:
+        value = cli_args.get(key)
+        if value is None:
+            continue
+        if key not in model_cfg:
+            logger.warning(
+                "CLI sweep argument --%s is ignored: model %s does not accept it",
+                key.replace("_", "-"),
+                model_cfg.get("abbr", "<unknown>"),
+            )
+            continue
+        model_cfg[key] = value
 
 
 def _apply_dataset_sweep_overrides(dataset_cfg: dict, cli_args: dict) -> None:
@@ -238,8 +284,12 @@ def _check_abbr_unique(items: List[dict], label: str, errors: List[str]) -> None
 
 
 def validate_config_fields(models: List[dict], datasets: List[dict], cli_args: dict,
-                           pairing_warnings: Optional[List[str]] = None) -> List[str]:
+                           pairing_warnings: Optional[List[str]] = None,
+                           multi_combo: bool = False) -> List[str]:
     """启动前校验 V01~V09（V01 的配对结果由调用方传入）。
+
+    `multi_combo` 表示本次是否发生了多组合展开；仅多组合展开时校验 V07
+    （单档运行与配置文件路径沿用既有的多数据集行为）。
 
     业务错误一次性汇总后抛 AISBenchConfigError；WARNING 项返回给调用方输出后继续。
     """
@@ -304,31 +354,46 @@ def validate_config_fields(models: List[dict], datasets: List[dict], cli_args: d
     synthetic_datasets = [d for d in datasets if _is_synthetic_dataset(d)]
     need_model_path = any(_is_dataset_need_models(d) for d in datasets)
 
-    # V04：path 非空且目录存在
+    # V04：path 非空且存在（与运行时 build.py 的 os.path.exists 判定一致）
     if need_model_path:
         for model_cfg in models:
+            abbr = model_cfg.get("abbr")
             path = model_cfg.get("path")
             if not path:
                 errors.append(
-                    "The dataset requires a model path, `--path` must not be empty "
-                    "(replaces runtime UTILS-CFG-001)"
+                    f"Model [{abbr}]: the dataset requires a model path, `--path` must not "
+                    "be empty (replaces runtime UTILS-CFG-001)"
                 )
-                break
-            if not os.path.isdir(os.path.expanduser(str(path))):
+                continue
+            if not os.path.exists(os.path.expanduser(str(path))):
                 errors.append(
-                    f"`--path` directory does not exist: {path} "
+                    f"Model [{abbr}]: `--path` does not exist: {path} "
                     "(replaces runtime 'ModelPath does not exist')"
                 )
-                break
 
-    # V07：一次运行只支持一个随机合成数据集
-    if len(synthetic_datasets) > 1:
+    # V07：多组合展开时只支持一个随机合成数据集（多档共用同一模型 abbr 会被
+    # _merge_datasets 合并成一个任务，汇总时退化为 type，结果不可区分）；单档与
+    # 配置文件路径保持既有行为，不在此拦截
+    if multi_combo and len(synthetic_datasets) > 1:
         errors.append(
-            f"Only one random synthetic dataset is supported per run, but "
+            f"Only one random synthetic dataset is supported in a multi-combo sweep, but "
             f"{len(synthetic_datasets)} were detected (multiple ones are merged into a "
             f"single task by _merge_datasets and the results become indistinguishable; "
             f"use an outer loop for multiple specs)"
         )
+
+    # `--request-count` 仅作用于随机合成数据集，其余数据集会静默忽略，显式提示
+    if cli_args.get("request_count") is not None:
+        non_synthetic_abbrs = [
+            dataset_cfg.get("abbr") for dataset_cfg in datasets
+            if not _is_synthetic_dataset(dataset_cfg)
+        ]
+        if non_synthetic_abbrs:
+            warnings.append(
+                "`--request-count` is ignored for non-synthetic dataset(s): "
+                + ", ".join(str(abbr) for abbr in non_synthetic_abbrs)
+                + "; it only applies to random synthetic datasets"
+            )
 
     tokenid_cli_used = any(
         cli_args.get(key) is not None
@@ -404,9 +469,11 @@ def validate_config_fields(models: List[dict], datasets: List[dict], cli_args: d
                 "(V01 warns about it as well). Increase `--request-count` accordingly."
             )
 
-    # V06：stream=False + perf → WARNING 并标注 ttft_valid=false
+    # V06：stream=False + perf → WARNING 并标注 ttft_valid=false（仅服务化模型适用）
     if mode == "perf":
         for model_cfg in models:
+            if model_cfg.get("attr", "service") != "service":
+                continue
             if not model_cfg.get("stream", False):
                 warnings.append(
                     f"Model [{model_cfg.get('abbr')}] is non-streaming (stream=false), "
@@ -474,7 +541,8 @@ def _manifest_cli_args(cli_args: dict) -> dict:
     return result
 
 
-def _build_manifest(specs: List[CombinationSpec], cli_args: dict) -> dict:
+def _build_manifest(specs: List[CombinationSpec], cli_args: dict,
+                    warnings: List[str]) -> dict:
     """组合参数快照（一次写入不再修改，不含敏感字段）。"""
     combos = []
     for spec in specs:
@@ -506,16 +574,50 @@ def _build_manifest(specs: List[CombinationSpec], cli_args: dict) -> dict:
         "ais_bench_version": __version__,
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "cli_args": _manifest_cli_args(cli_args),
+        "warnings": list(warnings),
         "combos": combos,
     }
 
 
+def _build_sweep_units(base_models: List[dict], base_datasets: List[dict],
+                       combinations: Optional[List[dict]]) -> List[Tuple[dict, dict]]:
+    """构造本次展开的 (模型, 数据集) 单元。
+
+    配置里已显式声明 `model_dataset_combinations` 时，按其中的配对关系逐项展开
+    （combo 内仍是 models × datasets），避免多档 sweep 把显式配对静默改写成
+    全笛卡尔积；未声明时才按 models × datasets 全笛卡尔展开。
+    """
+    if not combinations:
+        return [
+            (model_cfg, dataset_cfg)
+            for model_cfg in base_models
+            for dataset_cfg in base_datasets
+        ]
+
+    model_by_abbr = {cfg.get("abbr"): cfg for cfg in base_models}
+    dataset_by_abbr = {cfg.get("abbr"): cfg for cfg in base_datasets}
+    units: List[Tuple[dict, dict]] = []
+    for combo in combinations:
+        combo_models = combo.get("models") or []
+        combo_datasets = combo.get("datasets") or []
+        for model_cfg in combo_models:
+            for dataset_cfg in combo_datasets:
+                units.append((
+                    model_by_abbr.get(model_cfg.get("abbr"), model_cfg),
+                    dataset_by_abbr.get(dataset_cfg.get("abbr"), dataset_cfg),
+                ))
+    return units
+
+
 def expand_sweep_combinations(models: List[dict], datasets: List[dict],
-                              cli_args: dict) -> SweepResult:
+                              cli_args: dict,
+                              combinations: Optional[List[dict]] = None) -> SweepResult:
     """组合展开（详见设计 4.4）。
 
     - 长度 1 列表先归一为 int，单值路径只做新增字段覆盖，不产生副本/manifest/冷却字段
     - 多档时按组合深拷贝模型与数据集，模型 abbr 追加 `-bs{N}` 保证逐组合唯一
+    - 配置已有 `model_dataset_combinations` 时沿用其配对关系（每档复制一份），
+      否则按 models × datasets 全笛卡尔展开
     - 校验 V01~V09，业务错误一次性汇总后抛错，WARNING 汇总输出后继续
     """
     if not models or not datasets:
@@ -548,77 +650,108 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
     for dataset_cfg in base_datasets:
         _apply_dataset_sweep_overrides(dataset_cfg, cli_args)
 
+    if cli_args.get("dataset_abbr") is not None and len(base_datasets) > 1:
+        raise AISBenchConfigError(
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+            f"`--dataset-abbr` requires exactly one dataset, got "
+            f"{len(base_datasets)}; it would assign the same abbr to all of them. "
+            f"Specify a single dataset, or use `--num-prompts` to control sample counts.",
+        )
+
+    is_multi = len(pairs) > 1
+
+    # 多档展开会把 N 份 model/dataset 副本写回 cfg，非 perf 链路没有统一去重，
+    # 会重复输出结果，因此仅在 perf/perf_viz 下支持多档 sweep
+    mode = cli_args.get("mode")
+    if is_multi and mode not in ("perf", "perf_viz"):
+        raise AISBenchConfigError(
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+            f"`--batch-size` with multiple values is only supported in "
+            f"`--mode perf` or `--mode perf_viz`, got mode {mode!r}; run one "
+            f"batch size per run in other modes.",
+        )
+
     warnings = validate_config_fields(
         base_models, base_datasets, cli_args,
         pairing_warnings=pairing_warnings,
+        multi_combo=is_multi,
     )
 
-    is_multi = len(pairs) > 1
+    units = _build_sweep_units(base_models, base_datasets, combinations)
+
+    total_combos = len(pairs) * len(units)
+    if is_multi and total_combos > MAX_SWEEP_COMBOS:
+        raise AISBenchConfigError(
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+            f"Sweep expands to {total_combos} combos ({len(pairs)} batch-size value(s) x "
+            f"{len(units)} model/dataset pair(s)), exceeding the limit of "
+            f"{MAX_SWEEP_COMBOS}; split the command into several runs with fewer "
+            f"`--batch-size` values or fewer models/datasets.",
+        )
 
     specs: List[CombinationSpec] = []
     combo_models: List[dict] = []
     combo_datasets: List[dict] = []
     for batch_size, num_prompts in pairs:
-        for model_cfg in base_models:
-            for dataset_cfg in base_datasets:
-                model_copy = copy.deepcopy(model_cfg)
-                if batch_size is not None:
-                    model_copy["batch_size"] = batch_size
-                base_model_abbr = model_copy.get("abbr")
-                if is_multi and base_model_abbr:
-                    model_copy["abbr"] = _append_batch_suffix(base_model_abbr, batch_size)
+        for model_cfg, dataset_cfg in units:
+            model_copy = copy.deepcopy(model_cfg)
+            if batch_size is not None:
+                model_copy["batch_size"] = batch_size
+            base_model_abbr = model_copy.get("abbr")
+            if is_multi and base_model_abbr:
+                model_copy["abbr"] = _append_batch_suffix(base_model_abbr, batch_size)
 
-                dataset_copy = copy.deepcopy(dataset_cfg)
-                if is_multi and num_prompts is not None and not test_range_set:
-                    reader_cfg = dataset_copy.get("reader_cfg")
-                    if not isinstance(reader_cfg, dict):
-                        reader_cfg = {}
-                        dataset_copy["reader_cfg"] = reader_cfg
-                    reader_cfg["test_range"] = f"[:{num_prompts}]"
-                if _is_dataset_need_models(dataset_copy):
-                    dataset_copy["model_path"] = model_copy.get("path")
-                    dataset_copy["trust_remote_code"] = model_copy.get(
-                        "trust_remote_code", False
-                    )
-
-                synthetic_cfg = _synthetic_config(dataset_copy) or {}
-                tokenid_cfg = synthetic_cfg.get("TokenIdConfig") or {}
-                effective_batch_size = model_copy.get("batch_size", 1)
-                # manifest / 报告记录生效请求数：未指定 --num-prompts 时默认对全量
-                # 数据集评测，取数据集全部样本；指定时受样本池上限约束
-                if test_range_set:
-                    effective_num_prompts = None
-                elif isinstance(num_prompts, int):
-                    effective_num_prompts = (
-                        num_prompts if request_count is None
-                        else min(num_prompts, request_count)
-                    )
-                else:
-                    effective_num_prompts = request_count
-
-                stream = bool(model_copy.get("stream", False))
-                specs.append(
-                    CombinationSpec(
-                        index=len(specs),
-                        batch_size=effective_batch_size,
-                        num_prompts=effective_num_prompts,
-                        request_count=request_count,
-                        request_size=tokenid_cfg.get("RequestSize"),
-                        prefix_len=tokenid_cfg.get("PrefixLen"),
-                        model_abbr=model_copy.get("abbr"),
-                        dataset_abbr=dataset_copy.get("abbr"),
-                        model_name=model_copy.get("model")
-                        or model_copy.get("model_name"),
-                        base_model_abbr=base_model_abbr,
-                        dataset_type=synthetic_cfg.get("Type"),
-                        stream=stream,
-                        ttft_valid=stream,
-                        use_timestamp=bool(model_copy.get("use_timestamp", False)),
-                        max_out_len=model_copy.get("max_out_len"),
-                    )
+            dataset_copy = copy.deepcopy(dataset_cfg)
+            if is_multi and num_prompts is not None and not test_range_set:
+                reader_cfg = dataset_copy.get("reader_cfg")
+                if not isinstance(reader_cfg, dict):
+                    reader_cfg = {}
+                    dataset_copy["reader_cfg"] = reader_cfg
+                reader_cfg["test_range"] = f"[:{num_prompts}]"
+            if _is_dataset_need_models(dataset_copy):
+                dataset_copy["model_path"] = model_copy.get("path")
+                dataset_copy["trust_remote_code"] = model_copy.get(
+                    "trust_remote_code", False
                 )
-                combo_models.append(model_copy)
-                combo_datasets.append(dataset_copy)
+
+            synthetic_cfg = _synthetic_config(dataset_copy) or {}
+            tokenid_cfg = synthetic_cfg.get("TokenIdConfig") or {}
+            effective_batch_size = model_copy.get("batch_size", 1)
+            # manifest / 报告记录生效请求数：未指定 --num-prompts 时默认对全量
+            # 数据集评测，取数据集全部样本；指定时受样本池上限约束
+            if test_range_set:
+                effective_num_prompts = None
+            elif isinstance(num_prompts, int):
+                effective_num_prompts = (
+                    num_prompts if request_count is None
+                    else min(num_prompts, request_count)
+                )
+            else:
+                effective_num_prompts = request_count
+
+            stream = bool(model_copy.get("stream", False))
+            specs.append(
+                CombinationSpec(
+                    index=len(specs),
+                    batch_size=effective_batch_size,
+                    num_prompts=effective_num_prompts,
+                    request_count=request_count,
+                    request_size=tokenid_cfg.get("RequestSize"),
+                    prefix_len=tokenid_cfg.get("PrefixLen"),
+                    model_abbr=model_copy.get("abbr"),
+                    dataset_abbr=dataset_copy.get("abbr"),
+                    model_name=model_copy.get("model")
+                    or model_copy.get("model_name"),
+                    base_model_abbr=base_model_abbr,
+                    dataset_type=synthetic_cfg.get("Type"),
+                    stream=stream,
+                    ttft_valid=stream,
+                    use_timestamp=bool(model_copy.get("use_timestamp", False)),
+                    max_out_len=model_copy.get("max_out_len"),
+                )
+            )
+            combo_models.append(model_copy)
+            combo_datasets.append(dataset_copy)
 
     # 展开后仍需保证每个组合的输出路径唯一：同一 (模型 abbr, 数据集 abbr) 只允许
     # 出现一次，否则 performances/<model>/<dataset>.json 会互相覆盖。
@@ -673,6 +806,6 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
         models=combo_models,
         datasets=combo_datasets,
         combinations=combinations,
-        manifest=_build_manifest(specs, cli_args),
+        manifest=_build_manifest(specs, cli_args, warnings),
         sweep_cooldown_s=SWEEP_COOLDOWN_SECONDS,
     )
