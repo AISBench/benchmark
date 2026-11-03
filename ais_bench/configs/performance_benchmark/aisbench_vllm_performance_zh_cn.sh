@@ -27,8 +27,8 @@
 #          每组公共前缀占总输入 80%。
 #          不要依赖默认值：vllm-ascend(NPU) 当前默认 enable_prefix_caching=False。
 #
-# 长度约束：Qwen3.8 服务以 --max-model-len 32768 启动，
-# 要求 total_input + output <= 32768（tokenid 模式回解码可能存在少量膨胀，
+# 长度约束：Qwen3.8 服务以 --max-model-len 启动，
+# 要求 total_input + output <= max-model-len（tokenid 模式回解码可能存在少量膨胀，
 # 建议总长度留出 ~6% 余量；超过 90% 时脚本给出 WARNING）。
 # ============================================================
 

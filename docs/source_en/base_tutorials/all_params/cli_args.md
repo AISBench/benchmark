@@ -131,10 +131,10 @@ These parameters override configuration fields of **random synthetic datasets**.
 | Parameter | Description | Example |
 | ---- | ---- | ---- |
 | `--request-count` | Overrides `RequestCount` (total number of generated requests) | `--request-count 32` |
-| `--tokenid-config-request-size` | Overrides `TokenIdConfig.RequestSize` (number of tokens per request); applies only when `--datasets synthetic_gen_tokenid` | `--tokenid-config-request-size 8192` |
-| `--tokenid-config-prefix-len` | Overrides `TokenIdConfig.PrefixLen` (number of common prefix tokens per request); applies only when `--datasets synthetic_gen_tokenid` | `--tokenid-config-prefix-len 4096` |
-| `--string-config-input` | Overrides `StringConfig.Input` as a JSON object; applies only when `--datasets synthetic_gen_string` | `--string-config-input '{"Method": "uniform", "Params": {"MinValue": 100, "MaxValue": 200}}'` |
-| `--string-config-output` | Overrides `StringConfig.Output` as a JSON object; applies only when `--datasets synthetic_gen_string` | `--string-config-output '{"Method": "uniform", "Params": {"MinValue": 50, "MaxValue": 100}}'` |
+| `--tokenid-config-request-size` | Overrides `TokenIdConfig.RequestSize` (number of tokens per request), takes effect only when `--datasets synthetic_gen_tokenid` | `--tokenid-config-request-size 8192` |
+| `--tokenid-config-prefix-len` | Overrides `TokenIdConfig.PrefixLen` (number of common prefix tokens per request), takes effect only when `--datasets synthetic_gen_tokenid` | `--tokenid-config-prefix-len 4096` |
+| `--string-config-input` | Overrides `StringConfig.Input` as a JSON object, takes effect only when `--datasets synthetic_gen_string` | `--string-config-input '{"Method": "uniform", "Params": {"MinValue": 100, "MaxValue": 200}}'` |
+| `--string-config-output` | Overrides `StringConfig.Output` as a JSON object, takes effect only when `--datasets synthetic_gen_string` | `--string-config-output '{"Method": "uniform", "Params": {"MinValue": 50, "MaxValue": 100}}'` |
 | `--dataset-abbr` | Overrides the dataset `abbr` (unique identifier of the dataset in the evaluation task) | `--dataset-abbr my-synth` |
 
 > ⚠️ **Note**: `--tokenid-config-*` can be used only with `--datasets synthetic_gen_tokenid`, and `--string-config-*` only with `--datasets synthetic_gen_string`; a type mismatch fails before startup. Use `--request-count` to adjust the total number of requests of any random synthetic dataset.
@@ -150,3 +150,5 @@ The currently supported parameter configurations are as follows:
 | `MAX_CHUNK_SIZE` | Maximum cache size for a single chunk returned by the streaming inference model backend. The default value is 65535 bytes (64KB). | `(0, 16777216]` (Unit: Byte) |
 | `REQUEST_TIME_OUT` | Timeout period for the client to wait for a response after sending a request. The default value is None, meaning infinite waiting (always waiting for the model to return results). | `None` or `>0` (Unit: seconds) |
 | `LOG_LEVEL` | Log level, optional values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Default value: `INFO`. | `[DEBUG, INFO, WARNING, ERROR, CRITICAL]` |
+| `PRESSURE_TIME` | Duration of pressure testing; effective only when `--pressure` is specified. Unit: seconds. (This parameter will be deprecated in a future version; use `--pressure-time` instead.) | `[1, 86400]` (i.e., 1 second to 24 hours) |
+| `CONNECTION_ADD_RATE` | Concurrency thread creation rate: the number of new concurrent threads per second until the maximum concurrency limit is reached. Effective only when `--pressure` is specified. (This parameter will be deprecated in a future version; modify the `request_rate` parameter in the model config instead.) | `> 0.1` (Unit: threads/second) |

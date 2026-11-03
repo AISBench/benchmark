@@ -66,7 +66,7 @@ ais_bench [OPTIONS]
 | `--batch-size` | 覆盖 `batch_size`（请求最大并发数），支持传入多个值，空格分隔 | `--batch-size 4`<br>`--batch-size 4 8 16` |
 | `--trust-remote-code` | 覆盖 `trust_remote_code`（tokenizer 是否信任远程代码），支持 `--trust-remote-code` / `--no-trust-remote-code` 两种形态 | `--no-trust-remote-code` |
 | `--generation-kwargs` | 覆盖 `generation_kwargs`（推理生成参数），以 JSON 对象形式传入，**整体替换**配置中的 dict | `--generation-kwargs '{"temperature": 0.5}'` |
-| `--model-abbr` | 覆盖模型 `abbr`（服务化任务唯一标识）；当--batch-size存在多个值时，--model-abbr值后会追加 `-bs{N}`作区分 | `--model-abbr vllm-api-general-chat` |
+| `--model-abbr` | 覆盖模型 `abbr`（服务化任务唯一标识）；当`--batch-size`存在多个值时，`--model-abbr`值后会追加 `-bs{N}`作区分 | `--model-abbr vllm-api-general-chat` |
 | `--stream` / `--no-stream` | 覆盖 `stream`（是否流式返回），支持 `--stream` / `--no-stream` 两种形态。仅流式可测得 TTFT/TPOT/ITL；非流式组合会打印 warning，汇总结果中相关指标留空 | `--no-stream` |
 | `--use-timestamp` / `--no-use-timestamp` | 覆盖 `use_timestamp`（是否使用服务端返回的时间戳计算时延），支持两种形态；开启后 `request_rate` 不生效 | `--use-timestamp` |
 
@@ -126,10 +126,10 @@ ais_bench [OPTIONS]
 | 参数 | 说明 | 示例 |
 | ---- | ---- | ---- |
 | `--request-count` | 覆盖 `RequestCount`（生成的请求总数） | `--request-count 32` |
-| `--tokenid-config-request-size` | 覆盖 `TokenIdConfig.RequestSize`（请求token数量）；仅适用于 `--datasets synthetic_gen_tokenid`时  | `--tokenid-config-request-size 8192` |
-| `--tokenid-config-prefix-len` | 覆盖 `TokenIdConfig.PrefixLen`（请求的公共前缀token数量）；仅适用于 `--datasets synthetic_gen_tokenid` 时 | `--tokenid-config-prefix-len 4096` |
-| `--string-config-input` | 覆盖 `StringConfig.Input`，以 JSON 对象形式传入；仅适用于 `--datasets synthetic_gen_string` 时 | `--string-config-input '{"Method": "uniform", "Params": {"MinValue": 100, "MaxValue": 200}}'` |
-| `--string-config-output` | 覆盖 `StringConfig.Output`，以 JSON 对象形式传入；仅适用于 `--datasets synthetic_gen_string` 时 | `--string-config-output '{"Method": "uniform", "Params": {"MinValue": 50, "MaxValue": 100}}'` |
+| `--tokenid-config-request-size` | 覆盖 `TokenIdConfig.RequestSize`（请求token数量），仅在 `--datasets synthetic_gen_tokenid`时生效  | `--tokenid-config-request-size 8192` |
+| `--tokenid-config-prefix-len` | 覆盖 `TokenIdConfig.PrefixLen`（请求的公共前缀token数量），仅在 `--datasets synthetic_gen_tokenid` 时生效 | `--tokenid-config-prefix-len 4096` |
+| `--string-config-input` | 覆盖 `StringConfig.Input`，以 JSON 对象形式传入，仅在 `--datasets synthetic_gen_string` 时生效 | `--string-config-input '{"Method": "uniform", "Params": {"MinValue": 100, "MaxValue": 200}}'` |
+| `--string-config-output` | 覆盖 `StringConfig.Output`，以 JSON 对象形式传入，仅在 `--datasets synthetic_gen_string` 时生效 | `--string-config-output '{"Method": "uniform", "Params": {"MinValue": 50, "MaxValue": 100}}'` |
 | `--dataset-abbr` | 覆盖数据集 `abbr`（测评任务中数据集的唯一标识） | `--dataset-abbr my-synth` |
 
 > ⚠️ **注意**：`--tokenid-config-*` 只能在 `--datasets synthetic_gen_tokenid` 时生效，`--string-config-*` 只能在 `--datasets synthetic_gen_string` 时生效；类型不匹配时会在启动前报错，可使用 `--request-count` 调整任意随机合成数据集的请求总数。
