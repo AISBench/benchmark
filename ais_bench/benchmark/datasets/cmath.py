@@ -1,4 +1,4 @@
-"""CMATH helpers adapted from XiaoMi/cmath, MIT; see cmath_LICENSE.
+"""CMATH helpers adapted from XiaoMi/cmath, MIT; see repository LICENSE.
 Upstream revision: 9fa13ef0b2d03f5a18c1ace7001248d3981d65ea.
 """
 import json
@@ -15,7 +15,7 @@ __all__ = ['CMATHDataset', 'cmath_postprocess', 'CmathEvaluator']
 
 REG_DIGITS_SINGLETON = re.compile(r"^\d+[./]?\d*%?$")
 REG_DIGITS_BEGIN = re.compile(r"^(\d+[./]?\d*%?) ?(?=[\u4e00-\u9fa5,，。°℃$])")
-REG_DIGITS_MIDDLE = re.compile(r"(?<=[\u4e00-\u9fa5$:：，＝≈=->{]) ?(\d+[./]?\d*%?) ?(?:[\u4e00-\u9fa5,，。°℃$}（]|\([^\d\s]|\.$)")
+REG_DIGITS_MIDDLE = re.compile(r"(?<=[\u4e00-\u9fa5$:：，＝≈=\->{]) ?(\d+[./]?\d*%?) ?(?:[\u4e00-\u9fa5,，。°℃$}（]|\([^\d\s]|\.$)")
 REG_DIGITS_END = re.compile(r"(?<=[\u4e00-\u9fa5$:：＝≈=\->]) ?(\d+[./]?\d*%?)$")
 
 REG_NORM = re.compile(r"(?<=\d)[, ](?=\d)")
@@ -26,7 +26,7 @@ REG_CN_FRAC = re.compile(r'(\d+)分之(\d+)')
 def has_exception(answer: str) -> bool:
     """用于判断模型生成的答案是否为异常"""
 
-    if answer is None:
+    if not isinstance(answer, str):
         return True
 
     if len(answer.strip()) == 0:
@@ -68,7 +68,7 @@ def extract_digits_from_line(line):
     return [s for s in candidates if not (s.startswith("/") or s.endswith("/"))]
 
 
-def extract_digits_prediction(response, truncation="t", exception_regs: list = None):
+def extract_digits_prediction(response, truncation="t"):
     """从模型回复中提取答案候选"""
 
     # 检测模型回复是否出现异常
@@ -118,8 +118,7 @@ def string2num(string: str):
     if "/" in string:
         parts = string.split("/")
         if len(parts) != 2 or float(parts[1]) == 0.0:
-            print("Warning: {} is illegal!".format(string))
-            return 0
+            raise ValueError(f"Invalid fraction: {string}")
         else:
             return float(parts[0]) / float(parts[1])
 
@@ -177,7 +176,7 @@ class CMATHDataset(BaseDataset):
             try:
                 answer = row['golden']
                 number = string2num(str(answer))
-                if not math.isfinite(number) or ('/' in str(answer) and float(str(answer).split('/')[1]) == 0):
+                if not math.isfinite(number):
                     raise ValueError('Invalid numeric reference')
             except (KeyError, ValueError, TypeError, OverflowError, ZeroDivisionError) as exc:
                 raise ValueError(f'Invalid reference at row {index}') from exc

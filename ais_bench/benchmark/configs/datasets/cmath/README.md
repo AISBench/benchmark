@@ -1,22 +1,36 @@
-# CMATH dev
+# CMATH
+中文 | [English](README_en.md)
 
-中文小学数学文本精度评测。官方来源：https://github.com/XiaoMi/cmath ，固定 revision `9fa13ef0b2d03f5a18c1ace7001248d3981d65ea`。
+## 数据集简介
+CMATH 是中文小学数学基准。本接入评估公开的 600 条 dev，不将其称为官方 test 全集。
 
-下载该版本 `datasets/cmath_dev.jsonl` 到 `ais_bench/datasets/cmath/cmath_dev.jsonl`，预期 600 条，字段 `input/golden`。数据 CC BY 4.0，请保留官方来源及作者署名（Tianwen Wei 等，CMATH，2023）。不随代码提交全量数据。此 dev 在框架映射为 test split，不是官方 test 全集。
+> https://github.com/XiaoMi/cmath
+
+Revision: `9fa13ef0b2d03f5a18c1ace7001248d3981d65ea`. Code: MIT (repository LICENSE); data: CC BY 4.0. Attribution: Tianwen Wei et al., CMATH (2023).
+
+## 数据集部署
+```bash
+# Run from the tool root directory
+mkdir -p ais_bench/datasets/cmath
+wget https://raw.githubusercontent.com/XiaoMi/cmath/9fa13ef0b2d03f5a18c1ace7001248d3981d65ea/datasets/cmath_dev.jsonl -O ais_bench/datasets/cmath/cmath_dev.jsonl
+```
+
+```text
+cmath/
+└── cmath_dev.jsonl
+```
+
+## 可用数据集任务
+| Task | Description | Metric | Few-shot | Prompt | Import | Config |
+|---|---|---|---|---|---|---|
+| cmath_gen_0_shot_cot_chat_prompt | Chinese CoT generation | accuracy | 0-shot | chat_prompt | `from ais_bench.benchmark.configs.datasets.cmath.cmath_gen_0_shot_cot_chat_prompt import cmath_datasets as datasets` | [cmath_gen_0_shot_cot_chat_prompt.py](cmath_gen_0_shot_cot_chat_prompt.py) |
+| cmath_gen_0_shot_cot_str | Chinese CoT generation | accuracy | 0-shot | str | `from ais_bench.benchmark.configs.datasets.cmath.cmath_gen_0_shot_cot_str import cmath_datasets as datasets` | [cmath_gen_0_shot_cot_str.py](cmath_gen_0_shot_cot_str.py) |
+
+## 评测口径与验证
+合法输入沿用官方候选抽取和数值比较：整数严格相等，其他相对差小于 1%。失败预测保留分母。非法分数抛出 ValueError，非字符串预测判错；修复中间匹配正则的连字符转义并删除未使用的 exception_regs 参数。以上属于对上游异常行为的健壮性修复。中文分数转换支持“3分之1”等阿拉伯数字形式，不支持“五分之三”等汉字数字。训练集为空，chat/str 使用不同 abbr。
 
 ```bash
 ais_bench --models vllm_api_general_chat --datasets cmath_gen_0_shot_cot_chat_prompt --num-prompts 10
 ```
 
-运行前设置模型配置的服务地址、模型名及凭据；凭据不要提交。去掉 `--num-prompts 10` 评估全部 600 条。str 任务为 `cmath_gen_0_shot_cot_str`。
-
-0-shot 中文 CoT，无 few-shot。保留官方最后两个候选、分数/百分数转换及数值比较，修复官方 has_exception 调用参数错误。官方整数严格相等，其余采用相对差 < 1%；未额外增加 boxed 优先等规则。官方抽取对负号等格式存在限制，保留以避免静默改变协议。失败或无答案算错且保留分母，与官方排除 ERROR 的行为不同。结果 accuracy 为百分制，details 保存原输出、候选、参考和正确性。
-
-English: Evaluates the official 600-example CMATH dev set, mapped to the framework test split. Uses zero-shot Chinese CoT and upstream candidate extraction/numeric matching; failed responses remain in the denominator. This is not an official test-set or published-score reproduction. Download data from the pinned upstream revision and retain CC BY 4.0 attribution.
-
-## Validation / 验证
-
-- Unit and dataset-reader integration tests: 18 CMATH + 14 GSM8K regression tests, 32 passed.
-- Official dev validation: 600 records; 2,400 synthetic extraction/scoring cases matched the pinned upstream helpers after repairing their has_exception call signature. Synthetic cases are not model scores.
-- Ubuntu ARM64 full CLI smoke: deepseek-flash, first 10 dev examples, 0-shot CoT, temperature 0, max_tokens 1024, thinking disabled, one attempt per example. 10 successful requests, no failures; accuracy 100% (10/10), independently recomputed from saved predictions and references. This small smoke does not establish full-set accuracy or reproduce a published score.
-- Loader supplies an empty train split for DatasetReader compatibility; no evaluation examples are used as few-shot demonstrations.
+运行前配置模型服务及凭据；删除 --num-prompts 可运行全部 600 条。此前 Linux ARM64 CLI 冒烟为 10/10 正确（deepseek-flash，temperature 0，max_tokens 1024，thinking disabled），不代表全量成绩复现。回归测试覆盖非法分数、异常输出、分数转换、截断、目录加载与配置契约。
