@@ -190,16 +190,30 @@ class VLLMCustomAPI(BaseAPIModel):
         return request_body
 
     def get_prompt_logprobs(self, data: dict):
-        choices = data.get("choices", [])
-        # vLLM returns choices[].prompt_logprobs; take the first choice. Guard the empty
-        # case (no choices / all None) so the caller's _calc_ppl raises the dedicated
-        # PPL_COMPUTE_ERROR_NO_VALID_TOKENS instead of an opaque IndexError here.
+        # ``data.get("choices") or []`` unifies missing / null / empty-list so the
+        # comprehension never iterates None (a 200 + ``{"choices": null}`` body).
+        choices = data.get("choices") or []
+        # Take the first choice's prompt_logprobs; guard empty / all-None so the
+        # caller's _calc_ppl raises the dedicated PPL_COMPUTE_ERROR_NO_VALID_TOKENS
+        # instead of an opaque IndexError here. ``prompt_logprobs`` may be None
+        # when a service does not support it — coerce to [] to keep _calc_ppl's
+        # iteration safe and the return type consistent with the chat impl.
         prompt_logprobs = [
-            item.get("prompt_logprobs", {})
+            item.get("prompt_logprobs")
             for item in choices
             if item is not None
         ]
-        return prompt_logprobs[0] if prompt_logprobs else []
+        if not prompt_logprobs:
+            # Surface the response context so the user can tell a server-side error
+            # from "model lacks prompt_logprobs" from "prompt exceeded max_model_len".
+            self.logger.debug(
+                f"Empty prompt_logprobs: choices={len(choices)}, "
+                f"error={data.get('error')}, id={data.get('id')}, "
+                f"usage={data.get('usage')}"
+            )
+            return []
+        lp = prompt_logprobs[0]
+        return lp if isinstance(lp, list) else []
 
 class VLLMCustomAPIStream(VLLMCustomAPI):
 

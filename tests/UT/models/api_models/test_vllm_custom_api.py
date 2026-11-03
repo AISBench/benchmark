@@ -494,6 +494,45 @@ class TestVLLMCustomAPI(unittest.TestCase):
         result = model.get_prompt_logprobs(data)
         self.assertEqual(result, [{"1": {"logprob": -0.5}}])
 
+    def test_get_prompt_logprobs_choices_null(self):
+        """``{"choices": null}`` (200 + JSON null) must not raise TypeError.
+
+        ``data.get("choices") or []`` unifies missing / null / empty so the
+        comprehension never iterates None.
+        """
+        model = VLLMCustomAPI(**self.default_kwargs)
+        self.assertEqual(model.get_prompt_logprobs({"choices": None}), [])
+
+    def test_get_prompt_logprobs_field_null(self):
+        """``{"choices": [{"prompt_logprobs": null}]}`` must coerce to [].
+
+        Services that do not support prompt_logprobs return the field as null;
+        returning None would make ``_calc_ppl(None)`` raise TypeError. Coerce to []
+        so _calc_ppl raises the dedicated PPL error instead.
+        """
+        model = VLLMCustomAPI(**self.default_kwargs)
+        self.assertEqual(
+            model.get_prompt_logprobs({"choices": [{"prompt_logprobs": None}]}),
+            [],
+        )
+
+    def test_get_prompt_logprobs_choice_without_field(self):
+        """A choice lacking the prompt_logprobs key yields [] (no KeyError)."""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        self.assertEqual(model.get_prompt_logprobs({"choices": [{}]}), [])
+
+    def test_calc_ppl_empty_raises_no_valid_tokens(self):
+        """The downstream guarantee: ``_calc_ppl([])`` raises the dedicated
+        PPL_COMPUTE_ERROR_NO_VALID_TOKENS, which is why get_prompt_logprobs
+        returns [] on empty/None choices."""
+        from ais_bench.benchmark.utils.logging.exceptions import (
+            AISBenchImplementationError,
+        )
+        model = VLLMCustomAPI(**self.default_kwargs)
+        with self.assertRaises(AISBenchImplementationError) as ctx:
+            model._calc_ppl([])
+        self.assertIn("No valid tokens", str(ctx.exception))
+
 
 class TestVLLMCustomAPILora(unittest.TestCase):
     """针对 Multi-LoRA 兼容性扩展的 UT（completions API）。"""
