@@ -288,7 +288,7 @@ def validate_config_fields(models: List[dict], datasets: List[dict], cli_args: d
                            multi_combo: bool = False) -> List[str]:
     """启动前校验 V01~V10（V01 的配对结果由调用方传入）。
 
-    `multi_combo` 表示本次是否发生了多组合展开；仅多组合展开时校验 V07
+    `multi_combo` 表示本次是否发生了多组合展开；仅多组合展开时校验 V03、V07
     （单档运行与配置文件路径沿用既有的多数据集行为）。
 
     业务错误一次性汇总后抛 AISBenchConfigError；WARNING 项返回给调用方输出后继续。
@@ -357,9 +357,12 @@ def validate_config_fields(models: List[dict], datasets: List[dict], cli_args: d
             "with the model-level setting; use `--stream` / `--no-stream` instead"
         )
 
-    # V03：abbr 全局唯一（模型、数据集分别校验）
-    _check_abbr_unique(models, "model", errors)
-    _check_abbr_unique(datasets, "dataset", errors)
+    # V03：abbr 唯一（模型、数据集分别校验）。仅在多组合展开时生效：单档/非 sweep
+    # 路径沿用既有行为——同名 abbr 的数据集会由 _merge_datasets 合并成同一个任务，
+    # 结果写入同一份文件，这是合法的（冒烟用例 multi_datasets_same_abbr 依赖该行为）。
+    if multi_combo:
+        _check_abbr_unique(models, "model", errors)
+        _check_abbr_unique(datasets, "dataset", errors)
 
     synthetic_datasets = [d for d in datasets if _is_synthetic_dataset(d)]
     need_model_path = any(_is_dataset_need_models(d) for d in datasets)
@@ -766,25 +769,28 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
     # 展开后仍需保证每个组合的输出路径唯一：同一 (模型 abbr, 数据集 abbr) 只允许
     # 出现一次，否则 performances/<model>/<dataset>.json 会互相覆盖。
     # 多模型/多数据集笛卡尔积下同一 abbr 会在不同组合中重复出现，属正常情况。
-    post_errors: List[str] = []
-    seen_outputs = {}
-    for combo_index, (model_copy, dataset_copy) in enumerate(
-            zip(combo_models, combo_datasets)):
-        output_key = (model_copy.get("abbr"), dataset_copy.get("abbr"))
-        if output_key in seen_outputs:
-            post_errors.append(
-                f"Duplicate combo output path: model abbr '{output_key[0]}' and dataset "
-                f"abbr '{output_key[1]}' appear in both combo "
-                f"#{seen_outputs[output_key] + 1} and combo #{combo_index + 1}"
+    # 仅多组合展开时检查：单档路径下同名数据集 abbr 会被 _merge_datasets 合并成
+    # 同一个任务、写入同一份结果文件，属既有合法行为。
+    if is_multi:
+        post_errors: List[str] = []
+        seen_outputs = {}
+        for combo_index, (model_copy, dataset_copy) in enumerate(
+                zip(combo_models, combo_datasets)):
+            output_key = (model_copy.get("abbr"), dataset_copy.get("abbr"))
+            if output_key in seen_outputs:
+                post_errors.append(
+                    f"Duplicate combo output path: model abbr '{output_key[0]}' and dataset "
+                    f"abbr '{output_key[1]}' appear in both combo "
+                    f"#{seen_outputs[output_key] + 1} and combo #{combo_index + 1}"
+                )
+            else:
+                seen_outputs[output_key] = combo_index
+        if post_errors:
+            raise AISBenchConfigError(
+                TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+                "Sweep combo abbr conflict after expansion:\n"
+                + "\n".join(f"  - {error}" for error in post_errors),
             )
-        else:
-            seen_outputs[output_key] = combo_index
-    if post_errors:
-        raise AISBenchConfigError(
-            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
-            "Sweep combo abbr conflict after expansion:\n"
-            + "\n".join(f"  - {error}" for error in post_errors),
-        )
 
     for warning in warnings:
         logger.warning(warning)

@@ -1625,6 +1625,27 @@ class TestExpandSweepCombinations(unittest.TestCase):
         ]
         self.assertEqual(manifest_batch_sizes, [1, 8])
 
+    def test_duplicate_dataset_abbr_allowed_without_multi_sweep(self):
+        """单档/非 sweep 路径沿用既有多数据集同名 abbr 合并行为，不受 V03 拦截"""
+        datasets = [self._dataset(abbr="aime2024"), self._dataset(abbr="aime2024")]
+
+        result = expand_sweep_combinations([self._model()], datasets, self._args())
+
+        self.assertEqual([d["abbr"] for d in result.datasets], ["aime2024", "aime2024"])
+        self.assertIsNone(result.manifest)
+
+    def test_duplicate_dataset_abbr_rejected_in_multi_sweep(self):
+        """多组合展开时同名 abbr 会导致输出路径冲突，V03 必须拦截"""
+        datasets = [self._dataset(abbr="aime2024"), self._dataset(abbr="aime2024")]
+
+        with self.assertRaises(AISBenchConfigError) as cm:
+            expand_sweep_combinations(
+                [self._model()], datasets,
+                self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+            )
+
+        self.assertIn("Duplicate dataset abbr", str(cm.exception))
+
     def test_missing_num_prompts_uses_full_dataset(self):
         """未指定 --num-prompts 时按数据集全部样本请求，且不写 test_range"""
         result = expand_sweep_combinations(
