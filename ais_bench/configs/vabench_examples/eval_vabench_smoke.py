@@ -1,6 +1,6 @@
 """One pinned T2AV sample, one CLAP metric. Prepare with --subset smoke first.
 
-Edit paths for the GPU server. This is a plumbing smoke test, not Mini10/778.
+Edit paths for the GPU server. This is a plumbing smoke test, not full-set acceptance.
 """
 from ais_bench.benchmark.datasets.vabench import VABenchDataset
 from ais_bench.benchmark.partitioners import NaivePartitioner

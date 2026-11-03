@@ -1,6 +1,6 @@
 """VABench prepared T2AV dataset, without inference dependencies."""
 from ais_bench.benchmark.registry import LOAD_DATASET
-from ais_bench.benchmark.vabench.data import read_json
+from ais_bench.benchmark.utils.vabench.data import read_json
 
 
 @LOAD_DATASET.register_module()

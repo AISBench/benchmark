@@ -1,6 +1,6 @@
 """Eval-only: prepare MP4 once, then run this config with ais_bench -m eval.
 
-Edit the constants below. Use the same config for prepared 10/778 splits.
+Edit the constants below. Use this config for the prepared 778 set or selected 78 samples.
 """
 
 from ais_bench.benchmark.datasets.vabench import VABenchDataset

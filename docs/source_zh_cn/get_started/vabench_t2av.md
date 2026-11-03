@@ -1,6 +1,6 @@
 # VABench T2AV评测接入与GPU运行指南
 
-> 版本说明：本文新增的custom子集、官方格式备份、指标组进度及配置模板需要配套的新代码，不适用于仅含10e1469的版本。本次提交仅更新文档；使用新增功能前须同步配套代码。
+> 版本说明：custom 子集、官方格式备份、指标组进度及配置模板已包含在 `2d71f1e` 及其后续版本中；仅含 `10e1469` 的版本不具备全部这些功能。完整上手、官方 CLI 对照及固定 78 题获取见 [VABench 快速上手](../extended_benchmark/lmm_generate/vabench.md)。
 
 本期先在H200/GPU接入外部VABench的15个指标，A3/NPU留后续。旧版接入骨架保留；当前代码已具备原始评分调用与落盘，已补固定归一化和总分展示；细化场景错误归因与补跑仍按需求规划继续实现，不宣称已完成GPU官方对齐。
 
@@ -10,7 +10,7 @@
 
 固定上游为`tanABCC/VABench@12b9617a900a9eca1691da6b7115ce3d58f53a16`。源码由`--source-root`指定，保留外部仓库，不将官方评分算法复制到AISBench。
 
-T2AV JSON共848条，其中778条与mapping精确对应，采用这778条并提供固定Mini10；其余70条不自动补名。数据文件指纹固定在`ais_bench/benchmark/vabench/protocol.json`，Mini清单含新闻主播、说唱、小猫、音乐、环境、物理同步、复杂场景和虚拟世界等题目。
+T2AV JSON共848条，其中778条与mapping精确对应，采用这778条；其余70条不自动补名。数据文件指纹固定在`ais_bench/benchmark/utils/vabench/protocol.json`；快速评测采用已选定的78题（10%）子集，清单与严格准备步骤见[VABench快速上手第6节](../extended_benchmark/lmm_generate/vabench.md)。
 
 生成视频的输入文本为清单中的`entries[].metadata.prompt_en`，视频文件基名为`entries[].idx`。本阶段评测已有带音轨MP4，不发送H3或其他收费生成任务。文件名可以包含空格；shell参数须加引号。
 
@@ -19,36 +19,34 @@ cd /workspace/code/benchmark
 export VABENCH_ROOT=/workspace/code/VABench-main
 export VABENCH_CACHE_DIR=/workspace/vabench-cache
 
-python3 -m ais_bench.benchmark.vabench.cli catalog \
-  --source-root "$VABENCH_ROOT" --subset mini --output /workspace/mini_prompts.json
-python3 -m ais_bench.benchmark.vabench.cli catalog \
+python3 -m ais_bench.tools.vabench.cli catalog \
   --source-root "$VABENCH_ROOT" --subset standard --output /workspace/t2av_778_prompts.json
 ```
 
 一个输入根目录下，每个选中idx必须恰好对应一个带音轨MP4，可以平铺或分场景。不要混入同题多个模型的结果以免歧义。工具不为无声视频补静音、不重新编码原视频；抽取同源未裁剪、未主动重采样的PCM16 WAV，各官方指标再执行自己的预处理。
 
 ```bash
-python3 -m ais_bench.benchmark.vabench.cli prepare \
-  --source-root "$VABENCH_ROOT" --subset mini \
-  --videos /workspace/generated --output /workspace/prepared_mini
+python3 -m ais_bench.tools.vabench.cli prepare \
+  --source-root "$VABENCH_ROOT" --subset standard \
+  --videos /workspace/generated --output /workspace/prepared_standard
 ```
 
-完整集改为`--subset standard`并使用新目录。manifest记录原MP4绝对路径和生成WAV路径及哈希，原视频需保留；搬到另一服务器后重新prepare。已完成的准备目录不覆盖，输入被改写会在运行前报错。
+以上为778题完整集；78题按快速上手的固定清单准备，不能根据已有少量视频自动缩小分母。manifest记录原MP4绝对路径和生成WAV路径及哈希，原视频需保留；搬到另一服务器后重新prepare。已完成的准备目录不覆盖，输入被改写会在运行前报错。
 
 目录下所有官方样本可准备为自定义子集。仍限于固定778题：官方指标需要题目对应的JSON提示词和辅助信息，目录中出现778之外的视频会报错并列出，不会静默跳过，也不会缩小分母。
 
 ```bash
-python3 -m ais_bench.benchmark.vabench.cli prepare \
+python3 -m ais_bench.tools.vabench.cli prepare \
   --source-root "$VABENCH_ROOT" --subset custom \
   --videos /workspace/generated --output /workspace/prepared_custom
 ```
 
-报告scope为`custom`，完整时总分标记为“自定义子集总分（非官方）”；不得与Mini10/778验收结果混用。
+报告scope为`custom`，完整时总分标记为“自定义子集总分（非官方）”；不得当作778题完整集验收结果。
 
-单条冒烟从778题中精确选题，不改变Mini10或完整集：
+单条冒烟从778题中精确选题，不改变78题子集或完整集：
 
 ```bash
-python3 -m ais_bench.benchmark.vabench.cli prepare \
+python3 -m ais_bench.tools.vabench.cli prepare \
   --source-root "$VABENCH_ROOT" --subset smoke \
   --sample-id 'kitten curled up meowing' \
   --videos /workspace/generated --output /workspace/prepared_kitten
@@ -62,12 +60,12 @@ AISBench主环境可以与VABench评分Conda分离。填写后端Python，确保
 
 ```bash
 export CUDA_VISIBLE_DEVICES=6,7
-python3 -m ais_bench.benchmark.vabench.cli run \
+python3 -m ais_bench.tools.vabench.cli run \
   --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
-  --prepared /workspace/prepared_mini --device cuda:0 \
+  --prepared /workspace/prepared_standard --device cuda:0 \
   --python /root/miniconda3/envs/vabench311/bin/python3 \
   --options ais_bench/configs/vabench_examples/options.json \
-  --output /workspace/vabench_runs/gpu_mini
+  --output /workspace/vabench_runs/gpu_standard
 ```
 
 仅做小猫CLAP冒烟时，将prepared换为单条准备目录，加`--dimensions second_clap`，并使用新输出目录。`requested_device`是请求值，实际设备证据见报告观测字段；DNSMOS默认显式使用CPU ONNX，其他指标按配置运行。
@@ -85,33 +83,27 @@ ais_bench ais_bench/configs/vabench_examples/eval_vabench.py -m eval
 当前`--mode official`在独立评分进程中执行官方VABench类，注入相同本地资源并修正mapping路径；它是带工程包装的参考路径，不等同于用户原样执行官方`evaluate.py`。两种模式均保留原算法。
 
 ```bash
-python3 -m ais_bench.benchmark.vabench.cli run \
+python3 -m ais_bench.tools.vabench.cli run \
   --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
-  --prepared /workspace/prepared_mini --device cuda:0 --mode official \
+  --prepared /workspace/prepared_standard --device cuda:0 --mode official \
   --python /root/miniconda3/envs/vabench311/bin/python3 \
   --options ais_bench/configs/vabench_examples/options.json \
   --output /workspace/vabench_runs/gpu_reference
-python3 -m ais_bench.benchmark.vabench.cli compare \
+python3 -m ais_bench.tools.vabench.cli compare \
   --reference /workspace/vabench_runs/gpu_reference/report.json \
-  --candidate /workspace/vabench_runs/gpu_mini/report.json \
+  --candidate /workspace/vabench_runs/gpu_standard/report.json \
   --output /workspace/vabench_runs/gpu_alignment.json
 ```
 
-比较默认要求全部15项、相同样本/状态及输入、源码、权重和参数指纹。逐指标原始均分相对误差严格<1%；官方均分绝对值≤1e-6时要求绝对差≤1e-6。LSA允许相同省略集合但至少有一个有效分，其他指标的执行失败不能凭数值相近通过验收。`second_clap`是官方随机指标，见下节；单次运行不能套用<1%阈值，应多次运行取均值并单独记录范围。Mini用于快速对照，778用于完整集验收。
+比较默认要求全部15项、相同样本/状态及输入、源码、权重和参数指纹。逐指标原始均分相对误差严格<1%；官方均分绝对值≤1e-6时要求绝对差≤1e-6。LSA允许相同省略集合但至少有一个有效分，其他指标的执行失败不能凭数值相近通过验收。`second_clap`的长音频裁剪存在随机性，见下节；应控制实际预处理及随机状态并记录波动证据，不能自行以多轮均值或放宽阈值替代原验收口径。78题子集用于快速对照，778题用于完整集验收。
 
 最终仍需与用户官方CLI基线核对：专家进程隔离可能影响decord全局bridge及Qwen解码后端，调用相同compute函数并不能代替真实对齐证据。`compare`仍读取AISBench report；新增的`official_eval_results`可直接与官方CLI的`*_eval_results.json/csv`逐条对照，但自动导入官方基线及来源溯源仍待后续实现。
 
 ### second_clap的随机性
 
-官方`vabench/second_clap.py`调用processor时未指定`truncation`，`ClapFeatureExtractor`默认`fusion`。对超过10秒的音频，`_random_mel_fusion()`使用未播种的`np.random.choice`随机抽取3段音频特征，因此同一输入重复运行分数会波动；短于10秒的音频不触发随机截断，结果稳定。实测7个视频中6个约10.144秒，小猫约4.064秒，后者在官方和多次AISBench运行中均为0.30362。
+官方 `vabench/second_clap.py` 调用 processor 时未显式指定 `truncation`；实际模式还取决于缓存中的 `preprocessor_config.json`。当前本地 `clap/laion__clap-htsat-unfused/preprocessor_config.json` 明确为 `rand_trunc`，不能仅凭 Transformers 构造函数默认值判断为 fusion。超过模型窗口的音频可能随机截断，同一输入重复运行存在波动。
 
-因此：
-
-- 不得要求`second_clap`逐样本完全一致，也不要用单次运行套用默认<1%均值阈值。
-- 与官方对比时应多次运行取均值并记录波动范围，或为该项单独设置绝对容差。
-- 该项只占总分1/15，单次波动对总分影响通常小于0.1分。
-- 需要AISBench内部可复现时，可在CLAP调用前固定`np.random.seed()`；这只能保证自身重复性，不等同于官方某次随机抽样。
-
+对齐时保存实际预处理配置、音频时长、随机状态和裁剪条件，先控制同一批输入的随机采样，再检查原定逐指标均分相对误差 <1%（近零采用绝对阈值）。重复运行可以分析波动，不能擅自替代验收口径；无法满足时如实记录尚未对齐。仅设置 `PYTHONHASHSEED` 不会固定 NumPy 的随机裁剪。
 
 ## 固定归一化和总分展示
 
@@ -134,15 +126,15 @@ python3 -m ais_bench.benchmark.vabench.cli compare \
 - 15项都有均分但有失败、缺失、LSA省略或未解决的后端错误：展示“预览总分／不完整”。
 - 15项都有均分、输入评分覆盖率100%且没有已记录后端错误：展示当前评测范围的正式总分。
 
-单条冒烟、自定义子集、Mini10和778各自保留scope与样本数，Mini10总分不能称为778标准集总分。“正式”仅指本轮评分完整，不代表官方<1%对齐验收已完成。LSA省略是missing的子集，CSV中missing/omitted不可相加重复计数。分组均分另存scenes.csv。
+单条冒烟、自定义子集（含固定78题）和778标准集各自保留scope与样本数，子集总分不能称为778标准集总分。“正式”仅指本轮评分完整，不代表官方<1%对齐验收已完成。LSA省略是missing的子集，CSV中missing/omitted不可相加重复计数。分组均分另存scenes.csv。
 
 已有AISBench逐样本报告可离线重汇总，无需重新加载模型：
 
 ```bash
-python3 -m ais_bench.benchmark.vabench.cli summarize \
-  --report /workspace/vabench_runs/gpu_mini/report.json \
-  --output /workspace/vabench_runs/gpu_mini_new_summary \
-  --prepared /workspace/vabench_runs/gpu_mini_prepared
+python3 -m ais_bench.tools.vabench.cli summarize \
+  --report /workspace/vabench_runs/gpu_standard/report.json \
+  --output /workspace/vabench_runs/gpu_standard_new_summary \
+  --prepared /workspace/vabench_runs/gpu_standard_prepared
 ```
 
 原始报告不会被覆盖，新报告保存来源哈希和`model_inference_rerun=false`。这不是新的GPU验证，也不能恢复原始报告没有保存的模型生成文本。`--prepared`用于恢复官方`prompt_en`，省略时CSV回退到原始记录中的`prompt`字段或样本`idx`。

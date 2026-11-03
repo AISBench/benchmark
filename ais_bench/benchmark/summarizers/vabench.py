@@ -4,8 +4,8 @@ import os.path as osp
 from ais_bench.benchmark.summarizers.default import (
     DefaultSummarizer, model_abbr_from_cfg_used_in_summarizer)
 from ais_bench.benchmark.utils.core.abbr import get_infer_output_path
-from ais_bench.benchmark.vabench.data import read_json
-from ais_bench.benchmark.vabench.results import display_report
+from ais_bench.benchmark.utils.vabench.data import read_json
+from ais_bench.benchmark.summarizers.vabench_results import display_report
 
 
 class VABenchSummarizer(DefaultSummarizer):

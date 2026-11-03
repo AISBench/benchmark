@@ -6,3 +6,4 @@
    gedit_bench
    oneig
    vbench
+   vabench

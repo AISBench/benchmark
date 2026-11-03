@@ -24,13 +24,12 @@ SOURCE = Path(__file__).resolve().parents[4] / 'VABench'
 def test_pinned_catalog():
     if not SOURCE.exists():
         pytest.skip('Local official checkout is not available')
-    standard, mini = catalog(SOURCE), catalog(SOURCE, 'mini')
-    assert len(standard) == 778 and len(mini) == 10
+    standard = catalog(SOURCE)
+    assert len(standard) == 778
     assert len({e['idx'] for e in standard}) == 778
-    assert {e['idx'] for e in mini} <= {e['idx'] for e in standard}
-    assert len({e['category'] for e in mini}) == 10
+    assert len({e['category'] for e in standard}) == 24
     assert {'easy_human_language', 'hard_human_language', 'hard_Exact_Time_Synchronization'} <= {
-        e['category'] for e in mini}
+        e['category'] for e in standard}
 
 
 def test_pinned_data_rejects_drift(tmp_path):
@@ -45,20 +44,19 @@ def test_explicit_single_sample_smoke_catalog():
         pytest.skip('Local official checkout is not available')
     entries = catalog(SOURCE, 'smoke', sample_id='kitten curled up meowing')
     assert len(entries) == 1 and entries[0]['idx'] == 'kitten curled up meowing'
-    assert len(catalog(SOURCE, 'mini')) == 10
     assert len(catalog(SOURCE, 'standard')) == 778
     with pytest.raises(ValueError, match='requires one sample_id'):
         catalog(SOURCE, 'smoke')
     with pytest.raises(ValueError, match='requires one sample_id'):
         catalog(SOURCE, 'smoke', sample_id='not-an-official-prompt')
     with pytest.raises(ValueError, match='only supported'):
-        catalog(SOURCE, 'mini', sample_id='kitten curled up meowing')
+        catalog(SOURCE, 'standard', sample_id='kitten curled up meowing')
 
 
 def test_catalog_videos_selects_pinned_samples(tmp_path):
     if not SOURCE.exists():
         pytest.skip('Local official checkout is not available')
-    idx = catalog(SOURCE, 'mini')[0]['idx']
+    idx = catalog(SOURCE)[0]['idx']
     (tmp_path / f'{idx}.mp4').write_bytes(b'')
     selected = catalog_videos(SOURCE, tmp_path)
     assert [entry['idx'] for entry in selected] == [idx]
@@ -70,7 +68,7 @@ def test_catalog_videos_selects_pinned_samples(tmp_path):
 def test_catalog_videos_rejects_ambiguous_stems(tmp_path):
     if not SOURCE.exists():
         pytest.skip('Local official checkout is not available')
-    idx = catalog(SOURCE, 'mini')[0]['idx']
+    idx = catalog(SOURCE)[0]['idx']
     for name in ('a', 'b'):
         folder = tmp_path / name
         folder.mkdir()
@@ -134,7 +132,7 @@ def test_smoke_cli_labels_single_sample(tmp_path, entry, video, monkeypatch):
     assert manifest['subset_size'] == 1
     report = build_report(manifest, {}, {})
     assert report['evaluation_scope'] == 'smoke'
-    assert 'not Mini10/778' in report['scope_note']
+    assert 'not full 778-set' in report['scope_note']
     with pytest.raises(ValueError, match='exactly one'):
         prepare([entry, entry], video.parent, tmp_path / 'invalid', subset='smoke')
 
@@ -367,8 +365,7 @@ def test_logging_handlers_are_rebound_after_redirect_close(tmp_path):
 
 def test_custom_split_validation(monkeypatch):
     import ais_bench.benchmark.vabench.engine as engine
-    monkeypatch.setattr(engine, 'catalog', lambda root, subset: (
-        [{'idx': 'a'}, {'idx': 'b'}] if subset == 'standard' else [{'idx': 'm'}]))
+    monkeypatch.setattr(engine, 'catalog', lambda root, subset: [{'idx': 'a'}, {'idx': 'b'}])
     engine._validate_prepared_split(
         dict(evaluation_scope='custom', records=[dict(idx='b')]), 'unused')
     with pytest.raises(ValueError, match='outside the pinned 778'):
@@ -377,9 +374,47 @@ def test_custom_split_validation(monkeypatch):
     with pytest.raises(ValueError, match='exactly one'):
         engine._validate_prepared_split(
             dict(evaluation_scope='smoke', records=[dict(idx='a'), dict(idx='b')]), 'unused')
-    with pytest.raises(ValueError, match='pinned 778/10'):
+    with pytest.raises(ValueError, match='pinned 778 split'):
         engine._validate_prepared_split(
             dict(evaluation_scope='standard', records=[dict(idx='a')]), 'unused')
+
+
+def test_unknown_scopes_cannot_pass_as_standard(monkeypatch, tmp_path):
+    import ais_bench.benchmark.vabench.engine as engine
+    monkeypatch.setattr(engine, 'catalog', lambda *args: [{'idx': 'a'}])
+    engine._validate_prepared_split(
+        dict(evaluation_scope='standard', records=[dict(idx='a')]), 'unused')
+    with pytest.raises(ValueError, match='pinned 778 split'):
+        engine._validate_prepared_split(
+            dict(evaluation_scope='unsupported', records=[dict(idx='a')]), 'unused')
+    with pytest.raises(ValueError, match='subset must be standard or smoke'):
+        catalog('unused', 'unsupported')
+    with pytest.raises(ValueError, match='Preparation subset'):
+        prepare([], tmp_path, tmp_path / 'out', subset='unsupported')
+
+
+def test_standard_catalog_export_has_only_current_fields(tmp_path):
+    if not SOURCE.exists():
+        pytest.skip('Local official checkout is not available')
+    from ais_bench.tools.vabench.cli import main
+    output = tmp_path / 'prompts.json'
+    assert main(['catalog', '--source-root', str(SOURCE), '--output', str(output)]) == 0
+    exported = read_json(output)
+    assert set(exported) == {'subset', 'count', 'upstream_commit', 'entries'}
+    assert exported['subset'] == 'standard' and exported['count'] == 778
+    assert set(read_json(PROTOCOL_PATH)) == {
+        'upstream', 'commit', 'description', 'data_sha256', 'standard_ids'}
+
+
+def test_selected_ten_percent_catalog_stays_fixed():
+    if not SOURCE.exists():
+        pytest.skip('Local official checkout is not available')
+    selected = read_json(Path('ais_bench/configs/vabench_examples/mini10pct.json'))
+    standard = {entry['idx']: entry for entry in catalog(SOURCE)}
+    assert selected['count'] == len(selected['entries']) == 78
+    assert len({entry['idx'] for entry in selected['entries']}) == 78
+    assert len({entry['category'] for entry in selected['entries']}) == 24
+    assert all(standard[entry['idx']]['category'] == entry['category'] for entry in selected['entries'])
 
 
 def test_custom_scope_is_labeled_non_official():
@@ -397,7 +432,7 @@ def test_custom_scope_is_labeled_non_official():
     report = build_report(manifest, details, {})
     assert report['evaluation_scope'] == 'custom'
     assert 'Custom subset of 1' in report['scope_note']
-    assert 'not Mini10/778' in report['scope_note']
+    assert 'not full 778-set' in report['scope_note']
     assert report['total']['status'] == 'formal'
     assert report['total']['label'] == '自定义子集总分（非官方）'
 

@@ -19,6 +19,7 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
 
 * 对于想要使用 AISBench 评测工具的用户，建议先阅读 :doc:`安装指南 <get_started/install>`，确保环境配置正确。
 * 本教程提供的 :doc:`快速入门 <get_started/quick_start>` 将引导你完成基本的精度评测配置和运行。
+* 已有生成音视频的用户可直接阅读 :doc:`VABench 快速上手 <extended_benchmark/lmm_generate/vabench>`，了解 15 项评分、官方对照和 78 题子集。
 * :doc:`数据集准备指南 <get_started/datasets>` 将帮助你了解支持的数据集及其准备方法。
 * 基础教程部分将介绍 :doc:`评测场景介绍 <base_tutorials/scenes_intro/index>` 、:doc:`评测结果说明 <base_tutorials/results_intro/index>` 以及 :doc:`详细参数说明 <base_tutorials/all_params/index>` 等内容，帮助你更好地理解主要的评测场景的使用。
 * 如果想要更深入地了解 AISBench 评测工具的高级用法，可以参考 :doc:`进阶教程 <advanced_tutorials/run_custom_config>`。**强烈推荐**阅读 :doc:`自定义配置文件运行AISBench <advanced_tutorials/run_custom_config>`，配置文件本质上是 Python 脚本，支持循环、条件判断、列表推导等所有 Python 语法，可将模型、数据集、summarizer 等配置写入一个文件，一次编写、多次复用，覆盖几乎所有评测场景。
@@ -97,6 +98,7 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
    develop_guide/new_model
    develop_guide/new_dataset
    develop_guide/new_inferencer
+   design/vabench-benchmark-design
 
 .. toctree::
    :maxdepth: 2

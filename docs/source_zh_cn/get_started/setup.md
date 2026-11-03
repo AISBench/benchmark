@@ -138,7 +138,7 @@ pip install --no-deps --no-build-isolation --force-reinstall -r vabench-git.txt
 
 安装器还会检查或补齐以下资源：
 
-- `catalog(source_root, 'mini')`：验证固定版本的 VABench mini 数据。
+- `catalog(source_root, 'standard')`：验证固定版本的 VABench 778 题标准数据。
 - DNSMOS：
   `third_party/DNS-Challenge/DNSMOS/dnsmos_local.py`
   本次已存在，保留原文件，SHA256 为

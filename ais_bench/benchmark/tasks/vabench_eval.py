@@ -12,9 +12,9 @@ from ais_bench.benchmark.registry import TASKS
 from ais_bench.benchmark.tasks.base import BaseTask, TaskStateManager
 from ais_bench.benchmark.utils.core.abbr import (get_infer_output_path,
                                                task_abbr_from_cfg)
-from ais_bench.benchmark.vabench.engine import run, successful
-from ais_bench.benchmark.vabench.data import read_json, write_json
-from ais_bench.benchmark.vabench import DIMENSIONS, MLLM_DIMENSIONS
+from ais_bench.benchmark.tasks.vabench.engine import run, successful
+from ais_bench.benchmark.utils.vabench.data import read_json, write_json
+from ais_bench.benchmark.utils.vabench import DIMENSIONS, MLLM_DIMENSIONS
 
 
 def _metric_group_count(dimensions):

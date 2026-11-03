@@ -14,7 +14,7 @@ from ais_bench.benchmark.vabench.scoring import RULES, normalize_score
 
 
 def fixture_inputs():
-    manifest = dict(input_signature='synthetic_fixture', evaluation_scope='mini',
+    manifest = dict(input_signature='synthetic_fixture', evaluation_scope='standard',
                     records=[dict(idx='a', category='one'), dict(idx='b', category='two')])
     details = {}
     for dim in DIMENSIONS:

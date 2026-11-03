@@ -1,6 +1,6 @@
 # VABench GPU评分环境：Conda Python 3.11
 
-> 版本说明：10e1469已包含依赖安装工具；本文链接的统一环境记录及新增custom评测命令需要后续配套代码。本次提交仅更新文档，不包含这些代码改动。
+> 版本说明：`10e1469` 已包含依赖安装工具；新增 custom 评测、原始备份及指标组进度已在 `2d71f1e` 及后续版本交付。完整运行路线见 [VABench 快速上手](../extended_benchmark/lmm_generate/vabench.md)。
 
 本指南依据用户在H200容器中的最终统一环境记录（`过程/10.txt`），使用外部固定版本VABench，不修改其评分源码。15个指标共用一个评分Conda。AISBench主环境通过`BACKEND_PYTHON`或`--python`调用该Conda，无须把GPU评分依赖加入所有数据集的公共runtime。
 
@@ -93,7 +93,7 @@ git -C /workspace/code/VABench-main checkout 12b9617a900a9eca1691da6b7115ce3d58f
 
 ```bash
 cd /workspace/code/benchmark
-python3 -m ais_bench.benchmark.vabench.environment plan \
+python3 -m ais_bench.tools.vabench.environment plan \
   --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
   --work-dir /workspace/vabench-env-audit
 ```
@@ -101,7 +101,7 @@ python3 -m ais_bench.benchmark.vabench.environment plan \
 完整安装（普通依赖解析不绕过，只有固定Git包与已修补NISQA采用`--no-deps`）：
 
 ```bash
-python3 -m ais_bench.benchmark.vabench.environment install \
+python3 -m ais_bench.tools.vabench.environment install \
   --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
   --work-dir /workspace/vabench-env-audit \
   --index-url https://repo.huaweicloud.com/repository/pypi/simple
@@ -112,7 +112,7 @@ python3 -m ais_bench.benchmark.vabench.environment install \
 若希望同一条命令连系统工具也自动准备，在Ubuntu/Debian容器内以root执行：
 
 ```bash
-python3 -m ais_bench.benchmark.vabench.environment install \
+python3 -m ais_bench.tools.vabench.environment install \
   --install-system-deps \
   --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
   --work-dir /workspace/vabench-env-audit \
@@ -138,7 +138,7 @@ python3 -m pip wheel --no-deps --no-build-isolation \
 安装自动执行检查，也可对用户已准备好的环境单独运行：
 
 ```bash
-python3 -m ais_bench.benchmark.vabench.environment check \
+python3 -m ais_bench.tools.vabench.environment check \
   --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
   --work-dir /workspace/vabench-env-audit \
   --video /workspace/video/kittencurledupmeowing.mp4
@@ -175,7 +175,7 @@ NUM_DEVICES = 2
 独立CLI等价运行：
 
 ```bash
-python3 -m ais_bench.benchmark.vabench.cli run \
+python3 -m ais_bench.tools.vabench.cli run \
   --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
   --prepared /workspace/prepared_mini --device cuda:0 \
   --python /root/miniconda3/envs/vabench311/bin/python3 \

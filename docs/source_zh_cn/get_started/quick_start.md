@@ -1,5 +1,11 @@
 # 快速入门
 
+## 选择评测场景
+
+下文以文本服务的 GSM8K 评测为例。已有带音轨生成视频时，请使用 [VABench 音视频联合评测快速上手](../extended_benchmark/lmm_generate/vabench.md)：准备 GPU 评分 Conda 和固定官方源码/权重，按题目 idx 保存 MP4，再由 AISBench 调度 15 项指标。评分 Qwen 在后端直接加载，无须先部署聊天服务。
+
+VABench 指南包含标准集（778 题）、已选定的 10% 子集（78 题）的获取和执行步骤，以及官方原生评测与 AISBench 的输入、输出和验收对比。评测完成后可查看 `summary.md`、15 项均分及归一化总分；缺项或失败会明确影响总分状态。
+
 ## 运行命令前置准备
 
 - 需要准备支持`v1/chat/completions`子服务的推理服务，可以参考🔗 [VLLM启动OpenAI 兼容服务器](https://docs.vllm.com.cn/en/latest/getting_started/quickstart.html#openai-compatible-server)启动推理服务
