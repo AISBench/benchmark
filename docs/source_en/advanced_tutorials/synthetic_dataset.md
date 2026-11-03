@@ -9,7 +9,8 @@ This feature is designed for scenarios where real datasets are unavailable, and 
 
 ## II. Usage Guide
 
-### 2.1 Modifying the Configuration File
+::::{tab-set}
+:::{tab-item} ⭐ Custom Configuration File
 
 Configure the `synthetic_config` parameter in the configuration template files under the `ais_bench/benchmark/configs/datasets/synthetic` directory.
 
@@ -35,13 +36,47 @@ Currently, **two different types** of random dataset configuration template file
 
 **Note:** The configuration used by the [`ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen.py`](../../../ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen.py) template needs to be modified in [`ais_bench/benchmark/configs/datasets/synthetic`](../../../ais_bench/datasets/synthetic/synthetic_config.py). To unify the dataset configuration mode, this method will be deprecated in future versions.
 
-### 2.2 Command Execution
-
-Run the following command in the command line to start the evaluation:
+Execution command:
 
 ```bash
 ais_bench --models {model_api_file} --datasets synthetic_gen_{string/tokenid} {other_option_args}
 ```
+
+:::
+:::{tab-item} Alternative: Command-Line Parameters
+
+Run the following command in the command line to start the evaluation:
+
+- Random-length string dataset:
+    ```bash
+    ais_bench --models {model_api_file} --datasets synthetic_gen_string --mode {mode} --request-count {request_count} --string-config-input {input_config} --string-config-output {output_config} 
+    ```
+
+- Random token ID sequence dataset:
+    ```bash
+    ais_bench --models {model_api_file} --datasets synthetic_gen_tokenid --mode {mode} --request-count {request_count} --tokenid-config-request-size {request_size} --tokenid-config-prefix-len {prefix_len} 
+    ```
+
+Example:
+
+```bash
+ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_tokenid --mode perf \
+  --batch-size 1 8 16 32 40 50 64 \
+  --num-prompts 1 8 16 32 40 50 64 \
+  --request-count 64 \
+  --tokenid-config-request-size 8192 \
+  --tokenid-config-prefix-len 6554 \
+  --max-out-len 1024 \
+  --num-warmups 16 \
+  --path /mnt/weight/Qwen3.8-27B-w8a8 \
+  --model-name qwen3.8 \
+  --host-ip 127.0.0.1 \
+  --host-port 8000 \
+  --generation-kwargs '{"ignore_eos":true}'
+```
+
+:::
+::::
 
 
 ## III. Parameter Description

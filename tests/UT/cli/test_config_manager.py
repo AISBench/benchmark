@@ -1442,7 +1442,7 @@ class TestConfigManager(unittest.TestCase):
         self.assertIn('/workspace/missing/token2category', message)
 
 class TestSweepPairing(unittest.TestCase):
-    """--batch-size ↔ --num-prompts 配对/广播与并发窗口校验。"""
+    """--batch-size ↔ --num-prompts 一一对应与并发窗口校验。"""
 
     def test_normalize_sweep_arg(self):
         self.assertIsNone(_normalize_sweep_arg(None))
@@ -1459,11 +1459,16 @@ class TestSweepPairing(unittest.TestCase):
         self.assertEqual(pairs, [(1, 1), (8, 8)])
         self.assertEqual(warnings, [])
 
-    def test_broadcast_strategy(self):
-        pairs, _ = validate_pairing([1, 8, 16], 16)
-        self.assertEqual(pairs, [(1, 16), (8, 16), (16, 16)])
-        pairs, _ = validate_pairing(16, [1, 8, 16])
-        self.assertEqual(pairs, [(16, 1), (16, 8), (16, 16)])
+    def test_one_side_list_raises(self):
+        """一侧列表一侧标量：不支持广播，必须一一对应"""
+        with self.assertRaises(AISBenchConfigError) as cm:
+            validate_pairing([1, 8, 16], 16)
+        self.assertEqual(
+            cm.exception.error_code_str,
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD.full_code,
+        )
+        with self.assertRaises(AISBenchConfigError):
+            validate_pairing(16, [1, 8, 16])
 
     def test_unequal_list_raises(self):
         with self.assertRaises(AISBenchConfigError) as cm:
@@ -1475,7 +1480,7 @@ class TestSweepPairing(unittest.TestCase):
 
     def test_window_not_saturated_warning(self):
         """batch_size 大于生效请求数时，并发窗口跑不满 → WARNING"""
-        _, warnings = validate_pairing([16], 8, request_count=8)
+        _, warnings = validate_pairing(16, 8, request_count=8)
         self.assertTrue(any("concurrency window" in warning for warning in warnings))
 
     def test_scalar_pairing_warns_window_not_filled(self):
@@ -1491,16 +1496,16 @@ class TestSweepPairing(unittest.TestCase):
 
     def test_window_saturated_no_warning(self):
         """并发窗口能被请求数填满时不告警（含 num_prompts 大于 batch_size 的常见组合）"""
-        _, warnings = validate_pairing([8], 10, request_count=10)
+        _, warnings = validate_pairing(8, 10, request_count=10)
         self.assertEqual(warnings, [])
 
     def test_request_count_limits_effective_requests(self):
         """生效请求数取 min(num_prompts, request_count)"""
-        _, warnings = validate_pairing([8], 16, request_count=4)
+        _, warnings = validate_pairing(8, 16, request_count=4)
         self.assertTrue(any("concurrency window" in warning for warning in warnings))
 
     def test_test_range_set_skips_window_check(self):
-        pairs, warnings = validate_pairing([16], 8, test_range_set=True)
+        pairs, warnings = validate_pairing(16, 8, test_range_set=True)
         self.assertEqual(pairs, [(16, 8)])
         self.assertEqual(warnings, [])
 

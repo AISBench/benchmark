@@ -9,14 +9,15 @@ AISBench Benchmark 支持通过 [**命令行参数（CLI）**](#命令行参数
 ais_bench [OPTIONS]
 ```
 ### 参数说明
-根据执行场景，命令行参数分为四大类：
+根据执行场景，命令行参数分为五大类：
 
 - 公共参数
 - 精度测评参数（仅在 `--mode` 为 `all、infer、eval` 或 `viz` 时生效）
 - 性能测评参数（仅在 `--mode` 为 `perf` 或 `perf_viz` 时生效）
 - Agent 测评参数（仅在 `--mode` 为 `agent` 或 `agent_viz` 时生效）
+- 随机合成数据集参数（仅在 `--datasets` 指定随机合成数据集时生效）
 
-`精度测评参数`只有在`--mode`参数指定为`"all", "infer", "eval", "viz"`时生效，`性能测评参数`只有在`--mode`参数指定为`"perf", "perf_viz"`时生效，`Agent测评参数`只有在`--mode`参数指定为`"agent", "agent_viz"`时生效，`公共参数`则不区分任务执行模式，在所有模式下均可指定。
+`精度测评参数`只有在`--mode`参数指定为`"all", "infer", "eval", "viz"`时生效，`性能测评参数`只有在`--mode`参数指定为`"perf", "perf_viz"`时生效，`Agent测评参数`只有在`--mode`参数指定为`"agent", "agent_viz"`时生效，`随机合成数据集参数`仅在 `--datasets` 指定随机合成数据集（如 `synthetic_gen_tokenid`、`synthetic_gen_string`）时生效，`公共参数`则不区分任务执行模式，在所有模式下均可指定。
 
 ### 公共参数
 适用于所有模式，可同时与精度或性能参数联合使用。
@@ -34,7 +35,7 @@ ais_bench [OPTIONS]
 | `--dry-run`    | 开启 Dry Run 模式（只打屏不实际跑任务）开关，配置该参数表示开启，未配置表示关闭，默认未配置。  | `--dry-run` |
 | `--max-workers-per-gpu` | 预留参数，暂不支持。 | `--max-workers-per-gpu 1` |
 | `--merge-ds`   | 开启同类数据集合并推理（同一任务多数据集一起跑）。| `--merge-ds`|
-| `--num-prompts` | 指定数据集测评条数（按照数据集顺序选取），需传入正整数，超过数据集条数或默认情况下表示对全量数据集进行测评。 | `--num-prompts 500` |
+| `--num-prompts` | 指定数据集测评条数（按照数据集顺序选取），需传入正整数，超过数据集条数或默认情况下表示对全量数据集进行测评。支持传入多个值，空格分隔（与 `--batch-size` 一一对应）。 | `--num-prompts 500`<br>`--num-prompts 4 8 16` |
 | `--max-num-workers`   | 并行任务数，范围 `[1, CPU 核数]`，默认 `1`。在指定`--debug`时配置无效，所有任务串行执行。注意：性能测评场景下，并发数过高可能会导致不同进程出现资源抢占，导致测试结果失真。  | `--max-num-workers 2` |
 |`--num-warmups`|发送请求前预热次数，按照数据集顺序选取数据进行测试，大概num-warmups大于数据集条数时，会循环发送数据集中数据。默认 `1`；若设为0，则不预热。如果warmup阶段所有请求失败，后续推理任务将不会执行。| `--num-warmups 10` |
 | `--response-anomaly` | 开启推理响应异常检测，无需额外配置：命令行增加 `--response-anomaly` 即开启，不增加默认不开启。检测串行绑定在推理阶段内：推理结束后启动检测并等待其完成（专属状态面板打印最终结果后）才进入后续 Judge / Eval / 汇总流程；需服务返回 token id 与 top-k logprobs。仅支持 `all`、`infer`、`infer_judge` 普通生成链路，不支持性能模式与 Agent 测评模式。详细用法见 📚 [推理响应异常检测](../../advanced_tutorials/response_anomaly_detection.md)。 | `--response-anomaly` |
@@ -62,9 +63,12 @@ ais_bench [OPTIONS]
 | `--host-port` | 覆盖 `host_port`（推理服务端口） | `--host-port 8000` |
 | `--url` | 覆盖 `url`（自定义访问推理服务的 URL 路径） | `--url http://x.x.x.x:8000/v1` |
 | `--max-out-len` | 覆盖 `max_out_len`（推理输出最大 token 数） | `--max-out-len 1024` |
-| `--batch-size` | 覆盖 `batch_size`（请求最大并发数） | `--batch-size 4` |
+| `--batch-size` | 覆盖 `batch_size`（请求最大并发数），支持传入多个值，空格分隔 | `--batch-size 4`<br>`--batch-size 4 8 16` |
 | `--trust-remote-code` | 覆盖 `trust_remote_code`（tokenizer 是否信任远程代码），支持 `--trust-remote-code` / `--no-trust-remote-code` 两种形态 | `--no-trust-remote-code` |
 | `--generation-kwargs` | 覆盖 `generation_kwargs`（推理生成参数），以 JSON 对象形式传入，**整体替换**配置中的 dict | `--generation-kwargs '{"temperature": 0.5}'` |
+| `--model-abbr` | 覆盖模型 `abbr`（服务化任务唯一标识）；当--batch-size存在多个值时，--model-abbr值后会追加 `-bs{N}`作区分 | `--model-abbr vllm-api-general-chat` |
+| `--stream` / `--no-stream` | 覆盖 `stream`（是否流式返回），支持 `--stream` / `--no-stream` 两种形态。仅流式可测得 TTFT/TPOT/ITL；非流式组合会打印 warning，汇总结果中相关指标留空 | `--no-stream` |
+| `--use-timestamp` / `--no-use-timestamp` | 覆盖 `use_timestamp`（是否使用服务端返回的时间戳计算时延），支持两种形态；开启后 `request_rate` 不生效 | `--use-timestamp` |
 
 ### 精度测评参数
 仅在模式为 `all、infer、eval` 或 `viz` 时有效。
@@ -114,6 +118,21 @@ ais_bench [OPTIONS]
 | `-y` / `--yes` | 自动确认环境变量提示 | `--yes` |
 | `--env-file` | `.env` 文件路径 | `--env-file /path/to/.env` |
 | `--monitor-port` | Harbor 监控 HTTP 服务端口（`0` = 关闭，默认 `0`） | `--monitor-port 8788` |
+
+### 随机合成数据集参数
+
+这些参数用于覆盖**随机合成数据集**的配置字段，仅在 `--datasets` 指定了随机合成数据集（`synthetic_gen_tokenid`、`synthetic_gen_string` 等）时生效，且一次运行只允许指定一个随机合成数据集。参数均为单值，与数据集已存在的配置字段 1:1 对应。
+
+| 参数 | 说明 | 示例 |
+| ---- | ---- | ---- |
+| `--request-count` | 覆盖 `RequestCount`（生成的请求总数） | `--request-count 32` |
+| `--tokenid-config-request-size` | 覆盖 `TokenIdConfig.RequestSize`（请求token数量）；仅适用于 `--datasets synthetic_gen_tokenid`时  | `--tokenid-config-request-size 8192` |
+| `--tokenid-config-prefix-len` | 覆盖 `TokenIdConfig.PrefixLen`（请求的公共前缀token数量）；仅适用于 `--datasets synthetic_gen_tokenid` 时 | `--tokenid-config-prefix-len 4096` |
+| `--string-config-input` | 覆盖 `StringConfig.Input`，以 JSON 对象形式传入；仅适用于 `--datasets synthetic_gen_string` 时 | `--string-config-input '{"Method": "uniform", "Params": {"MinValue": 100, "MaxValue": 200}}'` |
+| `--string-config-output` | 覆盖 `StringConfig.Output`，以 JSON 对象形式传入；仅适用于 `--datasets synthetic_gen_string` 时 | `--string-config-output '{"Method": "uniform", "Params": {"MinValue": 50, "MaxValue": 100}}'` |
+| `--dataset-abbr` | 覆盖数据集 `abbr`（测评任务中数据集的唯一标识） | `--dataset-abbr my-synth` |
+
+> ⚠️ **注意**：`--tokenid-config-*` 只能在 `--datasets synthetic_gen_tokenid` 时生效，`--string-config-*` 只能在 `--datasets synthetic_gen_string` 时生效；类型不匹配时会在启动前报错，可使用 `--request-count` 调整任意随机合成数据集的请求总数。
 
 ## 配置常量文件参数
 

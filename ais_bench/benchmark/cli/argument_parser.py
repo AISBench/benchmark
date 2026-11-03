@@ -122,7 +122,8 @@ class ArgumentParser():
             help='Num Prompts, Specify the number of prompts to infer and evaluate. '
             'Must be integer >= 1, If not provided, all prompts will be inferred and evaluated. '
             'Accepts 1..N integers; with multiple values each one pairs with the '
-            'corresponding --batch-size value (or a single --batch-size broadcasts).',
+            'corresponding --batch-size value, so the number of values must match '
+            'the number of --batch-size values.',
             type=validate_num_prompts,
             nargs='+',
             default=None

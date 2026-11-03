@@ -1,9 +1,8 @@
 import os
 import copy
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from ais_bench.benchmark import __version__
 from ais_bench.benchmark.utils.logging.logger import AISLogger
@@ -55,32 +54,6 @@ class SweepResult:
     sweep_cooldown_s: int = 0
 
 
-class PairingStrategy(ABC):
-    """配对策略接口。"""
-
-    @abstractmethod
-    def pair(self, left, right) -> List[Tuple[Any, Any]]:
-        pass
-
-
-class PairedStrategy(PairingStrategy):
-    """双列表等长：按下标一一配对。"""
-
-    def pair(self, left, right) -> List[Tuple[Any, Any]]:
-        return list(zip(left, right))
-
-
-class BroadcastStrategy(PairingStrategy):
-    """一列表一标量：标量广播到列表每一项。"""
-
-    def pair(self, left, right) -> List[Tuple[Any, Any]]:
-        if isinstance(left, list) and not isinstance(right, list):
-            return [(item, right) for item in left]
-        if isinstance(right, list) and not isinstance(left, list):
-            return [(left, item) for item in right]
-        return [(left, right)]
-
-
 def _normalize_sweep_arg(value) -> Union[int, List[int], None]:
     """长度 1 的列表解包为 int；多元素列表原样返回；空列表报错。"""
     if value is None:
@@ -104,31 +77,44 @@ def validate_pairing(left: Union[int, List[int], None],
                      ) -> Tuple[List[Tuple[Optional[int], Optional[int]]], List[str]]:
     """`--batch-size` ↔ `--num-prompts` 配对校验。
 
-    - 双列表等长 → PairedStrategy 按下标配对
-    - 一列表一标量 → BroadcastStrategy 标量广播
+    - 双列表等长 → 按下标一一配对
     - 双列表不等长 → 抛 AISBenchConfigError（不静默截断）
-    - 双标量（含单值列表归一后的单档）同样走并发窗口检查，不做特例跳过
-    - `batch_size` 是客户端最大并发请求数（并发窗口），请求完成后立即补位、
-      不存在固定波次，因此这里不做整除性检查；仅在并发窗口大于生效请求数
+    - 一侧列表一侧标量 → 抛 AISBenchConfigError（不支持广播，必须一一对应）
+    - 双标量（含单值列表归一后的单档）配对为一个组合，同样走并发窗口检查
+    - 未指定 `--num-prompts` 时每个并发档都不限制请求数，对全量数据集评测
+    - `batch_size` 是客户端最大并发请求数（并发窗口）；仅在并发窗口大于生效请求数
       （窗口跑不满、实际并发达不到设定值）时 WARNING，不阻断
     - 生效请求数：指定 `num_prompts` 时为 min(num_prompts, request_count)；
       未指定时默认对全量数据集评测，取 request_count；两者均未知或配置已显式
       设置 test_range 时跳过该检查
     """
     warnings: List[str] = []
-    if isinstance(left, list) and isinstance(right, list):
+    if right is None:
+        # 未指定 --num-prompts：每个并发档都不限制请求条数
+        pairs = (
+            [(item, None) for item in left] if isinstance(left, list)
+            else [(left, None)]
+        )
+    elif isinstance(left, list) and isinstance(right, list):
         if len(left) != len(right):
             raise AISBenchConfigError(
                 TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
-                f"`--batch-size` and `--num-prompts` must have the same length when "
-                f"both are lists (got {len(left)} vs {len(right)}); make them the same "
-                f"length or pass a single value on one side to broadcast.",
+                f"`--batch-size` and `--num-prompts` must have the same length "
+                f"(got {len(left)} vs {len(right)}): pass one `--num-prompts` per "
+                f"`--batch-size` entry.",
             )
-        strategy: PairingStrategy = PairedStrategy()
+        pairs = list(zip(left, right))
+    elif isinstance(left, list) or isinstance(right, list):
+        left_len = len(left) if isinstance(left, list) else 1
+        right_len = len(right) if isinstance(right, list) else 1
+        raise AISBenchConfigError(
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+            f"`--batch-size` and `--num-prompts` must correspond one-to-one "
+            f"(got {left_len} batch-size value(s) vs {right_len} num-prompts value(s)); "
+            f"pass the same number of values on both sides.",
+        )
     else:
-        strategy = BroadcastStrategy()
-
-    pairs = strategy.pair(left, right)
+        pairs = [(left, right)]
     if test_range_set:
         return pairs, warnings
 
