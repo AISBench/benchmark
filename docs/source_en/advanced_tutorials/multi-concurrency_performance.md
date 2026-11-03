@@ -43,7 +43,7 @@ Notes:
 - When multiple `--batch-size` values are passed, the command expands into one concurrency level per value; `--num-prompts` must contain the same number of values and is paired one-to-one by position
 - Each concurrency level becomes an independent task, and the model `abbr` is automatically suffixed with `-bs{N}` (for example, `vllm_api_stream_chat-bs8`), so output files do not overwrite each other
 - `--request-count` sets the total number of requests generated for each level; if `--num-prompts` is not specified, the actual number of requests sent equals `--request-count`
-- Levels run serially by default with a 5s cooldown between them, preventing queued requests from the previous level from contaminating the results of the next level
+- Tasks run serially by default with a 5s cooldown between consecutive tasks, preventing queued requests from the previous level from contaminating the results of the next level
 
 For an example covering multiple input/output lengths plus multiple concurrency levels, see [aisbench_vllm_performance_zh_cn.sh](../../../ais_bench/configs/performance_benchmark/aisbench_vllm_performance_zh_cn.sh).
 

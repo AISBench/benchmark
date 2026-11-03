@@ -206,14 +206,17 @@ class TestAggregateBatchPerf(unittest.TestCase):
         self.assertEqual(row["tpot_avg"], 4.0)
 
     def test_csv_formula_injection_escaped(self):
-        """文本列以 = + - @ 开头时加前缀引号，避免 CSV 公式注入"""
-        combo = _make_combo(0, 4, "=cmd|'/c calc'!A1")
+        """文本列以 = + - @ 开头时加前缀引号，避免 CSV 公式注入
+
+        abbr 需同时通过路径安全校验（不含分隔符），否则该行会被整体跳过。
+        """
+        combo = _make_combo(0, 4, "=1+1")
         _write_manifest(self.work_dir, [combo, _make_combo(1, 16, "m-bs16")])
-        _write_perf(self.work_dir, "=cmd|'/c calc'!A1", "synthetic")
+        _write_perf(self.work_dir, "=1+1", "synthetic")
 
         aggregate_batch_perf(self.work_dir)
         rows = _read_summary(self.work_dir)
-        self.assertEqual(rows[0]["Model Abbr"], "'=cmd|'/c calc'!A1")
+        self.assertEqual(rows[0]["Model Abbr"], "'=1+1")
 
     def test_rows_sorted_by_batch_size(self):
         """行序按 batch_size 升序，便于直接读出并发-吞吐曲线"""
@@ -624,7 +627,9 @@ class TestChartLabelEscaping(unittest.TestCase):
         )
         self.assertNotIn("<script>alert(1)</script>", html_text)
         self.assertNotIn("</script><script>", html_text)
-        self.assertIn("&lt;/script&gt;", html_text)
+        # plotly 会把 JSON 字符串中的 "/" 转义为 \u002f，还原后再比对实体化结果
+        escaped = perf_batch._escape_chart_text(self.PAYLOAD)
+        self.assertIn(escaped, html_text.replace("\\u002f", "/"))
         # 只剩 plotly 自己为每张图输出的闭合标签
         self.assertEqual(html_text.count("</script>"), chart_count)
 

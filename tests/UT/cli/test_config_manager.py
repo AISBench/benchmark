@@ -1692,8 +1692,39 @@ class TestExpandSweepCombinations(unittest.TestCase):
         }
         self.assertEqual(len(output_pairs), 4)
 
+    def test_multi_model_model_path_not_overwritten_by_fill(self):
+        """多模型 + 多档：_fill_dataset_configs 不得用 models[0] 覆盖各组合的 model_path"""
+        other_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, other_dir)
+        args = self._args(batch_size=[1, 8], num_prompts=[1, 8])
+        result = expand_sweep_combinations(
+            [
+                self._model(abbr="qwen", path=self.model_dir),
+                self._model(abbr="qwen2", path=other_dir),
+            ],
+            [self._dataset()],
+            args,
+        )
+
+        manager = ConfigManager.__new__(ConfigManager)
+        manager.cfg = {
+            "models": result.models,
+            "datasets": result.datasets,
+            "cli_args": args,
+        }
+        manager._fill_dataset_configs()
+
+        self.assertEqual(
+            [dataset["model_path"] for dataset in result.datasets],
+            [model["path"] for model in result.models],
+        )
+        self.assertEqual(
+            {dataset["model_path"] for dataset in result.datasets},
+            {self.model_dir, other_dir},
+        )
+
     def test_combination_count_scales_with_batches_models_datasets(self):
-        """档位数 × 模型数 × 数据集数 全量相乘：2×2×2=8，且 model abbr 唯一"""
+        """档位数 × 模型数 × 数据集数 全量相乘：2×2×2=8，model abbr 按模型×档位唯一"""
         gsm8k = self._dataset(abbr="gsm8k")
         gsm8k["type"] = "ais_bench.benchmark.datasets.gsm8k.GSM8KDataset"
 
@@ -1703,16 +1734,30 @@ class TestExpandSweepCombinations(unittest.TestCase):
             self._args(batch_size=[1, 8], num_prompts=[1, 8]),
         )
 
-        self.assertEqual(len(result.models), 2 * 2)
+        # 每个组合各持一份模型/数据集副本，故长度均为 档位数 × 模型数 × 数据集数
+        self.assertEqual(len(result.models), 2 * 2 * 2)
+        self.assertEqual(len(result.datasets), 2 * 2 * 2)
         self.assertEqual(len(result.combinations), 2 * 2 * 2)
         self.assertEqual(len(result.manifest["combos"]), 8)
+        # model abbr 按「模型 × 档位」唯一，同一模型在多数据集下重复出现
         model_abbrs = [model["abbr"] for model in result.models]
-        self.assertEqual(len(model_abbrs), len(set(model_abbrs)))
+        self.assertEqual(len(set(model_abbrs)), 2 * 2)
         pairs = {
             (combo["models"][0]["abbr"], combo["datasets"][0]["abbr"])
             for combo in result.combinations
         }
         self.assertEqual(len(pairs), 8)
+
+    def test_generation_kwargs_stream_rejected(self):
+        """`--generation-kwargs` 携带 stream 会覆盖请求体 stream，启动前报错"""
+        with self.assertRaises(AISBenchConfigError) as ctx:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset()],
+                self._args(generation_kwargs={"stream": True, "temperature": 0.1}),
+            )
+        message = str(ctx.exception)
+        self.assertIn("generation-kwargs", message)
+        self.assertIn("--stream", message)
 
     def test_manifest_is_desensitized(self):
         manifest = expand_sweep_combinations(

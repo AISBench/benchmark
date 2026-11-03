@@ -208,8 +208,8 @@ class LocalRunner(BaseRunner):
                 lock.release()
                 time.sleep(1)
 
-            # 多组合串行压测时的档间冷却：仅串行生效，避免上一档的 in-flight
-            # 请求/连接残留污染下一档性能数据。
+            # 每次 perf run（一个任务）之间休眠，仅串行生效，避免上一轮的
+            # in-flight 请求/连接残留污染下一次性能数据。
             if index > 0 and self.sweep_cooldown_s and self.max_num_workers == 1:
                 self.logger.info(
                     f"Cooldown {self.sweep_cooldown_s}s before launching task "

@@ -43,7 +43,7 @@ ais_bench \
 - `--batch-size` 传入多个值时按并发档展开；`--num-prompts` 与 `--batch-size` 取值个数一致，按位置一一对应
 - 每个并发档生成独立任务，模型 `abbr` 自动追加 `-bs{N}` 后缀（如 `vllm_api_stream_chat-bs8`），落盘文件互不覆盖
 - `--request-count` 指定每档生成的请求总数；若未指定 `--num-prompts`，实际发送请求数取 `--request-count`
-- 档间默认串行执行，并留有 5s 冷却时间，避免上一档的排队请求污染下一档结果
+- 各任务默认串行执行，相邻任务之间留有 5s 冷却时间，避免上一档的排队请求污染下一档结果
 
 多组输入输出 + 多档并发的样例，详见 [aisbench_vllm_performance_zh_cn.sh](../../../ais_bench/configs/performance_benchmark/aisbench_vllm_performance_zh_cn.sh)。
 

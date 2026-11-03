@@ -29,6 +29,13 @@ class ArgumentParser():
 
     def parse_args(self):
         args = self.parser.parse_args()
+        # --batch-size / --num-prompts 使用 nargs='+'，单个取值也会变成列表。
+        # 这里统一解包，保证单值场景下 args 与落盘 cli_args 的类型和旧版一致；
+        # 多值（多档 sweep）仍保留列表。
+        for name in ("batch_size", "num_prompts"):
+            value = getattr(args, name, None)
+            if isinstance(value, list) and len(value) == 1:
+                setattr(args, name, value[0])
         args.cfg_time_str = args.dir_time_str = get_current_time_str()
         if args.dry_run:
             args.debug = True
@@ -123,7 +130,9 @@ class ArgumentParser():
             'Must be integer >= 1, If not provided, all prompts will be inferred and evaluated. '
             'Accepts 1..N integers; with multiple values each one pairs with the '
             'corresponding --batch-size value, so the number of values must match '
-            'the number of --batch-size values.',
+            'the number of --batch-size values (the same mode and combination '
+            'limits as --batch-size apply). Put the positional config before '
+            'these values, or separate it with "--".',
             type=validate_num_prompts,
             nargs='+',
             default=None
@@ -436,8 +445,14 @@ class ArgumentParser():
         parser.add_argument('--batch-size', type=validate_batch_size, nargs='+',
                             default=None,
                             help='Batch size override in the range (0, 100000]. '
-                            'Accepts 1..N integers; multiple values expand into one '
-                            'serial sweep combination per concurrency level.')
+                            'Accepts 1..N unique integers. Two or more values are '
+                            'only supported in --mode perf / --mode perf_viz, run '
+                            'one serial sweep per level, and additionally write '
+                            'combos_manifest.json and batch_perf_report.html (a '
+                            'single value produces no batch report). Total '
+                            'combinations (levels x models x datasets) must not '
+                            'exceed 200. Put the positional config before these '
+                            'values, or separate it with "--".')
         parser.add_argument(
             '--trust-remote-code',
             action=argparse.BooleanOptionalAction,
@@ -449,7 +464,9 @@ class ArgumentParser():
                             'e.g. \'{"temperature": 0.01, "ignore_eos": false}\'. '
                             'The `stream` key is not allowed here, use --stream instead.')
         parser.add_argument('--model-abbr', type=str, default=None,
-                            help='Model abbr override; each sweep combination appends -bs{N}')
+                            help='Model abbr override; requires exactly one model. '
+                            'With multiple --batch-size values each combination '
+                            'appends -bs{N}; a single batch size keeps it unchanged')
         parser.add_argument(
             '--stream',
             action=argparse.BooleanOptionalAction,
@@ -484,4 +501,5 @@ class ArgumentParser():
         parser.add_argument('--string-config-output', type=json.loads, default=None,
                             help='Override StringConfig.Output as a JSON object')
         parser.add_argument('--dataset-abbr', type=str, default=None,
-                            help='Dataset abbr override (no suffix is appended)')
+                            help='Dataset abbr override (no suffix is appended); '
+                            'requires exactly one dataset')

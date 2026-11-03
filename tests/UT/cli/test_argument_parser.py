@@ -74,6 +74,52 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.config, 'configs/test_config.py')
 
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_single_sweep_value_unwrapped(
+        self, mock_get_current_time_str
+    ):
+        """单值 --batch-size/--num-prompts 解包为 int，保持旧版类型"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py', 'configs/test_config.py',
+                    '--batch-size', '8', '--num-prompts', '16']
+
+        args = ArgumentParser().parse_args()
+
+        self.assertIsInstance(args.batch_size, int)
+        self.assertIsInstance(args.num_prompts, int)
+        self.assertEqual(args.batch_size, 8)
+        self.assertEqual(args.num_prompts, 16)
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_multiple_sweep_values_keep_list(
+        self, mock_get_current_time_str
+    ):
+        """多值 --batch-size/--num-prompts 保持列表且顺序不变"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py', 'configs/test_config.py',
+                    '--batch-size', '8', '16', '--num-prompts', '8', '16']
+
+        args = ArgumentParser().parse_args()
+
+        self.assertEqual(args.batch_size, [8, 16])
+        self.assertEqual(args.num_prompts, [8, 16])
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_config_separated_from_sweep_values(
+        self, mock_get_current_time_str
+    ):
+        """多值参数在前时用 -- 分隔位置参数，避免被 nargs='+' 吞掉"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py', '--batch-size', '8', '16',
+                    '--num-prompts', '8', '16', '--',
+                    'configs/test_config.py']
+
+        args = ArgumentParser().parse_args()
+
+        self.assertEqual(args.config, 'configs/test_config.py')
+        self.assertEqual(args.batch_size, [8, 16])
+        self.assertEqual(args.num_prompts, [8, 16])
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
     def test_parse_args_dry_run_sets_debug(self, mock_get_current_time_str):
         """测试dry_run模式会设置debug为True"""
         # 模拟返回值
@@ -118,7 +164,8 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.config_dir, 'custom_configs')
         self.assertEqual(args.max_num_workers, 4)
         self.assertEqual(args.max_workers_per_gpu, 2)
-        self.assertEqual(args.num_prompts, [10])
+        # 单值在 parse_args 末尾统一解包为 int，保持与改动前一致的类型
+        self.assertEqual(args.num_prompts, 10)
         self.assertEqual(args.num_warmups, 3)
 
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
@@ -315,7 +362,8 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.host_port, 8000)
         self.assertEqual(args.url, 'http://example.com/v1')
         self.assertEqual(args.max_out_len, 256)
-        self.assertEqual(args.batch_size, [4])
+        # 单值在 parse_args 末尾统一解包为 int，保持与改动前一致的类型
+        self.assertEqual(args.batch_size, 4)
         self.assertTrue(args.trust_remote_code)
         self.assertEqual(args.generation_kwargs,
                          {'temperature': 0.5, 'ignore_eos': False})

@@ -286,7 +286,7 @@ def _check_abbr_unique(items: List[dict], label: str, errors: List[str]) -> None
 def validate_config_fields(models: List[dict], datasets: List[dict], cli_args: dict,
                            pairing_warnings: Optional[List[str]] = None,
                            multi_combo: bool = False) -> List[str]:
-    """启动前校验 V01~V09（V01 的配对结果由调用方传入）。
+    """启动前校验 V01~V10（V01 的配对结果由调用方传入）。
 
     `multi_combo` 表示本次是否发生了多组合展开；仅多组合展开时校验 V07
     （单档运行与配置文件路径沿用既有的多数据集行为）。
@@ -346,6 +346,16 @@ def validate_config_fields(models: List[dict], datasets: List[dict], cli_args: d
             errors.append(
                 f"`--tokenid-config-prefix-len` value {prefix_len_arg} is invalid (must be >= 0)"
             )
+
+    # V10：stream 是模型级字段，混进 generation_kwargs 会覆盖请求体里的 stream，
+    # 使客户端解析模式（self.stream）与服务端返回不一致，直接拒绝
+    generation_kwargs = cli_args.get("generation_kwargs")
+    if isinstance(generation_kwargs, dict) and "stream" in generation_kwargs:
+        errors.append(
+            "`--generation-kwargs` must not contain the `stream` key: it would "
+            "override the request body's stream flag while the client still parses "
+            "with the model-level setting; use `--stream` / `--no-stream` instead"
+        )
 
     # V03：abbr 全局唯一（模型、数据集分别校验）
     _check_abbr_unique(models, "model", errors)
@@ -618,7 +628,7 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
     - 多档时按组合深拷贝模型与数据集，模型 abbr 追加 `-bs{N}` 保证逐组合唯一
     - 配置已有 `model_dataset_combinations` 时沿用其配对关系（每档复制一份），
       否则按 models × datasets 全笛卡尔展开
-    - 校验 V01~V09，业务错误一次性汇总后抛错，WARNING 汇总输出后继续
+    - 校验 V01~V10，业务错误一次性汇总后抛错，WARNING 汇总输出后继续
     """
     if not models or not datasets:
         return SweepResult(models=list(models), datasets=list(datasets))

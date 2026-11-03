@@ -652,7 +652,10 @@ class ConfigManager:
             fill_test_range_use_num_prompts(
                 _normalize_sweep_arg(self.cfg["cli_args"].get("num_prompts")), dataset_cfg
             )
-            fill_model_path_if_datasets_need(self.cfg["models"][0], dataset_cfg)
+            # 多档展开已按各组合所属模型写入 model_path；此处仅补齐缺失值，
+            # 避免被 models[0] 覆盖（多模型 + 需模型路径的数据集场景）
+            if not dataset_cfg.get("model_path"):
+                fill_model_path_if_datasets_need(self.cfg["models"][0], dataset_cfg)
             retriever_cfg = dataset_cfg["infer_cfg"]["retriever"]
             infer_cfg = dataset_cfg["infer_cfg"]
             if "prompt_template" in infer_cfg:
