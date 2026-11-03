@@ -6,7 +6,6 @@ data_file = test_reports/vabench/.coverage
 
 [report]
 include =
-    */ais_bench/benchmark/vabench/*.py
     */ais_bench/benchmark/utils/vabench/*.py
     */ais_bench/benchmark/tasks/vabench/*.py
     */ais_bench/benchmark/summarizers/vabench_*.py

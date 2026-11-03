@@ -8,8 +8,8 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from ais_bench.benchmark.vabench import environment as envmod
-from ais_bench.benchmark.vabench.data import read_json, write_json
+from ais_bench.tools.vabench import environment as envmod
+from ais_bench.benchmark.utils.vabench.data import read_json, write_json
 
 
 @pytest.mark.parametrize('scenario', ['clean', 'decord_tag', 'decode_failed', 'missing_version',
@@ -156,7 +156,7 @@ def test_task_entrypoint_reports_final_state_and_joins_monitor(tmp_path, monkeyp
 
 
 def test_cli_catalog_custom_and_comparison_paths(tmp_path, monkeypatch):
-    from ais_bench.benchmark.vabench import cli
+    from ais_bench.tools.vabench import cli
     entry = {'idx': 'a', 'category': 'one'}
     monkeypatch.setattr(cli, 'catalog', lambda *a, **kw: [entry])
     output = tmp_path / 'catalog.json'
@@ -169,7 +169,7 @@ def test_cli_catalog_custom_and_comparison_paths(tmp_path, monkeypatch):
     with pytest.raises(SystemExit):
         cli.main(['prepare', '--source-root', 'source', '--subset', 'custom',
                   '--sample-id', 'a', '--videos', 'videos', '--output', 'out'])
-    from ais_bench.benchmark.vabench.results import build_report
+    from ais_bench.benchmark.summarizers.vabench_results import build_report
     provenance = {k: 'same' for k in ['protocol_sha256', 'source_signature',
                                     'integration_signature', 'weights_signature', 'scoring_signature']}
     report = build_report({'input_signature': 'same', 'records': [entry]}, {
@@ -189,7 +189,7 @@ def test_cli_catalog_custom_and_comparison_paths(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('missing', [False, True])
 def test_cli_doctor_uses_declared_modules_and_missing_resources(tmp_path, monkeypatch, missing):
-    from ais_bench.benchmark.vabench import cli
+    from ais_bench.tools.vabench import cli
     torch = ModuleType('torch'); torch.__version__ = 'fixture'
     torch.cuda = SimpleNamespace(is_available=lambda: False)
     monkeypatch.setitem(sys.modules, 'torch', torch)
@@ -206,7 +206,7 @@ def test_cli_doctor_uses_declared_modules_and_missing_resources(tmp_path, monkey
 @pytest.mark.parametrize('device,available', [('cpu', True), ('cuda:1', True), ('cuda:0', False),
                                             ('npu:0', True), ('npu:0', False), ('bad', True)])
 def test_device_initialization_respects_explicit_target(monkeypatch, device, available):
-    from ais_bench.benchmark.vabench.worker import initialize_device
+    from ais_bench.benchmark.tasks.vabench.worker import initialize_device
     selected = []
     torch = ModuleType('torch'); torch.device = lambda d: d
     accelerator = SimpleNamespace(is_available=lambda: available, set_device=selected.append)
@@ -226,7 +226,7 @@ def test_device_initialization_respects_explicit_target(monkeypatch, device, ava
 
 
 def test_audiobox_observation_places_predictor_and_is_idempotent(monkeypatch):
-    from ais_bench.benchmark.vabench.worker import instrument_models, _observe_devices
+    from ais_bench.benchmark.tasks.vabench.worker import instrument_models, _observe_devices
     placed = []
     torch = ModuleType('torch'); torch.device = lambda d: d
     monkeypatch.setitem(sys.modules, 'torch', torch)
@@ -249,7 +249,7 @@ def test_audiobox_observation_places_predictor_and_is_idempotent(monkeypatch):
 
 
 def test_lsa_cpu_subcomponent_preserves_detector_configuration(monkeypatch):
-    from ais_bench.benchmark.vabench import worker
+    from ais_bench.benchmark.tasks.vabench import worker
     calls = []
     class Detector: pass
     app = SimpleNamespace(models={'det': SimpleNamespace(session=SimpleNamespace(
@@ -270,7 +270,7 @@ def test_lsa_cpu_subcomponent_preserves_detector_configuration(monkeypatch):
 
 
 def test_resource_preflight_and_fingerprints_reject_incomplete_cache(tmp_path):
-    from ais_bench.benchmark.vabench import resources
+    from ais_bench.benchmark.tasks.vabench import resources
     source, cache = tmp_path / 'source', tmp_path / 'cache'
     source.mkdir(); cache.mkdir()
     with pytest.raises(FileNotFoundError): resources.source_signature(source)
@@ -298,7 +298,7 @@ def test_resource_preflight_and_fingerprints_reject_incomplete_cache(tmp_path):
 
 @pytest.mark.parametrize('scenario', ['missing', 'timeout', 'exit'])
 def test_engine_keeps_failure_reports_and_ignores_progress_callback_errors(tmp_path, monkeypatch, scenario):
-    from ais_bench.benchmark.vabench import engine
+    from ais_bench.benchmark.tasks.vabench import engine
     manifest = dict(input_signature='fixture', evaluation_scope='smoke',
                     records=[dict(idx='a', category='scene')])
     monkeypatch.setattr(engine, 'verify_prepared', lambda *a: (manifest, {}))

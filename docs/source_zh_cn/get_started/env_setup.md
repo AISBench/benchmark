@@ -25,7 +25,7 @@ apt-get install -y git ffmpeg libsndfile1 build-essential ca-certificates
 cd /workspace/code/benchmark
 
 /root/miniconda3/envs/vabench311_new/bin/python3 \
-  -m ais_bench.benchmark.vabench.environment install \
+  -m ais_bench.tools.vabench.environment install \
   --source-root /workspace/code/VABench-main \
   --cache-dir /workspace/vabench-cache \
   --work-dir /workspace/vabench-env-audit \
@@ -67,7 +67,7 @@ printf 'anyio==4.10.0\n' >> /workspace/aisbench_runtime_unified.txt
 cd /workspace/code/benchmark
 
 /root/miniconda3/envs/vabench311_new/bin/python3 \
-  -m ais_bench.benchmark.vabench.cli prepare \
+  -m ais_bench.tools.vabench.cli prepare \
   --source-root /workspace/code/VABench-main \
   --subset custom \
   --videos /workspace/video \

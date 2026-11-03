@@ -49,7 +49,7 @@
 cd /workspace/code/benchmark
 
 /root/miniconda3/envs/vabench311_new/bin/python3 \
-  -m ais_bench.benchmark.vabench.environment install \
+  -m ais_bench.tools.vabench.environment install \
   --source-root /workspace/code/VABench-main \
   --cache-dir /workspace/vabench-cache \
   --work-dir /workspace/vabench-env-audit \
@@ -403,7 +403,7 @@ CACHE_DIR = '/workspace/vabench-cache'
 cd /workspace/code/benchmark
 
 /root/miniconda3/envs/vabench311_new/bin/python3 \
-  -m ais_bench.benchmark.vabench.cli doctor \
+  -m ais_bench.tools.vabench.cli doctor \
   --source-root /workspace/code/VABench-main \
   --cache-dir /workspace/vabench-cache
 ```
@@ -418,7 +418,7 @@ cd /workspace/code/benchmark
 cd /workspace/code/benchmark
 
 /root/miniconda3/envs/vabench311_new/bin/python3 \
-  -m ais_bench.benchmark.vabench.cli prepare \
+  -m ais_bench.tools.vabench.cli prepare \
   --source-root /workspace/code/VABench-main \
   --subset custom \
   --videos /workspace/video \
@@ -519,7 +519,7 @@ CUDA_VISIBLE_DEVICES=6,7 \
 
 ```bash
 /root/miniconda3/envs/vabench311_new/bin/python3 \
-  -m ais_bench.benchmark.vabench.cli run \
+  -m ais_bench.tools.vabench.cli run \
   --source-root /workspace/code/VABench-main \
   --cache-dir /workspace/vabench-cache \
   --prepared /workspace/prepared_all_official_v2 \

@@ -4,13 +4,13 @@ import csv
 
 import pytest
 
-from ais_bench.benchmark.vabench import DIMENSIONS
-from ais_bench.benchmark.vabench.data import digest, read_json, write_json
-from ais_bench.benchmark.vabench.engine import successful
-from ais_bench.benchmark.vabench.results import (
+from ais_bench.benchmark.utils.vabench import DIMENSIONS
+from ais_bench.benchmark.utils.vabench.data import digest, read_json, write_json
+from ais_bench.benchmark.tasks.vabench.engine import successful
+from ais_bench.benchmark.summarizers.vabench_results import (
     build_report, export_csv, export_official_results, format_summary,
     normalize_records, refresh_report)
-from ais_bench.benchmark.vabench.scoring import RULES, normalize_score
+from ais_bench.benchmark.summarizers.vabench_scoring import RULES, normalize_score
 
 
 def fixture_inputs():
@@ -205,7 +205,7 @@ def test_official_export_without_prepared_falls_back_to_raw_prompt_then_idx(tmp_
 
 
 def test_summarize_cli_reuses_old_raw_records_and_does_not_modify_input(tmp_path, capsys):
-    from ais_bench.benchmark.vabench.cli import main
+    from ais_bench.tools.vabench.cli import main
     manifest, details = fixture_inputs()
     original = build_report(manifest, details, {})
     original['schema_version'] = 1
@@ -225,7 +225,7 @@ def test_summarize_cli_reuses_old_raw_records_and_does_not_modify_input(tmp_path
 
 
 def test_summarize_cli_restores_official_prompt_names_from_prepared(tmp_path):
-    from ais_bench.benchmark.vabench.cli import main
+    from ais_bench.tools.vabench.cli import main
     entries = [dict(idx='a', category='one')]
     raw = [dict(video_path='videos/a.mp4', video_results=0.2)]
     details = {'second_desync': dict(records=normalize_records('second_desync', raw, entries))}

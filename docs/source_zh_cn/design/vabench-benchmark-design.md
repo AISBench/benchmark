@@ -85,7 +85,6 @@ ais_bench/
       __init__.py                   # 共享指标常量，无重依赖导入
       data.py                       # 跨层共用的题目、媒体、JSON/哈希协议
       protocol.json                 # 固定778题协议
-    vabench/                        # 旧模块兼容转发，无评分/安装业务实现
   tools/vabench/
     cli.py                          # catalog/prepare/run/compare等操作入口
     environment.py                  # 依赖安装、检查和审计
@@ -97,7 +96,7 @@ VBench 的数据集入口位于 `datasets/vbench.py`，任务位于 `tasks/vbenc
 
 原 `benchmark/vabench` 将数据协议、调度、安装和汇总放在顶层同一个领域包中，功能可用，但职责不够清晰。迁移后，业务运行时集中在任务层，统计计算集中在汇总层，操作工具独立放入 `tools`；`utils/vabench` 仅容纳跨层共享且无框架/模型重依赖的协议与文件处理，不把整个评测运行时搬进通用工具层。
 
-保留 `datasets/vabench.py`、`tasks/vabench_eval.py`、`summarizers/vabench.py` 原有类路径，现有 AISBench 配置无需改类名。新命令使用 `python3 -m ais_bench.tools.vabench.cli` 和 `python3 -m ais_bench.tools.vabench.environment`。旧 `python3 -m ais_bench.benchmark.vabench.cli/environment` 以及旧 helper 导入均转发到同一实现，兼容层不维护第二份状态或算法。
+保留 `datasets/vabench.py`、`tasks/vabench_eval.py`、`summarizers/vabench.py` 原有类路径，现有 AISBench 配置无需改类名。命令统一使用 `python3 -m ais_bench.tools.vabench.cli` 和 `python3 -m ais_bench.tools.vabench.environment`。顶层兼容目录已删除，旧模块命令和 helper 导入不再提供；代码和测试直接引用分层实现。
 
 迁移同时更新 worker 启动路径、包根与依赖清单定位、protocol 打包及覆盖率范围。实际实现指纹覆盖 Dataset、Task、运行时、共享协议、汇总及工具各层；旧报告的实现指纹会与新版本不同，应保留版本并重新建立对照，不能为迁移而关闭来源检查。目录重构不改变评分规则。当前规划已清理退役子集元数据，数据协议哈希随之更新，旧准备目录应重新 prepare；不自动改写原始媒体或已有清单。
 
@@ -235,7 +234,7 @@ Linux x86_64 GPU 容器、可用 GPU 驱动与空闲显存、Conda Python 3.11�
 
 ### 4.1 测试结构
 
-`tests/UT/vabench` 覆盖分层后的 Dataset、Task、运行时、共享协议、汇总、工具及全部旧路径兼容层，共 23 个 Python 模块（21 个含可执行语句，另 2 个仅为包文档）。使用真实临时文件、FFmpeg 媒体和评分子进程协议；评分模型、硬件接口及 pip/apt 安装边界采用替身，避免在 UT 中下载大模型、实际安装软件或要求 GPU。
+`tests/UT/vabench` 覆盖分层后的 Dataset、Task、运行时、共享协议、汇总和工具，共 14 个 Python 模块（12 个含可执行语句，另 2 个仅为包文档）。使用真实临时文件、FFmpeg 媒体和评分子进程协议；评分模型、硬件接口及 pip/apt 安装边界采用替身，避免在 UT 中下载大模型、实际安装软件或要求 GPU。
 
 ### 4.2 关键用例
 
@@ -249,7 +248,7 @@ Linux x86_64 GPU 容器、可用 GPU 驱动与空闲显存、Conda Python 3.11�
 | 设备 | CPU/CUDA/NPU 初始化成功/不可用分支、工厂配置与观测异常隔离 |
 | 环境 | 安装计划、模拟阶段失败、源码/资源检查、NISQA 元数据、Git 来源、decord 与 FFmpeg 预检 |
 | 框架入口 | 真实 Dataset 加载、Task 收尾、Summarizer 文件输出、CLI 与离线重汇总 |
-| 分层与兼容 | 新旧模块同一实例、两套命令实际启动、无重依赖导入、依赖路径、protocol 打包及各实现层指纹 |
+| 分层与入口 | 直接导入实际实现、新命令与worker实际启动、无旧包、无重依赖导入、依赖路径、protocol 打包及各实现层指纹 |
 
 ### 4.3 覆盖率运行与门槛
 
@@ -261,8 +260,8 @@ python3 tests/UT/vabench/run_coverage.py
 
 测试专用 `sitecustomize.py` 根据 `COVERAGE_PROCESS_START` 启动父/子进程测量，并合并本次数据；正常产品运行不启用此钩子。运行器先清理本范围旧测量，生成 HTML/JSON/XML，任一条件失败即返回非零：UT 不通过、总语句覆盖率 <80%、总分支覆盖率 <80%、任一模块语句＋分支合并覆盖率 <80%。不通过排除环境、CLI 或异常分支提高数字。
 
-2026-11-03 本地测量：最初基线 81 项测试、合并覆盖率 77.97%；补边界测试后 112 passed。分层迁移及当前子集规划清理后，**139 passed，语句 94.56%，分支 88.49%，合并 92.81%**；全部统计模块超过 80%，最低 89.83%。报告在 `test_reports/vabench/htmlcov/index.html`、`coverage.json`、`coverage.xml`。这是 VABench 接入范围的覆盖率，不是整个 AISBench 仓库覆盖率，也不证明真实评分模型精度。
+2026-11-03 本地测量：最初基线 81 项测试、合并覆盖率 77.97%；补边界测试后 112 passed。分层迁移、当前子集规划清理及旧兼容入口移除后，**137 passed，语句 94.41%，分支 88.37%，合并 92.65%**；全部统计模块超过 80%，最低 89.83%。报告在 `test_reports/vabench/htmlcov/index.html`、`coverage.json`、`coverage.xml`。这是 VABench 接入范围的覆盖率，不是整个 AISBench 仓库覆盖率，也不证明真实评分模型精度。
 
 ### 4.4 GPU 集成验收与后续工作
 
-H200 上使用记录过的 Conda 环境和全部权重，先做单题链路，再运行固定子集和标准集；逐指标检查失败、LSA 省略、随机采样、媒体长度及原生官方误差。只有满足第 2.9 节条件才能声明官方对齐。后续按独立工作项推进 A3/NPU、生成 API、原生官方结果导入、失败补跑、视频分片并发。目录分层已完成，后续仅在统一版本策略下考虑移除旧兼容入口。
+H200 上使用记录过的 Conda 环境和全部权重，先做单题链路，再运行固定子集和标准集；逐指标检查失败、LSA 省略、随机采样、媒体长度及原生官方误差。只有满足第 2.9 节条件才能声明官方对齐。后续按独立工作项推进 A3/NPU、生成 API、原生官方结果导入、失败补跑、视频分片并发。目录分层及旧兼容入口移除均已完成。

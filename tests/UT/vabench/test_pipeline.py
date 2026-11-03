@@ -8,14 +8,14 @@ import sys
 
 import pytest
 
-from ais_bench.benchmark.vabench import DIMENSIONS, MLLM_DIMENSIONS
-from ais_bench.benchmark.vabench.data import (
+from ais_bench.benchmark.utils.vabench import DIMENSIONS, MLLM_DIMENSIONS
+from ais_bench.benchmark.utils.vabench.data import (
     PROTOCOL_PATH, catalog, catalog_videos, digest, media_tool, prepare, read_json,
     verify_prepared, write_json)
-from ais_bench.benchmark.vabench.engine import run, successful
-from ais_bench.benchmark.vabench.results import (
+from ais_bench.benchmark.tasks.vabench.engine import run, successful
+from ais_bench.benchmark.summarizers.vabench_results import (
     build_report, compare, normalize_records, summarize_dimension)
-from ais_bench.benchmark.vabench.worker import failed_sample_ids, has_backend_error
+from ais_bench.benchmark.tasks.vabench.worker import failed_sample_ids, has_backend_error
 
 
 SOURCE = Path(__file__).resolve().parents[4] / 'VABench'
@@ -121,7 +121,7 @@ def test_real_media_preparation(tmp_path, entry, video):
 
 
 def test_smoke_cli_labels_single_sample(tmp_path, entry, video, monkeypatch):
-    import ais_bench.benchmark.vabench.cli as cli
+    import ais_bench.tools.vabench.cli as cli
     monkeypatch.setattr(cli, 'catalog', lambda *a, **kw: [entry])
     out = tmp_path / 'smoke'
     assert cli.main(['prepare', '--source-root', 'fixture', '--subset', 'smoke',
@@ -226,7 +226,7 @@ def test_named_sample_failure_does_not_poison_scene():
 
 
 def test_mixed_decoder_errors_are_all_attributed_before_releasing_scene():
-    from ais_bench.benchmark.vabench.worker import attribute_backend_errors
+    from ais_bench.benchmark.tasks.vabench.worker import attribute_backend_errors
     expected = [dict(idx=x, category='c') for x in ('a', 'b', 'good')]
     text = ('Error processing /audio/a.wav: model failed\n'
             'FFmpeg failed for /audio/b.wav: decoder failed\n')
@@ -248,7 +248,7 @@ def test_mixed_decoder_errors_are_all_attributed_before_releasing_scene():
     ' 80%|###| 4/5 [00:01<00:01]Error in second_clap evaluation: invalid state\n',
     'Completed next sample\nTraceback (most recent call last):\n'])
 def test_unattributed_error_keeps_scene_protection_even_with_named_error(extra):
-    from ais_bench.benchmark.vabench.worker import attribute_backend_errors
+    from ais_bench.benchmark.tasks.vabench.worker import attribute_backend_errors
     result = attribute_backend_errors('Error processing /audio/a.wav: failed\n' + extra,
                                       [dict(idx='a'), dict(idx='good')])
     assert result['failed_ids'] == {'a'}
@@ -256,7 +256,7 @@ def test_unattributed_error_keeps_scene_protection_even_with_named_error(extra):
 
 
 def test_named_traceback_does_not_poison_other_samples():
-    from ais_bench.benchmark.vabench.worker import attribute_backend_errors
+    from ais_bench.benchmark.tasks.vabench.worker import attribute_backend_errors
     result = attribute_backend_errors(
         'Error processing /video/bad.mp4: failed\nTraceback (most recent call last):\n'
         '  File "score.py", line 1\nRuntimeError: mismatch\n', [dict(idx='bad'), dict(idx='good')])
@@ -310,7 +310,7 @@ def test_task_progress_uses_sample_count(tmp_path, entry, video, monkeypatch):
 
 def test_explicit_cpu_onnx_provider_and_observation(monkeypatch):
     from types import ModuleType
-    from ais_bench.benchmark.vabench.worker import instrument_models
+    from ais_bench.benchmark.tasks.vabench.worker import instrument_models
     class Session:
         def __init__(self):
             self.providers = ['CUDAExecutionProvider']
@@ -333,7 +333,7 @@ def test_explicit_cpu_onnx_provider_and_observation(monkeypatch):
 def test_device_observer_tolerates_ctypes_library_loader():
     import ctypes
     from types import ModuleType, SimpleNamespace
-    from ais_bench.benchmark.vabench.worker import _observe_devices
+    from ais_bench.benchmark.tasks.vabench.worker import _observe_devices
     module = ModuleType('vabench.probe')
     module.MODEL_CACHE = SimpleNamespace(loader=ctypes.cdll)
     assert _observe_devices(module) == {
@@ -343,7 +343,7 @@ def test_device_observer_tolerates_ctypes_library_loader():
 def test_logging_handlers_are_rebound_after_redirect_close(tmp_path):
     import logging
     from contextlib import redirect_stderr
-    from ais_bench.benchmark.vabench.worker import _rebind_stream_handlers
+    from ais_bench.benchmark.tasks.vabench.worker import _rebind_stream_handlers
     logger = logging.getLogger('vabench-test-rebind')
     logger.handlers = []
     logger.propagate = False
@@ -364,7 +364,7 @@ def test_logging_handlers_are_rebound_after_redirect_close(tmp_path):
 
 
 def test_custom_split_validation(monkeypatch):
-    import ais_bench.benchmark.vabench.engine as engine
+    import ais_bench.benchmark.tasks.vabench.engine as engine
     monkeypatch.setattr(engine, 'catalog', lambda root, subset: [{'idx': 'a'}, {'idx': 'b'}])
     engine._validate_prepared_split(
         dict(evaluation_scope='custom', records=[dict(idx='b')]), 'unused')
@@ -380,7 +380,7 @@ def test_custom_split_validation(monkeypatch):
 
 
 def test_unknown_scopes_cannot_pass_as_standard(monkeypatch, tmp_path):
-    import ais_bench.benchmark.vabench.engine as engine
+    import ais_bench.benchmark.tasks.vabench.engine as engine
     monkeypatch.setattr(engine, 'catalog', lambda *args: [{'idx': 'a'}])
     engine._validate_prepared_split(
         dict(evaluation_scope='standard', records=[dict(idx='a')]), 'unused')
@@ -418,7 +418,7 @@ def test_selected_ten_percent_catalog_stays_fixed():
 
 
 def test_custom_scope_is_labeled_non_official():
-    from ais_bench.benchmark.vabench.results import build_report
+    from ais_bench.benchmark.summarizers.vabench_results import build_report
     scores = dict(first_dnsmos=3, first_nisqa=3, first_audiobox=2.75,
                   second_viclip=0, second_clap=0, second_desync=1, second_lsa=5,
                   second_imagebind=0, third_alignment=3, third_audio_reality=3,
@@ -451,7 +451,7 @@ def test_lsa_missing_sets_must_match_and_not_be_empty():
 
 def test_real_worker_subprocess_and_mllm_grouping(tmp_path, entry, video, monkeypatch):
     """A fake scorer tests process/protocol plumbing, not model accuracy."""
-    import ais_bench.benchmark.vabench.engine as engine
+    import ais_bench.benchmark.tasks.vabench.engine as engine
     prepared = tmp_path / 'prepared'
     prepare([entry], video.parent, prepared, subset='smoke')
     source = tmp_path / 'fake_source'

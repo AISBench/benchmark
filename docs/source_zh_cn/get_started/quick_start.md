@@ -6,6 +6,10 @@
 
 VABench 指南包含标准集（778 题）、已选定的 10% 子集（78 题）的获取和执行步骤，以及官方原生评测与 AISBench 的输入、输出和验收对比。评测完成后可查看 `summary.md`、15 项均分及归一化总分；缺项或失败会明确影响总分状态。
 
+VABench 操作顺序为环境检查 → 取得固定 78 题（或 778 题标准集） → 准备视频和 WAV → 启动评测 → 查看结果。命令入口统一为 `python3 -m ais_bench.tools.vabench.environment` 和 `python3 -m ais_bench.tools.vabench.cli`。已有评分环境可复用；仅移除兼容目录不需要重新安装模型或依赖。
+
+激活评分 Conda 后，运行命令可省略 `--python`、`--device` 和 `--options`：默认使用当前 Python 和逻辑 `cuda:0`，评分参数采用代码默认值。完整简化命令、可选参数说明和结果查看方法见 VABench 指南第 4、5 节。
+
 ## 运行命令前置准备
 
 - 需要准备支持`v1/chat/completions`子服务的推理服务，可以参考🔗 [VLLM启动OpenAI 兼容服务器](https://docs.vllm.com.cn/en/latest/getting_started/quickstart.html#openai-compatible-server)启动推理服务

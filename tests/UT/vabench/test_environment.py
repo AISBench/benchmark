@@ -9,9 +9,9 @@ import zipfile
 import pytest
 from packaging.requirements import Requirement
 
-from ais_bench.benchmark.vabench import environment
-from ais_bench.benchmark.vabench.data import digest, read_json, write_json
-from ais_bench.benchmark.vabench.resources import preflight
+from ais_bench.tools.vabench import environment
+from ais_bench.benchmark.utils.vabench.data import digest, read_json, write_json
+from ais_bench.benchmark.tasks.vabench.resources import preflight
 
 
 def original_wheel(tmp_path, missing=None):

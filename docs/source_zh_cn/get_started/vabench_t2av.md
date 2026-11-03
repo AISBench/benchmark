@@ -10,7 +10,7 @@
 
 固定上游为`tanABCC/VABench@12b9617a900a9eca1691da6b7115ce3d58f53a16`。源码由`--source-root`指定，保留外部仓库，不将官方评分算法复制到AISBench。
 
-T2AV JSON共848条，其中778条与mapping精确对应，采用这778条；其余70条不自动补名。数据文件指纹固定在`ais_bench/benchmark/utils/vabench/protocol.json`；快速评测采用已选定的78题（10%）子集，清单与严格准备步骤见[VABench快速上手第6节](../extended_benchmark/lmm_generate/vabench.md)。
+T2AV JSON共848条，其中778条与mapping精确对应，采用这778条；其余70条不自动补名。数据文件指纹固定在`ais_bench/benchmark/utils/vabench/protocol.json`；快速评测采用已选定的78题（10%）子集，清单与严格准备步骤见[VABench快速上手第3节](../extended_benchmark/lmm_generate/vabench.md)。
 
 生成视频的输入文本为清单中的`entries[].metadata.prompt_en`，视频文件基名为`entries[].idx`。本阶段评测已有带音轨MP4，不发送H3或其他收费生成任务。文件名可以包含空格；shell参数须加引号。
 

@@ -6,7 +6,7 @@ from mmengine.config import Config, ConfigDict
 
 from ais_bench.benchmark.tasks.vabench_eval import VABenchEvalTask
 from ais_bench.benchmark.summarizers.vabench import VABenchSummarizer
-from ais_bench.benchmark.vabench.data import write_json
+from ais_bench.benchmark.utils.vabench.data import write_json
 
 
 def test_config_and_partitioning(tmp_path):
@@ -75,7 +75,7 @@ def test_native_summary_with_normalization_and_unavailable_total(tmp_path):
     assert row[2] == 'lower'
     # A failed dimension has an explicit N/A mean, never a fabricated zero.
     file = tmp_path / 'results/test/vabench.json'
-    from ais_bench.benchmark.vabench.data import read_json
+    from ais_bench.benchmark.utils.vabench.data import read_json
     report = read_json(file)
     report['metrics']['second_desync'].update(mean=None, scored=0, failed=10)
     write_json(file, report)
