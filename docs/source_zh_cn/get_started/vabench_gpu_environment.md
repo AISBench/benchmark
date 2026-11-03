@@ -1,6 +1,10 @@
 # VABench GPU评分环境：Conda Python 3.11
 
+> 版本说明：10e1469已包含依赖安装工具；本文链接的统一环境记录及新增custom评测命令需要后续配套代码。本次提交仅更新文档，不包含这些代码改动。
+
 本指南依据用户在H200容器中的最终统一环境记录（`过程/10.txt`），使用外部固定版本VABench，不修改其评分源码。15个指标共用一个评分Conda。AISBench主环境通过`BACKEND_PYTHON`或`--python`调用该Conda，无须把GPU评分依赖加入所有数据集的公共runtime。
+
+> 如果需要把AISBench和VABench装进同一个Conda环境，使用已跑通的[vabench311_new统一环境指南](setup.md)和[精简步骤](env_setup.md)；本文保留独立评分环境方案及其依赖审计细节。
 
 这里交付依赖声明、安装与环境检查；本地Windows上的测试不代表H200真实评分或官方<1%对齐已通过。记录里的4秒小猫仍可能导致desync返回异常兜底1.0，LSA无脸仍会省略；依赖安装不能解决这两项输入限制。只有完成逐指标结果检查，才能认定有15项有效成绩。
 
@@ -179,6 +183,6 @@ python3 -m ais_bench.benchmark.vabench.cli run \
   --output /workspace/vabench_runs/gpu_mini
 ```
 
-install仅安装依赖，不产生评分；需执行prepare和run。run已展示15项原始均分、固定归一化分和正式/预览/缺分总分，并记录LSA省略缺口；断点补跑和更细的场景错误归因仍待交付。详见[VABench评测指南](vabench_t2av.md)。H200验收需使用同一批输入与官方基线逐项核对原始结果及状态；均值相对误差<1%，官方均值绝对值≤1e-6时采用绝对差≤1e-6。
+install仅安装依赖，不产生评分；需执行prepare和run。run已展示15项原始均分、固定归一化分和正式/预览/缺分总分，并记录LSA省略缺口；断点补跑和更细的场景归因仍待交付。详见[VABench评测指南](vabench_t2av.md)。H200验收需使用同一批输入与官方基线逐项核对原始结果及状态；均值相对误差<1%，官方均值绝对值≤1e-6时采用绝对差≤1e-6。`second_clap`长音频可能触发随机裁剪；本地固定缓存配置为`rand_trunc`，服务器须核对实际配置。原始均分相对误差<1%的验收标准保持不变。对照前应保证同一输入、顺序和随机状态/采样片段；未控制随机性时应标记待对齐，不能自动用多次均值替代验收。重复运行只作为补充稳定性分析。
 
 依据：[NISQA官方分发元数据](https://pypi.org/pypi/nisqa/2.0.post2/json)、[固定ImageBind依赖](https://github.com/facebookresearch/ImageBind/blob/53680b02d7e37b19b124fa37bae4b6c98c38f5be/requirements.txt)、[固定PyTorchVideo解码接口](https://github.com/facebookresearch/pytorchvideo/blob/2ac6ed361309cb25144636ad82dd8bd6a4970e0c/pytorchvideo/data/encoded_video.py)、[固定CLIP源码](https://github.com/openai/CLIP/tree/d05afc436d78f1c48dc0dbf8e5980a9d471f35f6)。

@@ -1,8 +1,10 @@
 # VABench T2AV评测接入与GPU运行指南
 
+> 版本说明：本文新增的custom子集、官方格式备份、指标组进度及配置模板需要配套的新代码，不适用于仅含10e1469的版本。本次提交仅更新文档；使用新增功能前须同步配套代码。
+
 本期先在H200/GPU接入外部VABench的15个指标，A3/NPU留后续。旧版接入骨架保留；当前代码已具备原始评分调用与落盘，已补固定归一化和总分展示；细化场景错误归因与补跑仍按需求规划继续实现，不宣称已完成GPU官方对齐。
 
-依赖准备以[统一Conda Python3.11安装与预检指南](vabench_gpu_environment.md)为准。`requirements/vabench.txt`已转向GPU专用清单，不能继续使用早期A3安装步骤将其安装进NPU环境。数据集级声明见`requirements/datasets/vabench.txt`，完整安装须使用环境准备工具处理固定Git包与NISQA元数据补丁。
+依赖准备以[统一Conda Python3.11安装与预检指南](vabench_gpu_environment.md)为准；已实际跑通的统一环境记录和精简步骤见[vabench311_new统一环境](setup.md)、[精简步骤](env_setup.md)。`requirements/vabench.txt`已转向GPU专用清单，不能继续使用早期A3安装步骤将其安装进NPU环境。数据集级声明见`requirements/datasets/vabench.txt`，完整安装须使用环境准备工具处理固定Git包与NISQA元数据补丁。
 
 ## 数据与输入
 
@@ -32,6 +34,16 @@ python3 -m ais_bench.benchmark.vabench.cli prepare \
 ```
 
 完整集改为`--subset standard`并使用新目录。manifest记录原MP4绝对路径和生成WAV路径及哈希，原视频需保留；搬到另一服务器后重新prepare。已完成的准备目录不覆盖，输入被改写会在运行前报错。
+
+目录下所有官方样本可准备为自定义子集。仍限于固定778题：官方指标需要题目对应的JSON提示词和辅助信息，目录中出现778之外的视频会报错并列出，不会静默跳过，也不会缩小分母。
+
+```bash
+python3 -m ais_bench.benchmark.vabench.cli prepare \
+  --source-root "$VABENCH_ROOT" --subset custom \
+  --videos /workspace/generated --output /workspace/prepared_custom
+```
+
+报告scope为`custom`，完整时总分标记为“自定义子集总分（非官方）”；不得与Mini10/778验收结果混用。
 
 单条冒烟从778题中精确选题，不改变Mini10或完整集：
 
@@ -66,7 +78,7 @@ python3 -m ais_bench.benchmark.vabench.cli run \
 ais_bench ais_bench/configs/vabench_examples/eval_vabench.py -m eval
 ```
 
-可见物理卡6/7在进程中对应逻辑0/1。LocalRunner也会设置设备可见性，应根据实际分配填写预留卡数。单条配置为`eval_vabench_smoke.py`。
+可见物理卡6/7在进程中对应逻辑0/1。LocalRunner也会设置设备可见性，应根据实际分配填写预留卡数。单条配置为`eval_vabench_smoke.py`。任务看板的Progress以准备集视频数为分母；VABench按指标组调用官方函数，进度按已完成指标组折算，最后的Qwen组包含7个MLLM指标。
 
 ## 参考路径与官方对齐
 
@@ -85,9 +97,20 @@ python3 -m ais_bench.benchmark.vabench.cli compare \
   --output /workspace/vabench_runs/gpu_alignment.json
 ```
 
-比较默认要求全部15项、相同样本/状态及输入、源码、权重和参数指纹。逐指标原始均分相对误差严格<1%；官方均分绝对值≤1e-6时要求绝对差≤1e-6。LSA允许相同省略集合但至少有一个有效分，其他指标的执行失败不能凭数值相近通过验收。Mini用于快速对照，778用于完整集验收。
+比较默认要求全部15项、相同样本/状态及输入、源码、权重和参数指纹。逐指标原始均分相对误差严格<1%；官方均分绝对值≤1e-6时要求绝对差≤1e-6。LSA允许相同省略集合但至少有一个有效分，其他指标的执行失败不能凭数值相近通过验收。`second_clap`是官方随机指标，见下节；单次运行不能套用<1%阈值，应多次运行取均值并单独记录范围。Mini用于快速对照，778用于完整集验收。
 
-最终仍需与用户官方CLI基线核对：专家进程隔离可能影响decord全局bridge及Qwen解码后端，调用相同compute函数并不能代替真实对齐证据。当前比较器也不能直接读取官方CLI的原始JSON，需要后续明确基线导入和溯源。
+最终仍需与用户官方CLI基线核对：专家进程隔离可能影响decord全局bridge及Qwen解码后端，调用相同compute函数并不能代替真实对齐证据。`compare`仍读取AISBench report；新增的`official_eval_results`可直接与官方CLI的`*_eval_results.json/csv`逐条对照，但自动导入官方基线及来源溯源仍待后续实现。
+
+### second_clap的随机性
+
+官方`vabench/second_clap.py`调用processor时未指定`truncation`，`ClapFeatureExtractor`默认`fusion`。对超过10秒的音频，`_random_mel_fusion()`使用未播种的`np.random.choice`随机抽取3段音频特征，因此同一输入重复运行分数会波动；短于10秒的音频不触发随机截断，结果稳定。实测7个视频中6个约10.144秒，小猫约4.064秒，后者在官方和多次AISBench运行中均为0.30362。
+
+因此：
+
+- 不得要求`second_clap`逐样本完全一致，也不要用单次运行套用默认<1%均值阈值。
+- 与官方对比时应多次运行取均值并记录波动范围，或为该项单独设置绝对容差。
+- 该项只占总分1/15，单次波动对总分影响通常小于0.1分。
+- 需要AISBench内部可复现时，可在CLAP调用前固定`np.random.seed()`；这只能保证自身重复性，不等同于官方某次随机抽样。
 
 
 ## 固定归一化和总分展示
@@ -111,17 +134,18 @@ python3 -m ais_bench.benchmark.vabench.cli compare \
 - 15项都有均分但有失败、缺失、LSA省略或未解决的后端错误：展示“预览总分／不完整”。
 - 15项都有均分、输入评分覆盖率100%且没有已记录后端错误：展示当前评测范围的正式总分。
 
-单条冒烟、Mini10和778各自保留scope与样本数，Mini10总分不能称为778标准集总分。“正式”仅指本轮评分完整，不代表官方<1%对齐验收已完成。LSA省略是missing的子集，CSV中missing/omitted不可相加重复计数。分组均分另存scenes.csv。
+单条冒烟、自定义子集、Mini10和778各自保留scope与样本数，Mini10总分不能称为778标准集总分。“正式”仅指本轮评分完整，不代表官方<1%对齐验收已完成。LSA省略是missing的子集，CSV中missing/omitted不可相加重复计数。分组均分另存scenes.csv。
 
 已有AISBench逐样本报告可离线重汇总，无需重新加载模型：
 
 ```bash
 python3 -m ais_bench.benchmark.vabench.cli summarize \
   --report /workspace/vabench_runs/gpu_mini/report.json \
-  --output /workspace/vabench_runs/gpu_mini_new_summary
+  --output /workspace/vabench_runs/gpu_mini_new_summary \
+  --prepared /workspace/vabench_runs/gpu_mini_prepared
 ```
 
-原始报告不会被覆盖，新报告保存来源哈希和`model_inference_rerun=false`。这不是新的GPU验证，也不能恢复原始报告没有保存的模型生成文本。该入口读取AISBench的report.json，不直接读取官方CLI的`*_eval_results.json`，后者仍需单独设计来源和输入映射。
+原始报告不会被覆盖，新报告保存来源哈希和`model_inference_rerun=false`。这不是新的GPU验证，也不能恢复原始报告没有保存的模型生成文本。`--prepared`用于恢复官方`prompt_en`，省略时CSV回退到原始记录中的`prompt`字段或样本`idx`。
 
 ## 输出与尚待改进
 
@@ -133,6 +157,11 @@ run/
   summary.md              # 可直接阅读的15项与总分表格
   samples.csv             # 逐题状态、评分与请求设备
   scenes.csv              # 场景均分
+  official_eval_results/  # 与官方evaluate.py同结构的原始指标备份
+    <category>/
+      <category>_<time>_eval_results.json
+      <category>_<time>_eval_results.csv
+      <category>_<time>_full_info.json
   input_manifest.json
   partial_report.json
   job_00/request.json
@@ -141,16 +170,29 @@ run/
   job_00/指标/场景/backend.log
 ```
 
-官方函数返回记录保存在raw中，不能声称已完整捕获MLLM全部生成文本。当前日志错误归因仍可能影响同场景其他样本，部分被官方吞掉的解析错误尚不能完整恢复。已识别的空解析/OOM及非法量表输出会剔除并保留原始值；LSA省略已计入覆盖率缺口。正式总分只表示当前选定样本的15项完整性，不代表GPU官方对齐已通过。
+`official_eval_results`专为与官方结果对照：
+
+- JSON保持官方`{dimension: {"video_results": [...]}}`结构，并保留官方评分函数返回的全部原始记录；即使AISBench因解析失败或后端错误不把该样本计入均分，原始`video_results`仍会写入，便于逐条核对。
+- CSV表头为`prompt_name`加当前请求的指标列，按`prompt_en`聚合；某指标没有数值时写入`-1`，与官方`*_eval_results.csv`一致。
+- `full_info.json`来自`prepare`生成的`json/<category>.json`，与官方`*_full_info.json`字段一致。
+- 该备份只复现官方原始分数和CSV聚合方式，不改变AISBench的归一化、覆盖率、失败剔除和总分协议。
+
+官方函数返回记录保存在raw中，不能声称已完整捕获MLLM全部生成文本。CLAP、Desync、ImageBind的具名错误及可映射的FFmpeg错误逐样本标记；只有所有检测到的错误事件均可归因时才保留同场景其他有效分。临时文件或全局错误无法映射时，该场景结果保守标记未通过，原始值仍保留；部分被官方吞掉的解析错误尚不能完整恢复。已识别的空解析/OOM及非法量表输出会剔除并保留原始值；LSA省略已计入覆盖率缺口。正式总分只表示当前选定样本的15项完整性，不代表GPU官方对齐已通过。
 
 已有partial文件用于追踪，不等于已支持断点补跑；当前重跑须新建输出目录。环境准备报告、实际freeze、完整评分目录和官方原始输出应一起保留，以便复现和对齐。
 
-本地轻量回归：
+本地轻量回归（在AISBench源码根目录执行）：
 
 ```bash
-python3 -m pytest tests/UT/vabench -q
+cd /workspace/code/benchmark
+
+/root/miniconda3/envs/vabench311_new/bin/python3 -m pip install --no-deps \
+  "pytest==8.3.5" "pluggy==1.5.0" "iniconfig==2.0.0" \
+  --index-url https://repo.huaweicloud.com/repository/pypi/simple
+
+/root/miniconda3/envs/vabench311_new/bin/python3 -m pytest tests/UT/vabench -q
 ```
 
-模型在集成测试中由模拟实现替代；真实FFmpeg和子进程契约通过，不表示H200模型评分通过。
+测试数量随版本变化，以本次完整输出为准。若官方源码目录未被测试发现，涉及真实官方数据/编排类的用例可能跳过；应配置正确目录并核对skip原因，不将跳过视作已验证。模型在集成测试中由模拟实现替代；真实FFmpeg和子进程契约通过，不表示H200模型评分通过。
 
 参考：[VABench官方源码](https://github.com/tanABCC/VABench)、[官方模型缓存](https://huggingface.co/datasets/tanABBCC/VABENCH_CACHE_DIR)、[LatentSync人脸检测权重](https://huggingface.co/ByteDance/LatentSync-1.5/tree/main/auxiliary)、[InsightFace模型资源](https://github.com/deepinsight/insightface/tree/master/python-package#model-zoo)。
