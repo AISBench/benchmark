@@ -100,6 +100,34 @@ def catalog(source_root, subset='standard', sample_id=None):
     return entries
 
 
+def catalog_videos(source_root, videos_path):
+    """Pinned entries for every official MP4 stem found under videos_path.
+
+    Custom runs stay inside the pinned 778 prompts because the official
+    metrics need each sample's JSON prompt and auxiliary metadata. Unknown
+    videos are rejected instead of being skipped silently.
+    """
+    entries = catalog(source_root, 'standard')
+    by_idx = {entry['idx']: entry for entry in entries}
+    videos = Path(videos_path).resolve()
+    if not videos.is_dir():
+        raise FileNotFoundError(videos)
+    by_stem = {}
+    for path in videos.rglob('*'):
+        if path.is_file() and path.suffix.lower() == '.mp4':
+            by_stem.setdefault(path.stem, []).append(path)
+    unknown = sorted(set(by_stem) - set(by_idx))
+    if unknown:
+        raise ValueError(f'Videos outside the pinned 778 catalog: {unknown}')
+    ambiguous = sorted(idx for idx, paths in by_stem.items() if len(paths) > 1)
+    if ambiguous:
+        raise ValueError(f'Ambiguous MP4 stems: {ambiguous}')
+    selected = [by_idx[idx] for idx in sorted(by_stem)]
+    if not selected:
+        raise ValueError('No pinned T2AV videos found in the given directory')
+    return selected
+
+
 def probe(path):
     result = subprocess.run([
         media_tool('ffprobe'), '-v', 'error', '-show_streams', '-show_format',

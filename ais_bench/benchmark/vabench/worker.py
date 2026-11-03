@@ -5,6 +5,7 @@ import importlib
 import importlib.metadata
 import functools
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -34,6 +35,14 @@ def initialize_device(device):
     return torch.device(device)
 
 
+def _getattr_or_none(obj, name):
+    """Best-effort lookup: dynamic __getattr__ may run, but errors stay isolated."""
+    try:
+        return getattr(obj, name, None)
+    except Exception:
+        return None
+
+
 def _observe_devices(module):
     """Inspect retained torch modules and ONNX sessions, without guessing."""
     devices, providers, seen = set(), set(), set()
@@ -42,27 +51,60 @@ def _observe_devices(module):
         if id(obj) in seen or depth > 3:
             return
         seen.add(id(obj))
-        if hasattr(obj, 'parameters') and callable(obj.parameters):
+        # ctypes.LibraryLoader.__getattr__ tries to dlopen the attribute name;
+        # a plain hasattr(obj, 'parameters') can therefore raise OSError.
+        parameters = _getattr_or_none(obj, 'parameters')
+        if callable(parameters):
             try:
-                devices.update(str(p.device) for p in obj.parameters())
+                devices.update(str(p.device) for p in parameters())
             except Exception:
                 pass
-        if hasattr(obj, 'get_providers') and callable(obj.get_providers):
-            providers.update(obj.get_providers())
+        get_providers = _getattr_or_none(obj, 'get_providers')
+        if callable(get_providers):
+            try:
+                providers.update(get_providers())
+            except Exception:
+                pass
         if isinstance(obj, (list, tuple)):
             for value in obj:
                 walk(value, depth + 1)
         elif isinstance(obj, dict):
             for value in obj.values():
                 walk(value, depth + 1)
-        elif not isinstance(obj, type) and hasattr(obj, '__dict__'):
-            for name, value in vars(obj).items():
-                if not name.startswith('__'):
-                    walk(value, depth + 1)
+        elif not isinstance(obj, type):
+            try:
+                attrs = vars(obj)
+            except TypeError:
+                attrs = None
+            if attrs is not None:
+                for name, value in attrs.items():
+                    if not name.startswith('__'):
+                        walk(value, depth + 1)
     for name, obj in vars(module).items():
         if 'MODEL' in name.upper() or 'CACHE' in name.upper():
             walk(obj)
     return dict(observed_torch_devices=sorted(devices), observed_onnx_providers=sorted(providers))
+
+
+def _rebind_stream_handlers(old_stream, new_stream):
+    """Move logging handlers off a redirect target that is about to close.
+
+    A library that calls logging.basicConfig() while stderr is redirected
+    leaves a handler pointing at the per-dimension backend.log. Logging to it
+    after the file closes prints a traceback, which used to be misread as a
+    metric failure.
+    """
+    loggers = [logging.getLogger()]
+    loggers.extend(obj for obj in logging.Logger.manager.loggerDict.values()
+                   if isinstance(obj, logging.Logger))
+    for logger in loggers:
+        for handler in list(logger.handlers):
+            if _getattr_or_none(handler, 'stream') is old_stream:
+                handler.acquire()
+                try:
+                    handler.stream = new_stream
+                finally:
+                    handler.release()
 
 
 def instrument_models(module, observations, device):
@@ -120,8 +162,53 @@ def instrument_models(module, observations, device):
 def has_backend_error(log_text):
     return bool(re.search(
         r'Traceback \(most recent|OOM_ERROR|out of memory|'
-        r'^\s*(?:Error\b|Failed\b|\[.*?\]\s*Error\b)|'
+        r'(?:^|\])\s*(?:Error\b|Failed\b|\[.*?\]\s*Error\b)|'
+        r'FFmpeg failed for |SoundFile read failed for |'
         r'处理音频文件失败|视频评估失败', log_text, re.I | re.M))
+
+
+def failed_sample_ids(log_text):
+    """Samples named by official per-video error messages.
+
+    VABench prints ``Error processing <path>`` (CLAP, Desync) or
+    ``Error processing sample <path>`` (ImageBind) and then keeps looping.
+    The remaining results in that scene stay valid.
+    """
+    return {Path(match.group(1).strip()).stem for match in re.finditer(
+        r'(?:Error processing (?:sample )?|FFmpeg failed for |SoundFile read failed for )'
+        r'(.+?):(?:\s|$)', log_text, re.I)}
+
+
+def attribute_backend_errors(log_text, expected):
+    """Release scene-wide protection only when every error event is attributed.
+
+    One named error does not explain unrelated decoder/global errors. A traceback
+    immediately following a named event belongs to that event; a bare or second
+    traceback without a new named event is conservatively unresolved.
+    """
+    known = {row['idx'] for row in expected}
+    failed, unresolved = set(), []
+    current_named, traceback_seen = False, False
+    for line in log_text.splitlines():
+        named = failed_sample_ids(line)
+        if named:
+            matched = named & known
+            failed.update(matched)
+            current_named, traceback_seen = bool(matched), False
+            if named - known:
+                unresolved.append(line)
+        elif 'Traceback (most recent' in line:
+            if not current_named or traceback_seen:
+                unresolved.append(line)
+            traceback_seen = True
+        elif has_backend_error(line):
+            unresolved.append(line)
+            current_named, traceback_seen = False, False
+        elif line.strip():
+            # An intervening progress/success message breaks traceback adjacency.
+            current_named = False
+    return dict(failed_ids=failed, unresolved=unresolved,
+                scene_unverified=bool(unresolved))
 
 
 def execute(request):
@@ -158,6 +245,7 @@ def execute(request):
             old_cwd = Path.cwd()
             log_file = sandbox / 'backend.log'
             raw, observed, caught = [], {}, None
+            log = None
             try:
                 os.chdir(sandbox)
                 with log_file.open('w', encoding='utf-8') as log, redirect_stdout(log), redirect_stderr(log):
@@ -183,13 +271,25 @@ def execute(request):
                 errors.append(dict(category=category, error=caught))
             finally:
                 os.chdir(old_cwd)
+                if log is not None:
+                    # The with-block restored sys.stderr; detach handlers that
+                    # were created while it pointed at this closed log file.
+                    _rebind_stream_handlers(log, sys.stderr)
             text = log_file.read_text(encoding='utf-8') if log_file.exists() else ''
             bad_log = has_backend_error(text)
+            attribution = attribute_backend_errors(text, scene_expected)
+            named_failures = attribution['failed_ids']
             if bad_log and caught is None:
-                errors.append(dict(category=category, error='Backend reported error; inspect backend.log'))
+                errors.append(dict(category=category,
+                                   error='Backend reported error; inspect backend.log',
+                                   samples=sorted(named_failures),
+                                   unresolved_errors=attribution['unresolved']))
             try:
-                records.extend(normalize_records(dimension, raw, scene_expected,
-                                                  backend_errors=bool(caught or bad_log)))
+                all_failed = bool(caught or attribution['scene_unverified']
+                                  or (bad_log and not named_failures))
+                records.extend(normalize_records(
+                    dimension, raw, scene_expected, backend_errors=all_failed,
+                    failed_ids=None if all_failed else named_failures))
             except Exception:
                 errors.append(dict(category=category, error=traceback.format_exc()))
                 records.extend(normalize_records(dimension, [], scene_expected, backend_errors=True))

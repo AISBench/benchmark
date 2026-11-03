@@ -13,10 +13,12 @@ import subprocess
 import sys
 
 from . import DIMENSIONS
-from .data import PROTOCOL_PATH, catalog, digest, media_tool, prepare, read_json, write_json
+from .data import (PROTOCOL_PATH, catalog, catalog_videos, digest, media_tool,
+                   prepare, read_json, write_json)
 from .engine import run, successful
 from .resources import preflight
-from .results import compare, export_csv, format_summary, refresh_report
+from .results import (compare, export_csv, export_official_results, format_summary,
+                      refresh_report)
 
 
 def main(argv=None):
@@ -25,8 +27,11 @@ def main(argv=None):
     for command in ('catalog', 'prepare', 'doctor', 'run'):
         cmd = commands.add_parser(command)
         cmd.add_argument('--source-root', required=True)
-        if command in ('catalog', 'prepare'):
+        if command == 'catalog':
             cmd.add_argument('--subset', choices=('standard', 'mini', 'smoke'), default='mini')
+            cmd.add_argument('--sample-id', help='Exact pinned idx; required only for --subset smoke')
+        if command == 'prepare':
+            cmd.add_argument('--subset', choices=('standard', 'mini', 'smoke', 'custom'), default='mini')
             cmd.add_argument('--sample-id', help='Exact pinned idx; required only for --subset smoke')
         if command in ('catalog', 'prepare', 'run'):
             cmd.add_argument('--output', required=True)
@@ -52,6 +57,7 @@ def main(argv=None):
     summary = commands.add_parser('summarize', help='Reaggregate an AISBench per-sample report without model inference')
     summary.add_argument('--report', required=True)
     summary.add_argument('--output', required=True, help='New output directory; original report is retained')
+    summary.add_argument('--prepared', help='Prepared directory used to restore official prompt names')
     args = parser.parse_args(argv)
     if args.command == 'catalog':
         entries = catalog(args.source_root, args.subset, sample_id=args.sample_id)
@@ -61,9 +67,16 @@ def main(argv=None):
                                     mini_selection=protocol['mini'] if args.subset == 'mini' else []))
         print(f'Wrote {len(entries)} prompts to {args.output}')
     elif args.command == 'prepare':
-        result = prepare(catalog(args.source_root, args.subset, sample_id=args.sample_id),
-                         args.videos, args.output, subset=args.subset)
+        if args.subset == 'custom':
+            if args.sample_id:
+                parser.error('--sample-id is only valid with --subset smoke')
+            entries = catalog_videos(args.source_root, args.videos)
+        else:
+            entries = catalog(args.source_root, args.subset, sample_id=args.sample_id)
+        result = prepare(entries, args.videos, args.output, subset=args.subset)
         print(f'Prepared {result["subset_size"]} samples at {args.output}')
+        if args.subset == 'custom':
+            print('Custom subset of the pinned 778; reports are not official Mini10/778 results.')
     elif args.command == 'doctor':
         info = dict(python=sys.version, executable=sys.executable,
                     platform=platform.platform(),
@@ -117,6 +130,7 @@ def main(argv=None):
         destination.mkdir(parents=True, exist_ok=True)
         write_json(destination / 'report.json', result)
         export_csv(result, destination)
+        export_official_results(result, destination, prepared=args.prepared)
         print(format_summary(result))
         print(f'Report: {destination / "report.json"}')
         return 0

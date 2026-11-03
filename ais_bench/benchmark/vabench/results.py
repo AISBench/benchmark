@@ -1,10 +1,12 @@
 """Official raw scores plus fixed display scores, coverage and an AISBench total."""
 import csv
+from datetime import datetime
+import os
 from pathlib import Path
 from statistics import mean
 
 from . import DIMENSIONS
-from .data import object_digest
+from .data import object_digest, read_json, write_json
 from .scoring import RULES, aggregate, finite_number, normalize_score, protocol
 
 
@@ -33,8 +35,13 @@ def record_failure(dimension, score, raw):
     return None
 
 
-def normalize_records(dimension, raw, expected, backend_errors=False):
-    """Keep missing/failed outputs distinct from legitimate numerical zero."""
+def normalize_records(dimension, raw, expected, backend_errors=False, failed_ids=None):
+    """Keep missing/failed outputs distinct from legitimate numerical zero.
+
+    ``failed_ids`` marks samples the backend named explicitly, so one bad
+    clip in a scene does not invalidate valid scores from its neighbours.
+    """
+    failed_ids = set(failed_ids or ())
     lookup = {}
     for row in raw:
         path = row.get('video_path') or row.get('audio_path')
@@ -50,7 +57,8 @@ def normalize_records(dimension, raw, expected, backend_errors=False):
     for entry in expected:
         row = lookup.get(entry['idx'])
         score = row.get('video_results') if row else None
-        status = ('backend_error' if backend_errors else 'missing' if row is None
+        status = ('backend_error' if backend_errors or entry['idx'] in failed_ids
+                  else 'missing' if row is None
                   else record_failure(dimension, score, row) or 'ok')
         result.append(dict(idx=entry['idx'], category=entry['category'], status=status,
                            score=score if status == 'ok' else None,
@@ -122,14 +130,23 @@ def build_report(manifest, dimensions, provenance, requested_dimensions=None):
             details[dimension] = dict(value, records=aligned)
     selected = list(dimensions) if requested_dimensions is None else list(requested_dimensions)
     normalization = protocol()
+    scope_note = ''
+    if scope == 'smoke':
+        scope_note = 'Single-sample smoke test; not Mini10/778 benchmark acceptance.'
+    elif scope == 'custom':
+        scope_note = (f'Custom subset of {len(expected)} pinned sample(s); '
+                      'not Mini10/778 benchmark acceptance.')
+    total = aggregate(metrics)
+    if scope == 'custom' and total['status'] in ('formal', 'preview'):
+        total['label'] = ('自定义子集总分（非官方）' if total['status'] == 'formal'
+                          else '自定义子集预览总分（非官方）')
     return dict(schema_version=2, input_signature=manifest['input_signature'], evaluation_scope=scope,
-                scope_note=('Single-sample smoke test; not Mini10/778 benchmark acceptance.'
-                            if scope == 'smoke' else ''),
+                scope_note=scope_note,
                 sample_ids=sorted(expected), requested_dimensions=selected,
                 provenance=provenance, details=details, metrics=metrics,
                 directions={d: 'lower' if d == 'second_desync' else 'higher' for d in DIMENSIONS},
                 normalization_protocol=normalization,
-                normalization_protocol_sha256=object_digest(normalization), total=aggregate(metrics))
+                normalization_protocol_sha256=object_digest(normalization), total=total)
 
 
 def refresh_report(report):
@@ -227,6 +244,123 @@ def export_csv(report, output):
         writer.writerow([report['total'][k] for k in (
             'score', 'status', 'label', 'valid_dimensions', 'expected_dimensions')])
     (output / 'summary.md').write_text(format_summary(report), encoding='utf-8')
+
+
+def _media_key(value):
+    if not isinstance(value, (str, os.PathLike)):
+        return None
+    return os.path.normpath(os.fspath(value))
+
+
+def _prepared_prompt_catalog(prepared):
+    """Prompt text per category, keyed by the exact media paths prepared for it."""
+    catalog = {}
+    if prepared is None:
+        return catalog
+    root = Path(prepared) / 'json'
+    if not root.is_dir():
+        return catalog
+    for path in sorted(root.glob('*.json')):
+        try:
+            entries = read_json(path)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(entries, list):
+            continue
+        entries = [entry for entry in entries if isinstance(entry, dict)]
+        prompts, media = [], {}
+        for entry in entries:
+            prompt = entry.get('prompt_en')
+            if not isinstance(prompt, str) or not prompt:
+                continue
+            if prompt not in prompts:
+                prompts.append(prompt)
+            for field in ('video_list', 'audio_list'):
+                values = entry.get(field)
+                if not isinstance(values, list):
+                    continue
+                for value in values:
+                    key = _media_key(value)
+                    if key is not None:
+                        media[key] = prompt
+        catalog[path.stem] = dict(prompts=prompts, media=media, entries=entries)
+    return catalog
+
+
+def _record_prompt(record, raw, media):
+    for field in ('video_path', 'audio_path'):
+        prompt = media.get(_media_key(raw.get(field)))
+        if prompt is not None:
+            return prompt
+    for field in ('prompt_name', 'prompt_en', 'prompt'):
+        prompt = raw.get(field)
+        if isinstance(prompt, str) and prompt:
+            return prompt
+    return str(record.get('idx', ''))
+
+
+def export_official_results(report, output, prepared=None, timestamp=None):
+    """Back up raw scores in the official per-category JSON/CSV layout.
+
+    ``video_results`` keeps every scorer record, including rows AISBench marks
+    as parse/backend errors, so it can be diffed against official evaluate.py.
+    The CSV repeats the official prompt-level aggregation and writes -1 for a
+    prompt without a numeric score.
+    """
+    output = Path(output)
+    # Keep explicit old timestamps accepted, but never use ':' in a filename.
+    stamp = (timestamp or datetime.now().strftime('%Y-%m-%d-%H-%M-%S')).replace(':', '-')
+    if not stamp or any(c in stamp for c in '/\\') or stamp in ('.', '..'):
+        raise ValueError('Timestamp must be a filename component')
+    catalog = _prepared_prompt_catalog(prepared)
+    details = report.get('details', {})
+    dimensions = list(details)
+    categories = sorted({row.get('category', 'unknown')
+                         for value in details.values()
+                         for row in value.get('records', [])})
+    for category in categories:
+        folder = output / 'official_eval_results' / category
+        name = f'{category}_{stamp}'
+        folder.mkdir(parents=True, exist_ok=True)
+        category_rows, results = {}, {}
+        for dimension in dimensions:
+            rows = [row for row in details[dimension].get('records', [])
+                    if row.get('category', 'unknown') == category]
+            category_rows[dimension] = rows
+            results[dimension] = dict(video_results=[
+                row['raw'] for row in rows if isinstance(row.get('raw'), dict)])
+        write_json(folder / f'{name}_eval_results.json', results)
+        prompt_info = catalog.get(category, {})
+        prompts = list(prompt_info.get('prompts', []))
+        media = prompt_info.get('media', {})
+        scores = {}
+        for dimension, rows in category_rows.items():
+            buckets = scores.setdefault(dimension, {})
+            for row in rows:
+                raw = row.get('raw')
+                if not isinstance(raw, dict):
+                    continue
+                score = raw.get('video_results')
+                if not isinstance(score, (int, float)) or isinstance(score, bool):
+                    continue
+                prompt = _record_prompt(row, raw, media)
+                if prompt not in prompts:
+                    prompts.append(prompt)
+                buckets.setdefault(prompt, []).append(float(score))
+        with (folder / f'{name}_eval_results.csv').open(
+                'w', encoding='utf-8', newline='') as stream:
+            writer = csv.writer(stream)
+            writer.writerow(['prompt_name'] + dimensions)
+            for prompt in prompts:
+                values = []
+                for dimension in dimensions:
+                    items = scores.get(dimension, {}).get(prompt, [])
+                    values.append(sum(items) / len(items) if items else -1)
+                writer.writerow([prompt] + values)
+        if prompt_info.get('entries'):
+            write_json(folder / f'{name}_full_info.json', prompt_info['entries'])
+    return dict(directory=output / 'official_eval_results', timestamp=stamp,
+                categories=categories)
 
 
 def compare(reference, candidate, dimensions=None, relative=0.01,

@@ -13,7 +13,13 @@ from ais_bench.benchmark.tasks.base import BaseTask, TaskStateManager
 from ais_bench.benchmark.utils.core.abbr import (get_infer_output_path,
                                                task_abbr_from_cfg)
 from ais_bench.benchmark.vabench.engine import run, successful
-from ais_bench.benchmark.vabench.data import write_json
+from ais_bench.benchmark.vabench.data import read_json, write_json
+from ais_bench.benchmark.vabench import DIMENSIONS, MLLM_DIMENSIONS
+
+
+def _metric_group_count(dimensions):
+    return sum(d not in MLLM_DIMENSIONS for d in dimensions) + int(
+        any(d in MLLM_DIMENSIONS for d in dimensions))
 
 
 @TASKS.register_module()
@@ -40,16 +46,31 @@ class VABenchEvalTask(BaseTask):
             prepared = dataset['path']
             destination = get_infer_output_path(
                 self.model_cfg, dataset, osp.join(self.work_dir, self.output_subdir))
+            sample_count = len(read_json(osp.join(prepared, 'manifest.json'))['records'])
+            group_count = _metric_group_count(options.get('dimensions', DIMENSIONS))
             if task_state_manager:
                 task_state_manager.update_task_state(dict(
-                    status='evaluating', total_count=1, finish_count=0))
-            report = run(prepared, source, cache, destination[:-5] + '_artifacts', **options)
+                    status='evaluating', total_count=group_count, finish_count=0,
+                    progress_description='指标组',
+                    other_kwargs={'dimension': 'starting', 'sample_count': sample_count}))
+
+            def _on_progress(done, total, dimensions):
+                if task_state_manager:
+                    task_state_manager.update_task_state(dict(
+                        status='evaluating', total_count=total, finish_count=done,
+                        progress_description='指标组',
+                        other_kwargs={'dimension': ','.join(dimensions), 'sample_count': sample_count}))
+
+            report = run(prepared, source, cache, destination[:-5] + '_artifacts',
+                         progress=_on_progress if task_state_manager else None, **options)
             write_json(destination, report)
             if not successful(report):
                 failed.append(dataset.get('abbr', prepared))
             if task_state_manager:
                 task_state_manager.update_task_state(dict(
-                    status='evaluating', total_count=1, finish_count=1))
+                    status='evaluating', total_count=group_count, finish_count=group_count,
+                    progress_description='指标组',
+                    other_kwargs={'dimension': 'done', 'sample_count': sample_count}))
         if failed:
             raise RuntimeError(f'VABench incomplete; reports preserved: {failed}')
 

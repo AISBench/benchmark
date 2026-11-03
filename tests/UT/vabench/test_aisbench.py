@@ -30,12 +30,23 @@ def test_smoke_config_selects_only_clap():
     assert 'smoke' in cfg.datasets[0].abbr
 
 
+def test_published_custom_and_smoke_templates_are_loadable():
+    custom = Config.fromfile('ais_bench/configs/vabench_examples/eval_vabench_custom.py')
+    smoke = Config.fromfile('ais_bench/configs/vabench_examples/eval_vabench_smoke_clap.py')
+    assert custom.datasets[0].path == '/workspace/prepared_all_official_v2'
+    assert custom.eval.runner.task.num_gpus == 2
+    assert smoke.datasets[0].eval_cfg.dimensions == ['second_clap']
+
+
 def test_task_preserves_incomplete_report(tmp_path, monkeypatch):
     import ais_bench.benchmark.tasks.vabench_eval as task_module
     report = dict(metrics={'second_clap': dict(scored=0, failed=1, missing=0)}, details={})
     monkeypatch.setattr(task_module, 'run', lambda *a, **kw: report)
+    prepared = tmp_path / 'prepared'
+    write_json(prepared / 'manifest.json', dict(records=[]))
     cfg = ConfigDict(models=[dict(abbr='test')], datasets=[[
-        dict(abbr='vabench', path='prepared', eval_cfg=dict(source_root='source', cache_dir='cache'))]],
+        dict(abbr='vabench', path=str(prepared),
+             eval_cfg=dict(source_root='source', cache_dir='cache'))]],
         work_dir=str(tmp_path), cli_args={})
     import pytest
     with pytest.raises(RuntimeError, match='incomplete'):

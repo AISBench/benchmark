@@ -8,12 +8,34 @@ from . import DIMENSIONS, MLLM_DIMENSIONS
 from .data import (PROTOCOL_PATH, catalog, digest, object_digest, read_json,
                    verify_prepared, write_json)
 from .resources import preflight, source_signature, weight_fingerprints
-from .results import build_report, export_csv, normalize_records
+from .results import (build_report, export_csv, export_official_results,
+                      normalize_records)
+
+
+def _validate_prepared_split(manifest, source_root):
+    """Official splits stay exact; custom is an explicit non-empty 778 subset."""
+    standard = {r['idx'] for r in catalog(source_root, 'standard')}
+    actual = {r['idx'] for r in manifest['records']}
+    scope = manifest.get('evaluation_scope')
+    if scope == 'smoke':
+        if len(actual) != 1 or not actual <= standard:
+            raise ValueError('Smoke run requires exactly one pinned T2AV sample')
+        return
+    if scope == 'custom':
+        if not actual:
+            raise ValueError('Custom run requires at least one sample')
+        if not actual <= standard:
+            raise ValueError('Custom run contains samples outside the pinned 778 catalog')
+        return
+    mini = {r['idx'] for r in catalog(source_root, 'mini')}
+    if actual != standard and actual != mini:
+        raise ValueError('Prepared sample set must be the pinned 778/10 split, '
+                         'an explicit custom subset, or a single-sample smoke run')
 
 
 def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:0',
         python=None, device_overrides=None, params=None, dim_params=None,
-        mode='adapter', timeout=86400):
+        mode='adapter', timeout=86400, progress=None):
     dimensions = list(DIMENSIONS if dimensions is None else dimensions)
     if not dimensions or len(set(dimensions)) != len(dimensions) or set(dimensions) - set(DIMENSIONS):
         raise ValueError('Unknown, duplicate, or empty VABench dimensions')
@@ -25,15 +47,7 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
     if any(d in MLLM_DIMENSIONS for d in overrides):
         raise ValueError('MLLM dimensions share a single device; use device=')
     manifest, grouped = verify_prepared(prepared)
-    # Ensure the prepared set is exactly one of the approved splits.
-    standard = {r['idx'] for r in catalog(source_root, 'standard')}
-    mini = {r['idx'] for r in catalog(source_root, 'mini')}
-    actual = {r['idx'] for r in manifest['records']}
-    if manifest.get('evaluation_scope') == 'smoke':
-        if len(actual) != 1 or not actual <= standard:
-            raise ValueError('Smoke run requires exactly one pinned T2AV sample')
-    elif actual != standard and actual != mini:
-        raise ValueError('Prepared sample set must be the pinned 778/10 split or an explicit single-sample smoke run')
+    _validate_prepared_split(manifest, source_root)
     output = Path(output).resolve()
     if (output / 'report.json').exists():
         raise FileExistsError(f'Choose a new run directory: {output}')
@@ -104,9 +118,16 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
             provenance['environments'].append(response.get('environment', {}))
         report = build_report(manifest, results, provenance, requested_dimensions=dimensions)
         write_json(output / 'partial_report.json', report)
+        if progress is not None:
+            # Progress reporting must never affect scoring.
+            try:
+                progress(number + 1, len(jobs), list(dims))
+            except Exception:
+                pass
     report = build_report(manifest, results, provenance, requested_dimensions=dimensions)
     write_json(output / 'report.json', report)
     export_csv(report, output)
+    export_official_results(report, output, prepared=Path(prepared).resolve())
     return report
 
 
