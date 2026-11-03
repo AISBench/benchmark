@@ -1,6 +1,5 @@
 import csv
 import json
-from types import SimpleNamespace
 
 import pytest
 
@@ -25,7 +24,7 @@ def data_file(tmp_path):
     return path
 
 
-def test_dataset(data_file):
+def test_dataset_reader_expect_valid_test_and_empty_train(data_file):
     dataset = SimpleQAVerifiedDataset(
         path=str(data_file),
         judge_infer_cfg={},
@@ -45,7 +44,7 @@ def test_dataset(data_file):
         [{"original_index": "1", "problem": "q", "answer": "a"}] * 2,
     ],
 )
-def test_bad_data(tmp_path, rows):
+def test_invalid_data_expect_value_error(tmp_path, rows):
     path = tmp_path / "data.jsonl"
     path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     with pytest.raises(ValueError):
@@ -69,11 +68,11 @@ def test_bad_data(tmp_path, rows):
         (None, None),
     ],
 )
-def test_parse(text, grade):
+def test_parse_grade_expect_exact_label(text, grade):
     assert SimpleQAVerifiedEvaluator.parse_grade(text) == grade
 
 
-def test_metrics():
+def test_metrics_expect_official_f1():
     result = SimpleQAVerifiedEvaluator().score(
         ["A", "B", "C", "A"], ["0", "1", "2", "3"]
     )
@@ -88,7 +87,7 @@ def test_metrics():
     assert "error" in SimpleQAVerifiedEvaluator().score(["A"], [])
 
 
-def test_judge_merge(data_file):
+def test_judge_merge_expect_matching_uuid_and_prompt(data_file):
     judge = object.__new__(SimpleQAVerifiedJudgeDataset)
     row = judge._process_single_item(
         [{"problem": "q", "answer": "gold"}],
@@ -100,14 +99,66 @@ def test_judge_merge(data_file):
     assert judge._get_dataset_class() is SimpleQAVerifiedDataset
 
 
-def test_config():
-    from ais_bench.benchmark.cli.config_manager import ConfigManager
+def test_public_config_expect_constructible_components(data_file):
+    from pathlib import Path
 
-    cfg = ConfigManager(
-        SimpleNamespace(datasets=["simpleqa_verified_gen_0_shot_chat"], config_dir="")
-    )._load_datasets_config()[0]
-    judge = cfg["judge_infer_cfg"]
-    assert (
-        judge["prompt_template"]["template"]["round"][0]["prompt"] == "{judge_prompt}"
+    from mmengine.config import Config
+
+    from ais_bench.benchmark.utils.config.build import build_dataset_from_cfg
+
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "ais_bench/benchmark/configs/datasets/simpleqa_verified/simpleqa_verified_gen_0_shot_chat.py"
     )
-    assert judge["judge_model"]["model"] == "gpt-4.1"
+    cfg = Config.fromfile(str(path))["simpleqa_verified_datasets"][0]
+    assert cfg["type"] is SimpleQAVerifiedDataset
+    assert cfg["path"] == "ais_bench/datasets/simpleqa_verified"
+    cfg["path"] = str(data_file)
+    dataset = build_dataset_from_cfg(cfg)
+    assert dataset.test[0]["problem"] == "Question?"
+    assert cfg["reader_cfg"]["input_columns"] == ["problem"]
+    assert cfg["reader_cfg"]["output_column"] == "answer"
+    for infer in (cfg["infer_cfg"], cfg["judge_infer_cfg"]):
+        prompt_cfg = dict(infer["prompt_template"])
+        prompt_type = prompt_cfg.pop("type")
+        prompt_type(**prompt_cfg)
+    evaluator_cfg = dict(cfg["eval_cfg"]["evaluator"])
+    evaluator_type = evaluator_cfg.pop("type")
+    assert evaluator_type(**evaluator_cfg).score(["A"], ["uuid"])["f1"] == 1
+    assert cfg["judge_infer_cfg"]["judge_model"]["model"] == "gpt-4.1"
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        None,
+        [],
+        3,
+        {"original_index": True, "problem": "q", "answer": "a"},
+        {"original_index": 1, "problem": 3, "answer": "a"},
+        {"original_index": 1, "problem": "q", "answer": False},
+    ],
+)
+def test_malformed_record_expect_value_error(tmp_path, row):
+    path = tmp_path / "bad.jsonl"
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        SimpleQAVerifiedDataset.load(str(path))
+
+
+def test_jsonl_metadata_expect_preserved(tmp_path):
+    path = tmp_path / "data.jsonl"
+    path.write_text(
+        json.dumps(
+            {"original_index": 7, "problem": "q", "answer": "a", "topic": "science"}
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = SimpleQAVerifiedDataset.load(str(path))["test"][0]
+    assert result == {
+        "original_index": "7",
+        "problem": "q",
+        "answer": "a",
+        "topic": "science",
+    }

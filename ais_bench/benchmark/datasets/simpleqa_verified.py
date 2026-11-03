@@ -47,13 +47,18 @@ class SimpleQAVerifiedDataset(BaseDataset):
             raise ValueError("Empty SimpleQA Verified dataset")
         seen = set()
         for index, row in enumerate(rows):
-            for field in ("problem", "answer", "original_index"):
-                if (
-                    not isinstance(row.get(field), (str, int))
-                    or not str(row[field]).strip()
-                ):
+            if not isinstance(row, dict):
+                raise ValueError(f"Expected an object at row {index}")  # noqa: TRY004
+            for field in ("problem", "answer"):
+                if not isinstance(row.get(field), str) or not row[field].strip():
                     raise ValueError(f"Invalid {field} at row {index}")
-            identity = str(row["original_index"])
+            original_index = row.get("original_index")
+            if (
+                type(original_index) not in (str, int)
+                or not str(original_index).strip()
+            ):
+                raise ValueError(f"Invalid original_index at row {index}")
+            identity = str(original_index).strip()
             if identity in seen:
                 raise ValueError(f"Duplicate original_index: {identity}")
             seen.add(identity)
