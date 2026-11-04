@@ -41,16 +41,8 @@ class JobBundleTests(unittest.TestCase):
             self.assertTrue(any(x.startswith('cases/') for x in names))
             from task_runtime import read_task
             self.assertEqual(read_task(root)['job_id'], root.name)
-            from prepare_benchmark_tool import prepare
-            tool = root/'sub_tasks/test/attempt-01/tool'
-            prepare(PACKAGE/'assets/aisbench-prefix', tool)
-            self.assertFalse(any(p.is_symlink() for p in tool.iterdir()))
-            self.assertFalse((tool/'GSM8K.jsonl').exists())
-            self.assertFalse((tool/'aisbench_test.py').exists())
-            compile((PACKAGE/'assets/aisbench-prefix/aisbench_test.py').read_text(encoding='utf-8'), 'shared-tool', 'exec')
-            self.assertIn('common/skill-snapshot/scripts/tool_links.py',names)
-            self.assertFalse(any('/references/' in x or '/test_' in x for x in names))
-            self.assertEqual(len([x for x in names if x.endswith('GSM8K.jsonl')]),1)
+            self.assertFalse(any('/assets/' in x for x in names))
+            self.assertIn('common/skill-snapshot/scripts/aisbench_cli.py',names)
             second,_,_=submit_job.build(*args)
             self.assertNotEqual(root.name,second.name)
 

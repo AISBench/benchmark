@@ -96,7 +96,7 @@ def plan(spec,root):
     save(root/'common/plan.json',result); save(root/'common/job_spec.json',s)
     # Preserve the complete executable package used by this job.
     if not (root/'common/skill-snapshot').exists():
-        shutil.copytree(PACKAGE,root/'common/skill-snapshot',ignore=shutil.ignore_patterns('__pycache__','*.pyc','test_*.py','references','examples','SKILL.md','agents'))
+        shutil.copytree(PACKAGE,root/'common/skill-snapshot',ignore=shutil.ignore_patterns('__pycache__','*.pyc','test_*.py','references','examples','SKILL.md','agents','assets','docs','tests','README.md'))
     if s['schema_version']=='3.0':
         # Relative snapshot entry makes the generated task package transferable.
         (root/'run.sh').write_text('#!/usr/bin/env bash\nset -euo pipefail\n'

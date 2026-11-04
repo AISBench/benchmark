@@ -9,7 +9,8 @@
         "ascend_env": "/usr/local/Ascend/ascend-toolkit/set_env.sh",
         "atb_env": "/usr/local/Ascend/nnal/atb/set_env.sh",
         "opapi": "/usr/local/Ascend/ascend-toolkit/latest/lib64/libopapi_nn.so",
-        "comm": "/etc/hixlep"
+        "comm": "/etc/hixlep",
+        "proxy_program": "/path/to/reviewed-pd-proxy.py"
       },
       "mounts": [
         {
@@ -75,7 +76,12 @@
       ],
       "host": "user@benchmark-host.example",
       "work_dir": "/path/to/task-workspace",
-      "package": "/path/to/skill-package"
+      "package": "/path/to/skill-package",
+      "benchmark": {
+        "corpus_path": "/path/to/corpus.jsonl",
+        "corpus_field": "question",
+        "block_size": 16
+      }
     }
   }
 }

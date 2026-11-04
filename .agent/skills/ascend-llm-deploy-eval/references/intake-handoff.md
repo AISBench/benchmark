@@ -35,3 +35,7 @@
 ## 现场核验
 
 核验模型/镜像、必要权重和tokenizer文件、命令配置、设备权限、挂载、网络端口及工具结果解析能力。整机独占需求不授权终止其他任务；已有本任务服务应核验身份，不能当成外部占用。历史PID、空闲结论或旧冒烟不证明当前实例有效。预检通过后按冻结计划执行；运行与释放策略统一见生命周期。
+
+## 原生 CLI 现场输入
+
+确认镜像已安装本仓库 AISBench 与 Prefix Cache CLI；在节点 bindings.benchmark 中填写 corpus_path、corpus_field 和与服务一致的 block_size。PD 部署还需 bindings.paths.proxy_program 指向已审阅且兼容当前启动参数的现场代理。语料与代理不随 Skill 分发，不自动下载。prefix_ratio 使用原生插件的全局理论命中率语义；参数及能力边界见[CLI适配](../docs/native-cli.md)。

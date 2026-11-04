@@ -105,7 +105,13 @@ def _check(root, report):
         errors['tokenizer']=repr(exc)
     try:
         report['checks']['benchmark_tool']='PASSED'
-        if not (Path(s['benchmark']['tool_dir'])/'aisbench_test.py').is_file(): raise ValueError('Missing benchmark tool')
+        benchmark=s['benchmark']
+        if not benchmark.get('prefix_executable') or not benchmark.get('executable'):
+            raise ValueError('Image must provide ais_bench and ais-bench-prefix-cache CLIs')
+        corpus=Path(benchmark.get('corpus_path', ''))
+        if not corpus.is_absolute() or not corpus.is_file(): raise ValueError('Missing benchmark.corpus_path')
+        block=benchmark.get('block_size')
+        if type(block) is not int or block <= 0: raise ValueError('Explicit positive benchmark.block_size required')
     except Exception as exc:
         report['checks']['benchmark_tool']='FAILED'
         errors['benchmark_tool']=repr(exc)

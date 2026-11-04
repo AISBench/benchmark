@@ -190,8 +190,9 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
     context = {'model': model, 'network': network, 'ports': port_bases,
                'paths': dict(bindings.get('paths', {})), 'run_dir': str(child), 'task_dir': str(root)}
     if '{{paths.proxy_program}}' in json.dumps(dep['commands']):
-        proxy=PACKAGE/'assets/pd-proxy/load_balance_proxy_server_example.py'
-        context['paths']['proxy_program']=str(proxy)
+        proxy=Path(context['paths'].get('proxy_program', ''))
+        if not proxy.is_absolute() or not proxy.is_file():
+            raise ValueError('PD deployment requires bindings.paths.proxy_program pointing to an existing reviewed proxy')
     commands = []
     for item in dep['commands']:
         argv = []
@@ -227,6 +228,11 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
             mounts.append({'source': path, 'target': path, 'read_only': read_only})
     if len({m['target'] for m in mounts}) != len(mounts):
         raise ValueError('Duplicate mount targets')
+    for resource in [bindings.get('benchmark', {}).get('corpus_path'), bindings.get('paths', {}).get('proxy_program')]:
+        if resource and Path(resource).is_file() and not any(Path(resource).is_relative_to(Path(m['source'])) and m['source']==m['target'] for m in mounts):
+            mounts.append({'source': resource, 'target': resource, 'read_only': True})
+    if len({m['target'] for m in mounts}) != len(mounts):
+        raise ValueError('Benchmark resource mount conflicts with existing target')
     devices = list(dep['container'].get('devices', DEVICES))
     required_cards = ['/dev/davinci'+str(i) for i in (pool['devices'] if pool else dep['npu_ids'])]
     if not set(required_cards).issubset(devices):
@@ -243,8 +249,9 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
         'target': {'host': spec['target']['host'], 'container': job_id, 'work_dir': str(child), 'image': image},
         'model': model, 'container': container, 'deployment': {'service': service},
         'service_fingerprint': fingerprint,
-        'benchmark': {'adapter': 'aisbench_prefix', 'tool_dir': str(PACKAGE/'assets/aisbench-prefix'),
-                      'aisbench_work_path': tools['aisbench_work_path'], 'prefill_dp': dep['prefill_dp']},
+        'benchmark': {**bindings.get('benchmark', {}), 'adapter': 'aisbench_cli',
+                      'prefix_executable': tools.get('prefix_executable'), 'executable': tools.get('executable'),
+                      'prefill_dp': dep['prefill_dp']},
         'execution': spec['execution'], 'cleanup': spec['cleanup']}
     if 'storage' in spec: execution['storage'] = spec['storage']
     if pool:

@@ -61,3 +61,7 @@ steady_state=true 仅对正式负载选择 stable_stage；缓存填充使用 def
 2026-11-04 检查的目标镜像 AISBench 支持信号量限制并发、完成后继续处理待发请求；另有 pressure_mode/pressure_time，但当前适配器未暴露后者。默认有限请求数结束后会排空，不声称无限稳态负载。stable_stage 从请求起止事件识别区间，阈值为 int(并发*0.98)，允许 1 ms 内恢复，忽略第一次达到最大并发的请求；找不到区间报错。没有固定最小测量时长。其选中请求统计与区间分母并非逐 token 时间窗口裁剪；报告保留工具原始口径、区间时长及并发曲线。
 缓存工具通过 /metrics 采集 normal/external prefix_cache_queries_total 和 hits_total 的前后增量，按 engine 分组；这是 token 计数比例，不能替换成请求命中比例。block 对齐、最后 token 重算及 tokenizer/chat template 可能造成目标100%与实测值不同，应保留实际证据。
 纯P/纯D命名按用户明确定义记录；当用户定义输出1为纯P、100%前缀目标为纯D时，仍可使用现有代理入口，不额外要求阶段隔离。但不得声称指标剔除了代理、预填充或KV传输耗时。
+
+## 原生 CLI 现场输入
+
+确认镜像已安装本仓库 AISBench 与 Prefix Cache CLI；在节点 bindings.benchmark 中填写 corpus_path、corpus_field 和与服务一致的 block_size。PD 部署还需 bindings.paths.proxy_program 指向已审阅且兼容当前启动参数的现场代理。语料与代理不随 Skill 分发，不自动下载。prefix_ratio 使用原生插件的全局理论命中率语义；参数及能力边界见[CLI适配](../docs/native-cli.md)。

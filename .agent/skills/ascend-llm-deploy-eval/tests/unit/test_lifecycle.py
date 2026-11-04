@@ -28,7 +28,7 @@ class LifecycleTests(unittest.TestCase):
                 runtime.save(folder/'cleanup.json',{'released':safe})
                 runtime.save(folder/'summary.json',{'status':'PASSED' if passed else 'FAILED','error':None if passed else 'test failure'})
                 return SimpleNamespace(returncode=0 if passed else 2)
-            with patch.object(evaluate,'read_plan',return_value=spec),patch.object(evaluate,'ready',return_value=True),patch.object(evaluate,'service_identity',return_value={'identity':1}),patch.object(evaluate,'prepare'),patch.object(evaluate.subprocess,'run',side_effect=attempt),patch.object(evaluate.time,'sleep'):
+            with patch.object(evaluate,'read_plan',return_value=spec),patch.object(evaluate,'ready',return_value=True),patch.object(evaluate,'service_identity',return_value={'identity':1}),patch.object(evaluate.subprocess,'run',side_effect=attempt),patch.object(evaluate.time,'sleep'):
                 if success_at:
                     self.assertEqual(evaluate.evaluate(root,case)['status'],'PASSED')
                 else:

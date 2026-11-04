@@ -113,7 +113,7 @@ class CaseIsolationTests(unittest.TestCase):
                 runtime.save(folder/'summary.json',{'status':'PASSED' if success else 'FAILED','error':'test failure' if not success else None})
                 return SimpleNamespace(returncode=0 if success else 2)
             with patch.object(evaluate,'read_plan',return_value=spec),patch.object(evaluate,'ready',return_value=True), \
-                 patch.object(evaluate,'service_identity',return_value={'instance':1}),patch.object(evaluate,'prepare'), \
+                 patch.object(evaluate,'service_identity',return_value={'instance':1}), \
                  patch.object(evaluate.subprocess,'run',side_effect=attempt),patch.object(evaluate.time,'sleep'),redirect_stdout(io.StringIO()):
                 with self.assertRaises(RuntimeError):evaluate.evaluate(root,first)
                 self.assertEqual(evaluate.evaluate(root,second)['status'],'PASSED')

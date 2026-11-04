@@ -11,7 +11,7 @@
    python -m pip install -r requirements.txt
    ```
 
-3. 准备可免密 SSH 访问的 Linux 昇腾服务器、Docker、镜像、模型权重和部署参考脚本。替换以下占位内容后交给 Agent：
+3. 准备可免密 SSH 访问的 Linux 昇腾服务器、Docker、镜像、模型权重、语料、cache block 大小和部署参考脚本。替换以下占位内容后交给 Agent：
 
    ```text
    使用 $ascend-llm-deploy-eval 执行性能测试。
@@ -32,3 +32,5 @@ Agent 将收集缺失信息、整理配置并进行现场预检。示例资源�
 - [当前设计](docs/design.md) · [工程计划](docs/project-plan.md) · [决策记录](docs/decisions.md)。
 
 - [开发与测试](docs/development.md)：目录约定、离线测试与现场验证边界。
+
+- [原生 CLI 适配](docs/native-cli.md)：镜像安装、现场参数与结果语义。

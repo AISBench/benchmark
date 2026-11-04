@@ -22,7 +22,7 @@ class NodePreparationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);model=root/'model';model.mkdir()
             bindings={'nodes':{key:{'host':key+'.example','work_dir':str(root/key),'package':'/skill',
-                'model_paths':{'m':str(model)},'paths':{'comm':'/etc/hixlep'}} for key in ['a','b']}}
+                'model_paths':{'m':str(model)},'paths':{'comm':'/etc/hixlep','proxy_program':str(Path(__file__).resolve())}} for key in ['a','b']}}
             def rpc(binding,request):
                 calls.append(request)
                 host=binding['host']
@@ -69,7 +69,7 @@ class NodePreparationTests(unittest.TestCase):
         spec=plan_run.normalize(fixture())
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);model=root/'model';model.mkdir()
-            bindings={'nodes':{'a':{'host':'host.example','work_dir':str(root/'node'),'package':'/skill','model_paths':{'m':str(model)},'paths':{'comm':'/etc/hixlep'}}}}
+            bindings={'nodes':{'a':{'host':'host.example','work_dir':str(root/'node'),'package':'/skill','model_paths':{'m':str(model)},'paths':{'comm':'/etc/hixlep','proxy_program':str(Path(__file__).resolve())}}}}
             def rpc(binding,request):
                 with patch.object(node_prepare,'discover_network',return_value={'interface':'nic','ip':'192.0.2.1'}),patch.object(node_prepare,'command',side_effect=lambda argv:json.dumps([{'Id':'image-sha'}]) if argv[0]=='docker' else 'idle'),patch.object(node_prepare,'inspect_image_tools',return_value={'aisbench_work_path':'/ais'}),patch('preflight.check',return_value={'status':'PASSED'}), patch('container_baseline.baseline_mounts', side_effect=lambda mounts: baseline_mounts(mounts, exists=lambda path: True)):
                     return node_prepare.prepare(request)

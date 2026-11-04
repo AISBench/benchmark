@@ -1,65 +1,46 @@
-"""Validate raw AISBench request records, output lengths, and cache evidence."""
-import ast
+"""Validate native AISBench records and Prefix Cache analysis artifacts."""
 import json
-from pathlib import Path
-import re
 
 
 def validate(folder, case):
-    files = sorted((folder/'tool/outputs').glob('*/performances/*/*_details.jsonl'))
-    if len(files) != 2:
-        raise ValueError('Expected independent warmup and formal detail files')
-    reports = []
-    for path, count, output in zip(files, [case.get('prefill_dp',2)*case.get('prefix_num',1), case['formal_requests']], [1, case['output_tokens']]):
-        seen, inputs, outputs = set(), [], []
-        with path.open() as stream:
-            for line in stream:
-                row = json.loads(line)
-                if row['id'] in seen or row.get('success') is not True or row.get('error_info'):
-                    raise ValueError('Duplicate or unsuccessful request in '+str(path))
-                seen.add(row['id'])
-                inputs.append(row['input_tokens'])
-                outputs.append(row['output_tokens'])
-        if len(seen) != count or any(value != output for value in outputs):
-            raise ValueError('Request count or per-request output length mismatch')
-        if len(reports) == 1 and any(value < case.get('input_tokens',1) for value in inputs):
-            raise ValueError('Actual input shorter than requested target')
-        reports.append(dict(requests=count, input_min=min(inputs), input_max=max(inputs),
-                            input_mean=sum(inputs)/count, output_tokens=output, details=str(path)))
-    log = (folder/'tool/aisbench.log').read_text()
-    queries = [ast.literal_eval(x) for x in re.findall(r'queries: normal=(\{[^\n]+?\}), external=', log)]
-    hits = [ast.literal_eval(x) for x in re.findall(r'hits: normal=(\{[^\n]+?\}), external=', log)]
-    def unavailable(reason):
-        (folder/'validated.json').write_text(json.dumps({'status':'REVIEW_REQUIRED','case_id':case['id'],
-            'formal':reports[1],'warmup':reports[0],'measured_prefix_ratio':None,
-            'prefix_metrics':{'status':'unavailable','reason':reason}},indent=2))
-        raise ValueError(reason)
-    if len(queries) != 4 or len(hits) != 4:
-        unavailable('Expected four metric boundaries: warmup and formal before/after')
-    engines = set(range(case.get('prefill_dp',2)))
-    if any(set(x) != engines for x in queries+hits):
-        unavailable('Missing prefill DP engine metrics')
-    metrics = {}
-    for engine in engines:
-        warmup_queries = queries[1][engine]-queries[0][engine]
-        q = queries[3][engine]-queries[2][engine]
-        h = hits[3][engine]-hits[2][engine]
-        if warmup_queries <= 0 or q <= 0 or not 0 <= h <= q:
-            unavailable('Invalid metrics delta or incomplete warmup coverage')
-        metrics[str(engine)] = dict(warmup_queries=warmup_queries, formal_queries=q,
-                                    formal_hits=h, hit_ratio=h/q)
-    for port in case.get('reset_ports',[9000,9001]) if case.get('reset_cache',True) else []:
+    analyses = list(folder.glob('prefix_*/result/*.analysis.json'))
+    if len(analyses) != 1:
+        raise ValueError('Expected one native Prefix Cache analysis')
+    analysis = json.loads(analyses[0].read_text(encoding='utf-8'))
+    runtime = analysis.get('runtime', {})
+    if analysis.get('status') != 'complete' or runtime.get('aisbench_exit_code') != 0:
+        raise ValueError('Native benchmark did not complete successfully')
+    if case.get('warmup', True):
+        warmup = runtime.get('warmup', [])
+        pairs = {(row['group_id'], row['dp_rank']) for row in warmup}
+        groups = {row['group_id'] for row in warmup}
+        expected = {(group, rank) for group in groups for rank in range(case.get('prefill_dp', 1))}
+        if (len(groups) != case.get('prefix_num', 1) or pairs != expected or
+                len(warmup) != len(expected) or not all(row.get('success') is True for row in warmup)):
+            raise ValueError('Incomplete native warmup coverage')
+    files = list((folder/'outputs').glob('*/performances/*/*_details.jsonl'))
+    if len(files) != 1:
+        raise ValueError('Expected one formal request detail file')
+    rows = [json.loads(line) for line in files[0].read_text(encoding='utf-8').splitlines() if line.strip()]
+    if len(rows) != case['formal_requests'] or len({row['id'] for row in rows}) != len(rows):
+        raise ValueError('Formal request count or unique ID mismatch')
+    if any(row.get('success') is not True or row.get('error_info') or
+           row.get('input_tokens') != case['input_tokens'] or row.get('output_tokens') != case['output_tokens'] for row in rows):
+        raise ValueError('Request failure or token length mismatch')
+    engines = analysis.get('actual', {}).get('by_dp', {})
+    if set(engines) != {str(i) for i in range(case.get('prefill_dp', 1))}:
+        raise ValueError('Missing DP metrics')
+    if any(not row['queries'] > 0 or not 0 <= row['hits'] <= row['queries'] for row in engines.values()):
+        raise ValueError('Invalid prefix metrics delta')
+    queries = sum(row['queries'] for row in engines.values())
+    hits = sum(row['hits'] for row in engines.values())
+    for port in case.get('reset_ports', []):
         resets = sorted(folder.glob(f'reset-{port}-*.json'))
         if not resets or json.loads(resets[-1].read_text()).get('success') is not True:
             raise ValueError('Cache reset not verified')
     result = dict(status='PASSED', case_id=case['id'], target_prefix_ratio=case['prefix_ratio'],
-                  warmup=reports[0], formal=reports[1], prefix_metrics=metrics,
-                  measured_prefix_ratio=sum(x['formal_hits'] for x in metrics.values())/sum(x['formal_queries'] for x in metrics.values()))
-    (folder/'validated.json').write_text(json.dumps(result, indent=2))
+                  measured_prefix_ratio=hits/queries, formal={'requests':len(rows), 'details':str(files[0])},
+                  warmup=runtime.get('warmup', []), prefix_metrics=engines,
+                  warnings=analysis.get('warnings', []), analysis=str(analyses[0]))
+    (folder/'validated.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     return result
-
-
-if __name__ == '__main__':
-    import sys
-    folder = Path(sys.argv[1])
-    print(json.dumps(validate(folder, json.loads((folder/'case.json').read_text())), indent=2))

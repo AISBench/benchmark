@@ -54,18 +54,3 @@ class StorageAndReleaseTests(unittest.TestCase):
         task=normalize(fixture())
         task['deployments'][0]['instances'][0]['launch'].setdefault('env',{})['ASCEND_SLOG_PRINT_TO_STDOUT']='1'
         self.assertTrue(any('operator logging' in e for e in validate(task)))
-
-class CacheTests(unittest.TestCase):
-    @unittest.skipUnless(sys.platform=='linux','cache locking executes on Linux nodes')
-    def test_reuse_and_tamper(self):
-        sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'assets/aisbench-prefix'))
-        import dataset_cache
-        with tempfile.TemporaryDirectory() as d:
-            root=Path(d); model=root/'model'; model.mkdir(); (model/'tokenizer.json').write_text('{}')
-            calls=[]
-            def generate(where):
-                calls.append(where); p=Path(where)/'data.jsonl'; p.write_text('sample'); return '',str(p)
-            first=dataset_cache.cached(root/'cache',[1],model,generate)
-            self.assertEqual(first,dataset_cache.cached(root/'cache',[1],model,generate)); self.assertEqual(len(calls),1)
-            Path(first[1]).chmod(0o644); Path(first[1]).write_text('changed')
-            with self.assertRaises(ValueError): dataset_cache.cached(root/'cache',[1],model,generate)

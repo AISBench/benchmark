@@ -1,32 +1,36 @@
-import importlib.util
 import json
-from pathlib import Path
+import sys
 import tempfile
 import unittest
-
-path = Path(__file__).resolve().parents[2]/'scripts/validate_case.py'
-spec = importlib.util.spec_from_file_location('validate_case', path)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]/'scripts'))
+from validate_case import validate
 
 class ValidationTests(unittest.TestCase):
-    def test_per_request_output_and_warmup_coverage(self):
+    def test_native_results_and_reject_invalid_evidence(self):
         with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
-            for phase, output in [('01',1),('02',1024)]:
-                folder = root/'tool/outputs'/phase/'performances/model'
-                folder.mkdir(parents=True)
-                (folder/'gsm8k_details.jsonl').write_text('\n'.join(json.dumps(dict(id=i,success=True,error_info='',input_tokens=32768 if phase=='01' else 65536,output_tokens=output)) for i in range(2)))
-            log = ''
-            for q,h in [(0,0),(10,0),(10,0),(30,10)]:
-                log += f'queries: normal={{0: {q}, 1: {q}}}, external={{}}\nhits: normal={{0: {h}, 1: {h}}}, external={{}}\n'
-            (root/'tool/aisbench.log').write_text(log)
-            for port in [9000,9001]:
-                (root/f'reset-{port}-0.json').write_text('{"success":true}')
-            case = dict(id='case',formal_requests=2,input_tokens=65536,output_tokens=1024,prefix_ratio=0.5)
-            self.assertEqual(module.validate(root,case)['measured_prefix_ratio'],0.5)
-            path = root/'tool/outputs/02/performances/model/gsm8k_details.jsonl'
-            path.write_text(path.read_text().replace('1024','1023',1))
-            with self.assertRaises(ValueError):
-                module.validate(root,case)
+            root=Path(d)
+            output=root/'outputs/run/performances/model/details_details.jsonl'
+            output.parent.mkdir(parents=True)
+            rows=[dict(id=i, success=True, error_info='', input_tokens=1024, output_tokens=32) for i in range(2)]
+            def save_rows(): output.write_text('\n'.join(json.dumps(r) for r in rows))
+            save_rows()
+            analysis=root/'prefix_20261104/result/run.analysis.json'
+            analysis.parent.mkdir(parents=True)
+            data={'status':'complete','runtime':{'aisbench_exit_code':0,'warmup':[{'group_id':0,'dp_rank':i,'success':True} for i in range(2)]},'actual':{'by_dp':{str(i):{'queries':100,'hits':50} for i in range(2)}}}
+            def save_analysis(): analysis.write_text(json.dumps(data))
+            save_analysis()
+            case=dict(id='c1',prefill_dp=2,prefix_num=1,formal_requests=2,input_tokens=1024,output_tokens=32,prefix_ratio=.5)
+            self.assertEqual(validate(root,case)['measured_prefix_ratio'],.5)
+            rows[0]['output_tokens']=31; save_rows()
+            with self.assertRaisesRegex(ValueError,'token length'): validate(root,case)
+            rows[0]['output_tokens']=32; rows[0]['id']=1; save_rows()
+            with self.assertRaisesRegex(ValueError,'unique ID'): validate(root,case)
+            rows[0]['id']=0; save_rows()
+            data['runtime']['warmup'].pop(); save_analysis()
+            with self.assertRaisesRegex(ValueError,'warmup'): validate(root,case)
+            case['warmup']=False
+            data['actual']['by_dp'].pop('1');save_analysis()
+            with self.assertRaisesRegex(ValueError,'DP metrics'): validate(root,case)
+            data['runtime']['aisbench_exit_code']=2;save_analysis()
+            with self.assertRaisesRegex(ValueError,'complete'): validate(root,case)

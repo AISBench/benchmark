@@ -55,16 +55,4 @@ class SharedStorageRegression(unittest.TestCase):
             execute_statements(SCRIPTS/'deploy.py',lambda n:isinstance(n,ast.Assign) and ast.unparse(n).startswith('task_root =') and 'hashlib' in ast.unparse(n),scope)
             values.append((scope['node_root'],scope['execution']['container_registry'],str(scope['task_root'])))
         for index in range(3): self.assertNotEqual(values[0][index],values[1][index])
-    def test_warmup_and_formal_command_selection(self):
-        source=SCRIPTS.parent/'assets/aisbench-prefix/aisbench_test.py'
-        tree=ast.parse(source.read_text(encoding='utf-8')); calls=[]
-        scope=dict(test_accuracy=False,OUTPUT_DIR='./outputs',DEFAULT_PERFORMANCE_TEST='stable_stage')
-        funcs=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='generate_aisbench_command']
-        exec(compile(ast.Module(body=funcs,type_ignores=[]),str(source),'exec'),scope)
-        self.assertIn('--summarizer default_perf',scope['generate_aisbench_command']('default_perf'))
-        self.assertIn('--summarizer stable_stage',scope['generate_aisbench_command']('stable_stage'))
-        warmups=[n for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='_benchmark_run' and 'default_perf' in ast.unparse(n)]
-        self.assertEqual(len(warmups),1)
-
-
 if __name__=='__main__': unittest.main()

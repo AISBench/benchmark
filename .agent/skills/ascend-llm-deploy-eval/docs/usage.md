@@ -14,7 +14,7 @@
 
 ## 生成和提交
 
-以下命令在本 skill 根目录执行。Python 3.10+，规划依赖 jsonschema。现场需要 Linux、Docker、curl、npu-smi 和免密 SSH；AISBench 从镜像动态发现，前缀工具随 Skill 分发。
+以下命令在本 skill 根目录执行。Python 3.10+，规划依赖 jsonschema。现场需要 Linux、Docker、curl、npu-smi 和免密 SSH；AISBench 和本仓库 Prefix Cache CLI 从镜像动态发现，安装与现场绑定见[原生 CLI 适配](native-cli.md)。
 
 ```sh
 python -m pip install -r requirements.txt
@@ -92,7 +92,7 @@ flowchart LR
 
 任务节点预算为1GiB公共空间加4GiB×该节点subtask数，另保留10GiB文件系统空闲余量。预检/部署前检查预算，测试入口在每次尝试前及客户端运行期间每30秒检查；超限结束客户端并走服务释放。磁盘检查基于快照，不是文件系统硬配额；初版运行中周期检查在压测入口节点，其他节点在预检/部署时检查。结果保留不等于磁盘已释放，后继必须重新核验空间。
 
-同一任务节点内缓存相同配置的数据集，按tokenizer相关文件、源数据、生成代码及生成参数校验；重试复用只读数据，执行结果独立保留。不同节点不共享缓存。细粒度算子日志变量在配置校验中拒绝显式赋值。
+每个 attempt 由原生 Prefix Cache CLI 在独立目录生成与验证数据集，不再维护 Skill 自有的跨 attempt 数据集缓存。细粒度算子日志变量在配置校验中拒绝显式赋值。
 
 资源释放采用弱写盘保护；已核验归属的残留NPU进程按PID与启动标识有限次终止，未知身份不清理。协调器无法在任务分区记录中断时，尝试写入系统临时目录autobenchmark-interrupted-<job_id>.json；不自动恢复任务。
 

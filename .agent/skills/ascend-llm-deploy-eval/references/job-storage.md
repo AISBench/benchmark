@@ -37,7 +37,7 @@ sub_tasks/<sub_task_id>/attempt-01/
 
 ## 公共内容与结果入口
 
-新任务上传的代码快照、原始公共输入、冻结计划及上传清单统一保存在 common/。模型进程管理、case runner、PD proxy 直接执行公共快照；测试工具公共模块通过模块路径复用，不为每个 attempt 创建模块和 GSM8K 软链接。每个 attempt 保留 tool-config.json、AISBench 模型配置薄模板和工具原始结果，不生成工具源码副本或包装脚本。
+新任务上传的代码快照、原始公共输入、冻结计划及上传清单统一保存在 common/。模型进程管理与 case runner 执行公共快照；PD proxy 使用现场绑定路径。每个 attempt 保留原生 Scenario、配置薄模板与结果，不创建工具源码副本或仓库软链接。
 
 cases/<case_id>/case.json 保存负载定义；deployments/ 保存连续服务日志；sub_tasks/ 保存各次测试结果。节点运行状态放在 nodes/<node_id>/.internal/；父任务协调状态及提交日志放在父目录 .internal/。上文 deployments/、sub_tasks/ 为节点目录下的相对路径，cases/ 为父目录下的冻结负载。根目录保留运行入口与汇总状态，便于查询。旧冻结任务继续使用自身快照，不自动迁移历史绝对路径。
 
@@ -53,6 +53,6 @@ prepare冻结本地任务后、任何远端公共包上传前验证声明：各�
 
 
 ### 代码、现场绑定和运行配置边界
-本地仓库维护固定工具源码；同步安装前备份并核验摘要，冻结后通过公共common/skill-snapshot直接执行。prepare_benchmark_tool仅创建输出目录及源码摘要清单，不复制或字符串改写aisbench_test.py。
-每attempt的tool-config.json是执行器传入工具的解析配置，包含case负载、现场service参数、DP和设备数。runtime_config读取它并映射已有CLI字段；该模式优先于CLI默认值。独立工具不设置BENCH_CASE_CONFIG时继续使用config.py及CLI。正式统计由case.steady_state选择，前缀填充固定default_perf。AISBench要求的temp_api.py仅是模型配置薄模板，保留阶段并发/输出长度转换，不是工具源码副本。
-事件、pipefail/失败传播、日志规范化、metrics快照直接维护在公共aisbench_test.py；事件通过BENCH_EVENT_ROOT启用，链接登记通过BENCH_LINK_MANIFEST启用。输出及快照落在attempt工作目录。现场start-*.sh仍在IP/端口/路径绑定后生成并记录摘要，不能与固定工具代码混淆。
+冻结包只携带 Skill 编排脚本与 Schema，不包含 AISBench、Prefix Cache 插件、代理源码或语料。AISBench 与插件从镜像安装环境调用；语料和经审阅的 PD 代理由现场绑定提供，并通过只读挂载暴露到容器。
+每个 attempt 保存 scenario.json、AISBench 配置薄模板、原生 CLI 命令和日志，以及原生 manifest、analysis 和性能明细。配置薄模板调用仓库插件的配置构建函数，不复制数据生成或压测实现。
+原生 CLI 负责生成数据、预热、正式压测及命中率差分。Skill 保留缓存清理、进程超时与归属管理、结果校验及资源释放。详细字段和语义见[CLI适配](../docs/native-cli.md)。
