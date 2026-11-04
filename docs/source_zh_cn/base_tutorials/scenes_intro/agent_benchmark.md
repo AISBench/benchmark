@@ -419,3 +419,10 @@ pip install -r requirements/agent.txt
 > - 依赖版本冲突告警（例如 Harbor 会把 `datasets` 库升级到 4.0.0+，导致该库与其它依赖出现版本冲突告警）；
 > - 个别包编译/构建的 warning，或依赖解析时的 `yanked` / `deprecated` 提示等。
 > 这些告警只要**未导致安装失败（pip 报 `error` 并中断）**，即可直接忽略，继续安装后的 Harbor Agent 测评即可正常使用。若确需判断是否安装成功，可在安装后执行 `pip show harbor` 确认 Harbor 已正确就位。
+
+
+### AutomationBench 归一化结果
+
+使用 `ais_bench/configs/agent_example/harbor_automationbench_task.py`，在调度环境中安装 Harbor 和 AutomationBench 适配包。配置数据集目录、与本次选题完全一致的 manifest、模型连接和任务镜像。每个 Job 使用一次 attempt。三轮正式验收使用适配包的显式 Trial 索引汇总命令。
+
+`HarborAgentTask` 在 Job 完成或恢复后调用数据集配置中的 `reporting.publisher`。Harbor reporting 使用最终 Trial 列表校验完整性，写出 `summary/normalized_result.json` 和完成标记。AISBench 的模型/数据集结果索引保存相对路径。通用展示读取文件并校验完成标记哈希，按原单位展示 accuracy、integrity 和 acceptance。标记缺失或校验失败时，CSV 分数为空，验收状态为 blocked，并保留证据路径。

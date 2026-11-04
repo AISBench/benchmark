@@ -13,14 +13,17 @@ from typing import Any, Dict, List, Tuple
 import mmengine
 import numpy as np
 from mmengine.config import ConfigDict
-from mmengine.device import is_npu_available
-
 from ais_bench.benchmark.registry import RUNNERS, TASKS
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg
 from ais_bench.benchmark.runners.base import TasksMonitor
 from ais_bench.benchmark.runners.base import BaseRunner
 from ais_bench.benchmark.utils.logging.error_codes import RUNNER_CODES
 from ais_bench.benchmark.utils.logging.exceptions import ParameterValueError
+
+
+def is_npu_available():
+    from mmengine.device import is_npu_available as probe
+    return probe()
 
 
 def get_command_template(gpu_ids: List[int]) -> str:

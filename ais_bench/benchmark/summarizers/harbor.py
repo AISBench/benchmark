@@ -40,7 +40,10 @@ class HarborSummarizer:
             self.logger.warning('No harbor results found to summarize.')
             return
 
-        table = [list(self.COLUMNS)] + [[str(r.get(c, '-')) for c in self.COLUMNS]
+        columns = list(self.COLUMNS)
+        if any("acceptance" in row for row in rows):
+            columns.extend(["integrity", "acceptance", "evidence"])
+        table = [columns] + [[str(r.get(c, '-')) for c in columns]
                                         for r in rows]
         print(tabulate.tabulate(table, headers='firstrow', tablefmt='grid'))
 
@@ -50,9 +53,9 @@ class HarborSummarizer:
         csv_path = osp.join(summary_dir, f'summary_{time_str}.csv')
         with open(csv_path, 'w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(self.COLUMNS)
+            writer.writerow(columns)
             for r in rows:
-                writer.writerow([r.get(c, '-') for c in self.COLUMNS])
+                writer.writerow([r.get(c, '-') for c in columns])
         self.logger.info(f'write summary csv to {osp.abspath(csv_path)}')
 
     def _build_row(self, model_cfg, dataset_abbr):
@@ -62,6 +65,28 @@ class HarborSummarizer:
         if not osp.exists(result_path):
             return None
         result = mmengine.load(result_path)
+        if 'normalized_result' in result:
+            import hashlib
+            import json
+            from pathlib import Path
+
+            path = Path(result_path).parent / result['normalized_result']
+            row = dict(agent=model_cfg.get('agent_name', model_abbr),
+                       model_name=', '.join(model_cfg.get('model_names') or []) or '-',
+                       dataset=dataset_abbr, evidence=str(path.resolve()),
+                       avg_score=None, integrity='invalid', acceptance='blocked')
+            try:
+                report = json.loads(path.read_text(encoding='utf-8'))
+                marker = json.loads(path.with_name('reporting_complete.json').read_text(encoding='utf-8'))
+                encoded = json.dumps(report, sort_keys=True, ensure_ascii=False, allow_nan=False).encode()
+                if hashlib.sha256(encoded).hexdigest() != marker['result_sha256']:
+                    raise ValueError('Completion hash mismatch')
+                row.update(avg_score=report['metrics']['accuracy'],
+                           integrity=report['integrity']['status'],
+                           acceptance=report['acceptance']['status'])
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                self.logger.warning(f'Cannot consume normalized report {path}: {exc}')
+            return row
         dist = result.get('reward_distribution') or []
         correct = sum(d.get('count', 0) for d in dist if d.get('score', 0) >= 1.0)
         wrong = sum(d.get('count', 0) for d in dist
