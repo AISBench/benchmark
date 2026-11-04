@@ -308,6 +308,110 @@ class HarborTask(BaseTask):
 
         out_json = osp.join(self.out_dir, f"{task_abbr}.json")
 
+        # Published normalized results are authoritative. Do not reconstruct an
+        # AutomationBench score from per-trial rewards or erase blocked/null.
+        from hashlib import sha256
+        from math import isfinite
+
+        args = dataset_cfg.get("args") or {}
+        configured_path = args.get("normalized_result_path")
+        job_dir = getattr(job, "job_dir", None)
+        normalized_path = None
+        if configured_path:
+            normalized_path = Path(configured_path)
+        elif isinstance(job_dir, (str, os.PathLike)):
+            normalized_path = Path(job_dir) / "summary" / "normalized_result.json"
+        has_accuracy = any(
+            trial.verifier_result
+            and trial.verifier_result.rewards
+            and "accuracy" in trial.verifier_result.rewards
+            for trial in job_result.trial_results or []
+        )
+        if (
+            configured_path
+            or has_accuracy
+            or (normalized_path is not None and normalized_path.exists())
+        ):
+            try:
+                if normalized_path is None:
+                    raise ValueError("A normalized result path is required")
+                normalized = json.loads(normalized_path.read_text(encoding="utf-8"))
+                marker = json.loads(
+                    normalized_path.with_name("reporting_complete.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                digest = sha256(
+                    json.dumps(
+                        normalized, sort_keys=True, ensure_ascii=False, allow_nan=False
+                    ).encode()
+                ).hexdigest()
+                if marker.get("result_sha256") != digest:
+                    raise ValueError("Normalized result completion hash mismatch")
+                if normalized.get("schema_version") != "1.0":
+                    raise ValueError("Unsupported normalized result schema")
+                integrity = normalized["integrity"]["status"]
+                acceptance = normalized["acceptance"]["status"]
+                accuracy = normalized["metrics"]["accuracy"]
+                if integrity not in ("valid", "invalid") or acceptance not in (
+                    "pass",
+                    "fail",
+                    "blocked",
+                ):
+                    raise ValueError("Invalid normalized result status")
+                if accuracy is not None and (
+                    type(accuracy) not in (int, float)
+                    or not isfinite(accuracy)
+                    or not 0 <= accuracy <= 1
+                ):
+                    raise ValueError("Invalid normalized accuracy")
+                if (
+                    integrity == "invalid"
+                    and (accuracy is not None or acceptance != "blocked")
+                ) or (integrity == "valid" and accuracy is None):
+                    raise ValueError("Inconsistent normalized integrity/accuracy")
+                if acceptance == "pass" and accuracy <= 0:
+                    raise ValueError("Passing acceptance requires positive accuracy")
+            except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+                normalized = {
+                    "schema_version": "1.0",
+                    "metrics": {"accuracy": None},
+                    "integrity": {"status": "invalid", "errors": [str(exc)]},
+                    "acceptance": {"status": "blocked", "reasons": [str(exc)]},
+                }
+                accuracy = None
+            results = dict(normalized)
+            n_errors = sum(
+                trial.exception_info is not None for trial in job_result.trial_results or []
+            )
+            pass_at_k = {}
+            stats = getattr(job_result, "stats", None)
+            if stats and stats.evals:
+                for eval_stats in stats.evals.values():
+                    if eval_stats.pass_at_k:
+                        pass_at_k = eval_stats.pass_at_k
+                        break
+            results.update(
+                {
+                    "accuracy": accuracy,
+                    "avg_score": accuracy,
+                    "n_errors": n_errors,
+                    "n_total_trials": job_result.n_total_trials,
+                    "pass_at_k": pass_at_k,
+                    "normalized_result_path": str(normalized_path),
+                }
+            )
+            destination = Path(out_json)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            temporary = destination.with_suffix(".json.tmp")
+            temporary.write_text(
+                json.dumps(results, ensure_ascii=False, indent=4, allow_nan=False),
+                encoding="utf-8",
+            )
+            os.replace(temporary, destination)
+            self.logger.info(f"Evaluation results saved to {out_json}")
+            return
+
         total_count = self._get_task_count(job.config)
         all_rewards = []
         n_errors = 0

@@ -74,6 +74,28 @@ class TestHarborSummarizerBuildRow(unittest.TestCase):
         row = self.summarizer._build_row(cfg, self.dataset_abbr)
         self.assertEqual(row["model_name"], "-")
 
+    def test_normalized_null_and_blocked_are_visible(self):
+        self._write_result({
+            "avg_score": None,
+            "integrity": {"status": "invalid"},
+            "acceptance": {"status": "blocked"},
+        })
+        row = self.summarizer._build_row(self.model_cfg, self.dataset_abbr)
+        self.assertIsNone(row["avg_score"])
+        self.assertEqual(row["integrity"], "invalid")
+        self.assertEqual(row["acceptance"], "blocked")
+        self.assertIn("acceptance", self.summarizer.COLUMNS)
+
+    def test_normalized_precision_is_preserved(self):
+        self._write_result({
+            "avg_score": 0.6033333333333334,
+            "integrity": {"status": "valid"},
+            "acceptance": {"status": "pass"},
+        })
+        row = self.summarizer._build_row(self.model_cfg, self.dataset_abbr)
+        self.assertEqual(row["avg_score"], 0.6033333333333334)
+        self.assertEqual(row["acceptance"], "pass")
+
 
 class TestHarborSummarizerSummarize(unittest.TestCase):
     def setUp(self):

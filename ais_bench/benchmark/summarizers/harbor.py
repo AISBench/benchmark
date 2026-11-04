@@ -20,6 +20,7 @@ class HarborSummarizer:
     COLUMNS = [
         'agent', 'model_name', 'dataset', 'avg_score', 'correct', 'wrong',
         'exception',
+        'integrity', 'acceptance',
     ]
 
     def __init__(self, config) -> None:
@@ -66,6 +67,9 @@ class HarborSummarizer:
         correct = sum(d.get('count', 0) for d in dist if d.get('score', 0) >= 1.0)
         wrong = sum(d.get('count', 0) for d in dist
                     if 0 <= d.get('score', 0) < 1.0)
+        if 'metrics' in result and 'reward_distribution' not in result:
+            # A normalized aggregate does not imply a per-trial distribution.
+            correct = wrong = '-'
         model_names = model_cfg.get('model_names') or []
         return {
             'agent': model_cfg.get('agent_name', model_abbr),
@@ -75,4 +79,6 @@ class HarborSummarizer:
             'correct': correct,
             'wrong': wrong,
             'exception': result.get('n_errors', 0),
+            'integrity': result.get('integrity', {}).get('status', '-'),
+            'acceptance': result.get('acceptance', {}).get('status', '-'),
         }
