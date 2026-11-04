@@ -50,11 +50,9 @@ def validate_task(spec):
             errors.append('Unknown deployment/case reference')
             continue
         limits = [i['launch'].get('args',{}).get('max-model-len',0) for i in dep['instances'] if i['role'] != 'proxy']
-        if limits and case['input_tokens']+case['output_tokens'] > min(limits):
+        if limits and case.get('input_tokens',0)+case['output_tokens'] > min(limits):
             errors.append('Context limit exceeded: '+task['id'])
     for case in cases.values():
-        if case.get('reset_cache', True) is not True:
-            errors.append('Native prefix workflow requires reset_cache=true: '+case['id'])
         if case.get('formal_requests',case['concurrency']*4) < case['concurrency']:
             errors.append('Requests cannot reach concurrency: '+case['id'])
     if spec['state']=='ready' and spec['unresolved']:

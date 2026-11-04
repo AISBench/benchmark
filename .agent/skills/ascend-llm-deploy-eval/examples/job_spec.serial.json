@@ -163,7 +163,7 @@
             "devices": []
           },
           "launch": {
-            "adapter": "bundled_pd_proxy",
+            "adapter": "external_pd_proxy",
             "bootstrap": "unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY"
           },
           "ports": {
@@ -202,22 +202,24 @@
   ],
   "cases": [
     {
-      "id": "64k-c16-p50",
+      "id": "64k-c16",
       "input_tokens": 65536,
       "output_tokens": 1024,
       "concurrency": 16,
-      "prefix_ratio": 0.5,
-      "prefix_num": 1,
-      "steady_state": false
+      "steady_state": false,
+      "dataset_id": "default",
+      "num_warmups": 1,
+      "reset_cache": false
     },
     {
-      "id": "64k-c32-p50",
+      "id": "64k-c32",
       "input_tokens": 65536,
       "output_tokens": 1024,
       "concurrency": 32,
-      "prefix_ratio": 0.5,
-      "prefix_num": 1,
-      "steady_state": false
+      "steady_state": false,
+      "dataset_id": "default",
+      "num_warmups": 1,
+      "reset_cache": false
     }
   ],
   "unresolved": [
@@ -227,7 +229,7 @@
     {
       "id": "test-1",
       "deployment_id": "pd-a",
-      "case_id": "64k-c16-p50",
+      "case_id": "64k-c16",
       "phase_id": "pp1",
       "after_case": "keep_service",
       "on_failure": "record_only"
@@ -235,7 +237,7 @@
     {
       "id": "test-2",
       "deployment_id": "pd-a",
-      "case_id": "64k-c32-p50",
+      "case_id": "64k-c32",
       "phase_id": "pp1",
       "after_case": "keep_service",
       "on_failure": "record_only"

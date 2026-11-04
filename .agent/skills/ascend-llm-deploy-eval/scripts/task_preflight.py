@@ -228,7 +228,7 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
             mounts.append({'source': path, 'target': path, 'read_only': read_only})
     if len({m['target'] for m in mounts}) != len(mounts):
         raise ValueError('Duplicate mount targets')
-    for resource in [bindings.get('benchmark', {}).get('corpus_path'), bindings.get('paths', {}).get('proxy_program')]:
+    for resource in [d.get('path') for d in bindings.get('benchmark', {}).get('datasets', {}).values()]+[bindings.get('paths', {}).get('proxy_program')]:
         if resource and Path(resource).is_file() and not any(Path(resource).is_relative_to(Path(m['source'])) and m['source']==m['target'] for m in mounts):
             mounts.append({'source': resource, 'target': resource, 'read_only': True})
     if len({m['target'] for m in mounts}) != len(mounts):
@@ -249,8 +249,8 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
         'target': {'host': spec['target']['host'], 'container': job_id, 'work_dir': str(child), 'image': image},
         'model': model, 'container': container, 'deployment': {'service': service},
         'service_fingerprint': fingerprint,
-        'benchmark': {**bindings.get('benchmark', {}), 'adapter': 'aisbench_cli',
-                      'prefix_executable': tools.get('prefix_executable'), 'executable': tools.get('executable'),
+        'benchmark': {**bindings.get('benchmark', {}), 'adapter': 'aisbench_cli', 'cases': spec.get('benchmark_cases', []),
+                      'executable': tools.get('executable'),
                       'prefill_dp': dep['prefill_dp']},
         'execution': spec['execution'], 'cleanup': spec['cleanup']}
     if 'storage' in spec: execution['storage'] = spec['storage']

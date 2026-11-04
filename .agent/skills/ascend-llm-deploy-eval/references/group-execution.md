@@ -39,7 +39,7 @@ SSH 不可达记为 UNKNOWN，占用资源保持保留，继续检查；连续3�
 | 整组/任务 | group、task | 启动、终止或阻塞 |
 | subcase | deploy、deploy_attempt、smoke | 部署健康检查、部署尝试、真实请求冒烟；服务复用时 smoke=skipped |
 | subcase | testing | 包含全部尝试，最终结果以验证产物为准 |
-| attempt | cache_reset、warmup、benchmark、validate | 直接缓存重置、前缀预热、正式请求、结果验证 |
+| attempt | cache_reset、benchmark、validate | 可选缓存重置、AISBench原生预热与正式请求、结果验证；预热细节见原生日志 |
 | attempt | client_cleanup、attempt | 客户端释放及尝试结果；重试单独记 retry |
 | subcase | reconcile、release | 失败后的服务状态核验、case资源释放策略 |
 | 任务 | job_release | 全部登记节点的任务级释放 |

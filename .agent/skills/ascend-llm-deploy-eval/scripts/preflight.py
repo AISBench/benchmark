@@ -106,12 +106,13 @@ def _check(root, report):
     try:
         report['checks']['benchmark_tool']='PASSED'
         benchmark=s['benchmark']
-        if not benchmark.get('prefix_executable') or not benchmark.get('executable'):
-            raise ValueError('Image must provide ais_bench and ais-bench-prefix-cache CLIs')
-        corpus=Path(benchmark.get('corpus_path', ''))
-        if not corpus.is_absolute() or not corpus.is_file(): raise ValueError('Missing benchmark.corpus_path')
-        block=benchmark.get('block_size')
-        if type(block) is not int or block <= 0: raise ValueError('Explicit positive benchmark.block_size required')
+        if not benchmark.get('executable'):
+            raise ValueError('Image must provide ais_bench CLI')
+        from aisbench_cli import dataset_for, check_dataset
+        if not benchmark.get('datasets'): raise ValueError('Missing benchmark.datasets')
+        for key in benchmark['datasets']: dataset_for(benchmark, {'dataset_id':key})
+        for case in benchmark.get('cases', []):
+            check_dataset(dataset_for(benchmark,case), case['formal_requests'])
     except Exception as exc:
         report['checks']['benchmark_tool']='FAILED'
         errors['benchmark_tool']=repr(exc)

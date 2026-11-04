@@ -6,10 +6,16 @@ import time
 
 
 def poll(root, kind, cursors):
-    pattern = 'deployments/*/*.log' if kind == 'service' else 'sub_tasks/*/attempt-*/tool/aisbench.log'
+    patterns = ['deployments/*/*.log'] if kind == 'service' else [
+        'sub_tasks/*/attempt-*/benchmark.log',
+        'sub_tasks/*/attempt-*/runner.log',
+        'sub_tasks/*/attempt-*/outputs/*/logs/**/*.out',
+        'sub_tasks/*/attempt-*/outputs/*/logs/**/*.log',
+    ]
     roots = [root] + list((root/'nodes').glob('*'))
     for base in roots:
-        for path in sorted(base.glob(pattern)):
+        paths = {path for pattern in patterns for path in base.glob(pattern) if path.is_file()}
+        for path in sorted(paths):
             stat = path.stat()
             previous = cursors.get(path)
             if previous is None or previous[0] != stat.st_ino or stat.st_size < previous[1]:

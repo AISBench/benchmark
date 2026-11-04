@@ -101,6 +101,7 @@ def preflight(root, spec, bindings, *, deployment_id=None, generation=None):
                 'commands': group['commands'], 'service': service, 'prefill_dp': compiled['prefill_dp']}
             local_spec = {'job_id': node_job_id(spec['job_id'],group['node'])+f'-{dep_index:03}', 'target': {'host': binding['host']},
                           'execution': spec['execution'], 'cleanup': spec['cleanup'],
+                          'benchmark_cases': [c for c in spec.get('cases', []) if any(t['deployment_id']==dep['id'] and t['case_id']==c['id'] for t in spec['sub_tasks'])],
                           'storage': {'root':pools[(dep['id'],group['node'])]['node_root'],
                            'subtasks':sum(1 for t in spec['sub_tasks'] if any(bindings['nodes'][i['placement']['node']]['host']==binding['host'] for d in spec['deployments'] if d['id']==t['deployment_id'] for i in d['instances']))},
                           'container_pool':pools[(dep['id'],group['node'])]}

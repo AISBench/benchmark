@@ -78,9 +78,13 @@
       "work_dir": "/path/to/task-workspace",
       "package": "/path/to/skill-package",
       "benchmark": {
-        "corpus_path": "/path/to/corpus.jsonl",
-        "corpus_field": "question",
-        "block_size": 16
+        "datasets": {
+          "default": {
+            "path": "/path/to/dataset.jsonl",
+            "input_column": "question",
+            "output_column": "answer"
+          }
+        }
       }
     }
   }

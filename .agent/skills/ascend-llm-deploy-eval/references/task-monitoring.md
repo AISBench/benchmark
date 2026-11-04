@@ -62,7 +62,7 @@
 ssh -t user@host.example 'python3 /work/JOB/common/skill-snapshot/scripts/watch_events.py --run-dir /work/JOB'
 # 服务日志（发现后续启动与重试产生的新文件）
 ssh -t user@host.example 'python3 /work/JOB/common/skill-snapshot/scripts/watch_logs.py --run-dir /work/JOB --kind service'
-# 测试日志（AISBench 原始打屏，等待尚未创建的文件）
+# 测试日志（AISBench 原生落盘日志及主进程日志，等待尚未创建的文件）
 ssh -t user@host.example 'python3 /work/JOB/common/skill-snapshot/scripts/watch_logs.py --run-dir /work/JOB --kind test'
 ```
 

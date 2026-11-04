@@ -83,8 +83,8 @@ def evaluate(root, case):
                     'artifacts': [str(folder/'validated.json')]}
         if 'Storage budget exceeded' in (summary.get('error') or ''):
             raise RuntimeError(summary['error'])
-        if not safe or not case.get('reset_cache', True):
-            raise ValueError('Unsafe to retry: client/service/cache isolation not verified')
+        if not safe:
+            raise ValueError('Unsafe to retry: client/service isolation not verified')
         print(json.dumps({'event': 'case_attempt_failed', 'case_id': case_id,
                           'attempt': attempt, 'max_attempts': limit, 'error': summary.get('error')}), flush=True)
         if attempt < limit:

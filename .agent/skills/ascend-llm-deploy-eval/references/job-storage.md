@@ -7,7 +7,6 @@
 - common/inputs/：原始需求与现场 bindings；common/plan.json、common/job_spec.json：规范化冻结计划。
 - common/skill-snapshot/：唯一运行包，含执行代码、Schema、测试原始数据和代理。同一节点内直接复用，节点部署不再复制包。排除测试代码、MD指引、示例及字节码。
 - .internal/：现场绑定、生成脚本、服务身份和协调器诊断；deployments/ 保存服务日志，cases/ 保存负载定义，sub_tasks/ 保存测试结果。公共工具源码直接从 common 执行，不为 attempt 改写源码。此处节点运行状态、服务日志及测试结果位于 nodes/<node_id>/ 下，父目录保留协调状态与冻结负载。
-- dataset-cache/：按参数及内容摘要复用的生成数据。
 - tmp/、cache/：容器通用临时文件和缓存。
 - 状态、summary.json、release-results.json、storage-state.json：执行及占用证据。
 
@@ -37,7 +36,7 @@ sub_tasks/<sub_task_id>/attempt-01/
 
 ## 公共内容与结果入口
 
-新任务上传的代码快照、原始公共输入、冻结计划及上传清单统一保存在 common/。模型进程管理与 case runner 执行公共快照；PD proxy 使用现场绑定路径。每个 attempt 保留原生 Scenario、配置薄模板与结果，不创建工具源码副本或仓库软链接。
+新任务上传的代码快照、原始公共输入、冻结计划及上传清单统一保存在 common/。模型进程管理与 case runner 执行公共快照；PD proxy 使用现场绑定路径。每个 attempt 保留AISBench配置、配置薄模板与结果，不创建工具源码副本或仓库软链接。
 
 cases/<case_id>/case.json 保存负载定义；deployments/ 保存连续服务日志；sub_tasks/ 保存各次测试结果。节点运行状态放在 nodes/<node_id>/.internal/；父任务协调状态及提交日志放在父目录 .internal/。上文 deployments/、sub_tasks/ 为节点目录下的相对路径，cases/ 为父目录下的冻结负载。根目录保留运行入口与汇总状态，便于查询。旧冻结任务继续使用自身快照，不自动迁移历史绝对路径。
 
@@ -53,6 +52,5 @@ prepare冻结本地任务后、任何远端公共包上传前验证声明：各�
 
 
 ### 代码、现场绑定和运行配置边界
-冻结包只携带 Skill 编排脚本与 Schema，不包含 AISBench、Prefix Cache 插件、代理源码或语料。AISBench 与插件从镜像安装环境调用；语料和经审阅的 PD 代理由现场绑定提供，并通过只读挂载暴露到容器。
-每个 attempt 保存 scenario.json、AISBench 配置薄模板、原生 CLI 命令和日志，以及原生 manifest、analysis 和性能明细。配置薄模板调用仓库插件的配置构建函数，不复制数据生成或压测实现。
-原生 CLI 负责生成数据、预热、正式压测及命中率差分。Skill 保留缓存清理、进程超时与归属管理、结果校验及资源释放。详细字段和语义见[CLI适配](../docs/native-cli.md)。
+冻结包只包含 Skill 编排脚本和 Schema；测试端直接调用已安装的 AISBench。数据集、模型和外部代理仅引用现场绝对路径，不进入冻结包。
+每个 attempt 保留配置薄模板、数据路径和字段映射、CLI 命令和退出码、benchmark.log、AISBench 原生 outputs 日志与性能结果，以及 log-index.json。数据不复制、不生成，也不修改 AISBench 源码目录。运行和日志约定见[CLI适配](../docs/native-cli.md)。

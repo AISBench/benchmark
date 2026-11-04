@@ -11,7 +11,7 @@ from service_process import members,ticks
 from validate_case import validate
 from cache_reset import reset_instances
 from task_events import emit
-from aisbench_cli import write_scenario, commands
+from aisbench_cli import write_config, commands
 
 
 def run(root,folder):
@@ -27,19 +27,18 @@ def run(root,folder):
     def http(port,path,method='GET'):
         with opener.open(urllib.request.Request(reset_targets[port]+path,method=method),timeout=30) as r:
             return r.read().decode()
-    case=dict(case,prefill_dp=spec['benchmark']['prefill_dp'],reset_ports=list(reset_targets))
+    case=dict(case,prefill_dp=spec['benchmark']['prefill_dp'],reset_ports=list(reset_targets) if case.get('reset_cache', False) else [])
     (folder/'case.json').write_text(json.dumps(case,indent=2))
     process=None; errors=[]; result=None; failure=None; started=time.monotonic()
     current_stage = 'cache_reset'
     try:
-        scenario=write_scenario(spec,case,service,folder)
+        config=write_config(spec,case,service,folder)
         event('cache_reset', 'doing' if case['reset_cache'] else 'skipped')
         if case['reset_cache']:
+            if not reset_targets: raise ValueError('Cache reset requested but no reset endpoint configured')
             reset_instances(folder, list(reset_targets), http, reset_targets)
             event('cache_reset', 'done')
-        for port in reset_targets:
-            (folder/f'metrics-{port}-before.txt').write_text(http(port,'/metrics'))
-        for current_stage, argv in commands(spec['benchmark']['prefix_executable'], scenario):
+        for current_stage, argv in commands(spec['benchmark']['executable'], config, case, folder):
             event(current_stage, 'doing')
             (folder/(current_stage+'-command.json')).write_text(json.dumps(argv))
             with (folder/(current_stage+'.log')).open('w') as log:
@@ -56,11 +55,10 @@ def run(root,folder):
                         code=process.wait(timeout=min(30,remaining)); break
                     except subprocess.TimeoutExpired:
                         continue
+            (folder/'execution.json').write_text(json.dumps({'argv':argv,'returncode':code}),encoding='utf-8')
             if code: raise RuntimeError(f'Native CLI exited {code}; see {current_stage}.log')
             if members(process.pid): raise RuntimeError('Native CLI left child processes running')
             event(current_stage, 'done')
-        for port in reset_targets:
-            (folder/f'metrics-{port}-after.txt').write_text(http(port,'/metrics'))
         event('validate', 'doing')
         current_stage = 'validate'
         result=validate(folder,case)
@@ -83,7 +81,9 @@ def run(root,folder):
                 if members(process.pid): errors.append('Client process group remains')
         (folder/'cleanup.json').write_text(json.dumps({'released':not errors,'errors':errors,'level':'case'},indent=2))
     event('client_cleanup', 'done' if not errors else 'fail')
-    summary={'status':'PASSED' if result and not errors else 'FAILED','error':failure,'cleanup_errors':errors,'seconds':time.monotonic()-started}
+    logs=sorted(str(path) for path in (folder/'outputs').glob('*/logs/**/*') if path.is_file())
+    (folder/'log-index.json').write_text(json.dumps({'console':str(folder/'benchmark.log'),'native_logs':logs,'work_dir':str(folder/'outputs')},indent=2),encoding='utf-8')
+    summary={'status':'PASSED' if result and not errors else 'FAILED','error':failure,'cleanup_errors':errors,'seconds':time.monotonic()-started,'log_index':str(folder/'log-index.json')}
     (folder/'summary.json').write_text(json.dumps(summary,indent=2)); print(json.dumps(summary),flush=True)
     return 0 if summary['status']=='PASSED' else 2
 

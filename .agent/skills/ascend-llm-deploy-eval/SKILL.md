@@ -56,7 +56,7 @@ plan_run冻结需求、默认值、顺序及代码快照；draft或未决目标�
 
 支持vllm serve混部、一个P/一个D/一个proxy的单机或双机PD；job_spec内sub_tasks串行，跨任务整组编排按服务器资源隔离。不支持精度、多P/D、phase并行屏障、复杂中断恢复或旧recipe。
 
-性能测试调用目标仓库安装的 ais-bench-prefix-cache CLI，由其调用 ais_bench perf；Skill不分发工具源码、语料或PD代理。现场必须明确 benchmark.corpus_path、benchmark.block_size；PD部署必须提供已审阅的 paths.proxy_program。原生命令、语义和前置条件见[CLI适配](docs/native-cli.md)。配置存储仅有事件埋点，无配置库、版本检索或自动选配；事件定义见生命周期。
+性能测试直接调用容器内已安装的 ais_bench --mode perf，不依赖额外插件或源码目录。数据集由用户指定路径，通过 bindings.benchmark.datasets 与 case.dataset_id 绑定，不随交付件分发、不生成或复制。默认原生预热1次、缓存清理关闭；不得擅自承诺前缀命中率。启用默认日志落盘（不加 --debug），提供原生日志查看入口。PD部署仍需现场代理路径。详见[标准CLI适配](docs/native-cli.md)。配置存储仅有事件埋点，无配置库、版本检索或自动选配；事件定义见生命周期。
 
 保留计划、现场绑定、代码与启动脚本快照、阶段/状态日志、原始结果及释放记录。本地产物使用用户指定的仓库外目录，真实连接信息与任务产物均在仓库外；仓库示例只用占位资源，docs存放使用、开发与设计文档。自动流程的归档要求不强加给手动操作。
 

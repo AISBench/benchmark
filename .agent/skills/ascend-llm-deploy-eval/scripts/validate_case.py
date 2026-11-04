@@ -1,46 +1,47 @@
-"""Validate native AISBench records and Prefix Cache analysis artifacts."""
+"""Validate standard AISBench perf artifacts without plugin dependencies."""
 import json
 
 
 def validate(folder, case):
-    analyses = list(folder.glob('prefix_*/result/*.analysis.json'))
-    if len(analyses) != 1:
-        raise ValueError('Expected one native Prefix Cache analysis')
-    analysis = json.loads(analyses[0].read_text(encoding='utf-8'))
-    runtime = analysis.get('runtime', {})
-    if analysis.get('status') != 'complete' or runtime.get('aisbench_exit_code') != 0:
-        raise ValueError('Native benchmark did not complete successfully')
-    if case.get('warmup', True):
-        warmup = runtime.get('warmup', [])
-        pairs = {(row['group_id'], row['dp_rank']) for row in warmup}
-        groups = {row['group_id'] for row in warmup}
-        expected = {(group, rank) for group in groups for rank in range(case.get('prefill_dp', 1))}
-        if (len(groups) != case.get('prefix_num', 1) or pairs != expected or
-                len(warmup) != len(expected) or not all(row.get('success') is True for row in warmup)):
-            raise ValueError('Incomplete native warmup coverage')
+    execution = json.loads((folder/'execution.json').read_text(encoding='utf-8'))
+    if execution.get('returncode') != 0:
+        raise ValueError('AISBench did not exit successfully')
     files = list((folder/'outputs').glob('*/performances/*/*_details.jsonl'))
     if len(files) != 1:
         raise ValueError('Expected one formal request detail file')
-    rows = [json.loads(line) for line in files[0].read_text(encoding='utf-8').splitlines() if line.strip()]
-    if len(rows) != case['formal_requests'] or len({row['id'] for row in rows}) != len(rows):
-        raise ValueError('Formal request count or unique ID mismatch')
-    if any(row.get('success') is not True or row.get('error_info') or
-           row.get('input_tokens') != case['input_tokens'] or row.get('output_tokens') != case['output_tokens'] for row in rows):
-        raise ValueError('Request failure or token length mismatch')
-    engines = analysis.get('actual', {}).get('by_dp', {})
-    if set(engines) != {str(i) for i in range(case.get('prefill_dp', 1))}:
-        raise ValueError('Missing DP metrics')
-    if any(not row['queries'] > 0 or not 0 <= row['hits'] <= row['queries'] for row in engines.values()):
-        raise ValueError('Invalid prefix metrics delta')
-    queries = sum(row['queries'] for row in engines.values())
-    hits = sum(row['hits'] for row in engines.values())
-    for port in case.get('reset_ports', []):
-        resets = sorted(folder.glob(f'reset-{port}-*.json'))
-        if not resets or json.loads(resets[-1].read_text()).get('success') is not True:
-            raise ValueError('Cache reset not verified')
-    result = dict(status='PASSED', case_id=case['id'], target_prefix_ratio=case['prefix_ratio'],
-                  measured_prefix_ratio=hits/queries, formal={'requests':len(rows), 'details':str(files[0])},
-                  warmup=runtime.get('warmup', []), prefix_metrics=engines,
-                  warnings=analysis.get('warnings', []), analysis=str(analyses[0]))
+    seen = set()
+    input_min = input_max = None
+    output_min = output_max = None
+    with files[0].open(encoding='utf-8') as stream:
+        for line in stream:
+            if not line.strip(): continue
+            row = json.loads(line)
+            if row['id'] in seen:
+                raise ValueError('Duplicate request ID')
+            seen.add(row['id'])
+            if row.get('success') is not True or row.get('error_info'):
+                raise ValueError('AISBench request failed')
+            inputs, outputs = row.get('input_tokens'), row.get('output_tokens')
+            if type(inputs) is not int or inputs < 1 or type(outputs) is not int or outputs < 1 or outputs > case['output_tokens']:
+                raise ValueError('Invalid request token lengths')
+            if case.get('input_tokens') is not None and inputs != case['input_tokens']:
+                raise ValueError('Dataset input token length differs from explicit expectation')
+            input_min = inputs if input_min is None else min(input_min, inputs)
+            input_max = inputs if input_max is None else max(input_max, inputs)
+            output_min = outputs if output_min is None else min(output_min, outputs)
+            output_max = outputs if output_max is None else max(output_max, outputs)
+    if len(seen) != case['formal_requests']:
+        raise ValueError('Formal request count mismatch')
+    if case.get('reset_cache', False):
+        for port in case.get('reset_ports', []):
+            resets = sorted(folder.glob(f'reset-{port}-*.json'))
+            if not resets or json.loads(resets[-1].read_text()).get('success') is not True:
+                raise ValueError('Cache reset not verified')
+    logs = sorted(str(path) for path in (folder/'outputs').glob('*/logs/**/*') if path.is_file())
+    if not logs:
+        raise ValueError('Missing AISBench on-disk worker logs')
+    result = dict(status='PASSED', case_id=case['id'], dataset_id=case.get('dataset_id','default'),
+                  formal={'requests':len(seen),'details':str(files[0]),'input_min':input_min,'input_max':input_max,
+                          'output_min':output_min,'output_max':output_max}, logs=logs)
     (folder/'validated.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     return result

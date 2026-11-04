@@ -1,60 +1,80 @@
-# 原生 CLI 适配
+# 标准 AISBench CLI 适配
 
 [返回快速开始](../README.md)
 
-Skill 只编排任务、生成配置和验证结果。数据构造、预热、命中率测量和正式性能测试复用本仓库的 `ais-bench-prefix-cache` 与 `ais_bench`，不分发工具源码、语料或 PD 代理。
+测试容器内只需预先安装可运行服务化性能测试的 AISBench 及其常规依赖，不要求 AISBench 源码目录或额外插件。Skill 不安装软件、不下载或生成数据集，不打包数据、模型或 PD 代理。
 
-## 镜像与现场准备
+## 数据集绑定
 
-在目标执行镜像内，按本仓库[安装文档](../../../../docs/source_zh_cn/get_started/install.md)安装 AISBench 及服务化依赖，并安装原生插件。以下命令在 AISBench 仓库根目录执行：
+用户提供服务器上的 JSONL 或 CSV 文件绝对路径。文件通过同路径挂载供测试容器读取；已被现有挂载覆盖时复用该挂载，否则增加只读挂载。文件不会复制到 Skill、冻结任务包或 Git 仓库。
 
-```sh
-python -m pip install -e . --use-pep517
-python -m pip install -r requirements/api.txt
-python -m pip install -r requirements/extra.txt
-python -m pip install -e plugins/prefix_cache
-ais_bench --help
-ais-bench-prefix-cache --help
-```
-
-预检从镜像发现上述命令。不会自动安装依赖或下载语料。绑定示例中的每个执行节点需要填写：
+在节点 `bindings.benchmark.datasets` 中声明数据集，以 `case.dataset_id` 引用：
 
 ```json
 {
   "benchmark": {
-    "corpus_path": "/data/corpus.jsonl",
-    "corpus_field": "question",
-    "block_size": 16
-  },
-  "paths": {
-    "proxy_program": "/opt/deployment/reviewed-pd-proxy.py"
+    "datasets": {
+      "default": {
+        "path": "/data/benchmark/dataset.jsonl",
+        "input_column": "question",
+        "output_column": "answer"
+      }
+    }
   }
 }
 ```
 
-`block_size` 必须与服务实际配置一致，示例值不是默认推断。语料使用原生插件支持的 JSONL 格式，字段由 `corpus_field` 指定。语料和代理必须是宿主机上存在的绝对路径，编排器为未被同路径挂载覆盖的文件增加只读挂载。
+JSONL 每行一个对象，或 CSV 首行为列名。默认输入字段为 `question`，参考答案字段为 `answer`；性能测试时参考答案可为空字符串。可通过绑定改为实际字段名。使用 AISBench `CustomDataset` 原生格式；相邻元数据文件及逐行输出长度字段仍遵循 AISBench 的规则，应与本次测试目标一致。
 
-`proxy_program` 仅 PD 部署需要；使用与生成的 prefiller/decoder hosts/ports 参数兼容、已审阅的现场代理。Skill 不提供或下载代理实现。代理的额外运行依赖由执行环境提供。
+数据集内容决定输入长度、前缀和顺序。Skill 不改写、截断、拼接或随机生成输入，也不承诺前缀命中率。`input_tokens` 为可选的严格长度校验值；变长数据集应省略。`output_tokens` 表示单请求最大输出长度，允许提前结束；数据集内逐行输出长度不应超过此值。
 
-## 配置与命令
+不同数据集添加不同绑定键，在各 case 中明确选择；不再接受旧版 `prefix_ratio`、`prefix_num`、`seed` 数据生成参数。
 
-每次 attempt 生成独立的 `scenario.json` 和 AISBench 配置薄模板，然后依次执行：
+## 标准命令
+
+每个 attempt 生成一个仅引用已安装 AISBench 类与外部数据集路径的配置文件，然后执行：
 
 ```sh
-ais-bench-prefix-cache prepare --mode text --scenario /work/attempt/scenario.json
-ais-bench-prefix-cache run --scenario /work/attempt/scenario.json
+ais_bench /work/attempt/aisbench-config.py \
+  --mode perf \
+  --work-dir /work/attempt/outputs \
+  --num-prompts 100 \
+  --num-warmups 1
 ```
 
-原生插件调用 AISBench 的 `perf` CLI。输入输出长度、正式请求数、并发、请求速率和 seed 来自 case；配置薄模板仅调用仓库内的配置构建函数。`steady_state` 选择 AISBench 原生 `stable_stage` 统计器，不自动启用会改变请求数量的 `--pressure` 模式。
+配置使用 `VLLMCustomAPI` 流式 completions 接口、`CustomDataset` 和原生性能统计器。并发、请求速率、模型名、tokenizer 路径和服务地址来自冻结配置。`steady_state=true` 选择 `stable_stage` 统计器，不自动开启改变请求数量的压力模式。
 
-`prefix_ratio` 映射为原生插件的全局理论 `target_hit_rate`，`prefix_num` 映射为 Prefix Group 数量；这与旧工具“公共前缀长度比例”的算法不完全等价。请求目标、理论可达值、实测值及告警分别保留，不承诺实测值精确等于目标。`warmup=false` 使用原生 cold 模式，`reset_cache=false` 当前明确拒绝。
+默认请求数为并发×4，默认原生预热 1 次；`num_warmups` 可覆盖，`warmup=false` 禁用预热。缓存清理默认关闭；明确设置 `reset_cache=true` 时才使用已核验服务的 reset 接口，接口不支持则阻塞，不能假报清理成功。重试保留独立结果；未启用清理时不保证各次尝试缓存状态一致。
 
-正式请求发送到部署入口；metrics 与 reset 使用 prefill 服务。多 DP 前缀预热要求入口支持 `X-data-parallel-rank` 路由，并提供带 engine 标签的 DP 指标。PD 代理必须保留此能力；现场不满足时不能宣称支持该评测。详见仓库[Prefix Cache 文档](../../../../docs/source_zh_cn/advanced_tutorials/prefix_cache.md)。
+模型部署仍需模型运行环境、NPU 与权重。PD 部署需用户提供 `bindings.paths.proxy_program`，不属于 AISBench 测试客户端依赖。
 
-## 证据与边界
+## 日志落盘与查看
 
-每次 attempt 保留原生命令、prepare/benchmark 日志、Scenario、Manifest、Analysis、性能明细与清理记录。原生插件日志负责预热和正式压测细节，Skill 事件记录 prepare/benchmark 等外层阶段。
+使用标准模式，不加 `--debug`，让 AISBench 将 worker 日志原生落盘到：
 
-验证要求原生 analysis 为 complete、AISBench 退出码为 0、请求数和输入输出 token 长度符合配置、DP 指标完整且预热覆盖符合计划。原生告警随 validated.json 保留。超时或失败仍走客户端和服务释放流程。
+```text
+attempt-NN/
+├── aisbench-config.py
+├── dataset.json                # 仅路径和字段映射，不包含数据内容
+├── benchmark-command.json
+├── execution.json              # CLI 退出码
+├── benchmark.log               # 主进程 stdout/stderr
+├── outputs/<timestamp>/
+│   ├── configs/
+│   ├── logs/infer/<model>/<dataset>.out
+│   ├── performances/
+│   └── summary/
+├── log-index.json              # 原生日志、主进程日志及工作目录索引
+├── validated.json
+└── cleanup.json
+```
 
-不再维护自有数据生成器、工具日志解析、仓库文件软链接或跨 attempt 数据集缓存。所有测试产物保存在任务目录，避免写入 AISBench 源码树。离线测试通过不代表真实服务器、PD 路由及模型性能已验证。
+成功和失败都保留日志。验证以退出码、原生请求明细、请求数量、错误与 token 长度以及原生日志为依据，不把进程正常退出直接当成测试通过。
+
+通过已冻结 Skill 的只读观察器跟踪当前及后续 attempt 新建的日志：
+
+```sh
+python3 /work/JOB/common/skill-snapshot/scripts/watch_logs.py --run-dir /work/JOB --kind test
+```
+
+观察器同时跟踪 `benchmark.log`、`runner.log` 和 AISBench 原生 `.out`/`.log` 文件。Ctrl+C 只关闭观察，不停止任务。多节点按日志实际所在节点运行；任务数据与日志保存在仓库外。

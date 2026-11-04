@@ -9,24 +9,24 @@
 ## 三类定义
 
 - deployments：每项为完整服务拓扑，包含 id、topology、model、runtime、instances、connections、endpoint。
-- cases：仅描述负载：输入/输出 token、并发、请求数、前缀目标等，不引用部署。默认值见下节。
+- cases：仅描述负载：数据集标识、最大输出 token、并发、请求数及可选输入长度校验，不引用部署。默认值见下节。
 - sub_tasks：显式串行执行清单，id、phase_id、deployment_id、case_id、after_case、on_failure。phase_id 默认 pp1，仅为分组标识，执行仍按清单顺序；on_failure 当前仅支持 record_only。一个 case 可以被多个子任务引用；结果用 sub_task ID 隔离。当前不支持 phase 并行屏障。
 
 ## 配置默认值
 
-用户显式值优先；缺省采用性能测试、每case正式请求数=并发×4、运行1轮。请求数显式保存为formal_requests。prefix_num=1、seed=1、request_rate=0（不限发送速率）；前缀长度由输入长度与目标比例派生，预热DP由部署配置推导。目标比例与实测命中率分别记录。
+数据集通过 dataset_id 引用现场路径；不生成前缀或测量目标命中率。默认 formal_requests=concurrency×4、request_rate=0、num_warmups=1、reset_cache=false，用户显式要求优先。steady_state只选择正式结果的原生统计器。
 
 重试、缓存、冒烟和服务释放的运行规则集中在[生命周期](service-lifecycle.md)。
 
 ## deployment
 
-model 存逻辑模型 id 与 served_name。runtime 存共用镜像和容器要求。instances 中每个进程有角色 mixed/prefill/decode/proxy，以及 placement（逻辑 node、devices）、launch（模型 args/env/bootstrap 或内置 proxy adapter）、ports、checks。
+model 存逻辑模型 id 与 served_name。runtime 存共用镜像和容器要求。instances 中每个进程有角色 mixed/prefill/decode/proxy，以及 placement（逻辑 node、devices）、launch（模型 args/env/bootstrap 或外部 proxy adapter）、ports、checks。
 
 同一部署同一节点的实例共用容器。容器按任务和现场配置管理，不以 deployment ID 分配：相同主机、镜像及容器配置复用，预检汇总各部署的设备与模型挂载；不兼容配置另建子编号容器。单机 PD 的 P/D 设备互不重叠，双机 PD 的 P/D 分别放到不同 node。当前 PD 路径只实现一个 P、一个 D 和一个 proxy；混部只有一个 mixed。DP/TP 必须匹配实例设备数。模型参数以实例 launch.args 为唯一来源，max-model-len 在每个模型实例定义，测试必须满足所有相关实例的上限。
 
 connections.kv_transfer 关联 producer/consumer 和 connector；connections.routing 关联 proxy、prefillers、decoders。KV 配置中的 P/D DP/TP 与角色由实例关系生成。endpoint 引用对外服务实例和逻辑端口。禁止在 launch.args 重复填写由编译器管理的 host、port、served-model-name、device-ids、kv-transfer-config。
 
-launch.args 中 true/false 渲染为开关及 no- 开关，数值/字符串为参数值，对象/数组编码为单个 JSON 参数；配置必须经过 Agent 审阅，不能把字符串 shell 当任意可执行命令。bootstrap 保留已审阅的环境加载步骤。当前以 vllm serve 和内置 PD proxy 为执行适配器，不承诺任意服务框架。
+launch.args 中 true/false 渲染为开关及 no- 开关，数值/字符串为参数值，对象/数组编码为单个 JSON 参数；配置必须经过 Agent 审阅，不能把字符串 shell 当任意可执行命令。bootstrap 保留已审阅的环境加载步骤。当前以 vllm serve 和现场提供的 PD proxy 为执行适配器，不承诺任意服务框架。
 
 ## bindings
 
@@ -50,18 +50,10 @@ plan.json 固定需求和 sub_task 顺序；resolved-cluster.json 保存拓扑�
 
 节点preflight-report.json记录检查时间、分组结果、失败原因及未执行项目；实际资源值查preflight-evidence.json、discovery.json。检查分组覆盖磁盘、镜像、挂载、设备、权重、tokenizer、工具、网络、资源占用或服务复用。权重检查为索引分片存在性，不是全文件内容校验。独立检查项全部执行并汇总异常，依赖缺失项目标为阻塞，不能计为通过。现有总体提交条件保持：冻结计划与节点登记一致、预检成功、任务未重复执行；终端只输出总体结论与失败原因。
 
-### 稳态与单前缀
+### 原生统计口径
 
-case.steady_state 为布尔值，默认 false；true 使用 AISBench stable_stage summarizer，目标环境需提供该配置。这是统计模式，不代表已检测服务稳定，不替代预热。
+steady_state=true 使用 AISBench stable_stage 统计器；默认使用 default_perf。正式请求数有限，不自动开启 pressure 模式，不承诺一定形成稳态区间。输入长度与前缀特征取决于用户数据集，不采集或承诺目标前缀命中率。性能结果保留 AISBench 原始统计口径。
 
-单前缀已有 prefix_num=1（默认）；prefix_ratio 指定公共前缀比例。DP 预热重复发送每个前缀，不增加不同前缀数量。服务端 enable-prefix-caching 在部署参数中配置。
+## 标准 CLI 现场输入
 
-### AISBench 稳态口径与填充边界
-steady_state=true 仅对正式负载选择 stable_stage；缓存填充使用 default_perf，避免少量填充请求无法形成稳态而失败。单共享前缀使用 prefix_num=1；DP 重复填充不增加前缀种类，实际覆盖仍须检查各 engine 的指标增量，不能仅凭发送 DP 条请求推定成功。
-2026-11-04 检查的目标镜像 AISBench 支持信号量限制并发、完成后继续处理待发请求；另有 pressure_mode/pressure_time，但当前适配器未暴露后者。默认有限请求数结束后会排空，不声称无限稳态负载。stable_stage 从请求起止事件识别区间，阈值为 int(并发*0.98)，允许 1 ms 内恢复，忽略第一次达到最大并发的请求；找不到区间报错。没有固定最小测量时长。其选中请求统计与区间分母并非逐 token 时间窗口裁剪；报告保留工具原始口径、区间时长及并发曲线。
-缓存工具通过 /metrics 采集 normal/external prefix_cache_queries_total 和 hits_total 的前后增量，按 engine 分组；这是 token 计数比例，不能替换成请求命中比例。block 对齐、最后 token 重算及 tokenizer/chat template 可能造成目标100%与实测值不同，应保留实际证据。
-纯P/纯D命名按用户明确定义记录；当用户定义输出1为纯P、100%前缀目标为纯D时，仍可使用现有代理入口，不额外要求阶段隔离。但不得声称指标剔除了代理、预填充或KV传输耗时。
-
-## 原生 CLI 现场输入
-
-确认镜像已安装本仓库 AISBench 与 Prefix Cache CLI；在节点 bindings.benchmark 中填写 corpus_path、corpus_field 和与服务一致的 block_size。PD 部署还需 bindings.paths.proxy_program 指向已审阅且兼容当前启动参数的现场代理。语料与代理不随 Skill 分发，不自动下载。prefix_ratio 使用原生插件的全局理论命中率语义；参数及能力边界见[CLI适配](../docs/native-cli.md)。
+确认容器内已安装可运行的 AISBench，不要求额外插件。用户指定数据集绝对路径、JSONL/CSV格式及字段映射，在节点 bindings.benchmark.datasets 中登记，由 case.dataset_id 引用。数据集不进入交付件，不自动生成、复制或下载。PD 部署另需现场代理路径。使用默认日志落盘，并提供原生日志跟踪命令；详见[CLI适配](../docs/native-cli.md)。

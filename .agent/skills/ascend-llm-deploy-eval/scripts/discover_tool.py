@@ -14,16 +14,13 @@ def discover():
     executable = shutil.which('ais_bench')
     if not executable:
         raise ValueError('ais_bench command absent from image PATH')
-    prefix_executable=shutil.which('ais-bench-prefix-cache')
-    if not prefix_executable or importlib.util.find_spec('ais_bench_prefix_cache') is None:
-        raise ValueError('Install this repository and plugins/prefix_cache in the image')
     versions={}
     for name in ['vllm','vllm-ascend','torch','torch-npu']:
         try:
             versions[name]=importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
             versions[name]=None
-    return {'package_versions':versions,'aisbench_package_path': str(package), 'executable': executable, 'prefix_executable': prefix_executable,
+    return {'package_versions':versions,'aisbench_package_path': str(package), 'executable': executable,
             'version': importlib.metadata.version('ais_bench_benchmark')}
 
 

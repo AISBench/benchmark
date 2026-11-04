@@ -8,13 +8,13 @@
 
 单个 job_spec 内按 sub_tasks 串行执行。需要跨任务衔接时，在主节点宿主机启动 group_run.py：独立服务器上的单机任务可并行；依赖任务结束且资源释放核验通过后，自动启动后继双机任务。单机执行进程放本机宿主，多机执行进程放主节点宿主，模型服务仍在任务容器内。主进程与子任务脱离 SSH 会话运行，关闭观察终端不影响执行。
 
-五阶段保持 plan_run、preflight、deploy、evaluate、finalize。默认每 case 正式请求数=并发×4、运行1轮、最多额外重试3次；显式用户要求优先。同部署有效服务可复用，case 前重置缓存并预热，切换部署优先复用兼容容器；任务结束默认停止服务并删除任务容器，保留宿主产物、镜像与权重。
+五阶段保持 plan_run、preflight、deploy、evaluate、finalize。默认每 case 正式请求数=并发×4、运行1轮、最多额外重试3次；显式用户要求优先。同部署有效服务可复用，case 使用原生预热，缓存重置仅在明确配置时执行，切换部署优先复用兼容容器；任务结束默认停止服务并删除任务容器，保留宿主产物、镜像与权重。
 
 容器默认使用 root、host 网络/PID、500g 共享内存、privileged、八卡及管理设备和完整默认挂载。bindings.mounts 按目标路径覆盖或追加，runtime.container 支持已建模的参数覆盖。缺失挂载来源时阻塞预检，不让 Docker 创建空目录替代配置文件。
 
 ## 生成和提交
 
-以下命令在本 skill 根目录执行。Python 3.10+，规划依赖 jsonschema。现场需要 Linux、Docker、curl、npu-smi 和免密 SSH；AISBench 和本仓库 Prefix Cache CLI 从镜像动态发现，安装与现场绑定见[原生 CLI 适配](native-cli.md)。
+以下命令在本 skill 根目录执行。Python 3.10+，规划依赖 jsonschema。现场需要 Linux、Docker、curl、npu-smi 和免密 SSH；AISBench CLI 从镜像动态发现，安装与现场绑定见[原生 CLI 适配](native-cli.md)。
 
 ```sh
 python -m pip install -r requirements.txt
@@ -56,11 +56,15 @@ ssh -t user@main.example 'python3 /work/GROUP_ID/skill-snapshot/scripts/watch_ev
 
 ```text
 使用 $ascend-llm-deploy-eval 执行性能测试。
-服务器：root@node-a.example，SSH免密，工作目录/work/benchmark。
-镜像：registry.example/vllm-ascend:verified。
-模型：GLM53 Flash，权重/mnt/models/GLM-5.3-Flash。
+服务器：root@node-a.example，SSH免密，任务与日志目录/work/benchmark（仓库外）。
+镜像：registry.example/vllm-ascend:verified，容器内已安装可运行的AISBench。
+模型：模型名称，权重与tokenizer路径/mnt/models/example-model。
 部署：单机混部，参考脚本/path/to/start.sh。
-测试：输入256K、输出5K（1K=1024 tokens），并发32，前缀目标比例50%、90%。
+数据集：服务器上的/data/benchmark/dataset.jsonl，JSONL格式，输入字段question、参考字段answer；按原始数据测试，不生成或复制数据集。
+测试：最大输出512 tokens，并发1、4，每个case正式请求100条，预热1次，请求速率不限。
+输入长度：使用数据集实际长度，不要求定长。
+缓存：不主动清理；统计使用default_perf。
+日志：启用AISBench默认落盘，保留主进程日志、原生worker日志和性能结果；提交前给出进展、服务日志、测试日志查看命令。
 ```
 
 ## 检测阶段与当前检查项
@@ -84,7 +88,7 @@ flowchart LR
 | 网络与端口 | 可用IPv4、网卡速率及选择依据、端口范围分配、端口可绑定 | discovery/resolved；跨机业务通信由部署阶段进一步验证 |
 | 现场资源 | NPU进程占用，或已有本任务READY服务身份核验 | npu快照；健康告警的解释由Agent核验 |
 | 部署后 | 全部实例健康、入口真实推理冒烟 | 属于deploy，不应在preflight中提前标为通过 |
-| 测试与收尾 | 缓存重置、预热、请求/输出和前缀指标验证、客户端与服务释放 | 每attempt结果与release-results |
+| 测试与收尾 | 缓存重置、预热、请求数量、错误和token长度验证、客户端与服务释放 | 每attempt结果与release-results |
 
 节点预检保存preflight-report.json，记录检查时间、各组状态及失败原因；实际值保存在preflight-evidence.json与discovery.json。失败后的未执行项目保持NOT_RUN，终端只输出总体结论和错误。部署前再次核验即时资源；服务健康和真实请求冒烟仍属于部署阶段。
 
@@ -92,7 +96,7 @@ flowchart LR
 
 任务节点预算为1GiB公共空间加4GiB×该节点subtask数，另保留10GiB文件系统空闲余量。预检/部署前检查预算，测试入口在每次尝试前及客户端运行期间每30秒检查；超限结束客户端并走服务释放。磁盘检查基于快照，不是文件系统硬配额；初版运行中周期检查在压测入口节点，其他节点在预检/部署时检查。结果保留不等于磁盘已释放，后继必须重新核验空间。
 
-每个 attempt 由原生 Prefix Cache CLI 在独立目录生成与验证数据集，不再维护 Skill 自有的跨 attempt 数据集缓存。细粒度算子日志变量在配置校验中拒绝显式赋值。
+每个 attempt 只引用用户指定数据集路径，不复制或生成数据集。细粒度算子日志变量在配置校验中拒绝显式赋值。
 
 资源释放采用弱写盘保护；已核验归属的残留NPU进程按PID与启动标识有限次终止，未知身份不清理。协调器无法在任务分区记录中断时，尝试写入系统临时目录autobenchmark-interrupted-<job_id>.json；不自动恢复任务。
 

@@ -23,8 +23,8 @@ def fixture():
     dep['id']='a'
     second=copy.deepcopy(dep);second['id']='b'
     return {'schema_version':'3.0','job_id':'20261101-101','state':'ready',
-      'deployments':[dep,second], 'cases':[{'id':'c1','input_tokens':32,'output_tokens':8,'concurrency':1,'prefix_ratio':0.5},
-      {'id':'c2','input_tokens':32,'output_tokens':8,'concurrency':2,'prefix_ratio':0.5}],
+      'deployments':[dep,second], 'cases':[{'id':'c1','input_tokens':32,'output_tokens':8,'concurrency':1},
+      {'id':'c2','input_tokens':32,'output_tokens':8,'concurrency':2}],
       'sub_tasks':[{'id':'t1','deployment_id':'a','case_id':'c1'}, {'id':'t2','deployment_id':'a','case_id':'c2'},
                    {'id':'t3','deployment_id':'b','case_id':'c1'}], 'unresolved':[]}
 

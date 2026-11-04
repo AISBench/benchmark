@@ -150,7 +150,7 @@
                       "const": "vllm serve"
                     },
                     "adapter": {
-                      "const": "bundled_pd_proxy"
+                      "const": "external_pd_proxy"
                     },
                     "args": {
                       "type": "object"
@@ -317,10 +317,8 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "input_tokens",
           "output_tokens",
-          "concurrency",
-          "prefix_ratio"
+          "concurrency"
         ],
         "properties": {
           "id": {
@@ -344,24 +342,13 @@
             "type": "integer",
             "minimum": 1
           },
-          "prefix_ratio": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "prefix_num": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "seed": {
-            "type": "integer"
-          },
           "request_rate": {
             "type": "number",
             "minimum": 0
           },
           "warmup": {
-            "const": true
+            "type": "boolean",
+            "default": true
           },
           "timeout_seconds": {
             "type": "integer",
@@ -373,6 +360,16 @@
           "steady_state": {
             "type": "boolean",
             "default": false
+          },
+          "dataset_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+            "default": "default"
+          },
+          "num_warmups": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 1
           }
         }
       }
