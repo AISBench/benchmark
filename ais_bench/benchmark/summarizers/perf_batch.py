@@ -676,8 +676,10 @@ def _limit_detail_rows(rows: List[dict]) -> List[dict]:
     return sampled
 
 
-def _build_request_charts(detail_rows: List[dict]) -> List[dict]:
-    """请求明细折线图：延迟 / TTFT-TPOT-ITL / 输入输出 token / 成功失败。"""
+def _build_request_charts(detail_rows: List[dict],
+                          ttft_valid: bool) -> List[dict]:
+    """请求明细折线图：延迟 / TTFT-TPOT-ITL / 输入输出 token / 成功失败。
+    ttft_valid 为 False（非流式）时不画 TTFT/TPOT/ITL。"""
     try:
         import plotly.graph_objects as go
     except Exception as exc:  # plotly 缺失时降级为无图表
@@ -717,10 +719,11 @@ def _build_request_charts(detail_rows: List[dict]) -> List[dict]:
 
     add("时延", "Latency", "Latency (ms)",
         [("latency", "Latency", "#63b3ed")])
-    add("首Token/每Token/Token间时延", "TTFT/TPOT/ITL", "Latency (ms)",
-        [("ttft", "TTFT", "#63b3ed"),
-         ("tpot", "TPOT", "#a78bfa"),
-         ("itl", "ITL", "#34d399")])
+    if ttft_valid:
+        add("首Token/每Token/Token间时延", "TTFT/TPOT/ITL", "Latency (ms)",
+            [("ttft", "TTFT", "#63b3ed"),
+             ("tpot", "TPOT", "#a78bfa"),
+             ("itl", "ITL", "#34d399")])
     add("输入/输出Token数", "Input/Output Tokens", "Tokens",
         [("input_len", "Input Tokens", "#63b3ed"),
          ("output_len", "Output Tokens", "#34d399")])
@@ -919,8 +922,10 @@ def _resolve_db_data(perf_dir: Path, db_name: str):
     return {}
 
 
-def _load_detail_rows(perf_dir: Path, dataset_abbr: str) -> List[dict]:
-    """读取逐请求明细并还原 time_points，用于逐组合的请求明细表。"""
+def _load_detail_rows(perf_dir: Path, dataset_abbr: str,
+                      ttft_valid: bool) -> List[dict]:
+    """读取逐请求明细并还原 time_points，用于逐组合的请求明细表。
+    ttft_valid 为 False（非流式）时不推导 TTFT/TPOT/ITL，只保留时延与 token 数。"""
     path = perf_dir / f"{dataset_abbr}_details.jsonl"
     if not path.exists():
         return []
@@ -970,15 +975,17 @@ def _load_detail_rows(perf_dir: Path, dataset_abbr: str) -> List[dict]:
             derived = derive_request_metrics(time_points, output_tokens)
             # 公共函数统一返回秒，此处按报告口径换算为毫秒
             latency = float(derived["latency"]) * 1000
-            ttft = float(derived["ttft"]) * 1000
+            ttft = None
             tpot = None
-            if derived["tpot"] is not None:
-                tpot = float(derived["tpot"]) * 1000
-            # 平均 ITL：首个 token 之后相邻 token 的间隔均值（与 EvalScope 的 avg inter-token latency 同口径）
             itl = None
-            gaps = derived["itl"]
-            if gaps.size:
-                itl = float(gaps.mean()) * 1000
+            if ttft_valid:
+                ttft = float(derived["ttft"]) * 1000
+                if derived["tpot"] is not None:
+                    tpot = float(derived["tpot"]) * 1000
+                # 平均 ITL：首个 token 之后相邻 token 的间隔均值（与 EvalScope 的 avg inter-token latency 同口径）
+                gaps = derived["itl"]
+                if gaps.size:
+                    itl = float(gaps.mean()) * 1000
             rows.append(
                 {
                     "success": True,
@@ -1221,7 +1228,9 @@ def render_batch_perf_report(rows: List[dict], manifest: dict,
             if row.get("status") != "success":
                 continue
             perf_dir = out_dir / "performances" / str(row.get("model_abbr"))
-            detail_rows = _load_detail_rows(perf_dir, str(row.get("dataset_abbr")))
+            ttft_valid = bool(row.get("ttft_valid"))
+            detail_rows = _load_detail_rows(
+                perf_dir, str(row.get("dataset_abbr")), ttft_valid=ttft_valid)
             detail_total = len(detail_rows)
             detail_rows = _limit_detail_rows(detail_rows)
             if detail_total > len(detail_rows):
@@ -1248,7 +1257,7 @@ def render_batch_perf_report(rows: List[dict], manifest: dict,
                     "metric_headers": metric_headers,
                     "metric_table": metric_rows,
                     "metric_charts": _build_metric_charts(metric_rows),
-                    "request_charts": _build_request_charts(detail_rows),
+                    "request_charts": _build_request_charts(detail_rows, ttft_valid),
                     "request_total": detail_total,
                 }
             )

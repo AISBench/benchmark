@@ -491,7 +491,8 @@ class TestDerivedMetrics(unittest.TestCase):
                 "\n".join(json.dumps(record) for record in records),
                 encoding="utf-8",
             )
-            rows = perf_batch._load_detail_rows(perf_dir, "synthetic")
+            rows = perf_batch._load_detail_rows(perf_dir, "synthetic",
+                                                ttft_valid=True)
 
         self.assertEqual(rows[0]["latency"], 4000.0)
         self.assertEqual(rows[0]["ttft"], 500.0)
@@ -501,6 +502,41 @@ class TestDerivedMetrics(unittest.TestCase):
         self.assertEqual(rows[1]["ttft"], 1000.0)
         self.assertIsNone(rows[1]["tpot"])
         self.assertIsNone(rows[1]["itl"])
+
+    def test_detail_rows_skip_ttft_when_invalid(self):
+        """非流式（ttft_valid=false）不推导 TTFT/TPOT/ITL，避免两时间点退化"""
+        with TemporaryDirectory() as tmp:
+            perf_dir = Path(tmp)
+            (perf_dir / "synthetic_details.jsonl").write_text(
+                json.dumps({"db_name": "d", "success": True,
+                            "time_points": [0.0, 4.0], "output_tokens": 8}),
+                encoding="utf-8",
+            )
+            rows = perf_batch._load_detail_rows(perf_dir, "synthetic",
+                                                ttft_valid=False)
+
+        self.assertEqual(rows[0]["latency"], 4000.0)
+        self.assertIsNone(rows[0]["ttft"])
+        self.assertIsNone(rows[0]["tpot"])
+        self.assertIsNone(rows[0]["itl"])
+        self.assertEqual(rows[0]["output_len"], 8)
+
+    def test_request_charts_skip_ttft_when_invalid(self):
+        """非流式组合的请求明细不渲染 TTFT/TPOT/ITL 图"""
+        detail_rows = [{"success": True, "latency": 4000.0, "ttft": 4000.0,
+                        "tpot": 0.0, "itl": None, "input_len": 10,
+                        "output_len": 8}]
+        charts = perf_batch._build_request_charts(detail_rows, ttft_valid=False)
+        if not charts:
+            self.skipTest("plotly is unavailable")
+        titles = [chart["title_zh"] for chart in charts]
+        self.assertNotIn("首Token/每Token/Token间时延", titles)
+        self.assertIn("时延", titles)
+
+        valid_charts = perf_batch._build_request_charts(detail_rows,
+                                                        ttft_valid=True)
+        self.assertIn("首Token/每Token/Token间时延",
+                      [chart["title_zh"] for chart in valid_charts])
 
 
 class TestComparableGroupConclusions(unittest.TestCase):
