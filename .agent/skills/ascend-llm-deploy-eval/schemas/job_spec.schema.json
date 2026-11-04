@@ -1,0 +1,490 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "3.0"
+    },
+    "job_id": {
+      "type": "string",
+      "pattern": "^\\d{8}-\\d{3}(?:-\\d{3})?$"
+    },
+    "state": {
+      "enum": [
+        "draft",
+        "ready"
+      ]
+    },
+    "deployments": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 999,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "topology": {
+            "enum": [
+              "colocated",
+              "pd"
+            ]
+          },
+          "model": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+              },
+              "served_name": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "id",
+              "served_name"
+            ]
+          },
+          "runtime": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "image": {
+                "type": "string",
+                "minLength": 1
+              },
+              "container": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "shm_size": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "privileged": {
+                    "type": "boolean"
+                  },
+                  "user": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pid_mode": {
+                    "enum": [
+                      "host",
+                      "private"
+                    ]
+                  },
+                  "devices": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^/dev/"
+                    }
+                  }
+                },
+                "required": [
+                  "shm_size",
+                  "privileged"
+                ]
+              }
+            },
+            "required": [
+              "image",
+              "container"
+            ]
+          },
+          "instances": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                },
+                "role": {
+                  "enum": [
+                    "mixed",
+                    "prefill",
+                    "decode",
+                    "proxy"
+                  ]
+                },
+                "placement": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "node": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                    },
+                    "devices": {
+                      "type": "array",
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    }
+                  },
+                  "required": [
+                    "node",
+                    "devices"
+                  ]
+                },
+                "launch": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "program": {
+                      "const": "vllm serve"
+                    },
+                    "adapter": {
+                      "const": "bundled_pd_proxy"
+                    },
+                    "args": {
+                      "type": "object"
+                    },
+                    "env": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "bootstrap": {
+                      "type": "string"
+                    }
+                  },
+                  "required": []
+                },
+                "ports": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "propertyNames": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                  },
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 256
+                  }
+                },
+                "checks": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "health": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "prefix_cache_reset": {
+                      "const": "/reset_prefix_cache"
+                    },
+                    "metrics": {
+                      "const": "/metrics"
+                    }
+                  },
+                  "required": [
+                    "health"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "role",
+                "placement",
+                "launch",
+                "ports",
+                "checks"
+              ]
+            }
+          },
+          "connections": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kv_transfer": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "producer": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                    },
+                    "consumer": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                    },
+                    "connector": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "producer",
+                    "consumer",
+                    "connector"
+                  ]
+                }
+              },
+              "routing": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "proxy": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                    },
+                    "prefillers": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                      }
+                    },
+                    "decoders": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                      }
+                    }
+                  },
+                  "required": [
+                    "proxy",
+                    "prefillers",
+                    "decoders"
+                  ]
+                }
+              }
+            },
+            "required": []
+          },
+          "endpoint": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "instance": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+              },
+              "port": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+              }
+            },
+            "required": [
+              "instance",
+              "port"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "topology",
+          "model",
+          "runtime",
+          "instances",
+          "connections",
+          "endpoint"
+        ]
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "input_tokens",
+          "output_tokens",
+          "concurrency",
+          "prefix_ratio"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "output_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "concurrency": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "formal_requests": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "prefix_ratio": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "prefix_num": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "seed": {
+            "type": "integer"
+          },
+          "request_rate": {
+            "type": "number",
+            "minimum": 0
+          },
+          "warmup": {
+            "const": true
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reset_cache": {
+            "type": "boolean"
+          },
+          "steady_state": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "smoke": {
+          "const": "default",
+          "default": "default"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3,
+          "default": 3
+        },
+        "startup_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "smoke_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": []
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "after_case": {
+          "enum": [
+            "keep_service",
+            "stop_service",
+            "stop_container"
+          ]
+        },
+        "task_end": {
+          "enum": [
+            "keep_service",
+            "stop_service",
+            "stop_container"
+          ]
+        }
+      },
+      "required": [
+        "after_case",
+        "task_end"
+      ]
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "sub_tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "deployment_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "case_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "after_case": {
+            "enum": [
+              "keep_service",
+              "stop_service",
+              "stop_container"
+            ]
+          },
+          "phase_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+          },
+          "on_failure": {
+            "enum": [
+              "record_only"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "deployment_id",
+          "case_id"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "job_id",
+    "state",
+    "deployments",
+    "cases",
+    "unresolved",
+    "sub_tasks"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
