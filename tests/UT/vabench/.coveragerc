@@ -8,11 +8,9 @@ data_file = test_reports/vabench/.coverage
 include =
     */ais_bench/benchmark/utils/vabench/*.py
     */ais_bench/benchmark/tasks/vabench/*.py
-    */ais_bench/benchmark/summarizers/vabench_*.py
+    */ais_bench/benchmark/summarizers/vabench/*.py
     */ais_bench/tools/vabench/*.py
-    */ais_bench/benchmark/datasets/vabench.py
-    */ais_bench/benchmark/tasks/vabench_eval.py
-    */ais_bench/benchmark/summarizers/vabench.py
+    */ais_bench/benchmark/datasets/vabench/*.py
 show_missing = True
 precision = 2
 fail_under = 80

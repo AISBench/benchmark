@@ -133,7 +133,7 @@ def test_dataset_loader_reads_prepared_rows(tmp_path):
 
 @pytest.mark.parametrize('fails', [False, True])
 def test_task_entrypoint_reports_final_state_and_joins_monitor(tmp_path, monkeypatch, fails):
-    import ais_bench.benchmark.tasks.vabench_eval as task
+    import ais_bench.benchmark.tasks.vabench.eval as task
     states, joined = [], []
     cfg = {'work_dir': str(tmp_path), 'cli_args': {}}
     monkeypatch.setattr(task.Config, 'fromfile', lambda *a: cfg)
@@ -169,7 +169,7 @@ def test_cli_catalog_custom_and_comparison_paths(tmp_path, monkeypatch):
     with pytest.raises(SystemExit):
         cli.main(['prepare', '--source-root', 'source', '--subset', 'custom',
                   '--sample-id', 'a', '--videos', 'videos', '--output', 'out'])
-    from ais_bench.benchmark.summarizers.vabench_results import build_report
+    from ais_bench.benchmark.summarizers.vabench.results import build_report
     provenance = {k: 'same' for k in ['protocol_sha256', 'source_signature',
                                     'integration_signature', 'weights_signature', 'scoring_signature']}
     report = build_report({'input_signature': 'same', 'records': [entry]}, {
@@ -192,15 +192,42 @@ def test_cli_doctor_uses_declared_modules_and_missing_resources(tmp_path, monkey
     from ais_bench.tools.vabench import cli
     torch = ModuleType('torch'); torch.__version__ = 'fixture'
     torch.cuda = SimpleNamespace(is_available=lambda: False)
+    torch.device = lambda device: device
+    torch.ones = lambda *a, device: SimpleNamespace(device=device, cpu=lambda: None)
     monkeypatch.setitem(sys.modules, 'torch', torch)
     real_spec = cli.importlib.util.find_spec
     monkeypatch.setattr(cli.importlib.util, 'find_spec', lambda n: None if n == 'torch_npu' else
                         SimpleNamespace() if n in ('torch', 'transformers', 'qwen_omni_utils', 'nisqa',
                         'audiobox_aesthetics', 'onnxruntime', 'decord', 'imagebind') else real_spec(n))
     monkeypatch.setattr(cli.shutil, 'which', lambda n: None if n == 'npu-smi' else '/bin/' + n)
-    monkeypatch.setattr(cli, 'preflight', lambda *a: ['weight'] if missing else [])
+    monkeypatch.setattr(cli, 'preflight', lambda *a, **kw: ['weight'] if missing else [])
     assert cli.main(['doctor', '--source-root', 'source', '--cache-dir', 'cache',
-                     '--dimensions', 'first_dnsmos']) == int(missing)
+                     '--dimensions', 'first_dnsmos', '--device', 'cpu']) == int(missing)
+
+
+@pytest.mark.parametrize('available,allocation_error', [(False, False), (True, True), (True, False)])
+def test_doctor_gpu_target_must_really_be_usable(monkeypatch, capsys, available, allocation_error):
+    from ais_bench.tools.vabench import cli
+    torch = ModuleType('torch')
+    torch.__version__ = 'fixture'
+    torch.device = lambda device: device
+    torch.cuda = SimpleNamespace(is_available=lambda: available, set_device=lambda device: None)
+    def ones(*args, device):
+        if allocation_error:
+            raise RuntimeError('CUDA allocation failed')
+        return SimpleNamespace(device=device, cpu=lambda: None)
+    torch.ones = ones
+    monkeypatch.setitem(sys.modules, 'torch', torch)
+    monkeypatch.setattr(cli.importlib.util, 'find_spec', lambda name: None if name == 'torch_npu' else object())
+    monkeypatch.setattr(cli.shutil, 'which', lambda name: None if name == 'npu-smi' else '/bin/' + name)
+    monkeypatch.setattr(cli, 'preflight', lambda *a, **kw: [])
+    code = cli.main(['doctor', '--source-root', 'source', '--cache-dir', 'cache',
+                     '--dimensions', 'first_dnsmos'])
+    assert code == int(not available or allocation_error)
+    info = json.loads(capsys.readouterr().out)
+    assert ('device_error' in info) == bool(code)
+    if code == 0:
+        assert info['device_probe'] == dict(passed=True, observed_device='cuda:0')
 
 
 @pytest.mark.parametrize('device,available', [('cpu', True), ('cuda:1', True), ('cuda:0', False),

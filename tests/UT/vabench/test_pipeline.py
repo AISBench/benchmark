@@ -11,9 +11,9 @@ import pytest
 from ais_bench.benchmark.utils.vabench import DIMENSIONS, MLLM_DIMENSIONS
 from ais_bench.benchmark.utils.vabench.data import (
     PROTOCOL_PATH, catalog, catalog_videos, digest, media_tool, prepare, read_json,
-    verify_prepared, write_json)
+    select_indices, select_prepared, verify_prepared, write_json)
 from ais_bench.benchmark.tasks.vabench.engine import run, successful
-from ais_bench.benchmark.summarizers.vabench_results import (
+from ais_bench.benchmark.summarizers.vabench.results import (
     build_report, compare, normalize_records, summarize_dimension)
 from ais_bench.benchmark.tasks.vabench.worker import failed_sample_ids, has_backend_error
 
@@ -118,6 +118,19 @@ def test_real_media_preparation(tmp_path, entry, video):
     wave.write_bytes(b'changed')
     with pytest.raises(ValueError, match='Input changed'):
         verify_prepared(out)
+
+
+def test_verify_prepared_hashes_only_selected_records(tmp_path, entry, video):
+    second = copy.deepcopy(entry)
+    second['idx'] = 'unselected sample'
+    shutil.copyfile(video, video.parent / (second['idx'] + '.mp4'))
+    prepared = tmp_path / 'prepared'
+    prepare([entry, second], video.parent, prepared, subset='custom')
+    (video.parent / (second['idx'] + '.mp4')).unlink()
+    with pytest.raises(FileNotFoundError):
+        verify_prepared(prepared)
+    manifest, _ = verify_prepared(prepared, '[:1]')
+    assert [record['idx'] for record in manifest['records']] == [entry['idx'], second['idx']]
 
 
 def test_smoke_cli_labels_single_sample(tmp_path, entry, video, monkeypatch):
@@ -264,15 +277,44 @@ def test_named_traceback_does_not_poison_other_samples():
 
 
 def test_metric_group_count():
-    from ais_bench.benchmark.tasks.vabench_eval import _metric_group_count
+    from ais_bench.benchmark.tasks.vabench.eval import _metric_group_count
     assert _metric_group_count(DIMENSIONS) == 9
     assert _metric_group_count(MLLM_DIMENSIONS) == 1
     assert _metric_group_count(['second_clap']) == 1
     assert _metric_group_count([]) == 0
 
 
+def test_num_prompts_range_selects_prefix():
+    assert select_indices(7, '[:2]') == [0, 1]
+    assert select_indices(7, '[4:5]') == [4]
+    assert select_indices(7, None) == list(range(7))
+    assert select_indices(7, '[bad') == list(range(7))
+    assert select_indices(7, '[:0]') == []
+
+
+def test_select_prepared_filters_rows_and_scene_metadata(tmp_path, entry, video):
+    second = copy.deepcopy(entry)
+    second['idx'] = 'second selection sample'
+    shutil.copyfile(video, video.parent / (second['idx'] + '.mp4'))
+    prepared = tmp_path / 'prepared'
+    prepare([entry, second], video.parent, prepared, subset='custom')
+    manifest, grouped = verify_prepared(prepared)
+    selected_manifest, selected_grouped, selection = select_prepared(
+        manifest, grouped, '[:1]')
+    assert [record['idx'] for record in selected_manifest['records']] == [entry['idx']]
+    assert selection == dict(test_range='[:1]', selected=1, total=2, applied=True)
+    assert selected_manifest['evaluation_scope'] == 'custom'
+    assert selected_manifest['subset_size'] == 1
+    assert manifest['subset_size'] == 2
+    assert selected_manifest['selection']['source_input_signature'] == manifest['input_signature']
+    assert [item['prompt_en'] for item in selected_grouped['scene']] == [
+        entry['metadata']['prompt_en']]
+    with pytest.raises(ValueError, match='selected no VABench samples'):
+        select_prepared(manifest, grouped, '[:0]')
+
+
 def test_task_progress_uses_sample_count(tmp_path, entry, video, monkeypatch):
-    from ais_bench.benchmark.tasks import vabench_eval as task_module
+    from ais_bench.benchmark.tasks.vabench import eval as task_module
     prepared = tmp_path / 'prepared'
     second = copy.deepcopy(entry)
     second['idx'] = 'second progress sample'
@@ -304,7 +346,7 @@ def test_task_progress_uses_sample_count(tmp_path, entry, video, monkeypatch):
     task_module.VABenchEvalTask(cfg).run(recorder)
     assert [(s['finish_count'], s['total_count']) for s in recorder.states] == [
         (0, 2), (1, 2), (2, 2), (2, 2)]
-    assert recorder.states[0]['progress_description'] == '指标组'
+    assert recorder.states[0]['progress_description'] == 'none'
     assert recorder.states[-1]['other_kwargs'] == {'dimension': 'done', 'sample_count': 2}
 
 
@@ -418,7 +460,7 @@ def test_selected_ten_percent_catalog_stays_fixed():
 
 
 def test_custom_scope_is_labeled_non_official():
-    from ais_bench.benchmark.summarizers.vabench_results import build_report
+    from ais_bench.benchmark.summarizers.vabench.results import build_report
     scores = dict(first_dnsmos=3, first_nisqa=3, first_audiobox=2.75,
                   second_viclip=0, second_clap=0, second_desync=1, second_lsa=5,
                   second_imagebind=0, third_alignment=3, third_audio_reality=3,

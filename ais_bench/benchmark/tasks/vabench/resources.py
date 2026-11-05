@@ -7,8 +7,8 @@ from ais_bench.benchmark.utils.vabench.data import PACKAGE_ROOT, digest, object_
 def integration_signature():
     """Fingerprint every implementation layer, independently of legacy shims."""
     patterns = ('benchmark/utils/vabench/*.py', 'benchmark/tasks/vabench/*.py',
-                'benchmark/summarizers/vabench*.py', 'tools/vabench/*.py',
-                'benchmark/datasets/vabench.py', 'benchmark/tasks/vabench_eval.py')
+                'benchmark/summarizers/vabench/*.py', 'tools/vabench/*.py',
+                'benchmark/datasets/vabench/*.py')
     files = sorted({path for pattern in patterns for path in PACKAGE_ROOT.glob(pattern)})
     return object_digest({path.relative_to(PACKAGE_ROOT).as_posix(): digest(path) for path in files})
 

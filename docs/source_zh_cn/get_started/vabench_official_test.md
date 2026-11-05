@@ -67,7 +67,7 @@ pip install git+https://github.com/facebookresearch/ImageBind.git
 | `libsndfile1` | soundfile / librosa 读取音频 | `OSError: sndfile library not found` |
 | 模型权重缓存 | Qwen、CLAP、ViCLIP、ImageBind 等 | `FileNotFoundError: ...pth/onnx/tar` |
 | LSA 辅助权重 | 人脸检测 `sfd_face.pth`、`buffalo_l` | LSA 初始化失败或无人脸 |
-| 官方 `third_party` | DNSMOS、Synchformer、ViCLIP、SyncNet | import 失败 |
+| 官方 `third_party` | DNSMOS、Synchformer、ViCLIP、SyncNet；前两项需手动补齐 | import 失败 |
 | 官方 `data_dir` | 官方 `evaluate.py` 的输入格式 | 找不到视频/音频/JSON |
 | `mapping_text/` | 官方代码读取 prompt 映射 | `加载映射表失败` |
 | 正确的 GPU/配置 | 15 项指标推理 | CUDA OOM 或设备错误 |
@@ -359,7 +359,28 @@ for p in \
 done
 ```
 
-如果 `third_party` 下缺少目录，相应指标会在 import 阶段失败。重新完整获取官方源码即可。
+固定提交的官方仓库**不包含** `third_party/Synchformer` 和 `third_party/DNS-Challenge`，重新 clone 也无法补齐，必须手动处理。`Synchformer` 直接软链模型缓存中的完整源码：
+
+```bash
+SRC=/workspace/code/VABench-main
+CACHE=/workspace/vabench-cache
+
+mkdir -p "$SRC/third_party"
+ln -sfn "$CACHE/synchformer/Synchformer" "$SRC/third_party/Synchformer"
+```
+
+`DNS-Challenge` 只缺 `dnsmos_local.py`；缓存中的 `dns_mos/` 是 ONNX 权重，不是源码，不要复制进 `third_party`：
+
+```bash
+mkdir -p "$SRC/third_party/DNS-Challenge/DNSMOS"
+curl -fL --retry 3 \
+  -o "$SRC/third_party/DNS-Challenge/DNSMOS/dnsmos_local.py" \
+  https://raw.githubusercontent.com/microsoft/DNS-Challenge/591184a9fcb2cbdec02520fed81a32bbbf9d73ff/DNSMOS/dnsmos_local.py
+```
+
+不需要 clone 整个 DNS-Challenge。访问 GitHub 需要代理或自签 CA 时，先按实际环境设置代理，并给 `curl` 加 `--cacert` 或设置 `CURL_CA_BUNDLE`。
+
+补齐后重新执行上面的检查循环。缺少 `dnsmos_local.py` 时 `first_dnsmos` 会报 `DNSMOS library not found`；缺少 `Synchformer` 时 `second_desync` 的延迟导入会失败。
 
 ---
 
@@ -412,10 +433,10 @@ grep -n "你的提示词片段" \
 
 ### 7.1 脚本方式（推荐）
 
-如果使用 `/workspace/vabench_official_prepare.py`：
+已有AISBench源码时，使用其中的独立脚本（无需安装AISBench）；没有该源码时使用第7.2节手动步骤：
 
 ```bash
-python3 /workspace/vabench_official_prepare.py \
+python3 /workspace/code/benchmark/ais_bench/tools/vabench/official_prepare.py \
   --source-root /workspace/code/VABench-main \
   --videos /workspace/video \
   --output /workspace/vabench_official_data
@@ -606,17 +627,27 @@ easy_human_language 1
 "./mapping_text/final_idx_to_prompt.csv"
 ```
 
-但官方源码里的目录叫 `mapping/`。因此运行目录中必须有 `mapping_text`：
+但官方源码里的目录叫 `mapping/`。因此**启动 `evaluate.py` 时所在的目录**中必须有 `mapping_text`。
+
+不要求固定使用 `/workspace/vabench_official_run`，任意新目录都可以，只要在其中放软链并从该目录启动：
 
 ```bash
+# 可改成任意目录，不要求已存在
 RUN=/workspace/vabench_official_run
 
 mkdir -p "$RUN"
+ln -sfn /workspace/code/VABench-main/mapping "$RUN/mapping_text"
 cd "$RUN"
-ln -sfn /workspace/code/VABench-main/mapping mapping_text
 
 test -f mapping_text/final_idx_to_prompt.csv && echo mapping-ok
 ```
+
+关键点：
+
+- 软链名必须叫 `mapping_text`，不能直接叫 `mapping`；
+- 建议使用绝对路径创建软链，避免移动运行目录后失效；
+- 软链只是省去复制；直接复制 `mapping/` 为 `mapping_text/` 也可以；
+- 每次换新的运行目录，都要重新创建这个软链。
 
 不要在 `/workspace/code/VABench-main` 下直接运行；那里没有 `mapping_text`，会打印：
 
@@ -671,6 +702,8 @@ cp /workspace/code/VABench-main/vabench/config.yaml \
 编辑 `/workspace/vabench_config.yaml` 中的 `max_memory`，然后运行时加 `--config`。
 
 ### 9.3 运行命令
+
+必须在第 8 节创建的运行目录中执行。下面以 `/workspace/vabench_official_run` 为例；如果你用了其他目录，替换 `cd` 的路径：
 
 ```bash
 cd /workspace/vabench_official_run
@@ -761,7 +794,8 @@ fourth_qa_vision
 
 如果需要：
 
-- 与 AISBench 的归一化总分对比：使用 AISBench 生成的 `report.json` 和 `official_eval_results/`；
+- 官方对齐：将原生输出与 AISBench 的 `official_eval_results/` 比较同一有效样本集合的逐项原始分及均分，并核对失败和省略；不拿项目总分代替逐指标对齐；
+- 查看项目总分：使用 AISBench 生成的 `report.json`、`total.csv`。当前v2规则在请求全部15项时将缺失指标按0计入预览总分，原始均分仍留空；这是AISBench展示协议，不是官方总分；
 - 自己汇总：按 AISBench 文档中的固定归一化公式计算，不要直接把 15 项原始分相加。
 
 ---
@@ -797,6 +831,23 @@ official_eval_results/<category>/
 ```
 
 这个目录与官方 `evaluate.py` 的输出结构一致，可用于逐条对比原始分数。
+
+AISBench 提供 `compare-official` 命令，直接按类别、指标和媒体文件名对齐两边结果，只比较核心分 `video_results`，忽略不同的绝对媒体路径：
+
+```bash
+python3 -m ais_bench.tools.vabench.cli compare-official \
+  --aisbench /workspace/code/benchmark/outputs/.../vabench_t2av_artifacts \
+  --official /workspace/vabench_result_20261105_071201 \
+  --output /workspace/vabench_compare_official.json
+```
+
+- `--aisbench` 可以填 `vabench_t2av_artifacts`，也可以直接填其中的 `official_eval_results`；
+- `--official` 填原生 `evaluate.py --output_dir`；
+- 默认相对误差严格 `<1%`；官方分接近 0 时使用绝对误差 `1e-6`；
+- 有差异时逐条打印类别、指标、样本、两边数值和相对/绝对误差；
+- 退出码非 0 表示存在差异；`--output` 保存完整 JSON。
+
+注意：`second_clap` 使用官方随机截断，同一输入重复运行也可能出现差异；这类差异会被打印并标注，不应直接判为调用错误。
 
 两者区别：
 
@@ -851,7 +902,7 @@ export VABENCH_CACHE_DIR=/workspace/vabench-cache
 export CUDA_VISIBLE_DEVICES=6,7
 
 # 2. 准备 data_dir
-python3 /workspace/vabench_official_prepare.py \
+python3 /workspace/code/benchmark/ais_bench/tools/vabench/official_prepare.py \
   --source-root /workspace/code/VABench-main \
   --videos /workspace/video \
   --output /workspace/vabench_official_data

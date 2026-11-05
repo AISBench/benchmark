@@ -6,6 +6,8 @@ VABench 与 [VBench 视频评测](vbench.md) 使用不同的数据和指标，�
 
 已有 GPU 评分环境的推荐顺序：环境检查 → 获取题目 → 准备对应视频和 WAV → 运行 15 项评分 → 查看结果。第 3 节为固定 78 题输入准备，第 4 节为执行命令，第 6 节为原生官方对照。
 
+需要从新环境逐步操作时，参阅[手动四步评测指南](../../get_started/vabench_get_start.md)，包含源码补齐、权重下载、统一Conda环境、主命令及原生官方对照。Dataset、Task和汇总实现已分别包化，两个原生操作脚本位于tools；公开类导入和主CLI命令保持不变。
+
 ## 1. 准备源码、环境与权重
 
 当前操作入口统一为 `ais_bench.tools.vabench`，早期顶层兼容包已移除；安装和评测请使用下文命令。
@@ -238,7 +240,9 @@ python3 -m ais_bench.tools.vabench.cli run \
 ais_bench ais_bench/configs/vabench_examples/eval_vabench.py -m eval
 ```
 
-`max_num_workers` 控制独立任务数，不表示同一 VABench 数据集的视频并发。当前接入没有实现视频分片并行、结果自动合并或断点续评。看板进度按完成的指标组折算到视频总数，并非逐视频实时完成数。
+`max_num_workers` 控制独立任务数，不表示同一 VABench 数据集的视频并发。当前接入没有实现视频分片并行、结果自动合并或断点续评。最新看板按完成指标组数/总组数显示，实际视频数另存为 sample_count，并非逐视频实时完成数或有效覆盖率。
+
+`--num-prompts N` 会截取 prepared manifest 的前 N 条，等价于 `reader_cfg.test_range='[:N]'`；报告 scope 仍是 `custom`，不会变成完整集。manifest 按类别排序，前 N 条不一定有人脸，`second_lsa` 可能因此 missing。默认完成度策略将纯 missing 视为跳过，不再让任务以非零码退出；但报告仍将其标为 `incomplete`。若 15 项均在请求范围内，缺失项按 0 计入，显示预览总分；只评测部分指标时不生成 15 项总分。`failed`、`backend_error`、`not_evaluated` 及未解释的样本缺口仍会导致任务失败。需要非前缀样本时，在配置中显式设置 `reader_cfg=dict(test_range='[4:5]')`。
 
 CLI 的结果目录就是 `--output`，例如 `/workspace/vabench_runs/mini10pct_simple`。主命令的输出由运行器工作目录控制，以任务日志给出的结果位置为准。
 
@@ -273,11 +277,12 @@ cat /workspace/vabench_runs/mini10pct_simple/summary.md
 
 MOS 的 1/5、AudioBox 的 −1.75/7.25、LSA 的 0/10 是固定展示锚点，尤其 LSA 的 10 不宣称为模型硬上限。
 
-总分为 15 项展示分等权平均，每项占 1/15：
+总分为 15 项展示分等权平均，每项占 1/15，分母固定为 15：
 
-- 任一指标无有效均分：总分为 `—`，不以 0 补齐，也不对剩余指标重新分配权重。
+- 15 项均在请求范围内但任一指标无有效均分：缺失项按 0 计入，显示预览总分；`report.json` 和 `total.csv` 记录 `zero_filled_dimensions`。
 - 15 项都有分，但存在失败、缺失、LSA 省略或未解决的后端错误：展示预览总分，状态不完整。
 - 15 项均有分且应评样本覆盖率 100%、无已记录后端错误：展示当前范围的正式总分。
+- 只评测部分指标（例如 smoke 只跑 `second_clap`）时不生成 15 项总分，最终摘要不显示 total 行。
 
 LSA 沿用官方过滤逻辑，仅有效记录参与均值；无脸、零置信度或内部异常可能被省略，不能可靠区分原因，因此展示有效数/输入数及省略数，不伪造零分。省略数是 missing 的子集，不能相加重复计算。自定义 78 题的完整总分仅代表该子集，并非 778 标准集成绩或官方对齐证明。
 
@@ -361,7 +366,7 @@ python3 -u /workspace/code/VABench-main/evaluate.py \
 
 验收口径：原始均分的相对误差严格 `<1%`；官方均分绝对值 `≤1e-6` 时，改为绝对差 `≤1e-6`。输入、权重、源码、预处理、参数和成功/失败/省略集合必须一致。CLAP 长音频存在随机截断，应核对实际缓存预处理配置并控制随机状态/裁剪条件；无法控制时保留波动证据，不能自动放宽上述验收口径。
 
-AISBench 的 `--mode official` 是带资源注入和路径修正的官方类参考路径，**不等于独立运行上述官方 CLI**。`cli compare` 目前读取两份 AISBench `report.json`，用于适配器与参考路径对照；尚未自动导入原生官方结果，因此不能凭该命令 PASS 宣称原生 CLI 对齐完成。更详细限制见 [接入说明](../../get_started/vabench_t2av.md)。
+AISBench 的 `--mode official` 是带资源注入和路径修正的官方类参考路径，**不等于独立运行上述官方 CLI**。`cli compare` 读取两份 AISBench `report.json`，用于适配器与参考路径对照；`cli compare-official` 可直接读取原生 `evaluate.py` 输出和 AISBench `official_eval_results`，按类别、指标、样本对齐并比较 `video_results`，打印缺失项和数值差异。后者仍需逐项核对输入、权重、源码和随机状态；CLAP 随机截断产生的差异不能据此宣称运行失败或对齐完成。更详细限制见 [接入说明](../../get_started/vabench_t2av.md)。
 
 ## 7. 测试与设计资料
 

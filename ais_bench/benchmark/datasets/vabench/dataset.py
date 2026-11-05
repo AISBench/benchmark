@@ -1,6 +1,6 @@
 """VABench prepared T2AV dataset, without inference dependencies."""
 from ais_bench.benchmark.registry import LOAD_DATASET
-from ais_bench.benchmark.utils.vabench.data import read_json
+from ais_bench.benchmark.utils.vabench.data import read_json, select_indices
 
 
 @LOAD_DATASET.register_module()
@@ -11,12 +11,17 @@ class VABenchDataset:
     exposes the manifest rows, but is not a T2AV generation inferencer.
     """
 
-    def __init__(self, path, **kwargs):
-        self.dataset = self.load(path)
+    def __init__(self, path, reader_cfg=None, **kwargs):
+        self.dataset = self.load(path, reader_cfg=reader_cfg, **kwargs)
 
     @staticmethod
-    def load(path, **kwargs):
+    def load(path, reader_cfg=None, **kwargs):
         from pathlib import Path
         from datasets import Dataset
         manifest = read_json(Path(path) / 'manifest.json')
-        return Dataset.from_list(manifest['records'])
+        records = manifest['records']
+        test_range = (reader_cfg or {}).get('test_range')
+        if test_range is not None:
+            indices = select_indices(len(records), test_range)
+            records = [records[index] for index in indices]
+        return Dataset.from_list(records)

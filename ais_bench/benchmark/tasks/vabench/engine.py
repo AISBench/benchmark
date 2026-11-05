@@ -4,12 +4,12 @@ from pathlib import Path
 import subprocess
 import sys
 
-from ais_bench.benchmark.summarizers.vabench_results import (
+from ais_bench.benchmark.summarizers.vabench.results import (
     build_report, export_csv, export_official_results, normalize_records)
 from ais_bench.benchmark.utils.vabench import DIMENSIONS, MLLM_DIMENSIONS
 from ais_bench.benchmark.utils.vabench.data import (
     PACKAGE_ROOT, PROTOCOL_PATH, catalog, digest, object_digest, read_json,
-    verify_prepared, write_json)
+    select_prepared, verify_prepared, write_json)
 
 from .resources import (integration_signature, preflight, source_signature,
                         weight_fingerprints)
@@ -37,7 +37,7 @@ def _validate_prepared_split(manifest, source_root):
 
 def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:0',
         python=None, device_overrides=None, params=None, dim_params=None,
-        mode='adapter', timeout=86400, progress=None):
+        mode='adapter', timeout=86400, progress=None, test_range=None):
     dimensions = list(DIMENSIONS if dimensions is None else dimensions)
     if not dimensions or len(set(dimensions)) != len(dimensions) or set(dimensions) - set(DIMENSIONS):
         raise ValueError('Unknown, duplicate, or empty VABench dimensions')
@@ -48,8 +48,12 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
         raise ValueError('Unknown device override')
     if any(d in MLLM_DIMENSIONS for d in overrides):
         raise ValueError('MLLM dimensions share a single device; use device=')
-    manifest, grouped = verify_prepared(prepared)
+    manifest, grouped = verify_prepared(prepared, test_range)
+    manifest, grouped, selection = select_prepared(manifest, grouped, test_range)
     _validate_prepared_split(manifest, source_root)
+    if selection['applied']:
+        print(f"Applied reader_cfg.test_range {test_range!r}: "
+              f"{selection['selected']}/{selection['total']} samples", flush=True)
     output = Path(output).resolve()
     if (output / 'report.json').exists():
         raise FileExistsError(f'Choose a new run directory: {output}')
@@ -70,7 +74,8 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
                       scoring_signature=object_digest(dict(params=params or {}, dim_params=dim_params or {})),
                       weights=hashes, missing_weights=missing_weights,
                       mode=mode, device=device, device_overrides=overrides,
-                      scoring_params=params or {}, dim_params=dim_params or {}, environments=[])
+                      scoring_params=params or {}, dim_params=dim_params or {},
+                      selection=selection, environments=[])
     results = {}
     for number, dims in enumerate(jobs):
         work = output / f'job_{number:02d}'
@@ -128,16 +133,38 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
     report = build_report(manifest, results, provenance, requested_dimensions=dimensions)
     write_json(output / 'report.json', report)
     export_csv(report, output)
-    export_official_results(report, output, prepared=Path(prepared).resolve())
+    export_official_results(report, output, prepared=Path(prepared).resolve(),
+                            records=manifest['records'])
     return report
 
 
-def successful(report):
-    # A selected single-metric smoke run may succeed without a 15-metric total.
-    # LSA omissions nevertheless make the selected evaluation incomplete.
+def successful(report, allow_missing=True):
+    """Allow official LSA omissions, but require actual valid scoring output.
+
+    Missing non-LSA rows, backend/parse errors and not-evaluated metrics fail.
+    A zero-filled preview remains available independently of task success.
+    """
     selected = report.get('requested_dimensions', list(report.get('details', {})) or list(report['metrics']))
-    return bool(selected) and all(
-        (m := report['metrics'].get(d, {})).get('scored', 0) > 0
-        and not m.get('failed') and not m.get('missing') and not m.get('not_evaluated')
-        and m.get('status', 'complete') == 'complete'
-        and m.get('expected', m['scored']) == m['scored'] for d in selected)
+
+    def acceptable(dimension, metric):
+        scored = metric.get('scored', 0) or 0
+        missing = metric.get('missing', 0) or 0
+        failed = metric.get('failed', 0) or 0
+        not_evaluated = metric.get('not_evaluated', 0) or 0
+        expected = metric.get('expected', scored + missing + failed + not_evaluated)
+        status = metric.get(
+            'status', 'complete' if missing == 0 and scored == expected else 'incomplete')
+        if not expected or failed or not_evaluated:
+            return False
+        if status == 'complete':
+            return expected == scored
+        if not allow_missing or dimension != 'second_lsa' or status != 'incomplete':
+            return False
+        # Missing-only incompleteness is skippable; a backend issue is not.
+        if metric.get('backend_issue_count'):
+            return False
+        return missing > 0 and scored + missing == expected
+
+    metrics = report['metrics']
+    return (bool(selected) and any(metrics.get(d, {}).get('scored', 0) for d in selected)
+            and all(acceptable(d, metrics.get(d, {})) for d in selected))

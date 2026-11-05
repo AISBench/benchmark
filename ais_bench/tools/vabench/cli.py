@@ -12,14 +12,17 @@ import shutil
 import subprocess
 import sys
 
-from ais_bench.benchmark.summarizers.vabench_results import (
+from ais_bench.benchmark.summarizers.vabench.results import (
     compare, export_csv, export_official_results, format_summary, refresh_report)
 from ais_bench.benchmark.tasks.vabench.engine import run, successful
 from ais_bench.benchmark.tasks.vabench.resources import preflight
+from ais_bench.benchmark.tasks.vabench.worker import initialize_device
 from ais_bench.benchmark.utils.vabench import DIMENSIONS
 from ais_bench.benchmark.utils.vabench.data import (
     PROTOCOL_PATH, catalog, catalog_videos, digest, media_tool, prepare, read_json,
     write_json)
+from ais_bench.tools.vabench.official_compare import (
+    compare_official_results, format_official_comparison)
 
 
 def main(argv=None):
@@ -41,9 +44,9 @@ def main(argv=None):
         if command in ('doctor', 'run'):
             cmd.add_argument('--cache-dir', required=True)
             cmd.add_argument('--dimensions', nargs='+', choices=DIMENSIONS, default=list(DIMENSIONS))
+            cmd.add_argument('--device', default='cuda:0')
         if command == 'run':
             cmd.add_argument('--prepared', required=True)
-            cmd.add_argument('--device', default='cuda:0')
             cmd.add_argument('--python', default=sys.executable)
             cmd.add_argument('--mode', choices=('adapter', 'official'), default='adapter')
             cmd.add_argument('--options', help='JSON: params, dim_params, device_overrides, timeout')
@@ -55,6 +58,19 @@ def main(argv=None):
     cmp.add_argument('--relative', type=float, default=0.01)
     cmp.add_argument('--near-zero', type=float, default=1e-6)
     cmp.add_argument('--absolute', type=float, default=1e-6)
+    official_cmp = commands.add_parser(
+        'compare-official',
+        help='Compare AISBench official-format backups with native VABench output')
+    official_cmp.add_argument('--aisbench', required=True,
+                              help='Artifacts directory or its official_eval_results directory')
+    official_cmp.add_argument('--official', required=True,
+                              help='Native evaluate.py --output_dir')
+    official_cmp.add_argument('--output', help='Optional JSON comparison report')
+    official_cmp.add_argument('--dimensions', nargs='+', choices=DIMENSIONS,
+                              default=list(DIMENSIONS))
+    official_cmp.add_argument('--relative', type=float, default=0.01)
+    official_cmp.add_argument('--near-zero', type=float, default=1e-6)
+    official_cmp.add_argument('--absolute', type=float, default=1e-6)
     summary = commands.add_parser('summarize', help='Reaggregate an AISBench per-sample report without model inference')
     summary.add_argument('--report', required=True)
     summary.add_argument('--output', required=True, help='New output directory; original report is retained')
@@ -84,7 +100,8 @@ def main(argv=None):
                     modules={m: importlib.util.find_spec(m) is not None for m in (
                         'torch', 'torch_npu', 'transformers', 'qwen_omni_utils',
                         'nisqa', 'audiobox_aesthetics', 'onnxruntime', 'decord', 'imagebind')},
-                    missing_resources=preflight(args.source_root, args.cache_dir, args.dimensions))
+                    requested_device=args.device,
+                    missing_resources=preflight(args.source_root, args.cache_dir, args.dimensions, strict=True))
         try:
             import torch
             info['torch'] = torch.__version__
@@ -93,6 +110,10 @@ def main(argv=None):
                 import torch_npu  # noqa: F401
                 info['npu_available'] = torch.npu.is_available()
                 info['npu_count'] = torch.npu.device_count()
+            target = initialize_device(args.device)
+            probe = torch.ones(1, device=target)
+            probe.cpu()  # Force a tiny operation/copy before declaring the target usable.
+            info['device_probe'] = dict(passed=True, observed_device=str(probe.device))
         except Exception as exc:
             info['device_error'] = str(exc)
         if shutil.which('npu-smi'):
@@ -108,7 +129,7 @@ def main(argv=None):
             required.update(by_dimension.get(dimension, []))
             if dimension.startswith(('third_', 'fourth_')):
                 required.update(['transformers', 'qwen_omni_utils'])
-        return int(bool(info['missing_resources']) or not info['ffmpeg'] or not info['ffprobe']
+        return int(bool(info.get('device_error')) or bool(info['missing_resources']) or not info['ffmpeg'] or not info['ffprobe']
                    or any(not info['modules'][name] for name in required))
     elif args.command == 'run':
         options = read_json(args.options) if args.options else {}
@@ -134,6 +155,16 @@ def main(argv=None):
         print(format_summary(result))
         print(f'Report: {destination / "report.json"}')
         return 0
+    elif args.command == 'compare-official':
+        result = compare_official_results(
+            args.aisbench, args.official, args.dimensions,
+            args.relative, args.near_zero, args.absolute)
+        if args.output:
+            write_json(args.output, result)
+        print(format_official_comparison(result))
+        if args.output:
+            print(f'Comparison report: {Path(args.output).resolve()}')
+        return int(not result['passed'])
     else:
         result = compare(read_json(args.reference), read_json(args.candidate),
                          args.dimensions, args.relative, args.near_zero, args.absolute)

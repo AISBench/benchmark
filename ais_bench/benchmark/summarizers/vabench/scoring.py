@@ -4,7 +4,7 @@ import math
 from ais_bench.benchmark.utils.vabench import DIMENSIONS
 
 
-VERSION = 'aisbench-vabench-display-v1'
+VERSION = 'aisbench-vabench-display-v2'
 RULES = {
     'first_dnsmos': (1, 5, False),
     'first_nisqa': (1, 5, False),
@@ -43,19 +43,31 @@ def normalize_score(dimension, value):
 def protocol():
     return dict(version=VERSION, scale=[0, 100], clipping='after_raw_mean',
                 sample_weighting='equal_valid_video', metric_weighting='equal_15_dimensions',
-                official_total=False,
+                missing_score_policy='fill_zero', official_total=False,
                 anchors={d: dict(low=RULES[d][0], high=RULES[d][1],
                                  reverse=RULES[d][2]) for d in DIMENSIONS})
 
 
-def aggregate(metrics):
-    missing = [d for d in DIMENSIONS if not finite_number(metrics.get(d, {}).get('normalized_score'))]
+def aggregate(metrics, requested_dimensions=None):
+    selected = list(DIMENSIONS) if requested_dimensions is None else list(requested_dimensions)
+    selected_set = set(selected)
+    valid = [d for d in DIMENSIONS
+             if finite_number(metrics.get(d, {}).get('normalized_score'))]
+    missing = [d for d in DIMENSIONS if d not in valid]
     incomplete = [d for d in DIMENSIONS if metrics.get(d, {}).get('status') != 'complete']
-    score = None if missing else sum(metrics[d]['normalized_score'] for d in DIMENSIONS) / len(DIMENSIONS)
-    status = 'unavailable' if missing else 'preview' if incomplete else 'formal'
+    unrequested = [d for d in DIMENSIONS if d not in selected_set]
+    if unrequested:
+        # A subset run cannot certify a full 15-dimension total.
+        score, status = None, 'unavailable'
+    else:
+        # Missing requested dimensions contribute zero without changing the 15-way weights.
+        score = sum(metrics[d]['normalized_score'] if d in valid else 0.0
+                    for d in DIMENSIONS) / len(DIMENSIONS)
+        status = 'preview' if missing or incomplete else 'formal'
     return dict(score=score, status=status,
                 label={'unavailable': '总分不可用', 'preview': '预览总分／不完整', 'formal': '正式总分'}[status],
-                valid_dimensions=len(DIMENSIONS) - len(missing), expected_dimensions=len(DIMENSIONS),
-                missing_dimensions=missing, incomplete_dimensions=incomplete,
+                valid_dimensions=len(valid), expected_dimensions=len(DIMENSIONS),
+                missing_dimensions=missing, zero_filled_dimensions=missing if not unrequested else [],
+                incomplete_dimensions=incomplete,
                 weights={d: 1 / len(DIMENSIONS) for d in DIMENSIONS},
                 definition='AISBench fixed-normalization total, not an official VABench total')

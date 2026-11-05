@@ -76,7 +76,9 @@ python3 -m ais_bench.tools.vabench.cli run \
 ais_bench ais_bench/configs/vabench_examples/eval_vabench.py -m eval
 ```
 
-可见物理卡6/7在进程中对应逻辑0/1。LocalRunner也会设置设备可见性，应根据实际分配填写预留卡数。单条配置为`eval_vabench_smoke.py`。任务看板的Progress以准备集视频数为分母；VABench按指标组调用官方函数，进度按已完成指标组折算，最后的Qwen组包含7个MLLM指标。
+可见物理卡6/7在进程中对应逻辑0/1。LocalRunner也会设置设备可见性，应根据实际分配填写预留卡数。单条配置为`eval_vabench_smoke.py`。最新任务看板的Progress按已完成指标组/总组数显示，实际视频数另存为`sample_count`；默认15项共9组，最后的Qwen组包含7个MLLM指标。这不是逐视频成功数或有效覆盖率。
+
+`--num-prompts N`在VABench主命令中已生效：CLI将它写成`reader_cfg.test_range='[:N]'`，任务只评分manifest的前N条，并同步筛选场景元数据、subset_size和签名；不会修改prepared目录，也不会把子集总分标成完整集。manifest按类别排序，前N条不一定有人脸；例如7条示例的前2条都是`easy_bioacoustics`，`second_lsa`仍可能missing。请求全部15项而某项无有效均分时，将该项按0计入预览总分，原始均分仍留空。任务仅允许无后端错误的LSA省略，且要求请求项至少取得一个有效结果；其他missing或模型/解析错误均返回失败，报告仍保存。需要非前缀样本时可显式设置`reader_cfg=dict(test_range='[4:5]')`。完整reader示例为`ais_bench/configs/vabench_examples/eval_vabench_reader.py`。
 
 ## 参考路径与官方对齐
 
@@ -97,7 +99,7 @@ python3 -m ais_bench.tools.vabench.cli compare \
 
 比较默认要求全部15项、相同样本/状态及输入、源码、权重和参数指纹。逐指标原始均分相对误差严格<1%；官方均分绝对值≤1e-6时要求绝对差≤1e-6。LSA允许相同省略集合但至少有一个有效分，其他指标的执行失败不能凭数值相近通过验收。`second_clap`的长音频裁剪存在随机性，见下节；应控制实际预处理及随机状态并记录波动证据，不能自行以多轮均值或放宽阈值替代原验收口径。78题子集用于快速对照，778题用于完整集验收。
 
-最终仍需与用户官方CLI基线核对：专家进程隔离可能影响decord全局bridge及Qwen解码后端，调用相同compute函数并不能代替真实对齐证据。`compare`仍读取AISBench report；新增的`official_eval_results`可直接与官方CLI的`*_eval_results.json/csv`逐条对照，但自动导入官方基线及来源溯源仍待后续实现。
+最终仍需与用户官方CLI基线核对：专家进程隔离可能影响decord全局bridge及Qwen解码后端，调用相同compute函数并不能代替真实对齐证据。`compare`仍读取AISBench report；新增的`official_eval_results`可直接与官方CLI的`*_eval_results.json/csv`逐条对照。使用`python3 -m ais_bench.tools.vabench.cli compare-official --aisbench <artifacts或official_eval_results> --official <原生evaluate.py输出目录>`可按类别、指标和样本对齐`video_results`，按有效视频等权比较指标原始均分，并单列逐题数值诊断；空指标、缺失集合不一致及已知失败兜底不能通过；该命令不自动证明输入、权重、随机状态和失败集合完全一致，CLAP随机截断的差异应另行记录。
 
 ### second_clap的随机性
 
@@ -120,11 +122,12 @@ python3 -m ais_bench.tools.vabench.cli compare \
 
 展示分限制在0–100，原始值不改写，超出固定展示锚点的样本数及均分标记保存在报告。MOS的1/5、AudioBox的−1.75/7.25、LSA的0/10是展示锚点，不宣称为所有模型预测的硬边界。ImageBind保留官方sim_av主分，QA保持官方positive-polarity比例，不改成简单yes占比。
 
-总分为15项展示分等权平均，不能按可用指标数重新分配权重：
+总分为15项展示分等权平均，分母固定为15；缺失指标按0计入，不按可用指标数重新分配权重：
 
-- 缺任一指标有效均分：总分为空，展示“—”。未选择评测的指标也显示“未评测”，不补0。
-- 15项都有均分但有失败、缺失、LSA省略或未解决的后端错误：展示“预览总分／不完整”。
-- 15项都有均分、输入评分覆盖率100%且没有已记录后端错误：展示当前评测范围的正式总分。
+- 15项均在本轮请求范围内，但某些指标没有有效均分：缺失项按0计入，显示“预览总分／不完整”；`report.json`和`total.csv`记录`zero_filled_dimensions`。
+- 15项都有均分但有失败、缺失、LSA省略或未解决的后端错误：显示“预览总分／不完整”。
+- 15项都有均分、输入评分覆盖率100%且没有已记录后端错误：显示当前评测范围的正式总分。
+- 只评测部分指标（例如smoke只跑`second_clap`）时不生成15项总分，`total`保持不可用，最终摘要不显示total行。
 
 单条冒烟、自定义子集（含固定78题）和778标准集各自保留scope与样本数，子集总分不能称为778标准集总分。“正式”仅指本轮评分完整，不代表官方<1%对齐验收已完成。LSA省略是missing的子集，CSV中missing/omitted不可相加重复计数。分组均分另存scenes.csv。
 

@@ -5,7 +5,7 @@ from ais_bench.benchmark.summarizers.default import (
     DefaultSummarizer, model_abbr_from_cfg_used_in_summarizer)
 from ais_bench.benchmark.utils.core.abbr import get_infer_output_path
 from ais_bench.benchmark.utils.vabench.data import read_json
-from ais_bench.benchmark.summarizers.vabench_results import display_report
+from ais_bench.benchmark.summarizers.vabench.results import display_report
 
 
 class VABenchSummarizer(DefaultSummarizer):
@@ -37,6 +37,9 @@ class VABenchSummarizer(DefaultSummarizer):
                     if row not in display:
                         display.append(row)
                 total = report['total']
+                if total['score'] is None:
+                    # Do not print an unusable total row; it stays in report.json/total.csv.
+                    continue
                 row = f'{dataset["abbr"]}/total'
                 values = dict(mean='—', normalized_score=total['score'] if total['score'] is not None else '—',
                               expected=total['expected_dimensions'], scored=total['valid_dimensions'],

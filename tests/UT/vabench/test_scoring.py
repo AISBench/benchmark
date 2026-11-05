@@ -7,10 +7,10 @@ import pytest
 from ais_bench.benchmark.utils.vabench import DIMENSIONS
 from ais_bench.benchmark.utils.vabench.data import digest, read_json, write_json
 from ais_bench.benchmark.tasks.vabench.engine import successful
-from ais_bench.benchmark.summarizers.vabench_results import (
+from ais_bench.benchmark.summarizers.vabench.results import (
     build_report, export_csv, export_official_results, format_summary,
     normalize_records, refresh_report)
-from ais_bench.benchmark.summarizers.vabench_scoring import RULES, normalize_score
+from ais_bench.benchmark.summarizers.vabench.scoring import RULES, normalize_score
 
 
 def fixture_inputs():
@@ -51,7 +51,7 @@ def test_all_fifteen_valid_means_produce_equal_weight_formal_total():
     assert build_report(manifest, details, {})['total']['score'] == pytest.approx(50 + 50 / 15)
 
 
-def test_lsa_omission_keeps_mean_and_prevents_formal_total():
+def test_lsa_omission_keeps_mean_and_is_skippable_for_task_exit():
     manifest, details = fixture_inputs()
     # An absent official record is aligned to the original input denominator.
     details['second_lsa']['records'].pop()
@@ -60,11 +60,16 @@ def test_lsa_omission_keeps_mean_and_prevents_formal_total():
     assert item['mean'] == 5 and item['coverage_percent'] == 50
     assert item['expected'] == 2 and item['scored'] == item['omitted'] == 1
     assert report['total']['status'] == 'preview' and report['total']['score'] == 50
-    assert not successful(report)
+    assert successful(report)
+    assert not successful(report, allow_missing=False)
     details['second_lsa']['records'].clear()
     report = build_report(manifest, details, {})
-    assert report['total']['score'] is None and report['total']['status'] == 'unavailable'
+    assert report['total']['score'] == pytest.approx(14 * 50 / 15)
+    assert report['total']['status'] == 'preview'
     assert report['total']['valid_dimensions'] == 14
+    assert report['total']['zero_filled_dimensions'] == ['second_lsa']
+    assert successful(report)
+    assert not successful(report, allow_missing=False)
 
 
 def test_single_metric_smoke_success_does_not_fabricate_a_fifteen_metric_total():
@@ -74,6 +79,49 @@ def test_single_metric_smoke_success_does_not_fabricate_a_fifteen_metric_total()
     assert len(report['metrics']) == 15 and len(report['details']) == 1
     assert report['total']['score'] is None
     assert report['metrics']['first_dnsmos']['status'] == 'not_evaluated'
+
+
+def test_all_missing_keeps_zero_preview_but_cannot_complete_a_task():
+    manifest, _ = fixture_inputs()
+    details = {dimension: dict(records=[], errors=[]) for dimension in DIMENSIONS}
+    report = build_report(manifest, details, {}, list(DIMENSIONS))
+    assert report['total']['score'] == 0 and report['total']['status'] == 'preview'
+    assert report['total']['valid_dimensions'] == 0
+    assert not successful(report)
+    lsa_only = build_report(manifest, {'second_lsa': details['second_lsa']}, {}, ['second_lsa'])
+    assert not successful(lsa_only)
+
+
+@pytest.mark.parametrize('dimension', [d for d in DIMENSIONS if d != 'second_lsa'])
+def test_non_lsa_missing_is_not_an_allowed_official_omission(dimension):
+    manifest, details = fixture_inputs()
+    details[dimension]['records'].pop()
+    report = build_report(manifest, details, {})
+    assert report['total']['status'] == 'preview'
+    assert not successful(report)
+
+
+def test_lsa_backend_error_is_not_treated_as_a_harmless_omission():
+    manifest, details = fixture_inputs()
+    details['second_lsa']['records'].clear()
+    details['second_lsa']['errors'] = [{'error': 'model failed'}]
+    assert not successful(build_report(manifest, details, {}))
+
+
+def test_missing_dimension_is_zero_filled_and_shown_in_total(tmp_path):
+    manifest, details = fixture_inputs()
+    details['second_lsa']['records'].clear()
+    report = build_report(manifest, details, {})
+    assert report['total']['score'] == pytest.approx(14 * 50 / 15)
+    assert report['total']['status'] == 'preview'
+    assert report['total']['zero_filled_dimensions'] == ['second_lsa']
+    text = format_summary(report)
+    assert '预览总分／不完整: 46.67/100' in text
+    assert '总分不可用' not in text
+    export_csv(report, tmp_path)
+    with (tmp_path / 'total.csv').open(encoding='utf-8-sig', newline='') as stream:
+        row = next(csv.DictReader(stream))
+    assert row['zero_filled_dimensions'] == 'second_lsa'
 
 
 def test_mean_before_clipping_and_out_of_anchor_samples():

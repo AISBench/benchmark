@@ -251,7 +251,7 @@ printf 'anyio==4.10.0\n' >> /workspace/aisbench_runtime_unified.txt
 ```bash
 /root/miniconda3/envs/vabench311_new/bin/python3 -c "
 import ais_bench
-from ais_bench.benchmark.tasks.vabench_eval import VABenchEvalTask
+from ais_bench.benchmark.tasks.vabench.eval import VABenchEvalTask
 from ais_bench.benchmark.datasets.vabench import VABenchDataset
 print('ok')
 "

@@ -14,7 +14,7 @@ import traceback
 
 from ais_bench.benchmark.utils.vabench.data import read_json, write_json
 from .resources import submodules
-from ais_bench.benchmark.summarizers.vabench_results import normalize_records
+from ais_bench.benchmark.summarizers.vabench.results import normalize_records
 
 
 def initialize_device(device):
