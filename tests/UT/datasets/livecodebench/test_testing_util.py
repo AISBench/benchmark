@@ -82,6 +82,44 @@ class TestCapturing(TestingUtilTestBase):
         self.assertIn('test output', output[0])
         self.assertIn('another line', output[0])
 
+    def test_capturing_binary_stdout(self):
+        with Capturing() as output:
+            sys.stdout.buffer.write('中文\n'.encode('utf-8'))
+
+        self.assertEqual(output, ['中文\n'])
+
+    def test_capturing_preserves_mixed_write_order(self):
+        with Capturing() as output:
+            sys.stdout.write('first ')
+            sys.stdout.buffer.write(b'second ')
+            print('third')
+
+        self.assertEqual(output, ['first second third\n'])
+
+    def test_capturing_split_utf8_binary_writes(self):
+        encoded = '中'.encode('utf-8')
+        with Capturing() as output:
+            for byte in encoded:
+                sys.stdout.buffer.write(bytes([byte]))
+
+        self.assertEqual(output, ['中'])
+
+    def test_capturing_survives_stdout_close(self):
+        with Capturing() as output:
+            sys.stdout.buffer.write(b'answer\n')
+            sys.stdout.close()
+
+        self.assertEqual(output, ['answer\n'])
+
+    def test_call_method_can_write_binary_stdout(self):
+        def solution():
+            sys.stdout.buffer.write(b'42\n')
+
+        with Capturing() as output:
+            call_method(solution, '')
+
+        self.assertEqual(output, ['42\n'])
+
 
 class TestTruncatefn(TestingUtilTestBase):
     """测试truncatefn函数"""
