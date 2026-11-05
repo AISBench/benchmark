@@ -77,6 +77,33 @@ class TestGPQA(unittest.TestCase):
         result = GPQA_Simple_Eval_postprocess("answer: B")
         self.assertEqual(result, 'B')
 
+    def test_postprocess_answer_line_takes_priority_over_boxed(self):
+        text = "Answer: B\n\nWait, option C also looks plausible.\n\n$$\\boxed{D}$$"
+        self.assertEqual(GPQA_Simple_Eval_postprocess(text), 'B')
+
+    def test_postprocess_boxed_answer(self):
+        text = r"Therefore, the final answer is \boxed{D}."
+        self.assertEqual(GPQA_Simple_Eval_postprocess(text), 'D')
+
+    def test_postprocess_boxed_answer_in_display_math(self):
+        text = "### Final Answer\n\n$$\n\\boxed{D}\n$$"
+        self.assertEqual(GPQA_Simple_Eval_postprocess(text), 'D')
+
+    def test_postprocess_boxed_text_answer(self):
+        text = r"因此最终答案是 \boxed{\text{D}}。"
+        self.assertEqual(GPQA_Simple_Eval_postprocess(text), 'D')
+
+    def test_postprocess_uses_last_boxed_answer_from_cot(self):
+        text = (r"Option A is inconsistent, so I discard \boxed{A}. "
+                r"Option D satisfies every constraint, so the answer is \boxed{D}.")
+        self.assertEqual(GPQA_Simple_Eval_postprocess(text), 'D')
+
+    def test_postprocess_unruly_boxed_answer_not_credited(self):
+        for text in (r"\boxed{E}", r"\boxed{42}", r"\boxed{AB}",
+                     r"\boxed{\text{The answer is D}}"):
+            with self.subTest(text=text):
+                self.assertIsNone(GPQA_Simple_Eval_postprocess(text))
+
     @patch("ais_bench.benchmark.datasets.gpqa.get_data_path", return_value="/fake/path")
     @patch("builtins.open")
     def test_dataset_multiple_rows(self, mock_open_file, mock_get_path):
