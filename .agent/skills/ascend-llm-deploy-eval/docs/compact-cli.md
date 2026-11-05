@@ -69,6 +69,8 @@ JOB_ID/
 
 ## AISBench 接口
 
+`execution.enable_cache_reset_api` 默认 `true`，规范化时为所有非 proxy 模型实例补充 `VLLM_SERVER_DEV_MODE=1`（包括保真模式；若显式值为 0 则替换为 1）。这是测试控制配置，不改变模型参数。设为 `false` 仅停止自动注入，保留参考脚本显式配置。此开关不调用清理接口，也不改变 `case.reset_cache=false` 默认值；简洁入口目前仍拒绝 `reset_cache=true`。
+
 case.mode 默认为 `perf`；`accuracy` 是预留意图，可进行结构校验，但当前生成和执行均明确拒绝，不会回退成 perf。协调器 FULL/scripts 与测试 perf/accuracy 独立。AISBench 精度原生阶段为 all/infer/eval/viz，将来由独立适配器映射，不能直接把 accuracy 传给 AISBench。
 
 默认生成既有 VLLMCustomAPI + CustomDataset 的原生配置。可选 case.aisbench_config 指向 bindings.nodes.<测试节点>.benchmark.configs 中的配置 ID，其值为生成机上可读的原生 AISBench Python 配置路径。配置复制到 scripts/tests，保留原生模型/数据集适配器；并发、最大输出和请求速率由 job_spec 覆盖。配置须采用已安装包的绝对导入，不能依赖未打包的相对文件。配置中的地址、模型和数据路径须由调用者与当前部署对齐。

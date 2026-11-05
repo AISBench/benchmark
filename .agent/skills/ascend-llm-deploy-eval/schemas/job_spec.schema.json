@@ -439,6 +439,11 @@
         "smoke_timeout_seconds": {
           "type": "integer",
           "minimum": 1
+        },
+        "enable_cache_reset_api": {
+          "type": "boolean",
+          "default": true,
+          "description": "Inject VLLM_SERVER_DEV_MODE=1 into model instances, including preserve_reference. False disables injection and retains explicit reference environment. Does not execute cache reset."
         }
       },
       "required": []

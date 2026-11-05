@@ -24,11 +24,16 @@ def load_json(path):
 def normalize(spec):
     s=copy.deepcopy(spec)
     e=s.setdefault('execution',{})
-    for k,v in {'smoke':'default','max_retries':3,'startup_timeout_seconds':1800,'smoke_timeout_seconds':240}.items():
+    for k,v in {'smoke':'default','max_retries':3,'startup_timeout_seconds':1800,'smoke_timeout_seconds':240,
+                'enable_cache_reset_api':True}.items():
         e.setdefault(k,v)
     if s.get('schema_version')=='3.0':
         from container_baseline import DEFAULT_CONTAINER, DEVICES
         for dep in s.get('deployments', []):
+            if e['enable_cache_reset_api']:
+                for instance in dep.get('instances', []):
+                    if instance['role'] != 'proxy':
+                        instance['launch'].setdefault('env', {})['VLLM_SERVER_DEV_MODE'] = '1'
             container = dep['runtime'].setdefault('container', {})
             for key, value in {**DEFAULT_CONTAINER, 'devices': DEVICES}.items():
                 container.setdefault(key, copy.deepcopy(value))

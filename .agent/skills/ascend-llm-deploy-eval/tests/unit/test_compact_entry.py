@@ -38,6 +38,24 @@ def inputs():
 
 
 class CompactTests(unittest.TestCase):
+    def test_cache_reset_api_default_and_opt_out(self):
+        spec,bindings=inputs()
+        for instance in spec['deployments'][0]['instances']:
+            instance['launch'].setdefault('env',{}).pop('VLLM_SERVER_DEV_MODE',None)
+        for enabled in (True,False):
+            candidate=copy.deepcopy(spec)
+            if not enabled:candidate['execution']['enable_cache_reset_api']=False
+            with tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp)/'job';normalized,_=entry.generate(candidate,bindings,root)
+                self.assertEqual(normalized['execution']['enable_cache_reset_api'],enabled)
+                for instance in candidate['deployments'][0]['instances']:
+                    text=(root/'scripts'/candidate['deployments'][0]['id']/('node_a-'+instance['id']+'.sh')).read_text()
+                    self.assertEqual('export VLLM_SERVER_DEV_MODE=1' in text,enabled and instance['role']!='proxy')
+                self.assertFalse(normalized['cases'][0]['reset_cache'])
+        candidate=copy.deepcopy(spec);candidate['execution']['enable_cache_reset_api']=False
+        candidate['deployments'][0]['instances'][0]['launch']['env']['VLLM_SERVER_DEV_MODE']='1'
+        self.assertEqual(normalize(candidate)['deployments'][0]['instances'][0]['launch']['env']['VLLM_SERVER_DEV_MODE'],'1')
+
     def test_distribution_shared_path_reuses_and_changed_bundle_rejected(self):
         spec,bindings=inputs()
         with tempfile.TemporaryDirectory() as tmp:

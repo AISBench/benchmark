@@ -147,7 +147,7 @@ def compile_deployment(dep, nodes):
         else:
             env.update(HCCL_IF_IP=node['network']['ip'], VLLM_HOST_IP=node['network']['ip'],
                        GLOO_SOCKET_IFNAME=node['network']['interface'], TP_SOCKET_IFNAME=node['network']['interface'],
-                       HCCL_SOCKET_IFNAME=node['network']['interface'], VLLM_SERVER_DEV_MODE='1')
+                       HCCL_SOCKET_IFNAME=node['network']['interface'])
             args = copy.deepcopy(launch['args'])
             args.update(host=node['network']['ip'], port=ports['http'])
             args['served-model-name'] = dep['model']['served_name']
