@@ -427,6 +427,62 @@ class TestCompassBenchCodeExecutionDataset(LiveCodeBenchTestBase):
             self.assertIn('train', result)
 
 
+class TestStdIOBuffer(unittest.TestCase):
+    """测试标准输入/输出的二进制 .buffer 视图
+
+    竞赛类题解常用 sys.stdin.buffer.read() / sys.stdout.buffer.write() 做快速
+    读写，评测时伪造的 stdin/stdout 必须提供 .buffer，否则这类题解会抛
+    AttributeError 被误判为 Runtime Error。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from ais_bench.benchmark.datasets.livecodebench import testing_util
+            cls.testing_util = testing_util
+        except ImportError:
+            raise unittest.SkipTest('testing_util not available')
+
+    def _run(self, source, inputs):
+        namespace = {}
+        exec(compile(source, '<generated>', 'exec'), namespace)
+        with self.testing_util.Capturing() as output:
+            self.testing_util.call_method(namespace['main'], inputs)
+        return ''.join(output).strip()
+
+    def test_stdin_buffer_read(self):
+        """sys.stdin.buffer.read() 应读到测试输入"""
+        source = ('import sys\n'
+                  'def main():\n'
+                  '    data = sys.stdin.buffer.read().split()\n'
+                  '    print(sum(map(int, data)))\n')
+        self.assertEqual(self._run(source, '1 2\n3\n'), '6')
+
+    def test_stdin_buffer_readline(self):
+        """sys.stdin.buffer.readline() 应按行读到测试输入"""
+        source = ('import sys\n'
+                  'def main():\n'
+                  '    n = int(sys.stdin.buffer.readline())\n'
+                  '    print(n * 2)\n')
+        self.assertEqual(self._run(source, '21\n'), '42')
+
+    def test_stdout_buffer_write(self):
+        """sys.stdout.buffer.write() 的输出应被 Capturing 收集到"""
+        source = ('import sys\n'
+                  'def main():\n'
+                  '    sys.stdout.buffer.write(b"42\\n")\n')
+        self.assertEqual(self._run(source, ''), '42')
+
+    def test_mixed_text_and_binary_output(self):
+        """混用 print 和 sys.stdout.buffer.write 时输出顺序应保持一致"""
+        source = ('import sys\n'
+                  'def main():\n'
+                  '    print("a")\n'
+                  '    sys.stdout.buffer.write(b"b\\n")\n'
+                  '    print("c")\n')
+        self.assertEqual(self._run(source, ''), 'a\nb\nc')
+
+
 if __name__ == '__main__':
     unittest.main()
 
