@@ -2,6 +2,8 @@
 
 感谢您对 AISBench 评测工具的关注！我们欢迎所有形式的贡献，包括但不限于代码、文档、问题报告和建议。
 
+仓库根目录的 [CONTRIBUTING.md](https://github.com/AISBench/benchmark/blob/master/CONTRIBUTING.md) 是贡献规范的统一入口。本页提供中文说明、环境准备与组件开发资料；PR 要求、提交规范和质量检查以该文件为准，更新规范时应同步维护中英文指南。
+
 ## 目录
 
 - [任务看板](#任务看板)
@@ -25,8 +27,8 @@
 我们使用 GitHub Issues 来跟踪任务和问题。在开始贡献之前，建议您：
 
 1. 查看现有的 [Issues](https://github.com/AISBench/benchmark/issues) 以了解当前的工作重点
-2. 如果是新功能或重大变更，建议先创建一个 Issue 进行讨论
-3. 对于 bug 修复，可以直接提交 Pull Request
+2. 新功能或重大变更应先在 Issue 中讨论并达成共识
+3. 所有 PR 都必须关联 Issue，Bug 修复应先有对应 Issue
 
 ## 许可证
 
@@ -47,9 +49,11 @@ AISBench 使用 [Apache License 2.0](../../../LICENSE) 许可证。通过向本�
 2. **克隆仓库**：
 
 ```bash
-git clone https://github.com/AISBench/benchmark.git
+git clone https://github.com/YOUR_GITHUB_ID/benchmark.git
 cd benchmark/
 ```
+
+外部开发者请先 Fork 仓库，并将 `YOUR_GITHUB_ID` 替换为自己的 GitHub 用户名。
 
 3. **创建开发环境**（推荐使用 Conda）：
 
@@ -93,9 +97,9 @@ AISBench 采用基于注册器（Registry）的插件化架构：
 1. **创建分支**：
 
 ```bash
-git checkout -b feature/your-feature-name
-# 或
-git checkout -b fix/your-bug-fix
+git remote add upstream https://github.com/AISBench/benchmark.git
+git fetch upstream
+git checkout -b feature/your-feature-name upstream/master
 ```
 
 2. **进行开发**：编写代码、添加测试、更新文档
@@ -104,10 +108,16 @@ git checkout -b fix/your-bug-fix
 
 ```bash
 git add .
-git commit -m "feat: 添加新功能描述"
+git commit -s -m "[feat] 添加新功能描述"
 ```
 
 4. **推送并创建 Pull Request**
+
+将贡献分支推送到自己的 Fork，并向 `AISBench/benchmark` 的 `master` 分支发起 PR：
+
+```bash
+git push -u origin feature/your-feature-name
+```
 
 ## 代码检查（Linting）
 
@@ -158,7 +168,7 @@ python -m py_compile your_file.py
 
 ### 更新文档
 
-- 添加新功能时，请同步更新相关文档
+- 添加新功能时，请同步更新 `docs/source_zh_cn/` 和 `docs/source_en/` 中的相关文档
 - 修改 API 时，请更新对应的文档说明
 - 添加数据集或模型配置时，请提供 README.md 说明
 
@@ -191,6 +201,8 @@ pytest tests/UT/test_example.py
 - **集成测试**：测试多个组件的交互
 - **测试命名**：使用 `test_` 前缀命名测试函数
 - **测试覆盖**：新功能应包含相应的测试用例，目标覆盖率不低于 80%
+
+主仓库与 `prefix_cache` 插件的测试命令、覆盖率指标和 PR Quality Gate 规则详见 [CONTRIBUTING.md 的提交前自检](https://github.com/AISBench/benchmark/blob/master/CONTRIBUTING.md#4-提交前自检)。
 
 ## 问题（Issues）
 
@@ -228,11 +240,12 @@ pytest tests/UT/test_example.py
 
 2. **PR 描述**：
    - 清晰描述 PR 的目的和变更内容
-   - 如果解决了某个 Issue，请使用 `Fixes #123` 格式关联
+   - 完整填写仓库的 [PR 模板](https://github.com/AISBench/benchmark/blob/master/.github/pull_request_template.md)，保留所有章节及 PR Type 原始选项文案，并如实勾选
+   - 所有 PR 必须关联 Issue；解决问题使用 `Fixes #123`，仅相关使用 `Relates to #123`
    - 提供测试结果或截图（如适用）
 
 3. **代码审查**：
-   - 保持 PR 规模适中，便于审查
+   - 每个 PR 聚焦一个独立问题，新增行数控制在 1000 行以内
    - 及时响应审查意见
    - 根据反馈进行修改
 
@@ -241,7 +254,9 @@ pytest tests/UT/test_example.py
 1. **自动化检查**：PR 创建后会自动运行 CI 检查
 2. **代码审查**：维护者会审查代码
 3. **修改反馈**：根据审查意见进行修改
-4. **合并**：审查通过后，维护者会合并 PR
+4. **合并**：通过质量检查及适用的 CI 检查、获得至少 1 位维护者批准并闭环所有行内意见后，由维护者合并 PR
+
+普通评论不能代替正式 Review。行内意见由提出者或维护者确认并 Resolve。完整流程见 [CONTRIBUTING.md 的配合 Review](https://github.com/AISBench/benchmark/blob/master/CONTRIBUTING.md#5-配合-review)。
 
 ## DCO 和 Signed-off-by
 
@@ -252,7 +267,7 @@ AISBench 使用 [Developer Certificate of Origin (DCO)](https://developercertifi
 在提交信息中添加 `Signed-off-by` 行：
 
 ```bash
-git commit -s -m "feat: 添加新功能"
+git commit -s -m "[feat] 添加新功能"
 ```
 
 `-s` 参数会自动添加 `Signed-off-by` 行。
@@ -293,8 +308,9 @@ Signed-off-by: Your Name <your.email@example.com>
 - `[style]`：代码格式调整（不影响功能）
 - `[refactor]`：代码重构
 - `[test]`：测试相关
-- `[chore]`：构建过程或辅助工具的变动
+- `[ci/cd]`：CI/CD 相关改动
 - `[perf]`：性能优化
+- `[dependency]`：依赖更新
 
 ### 示例
 
@@ -303,6 +319,8 @@ Signed-off-by: Your Name <your.email@example.com>
 [fix][datasets]修复数据集加载错误
 [docs][readme]更新安装说明
 [test][calculators]添加性能计算器测试
+[ci/cd][ci]更新单元测试工作流
+[dependency]更新依赖版本约束
 ```
 
 ## 代码质量
