@@ -154,13 +154,19 @@ class DefaultPerfSummarizer:
             return detail_data
 
         for perf_data in perf_datas:
+            # Exclude requests marked as manage_request=True from performance
+            # statistics. They are excluded from Total / Success / Failed
+            # counts and performance metrics (tracked via the excluded flag).
+            if perf_data.get("extra_perf_data", {}).get("manage_request"):
+                manager_list.append({"success": False, "excluded": True})
+                continue
             if not perf_data["success"]:
-                manager_list.append({"success": False})
+                manager_list.append({"success": False, "excluded": False})
                 continue
             recursive_update(perf_data)
             time_points = perf_data.pop("time_points")
             if time_points is None: # jsonl is saved but database not committed, mainly on process is killed unexpectedly
-                manager_list.append({"success": False})
+                manager_list.append({"success": False, "excluded": False})
                 continue
             if perf_data.get("input_tokens") is not None and perf_data.get("input_tokens") > 0:
                 pass # Prefer service-returned "prompt_tokens".
@@ -193,6 +199,7 @@ class DefaultPerfSummarizer:
             perf_data["generate_tokens_speed"] = (
                 perf_data["output_tokens"] / perf_data["latency"]
             )
+            perf_data["excluded"] = False
             manager_list.append(perf_data)
         conn.close()
 
@@ -312,7 +319,7 @@ class DefaultPerfSummarizer:
         lens = {
             key: len(value)
             for key, value in details_perf_datas.items()
-            if key != "success"
+            if key not in ("success", "excluded")
         }
         if len(set(list(lens.values()))) != 1:
             raise AISBenchDataContentError(

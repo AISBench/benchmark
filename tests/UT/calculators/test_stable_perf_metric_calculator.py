@@ -242,6 +242,7 @@ class TestStablePerfMetricCalculator(unittest.TestCase):
         calculator.data_count = {}
         calculator.decode_latencies = {}
         calculator.success_count = {}
+        calculator.excluded_count = {}
         calculator.infer_time = {}
         calculator.result = {}
         
