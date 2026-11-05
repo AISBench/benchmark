@@ -11,6 +11,7 @@ from ais_bench.benchmark.models import VLLMCustomAPIChat
 from ais_bench.benchmark.models.api_models import base_api
 from ais_bench.benchmark.models.output import RequestOutput
 from ais_bench.benchmark.utils.prompt import PromptList
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchValueError
 
 
 class TestVLLMCustomAPIChat(unittest.TestCase):
@@ -133,17 +134,17 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
         self.assertEqual(request_body["messages"][3]["content"], "What's your name?")
     
     async def test_get_request_body_max_out_len_zero(self):
-        """测试max_out_len <= 0的情况"""
+        """测试max_out_len <= 0抛出AISBenchValueError，而不是返回空串"""
         model = VLLMCustomAPIChat(**self.default_kwargs)
         output = RequestOutput()
-        
+
         # 测试max_out_len = 0
-        request_body = await model.get_request_body("test prompt", 0, output)
-        self.assertEqual(request_body, "")
-        
+        with self.assertRaises(AISBenchValueError):
+            await model.get_request_body("test prompt", 0, output)
+
         # 测试max_out_len = -1
-        request_body = await model.get_request_body("test prompt", -1, output)
-        self.assertEqual(request_body, "")
+        with self.assertRaises(AISBenchValueError):
+            await model.get_request_body("test prompt", -1, output)
     
     async def test_get_request_body_stream_enabled(self):
         """测试启用stream时的请求体构建"""

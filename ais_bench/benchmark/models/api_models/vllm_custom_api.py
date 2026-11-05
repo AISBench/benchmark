@@ -8,6 +8,8 @@ from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models import BaseAPIModel, LMTemplateParser
 from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import PPLRequestOutput
+from ais_bench.benchmark.utils.logging.error_codes import MODEL_CODES
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchValueError
 
 PromptType = Union[PromptList, str]
 
@@ -114,6 +116,11 @@ class VLLMCustomAPI(BaseAPIModel):
     async def get_request_body(
         self, input_data: PromptType, max_out_len: int, output: Output, **args
     ):
+        if max_out_len <= 0:
+            raise AISBenchValueError(
+                MODEL_CODES.INVALID_MAX_OUT_LEN,
+                f"max_out_len must be a positive integer, got {max_out_len}.",
+            )
         output.input = input_data
         generation_kwargs = self.generation_kwargs.copy()
         generation_kwargs.update({"max_tokens": max_out_len})
