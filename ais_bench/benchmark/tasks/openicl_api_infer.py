@@ -25,6 +25,7 @@ from ais_bench.benchmark.tasks.utils import (
     format_dict_as_table,
 )
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_api_inferencer import BaseApiInferencer, ApiInferencerConfig
+from ais_bench.benchmark.models.api_models.base_api import SharedPrefillLimiter
 from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg, merge_dataset_abbr_from_cfg
 from ais_bench.benchmark.utils.config import build_dataset_from_cfg
 from ais_bench.benchmark.utils.logging.error_codes import TINFER_CODES
@@ -87,6 +88,8 @@ class OpenICLApiInferTask(BaseTask):
     def __init__(self, cfg: ConfigDict):
         super().__init__(cfg)
         self.concurrency = self.model_cfg.get("batch_size", 1)
+        self.prefill_concurrency = self.model_cfg.get("prefill_concurrency", 0)
+        self.prefill_limiter = None
         self.pressure = self.cli_args.get("pressure", False)
         self.debug = self.cli_args.get("debug", False)
         self.pressure_time = self.cli_args.get("pressure_time")
@@ -318,6 +321,16 @@ class OpenICLApiInferTask(BaseTask):
         else:
             self.logger.info(f"Debug mode, run with concurrency: {self.concurrency}")
         self.inferencer.total_data_count = len(indexes)
+        if getattr(self, "prefill_limiter", None) is not None:
+            self.inferencer.set_config(
+                ApiInferencerConfig(
+                    global_index=self.inferencer.global_index,
+                    global_lock=self.inferencer.global_lock,
+                    use_timestamp=self.inferencer.use_timestamp,
+                    total_data_count=len(indexes),
+                    prefill_limiter=self.prefill_limiter,
+                )
+            )
         self.inferencer.inference_with_shm(dataset_shm.name, message_shm.name, indexes, token_bucket)
 
     def _run_multi_process(
@@ -338,8 +351,9 @@ class OpenICLApiInferTask(BaseTask):
         Returns:
             List[Process]: List of started worker processes
         """
-        global_index = mp.RawValue("i", 0)
-        global_lock = mp.Lock()
+        ctx = mp.get_context()
+        global_index = ctx.RawValue("i", 0)
+        global_lock = ctx.Lock()
         per_worker_concurrency = self._deliver_concurrency_for_workers()
         # Get total data count from indexes
         total_data_count = len(indexes) if self.pressure else len(indexes) - 1
@@ -373,6 +387,7 @@ class OpenICLApiInferTask(BaseTask):
                             global_lock=global_lock,
                             use_timestamp=self.inferencer.use_timestamp,
                             total_data_count=per_worker_data_num[i],
+                            prefill_limiter=getattr(self, "prefill_limiter", None),
                         ),
                     ),
                 )
@@ -428,6 +443,15 @@ class OpenICLApiInferTask(BaseTask):
             data_list: Data list to warm up
         """
         warm_up_inferencer: BaseApiInferencer = ICL_INFERENCERS.build(self.inferencer_cfg)
+        if self.warmup_size > 0 and getattr(self, "prefill_limiter", None) is not None:
+            warmup_limiter = SharedPrefillLimiter(self.prefill_concurrency)
+            warm_up_inferencer.set_config(
+                ApiInferencerConfig(
+                    global_index=warm_up_inferencer.global_index,
+                    global_lock=warm_up_inferencer.global_lock,
+                    prefill_limiter=warmup_limiter,
+                )
+            )
         # warmup
         if self.warmup_size > 0:
             task_state_manager.update_task_state({"status": "warmup"})
@@ -485,6 +509,16 @@ class OpenICLApiInferTask(BaseTask):
         # get timestamps from data_list
         timestamps = self._get_timestamps(data_list)
 
+        self.prefill_concurrency = self.model_cfg.get("prefill_concurrency", 0)
+        self.prefill_limiter = None
+        if self.prefill_concurrency > 0:
+            self.prefill_limiter = SharedPrefillLimiter(
+                self.prefill_concurrency, ctx=mp.get_context()
+            )
+            self.logger.info(
+                f"Prefill concurrency enabled with global limit: {self.prefill_concurrency}"
+            )
+
         self.warm_up(data_list, task_state_manager)
         dataset_size, dataset_shm, indexes = self._dump_dataset_to_share_memory(data_list, global_indexes)
         # In pressure mode, treat the first `concurrency` requests as the dataset size
@@ -493,11 +527,11 @@ class OpenICLApiInferTask(BaseTask):
         else:
             request_num = len(global_indexes)
 
-        # Create token producer
+        # Prefill mode uses first-token feedback instead of rate/timestamp tokens.
         token_producer = TokenProducer(
-            self.model_cfg.pop("request_rate", 0),
+            0 if self.prefill_limiter is not None else self.model_cfg.pop("request_rate", 0),
             timestamps,
-            self.model_cfg.pop("traffic_cfg", {}),
+            {} if self.prefill_limiter is not None else self.model_cfg.pop("traffic_cfg", {}),
             request_num,
             self.task_mode,
             os.path.join(self.inferencer.get_output_dir(self.work_dir), merge_dataset_abbr_from_cfg(self.cfg)),
@@ -603,6 +637,14 @@ class OpenICLApiInferTask(BaseTask):
             for pid, shm in message_shms.items():
                 self._cleanup_shms(shm)
             self._cleanup_shms(dataset_shm)
+            if self.prefill_limiter is not None:
+                self.logger.info(
+                    "Prefill concurrency summary: "
+                    f"limit={self.prefill_concurrency}, "
+                    f"max_inflight={self.prefill_limiter.max_inflight.value}, "
+                    f"inflight={self.prefill_limiter.inflight.value}, "
+                    f"waiting={self.prefill_limiter.waiting.value}"
+                )
             self._summary_failed_results()
 
     def _cleanup_shms(self, shm: shared_memory.SharedMemory):

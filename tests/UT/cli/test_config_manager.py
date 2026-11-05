@@ -148,6 +148,7 @@ class TestConfigManager(unittest.TestCase):
         self.args.path = None
         self.args.model_name = None
         self.args.request_rate = None
+        self.args.prefill_concurrency = None
         self.args.retry = None
         self.args.api_key = None
         self.args.host_ip = None
@@ -471,6 +472,16 @@ class TestConfigManager(unittest.TestCase):
 
         self.assertEqual(model['url'], 'http://example.com/v1')
         self.assertNotIn('api_key', model)
+
+    def test_apply_cli_api_model_overrides_adds_prefill_concurrency(self):
+        """prefill_concurrency 默认关闭，CLI 可将其加入已有模型配置"""
+        self.args.prefill_concurrency = 8
+        config_manager = ConfigManager(self.args)
+        model = {'type': VLLMCustomAPI, 'stream': True}
+
+        config_manager._apply_cli_api_model_overrides([model])
+
+        self.assertEqual(model['prefill_concurrency'], 8)
 
     def test_apply_cli_api_model_overrides_generation_kwargs(self):
         """--generation-kwargs 整体替换配置中的 generation_kwargs"""

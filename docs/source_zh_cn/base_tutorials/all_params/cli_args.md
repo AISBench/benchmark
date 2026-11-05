@@ -47,7 +47,7 @@ ais_bench [OPTIONS]
 > ⚠️ **覆盖范围说明**：
 > - 对于每个 `attr="service"` 的模型配置，命令行显式指定的参数会覆盖其中的对应字段（同一命令下多个服务化模型任务均生效）。
 > - 对于本地模型配置（`attr="local"`），所有显式指定的 API 模型参数都会被忽略，并通过 warning 提示被忽略的参数。
-> - 仅覆盖服务化模型配置中**已存在的字段**，不新增字段（避免向不支持某字段的模型类传入多余参数，保证向后兼容）。
+> - 仅覆盖服务化模型配置中**已存在的字段**，不新增字段（避免向不支持某字段的模型类传入多余参数，保证向后兼容）。`--prefill-concurrency` 除外，该参数默认值为 `0`，可添加到未显式声明它的服务化模型配置中。
 > - 未显式指定的参数不生效（默认 `None`），配置文件中保持原值。
 > - `model` / `model_name` 字段按模型 `type` 的构造签名自动选择写入目标：VLLM 系列写入 `model`，Triton 写入 `model_name`；模型类型两者都不接收（如 MindIE、TGI）时打印 warning 并跳过。
 
@@ -56,6 +56,7 @@ ais_bench [OPTIONS]
 | `--path` | 覆盖模型配置的 `path` 字段（Tokenizer/模型序列化词表文件路径） | `--path /weight/Qwen` |
 | `--model-name` | 覆盖模型名。按模型 `type` 自动写入 `model` 或 `model_name` 字段（VLLM→`model`，Triton→`model_name`；MindIE/TGI 不接收时 warning 跳过） | `--model-name Qwen` |
 | `--request-rate` | 覆盖 `request_rate`（请求发送速率） | `--request-rate 10` |
+| `--prefill-concurrency` | 设置全局 Prefill 并发上限，要求模型配置 `stream=True`；`0` 表示关闭。不能与 timestamp 或 request_rate/traffic 调度模式同时启用 | `--prefill-concurrency 8` |
 | `--retry` | 覆盖 `retry`（每个请求最大重试次数） | `--retry 3` |
 | `--api-key` | 覆盖 `api_key`（自定义 API key） | `--api-key sk-xxx` |
 | `--host-ip` | 覆盖 `host_ip`（推理服务 IP） | `--host-ip 127.0.0.1` |

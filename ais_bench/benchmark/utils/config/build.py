@@ -43,6 +43,10 @@ def _validate_model_cfg(model_cfg: ConfigDict) -> dict:
             isinstance(v, (int, float)) and 0 <= v <= 64000,
             "request_rate must be a number in the range [0, 64000]",
         ),
+        "prefill_concurrency": lambda v: (
+            isinstance(v, int) and not isinstance(v, bool) and v >= 0,
+            "prefill_concurrency must be a non-negative integer",
+        ),
         "retry": lambda v: (
             isinstance(v, int) and 0 <= v <= 1000,
             "retry must be an integer in the range [0, 1000]",
@@ -107,6 +111,38 @@ def _validate_model_cfg(model_cfg: ConfigDict) -> dict:
                 if field in traffic_cfg:
                     if not validator(traffic_cfg[field]):
                         errors[f"traffic_cfg.{field}"] = error_msg
+
+    prefill_concurrency = model_cfg.get("prefill_concurrency", 0)
+    if "prefill_concurrency" not in errors and prefill_concurrency > 0:
+        if model_cfg.get("stream", False) is not True:
+            errors["prefill_concurrency"] = "prefill_concurrency requires stream=True"
+
+    if not any(key in errors for key in ("use_timestamp", "request_rate", "prefill_concurrency", "traffic_cfg")):
+        use_timestamp = model_cfg.get("use_timestamp", False)
+        prefill_enabled = prefill_concurrency > 0
+        request_rate = model_cfg.get("request_rate", 0)
+        traffic_cfg = model_cfg.get("traffic_cfg", {})
+        rate_enabled = request_rate > 0 or (
+            isinstance(traffic_cfg, dict)
+            and any(value not in (None, "") for value in traffic_cfg.values())
+        )
+        conflicts = []
+        if use_timestamp and prefill_enabled:
+            conflicts.append(
+                f"use_timestamp=True conflicts with prefill_concurrency={prefill_concurrency}"
+            )
+        if use_timestamp and rate_enabled:
+            conflicts.append("use_timestamp=True conflicts with request_rate/traffic_cfg")
+        if prefill_enabled and rate_enabled:
+            conflicts.append(
+                f"prefill_concurrency={prefill_concurrency} conflicts with request_rate/traffic_cfg"
+            )
+        if conflicts:
+            errors["schedule"] = (
+                "; ".join(conflicts)
+                + ". Timestamp, prefill concurrency and request rate modes are mutually exclusive; "
+                "enable only one mode (priority: timestamp > prefill_concurrency > request_rate)."
+            )
     return errors
 
 
@@ -131,9 +167,17 @@ def build_model_from_cfg(model_cfg: ConfigDict):
             UTILS_CODES.MODEL_CONFIG_VALIDATE_FAILED,
             f"{model_name} build failed with the following errors: {errors}"
         )
+    prefill_concurrency = model_cfg.get("prefill_concurrency", 0)
+    batch_size = model_cfg.get("batch_size", 1)
+    if prefill_concurrency > batch_size:
+        logger.warning(
+            f"prefill_concurrency ({prefill_concurrency}) exceeds batch_size ({batch_size}); "
+            "the excess permits will not increase request concurrency."
+        )
     model_cfg.pop("use_timestamp", None)
     model_cfg.pop("run_cfg", None)
     model_cfg.pop("request_rate", None)
+    model_cfg.pop("prefill_concurrency", None)
     model_cfg.pop("batch_size", None)
     model_cfg.pop("abbr", None)
     model_cfg.pop("attr", None)

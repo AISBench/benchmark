@@ -791,9 +791,9 @@ class ConfigManager:
         MindieStreamApi) are not passed unexpected keywords. The model-name
         field is resolved by the model `type` signature.
         """
-        fields = ["path", "request_rate", "retry", "api_key", "host_ip",
-                  "host_port", "url", "max_out_len", "batch_size",
-                  "trust_remote_code", "generation_kwargs"]
+        fields = ["path", "request_rate", "prefill_concurrency", "retry",
+                  "api_key", "host_ip", "host_port", "url", "max_out_len",
+                  "batch_size", "trust_remote_code", "generation_kwargs"]
         for model_cfg in models:
             if model_cfg.get("attr", "service") != "service":
                 unsupported_args = [
@@ -824,10 +824,13 @@ class ConfigManager:
                         'neither model nor model_name',
                         model_val, type_name,
                     )
-            # 2) Other common fields: only overwrite existing keys.
+            # 2) Other common fields: only overwrite existing keys. The new
+            # scheduling option defaults to 0, so its CLI override may add it.
             for field in fields:
                 cli_val = getattr(self.args, field, None)
-                if cli_val is None or field not in model_cfg:
+                if cli_val is None:
+                    continue
+                if field not in model_cfg and field != "prefill_concurrency":
                     continue
                 model_cfg[field] = cli_val
 

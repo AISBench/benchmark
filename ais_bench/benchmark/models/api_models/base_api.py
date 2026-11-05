@@ -3,9 +3,13 @@ import json
 import urllib.parse
 import warnings
 import asyncio
+import functools
+import multiprocessing as mp
 import os.path as osp
 import ipaddress
+import time
 from abc import abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -51,6 +55,82 @@ class MockAISLogger(AISLogger):
 
     def warning(self, msg, *args, **kwargs):
         pass
+
+
+class SharedPrefillLimiter:
+    """Cross-process semaphore and monitoring counters for prefill requests."""
+
+    def __init__(self, concurrency: int, ctx=None):
+        ctx = ctx or mp.get_context()
+        self.concurrency = concurrency
+        self.semaphore = ctx.BoundedSemaphore(concurrency)
+        self.inflight = ctx.Value("i", 0)
+        self.waiting = ctx.Value("i", 0)
+        self.max_inflight = ctx.Value("i", 0)
+
+
+class PrefillLease:
+    """Permit owned by one HTTP attempt; release is idempotent."""
+
+    def __init__(self, shared_limiter: Optional[SharedPrefillLimiter] = None):
+        self.shared = shared_limiter
+        self.held = False
+        self.wait_time = 0.0
+
+    def release(self):
+        if not self.held:
+            return
+        self.held = False
+        with self.shared.inflight.get_lock():
+            self.shared.inflight.value -= 1
+        self.shared.semaphore.release()
+
+
+class AsyncPrefillLimiter:
+    """Adapt a synchronous cross-process semaphore without blocking asyncio."""
+
+    def __init__(self, shared_limiter: SharedPrefillLimiter):
+        self.shared = shared_limiter
+        self.executor = ThreadPoolExecutor(max_workers=1)
+
+    async def acquire(self, lease: PrefillLease):
+        wait_start = time.perf_counter()
+        with self.shared.waiting.get_lock():
+            self.shared.waiting.value += 1
+        try:
+            while True:
+                acquire_once = functools.partial(
+                    self.shared.semaphore.acquire, timeout=0.1
+                )
+                job = self.executor.submit(acquire_once)
+                try:
+                    acquired = await asyncio.wrap_future(job)
+                except asyncio.CancelledError:
+                    job.add_done_callback(self._release_if_acquired)
+                    raise
+                if not acquired:
+                    continue
+                lease.held = True
+                lease.wait_time = time.perf_counter() - wait_start
+                with self.shared.inflight.get_lock():
+                    self.shared.inflight.value += 1
+                    self.shared.max_inflight.value = max(
+                        self.shared.max_inflight.value,
+                        self.shared.inflight.value,
+                    )
+                return
+        finally:
+            with self.shared.waiting.get_lock():
+                self.shared.waiting.value -= 1
+
+    def _release_if_acquired(self, job):
+        if job.cancelled() or job.exception() is not None:
+            return
+        if job.result():
+            self.shared.semaphore.release()
+
+    def close(self):
+        self.executor.shutdown(wait=True, cancel_futures=True)
 
 
 class BaseAPIModel(BaseModel):
@@ -113,6 +193,7 @@ class BaseAPIModel(BaseModel):
         )
         self.verbose = verbose
         self.session = None
+        self.prefill_limiter = None
         self.base_url = self._get_base_url()
         if self._logprobs_enabled():
             self.logger.warning(
@@ -479,38 +560,53 @@ class BaseAPIModel(BaseModel):
             await self.session.close()
         return output
 
+    def set_prefill_limiter(self, limiter: Optional[AsyncPrefillLimiter]):
+        self.prefill_limiter = limiter
+
     async def stream_infer(self, request_body: dict, output: Output):
-        await output.record_time_point()
-        async with self.session.post(
-            url=self.url, json=request_body, headers=self.headers
-        ) as response:
-            if response.status == 200:
-                async for raw_chunk in self.iter_lines(response.content):
-                    chunk = raw_chunk.strip()
-                    if not chunk:
-                        continue
-                    chunk = chunk.decode("utf-8")
-                    if chunk.startswith(":") or chunk.startswith("id:"):
-                        continue
-                    chunk = chunk.removeprefix("data:").strip()
-                    if chunk == "[DONE]":
-                        break
-                    await output.record_time_point()
-                    try:
-                        data = json.loads(chunk)
-                    except json.JSONDecodeError as e:
-                        output.success = False
-                        output.error_info = f"Unexpected response format: {raw_chunk}. Please check if server is working correctly."
-                        raise AISBenchValueError(
-                            MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
-                            f"Unexpected response format. Please check 'error_info' in ***_failed.jsonl for more information.",
-                        )
-                    await self.parse_stream_response(data, output)
-                    self._accumulate_response_anomaly_payload(data, output)
-                output.success = True
-            else:
-                output.error_info = response.reason
-                output.success = False
+        lease = PrefillLease(
+            self.prefill_limiter.shared if self.prefill_limiter else None
+        )
+        try:
+            if self.prefill_limiter:
+                await self.prefill_limiter.acquire(lease)
+                output.extra_perf_data.setdefault("prefill_wait_time", []).append(
+                    lease.wait_time
+                )
+            await output.record_time_point()
+            async with self.session.post(
+                url=self.url, json=request_body, headers=self.headers
+            ) as response:
+                if response.status == 200:
+                    async for raw_chunk in self.iter_lines(response.content):
+                        chunk = raw_chunk.strip()
+                        if not chunk:
+                            continue
+                        chunk = chunk.decode("utf-8")
+                        if chunk.startswith(":") or chunk.startswith("id:"):
+                            continue
+                        chunk = chunk.removeprefix("data:").strip()
+                        if chunk == "[DONE]":
+                            break
+                        await output.record_time_point()
+                        lease.release()
+                        try:
+                            data = json.loads(chunk)
+                        except json.JSONDecodeError as e:
+                            output.success = False
+                            output.error_info = f"Unexpected response format: {raw_chunk}. Please check if server is working correctly."
+                            raise AISBenchValueError(
+                                MODEL_CODES.PARSE_TEXT_RSP_INVALID_FORMAT,
+                                f"Unexpected response format. Please check 'error_info' in ***_failed.jsonl for more information.",
+                            )
+                        await self.parse_stream_response(data, output)
+                        self._accumulate_response_anomaly_payload(data, output)
+                    output.success = True
+                else:
+                    output.error_info = response.reason
+                    output.success = False
+        finally:
+            lease.release()
 
     async def text_infer(self, request_body, output: Output):
         await output.record_time_point()

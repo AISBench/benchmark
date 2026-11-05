@@ -292,6 +292,7 @@ class TestArgumentParser(unittest.TestCase):
             '--path', '/tmp/model',
             '--model-name', 'Qwen',
             '--request-rate', '10',
+            '--prefill-concurrency', '8',
             '--retry', '3',
             '--api-key', 'sk-test',
             '--host-ip', '127.0.0.1',
@@ -309,6 +310,7 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.path, '/tmp/model')
         self.assertEqual(args.model_name, 'Qwen')
         self.assertEqual(args.request_rate, 10.0)
+        self.assertEqual(args.prefill_concurrency, 8)
         self.assertEqual(args.retry, 3)
         self.assertEqual(args.api_key, 'sk-test')
         self.assertEqual(args.host_ip, '127.0.0.1')
@@ -328,8 +330,8 @@ class TestArgumentParser(unittest.TestCase):
         sys.argv = ['benchmark.py']
         args = ArgumentParser().parse_args()
 
-        for attr in ('path', 'model_name', 'request_rate', 'retry', 'api_key',
-                     'host_ip', 'host_port', 'url', 'max_out_len', 'batch_size',
+        for attr in ('path', 'model_name', 'request_rate', 'prefill_concurrency',
+                     'retry', 'api_key', 'host_ip', 'host_port', 'url', 'max_out_len', 'batch_size',
                      'trust_remote_code', 'generation_kwargs'):
             self.assertIsNone(getattr(args, attr))
 
