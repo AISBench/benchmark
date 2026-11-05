@@ -1,4 +1,7 @@
 """One owned node operation over JSON stdin; never execute arbitrary received code."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import hashlib
 import json
 from pathlib import Path

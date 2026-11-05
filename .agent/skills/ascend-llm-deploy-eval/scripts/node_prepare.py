@@ -1,4 +1,7 @@
 """Attended node preparation. Reads a data request; writes only its task directory."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import json
 from pathlib import Path
 import re

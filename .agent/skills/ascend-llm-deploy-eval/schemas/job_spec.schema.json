@@ -171,6 +171,16 @@
                     },
                     "bootstrap": {
                       "type": "string"
+                    },
+                    "kv_transfer_config": {
+                      "type": "object",
+                      "required": [
+                        "kv_connector",
+                        "kv_role",
+                        "kv_port",
+                        "engine_id"
+                      ],
+                      "additionalProperties": true
                     }
                   },
                   "required": []

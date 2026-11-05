@@ -1,4 +1,7 @@
 """One AISBench attempt inside the owned container; always release its client process group."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import json
 import os
 from pathlib import Path
@@ -19,6 +22,8 @@ def run(root,folder):
     spec_path=root/'resolved.json'
     spec=json.loads(spec_path.read_text())
     case=json.loads((folder/'case.json').read_text())
+    if case.get('aisbench_config'):
+        raise ValueError('Native config requires the unified run.py entry; legacy adapter cannot preserve it')
     context = {**case.get('_event_context', {'subcase_id':case['id']}), 'attempt':case.get('_attempt',1)}
     def event(stage, status, **values):
         emit(root, stage, status, **context, **values)

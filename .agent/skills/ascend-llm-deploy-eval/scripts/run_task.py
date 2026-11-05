@@ -1,4 +1,7 @@
 """Run the generated serial task after attended preflight has completed."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import argparse
 from pathlib import Path
 from stage_runtime import record

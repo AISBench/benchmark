@@ -1,4 +1,7 @@
 """Fixed host-side launch/status RPC for a prepared job; no arbitrary command input."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import argparse
 import json
 import os

@@ -1,4 +1,7 @@
 """Start one owned node; topology readiness and smoke belong to the coordinator."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import json
 from pathlib import Path
 import shutil

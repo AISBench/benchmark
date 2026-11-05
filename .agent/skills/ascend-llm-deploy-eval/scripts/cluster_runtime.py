@@ -336,15 +336,5 @@ def run(root, spec, resolved):
     return summary
 
 
-def higher_concurrency_blocker(spec, subtask, results):
-    cases={c['id']:c for c in spec['cases']}
-    current=cases[subtask['case_id']]
-    for previous in spec['sub_tasks']:
-        if previous['id']==subtask['id']: break
-        if previous.get('on_failure')!='skip_higher_concurrency': continue
-        if previous['deployment_id']!=subtask['deployment_id']: continue
-        if results.get(previous['id'],{}).get('status')!='FAILED': continue
-        earlier=cases[previous['case_id']]
-        if earlier.get('input_tokens')==current.get('input_tokens') and earlier['concurrency']<current['concurrency']:
-            return previous['id']
-    return None
+
+from task_model import higher_concurrency_blocker

@@ -23,45 +23,6 @@ def read_task(root):
     return spec
 
 
-def validate_task(spec):
-    from topology import validate_deployment
-    errors = []
-    deployments = {d['id']:d for d in spec['deployments']}
-    cases = {c['id']:c for c in spec['cases']}
-    if len(deployments) != len(spec['deployments']) or len(cases) != len(spec['cases']):
-        errors.append('Duplicate deployment/case ID')
-    for dep in deployments.values():
-        import re
-        for instance in dep['instances']:
-            launch=instance.get('launch',{})
-            if launch.get('preserve_reference'):
-                continue
-            for key in ('ASCEND_SLOG_PRINT_TO_STDOUT','ASCEND_GLOBAL_LOG_LEVEL'):
-                if key in launch.get('env',{}) or re.search(r'(?<![A-Za-z0-9_])'+key+r'\s*=',launch.get('bootstrap','')):
-                    errors.append('Remove operator logging assignment: '+key)
-        errors.extend(validate_deployment(dep))
-    if errors:
-        return errors
-    seen = set()
-    for task in spec['sub_tasks']:
-        if task['id'] in seen:
-            errors.append('Duplicate sub_task ID')
-        seen.add(task['id'])
-        dep, case = deployments.get(task['deployment_id']), cases.get(task['case_id'])
-        if dep is None or case is None:
-            errors.append('Unknown deployment/case reference')
-            continue
-        limits = [i['launch'].get('args',{}).get('max-model-len',0) for i in dep['instances'] if i['role'] != 'proxy']
-        if case.get('mode','perf')=='perf' and limits and case.get('input_tokens',0)+case['output_tokens'] > min(limits):
-            errors.append('Context limit exceeded: '+task['id'])
-    for case in cases.values():
-        if case.get('mode','perf') != 'perf':
-            continue
-        if case.get('formal_requests',case['concurrency']*4) < case['concurrency']:
-            errors.append('Requests cannot reach concurrency: '+case['id'])
-    if spec['state']=='ready' and spec['unresolved']:
-        errors.append('Ready task has unresolved items')
-    return errors
 
 
 def stage_entry(stage, root, bindings=None):
@@ -91,3 +52,5 @@ def stage_entry(stage, root, bindings=None):
         if stage=='finalize':
             return finalize(root,spec,resolved)
         raise ValueError('Use generated run.sh for topology deployment and execution')
+
+from task_model import validate_task

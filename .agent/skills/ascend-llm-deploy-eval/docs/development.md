@@ -13,7 +13,7 @@ python -m unittest discover -s tests/unit -v
 
 真实部署和性能回归需要 Linux 昇腾服务器、Docker、NPU、可用镜像与权重以及免密 SSH，按使用文档进行有人值守的预检与执行。离线测试通过不代表真实模型性能测试通过。
 
-`submit_job.py --local-jobs-dir` 可指定仓库外产物目录，默认使用用户主目录下的 `.autobenchmark/jobs`。
+`run.py --run-dir` 指定仓库外目录；旧公开提交入口已停用。
 
 设计和决策文档来自原 AutoBenchmark 项目，带日期的验证记录及提交编号是历史背景，不表示本仓库的提交或本次验证结果。运行接口以 `SKILL.md` 和脚本为准。
 
@@ -22,3 +22,5 @@ python -m unittest discover -s tests/unit -v
 测试覆盖外部 JSONL/CSV 数据路径、原生配置与命令生成、成功/失败退出、请求数量和长度校验、日志落盘索引及只读日志观察器。测试不需要 Prefix Cache 插件；不使用真实模型、数据集或服务器。Linux 专用进程检查与真实硬件回归需在相应环境执行。
 
 2026-11-04，Windows / Python 3.11：110项测试，107项通过，3项Linux专用测试跳过。当前环境未安装完整AISBench运行依赖，尚未进行真实CLI压测、模型部署或硬件性能回归。
+
+本轮修复、回归覆盖及实机验证边界见 [2026-11-05 修复记录](audit-repairs-20261105.md)。

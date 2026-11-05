@@ -14,34 +14,8 @@ from stage_runtime import PACKAGE, command, digest, save
 TOKEN = re.compile(r'\{\{([a-zA-Z_][a-zA-Z0-9_.]*)\}\}')
 
 
-def lookup(context, name):
-    value = context
-    for key in name.split('.'):
-        if not isinstance(value, dict) or key not in value:
-            raise ValueError('Unresolved binding: '+name)
-        value = value[key]
-    return value
 
 
-def expand(value, context, shell=False):
-    if isinstance(value, dict):
-        return {k: expand(v, context, shell) for k, v in value.items()}
-    if isinstance(value, list):
-        return [expand(v, context, shell) for v in value]
-    if not isinstance(value, str):
-        return value
-    match = TOKEN.fullmatch(value)
-    if match and not shell:
-        return lookup(context, match[1])
-    def replace(match):
-        result = lookup(context, match[1])
-        if isinstance(result, (dict, list)):
-            raise ValueError('Structured binding must occupy entire value: '+match[1])
-        return shlex.quote(str(result)) if shell else str(result)
-    result = TOKEN.sub(replace, value)
-    if '{{' in result or '}}' in result:
-        raise ValueError('Unresolved or invalid template token')
-    return result
 
 
 def interface_speed(name):
@@ -276,3 +250,5 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
     save(child/'scripts/service.json', service)
     return {'run_dir': str(child), 'execution_sha256': digest(execution),
             'service_fingerprint': fingerprint, 'scripts_sha256': fingerprints, 'tool_discovery': tools}
+
+from task_model import lookup, expand

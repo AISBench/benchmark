@@ -14,12 +14,12 @@ class ScaffoldTests(unittest.TestCase):
             root = Path(tmp)
             copied = root / "installed"
             shutil.copytree(SKILL, copied)
-            for stage in ("plan_run", "preflight", "deploy", "evaluate", "finalize"):
+            for stage in ("plan_run", "preflight", "deploy", "evaluate", "finalize", "submit_job", "run_task", "node_rpc", "node_prepare", "group_run", "group_worker", "submission"):
                 result = subprocess.run([sys.executable, str(copied / "scripts" / (stage + ".py")),
                                          "--run-dir", str(root / "run")], cwd=root,
                                         capture_output=True, text=True)
-                self.assertEqual(result.returncode, 2, result.stderr)
-                self.assertEqual(json.loads(result.stdout)["status"], "BLOCKED")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Retired lifecycle entry', result.stderr)
             self.assertFalse((root / "run").exists())
 
 if __name__ == "__main__":

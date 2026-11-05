@@ -1,3 +1,5 @@
+> 历史设计记录：其中旧入口、快照目录和提交流程不适用于新任务。当前规则以 SKILL.md 和 docs/compact-cli.md 为准；旧公开入口已停用。
+
 # Job 包与存储
 
 本机使用 submit_job.py prepare 校验 JSON、在 --local-jobs-dir 原子分配编号并冻结任务，再生成 job_id.tar.gz。统一使用同一本地 jobs 目录；远端编号冲突时拒绝覆盖，保留证据，重新分配新任务。任务包以文件清单和 SHA256 校验完整性。协调端与节点的 host/work_dir 相同时只上传一次；主机别名应在 bindings 中统一，脚本不推断不同别名是否属于同一机器。

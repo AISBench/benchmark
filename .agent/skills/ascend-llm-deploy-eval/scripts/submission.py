@@ -1,4 +1,7 @@
 """Linux detached launcher with durable identity and exit evidence."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import argparse
 from datetime import datetime, timezone
 import json

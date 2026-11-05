@@ -26,7 +26,9 @@ class EntryTests(unittest.TestCase):
     def invoke(self, *args):
         source = self.root/'input.json'
         source.write_text(json.dumps(self.spec), encoding='utf-8')
-        result = subprocess.run([sys.executable, '-B', str(plan_run.PACKAGE/'scripts/plan_run.py'),
+        # Historical library regression only. Its public CLI is retired.
+        code=f'import sys; sys.path.insert(0,{str(plan_run.PACKAGE/"scripts")!r}); import plan_run; sys.exit(plan_run.main())'
+        result = subprocess.run([sys.executable, '-B', '-c', code,
             '--job-spec', str(source), *map(str, args)], capture_output=True, text=True)
         return result.returncode, json.loads(result.stdout)
 

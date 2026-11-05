@@ -1,4 +1,7 @@
 """Container-side owned process groups; PID plus start-time prevents PID reuse."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import json
 import hashlib
 from datetime import datetime, timezone

@@ -10,7 +10,7 @@ SCRIPTS = Path(__file__).resolve().parents[2]/'scripts'
 
 class StageEntryTests(unittest.TestCase):
     def invoke(self, root):
-        # Exercise the actual preflight CLI, isolating remote dispatch only.
+        # Historical internal dispatch regression; public preflight CLI is retired.
         code = (
             'import runpy,sys,types; '
             f'sys.path.insert(0,{str(SCRIPTS)!r}); '
@@ -19,7 +19,7 @@ class StageEntryTests(unittest.TestCase):
             '{"status":"PASSED","message":"dispatched:"+stage}; '
             'sys.modules["task_runtime"]=m; '
             f'sys.argv=["preflight.py","--run-dir",{str(root)!r}]; '
-            f'runpy.run_path({str(SCRIPTS/"preflight.py")!r},run_name="__main__")'
+            'from stage_runtime import entry; sys.exit(entry("preflight"))'
         )
         return subprocess.run([sys.executable, '-c', code], capture_output=True, text=True)
 

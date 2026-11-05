@@ -122,6 +122,12 @@ def validate_native_result(folder, case):
     files=list((folder/'outputs').glob('*/performances/*/*_details.jsonl'))
     if not files:
         raise ValueError('Missing native AISBench request details')
+    expected_file=folder/'native-expectations.json'
+    if expected_file.exists():
+        expected={tuple(pair) for pair in json.loads(expected_file.read_text())}
+        actual=[(p.parent.name,p.name.removesuffix('_details.jsonl')) for p in files]
+        if len(actual)!=len(set(actual)) or set(actual)!=expected:
+            raise ValueError('Native AISBench result groups differ from resolved config')
     for path in files:
         seen=set()
         for line in path.read_text(encoding='utf-8').splitlines():

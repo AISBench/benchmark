@@ -20,16 +20,20 @@ import subprocess
 import time
 import urllib.request
 import uuid
+import tempfile
 
 from aisbench_cli import commands, require_supported_mode, write_config
 from container_baseline import docker_run_args
-from plan_run import load_json, normalize, validate
+from task_model import load_json, normalize, validate, validate_bindings, expand, higher_concurrency_blocker
 from remote_node import transport_argv
-from task_preflight import expand
 from topology import compile_deployment
+from shared_storage import verify_groups
 
 
 def save(path, value):
+    if path.name=='status.json':
+        from jsonschema import validate as schema_validate
+        schema_validate(value,load_json(Path(__file__).parent.parent/'schemas/status.schema.json'))
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix+'.tmp')
     temporary.write_text(json.dumps(value, indent=2, ensure_ascii=False)+'\n', encoding='utf-8')
@@ -37,6 +41,8 @@ def save(path, value):
 
 
 def script(path, lines, *, strict=True):
+    if path.exists():
+        raise ValueError('Generated script path collision: '+str(path))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('#!/usr/bin/env bash\n'+('set -euo pipefail' if strict else 'set -e')+'\n'+lines+'\n', encoding='utf-8', newline='\n')
 
@@ -49,8 +55,30 @@ def remote_root(binding, job_id):
 
 
 def generate(spec, bindings, root):
+    """Transactional generation: failure never leaves a partially executable task."""
+    if root.exists():
+        raise ValueError('Refusing to overwrite an existing task directory')
+    root.parent.mkdir(parents=True,exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.generate-',dir=root.parent) as temporary:
+        staging=Path(temporary)/'task'
+        result=_generate(spec,bindings,staging)
+        for attempt in range(4):
+            try:
+                staging.rename(root)
+                break
+            except PermissionError:
+                if os.name!='nt' or attempt==3:raise
+                time.sleep(0.1*(attempt+1))
+    return result
+
+
+def _generate(spec, bindings, root):
     """No SSH, Docker or model side effects; all unresolved bindings fail closed."""
     spec = copy.deepcopy(spec)
+    validate_bindings(bindings)
+    for dep in spec['deployments']:
+        if dep['id'].lower()=='tests':
+            raise ValueError('Deployment ID tests is reserved for generated test scripts')
     for dep in spec['deployments']:
         for instance in dep['instances']:
             if instance['role'] != 'proxy':
@@ -70,8 +98,6 @@ def generate(spec, bindings, root):
         raise ValueError('Resolve draft before generating executable scripts')
     for case in spec['cases']:
         require_supported_mode(case)
-        if case.get('reset_cache'):
-            raise ValueError('Compact runner does not yet implement explicit cache reset')
     if spec['cleanup']['task_end'] != 'stop_container' or any(s['after_case']=='stop_service' for s in spec['sub_tasks']):
         raise ValueError('Compact runner requires task_end=stop_container; after_case supports keep_service/stop_container')
     if root.exists() and any(root.iterdir()):
@@ -81,26 +107,11 @@ def generate(spec, bindings, root):
     save(root/'bindings.json', bindings)
     helper = root/'.runtime'
     helper.mkdir(exist_ok=True)
-    for filename in ('aisbench_cli.py','validate_case.py'):
+    for filename in ('aisbench_cli.py','validate_case.py','cache_reset.py','metric_evidence.py','test_evidence.py'):
         (helper/filename).write_bytes(Path(__file__).with_name(filename).read_bytes())
-    (helper/'check_test.py').write_text(
-        'import json,sys\nfrom pathlib import Path\n'
-        'from aisbench_cli import dataset_for,check_dataset\nfrom validate_case import validate\n'
-        'root=Path(sys.argv[1]); sub_id=sys.argv[2]; node=sys.argv[3]\n'
-        'spec=json.loads((root/"job_spec.json").read_text()); bindings=json.loads((root/"bindings.json").read_text())\n'
-        'sub=next(s for s in spec["sub_tasks"] if s["id"]==sub_id)\n'
-        'case=next(c for c in spec["cases"] if c["id"]==sub["case_id"])\n'
-        'if len(sys.argv)==4:\n'
-        '    if not case.get("aisbench_config"):\n'
-        '        dataset=dataset_for(bindings["nodes"][node]["benchmark"],case)\n'
-        '        check_dataset(dataset,case["formal_requests"])\n'
-        'else:\n'
-        '    folder=Path(sys.argv[4]); (folder/"execution.json").write_text(json.dumps({"returncode":int(sys.argv[5])}))\n'
-        '    if case.get("aisbench_config"):\n'
-        '        from aisbench_cli import validate_native_result\n'
-        '        validate_native_result(folder,case)\n'
-        '    else: validate(folder,case)\n',encoding='utf-8')
+    (helper/'check_test.py').write_text('import sys\nfrom test_evidence import check\ncheck(*sys.argv[1:])\n',encoding='utf-8')
     plan = {'deployments': {}, 'tests': {}}
+    resource_names=set()
     for dep in spec['deployments']:
         dep = copy.deepcopy(dep)
         for instance in dep['instances']:
@@ -110,24 +121,51 @@ def generate(spec, bindings, root):
                 instance['launch']['preserve_reference'] = True
         nodes = {slot: bindings['nodes'][slot]['deployments'][dep['id']]
                  for slot in {i['placement']['node'] for i in dep['instances']}}
+        # Resolve explicitly authored values for comparison, never overwrite a conflicting template.
+        for instance in dep['instances']:
+            slot=instance['placement']['node'];node=nodes[slot];binding=bindings['nodes'][slot]
+            ports=node['ports'][instance['id']]
+            context={'network':node['network'],'ports':ports,'paths':binding.get('paths',{}),
+                     'model':{'path':binding['model_paths'][dep['model']['id']],'served_name':dep['model']['served_name']}}
+            expected={'HCCL_IF_IP':node['network']['ip'],'VLLM_HOST_IP':node['network']['ip'],
+                'GLOO_SOCKET_IFNAME':node['network']['interface'],'TP_SOCKET_IFNAME':node['network']['interface'],
+                'HCCL_SOCKET_IFNAME':node['network']['interface']}
+            if 'hccl' in ports:expected['HCCL_IF_BASE_PORT']=ports['hccl']
+            for key,value in instance['launch'].get('env',{}).items():
+                if key in expected and str(expand(value,context))!=str(expected[key]):
+                    raise ValueError('Confirmed environment conflicts with binding: '+instance['id']+'.'+key)
+            for key,value in instance['launch'].get('args',{}).items():
+                target={'data-parallel-address':node['network']['ip'],'data-parallel-rpc-port':ports.get('rpc')}
+                if key in target and str(expand(value,context))!=str(target[key]):
+                    raise ValueError('Confirmed argument conflicts with binding: '+instance['id']+'.'+key)
+            if 'kv_transfer_config' in instance['launch']:
+                instance['launch']['kv_transfer_config']=expand(instance['launch']['kv_transfer_config'],context)
         compiled = compile_deployment(dep, nodes)
-        record = {'groups': {}, 'health_urls': [], 'endpoint': compiled['endpoint']}
+        record = {'groups': {}, 'health_urls': [], 'endpoint': compiled['endpoint'], 'reset_urls':compiled['reset_urls'], 'metric_instances':compiled['metric_instances']}
         plan['deployments'][dep['id']] = record
         for group in compiled['groups'].values():
             slot = group['node']; binding = bindings['nodes'][slot]
             task = remote_root(binding, spec['job_id'])
             name = spec['job_id']+'-'+dep['id']+'-'+slot
+            if name in resource_names:
+                raise ValueError('Deployment/node resource identity collision: '+name)
+            resource_names.add(name)
             q = shlex.quote
             owner = spec['job_id']
             identity = task+'/.runtime/'+dep['id']+'-'+slot+'.container-id'
+            token_file = identity+'.token'
             guard = 'test "$(docker inspect -f '+q('{{ index .Config.Labels "bench.task" }}')+' '+q(name)+')" = '+q(owner)+ '\n'+\
-                    'test "$(docker inspect -f '+q('{{.Id}}')+' '+q(name)+')" = "$(cat '+q(identity)+')"'
+                    'test "$(docker inspect -f '+q('{{.Id}}')+' '+q(name)+')" = "$(cat '+q(identity)+')"\n'+\
+                    'test "$(docker inspect -f '+q('{{ index .Config.Labels "bench.execution" }}')+' '+q(name)+')" = "$(cat '+q(token_file)+')"'
             folder = root/'scripts'/dep['id']
             remote_scripts = task+'/scripts/'+dep['id']
             mounts = list(binding.get('mounts', []))
             model = binding['model_paths'][dep['model']['id']]
             for source in (task, model):
-                if not any(m['target'] == source for m in mounts):
+                matching=[m for m in mounts if m['target']==source]
+                if matching and (matching[0]['source']!=source or (source==task and matching[0].get('read_only'))):
+                    raise ValueError('Explicit mount conflicts with task/model binding: '+source)
+                if not matching:
                     mounts.append({'source': source, 'target': source, 'read_only': source == model})
             if len({m['target'] for m in mounts}) != len(mounts):
                 raise ValueError('Duplicate mount targets: '+slot)
@@ -148,9 +186,13 @@ def generate(spec, bindings, root):
                 checks.append('RC=0; fuser '+q('/dev/davinci'+str(device))+' || RC=$?\ntest "$RC" -eq 1')
             port_check='import socket; sockets=[]\nfor port in '+repr(group['ports'])+':\n s=socket.socket(); s.bind(("0.0.0.0",port)); sockets.append(s)'
             checks.append(shlex.join(['python3','-c',port_check]))
-            script(folder/(slot+'-container.sh'), '\n'.join(checks)+'\n'+shlex.join(argv)+' > '+q(identity)+'\ncat '+q(identity))
+            create=shlex.join(argv).replace('docker run ', 'docker run --label "bench.execution=$TOKEN" ',1)
+            script(folder/(slot+'-container.sh'), '\n'.join(checks)+'\nTOKEN=${1:-$(python3 -c "import uuid; print(uuid.uuid4().hex)")}\n[[ "$TOKEN" =~ ^[a-f0-9]{32}$ ]]\nprintf "%s" "$TOKEN" > '+q(token_file)+'\n'+create+' > '+q(identity)+'\ncat '+q(identity))
             script(folder/(slot+'-stop.sh'),
-                   'docker info >/dev/null\nif docker inspect '+q(name)+' >/dev/null 2>&1; then\n  '+guard+'\n  docker rm -f '+q(name)+'\nfi\n'+
+                   'docker info >/dev/null\nif docker inspect '+q(name)+' >/dev/null 2>&1; then\n'+
+                   'TOKEN=${1:-$(cat '+q(token_file)+')}\n[[ "$TOKEN" =~ ^[a-f0-9]{32}$ ]]\n'+
+                   'if test "$(docker inspect -f '+q('{{ index .Config.Labels "bench.execution" }}')+' '+q(name)+')" != "$TOKEN"; then echo "Foreign execution; untouched"; exit 0; fi\n  '+
+                   'test "$(docker inspect -f '+q('{{ index .Config.Labels "bench.task" }}')+' '+q(name)+')" = '+q(owner)+'\n  docker rm -f '+q(name)+'\nfi\n'+
                    'if docker inspect '+q(name)+' >/dev/null 2>&1; then exit 1; fi')
             starts = [guard, 'RUN=${1:-run01}', '[[ "$RUN" =~ ^run[0-9]+$ ]]',
                       'mkdir -p '+q(task+'/logs/'+dep['id']+'-')+'"$RUN"',
@@ -180,7 +222,8 @@ def generate(spec, bindings, root):
                               q(log)+'"$RUN"/'+q(slot+'-'+item['name']+'.log')+'; then echo "Fatal engine startup failure" >&2; exit 1; fi')
             script(folder/(slot+'-start.sh'), '\n'.join(starts))
             script(folder/(slot+'-probe.sh'), '\n'.join(probes))
-            record['groups'][slot] = {'host':binding['host'], 'root':task, 'container':name}
+            record['groups'][slot] = {'host':binding['host'], 'root':task, 'container':name,
+                'log_names':[slot+'-'+item['name']+'.log' for item in group['commands']], 'guard':guard}
             record['health_urls'] += group['health_urls']
         endpoint_slot=compiled['endpoint_group'].split('/')[0]
         record['endpoint_node']=endpoint_slot
@@ -200,11 +243,6 @@ def generate(spec, bindings, root):
                 if any(isinstance(n,ast.ImportFrom) and n.level for n in ast.walk(ast.parse(text))):
                     raise ValueError('Native config must use installed absolute imports, not relative file imports')
                 destination.write_text(text,encoding='utf-8',newline='\n')
-                with destination.open('a',encoding='utf-8',newline='\n') as stream:
-                    stream.write('\n# Task load is authoritative; retain native dataset/model adapters.\n')
-                    stream.write('for _task_model in models:\n    _task_model.update('+repr({
-                        'batch_size':case['concurrency'],'max_out_len':case['output_tokens'],
-                        'request_rate':case.get('request_rate',0)})+')\n')
             else:
                 config = write_config({'model':{'path':binding['model_paths'][dep['model']['id']],
                                   'served_name':dep['model']['served_name']},'benchmark':binding['benchmark']},
@@ -218,13 +256,13 @@ def generate(spec, bindings, root):
             argv[argv.index('--work-dir')+1]='__RESULT__'
             # Shell result path is the sole run-time argument; all load settings are fixed.
             command = shlex.join(argv).replace('__RESULT__', '"$OUT/outputs"')
-            script(folder/(sub['id']+'.sh'), 'TRY=${1:-try01}\n[[ "$TRY" =~ ^try[0-9]+$ ]]\nOUT='+
+            script(folder/(sub['id']+'.sh'), group['guard']+'\nTRY=${1:-try01}\n[[ "$TRY" =~ ^try[0-9]+$ ]]\nOUT='+
                    shlex.quote(group['root']+'/results/'+sub['id']+'-')+'"$TRY"\n'+
-                   'test ! -e "$OUT"\nmkdir -p "$OUT"\n'+
-                   shlex.join(['docker','exec',group['container'],'python3',group['root']+'/.runtime/check_test.py',group['root'],sub['id'],slot])+'\n'+
+                   'test ! -e "$OUT"\nmkdir -p "$OUT"\n: > "$OUT/aisbench.log"\n'+
+                   shlex.join(['docker','exec',group['container'],'python3',group['root']+'/.runtime/check_test.py',group['root'],sub['id'],slot])+' \"$OUT\" before\n'+
                    'RC=0\ndocker exec '+shlex.quote(group['container'])+' bash -c '+
                    shlex.quote('OUT=$1; exec '+command)+' bash "$OUT" > "$OUT/aisbench.log" 2>&1 || RC=$?\n'+
-                   shlex.join(['docker','exec',group['container'],'python3',group['root']+'/.runtime/check_test.py',group['root'],sub['id'],slot])+ ' "$OUT" "$RC"')
+                   shlex.join(['docker','exec',group['container'],'python3',group['root']+'/.runtime/check_test.py',group['root'],sub['id'],slot])+ ' "$OUT" after "$RC"')
             plan['tests'][sub['id']]={'node':slot,'deployment':dep['id'],'timeout':case['timeout_seconds']}
     save(root/'.runtime/dispatch.json',plan)
     files = {str(p.relative_to(root)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest()
@@ -251,6 +289,13 @@ def distribute(root, plan):
     manifest=load_json(root/'.runtime/manifest.json')
     if any(hashlib.sha256((root/name).read_bytes()).hexdigest()!=digest for name,digest in manifest['files'].items()):
         raise ValueError('Generated bundle changed before distribution')
+    bindings=load_json(root/'bindings.json')
+    if bindings.get('shared_storage_groups'):
+        def ssh(host,argv):
+            result=subprocess.run(transport_argv(host,argv),capture_output=True,text=True,timeout=30)
+            if result.returncode:raise RuntimeError('Shared storage probe failed: '+result.stderr)
+            return result.stdout
+        verify_groups(bindings,ssh,root/'.runtime/shared-storage.json')
     files={relative:base64.b64encode((root/relative).read_bytes()).decode() for relative in manifest['files']}
     files['.runtime/manifest.json']=base64.b64encode((root/'.runtime/manifest.json').read_bytes()).decode()
     program='''import base64,hashlib,json,pathlib,sys
@@ -278,6 +323,27 @@ print('Bundle verified')
             if result.returncode: raise RuntimeError('Bundle distribution failed: '+result.stderr)
 
 
+def claim_execution(plan, token):
+    """Persistent exclusive claim: different coordinators cannot replay a remote task."""
+    program='''import os,pathlib,sys
+path=pathlib.Path(sys.argv[1])/'.runtime/execution.claim'; token=sys.argv[2]
+try:
+ fd=os.open(path,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
+except FileExistsError:
+ if path.read_text()!=token: raise SystemExit('Task already claimed; use a new job ID')
+else:
+ with os.fdopen(fd,'w') as stream: stream.write(token)
+'''
+    seen=set()
+    for dep in plan['deployments'].values():
+        for group in dep['groups'].values():
+            key=(group['host'],group['root'])
+            if key in seen: continue
+            seen.add(key)
+            result=subprocess.run(transport_argv(group['host'],['python3','-c',program,group['root'],token]),capture_output=True,text=True,timeout=30)
+            if result.returncode:raise RuntimeError('Execution claim failed: '+result.stderr)
+
+
 def collect(root, plan):
     """Gather user artifacts only; never infer shared storage from matching strings."""
     seen=set()
@@ -300,7 +366,7 @@ def collect(root, plan):
                 probe=['test','-d',source]
                 argv=transport_argv(group['host'],probe)
                 checked=subprocess.run(argv,capture_output=True,timeout=30)
-                if checked.returncode==1: continue
+                if checked.returncode==1: continue  # Required files checked below, including shared paths.
                 if checked.returncode: raise RuntimeError('Cannot collect '+source)
                 destination=root/category;destination.mkdir(exist_ok=True)
                 if argv==probe:
@@ -309,6 +375,9 @@ def collect(root, plan):
                 else:
                     result=subprocess.run(['scp','-r',group['host']+':'+shlex.quote(source+'/.') ,str(destination)],capture_output=True,text=True,timeout=600)
                     if result.returncode: raise RuntimeError('Artifact collection failed: '+result.stderr)
+    expected=load_json(root/'status.json').get('expected_artifacts',[])
+    missing=[name for name in expected if not (root/name).is_file()]
+    if missing:raise RuntimeError('Missing required artifacts: '+', '.join(missing))
 
 
 def execute(root, spec, plan):
@@ -316,14 +385,15 @@ def execute(root, spec, plan):
     lock=root/'.runtime/task.lock'
     fd=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
     os.write(fd,str(os.getpid()).encode());os.close(fd)
-    status={'status':'RUNNING','cases':{},'release':{}}
+    token=uuid.uuid4().hex
+    status={'status':'RUNNING','cases':{},'release':{},'expected_artifacts':[]}
     active={}
     def publish(): save(root/'status.json',status)
     def release():
         failures=[]
         for (dep,slot),group in list(active.items()):
             try:
-                invoke(group,f'scripts/{dep}/{slot}-stop.sh')
+                invoke(group,f'scripts/{dep}/{slot}-stop.sh',token)
                 status['release'][dep+'/'+slot]='PASSED';del active[(dep,slot)]
             except Exception as exc:
                 status['release'][dep+'/'+slot]=str(exc);failures.append(str(exc))
@@ -331,6 +401,7 @@ def execute(root, spec, plan):
         if failures: raise RuntimeError('Release not verified: '+'; '.join(failures))
     try:
         distribute(root,plan)
+        claim_execution(plan,token)
         # Verify the exact scripts before any deployment is started.
         manifest=load_json(root/'.runtime/manifest.json')
         for dep in plan['deployments'].values():
@@ -342,7 +413,6 @@ def execute(root, spec, plan):
                         if result.returncode or result.stdout.split()[0]!=digest:
                             raise ValueError('Bundle unavailable or changed on '+group['host']+': '+relative)
         run_number=0
-        from cluster_runtime import higher_concurrency_blocker
         for index,sub in enumerate(spec['sub_tasks']):
             previous={key:{'status':value} for key,value in status['cases'].items()}
             if higher_concurrency_blocker(spec,sub,previous):
@@ -355,8 +425,10 @@ def execute(root, spec, plan):
                         run_number+=1
                         for slot,group in dep['groups'].items():
                             active[(dep_id,slot)]=group
-                            invoke(group,f'scripts/{dep_id}/{slot}-container.sh')
+                            invoke(group,f'scripts/{dep_id}/{slot}-container.sh',token)
                         for slot,group in dep['groups'].items():
+                            status['expected_artifacts'].extend(f'logs/{dep_id}-run{run_number:02}/{name}' for name in group['log_names'])
+                            publish()
                             invoke(group,f'scripts/{dep_id}/{slot}-start.sh',f'run{run_number:02}')
                     deadline=time.monotonic()+spec['execution']['startup_timeout_seconds']
                     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -374,7 +446,10 @@ def execute(root, spec, plan):
                     if spec['execution']['smoke']!='skip':
                         invoke(dep['groups'][dep['endpoint_node']],f'scripts/{dep_id}/smoke.sh',timeout=spec['execution']['smoke_timeout_seconds']+10)
                     test=plan['tests'][sub['id']]
+                    status['expected_artifacts'].append(f"results/{sub['id']}-try{attempt:02}/aisbench.log")
+                    publish()
                     invoke(dep['groups'][test['node']],f"scripts/tests/{sub['id']}.sh",f'try{attempt:02}',timeout=test['timeout'])
+                    status['expected_artifacts'].append(f"results/{sub['id']}-try{attempt:02}/validated.json")
                     status['cases'][sub['id']]='PASSED';publish();break
                 except Exception:
                     logging.exception('Subtask %s attempt %s failed',sub['id'],attempt)
@@ -397,7 +472,7 @@ def execute(root, spec, plan):
             if any(v!='PASSED' for v in status['release'].values()):
                 status['status']='FAILED'
             try:
-                collect(root,plan);status['artifacts']='COLLECTED'
+                collect(root,plan);status['artifacts']='COLLECTED' if status['expected_artifacts'] else 'NOT_PRODUCED'
             except Exception as exc:
                 logging.exception('Artifact collection incomplete');status['artifacts']=str(exc)
                 status['status']='FAILED'

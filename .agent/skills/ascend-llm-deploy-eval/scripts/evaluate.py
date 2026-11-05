@@ -1,4 +1,7 @@
 """One case at a time; attempt budgets and results are scoped by case ID."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import json
 from pathlib import Path
 import shutil

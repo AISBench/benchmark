@@ -1,4 +1,7 @@
 """Explicit, idempotent policy release; keep shared images/weights and evidence."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import json
 import re
 import time

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "status",
+    "cases",
+    "release"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "enum": [
+        "SCRIPTS_READY",
+        "RUNNING",
+        "PASSED",
+        "FAILED",
+        "INTERRUPTED"
+      ]
+    },
+    "cases": {
+      "type": "object",
+      "additionalProperties": {
+        "enum": [
+          "NOT_RUN",
+          "RUNNING",
+          "PASSED",
+          "FAILED",
+          "INTERRUPTED",
+          "SKIPPED"
+        ]
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "artifacts": {
+      "type": "string"
+    },
+    "expected_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

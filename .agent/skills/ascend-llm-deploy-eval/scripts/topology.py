@@ -144,7 +144,19 @@ def compile_deployment(dep, nodes):
             for prefix, peers in [('prefiller', routing['prefillers']), ('decoder', routing['decoders'])]:
                 argv += ['--'+prefix+'-hosts']+[addresses[p]['host'] for p in peers]
                 argv += ['--'+prefix+'-ports']+[str(addresses[p]['ports']['http']) for p in peers]
+            extras=copy.deepcopy(launch.get('args',{}))
+            managed={'host','port','prefiller-hosts','prefiller-ports','decoder-hosts','decoder-ports'}
+            if managed.intersection(extras):
+                raise ValueError('Proxy endpoint options belong in confirmed topology/bindings')
+            argv += cli_args(extras)
         else:
+            expected={'HCCL_IF_IP':node['network']['ip'], 'VLLM_HOST_IP':node['network']['ip'],
+                      'GLOO_SOCKET_IFNAME':node['network']['interface'], 'TP_SOCKET_IFNAME':node['network']['interface'],
+                      'HCCL_SOCKET_IFNAME':node['network']['interface']}
+            if launch.get('preserve_reference'):
+                for key,value in expected.items():
+                    if key in env and '{{' not in str(env[key]) and env[key]!=value:
+                        raise ValueError('Confirmed environment conflicts with binding: '+item['id']+'.'+key)
             env.update(HCCL_IF_IP=node['network']['ip'], VLLM_HOST_IP=node['network']['ip'],
                        GLOO_SOCKET_IFNAME=node['network']['interface'], TP_SOCKET_IFNAME=node['network']['interface'],
                        HCCL_SOCKET_IFNAME=node['network']['interface'])
@@ -153,11 +165,15 @@ def compile_deployment(dep, nodes):
             args['served-model-name'] = dep['model']['served_name']
             args['device-ids'] = ','.join(map(str, placement['devices']))
             if launch.get('preserve_reference'):
-                env.pop('VLLM_HOST_IP',None)
-                env.pop('VLLM_SERVER_DEV_MODE',None)
-                env.update(launch.get('env',{}))
+                env = copy.deepcopy(launch.get('env',{}))
+                visible=','.join(map(str, placement['devices']))
+                if 'ASCEND_RT_VISIBLE_DEVICES' in env and str(env['ASCEND_RT_VISIBLE_DEVICES'])!=visible:
+                    raise ValueError('Confirmed visible devices conflict with placement: '+item['id'])
                 env['ASCEND_RT_VISIBLE_DEVICES']=args.pop('device-ids')
             if 'rpc' in ports:
+                for key,value in {'data-parallel-rpc-port':ports['rpc'],'data-parallel-address':node['network']['ip']}.items():
+                    if key in args and str(args[key])!=str(value) and '{{' not in str(args[key]):
+                        raise ValueError('Confirmed argument conflicts with binding: '+item['id']+'.'+key)
                 args['data-parallel-rpc-port'] = ports['rpc']
                 args['data-parallel-address'] = node['network']['ip']
             if 'hccl' in ports and not launch.get('preserve_reference'):
@@ -176,6 +192,13 @@ def compile_deployment(dep, nodes):
                     # This connector only loads endpoint files when explicitly
                     # configured. Do not force legacy endpoint-file semantics.
                     args['kv-transfer-config']['kv_connector_extra_config'].pop('ascend_local_comm_res_path')
+                if 'kv_transfer_config' in launch:
+                    exact=copy.deepcopy(launch['kv_transfer_config'])
+                    for key in ('kv_connector','kv_role','kv_port','engine_id'):
+                        expected=args['kv-transfer-config'][key]
+                        if str(exact[key])!=str(expected) and '{{' not in str(exact[key]):
+                            raise ValueError('Confirmed KV configuration conflicts with topology: '+item['id']+'.'+key)
+                    args['kv-transfer-config']=exact
             argv = ['vllm', 'serve', '{{model.path}}']+cli_args(args)
         group['commands'].append({'name': item['id'], 'role':item['role'], 'argv': argv, 'env': env,
                                   'bootstrap': launch.get('bootstrap', '')})

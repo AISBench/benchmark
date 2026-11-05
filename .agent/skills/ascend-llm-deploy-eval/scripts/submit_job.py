@@ -1,4 +1,7 @@
 """Build a frozen job locally and upload once per physical destination."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import argparse
 import hashlib
 import json
