@@ -294,5 +294,55 @@ class TestTritonCustomAPI(unittest.TestCase):
         mock_get_model_path.assert_called_once()
 
 
+    def _run_parse(self, parse_name, model, api_response):
+        async def run():
+            output = Output()
+            await getattr(model, parse_name)(api_response, output)
+            return output
+        return asyncio.run(run())
+
+    def test_parse_text_response_records_output_tokens(self):
+        """Triton reports token usage under details.generated_tokens"""
+        with mock.patch.object(base_api.BaseAPIModel, '_get_service_model_path', return_value="m"):
+            model = TritonCustomAPI(path="test", model_name="m")
+        output = self._run_parse(
+            "parse_text_response",
+            model,
+            {"text_output": "Hello world!", "details": {"generated_tokens": 12}},
+        )
+
+        self.assertEqual(output.content, "Hello world!")
+        self.assertEqual(output.output_tokens, 12)
+
+    def test_parse_stream_response_uses_cumulative_output_tokens(self):
+        """Streaming: details.generated_tokens is cumulative, so the last chunk wins"""
+        with mock.patch.object(base_api.BaseAPIModel, '_get_service_model_path', return_value="m"):
+            model = TritonCustomAPI(path="test", model_name="m")
+
+        async def run():
+            output = Output()
+            await model.parse_stream_response(
+                {"text_output": "Hel", "details": {"generated_tokens": 3}}, output
+            )
+            assert output.output_tokens == 3
+            await model.parse_stream_response(
+                {"text_output": "lo", "details": {"generated_tokens": 5}}, output
+            )
+            return output
+
+        output = asyncio.run(run())
+        self.assertEqual(output.content, "Hello")
+        self.assertEqual(output.output_tokens, 5)
+
+    def test_parse_response_without_details_keeps_token_count(self):
+        """A response without a usage block must not crash or invent a count"""
+        with mock.patch.object(base_api.BaseAPIModel, '_get_service_model_path', return_value="m"):
+            model = TritonCustomAPI(path="test", model_name="m")
+        output = self._run_parse("parse_text_response", model, {"text_output": "hi"})
+
+        self.assertEqual(output.content, "hi")
+        self.assertEqual(output.output_tokens, 0)
+
+
 if __name__ == '__main__':
     unittest.main()
