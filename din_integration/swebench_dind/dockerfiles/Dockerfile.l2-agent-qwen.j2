@@ -1,0 +1,17 @@
+ARG BASE_IMAGE
+ARG AGENT
+FROM ${BASE_IMAGE}
+ARG AGENT
+
+# qwen-code: npm + Node 22 LTS via NodeSource (case image's apt has Node 12, too old)
+RUN if [ "$AGENT" = "qwen-code" ]; then \
+        set -e && \
+        apt-get update && apt-get install -y curl ca-certificates 2>&1 | tail -3 && \
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash - 2>&1 | tail -3 && \
+        apt-get install -y nodejs 2>&1 | tail -3 && \
+        node --version && npm --version && \
+        npm install -g @qwen-code/qwen-code --registry https://registry.npmmirror.com 2>&1 | tail -10 && \
+        which qwen && qwen --version 2>&1; \
+    else \
+        echo "Unknown agent: $AGENT" && exit 1; \
+    fi
