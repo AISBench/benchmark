@@ -84,6 +84,28 @@ class TestDefaultPerfSummarizer(unittest.TestCase):
         result = summarizer._get_dataset_abbr([self.dataset_cfg, dataset_cfg2])
         self.assertEqual(result, "testdataset")
 
+    def test_dataset_groups_dedupe_same_abbr(self):
+        """sweep 展开出的同 abbr 数据集副本不应重复计入分组（否则指标翻倍）"""
+        config = ConfigDict({
+            "models": [self.model_cfg],
+            "datasets": [
+                self.dataset_cfg,
+                {
+                    "type": "TestDataset",
+                    "abbr": "test_ds",
+                    "infer_cfg": {"inferencer": "test_inferencer"},
+                    "reader_cfg": {"test_range": "[:8]"},
+                },
+            ],
+            "work_dir": "/tmp/test_work_dir",
+            "cli_args": {"merge_ds": False},
+        })
+        summarizer = DefaultPerfSummarizer(config, self.calculator_cfg)
+        groups = list(summarizer.dataset_groups.values())
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(len(groups[0]), 1)
+        self.assertEqual(summarizer._get_dataset_abbr(groups[0]), "test_ds")
+
     @patch('ais_bench.benchmark.summarizers.default_perf.build_model_from_cfg')
     @patch('ais_bench.benchmark.summarizers.default_perf.init_db')
     @patch('ais_bench.benchmark.summarizers.default_perf.load_all_numpy_from_db')
