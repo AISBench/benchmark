@@ -89,6 +89,33 @@ class TestLCBCodeGenerationEvaluator(LiveCodeBenchEvaluatorTestBase):
 
             self.assertIn('pass@1', result)
             self.assertIn('details', result)
+            self.assertEqual(mock_codegen_metrics.call_args.args[0][0]['question_id'], 'q1')
+
+    def test_score_excludes_only_invalid_abc392_f_cases(self):
+        from ais_bench.benchmark.datasets.livecodebench import evaluator as evaluator_module
+
+        sample = json.dumps({
+            'inputs': ['1\n1', '6\n3 3 2 5 4 6'],
+            'outputs': ['1', '0 3 0 5 2 1'],
+            'fn_name': None,
+        })
+        with patch.object(evaluator_module, 'extract_code_generation',
+                          return_value='extracted_code'), \
+             patch.object(evaluator_module, 'codegen_metrics', return_value=[
+                 {'pass@1': 100.0, 'detail': {'pass@1': {0: 100.0}}},
+                 {0: [[True]]},
+                 [['metadata']],
+             ]) as mock_metrics:
+            evaluator = LCBCodeGenerationEvaluator(num_process_evaluate=1)
+            result = evaluator.score(
+                ['prediction'], ['abc392_f'],
+                [{'question_id': 'abc392_f', 'evaluation_sample': sample}],
+            )
+
+        prepared = mock_metrics.call_args.args[0][0]
+        self.assertEqual(prepared['question_id'], 'abc392_f')
+        self.assertEqual(json.loads(prepared['input_output'])['inputs'], ['1\n1'])
+        self.assertEqual(result['excluded_invalid_cases'], {'abc392_f': [1]})
 
     def test_score_v2_extractor(self):
         """测试score方法使用v2提取器"""
