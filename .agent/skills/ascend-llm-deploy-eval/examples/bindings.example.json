@@ -1,0 +1,91 @@
+{
+  "nodes": {
+    "node_a": {
+      "model_paths": {
+        "dsv4": "/path/to/model-weights"
+      },
+      "paths": {
+        "shell_rc": "/root/.bashrc",
+        "ascend_env": "/usr/local/Ascend/ascend-toolkit/set_env.sh",
+        "atb_env": "/usr/local/Ascend/nnal/atb/set_env.sh",
+        "opapi": "/usr/local/Ascend/ascend-toolkit/latest/lib64/libopapi_nn.so",
+        "comm": "/etc/hixlep",
+        "proxy_program": "/path/to/reviewed-pd-proxy.py"
+      },
+      "mounts": [
+        {
+          "source": "/root/host",
+          "target": "/root/host",
+          "read_only": false
+        },
+        {
+          "source": "/usr/local/sbin",
+          "target": "/usr/local/sbin",
+          "read_only": false
+        },
+        {
+          "source": "/usr/local/sbin/npu-smi",
+          "target": "/usr/local/sbin/npu-smi",
+          "read_only": false
+        },
+        {
+          "source": "/usr/local/bin/npu-smi",
+          "target": "/usr/local/bin/npu-smi",
+          "read_only": false
+        },
+        {
+          "source": "/usr/local/dcmi",
+          "target": "/usr/local/dcmi",
+          "read_only": false
+        },
+        {
+          "source": "/var/log/npu",
+          "target": "/usr/slog",
+          "read_only": false
+        },
+        {
+          "source": "/mnt",
+          "target": "/mnt",
+          "read_only": false
+        },
+        {
+          "source": "/usr/lib64",
+          "target": "/usr/lib64",
+          "read_only": false
+        },
+        {
+          "source": "/home",
+          "target": "/home",
+          "read_only": false
+        },
+        {
+          "source": "/etc/hixlep",
+          "target": "/etc/hixlep",
+          "read_only": false
+        },
+        {
+          "source": "/etc/hccl_rootinfo.json",
+          "target": "/etc/hccl_rootinfo.json",
+          "read_only": false
+        },
+        {
+          "source": "/usr/local/Ascend/driver",
+          "target": "/usr/local/Ascend/driver",
+          "read_only": false
+        }
+      ],
+      "host": "user@benchmark-host.example",
+      "work_dir": "/path/to/task-workspace",
+      "package": "/path/to/skill-package",
+      "benchmark": {
+        "datasets": {
+          "default": {
+            "path": "/path/to/dataset.jsonl",
+            "input_column": "question",
+            "output_column": "answer"
+          }
+        }
+      }
+    }
+  }
+}
