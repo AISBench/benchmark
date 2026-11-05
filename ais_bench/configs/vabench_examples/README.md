@@ -5,6 +5,10 @@ For the end-to-end Chinese guide, official CLI comparison, and the selected
 `mini10pct.json` pins that project-selected 78-prompt subset with provenance;
 it contains 78 prompts from the pinned 778. The guide exports complete
 metadata from the pinned upstream source and checks all 78 videos explicitly.
+Section 3 of that guide documents the category quotas, per-category TF-IDF,
+medoid/farthest-point selection, deterministic tie-breaking and an offline
+reproduction check. It also distinguishes the pinned subset from the later
+one-prompt replacement recorded in the project README.
 
 Use an external pinned VABench checkout and one Conda Python 3.11 scoring
 environment for all 15 dimensions. Keep the AISBench main environment separate.

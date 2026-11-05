@@ -273,6 +273,8 @@ test -e ${VABENCH_CACHE_DIR}/checkpoints/auxiliary/models/buffalo_l
 
 ## 3. 归档好 video 视频
 
+如需固定的10%子集，使用78题 `mini10pct` 清单。候选池778题、类别配额、TF-IDF选样、离线复现和README后续替换版本的区别，见[快速上手第3节](../extended_benchmark/lmm_generate/vabench.md#mini10pct-selection)。
+
 ### 3.1 目录和命名要求
 
 把待评测视频放到一个目录，例如：

@@ -100,11 +100,15 @@ python3 -m ais_bench.tools.vabench.cli prepare \
 
 完整集继续第 4 节，将运行命令的 `--prepared` 改为 `/workspace/prepared_standard`、`--output` 改为新的完整集结果目录。评测固定 78 题时执行第 3 节，不使用这条完整集准备命令。
 
+<a id="mini10pct-selection"></a>
+
 ## 3. 获取并准备已选定的 10% 子集（78 题）
 
 ### 清单来源与抽样规则
 
-用户通过 DeepSeek 分析形成的 `VABench/build_mini10pct.py`，其产物为 `VABench/mini10pct`。本次核查将其中选定的 **78 个 idx 与类别**固化到 AISBench 的 `ais_bench/configs/vabench_examples/mini10pct.json`；同步本分支后即可获取，不需要重新抽样或访问生成服务。它是项目选定集合，不是上游官方发布的子集。
+固定清单位于 AISBench 的 **`ais_bench/configs/vabench_examples/mini10pct.json`**，名称是 `mini10pct`（表示10%），从 **778题标准集选出78题**。768P是视频生成分辨率，与题目数量不同。
+
+该清单来自项目辅助脚本 `VABench/build_mini10pct.py` 及其 `VABench/mini10pct` 产物。下面参照项目 README 的方法说明，并按脚本核实具体选择顺序。它是项目选定集合，不是上游官方发布的子集；AISBench评分时读取固定清单，不重新抽样。
 
 | 项目 | 核验结果 |
 | --- | --- |
@@ -117,7 +121,88 @@ python3 -m ais_bench.tools.vabench.cli prepare \
 
 该算法衡量词面多样性，不保证语义或全部指标适用性；题目覆盖不等于所有生成视频都可获得 LSA 等有效分数。清单保留上游提交、原始 778 清单、选择脚本及输出数据清单的 SHA256，便于审计。
 
-原脚本写死了 `/mnt/c/需求/vabench/...`，末尾还复制 `h3.py`、`batch_run.py`、`prepare_dataset.py`、`.env.example`。这些辅助文件在当前本地源码根目录缺失，因此它不能原样作为通用 Linux 获取命令；`--force` 还会删除已有请求清单。**复用固化清单即可，不必重跑或覆盖原产物**。本次在临时目录重算的 78 题与现有清单相同；原产物没有改写。
+#### 第一步：确定778题候选池
+
+将固定官方源码的 `json_files/json_text/*.json` 与 `mapping/final_idx_to_prompt.csv` 按完整 Prompt 精确匹配，得到778个唯一idx。候选池包含24类，其中easy为10类、398题，hard为14类、380题。AISBench的 `catalog(..., 'standard')` 提供这批候选，子集不从原始848条直接抽取。
+
+#### 第二步：先分配类别名额
+
+目标数量为 `round(778×0.10)=78`，按以下规则分配：
+
+| 分配步骤 | 数量 |
+| --- | --- |
+| 10个easy类，每类4题 | 40 |
+| 14个hard类，每类先2题 | 28 |
+| 将剩余10个名额分给候选池最大的10个hard类，每类再加1题 | 10 |
+| 合计 | 78 |
+
+hard类按“候选池数量降序、类别名升序”排列。最终easy每类4题，10个hard类各3题，其余4个hard类各2题。仅取2题的类别为：`hard_natural_environment`、`hard_Indoor_Environment_and_Urban_Atmosphere`、`hard_music`、`hard_strong_synchronization_and_rhythmic_movements`。
+
+这里平衡的是类别覆盖和easy/hard总体数量；并非每个类别都恰好抽10%。例如92题的 `hard_Virtual_Environment` 选3题，7题的 `hard_natural_environment` 选2题。
+
+#### 第三步：在每一类中选择词面差异较大的题
+
+1. 拼接每题的 `prompt_en + prompt_vision + prompt_audio`，转为小写。
+2. 按脚本固定分词规则和停用词表提取词项，去掉短于3个字符的词。
+3. **在当前类别内**计算TF-IDF：词频权重为 `1+ln(词频)`，逆文档频率为 `ln((类别题数+1)/(包含该词的题数+1))+1`；各题向量做L2归一化。
+4. 计算题目两两余弦相似度。先选平均相似度分值最高的中心题，即脚本中的medoid起点。
+5. 对每个未选候选，计算其与已选集合的**最大相似度**，选择这个值最小的题，直到填满本类名额。这相当于优先补入与已选题都不太相似的题。
+
+选取过程不使用随机数。脚本的确定性同分规则为：中心题取 `(平均相似度, idx的SHA256)` 最大者；后续候选取 `(与已选集合的最大相似度, 平均相似度, idx的SHA256)` 最小者。复现时应使用同一分词规则、停用词表和比较顺序，不能直接替换成另一套TF-IDF默认参数。
+
+#### 第四步：核验并固定清单
+
+合并24类的结果，检查78个idx互不重复、全部属于778题候选池、24类全覆盖、easy为40题、hard为38题，且各类数量符合配额。将idx和category固定到 `mini10pct.json`，连同来源及脚本哈希保存；完整Prompt从对应官方元数据导出。
+
+### 可选：离线复现选取结果
+
+需要审查“78题如何选出”时，可只调用原辅助脚本的两个选择函数，不执行它的构建入口。`build_mini10pct.py` 是项目辅助文件，**不包含在官方VABench仓库内**；应另行提供该文件，并把下列路径改为实际位置。
+
+```bash
+export VABENCH_SELECTION_SCRIPT=/workspace/tools/build_mini10pct.py
+cd /workspace/code/benchmark
+python3 - <<'PY'
+import os
+import runpy
+from pathlib import Path
+from ais_bench.benchmark.utils.vabench.data import catalog, read_json
+
+script = Path(os.environ['VABENCH_SELECTION_SCRIPT'])
+assert script.is_file(), f'项目选取脚本不存在：{script}'
+# 使用非 __main__ 名称，仅载入函数，不执行原脚本的 main()。
+logic = runpy.run_path(str(script), run_name='mini10pct_selection_check')
+entries = catalog(os.environ['VABENCH_ROOT'], 'standard')
+target, allocation, summary, grouped = logic['allocate'](entries)
+chosen = []
+for category in sorted(grouped):
+    picked, _ = logic['diverse_select'](grouped[category], allocation[category])
+    chosen.extend(picked)
+
+fixed = read_json('ais_bench/configs/vabench_examples/mini10pct.json')
+actual = {(e['idx'], e['category']) for e in chosen}
+expected = {(e['idx'], e['category']) for e in fixed['entries']}
+assert target == len(chosen) == len(actual) == fixed['count'] == 78
+assert len(allocation) == 24
+assert summary['easy_selected'] == 40 and summary['hard_selected'] == 38
+assert actual == expected, '选取结果与AISBench固定版本不同，请核对脚本及替换记录'
+print('核验通过：778题选78题，24类全覆盖，easy=40、hard=38，与固定清单一致')
+PY
+```
+
+本段只读取题目并重算选择结果，不写请求文件、不复制视频，也不调用生成API。普通评测直接使用固定清单并执行下文的Prompt导出即可。
+
+### 与项目README后续替换记录的区别
+
+项目README新增了一次生成平台审核后的替换，类别仍为 `easy_human_nonverbal`：
+
+| 版本 | 对应题目 |
+| --- | --- |
+| AISBench当前固定清单及原始脚本复现结果 | `teenager spills drink nervously apologizes` |
+| 项目README的后续替换记录 | `lost tourists in subway station` |
+
+因此，二者虽然都称78题，题目集合已有一题差异。README描述的替换版本保持其余77题不变；当前AISBench清单尚未包含该替换。比较不同模型前须固定同一个版本，并保存完整清单和替换记录；不能因某题缺视频临时换题后仍视为同一测试集。本说明保留当前AISBench清单。
+
+原脚本的构建入口还包含固定路径、生成请求文件及复制辅助脚本等操作。复用固定清单或执行上述只读核验，不需要运行该入口及 `--force`。
 
 ### 导出完整 Prompt
 
@@ -144,11 +229,11 @@ print('已导出 78 题：/workspace/mini10pct_prompts.json')
 PY
 ```
 
-从导出的 `entries[].metadata.prompt_en` 生成视频，保存为 `<idx>.mp4`。同步/复制原有产物时只需这 78 题对应的 MP4，不要把任务状态文件、下载链接或 API Key 当成评测数据。本次本地 `mini10pct/output` 实际只有 **5 个 MP4**，另外 73 题尚无视频，不能宣称已经具备完整 10% 评测输入。
+从导出的 `entries[].metadata.prompt_en` 生成视频，保存为 `<idx>.mp4`。同步/复制原有产物时只需这78题对应的MP4；视频是否齐全应按当前清单和实际文件核验，不能用README里的历史下载数量判断本轮输入完整性。
 
 ### 按固定 78 题准备输入
 
-视频齐全后，显式传入全部 78 题到准备函数。这样缺少任一视频都会报错，避免普通 `--subset custom` 根据已有文件自动缩成 5 题：
+视频齐全后，显式传入全部78题到准备函数。这样缺少任一视频都会报错，避免普通 `--subset custom` 根据已有文件自动缩成一个更小的集合：
 
 ```bash
 python3 - <<'PY'
@@ -164,7 +249,7 @@ PY
 
 准备完成后继续第 4 节执行评分，最后按第 5 节查看结果。
 
-当前报告 scope 为 `custom`，应与固化清单、导出的 Prompt 文件一起归档，并核对 `subset_size=78`。也可以将该准备目录填入主命令配置。若只想先测已有 5 条，可按 [自定义子集说明](../../get_started/vabench_t2av.md) 操作，但报告必须标为“自定义 5 条冒烟”，不能当作 78 题结果。
+当前报告scope为 `custom`，应与固化清单、导出的Prompt文件一起归档，并核对 `subset_size=78`。也可以将该准备目录填入主命令配置。若只想先测少量已有视频，可按[自定义子集说明](../../get_started/vabench_t2av.md)操作，并标明实际题数，不能当作78题结果。
 
 ## 4. 用 AISBench 启动评测
 
