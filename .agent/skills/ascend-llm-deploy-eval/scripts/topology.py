@@ -27,9 +27,12 @@ def validate_deployment(dep):
             errors.append('Model launch/checks incomplete: '+item['id'])
             continue
         args = item['launch']['args']
+        if item['launch'].get('preserve_reference') and item['role'] in ('prefill','decode') and not item['launch'].get('engine_id'):
+            errors.append('Reference-preserving PD launch requires engine_id: '+item['id'])
         dp, tp = args.get('data-parallel-size', 1), args.get('tensor-parallel-size', 1)
-        if not isinstance(dp, int) or not isinstance(tp, int) or dp < 1 or tp < 1 or dp*tp != len(place['devices']):
-            errors.append('DP/TP does not match devices: '+item['id'])
+        pcp = args.get('prefill-context-parallel-size', 1)
+        if any(type(v) is not int or v < 1 for v in (dp, tp, pcp)) or dp*tp*pcp != len(place['devices']):
+            errors.append('DP/TP/PCP does not match devices: '+item['id'])
         if not isinstance(args.get('max-model-len'), int) or args['max-model-len'] < 1:
             errors.append('Missing positive max-model-len: '+item['id'])
         generated = {'host', 'port', 'served-model-name', 'device-ids', 'kv-transfer-config'}
@@ -44,10 +47,14 @@ def validate_deployment(dep):
         if len(instances) != 1 or next(iter(instances.values()))['role'] != 'mixed' or kv or routing:
             errors.append('Colocated deployment requires one mixed instance and no PD connections')
     else:
-        # First multi-host implementation intentionally supports one P, one D and one proxy.
-        roles = sorted(i['role'] for i in instances.values())
-        if roles != ['decode', 'prefill', 'proxy'] or len(kv) != 1 or len(routing) != 1:
-            errors.append('Initial PD executor requires one P, one D, one proxy and one connection each')
+        prefills = {i['id'] for i in instances.values() if i['role']=='prefill'}
+        decodes = {i['id'] for i in instances.values() if i['role']=='decode'}
+        proxies = {i['id'] for i in instances.values() if i['role']=='proxy'}
+        if not prefills or not decodes or len(proxies)!=1 or len(routing)!=1 or any(i['role']=='mixed' for i in instances.values()):
+            errors.append('PD requires prefill/decode instances and one proxy routing table')
+        pairs = [(x['producer'], x['consumer']) for x in kv]
+        if len(set(pairs))!=len(pairs) or set(pairs)!={(p,d) for p in prefills for d in decodes}:
+            errors.append('KV connections must cover every routed P/D pair exactly once')
         for link in kv:
             for key, role in [('producer', 'prefill'), ('consumer', 'decode')]:
                 if instances.get(link[key], {}).get('role') != role:
@@ -56,8 +63,21 @@ def validate_deployment(dep):
             if instances.get(link['proxy'], {}).get('role') != 'proxy':
                 errors.append('Invalid routing proxy')
             for key, role in [('prefillers', 'prefill'), ('decoders', 'decode')]:
-                if len(link[key]) != 1 or any(instances.get(i, {}).get('role') != role for i in link[key]):
+                expected = prefills if role=='prefill' else decodes
+                if len(set(link[key])) != len(link[key]) or set(link[key]) != expected:
                     errors.append('Invalid routing '+key)
+        for item in instances.values():
+            links = [x for x in kv if item['id'] in (x['producer'], x['consumer'])]
+            signatures = set()
+            for link in links:
+                if link['producer'] not in prefills or link['consumer'] not in decodes:
+                    continue
+                signatures.add((link['connector'], *tuple(
+                    instances[link[side]]['launch']['args'].get(name,1)
+                    for side in ('producer','consumer')
+                    for name in ('data-parallel-size','tensor-parallel-size','prefill-context-parallel-size'))))
+            if len(signatures)>1:
+                errors.append('Inconsistent KV parallelism or connector for '+item['id'])
         if instances.get(endpoint['instance'], {}).get('role') != 'proxy':
             errors.append('PD endpoint must reference proxy')
     return errors
@@ -84,9 +104,19 @@ def compile_deployment(dep, nodes):
         raise ValueError('; '.join(errors))
     instances = {i['id']: i for i in dep['instances']}
     addresses = {}
+    allocated = set()
     for item in instances.values():
         node = nodes[item['placement']['node']]
         ports = node['ports'][item['id']]
+        for name,width in item['ports'].items():
+            base=ports[name]
+            if type(base) is not int or base<1 or base+width-1>65535:
+                raise ValueError('Invalid bound port: '+item['id']+'.'+name)
+            for port in range(base,base+width):
+                identity=(node['network']['ip'],port)
+                if identity in allocated:
+                    raise ValueError('Overlapping bound ports: '+str(identity))
+                allocated.add(identity)
         addresses[item['id']] = {'host': node['network']['ip'], 'ports': ports}
     def url(instance, port='http'):
         address = addresses[instance]
@@ -122,10 +152,15 @@ def compile_deployment(dep, nodes):
             args.update(host=node['network']['ip'], port=ports['http'])
             args['served-model-name'] = dep['model']['served_name']
             args['device-ids'] = ','.join(map(str, placement['devices']))
+            if launch.get('preserve_reference'):
+                env.pop('VLLM_HOST_IP',None)
+                env.pop('VLLM_SERVER_DEV_MODE',None)
+                env.update(launch.get('env',{}))
+                env['ASCEND_RT_VISIBLE_DEVICES']=args.pop('device-ids')
             if 'rpc' in ports:
                 args['data-parallel-rpc-port'] = ports['rpc']
                 args['data-parallel-address'] = node['network']['ip']
-            if 'hccl' in ports:
+            if 'hccl' in ports and not launch.get('preserve_reference'):
                 env['HCCL_IF_BASE_PORT'] = str(ports['hccl'])
             if item['role'] in ['prefill', 'decode']:
                 link = next(x for x in dep['connections']['kv_transfer'] if item['id'] in [x['producer'], x['consumer']])
@@ -133,10 +168,14 @@ def compile_deployment(dep, nodes):
                 d = instances[link['consumer']]['launch']['args']
                 args['kv-transfer-config'] = {'kv_connector': link['connector'],
                     'kv_role': 'kv_producer' if item['role'] == 'prefill' else 'kv_consumer',
-                    'kv_port': str(ports['kv']), 'engine_id': dep['id']+'-'+item['id'],
+                    'kv_port': str(ports['kv']), 'engine_id': launch.get('engine_id',dep['id']+'-'+item['id']),
                     'kv_connector_extra_config': {'ascend_local_comm_res_path': '{{paths.comm}}',
                         'prefill': {'dp_size': p.get('data-parallel-size', 1), 'tp_size': p.get('tensor-parallel-size', 1)},
                         'decode': {'dp_size': d.get('data-parallel-size', 1), 'tp_size': d.get('tensor-parallel-size', 1)}}}
+                if link['connector']=='MooncakeConnectorV2':
+                    # This connector only loads endpoint files when explicitly
+                    # configured. Do not force legacy endpoint-file semantics.
+                    args['kv-transfer-config']['kv_connector_extra_config'].pop('ascend_local_comm_res_path')
             argv = ['vllm', 'serve', '{{model.path}}']+cli_args(args)
         group['commands'].append({'name': item['id'], 'role':item['role'], 'argv': argv, 'env': env,
                                   'bootstrap': launch.get('bootstrap', '')})
@@ -146,4 +185,8 @@ def compile_deployment(dep, nodes):
         'endpoint_group': instances[endpoint['instance']]['placement']['node']+'/model',
         'reset_urls': [url(i['id'])+i['checks']['prefix_cache_reset'] for i in instances.values() if i['role'] != 'proxy'],
         'metrics_urls': [url(i['id'])+i['checks']['metrics'] for i in instances.values() if i['role'] != 'proxy'],
+        'metric_instances': [{'id':i['id'],'role':i['role'],'node':i['placement']['node'],
+            'url':url(i['id'])+i['checks']['metrics'],
+            'dp':i['launch']['args'].get('data-parallel-size',1)}
+            for i in instances.values() if i['role']!='proxy'],
         'prefill_url': url(prefill['id']), 'prefill_dp': prefill['launch']['args'].get('data-parallel-size', 1)}

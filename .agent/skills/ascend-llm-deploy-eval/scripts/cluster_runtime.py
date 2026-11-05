@@ -7,7 +7,7 @@ import re
 import subprocess
 import time
 from stage_runtime import save, digest, http, command
-from remote_node import RemoteNode, PortConflict
+from remote_node import RemoteNode, PortConflict, transport_argv
 from topology import compile_deployment
 from task_events import emit
 from node_identity import node_job_id, node_root as physical_node_root
@@ -19,8 +19,7 @@ def prepare_call(binding, request):
     if not Path(binding['package']).is_absolute():
         raise ValueError('Absolute node package path required')
     script = str(Path(binding['package'])/'scripts/node_prepare.py')
-    result = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15', binding['host'],
-        shlex.join(['python3', '-B', script])], input=json.dumps(request), capture_output=True, text=True, timeout=240)
+    result = subprocess.run(transport_argv(binding['host'], ['python3', '-B', script]), input=json.dumps(request), capture_output=True, text=True, timeout=240)
     try:
         response = json.loads(result.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
@@ -94,7 +93,7 @@ def preflight(root, spec, bindings, *, deployment_id=None, generation=None):
                 'reset_ports': [first_port], 'prefill_port': first_port}
             if key == compiled['endpoint_group']:
                 service.update(endpoint=compiled['endpoint'], reset_urls=compiled['reset_urls'],
-                               prefill_url=compiled['prefill_url'])
+                               prefill_url=compiled['prefill_url'], metric_instances=compiled['metric_instances'])
             max_length = min(i['launch']['args']['max-model-len'] for i in dep['instances'] if i['role'] != 'proxy')
             flat = {'id': dep['id']+'-'+key.replace('/', '-'), 'model': {**dep['model'], 'max_model_len': max_length},
                 'container': dep['runtime']['container'], 'npu_ids': group['npu_ids'],
@@ -255,6 +254,12 @@ def run(root, spec, resolved):
         for index, subtask in enumerate(spec['sub_tasks']):
             if subtask['id'] in results:
                 continue
+            blocker = higher_concurrency_blocker(spec, subtask, results)
+            if blocker:
+                results[subtask['id']]={'status':'NOT_RUN','blocked_by':blocker,
+                    'reason':'Higher concurrency branch paused after failure'}
+                save(progress,results)
+                continue
             results[subtask['id']]={'status':'RUNNING'}
             save(progress,results)
             dep_id = subtask['deployment_id']
@@ -283,6 +288,9 @@ def run(root, spec, resolved):
                 if before!=after:
                     raise RuntimeError('A topology service changed during evaluation')
                 results[subtask['id']] = result
+                if result['status'] != 'PASSED':
+                    save(folder/'failed-evaluation.json', result)
+                    raise RuntimeError('Evaluation failed; see failed-evaluation.json')
                 emit(root, 'testing', 'done' if result['status']=='PASSED' else 'fail', **context)
             except Exception as exc:
                 emit(root, failure_stage, 'fail', error=repr(exc), **context)
@@ -326,3 +334,17 @@ def run(root, spec, resolved):
         summary = {'status':'PASSED' if passed else 'FAILED','message':'Serial topology task finished; inspect per-node evidence','artifacts':[str(root/'summary.json')],'sub_tasks':results,'cleanup':cleanup}
         save(root/'summary.json', summary)
     return summary
+
+
+def higher_concurrency_blocker(spec, subtask, results):
+    cases={c['id']:c for c in spec['cases']}
+    current=cases[subtask['case_id']]
+    for previous in spec['sub_tasks']:
+        if previous['id']==subtask['id']: break
+        if previous.get('on_failure')!='skip_higher_concurrency': continue
+        if previous['deployment_id']!=subtask['deployment_id']: continue
+        if results.get(previous['id'],{}).get('status')!='FAILED': continue
+        earlier=cases[previous['case_id']]
+        if earlier.get('input_tokens')==current.get('input_tokens') and earlier['concurrency']<current['concurrency']:
+            return previous['id']
+    return None

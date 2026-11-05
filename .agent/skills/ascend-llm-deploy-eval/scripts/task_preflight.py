@@ -194,11 +194,18 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
         if not proxy.is_absolute() or not proxy.is_file():
             raise ValueError('PD deployment requires bindings.paths.proxy_program pointing to an existing reviewed proxy')
     commands = []
+    kv_endpoint_files=[]
     for item in dep['commands']:
         argv = []
         for arg in item['argv']:
             argv.append(json.dumps(expand(arg['json'], context), ensure_ascii=False) if isinstance(arg, dict) else str(expand(arg, context)))
         env = expand(item.get('env', {}), context)
+        if '--kv-transfer-config' in argv:
+            kv=json.loads(argv[argv.index('--kv-transfer-config')+1])
+            directory=kv.get('kv_connector_extra_config',{}).get('ascend_local_comm_res_path')
+            if directory and kv.get('kv_connector')=='MooncakeConnectorV2':
+                device_ids=argv[argv.index('--device-ids')+1].split(',')
+                kv_endpoint_files.extend(str(Path(directory)/('ub_endpoint_npu_'+device+'.json')) for device in device_ids)
         if any(not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', k) for k in env):
             raise ValueError('Invalid environment variable name')
         bootstrap = expand(item.get('bootstrap', ''), context, shell=True)
@@ -209,6 +216,7 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
         commands.append({'name': item['name'], 'role':item.get('role','model'), 'argv': ['bash', str(script)]})
     service = expand(dep['service'], context)
     service.update(commands=commands, npu_ids=dep['npu_ids'], ports=ports, network=network)
+    service['kv_endpoint_files']=kv_endpoint_files
     if not all(isinstance(p, int) and p in ports for p in service['reset_ports']+[service['prefill_port']]):
         raise ValueError('Service ports must reference allocated ranges')
     for url in service['health_urls']+[service['endpoint']]+([service['gateway_health_url']] if service.get('gateway_health_url') else []):
@@ -228,7 +236,8 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
             mounts.append({'source': path, 'target': path, 'read_only': read_only})
     if len({m['target'] for m in mounts}) != len(mounts):
         raise ValueError('Duplicate mount targets')
-    for resource in [d.get('path') for d in bindings.get('benchmark', {}).get('datasets', {}).values()]+[bindings.get('paths', {}).get('proxy_program')]:
+    for resource in [d.get(field) for d in bindings.get('benchmark', {}).get('datasets', {}).values()
+                     for field in ('path','generation_manifest')]+[bindings.get('paths', {}).get('proxy_program')]:
         if resource and Path(resource).is_file() and not any(Path(resource).is_relative_to(Path(m['source'])) and m['source']==m['target'] for m in mounts):
             mounts.append({'source': resource, 'target': resource, 'read_only': True})
     if len({m['target'] for m in mounts}) != len(mounts):

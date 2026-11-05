@@ -29,6 +29,47 @@ def bindings():
 
 
 class TopologyTests(unittest.TestCase):
+    def test_reference_preserves_device_env_and_engine_identifier(self):
+        dep=deployment()
+        for item in dep['instances']:
+            if item['role']=='proxy': continue
+            item['launch'].update(preserve_reference=True,engine_id='0')
+        result=compile_deployment(dep,bindings())
+        command=result['groups']['a/model']['commands'][0]
+        self.assertNotIn('--device-ids',command['argv'])
+        self.assertEqual(command['env']['ASCEND_RT_VISIBLE_DEVICES'],'0,1,2,3')
+        self.assertNotIn('VLLM_SERVER_DEV_MODE',command['env'])
+        kv=command['argv'][command['argv'].index('--kv-transfer-config')+1]['json']
+        self.assertEqual(kv['engine_id'],'0')
+
+    def test_mooncake_v2_does_not_force_legacy_endpoint_files(self):
+        dep=deployment();dep['connections']['kv_transfer'][0]['connector']='MooncakeConnectorV2'
+        result=compile_deployment(dep,bindings())
+        argv=result['groups']['a/model']['commands'][0]['argv']
+        kv=argv[argv.index('--kv-transfer-config')+1]['json']
+        self.assertNotIn('ascend_local_comm_res_path',kv['kv_connector_extra_config'])
+
+    def test_three_prefillers_dp_and_pcp(self):
+        for pcp in (1,4):
+            dep=deployment(); nodes=bindings()
+            p=dep['instances'][0]
+            p['launch']['args'].update({'data-parallel-size':4//pcp,'tensor-parallel-size':1,'prefill-context-parallel-size':pcp})
+            for name,node,devices in [('p2','a',[4,5,6,7]),('p3','b',[4,5,6,7])]:
+                peer=copy.deepcopy(p);peer['id']=name;peer['placement']={'node':node,'devices':devices}
+                dep['instances'].append(peer)
+                dep['connections']['kv_transfer'].append({'producer':name,'consumer':'d','connector':'TestConnector'})
+                dep['connections']['routing'][0]['prefillers'].append(name)
+                nodes[node]['ports'][name]={'http':13001,'kv':13002}
+            result=compile_deployment(dep,nodes)
+            self.assertEqual(sum(len(g['model_health_urls']) for g in result['groups'].values()),4)
+            self.assertEqual(len(result['metrics_urls']),4)
+            broken=copy.deepcopy(dep);broken['connections']['kv_transfer'].pop()
+            self.assertTrue(validate_deployment(broken))
+            broken=copy.deepcopy(dep);broken['instances'][-1]['launch']['args']['tensor-parallel-size']=2
+            self.assertTrue(validate_deployment(broken))
+            broken=copy.deepcopy(dep);broken['connections']['routing'][0]['prefillers'].pop()
+            self.assertTrue(validate_deployment(broken))
+
     def test_single_node_pd_shares_container_and_partitions_devices(self):
         result=compile_deployment(deployment(False),bindings())
         self.assertEqual(list(result['groups']),['a/model'])

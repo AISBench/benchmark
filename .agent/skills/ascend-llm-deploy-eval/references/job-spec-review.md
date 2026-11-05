@@ -14,7 +14,7 @@
 
 ## 配置默认值
 
-数据集通过 dataset_id 引用现场路径；不生成前缀或测量目标命中率。默认 formal_requests=concurrency×4、request_rate=0、num_warmups=1、reset_cache=false，用户显式要求优先。steady_state只选择正式结果的原生统计器。
+数据集通过 dataset_id 引用现场路径；授权派生输入按 docs/generated-data.md 生成并绑定证据，不以目标前缀比例代替命中率。默认 formal_requests=concurrency×4、request_rate=0、num_warmups=1、reset_cache=false，用户显式要求优先。steady_state只选择正式结果的原生统计器。
 
 重试、缓存、冒烟和服务释放的运行规则集中在[生命周期](service-lifecycle.md)。
 
@@ -22,7 +22,7 @@
 
 model 存逻辑模型 id 与 served_name。runtime 存共用镜像和容器要求。instances 中每个进程有角色 mixed/prefill/decode/proxy，以及 placement（逻辑 node、devices）、launch（模型 args/env/bootstrap 或外部 proxy adapter）、ports、checks。
 
-同一部署同一节点的实例共用容器。容器按任务和现场配置管理，不以 deployment ID 分配：相同主机、镜像及容器配置复用，预检汇总各部署的设备与模型挂载；不兼容配置另建子编号容器。单机 PD 的 P/D 设备互不重叠，双机 PD 的 P/D 分别放到不同 node。当前 PD 路径只实现一个 P、一个 D 和一个 proxy；混部只有一个 mixed。DP/TP 必须匹配实例设备数。模型参数以实例 launch.args 为唯一来源，max-model-len 在每个模型实例定义，测试必须满足所有相关实例的上限。
+同一部署同一节点的实例共用容器。容器按任务和现场配置管理，不以 deployment ID 分配：相同主机、镜像及容器配置复用，预检汇总各部署的设备与模型挂载；不兼容配置另建子编号容器。PD各实例在同节点的设备互不重叠，允许多P/D跨节点分配及一个proxy；混部只有一个mixed。DP×TP×PCP必须匹配实例设备数；连接必须覆盖全部路由组合且共享端的并行元数据一致。多实例现场兼容性需单独验证。模型参数以实例 launch.args 为唯一来源，max-model-len 在每个模型实例定义，测试必须满足所有相关实例的上限。
 
 connections.kv_transfer 关联 producer/consumer 和 connector；connections.routing 关联 proxy、prefillers、decoders。KV 配置中的 P/D DP/TP 与角色由实例关系生成。endpoint 引用对外服务实例和逻辑端口。禁止在 launch.args 重复填写由编译器管理的 host、port、served-model-name、device-ids、kv-transfer-config。
 
@@ -56,4 +56,4 @@ steady_state=true 使用 AISBench stable_stage 统计器；默认使用 default_
 
 ## 标准 CLI 现场输入
 
-确认容器内已安装可运行的 AISBench，不要求额外插件。用户指定数据集绝对路径、JSONL/CSV格式及字段映射，在节点 bindings.benchmark.datasets 中登记，由 case.dataset_id 引用。数据集不进入交付件，不自动生成、复制或下载。PD 部署另需现场代理路径。使用默认日志落盘，并提供原生日志跟踪命令；详见[CLI适配](../docs/native-cli.md)。
+确认容器内已安装可运行的 AISBench，不要求额外插件。用户指定数据集绝对路径、JSONL/CSV格式及字段映射，在节点 bindings.benchmark.datasets 中登记，由 case.dataset_id 引用。数据集不进入交付件；默认不生成、复制或下载。明确授权GSM8K生成时遵循 docs/generated-data.md，派生数据在任务空间保留摘要与生成记录。PD 部署另需现场代理路径。使用默认日志落盘，并提供原生日志跟踪命令；详见[CLI适配](../docs/native-cli.md)。

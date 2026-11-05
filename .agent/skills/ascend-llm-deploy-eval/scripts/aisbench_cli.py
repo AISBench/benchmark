@@ -1,21 +1,43 @@
 """Build a standard AISBench perf config using an existing user dataset."""
 import csv
 import json
-from pathlib import Path
+import hashlib
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 
-def dataset_for(benchmark, case):
+def dataset_for(benchmark, case, *, check_files=True):
     key = case.get('dataset_id', 'default')
     datasets = benchmark.get('datasets', {})
     if key not in datasets:
         raise ValueError('Missing benchmark.datasets binding: '+key)
     dataset = dict(datasets[key])
     path = Path(dataset.get('path', ''))
-    if not path.is_absolute() or not path.is_file() or path.suffix.lower() not in ('.jsonl', '.csv'):
+    absolute = path.is_absolute() if check_files else PurePosixPath(str(path).replace('\\', '/')).is_absolute()
+    if not absolute or (check_files and not path.is_file()) or path.suffix.lower() not in ('.jsonl', '.csv'):
         raise ValueError('Dataset must be an existing absolute JSONL/CSV path: '+str(path))
     dataset.setdefault('input_column', 'question')
     dataset.setdefault('output_column', 'answer')
+    if not check_files:
+        return dataset
+    if dataset.get('generation_manifest'):
+        manifest_path=Path(dataset['generation_manifest'])
+        if not manifest_path.is_absolute():
+            raise ValueError('Generation manifest must be absolute')
+        manifest=json.loads(manifest_path.read_text(encoding='utf-8'))
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=manifest['dataset_sha256']:
+            raise ValueError('Generated dataset digest mismatch')
+        evidence=manifest['audit']
+        if not evidence['exact_lengths']:
+            raise ValueError('Generated dataset has unresolved token lengths')
+        if case.get('input_tokens',evidence['target_tokens'])!=evidence['target_tokens']:
+            raise ValueError('Generated dataset input length differs from case')
+        if len(evidence['token_lengths'])<case.get('formal_requests',1):
+            raise ValueError('Generated dataset has insufficient audited requests')
+    elif 'shared_prefix_ratio' in case:
+        raise ValueError('Shared prefix case requires generation manifest evidence')
+    if 'shared_prefix_ratio' in case and manifest['parameters']['prefix_ratio']!=case['shared_prefix_ratio']:
+        raise ValueError('Generated prefix target differs from case')
     for name in ('input_column', 'output_column'):
         if not isinstance(dataset[name], str) or not dataset[name].isidentifier():
             raise ValueError('Dataset column must be an identifier: '+name)
@@ -36,9 +58,11 @@ def check_dataset(dataset, count):
         raise ValueError(f'Dataset has {seen} rows; requested {count}')
 
 
-def write_config(spec, case, service, folder):
-    dataset = dataset_for(spec['benchmark'], case)
-    check_dataset(dataset, case['formal_requests'])
+def write_config(spec, case, service, folder, *, check_files=True):
+    require_supported_mode(case)
+    dataset = dataset_for(spec['benchmark'], case, check_files=check_files)
+    if check_files:
+        check_dataset(dataset, case['formal_requests'])
     endpoint = urlsplit(service['endpoint'])
     if endpoint.scheme not in ('http', 'https') or not endpoint.hostname:
         raise ValueError('Invalid service endpoint')
@@ -48,7 +72,7 @@ def write_config(spec, case, service, folder):
                   retry=0, host_ip=endpoint.hostname, host_port=endpoint.port or (443 if endpoint.scheme=='https' else 80),
                   url=service['endpoint'].rstrip('/')+'/', max_out_len=case['output_tokens'],
                   batch_size=case['concurrency'], trust_remote_code=False,
-                  generation_kwargs={'temperature':0,'ignore_eos':True})
+                  generation_kwargs={'temperature':0,'ignore_eos':False})
     config = folder/'aisbench-config.py'
     text = (
         'from mmengine.config import read_base\n'
@@ -75,8 +99,40 @@ def write_config(spec, case, service, folder):
 
 
 def commands(executable, config, case, folder):
+    require_supported_mode(case)
     warmups = case.get('num_warmups', 1) if case.get('warmup', True) else 0
     # Normal mode writes AISBench worker logs under --work-dir; never use --debug.
     return [('benchmark', [executable, str(config), '--mode', 'perf',
              '--work-dir', str(folder/'outputs'), '--num-prompts', str(case['formal_requests']),
              '--num-warmups', str(warmups)])]
+
+
+def require_supported_mode(case):
+    """Task modes are independent of the coordinator FULL/scripts mode."""
+    mode = case.get('mode', 'perf')
+    if mode != 'perf':
+        raise ValueError('AISBench test mode '+repr(mode)+' is reserved but not implemented; no perf fallback')
+
+
+def validate_native_result(folder, case):
+    """Keep native multi-model/dataset results; verify every emitted request group."""
+    execution=json.loads((folder/'execution.json').read_text(encoding='utf-8'))
+    if execution.get('returncode') != 0:
+        raise ValueError('AISBench did not exit successfully')
+    files=list((folder/'outputs').glob('*/performances/*/*_details.jsonl'))
+    if not files:
+        raise ValueError('Missing native AISBench request details')
+    for path in files:
+        seen=set()
+        for line in path.read_text(encoding='utf-8').splitlines():
+            if not line.strip():continue
+            row=json.loads(line)
+            if row['id'] in seen or row.get('success') is not True or row.get('error_info'):
+                raise ValueError('Failed or duplicate native AISBench request')
+            seen.add(row['id'])
+        if len(seen)!=case['formal_requests']:
+            raise ValueError('Native AISBench request count mismatch')
+    if not any(p.is_file() for p in (folder/'outputs').glob('*/logs/**/*')):
+        raise ValueError('Missing native AISBench worker logs')
+    (folder/'validated.json').write_text(json.dumps({'status':'PASSED','mode':'perf',
+        'config':'native','request_groups':len(files)},indent=2),encoding='utf-8')

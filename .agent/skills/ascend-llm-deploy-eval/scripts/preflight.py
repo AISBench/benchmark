@@ -42,6 +42,15 @@ def _check(root, report):
     service=s['deployment']['service']
     errors={}
     try:
+        for filename in service.get('kv_endpoint_files',[]):
+            config=json.loads(Path(filename).read_text())
+            if not config.get('endpoint_list'):
+                raise ValueError('Empty KV endpoint configuration: '+filename)
+        report['checks']['kv_endpoints']='PASSED' if service.get('kv_endpoint_files') else 'NOT_APPLICABLE'
+    except Exception as exc:
+        report['checks']['kv_endpoints']='FAILED'
+        errors['kv_endpoints']=repr(exc)
+    try:
         evidence['ipc_path_bytes'] = check_ipc_path()
         if any(m['target'] in ['/bench-tmp','/bench-cache'] for m in s['container']['mounts']):
             raise ValueError('Reserved runtime mount target')

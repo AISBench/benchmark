@@ -53,4 +53,4 @@ prepare冻结本地任务后、任何远端公共包上传前验证声明：各�
 
 ### 代码、现场绑定和运行配置边界
 冻结包只包含 Skill 编排脚本和 Schema；测试端直接调用已安装的 AISBench。数据集、模型和外部代理仅引用现场绝对路径，不进入冻结包。
-每个 attempt 保留配置薄模板、数据路径和字段映射、CLI 命令和退出码、benchmark.log、AISBench 原生 outputs 日志与性能结果，以及 log-index.json。数据不复制、不生成，也不修改 AISBench 源码目录。运行和日志约定见[CLI适配](../docs/native-cli.md)。
+每个 attempt 保留配置薄模板、数据路径和字段映射、CLI 命令和退出码、benchmark.log、AISBench 原生 outputs 日志与性能结果，以及 log-index.json。attempt不复制或重新生成数据，也不修改AISBench源码目录；授权派生输入在准备阶段生成并按摘要复用。运行和日志约定见[CLI适配](../docs/native-cli.md)。

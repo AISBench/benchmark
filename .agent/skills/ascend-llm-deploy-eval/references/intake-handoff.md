@@ -39,4 +39,4 @@
 
 ## 标准 CLI 现场输入
 
-确认容器内已安装可运行的 AISBench，不要求额外插件。用户指定数据集绝对路径、JSONL/CSV格式及字段映射，在节点 bindings.benchmark.datasets 中登记，由 case.dataset_id 引用。数据集不进入交付件，不自动生成、复制或下载。PD 部署另需现场代理路径。使用默认日志落盘，并提供原生日志跟踪命令；详见[CLI适配](../docs/native-cli.md)。
+确认容器内已安装可运行的 AISBench，不要求额外插件。用户指定数据集绝对路径、JSONL/CSV格式及字段映射，在节点 bindings.benchmark.datasets 中登记，由 case.dataset_id 引用。数据集不进入交付件；默认不生成、复制或下载。明确授权GSM8K生成时遵循 docs/generated-data.md，派生数据在任务空间保留摘要与生成记录。PD 部署另需现场代理路径。使用默认日志落盘，并提供原生日志跟踪命令；详见[CLI适配](../docs/native-cli.md)。

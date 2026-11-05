@@ -34,6 +34,8 @@ def validate_task(spec):
         import re
         for instance in dep['instances']:
             launch=instance.get('launch',{})
+            if launch.get('preserve_reference'):
+                continue
             for key in ('ASCEND_SLOG_PRINT_TO_STDOUT','ASCEND_GLOBAL_LOG_LEVEL'):
                 if key in launch.get('env',{}) or re.search(r'(?<![A-Za-z0-9_])'+key+r'\s*=',launch.get('bootstrap','')):
                     errors.append('Remove operator logging assignment: '+key)
@@ -50,9 +52,11 @@ def validate_task(spec):
             errors.append('Unknown deployment/case reference')
             continue
         limits = [i['launch'].get('args',{}).get('max-model-len',0) for i in dep['instances'] if i['role'] != 'proxy']
-        if limits and case.get('input_tokens',0)+case['output_tokens'] > min(limits):
+        if case.get('mode','perf')=='perf' and limits and case.get('input_tokens',0)+case['output_tokens'] > min(limits):
             errors.append('Context limit exceeded: '+task['id'])
     for case in cases.values():
+        if case.get('mode','perf') != 'perf':
+            continue
         if case.get('formal_requests',case['concurrency']*4) < case['concurrency']:
             errors.append('Requests cannot reach concurrency: '+case['id'])
     if spec['state']=='ready' and spec['unresolved']:
@@ -62,6 +66,10 @@ def validate_task(spec):
 
 def stage_entry(stage, root, bindings=None):
     spec=read_task(root)
+    if stage == 'evaluate':
+        from aisbench_cli import require_supported_mode
+        for case in spec['cases']:
+            require_supported_mode(case)
     from cluster_runtime import preflight, run, finalize
     with locked({'target':{'container':spec['job_id']+'-coordinator'}}):
         if stage=='preflight':

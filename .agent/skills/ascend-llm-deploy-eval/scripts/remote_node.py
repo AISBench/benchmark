@@ -3,6 +3,22 @@ import json
 import re
 import shlex
 import subprocess
+import getpass
+import sys
+
+
+def transport_argv(host, argv):
+    """Use local transport only for the current user and an actual local IP."""
+    user, separator, address = host.rpartition('@')
+    address = address if separator else host
+    if sys.platform.startswith('linux') and (not separator or user == getpass.getuser()):
+        result=subprocess.run(['ip','-j','addr','show'],capture_output=True,text=True,timeout=10)
+        if result.returncode==0:
+            addresses={a['local'] for interface in json.loads(result.stdout)
+                       for a in interface.get('addr_info',[]) if 'local' in a}
+            if address in addresses:
+                return list(argv)
+    return ['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15',host,shlex.join(argv)]
 
 
 class PortConflict(RuntimeError):
@@ -18,8 +34,7 @@ class RemoteNode:
 
     def call(self, action, timeout=180, **values):
         payload = {**self.registration, **values, 'action': action}
-        result = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15',
-            self.host, shlex.join(['python3', '-B', self.script])],
+        result = subprocess.run(transport_argv(self.host, ['python3', '-B', self.script]),
             input=json.dumps(payload), capture_output=True, text=True, timeout=timeout)
         # Stage helpers can emit progress JSON before the final response.
         try:

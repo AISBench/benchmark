@@ -12,6 +12,7 @@ from validate_case import validate
 from cache_reset import reset_instances
 from task_events import emit
 from aisbench_cli import write_config, commands
+from metric_evidence import capture, summarize
 
 
 def run(root,folder):
@@ -39,6 +40,7 @@ def run(root,folder):
             reset_instances(folder, list(reset_targets), http, reset_targets)
             event('cache_reset', 'done')
         for current_stage, argv in commands(spec['benchmark']['executable'], config, case, folder):
+            capture(service.get('metric_instances', []), folder, 'before')
             event(current_stage, 'doing')
             (folder/(current_stage+'-command.json')).write_text(json.dumps(argv))
             with (folder/(current_stage+'.log')).open('w') as log:
@@ -80,6 +82,11 @@ def run(root,folder):
                 os.killpg(process.pid,signal.SIGKILL); time.sleep(1)
                 if members(process.pid): errors.append('Client process group remains')
         (folder/'cleanup.json').write_text(json.dumps({'released':not errors,'errors':errors,'level':'case'},indent=2))
+        try:
+            capture(service.get('metric_instances', []), folder, 'after')
+            summarize(folder)
+        except Exception as exc:
+            event('metrics', 'fail', error=repr(exc))
     event('client_cleanup', 'done' if not errors else 'fail')
     logs=sorted(str(path) for path in (folder/'outputs').glob('*/logs/**/*') if path.is_file())
     (folder/'log-index.json').write_text(json.dumps({'console':str(folder/'benchmark.log'),'native_logs':logs,'work_dir':str(folder/'outputs')},indent=2),encoding='utf-8')

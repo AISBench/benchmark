@@ -149,6 +149,14 @@
                     "program": {
                       "const": "vllm serve"
                     },
+                    "preserve_reference": {
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "engine_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "adapter": {
                       "const": "external_pd_proxy"
                     },
@@ -316,9 +324,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "id",
-          "output_tokens",
-          "concurrency"
+          "id"
         ],
         "properties": {
           "id": {
@@ -329,6 +335,11 @@
           "input_tokens": {
             "type": "integer",
             "minimum": 1
+          },
+          "shared_prefix_ratio": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMaximum": 1
           },
           "output_tokens": {
             "type": "integer",
@@ -370,8 +381,41 @@
             "type": "integer",
             "minimum": 0,
             "default": 1
+          },
+          "mode": {
+            "enum": [
+              "perf",
+              "accuracy"
+            ],
+            "default": "perf",
+            "description": "Test intent; accuracy is reserved and cannot execute yet. Independent of FULL/scripts."
+          },
+          "aisbench_config": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+            "description": "Optional native config ID in bindings.nodes.<node>.benchmark.configs; perf only."
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "accuracy"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "else": {
+              "required": [
+                "output_tokens",
+                "concurrency"
+              ]
+            }
+          }
+        ]
       }
     },
     "execution": {
@@ -462,7 +506,8 @@
           },
           "on_failure": {
             "enum": [
-              "record_only"
+              "record_only",
+              "skip_higher_concurrency"
             ]
           }
         },
