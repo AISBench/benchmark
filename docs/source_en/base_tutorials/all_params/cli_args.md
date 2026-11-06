@@ -10,13 +10,14 @@ ais_bench [OPTIONS]
 ```
 
 ### Parameter Description
-Based on the execution scenario, command line parameters are divided into four categories:
+Based on the execution scenario, command line parameters are divided into five categories:
 - Common Parameters
 - Accuracy Evaluation Parameters (effective only when `--mode` is set to `all`, `infer`, `eval`, or `viz`)
 - Performance Evaluation Parameters (effective only when `--mode` is set to `perf` or `perf_viz`)
 - Agent Evaluation Parameters (effective only when `--mode` is set to `agent` or `agent_viz`)
+- Random Synthetic Dataset Parameters (effective only when `--datasets` specifies a random synthetic dataset)
 
-`Accuracy Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"all", "infer", "eval", "viz"`. `Performance Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"perf", "perf_viz"`. `Agent Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"agent", "agent_viz"`. `Common Parameters` are not restricted by the task execution mode and can be specified in all modes.
+`Accuracy Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"all", "infer", "eval", "viz"`. `Performance Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"perf", "perf_viz"`. `Agent Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"agent", "agent_viz"`. `Random Synthetic Dataset Parameters` take effect only when `--datasets` specifies a random synthetic dataset (such as `synthetic_gen_tokenid`, `synthetic_gen_string`). `Common Parameters` are not restricted by the task execution mode and can be specified in all modes.
 
 ### Common Parameters
 Applicable to all modes and can be used in combination with accuracy or performance parameters.
@@ -35,7 +36,7 @@ Applicable to all modes and can be used in combination with accuracy or performa
 | `--dry-run`             | Enables Dry Run mode (prints logs to the screen without actually running tasks). The mode is enabled if this parameter is configured, and disabled if not; disabled by default.                              | `--dry-run`                      |
 | `--max-workers-per-gpu` | Reserved parameter; not currently supported.                                                                                                                                                               | `--max-workers-per-gpu 1`        |
 | `--merge-ds`            | Enables merged inference for datasets of the same type (runs multiple datasets for the same task together).                                                                                                 | `--merge-ds`                     |
-| `--num-prompts`         | Specifies the number of test cases for the dataset (selected in dataset order). A positive integer must be passed. If the number exceeds the total number of cases in the dataset or no value is specified, the entire dataset is used for testing. | `--num-prompts 500`              |
+| `--num-prompts`         | Specifies the number of test cases for the dataset (selected in dataset order). A positive integer must be passed. If the number exceeds the total number of cases in the dataset or no value is specified, the entire dataset is used for testing. Multiple values are supported, separated by spaces (paired one-to-one with `--batch-size`). | `--num-prompts 500`<br>`--num-prompts 4 8 16` |
 | `--max-num-workers`     | Number of parallel tasks, range: `[1, number of CPU cores]`; default value: `1`. Invalid when `--debug` is specified; all tasks are executed serially. Note: In performance evaluation scenarios, an excessively high concurrency may cause resource contention among different processes, leading to inaccurate test results. | `--max-num-workers 2`            |
 | `--num-warmups`         | Number of warm-up runs before sending requests. Data is selected in dataset order for testing. When `num-warmups` exceeds the number of dataset entries, data from the dataset will be sent in a loop. Default value: `1`; set to `0` to disable warm-up. If all requests fail during the warmup phase, subsequent inference tasks will not be executed.                                                                                                          | `--num-warmups 10`               |
 | `--response-anomaly` | Enables response anomaly detection with zero extra configuration: adding `--response-anomaly` to the command enables detection; omitting it leaves detection off by default. Detection is serially bound to the inference stage: after inference finishes, the workflow starts detection and waits for it to complete (the dedicated status board prints the final result) before entering the subsequent Judge / Eval / Summary stages; requires the service to return token ids and top-k logprobs. Only supported in `all`, `infer`, and `infer_judge` generation chains; performance mode and Agent evaluation modes are unsupported. See 📚 [Response Anomaly Detection](../../advanced_tutorials/response_anomaly_detection.md) for detailed usage. | `--response-anomaly` |
@@ -63,9 +64,12 @@ These arguments apply only to service-oriented inference backends whose model co
 | `--host-port` | Overrides `host_port` (inference service port) | `--host-port 8000` |
 | `--url` | Overrides `url` (custom URL path for the inference service) | `--url http://x.x.x.x:8000/v1` |
 | `--max-out-len` | Overrides `max_out_len` (max output tokens) | `--max-out-len 1024` |
-| `--batch-size` | Overrides `batch_size` (max request concurrency) | `--batch-size 4` |
+| `--batch-size` | Overrides `batch_size` (max request concurrency); multiple values are supported, separated by spaces | `--batch-size 4`<br>`--batch-size 4 8 16` |
 | `--trust-remote-code` | Overrides `trust_remote_code` (whether the tokenizer trusts remote code); supports `--trust-remote-code` / `--no-trust-remote-code` | `--no-trust-remote-code` |
 | `--generation-kwargs` | Overrides `generation_kwargs` (generation parameters) as a JSON object, **replacing** the config dict entirely | `--generation-kwargs '{"temperature": 0.5}'` |
+| `--model-abbr` | Overrides the model `abbr` (unique identifier of the service task); when `--batch-size` has multiple values, `-bs{N}` is appended to the `--model-abbr` value for distinction | `--model-abbr vllm-api-general-chat` |
+| `--stream` / `--no-stream` | Overrides `stream` (whether responses are streamed); supports `--stream` / `--no-stream`. Only streaming runs can measure TTFT/TPOT/ITL; non-streaming combinations print a warning and leave the related metrics empty in the summary | `--no-stream` |
+| `--use-timestamp` / `--no-use-timestamp` | Overrides `use_timestamp` (whether to use server-returned timestamps for latency); supports both forms. `request_rate` is ignored when enabled | `--use-timestamp` |
 
 
 ### Accuracy Evaluation Parameters
@@ -120,6 +124,21 @@ Effective only when `--mode` is `agent` or `agent_viz`. AISBench runs agent eval
 | `--env-file` | Path to a `.env` file | `--env-file /path/to/.env` |
 | `--monitor-port` | Harbor monitoring HTTP service port (`0` = off, default `0`) | `--monitor-port 8788` |
 
+### Random Synthetic Dataset Parameters
+
+These parameters override configuration fields of **random synthetic datasets**. They take effect only when `--datasets` specifies a random synthetic dataset (`synthetic_gen_tokenid`, `synthetic_gen_string`, etc.), and only one random synthetic dataset may be specified per run. All parameters are single-valued and map 1:1 to existing dataset config fields.
+
+| Parameter | Description | Example |
+| ---- | ---- | ---- |
+| `--request-count` | Overrides `RequestCount` (total number of generated requests) | `--request-count 32` |
+| `--tokenid-config-request-size` | Overrides `TokenIdConfig.RequestSize` (number of tokens per request), takes effect only when `--datasets synthetic_gen_tokenid` | `--tokenid-config-request-size 8192` |
+| `--tokenid-config-prefix-len` | Overrides `TokenIdConfig.PrefixLen` (number of common prefix tokens per request), takes effect only when `--datasets synthetic_gen_tokenid` | `--tokenid-config-prefix-len 4096` |
+| `--string-config-input` | Overrides `StringConfig.Input` as a JSON object, takes effect only when `--datasets synthetic_gen_string` | `--string-config-input '{"Method": "uniform", "Params": {"MinValue": 100, "MaxValue": 200}}'` |
+| `--string-config-output` | Overrides `StringConfig.Output` as a JSON object, takes effect only when `--datasets synthetic_gen_string` | `--string-config-output '{"Method": "uniform", "Params": {"MinValue": 50, "MaxValue": 100}}'` |
+| `--dataset-abbr` | Overrides the dataset `abbr` (unique identifier of the dataset in the evaluation task) | `--dataset-abbr my-synth` |
+
+> ⚠️ **Note**: `--tokenid-config-*` can be used only with `--datasets synthetic_gen_tokenid`, and `--string-config-*` only with `--datasets synthetic_gen_string`; a type mismatch fails before startup. Use `--request-count` to adjust the total number of requests of any random synthetic dataset.
+
 ## Configuration Constant File Parameters
 Some global constants are not restricted by task type, and it is recommended to keep their default values. If customization is required, edit the constant file: [`global_consts.py`](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/global_consts.py) for configuration.
 
@@ -131,3 +150,5 @@ The currently supported parameter configurations are as follows:
 | `MAX_CHUNK_SIZE` | Maximum cache size for a single chunk returned by the streaming inference model backend. The default value is 65535 bytes (64KB). | `(0, 16777216]` (Unit: Byte) |
 | `REQUEST_TIME_OUT` | Timeout period for the client to wait for a response after sending a request. The default value is None, meaning infinite waiting (always waiting for the model to return results). | `None` or `>0` (Unit: seconds) |
 | `LOG_LEVEL` | Log level, optional values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Default value: `INFO`. | `[DEBUG, INFO, WARNING, ERROR, CRITICAL]` |
+| `PRESSURE_TIME` | Duration of pressure testing; effective only when `--pressure` is specified. Unit: seconds. (This parameter will be deprecated in a future version; use `--pressure-time` instead.) | `[1, 86400]` (i.e., 1 second to 24 hours) |
+| `CONNECTION_ADD_RATE` | Concurrency thread creation rate: the number of new concurrent threads per second until the maximum concurrency limit is reached. Effective only when `--pressure` is specified. (This parameter will be deprecated in a future version; modify the `request_rate` parameter in the model config instead.) | `> 0.1` (Unit: threads/second) |

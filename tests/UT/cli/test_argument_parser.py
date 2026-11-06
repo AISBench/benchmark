@@ -74,6 +74,52 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.config, 'configs/test_config.py')
 
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_single_sweep_value_unwrapped(
+        self, mock_get_current_time_str
+    ):
+        """单值 --batch-size/--num-prompts 解包为 int，保持旧版类型"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py', 'configs/test_config.py',
+                    '--batch-size', '8', '--num-prompts', '16']
+
+        args = ArgumentParser().parse_args()
+
+        self.assertIsInstance(args.batch_size, int)
+        self.assertIsInstance(args.num_prompts, int)
+        self.assertEqual(args.batch_size, 8)
+        self.assertEqual(args.num_prompts, 16)
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_multiple_sweep_values_keep_list(
+        self, mock_get_current_time_str
+    ):
+        """多值 --batch-size/--num-prompts 保持列表且顺序不变"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py', 'configs/test_config.py',
+                    '--batch-size', '8', '16', '--num-prompts', '8', '16']
+
+        args = ArgumentParser().parse_args()
+
+        self.assertEqual(args.batch_size, [8, 16])
+        self.assertEqual(args.num_prompts, [8, 16])
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_config_separated_from_sweep_values(
+        self, mock_get_current_time_str
+    ):
+        """多值参数在前时用 -- 分隔位置参数，避免被 nargs='+' 吞掉"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py', '--batch-size', '8', '16',
+                    '--num-prompts', '8', '16', '--',
+                    'configs/test_config.py']
+
+        args = ArgumentParser().parse_args()
+
+        self.assertEqual(args.config, 'configs/test_config.py')
+        self.assertEqual(args.batch_size, [8, 16])
+        self.assertEqual(args.num_prompts, [8, 16])
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
     def test_parse_args_dry_run_sets_debug(self, mock_get_current_time_str):
         """测试dry_run模式会设置debug为True"""
         # 模拟返回值
@@ -118,6 +164,7 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.config_dir, 'custom_configs')
         self.assertEqual(args.max_num_workers, 4)
         self.assertEqual(args.max_workers_per_gpu, 2)
+        # 单值在 parse_args 末尾统一解包为 int，保持与改动前一致的类型
         self.assertEqual(args.num_prompts, 10)
         self.assertEqual(args.num_warmups, 3)
 
@@ -315,6 +362,7 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.host_port, 8000)
         self.assertEqual(args.url, 'http://example.com/v1')
         self.assertEqual(args.max_out_len, 256)
+        # 单值在 parse_args 末尾统一解包为 int，保持与改动前一致的类型
         self.assertEqual(args.batch_size, 4)
         self.assertTrue(args.trust_remote_code)
         self.assertEqual(args.generation_kwargs,
@@ -368,5 +416,62 @@ class TestArgumentParser(unittest.TestCase):
             self.assertTrue(hasattr(args, 'host_port'))  # api_model_args
             self.assertTrue(hasattr(args, 'generation_kwargs'))  # api_model_args
             self.assertTrue(hasattr(args, 'trust_remote_code'))  # api_model_args
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_sweep_list_options(self, mock_get_current_time_str):
+        """--batch-size / --num-prompts 列表化解析"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py', '--batch-size', '1', '8', '16',
+                    '--num-prompts', '1', '8', '16']
+        args = ArgumentParser().parse_args()
+        self.assertEqual(args.batch_size, [1, 8, 16])
+        self.assertEqual(args.num_prompts, [1, 8, 16])
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_synthetic_dataset_parser_options(self, mock_get_current_time_str):
+        """随机合成数据集参数与模型通用覆盖参数解析"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = [
+            'benchmark.py',
+            '--request-count', '64',
+            '--tokenid-config-request-size', '8192',
+            '--tokenid-config-prefix-len', '6554',
+            '--string-config-input', '{"Method": "uniform", "Params": {"MinValue": 1}}',
+            '--string-config-output', '{"Method": "uniform", "Params": {"MinValue": 1}}',
+            '--model-abbr', 'qwen',
+            '--dataset-abbr', 'synthetic',
+            '--stream',
+            '--no-use-timestamp',
+        ]
+        args = ArgumentParser().parse_args()
+        self.assertEqual(args.request_count, 64)
+        self.assertEqual(args.tokenid_config_request_size, 8192)
+        self.assertEqual(args.tokenid_config_prefix_len, 6554)
+        self.assertEqual(args.string_config_input,
+                         {'Method': 'uniform', 'Params': {'MinValue': 1}})
+        self.assertEqual(args.model_abbr, 'qwen')
+        self.assertEqual(args.dataset_abbr, 'synthetic')
+        self.assertTrue(args.stream)
+        self.assertFalse(args.use_timestamp)
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_sweep_defaults_none(self, mock_get_current_time_str):
+        """新增覆盖参数未显式指定时默认均为 None（不覆盖配置）"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        sys.argv = ['benchmark.py']
+        args = ArgumentParser().parse_args()
+        for attr in ('request_count', 'tokenid_config_request_size',
+                     'tokenid_config_prefix_len', 'string_config_input',
+                     'string_config_output', 'model_abbr', 'dataset_abbr',
+                     'stream', 'use_timestamp'):
+            self.assertIsNone(getattr(args, attr))
+
+    def test_parse_args_tokenid_prefix_len_rejects_fraction(self):
+        """--tokenid-config-prefix-len 不接受小数/比例写法"""
+        sys.argv = ['benchmark.py', '--tokenid-config-prefix-len', '0.8']
+        with self.assertRaises(BaseException):
+            ArgumentParser().parse_args()
+
+
 if __name__ == '__main__':
     unittest.main()
