@@ -8,7 +8,8 @@
 
 ## 二. 使用指导
 
-### 2.1 修改配置文件
+::::{tab-set}
+:::{tab-item} ⭐ 推荐：使用自定义配置文件
 
 配置`ais_bench/benchmark/configs/datasets/synthetic` 目录下的配置模板文件中的`synthetic_config`参数。
 
@@ -34,13 +35,47 @@
 
 **注意：** [`ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen.py`](../../../ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen.py)模板所使用配置需在[`ais_bench/benchmark/configs/datasets/synthetic`](../../../ais_bench/datasets/synthetic/synthetic_config.py)中进行修改。为了统一数据集配置模式，此方法将在后续版本中弃用。
 
-### 2.2 命令执行
-
-在命令行执行如下命令启动测评:
+执行命令：
 
 ```bash
 ais_bench --models {model_api_file} --datasets synthetic_gen_{string/tokenid} {other_option_args}
 ```
+
+:::
+:::{tab-item} 备选：使用命令行参数
+
+在命令行执行如下命令启动测评：
+
+- 随机长度字符串数据集：
+    ```bash
+    ais_bench --models {model_api_file} --datasets synthetic_gen_string --mode {mode} --request-count {request_count} --string-config-input {input_config} --string-config-output {output_config} 
+    ```
+
+- 随机token id序列数据集：
+    ```bash
+    ais_bench --models {model_api_file} --datasets synthetic_gen_tokenid --mode {mode} --request-count {request_count} --tokenid-config-request-size {request_size} --tokenid-config-prefix-len {prefix_len} 
+    ```
+
+样例：
+
+```bash
+ais_bench --models vllm_api_stream_chat --datasets synthetic_gen_tokenid --mode perf \
+  --batch-size 1 8 16 32 40 50 64 \
+  --num-prompts 1 8 16 32 40 50 64 \
+  --request-count 64 \
+  --tokenid-config-request-size 8192 \
+  --tokenid-config-prefix-len 6554 \
+  --max-out-len 1024 \
+  --num-warmups 16 \
+  --path /mnt/weight/Qwen3.8-27B-w8a8 \
+  --model-name qwen3.8 \
+  --host-ip 127.0.0.1 \
+  --host-port 8000 \
+  --generation-kwargs '{"ignore_eos":true}'
+```
+
+:::
+::::
 
 ------
 

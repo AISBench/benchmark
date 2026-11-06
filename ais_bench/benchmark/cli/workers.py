@@ -102,6 +102,9 @@ class Infer(BaseWorker):
             runner_cfg['max_num_workers'] = self.args.max_num_workers
             runner_cfg['max_workers_per_gpu'] = self.args.max_workers_per_gpu
             runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
+            # 仅多档 sweep 会在配置里写入该键；老命令/自定义 runner 不注入新参数
+            if 'sweep_cooldown_s' in cfg:
+                runner_cfg['sweep_cooldown_s'] = cfg['sweep_cooldown_s']
 
         if cfg.get('infer'):
             new_cfg = dict(infer=cfg.infer)

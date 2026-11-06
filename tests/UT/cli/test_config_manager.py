@@ -1,10 +1,19 @@
 import os
+import json
 import unittest
 from unittest import mock
 import tempfile
 import shutil
 
-from ais_bench.benchmark.cli.config_manager import CustomConfigChecker, ConfigManager
+from ais_bench.benchmark.cli.config_manager import (
+    CustomConfigChecker,
+    ConfigManager,
+)
+from ais_bench.benchmark.cli.sweep import (
+    expand_sweep_combinations,
+    validate_pairing,
+    _normalize_sweep_arg,
+)
 from ais_bench.benchmark.models import VLLMCustomAPI, VLLMCustomAPIChat
 from ais_bench.benchmark.models import TritonCustomAPI, MindieStreamApi, TGICustomAPI
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
@@ -801,6 +810,8 @@ class TestConfigManager(unittest.TestCase):
 
         # 验证结果
         mock_cfg.dump.assert_called_once()
+        # 顶层 num_prompts 无消费方，不再写入落盘配置
+        mock_cfg.__setitem__.assert_not_called()
         mock_fromfile.assert_called_once()
 
     @mock.patch('os.makedirs')
@@ -1431,6 +1442,631 @@ class TestConfigManager(unittest.TestCase):
         self.assertIn('do not exist', message)
         self.assertIn('/workspace/missing/mtype_config.json', message)
         self.assertIn('/workspace/missing/token2category', message)
+
+class TestSweepPairing(unittest.TestCase):
+    """--batch-size ↔ --num-prompts 一一对应与并发窗口校验。"""
+
+    def test_normalize_sweep_arg(self):
+        self.assertIsNone(_normalize_sweep_arg(None))
+        self.assertEqual(_normalize_sweep_arg([8]), 8)
+        self.assertEqual(_normalize_sweep_arg([8, 16]), [8, 16])
+        self.assertEqual(_normalize_sweep_arg("8"), 8)
+
+    def test_normalize_empty_list_raises(self):
+        with self.assertRaises(AISBenchConfigError):
+            _normalize_sweep_arg([])
+
+    def test_paired_strategy(self):
+        pairs, warnings = validate_pairing([1, 8], [1, 8])
+        self.assertEqual(pairs, [(1, 1), (8, 8)])
+        self.assertEqual(warnings, [])
+
+    def test_one_side_list_raises(self):
+        """一侧列表一侧标量：不支持广播，必须一一对应"""
+        with self.assertRaises(AISBenchConfigError) as cm:
+            validate_pairing([1, 8, 16], 16)
+        self.assertEqual(
+            cm.exception.error_code_str,
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD.full_code,
+        )
+        with self.assertRaises(AISBenchConfigError):
+            validate_pairing(16, [1, 8, 16])
+
+    def test_unequal_list_raises(self):
+        with self.assertRaises(AISBenchConfigError) as cm:
+            validate_pairing([1, 8], [1, 8, 16])
+        self.assertEqual(
+            cm.exception.error_code_str,
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD.full_code,
+        )
+
+    def test_duplicate_batch_size_raises(self):
+        """重复并发档会拼出相同的 -bs{N} 后缀，需前置报错而非输出路径冲突"""
+        with self.assertRaises(AISBenchConfigError) as cm:
+            validate_pairing([8, 8], [4, 8])
+        self.assertEqual(
+            cm.exception.error_code_str,
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD.full_code,
+        )
+        self.assertIn("duplicate", str(cm.exception))
+        with self.assertRaises(AISBenchConfigError):
+            validate_pairing([8, 16, 8], None)
+
+    def test_window_not_saturated_warning(self):
+        """batch_size 大于生效请求数时，并发窗口跑不满 → WARNING"""
+        _, warnings = validate_pairing(16, 8, request_count=8)
+        self.assertTrue(any("concurrency window" in warning for warning in warnings))
+
+    def test_scalar_pairing_warns_window_not_filled(self):
+        """双标量（单档归一后的形态）同样要做并发窗口检查，不能跳过"""
+        pairs, warnings = validate_pairing(64, 16, request_count=64)
+        self.assertEqual(pairs, [(64, 16)])
+        self.assertTrue(any("concurrency window" in warning for warning in warnings))
+
+    def test_scalar_pairing_window_saturated_no_warning(self):
+        """双标量且窗口能被填满时不告警"""
+        _, warnings = validate_pairing(8, 16, request_count=16)
+        self.assertEqual(warnings, [])
+
+    def test_window_saturated_no_warning(self):
+        """并发窗口能被请求数填满时不告警（含 num_prompts 大于 batch_size 的常见组合）"""
+        _, warnings = validate_pairing(8, 10, request_count=10)
+        self.assertEqual(warnings, [])
+
+    def test_request_count_limits_effective_requests(self):
+        """生效请求数取 min(num_prompts, request_count)"""
+        _, warnings = validate_pairing(8, 16, request_count=4)
+        self.assertTrue(any("concurrency window" in warning for warning in warnings))
+
+    def test_test_range_set_skips_window_check(self):
+        pairs, warnings = validate_pairing(16, 8, test_range_set=True)
+        self.assertEqual(pairs, [(16, 8)])
+        self.assertEqual(warnings, [])
+
+    def test_missing_num_prompts_falls_back_to_full_dataset(self):
+        """未配置 --num-prompts 时默认全量评测，按数据集全部样本判断并发窗口"""
+        pairs, warnings = validate_pairing([64], None, request_count=16)
+        self.assertEqual(pairs, [(64, None)])
+        self.assertTrue(any("dataset samples" in warning for warning in warnings))
+
+    def test_missing_num_prompts_and_request_count_skips_check(self):
+        """两者都未配置时无法确定请求数，不告警"""
+        pairs, warnings = validate_pairing([64], None)
+        self.assertEqual(pairs, [(64, None)])
+        self.assertEqual(warnings, [])
+
+
+class TestExpandSweepCombinations(unittest.TestCase):
+    """expand_sweep_combinations 的组合展开、校验与 manifest。"""
+
+    SYNTHETIC_TYPE = "ais_bench.benchmark.datasets.synthetic.SyntheticDataset"
+
+    def setUp(self):
+        self.model_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.model_dir)
+
+    def _model(self, abbr="qwen", stream=True, **overrides):
+        model = {
+            "type": "ais_bench.benchmark.models.VLLMCustomAPIChat",
+            "abbr": abbr,
+            "attr": "service",
+            "path": self.model_dir,
+            "stream": stream,
+            "batch_size": 1,
+            "max_out_len": 128,
+            "generation_kwargs": {},
+        }
+        model.update(overrides)
+        return model
+
+    def _dataset(self, abbr="synthetic", request_count=64, test_range=None,
+                 config_type="tokenid", request_size=1024, prefix_len=0):
+        reader_cfg = {}
+        if test_range is not None:
+            reader_cfg["test_range"] = test_range
+        return {
+            "type": self.SYNTHETIC_TYPE,
+            "abbr": abbr,
+            "reader_cfg": reader_cfg,
+            "infer_cfg": {"retriever": {}},
+            "config": {
+                "Type": config_type,
+                "RequestCount": request_count,
+                "TokenIdConfig": {
+                    "RequestSize": request_size,
+                    "PrefixLen": prefix_len,
+                },
+            },
+        }
+
+    def _args(self, **overrides):
+        args = {
+            "mode": "perf",
+            "batch_size": None,
+            "num_prompts": None,
+            "request_count": None,
+            "tokenid_config_request_size": None,
+            "tokenid_config_prefix_len": None,
+            "string_config_input": None,
+            "string_config_output": None,
+            "model_abbr": None,
+            "dataset_abbr": None,
+            "stream": None,
+            "use_timestamp": None,
+            "generation_kwargs": None,
+            "max_num_workers": 1,
+            "num_warmups": 1,
+            "max_out_len": None,
+        }
+        args.update(overrides)
+        return args
+
+    def test_multi_combinations(self):
+        result = expand_sweep_combinations(
+            [self._model()], [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+        )
+
+        self.assertEqual(len(result.models), 2)
+        self.assertEqual([m["abbr"] for m in result.models], ["qwen-bs1", "qwen-bs8"])
+        self.assertEqual([m["batch_size"] for m in result.models], [1, 8])
+        self.assertEqual(
+            [d["reader_cfg"]["test_range"] for d in result.datasets],
+            ["[:1]", "[:8]"],
+        )
+        self.assertEqual(len(result.combinations), 2)
+        for combo in result.combinations:
+            self.assertIn(combo["models"][0], result.models)
+            self.assertIn(combo["datasets"][0], result.datasets)
+        self.assertEqual(result.sweep_cooldown_s, 5)
+        self.assertIsNotNone(result.manifest)
+        manifest_batch_sizes = [
+            combo["batch_size"] for combo in result.manifest["combos"]
+        ]
+        self.assertEqual(manifest_batch_sizes, [1, 8])
+
+    def test_duplicate_dataset_abbr_allowed_without_multi_sweep(self):
+        """单档/非 sweep 路径沿用既有多数据集同名 abbr 合并行为，不受 V03 拦截"""
+        datasets = [self._dataset(abbr="aime2024"), self._dataset(abbr="aime2024")]
+
+        result = expand_sweep_combinations([self._model()], datasets, self._args())
+
+        self.assertEqual([d["abbr"] for d in result.datasets], ["aime2024", "aime2024"])
+        self.assertIsNone(result.manifest)
+
+    def test_duplicate_dataset_abbr_rejected_in_multi_sweep(self):
+        """多组合展开时同名 abbr 会导致输出路径冲突，V03 必须拦截"""
+        datasets = [self._dataset(abbr="aime2024"), self._dataset(abbr="aime2024")]
+
+        with self.assertRaises(AISBenchConfigError) as cm:
+            expand_sweep_combinations(
+                [self._model()], datasets,
+                self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+            )
+
+        self.assertIn("Duplicate dataset abbr", str(cm.exception))
+
+    def test_missing_num_prompts_uses_full_dataset(self):
+        """未指定 --num-prompts 时按数据集全部样本请求，且不写 test_range"""
+        result = expand_sweep_combinations(
+            [self._model()], [self._dataset(request_count=32)],
+            self._args(batch_size=[1, 8]),
+        )
+
+        self.assertEqual(len(result.combinations), 2)
+        self.assertEqual(
+            [combo["num_prompts"] for combo in result.manifest["combos"]],
+            [32, 32],
+        )
+        self.assertTrue(
+            all("test_range" not in d["reader_cfg"] for d in result.datasets)
+        )
+
+    def test_single_value_equivalent_path(self):
+        result = expand_sweep_combinations(
+            [self._model()], [self._dataset()],
+            self._args(num_prompts=10),
+        )
+
+        self.assertEqual(result.combinations, [])
+        self.assertIsNone(result.manifest)
+        self.assertEqual(result.sweep_cooldown_s, 0)
+        self.assertEqual(result.models[0]["abbr"], "qwen")
+        # 单值时 test_range 仍由 _fill_dataset_configs 写入
+        self.assertNotIn("test_range", result.datasets[0]["reader_cfg"])
+
+    def test_existing_test_range_is_kept(self):
+        result = expand_sweep_combinations(
+            [self._model()], [self._dataset(test_range="[:5]")],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+        )
+
+        for dataset in result.datasets:
+            self.assertEqual(dataset["reader_cfg"]["test_range"], "[:5]")
+        combos = result.manifest["combos"]
+        self.assertTrue(all(combo["num_prompts"] is None for combo in combos))
+
+    def test_abbr_suffix_is_idempotent(self):
+        result = expand_sweep_combinations(
+            [self._model(abbr="qwen-bs8")], [self._dataset()],
+            self._args(batch_size=[8, 16], num_prompts=[8, 16]),
+        )
+        self.assertEqual([m["abbr"] for m in result.models], ["qwen-bs8", "qwen-bs8-bs16"])
+
+    def test_multi_model_combinations_do_not_falsely_conflict(self):
+        """多模型 × 多并发档下同一数据集 abbr 会重复出现，不应误判为冲突"""
+        result = expand_sweep_combinations(
+            [self._model(abbr="qwen"), self._model(abbr="qwen2")],
+            [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+        )
+
+        self.assertEqual(len(result.models), 4)
+        self.assertEqual(len(result.combinations), 4)
+        self.assertEqual(
+            [m["abbr"] for m in result.models],
+            ["qwen-bs1", "qwen2-bs1", "qwen-bs8", "qwen2-bs8"],
+        )
+        output_pairs = {
+            (m["abbr"], d["abbr"])
+            for m, d in zip(result.models, result.datasets)
+        }
+        self.assertEqual(len(output_pairs), 4)
+
+    def test_multi_model_model_path_not_overwritten_by_fill(self):
+        """多模型 + 多档：_fill_dataset_configs 不得用 models[0] 覆盖各组合的 model_path"""
+        other_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, other_dir)
+        args = self._args(batch_size=[1, 8], num_prompts=[1, 8])
+        result = expand_sweep_combinations(
+            [
+                self._model(abbr="qwen", path=self.model_dir),
+                self._model(abbr="qwen2", path=other_dir),
+            ],
+            [self._dataset()],
+            args,
+        )
+
+        manager = ConfigManager.__new__(ConfigManager)
+        manager.cfg = {
+            "models": result.models,
+            "datasets": result.datasets,
+            "cli_args": args,
+        }
+        manager._fill_dataset_configs()
+
+        self.assertEqual(
+            [dataset["model_path"] for dataset in result.datasets],
+            [model["path"] for model in result.models],
+        )
+        self.assertEqual(
+            {dataset["model_path"] for dataset in result.datasets},
+            {self.model_dir, other_dir},
+        )
+
+    def test_combination_count_scales_with_batches_models_datasets(self):
+        """档位数 × 模型数 × 数据集数 全量相乘：2×2×2=8，model abbr 按模型×档位唯一"""
+        gsm8k = self._dataset(abbr="gsm8k")
+        gsm8k["type"] = "ais_bench.benchmark.datasets.gsm8k.GSM8KDataset"
+
+        result = expand_sweep_combinations(
+            [self._model(abbr="qwen"), self._model(abbr="qwen2")],
+            [self._dataset(), gsm8k],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+        )
+
+        # 每个组合各持一份模型/数据集副本，故长度均为 档位数 × 模型数 × 数据集数
+        self.assertEqual(len(result.models), 2 * 2 * 2)
+        self.assertEqual(len(result.datasets), 2 * 2 * 2)
+        self.assertEqual(len(result.combinations), 2 * 2 * 2)
+        self.assertEqual(len(result.manifest["combos"]), 8)
+        # model abbr 按「模型 × 档位」唯一，同一模型在多数据集下重复出现
+        model_abbrs = [model["abbr"] for model in result.models]
+        self.assertEqual(len(set(model_abbrs)), 2 * 2)
+        pairs = {
+            (combo["models"][0]["abbr"], combo["datasets"][0]["abbr"])
+            for combo in result.combinations
+        }
+        self.assertEqual(len(pairs), 8)
+
+    def test_generation_kwargs_stream_rejected(self):
+        """`--generation-kwargs` 携带 stream 会覆盖请求体 stream，启动前报错"""
+        with self.assertRaises(AISBenchConfigError) as ctx:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset()],
+                self._args(generation_kwargs={"stream": True, "temperature": 0.1}),
+            )
+        message = str(ctx.exception)
+        self.assertIn("generation-kwargs", message)
+        self.assertIn("--stream", message)
+
+    def test_manifest_is_desensitized(self):
+        manifest = expand_sweep_combinations(
+            [self._model(api_key="sk-secret")], [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+        ).manifest
+
+        dumped = json.dumps(manifest, ensure_ascii=False)
+        self.assertNotIn("sk-secret", dumped)
+        self.assertNotIn(self.model_dir, dumped)
+        self.assertEqual(manifest["schema_version"], 1)
+        self.assertIn("ais_bench_version", manifest)
+        self.assertEqual(len(manifest["combos"]), 2)
+
+    def test_manifest_records_model_name(self):
+        """manifest 记录服务端模型名（`--model-name` 覆盖后的 `model` 字段），供 HTML 报告展示"""
+        manifest = expand_sweep_combinations(
+            [self._model(model="Qwen3.8-27B-w8a8")], [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+        ).manifest
+
+        self.assertEqual(
+            [combo["model_config"]["model_name"] for combo in manifest["combos"]],
+            ["Qwen3.8-27B-w8a8", "Qwen3.8-27B-w8a8"],
+        )
+
+    def test_existing_combinations_preserved(self):
+        """配置已有 model_dataset_combinations 时按配对逐档展开，不改写成全笛卡尔"""
+        models = [self._model(abbr="qwen"), self._model(abbr="qwen2")]
+        datasets = [self._dataset(abbr="synthetic")]
+        gsm8k = self._dataset(abbr="gsm8k")
+        gsm8k["type"] = "ais_bench.benchmark.datasets.gsm8k.GSM8KDataset"
+        datasets.append(gsm8k)
+
+        result = expand_sweep_combinations(
+            models, datasets,
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+            combinations=[
+                dict(models=[models[0]], datasets=[datasets[0]]),
+                dict(models=[models[1]], datasets=[datasets[0], datasets[1]]),
+            ],
+        )
+
+        pairs = [
+            (combo["models"][0]["abbr"], combo["datasets"][0]["abbr"])
+            for combo in result.combinations
+        ]
+        self.assertEqual(
+            pairs,
+            [
+                ("qwen-bs1", "synthetic"),
+                ("qwen2-bs1", "synthetic"),
+                ("qwen2-bs1", "gsm8k"),
+                ("qwen-bs8", "synthetic"),
+                ("qwen2-bs8", "synthetic"),
+                ("qwen2-bs8", "gsm8k"),
+            ],
+        )
+        self.assertEqual(len(result.manifest["combos"]), 6)
+
+    def test_stream_override_skipped_for_local_model(self):
+        """--stream 不对本地模型注入配置，也不触发非流式告警"""
+        result = expand_sweep_combinations(
+            [self._model(attr="local", stream=False)], [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8], stream=True),
+        )
+
+        self.assertTrue(all(model["stream"] is False for model in result.models))
+        self.assertFalse(any(
+            "non-streaming" in warning
+            for warning in result.manifest["warnings"]
+        ))
+
+    def test_stream_override_requires_existing_key(self):
+        """仅覆盖已存在的字段，避免向不接受该参数的模型注入多余 kwarg"""
+        model = self._model()
+        model.pop("stream")
+        result = expand_sweep_combinations(
+            [model], [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8], stream=True),
+        )
+
+        self.assertTrue(all("stream" not in item for item in result.models))
+
+    def test_request_count_warns_on_non_synthetic_dataset(self):
+        """--request-count 对非合成数据集不生效，需显式告警"""
+        dataset = {
+            "type": "Gsm8kDataset",
+            "abbr": "gsm8k",
+            "path": "dummy",
+            "reader_cfg": {"test_range": ":5"},
+        }
+        result = expand_sweep_combinations(
+            [self._model()], [dataset],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8], request_count=10),
+        )
+
+        self.assertTrue(any(
+            "ignored for non-synthetic" in warning
+            for warning in result.manifest["warnings"]
+        ))
+
+    def test_dataset_abbr_requires_single_dataset(self):
+        """--dataset-abbr 配多个数据集会撞 abbr，需前置报错"""
+        with self.assertRaises(AISBenchConfigError) as ctx:
+            expand_sweep_combinations(
+                [self._model()],
+                [self._dataset(), self._dataset(abbr="synthetic_2")],
+                self._args(dataset_abbr="shared"),
+            )
+
+        self.assertIn("requires exactly one dataset", str(ctx.exception))
+
+    def test_v04_accepts_existing_file_path(self):
+        """V04 与运行时一致使用 os.path.exists，文件路径也应通过"""
+        result = expand_sweep_combinations(
+            [self._model(path=os.path.abspath(__file__))],
+            [self._dataset()],
+            self._args(),
+        )
+
+        self.assertEqual(len(result.models), 1)
+
+    def test_v04_reports_all_models(self):
+        """多个模型路径非法时应全部报告，而不是只报第一条"""
+        with self.assertRaises(AISBenchConfigError) as ctx:
+            expand_sweep_combinations(
+                [self._model(abbr="m1", path="/no/such/path_a"),
+                 self._model(abbr="m2", path="/no/such/path_b")],
+                [self._dataset()],
+                self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("m1", message)
+        self.assertIn("m2", message)
+
+    def test_sweep_combo_count_limit(self):
+        """多档展开超过上限时前置报错，提示拆批执行"""
+        gsm8k = {
+            "type": "Gsm8kDataset",
+            "abbr": "gsm8k",
+            "path": "dummy",
+            "reader_cfg": {"test_range": ":5"},
+        }
+        batch_sizes = list(range(1, 102))
+        with self.assertRaises(AISBenchConfigError) as ctx:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset(), gsm8k],
+                self._args(batch_size=batch_sizes, num_prompts=[1] * len(batch_sizes)),
+            )
+
+        self.assertIn("exceeding the limit", str(ctx.exception))
+
+    def test_multi_sweep_requires_perf_mode(self):
+        """多档 sweep 会把副本写回 cfg，非 perf 模式无统一去重，需前置报错"""
+        with self.assertRaises(AISBenchConfigError) as cm:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset()],
+                self._args(mode="all", batch_size=[1, 8]),
+            )
+        self.assertIn("only supported in", str(cm.exception))
+
+    def test_multiple_synthetic_datasets_allowed_without_sweep(self):
+        """配置文件路径/单档运行沿用既有行为，多合成数据集不被 V07 拦截"""
+        result = expand_sweep_combinations(
+            [self._model()], [self._dataset(), self._dataset(abbr="synthetic2")],
+            self._args(),
+        )
+
+        self.assertEqual(result.combinations, [])
+        self.assertEqual(
+            [dataset["abbr"] for dataset in result.datasets],
+            ["synthetic", "synthetic2"],
+        )
+
+    def test_multiple_synthetic_datasets_rejected(self):
+        with self.assertRaises(AISBenchConfigError) as cm:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset(), self._dataset(abbr="synthetic2")],
+                self._args(batch_size=[1, 8]),
+            )
+        self.assertIn("Only one random synthetic dataset", str(cm.exception))
+
+    def test_invalid_batch_size_reported(self):
+        with self.assertRaises(AISBenchConfigError) as cm:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset()],
+                self._args(batch_size=[1, 0]),
+            )
+        self.assertIn("value #2", str(cm.exception))
+
+    def test_prefix_len_exceeds_request_size_rejected(self):
+        with self.assertRaises(AISBenchConfigError) as cm:
+            expand_sweep_combinations(
+                [self._model()],
+                [self._dataset(request_size=1024, prefix_len=2048)],
+                self._args(batch_size=[1, 8]),
+            )
+        self.assertIn("PrefixLen", str(cm.exception))
+
+    def test_tokenid_arg_with_string_dataset_rejected(self):
+        dataset = self._dataset(config_type="string")
+        dataset["config"]["StringConfig"] = {
+            "Input": {"Method": "uniform", "Params": {"MinValue": 1, "MaxValue": 8}},
+            "Output": {"Method": "uniform", "Params": {"MinValue": 1, "MaxValue": 8}},
+        }
+        with self.assertRaises(AISBenchConfigError) as cm:
+            expand_sweep_combinations(
+                [self._model()], [dataset],
+                self._args(batch_size=[1, 8], tokenid_config_request_size=512),
+            )
+        self.assertIn("tokenid", str(cm.exception))
+
+    def test_use_timestamp_with_synthetic_rejected(self):
+        with self.assertRaises(AISBenchConfigError) as cm:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset()],
+                self._args(batch_size=[1, 8], use_timestamp=True),
+            )
+        self.assertIn("use-timestamp", str(cm.exception))
+
+    def test_non_stream_warning_keeps_ttft_invalid(self):
+        result = expand_sweep_combinations(
+            [self._model(stream=False)], [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8]),
+        )
+        for combo in result.manifest["combos"]:
+            self.assertFalse(combo["model_config"]["ttft_valid"])
+
+    def test_max_num_workers_parallel_warning(self):
+        with mock.patch(
+            "ais_bench.benchmark.cli.sweep.logger"
+        ) as mock_logger:
+            expand_sweep_combinations(
+                [self._model()], [self._dataset()],
+                self._args(batch_size=[1, 8], num_prompts=[1, 8],
+                           max_num_workers=4),
+            )
+        messages = [str(call) for call in mock_logger.warning.call_args_list]
+        self.assertTrue(any("max-num-workers" in message for message in messages))
+
+
+class TestExpandSweepConfigsWritesManifest(unittest.TestCase):
+    """_expand_sweep_configs 落盘 combos_manifest.json。"""
+
+    def test_manifest_written(self):
+        temp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, temp_dir)
+        model_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, model_dir)
+
+        args = mock.MagicMock()
+        config_manager = ConfigManager(args)
+        config_manager.cfg = {
+            "work_dir": temp_dir,
+            "models": [{
+                "type": "ais_bench.benchmark.models.VLLMCustomAPIChat",
+                "abbr": "qwen",
+                "attr": "service",
+                "path": model_dir,
+                "stream": True,
+                "batch_size": 1,
+            }],
+            "datasets": [{
+                "type": TestExpandSweepCombinations.SYNTHETIC_TYPE,
+                "abbr": "synthetic",
+                "reader_cfg": {},
+                "config": {"Type": "tokenid", "RequestCount": 64},
+            }],
+            "cli_args": {
+                "mode": "perf",
+                "batch_size": [1, 8],
+                "num_prompts": [1, 8],
+                "max_num_workers": 1,
+            },
+        }
+
+        config_manager._expand_sweep_configs()
+
+        manifest_path = os.path.join(temp_dir, "combos_manifest.json")
+        self.assertTrue(os.path.exists(manifest_path))
+        with open(manifest_path, "r", encoding="utf-8") as file:
+            manifest = json.load(file)
+        self.assertEqual(len(manifest["combos"]), 2)
+        self.assertEqual(len(config_manager.cfg["model_dataset_combinations"]), 2)
+        self.assertEqual(config_manager.cfg["sweep_cooldown_s"], 5)
+
 
 if __name__ == '__main__':
     unittest.main()
