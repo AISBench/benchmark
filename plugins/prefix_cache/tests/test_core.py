@@ -52,6 +52,29 @@ class _FakeTokenizer:
                 out.append(ids[i])
                 i += 1
         return out
+
+
+class _BoundaryMergeTokenizer:
+    """A reversible tokenizer whose ' s' token crosses the marker boundary."""
+
+    all_special_ids = list(range(32))
+
+    def __len__(self):
+        return 257
+
+    def encode(self, text, add_special_tokens=False):
+        result, index = [], 0
+        while index < len(text):
+            if text[index:index + 2] == " s":
+                result.append(256)
+                index += 2
+            else:
+                result.append(ord(text[index]))
+                index += 1
+        return result
+
+    def decode(self, token_ids, skip_special_tokens=False):
+        return "".join(" s" if token_id == 256 else chr(token_id) for token_id in token_ids)
 from ais_bench_prefix_cache.scenario import load_scenario
 
 
@@ -235,6 +258,25 @@ class CoreTest(unittest.TestCase):
         self.assertNotEqual(
             canonical["group-0"].token_ids[:4], canonical["group-1"].token_ids[:4]
         )
+
+    def test_canonical_collision_round_trips_across_marker_boundary(self):
+        tokenizer = _BoundaryMergeTokenizer()
+        record = GSMRecord(0, "same question", "hash")
+        sources = {f"group-{index}": [record, record] for index in range(3)}
+        for length in (32, 96):
+            with self.subTest(length=length):
+                canonical = build_canonical_prefixes(
+                    tokenizer, sources, {group: length for group in sources}, 4
+                )
+                first_blocks = {prefix.token_ids[:4] for prefix in canonical.values()}
+                self.assertEqual(len(first_blocks), 3)
+                expected, _, _ = _repeat_tokens(sources["group-0"], tokenizer, length)
+                self.assertEqual(canonical["group-0"].token_ids, tuple(expected))
+                for prefix in canonical.values():
+                    self.assertGreaterEqual(len(prefix.token_ids), length)
+                    self.assertEqual(
+                        tokenizer.encode(prefix.text, add_special_tokens=False), list(prefix.token_ids)
+                    )
 
     def test_seed_capacity_is_rejected_during_scenario_validation(self):
         with tempfile.TemporaryDirectory() as folder:
