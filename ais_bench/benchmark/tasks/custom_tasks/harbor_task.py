@@ -308,6 +308,19 @@ class HarborTask(BaseTask):
 
         out_json = osp.join(self.out_dir, f"{task_abbr}.json")
 
+        reporting = dataset_cfg.get("reporting")
+        if reporting:
+            from importlib import import_module
+            from tempfile import NamedTemporaryFile
+
+            module, name = reporting["publisher"].split(":")
+            publish = getattr(import_module(module), name)
+            report = publish(job, job_result, **reporting.get("kwargs", {}))
+            with NamedTemporaryFile(mode="w", dir=self.out_dir, delete=False) as stream:
+                json.dump({"normalized_result": osp.relpath(report, self.out_dir)}, stream)
+            os.replace(stream.name, out_json)
+            return
+
         total_count = self._get_task_count(job.config)
         all_rewards = []
         n_errors = 0
