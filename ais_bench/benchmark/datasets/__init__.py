@@ -40,6 +40,7 @@ _DATASET_MODULES = [
     "ais_bench.benchmark.datasets.textvqa",
     "ais_bench.benchmark.datasets.videobench",
     "ais_bench.benchmark.datasets.vbench",
+    "ais_bench.benchmark.datasets.vabench",
     "ais_bench.benchmark.datasets.vocalsound",
     "ais_bench.benchmark.datasets.lambada",
     "ais_bench.benchmark.datasets.lcsts",

@@ -1,0 +1,5 @@
+# Backwards-compatible entry for the GPU scoring backend's PyPI dependencies.
+# Complete install (including NISQA and pinned Git packages):
+# python3 -m ais_bench.benchmark.vabench.environment install --help
+# Run in a separate Conda Python 3.11 environment, not AISBench's main environment.
+-r datasets/vabench.txt

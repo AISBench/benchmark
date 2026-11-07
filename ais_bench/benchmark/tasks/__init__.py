@@ -19,6 +19,7 @@ _TASK_CLASS_MODULES: dict[str, str] = {
     "SWEBenchProInferTask": "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_infer",
     "SWEBenchProEvalTask": "ais_bench.benchmark.tasks.swebench_pro.swebench_pro_eval",
     "VBenchEvalTask": "ais_bench.benchmark.tasks.vbench_eval",
+    "VABenchEvalTask": "ais_bench.benchmark.tasks.vabench.eval",
     "OneIGEvalTask": "ais_bench.benchmark.tasks.oneig.oneig_eval",
     "LLMIOReplayTask": "ais_bench.benchmark.tasks.llm_io_replay.llm_io_replay",
 }

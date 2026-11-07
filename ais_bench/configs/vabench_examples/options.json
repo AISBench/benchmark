@@ -1,0 +1,6 @@
+{
+  "params": {"device_map": "auto"},
+  "dim_params": {},
+  "device_overrides": {"first_dnsmos": "cpu"},
+  "timeout": 86400
+}
