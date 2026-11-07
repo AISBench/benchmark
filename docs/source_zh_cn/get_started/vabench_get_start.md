@@ -1,3 +1,4 @@
+
 # AISBench + VABench 四步评测
 
 本文介绍 Linux GPU 机器上的手动准备和评测路线，前提是已有 AISBench 源码和 Conda；VABench 源码按第 1 节下载。需要 AISBench 自动准备评分依赖时，第 2.5 节仍使用安装工具，不等同于逐包手工安装。
@@ -235,7 +236,7 @@ ${PY} -m ais_bench.tools.vabench.environment install \
   --index-url https://repo.huaweicloud.com/repository/pypi/simple
 ```
 
-`--install-system-deps` 只适用于 Ubuntu/Debian root 容器；其他系统先手动装好系统工具，再去掉该参数。
+`--install-system-deps` 只适用于 Ubuntu/Debian root 容器；其他系统先手动装好系统工具，再去掉该参数。系统已有 2.1 节工具时也可以直接去掉该参数，避免 `apt-get update` 被代理或自签 CA 阻塞；本机验证时曾因 apt 源证书校验持续重试，改为不带该参数后正常继续。
 
 > 如果当前环境已经安装了 AISBench，`environment install` 会触发 `runtime_guard` 并停止，本次安装没有执行完成。已有环境运行 `environment check`；需要重新安装时使用干净的评分环境，避免改坏已有主环境。
 
@@ -272,8 +273,6 @@ test -e ${VABENCH_CACHE_DIR}/checkpoints/auxiliary/models/buffalo_l
 ---
 
 ## 3. 归档好 video 视频
-
-如需固定的10%子集，使用78题 `mini10pct` 清单。候选池778题、类别配额、TF-IDF选样、离线复现和README后续替换版本的区别，见[快速上手第3节](../extended_benchmark/lmm_generate/vabench.md#mini10pct-selection)。
 
 ### 3.1 目录和命名要求
 
@@ -564,7 +563,7 @@ export OFFICIAL_DATA=/workspace/vabench_official_data_${STAMP}
 export OFFICIAL_RUN=/workspace/vabench_official_run_${STAMP}
 export OFFICIAL_RESULT=/workspace/vabench_result_${STAMP}
 
-${PY} "${AISBENCH_ROOT}/ais_bench/benchmark/tools/vabench/official_prepare.py" \
+${PY} "${AISBENCH_ROOT}/ais_bench/tools/vabench/official_prepare.py" \
   --source-root ${VABENCH_ROOT} \
   --videos /workspace/video \
   --output ${OFFICIAL_DATA}
