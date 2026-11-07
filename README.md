@@ -36,6 +36,7 @@
 
 ## 🔥 最新进展
 
+- **\[2026.11.4]** 支持 **多档并发场景服务化性能测试**：`--batch-size` / `--num-prompts` 支持列表并按位一一配对，一条命令即可把多个并发档展开为独立任务批量执行，每档单独落盘并记录参数快照（`combos_manifest.json`），跑完统一生成 `batch_perf_summary.csv` 与可离线打开的可视化 HTML 报告，便于对比不同并发档的吞吐与时延拐点；默认串行执行并在任务间冷却，显式提高并行度时主动告警，避免压测数据互相污染。详见 [多档并发场景服务化性能测试](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/multi-concurrency_performance.html)。🔥🔥🔥🚀🚀🚀
 - **\[2026.9.22]** 支持 **多模态变长数据集生成**：基于 MMMU 图片生成变长输入多模态压测数据集（单图 1080P 或五图 720P 二选一），与纯文本模式共用同一套 Scenario 配置与命令入口，`prepare --mode mm` 一键生成并压测。详见 [多模态数据集生成与压测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/prefix_cache.html)。🚀🚀🚀
 - **\[2026.9.12]Agent测评完全对接harbor框架，并提供一键部署的离线测评解决方案**：Agent测评完全支持Harbor适配的agent以及harbor格式的数据集，同时为常用agent（包括claude-code，terminus-2，mini-swe-agent等）以及当前常用的agent数据集（SWE-Bench，terminal-bench，DeepSWE）提供了一键部署的离线测评解决方案。使用说明见 👉 [基于Harbor框架的agent测评](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/base_tutorials/scenes_intro/agent_benchmark.html)。🔥🔥🔥🚀🚀🚀
 - **\[2026.9.3]** 支持 **变长与指定prefix cache命中率数据生成/压测**：提供变长数据集生成（输入/输出长度支持 固定、显式逐条、区间、截断正态、CSV 五种模式，可生成指定理论命中率的数据集）、请求调度、缓存预热、指标采集与结果分析全链路能力，支持单 Prefix / 多 Prefix Group、目标命中率反算、cold/warmup 双模式与多 DP 定向路由，新增 `prefix_hit_rate` 等指标查询。详见 [变长与指定prefix cache命中率数据生成/压测](https://ais-bench-benchmark.readthedocs.io/zh-cn/latest/advanced_tutorials/prefix_cache.html)。🚀🚀🚀
