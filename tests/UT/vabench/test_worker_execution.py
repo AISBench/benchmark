@@ -99,46 +99,6 @@ def test_worker_execute_preserves_scores_failures_and_device_evidence(tmp_path, 
                    for _, params in calls)
 
 
-@pytest.mark.parametrize('hardlink_fallback', [False, True])
-def test_official_wrapper_uses_mapping_local_resources_and_unchanged_media(tmp_path, monkeypatch,
-                                                                        hardlink_fallback):
-    root, sandbox = tmp_path / 'official', tmp_path / 'sandbox'
-    (root / 'mapping').mkdir(parents=True)
-    sandbox.mkdir()
-    (root / 'mapping/final_idx_to_prompt.csv').write_text(
-        'idx\tprompt\na\tFull prompt\n', encoding='utf-8')
-    media = {}
-    for name, suffix in [('video', '.mp4'), ('audio', '.wav')]:
-        path = tmp_path / ('a' + suffix); path.write_bytes(b'original media')
-        media[name + '_list'] = [str(path)]
-    package = ModuleType('vabench'); package.__path__ = []
-    utils = ModuleType('vabench.utils'); utils.load_json = read_json
-    observations = []
-
-    class VABench:
-        def __init__(self, device, info, output):
-            assert device == 'cpu' and Path(output) == sandbox
-            assert self.load_prompt_mapping() == {'a': 'Full prompt'}
-        def evaluate(self, video, audio, name, dimension_list, local, **params):
-            assert Path(video, 'a.mp4').read_bytes() == b'original media'
-            assert Path(audio, 'a.wav').read_bytes() == b'original media'
-            observations.append((package.init_submodules(dimension_list), params, local))
-            write_json(sandbox / (name + '_eval_results.json'), {
-                dimension_list[0]: {'video_results': [{'video_path': str(Path(video, 'a.mp4')),
-                                                      'video_results': 0.5}]}})
-    package.VABench = VABench; package.utils = utils
-    monkeypatch.setitem(sys.modules, 'vabench', package)
-    monkeypatch.setitem(sys.modules, 'vabench.utils', utils)
-    if hardlink_fallback:
-        def denied(*a, **kw):
-            raise OSError('fixture: symlink unavailable')
-        monkeypatch.setattr(Path, 'symlink_to', denied)
-    request = dict(source_root=str(root), cache_dir=str(tmp_path / 'cache'))
-    for _ in range(2):  # Existing links are reused on the second call.
-        result = worker._official_scene(request, 'second_clap', [media], sandbox, 'cpu', {'batch': 2})
-        assert result[0]['video_results'] == 0.5
-    assert observations[0][1:] == ({'batch': 2}, True)
-    assert 'second_clap' in observations[0][0]
 
 
 @pytest.mark.parametrize('failed', [False, True])

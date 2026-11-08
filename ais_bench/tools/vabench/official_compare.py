@@ -41,7 +41,7 @@ def _result_files(root):
         if len(paths) != 1:
             raise ValueError(f'Ambiguous result files for {category}: use a single-run directory')
         selected[category] = paths[0]
-    return selected, []
+    return selected
 
 
 def _load_category(path):
@@ -118,8 +118,8 @@ def compare_official_results(aisbench, official, dimensions=None, relative=0.01,
         raise ValueError('Unknown VABench dimension')
 
     aisbench_root, official_root = _result_root(aisbench), _result_root(official)
-    aisbench_files, aisbench_ignored = _result_files(aisbench_root)
-    official_files, official_ignored = _result_files(official_root)
+    aisbench_files = _result_files(aisbench_root)
+    official_files = _result_files(official_root)
 
     differences = []
     compared = 0
@@ -234,7 +234,6 @@ def compare_official_results(aisbench, official, dimensions=None, relative=0.01,
     means_passed = all(stats['mean_comparison']['passed'] for stats in summary.values())
     sample_values_passed = not structural and not any(
         item['kind'] == 'value_mismatch' for item in differences)
-    ignored = [str(path) for path in aisbench_ignored + official_ignored]
     notes = ['Numeric comparison only: verify input/model provenance and failure states separately.']
     if any(item.get('dimension') == 'second_clap' for item in differences):
         notes.append('second_clap uses official random truncation; repeated runs may differ.')
@@ -255,7 +254,6 @@ def compare_official_results(aisbench, official, dimensions=None, relative=0.01,
             aisbench=str(aisbench_files[category]) if category in aisbench_files else None,
             official=str(official_files[category]) if category in official_files else None)
             for category in categories},
-        ignored_older_files=ignored,
         notes=notes,
         thresholds=dict(relative_strictly_less_than=relative,
                         near_zero_at_most=near_zero, absolute_at_most=absolute),
@@ -287,8 +285,6 @@ def format_official_comparison(result):
                      f"official_mean={_format_number(item['official_mean'])} "
                      f"aisbench_mean={_format_number(item['aisbench_mean'])} "
                      f"valid_pairs={stats['valid_pairs']}")
-    if result['ignored_older_files']:
-        lines.append(f"  ignored older result files: {len(result['ignored_older_files'])}")
     if not result['differences']:
         lines.append('  All compared video_results values match within tolerance.')
         lines.extend(f'Note: {note}' for note in result.get('notes', []))

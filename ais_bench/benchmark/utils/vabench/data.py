@@ -287,8 +287,8 @@ def select_prepared(manifest, grouped, test_range=None):
     """
     records = manifest['records']
     indices = select_indices(len(records), test_range)
-    # Slicing a range cannot duplicate indices, so full length means full set.
-    if len(indices) == len(records):
+    # A full-length slice can still reorder samples, e.g. [::-1].
+    if indices == list(range(len(records))):
         return manifest, grouped, dict(
             test_range=test_range, selected=len(records),
             total=len(records), applied=False)
@@ -298,13 +298,18 @@ def select_prepared(manifest, grouped, test_range=None):
     wanted = {}
     for record in selected:
         wanted.setdefault(record['category'], set()).add(record['idx'])
+    positions = {record['idx']: position for position, record in enumerate(selected)}
     picked = {}
-    for category, entries in grouped.items():
-        keep = wanted.get(category)
-        if not keep or not isinstance(entries, list):
+    # Process scenes in first-selected order, and rows within each scene in
+    # selected order. Never mutate the prepared metadata on disk or in memory.
+    for category, keep in wanted.items():
+        entries = grouped.get(category)
+        if not isinstance(entries, list):
             continue
         filtered = [entry for entry in entries
                     if _metadata_ids([entry]) & keep]
+        filtered.sort(key=lambda entry: min(
+            positions[idx] for idx in _metadata_ids([entry]) & keep))
         if filtered:
             picked[category] = filtered
     covered = set()
@@ -317,7 +322,8 @@ def select_prepared(manifest, grouped, test_range=None):
     selected_manifest = dict(manifest)
     selected_manifest['records'] = selected
     selected_manifest['subset_size'] = len(selected)
-    if manifest.get('evaluation_scope') not in ('custom', 'smoke'):
+    if (len(selected) < len(records)
+            and manifest.get('evaluation_scope') not in ('custom', 'smoke')):
         selected_manifest['evaluation_scope'] = 'custom'
     selected_manifest['input_signature'] = input_signature(selected)
     selected_manifest['metadata_signature'] = object_digest(picked)

@@ -280,6 +280,38 @@ def test_select_prepared_filters_rows_and_scene_metadata(tmp_path, entry, video)
         select_prepared(manifest, grouped, '[:0]')
 
 
+@pytest.mark.parametrize('test_range,ids,scenes,scope', [
+    ('[::-1]', ['b1', 'a2', 'a1'], ['b', 'a'], 'standard'),
+    ('[1::-1]', ['a2', 'a1'], ['a'], 'custom'),
+    ('[2::-2]', ['b1', 'a1'], ['b', 'a'], 'custom'),
+])
+def test_selection_preserves_reordered_records_and_scene_metadata(test_range, ids, scenes, scope):
+    records = [dict(idx=idx, category=idx[0], video_sha256=idx, audio_sha256=idx)
+               for idx in ['a1', 'a2', 'b1']]
+    manifest = dict(records=records, subset_size=3, evaluation_scope='standard',
+                    input_signature='source-signature')
+    grouped = {scene: [dict(prompt_en=row['idx'], video_list=[row['idx'] + '.mp4'],
+                            audio_list=[row['idx'] + '.wav'])
+                       for row in records if row['category'] == scene] for scene in ['a', 'b']}
+    snapshot = copy.deepcopy((manifest, grouped))
+    result, metadata, selection = select_prepared(manifest, grouped, test_range)
+    assert [row['idx'] for row in result['records']] == ids
+    assert list(metadata) == scenes
+    assert [row['prompt_en'] for rows in metadata.values() for row in rows] == ids
+    assert selection['applied'] is True and result['subset_size'] == len(ids)
+    assert result['evaluation_scope'] == scope
+    assert result['selection']['source_input_signature'] == 'source-signature'
+    assert (manifest, grouped) == snapshot
+
+
+def test_identity_selection_preserves_original_objects():
+    manifest = dict(records=[dict(idx='a', category='scene')])
+    grouped = {'scene': []}
+    result, metadata, selection = select_prepared(manifest, grouped, '[:]')
+    assert result is manifest and metadata is grouped
+    assert selection['applied'] is False
+
+
 def test_task_progress_uses_sample_count(tmp_path, entry, video, monkeypatch):
     from ais_bench.benchmark.tasks.vabench import eval as task_module
     prepared = tmp_path / 'prepared'
@@ -489,34 +521,3 @@ def test_real_worker_subprocess_and_mllm_grouping(tmp_path, entry, video, monkey
     request = read_json(tmp_path / 'run/job_00/request.json')
     assert request['dimensions'] == dims
     assert all(report['metrics'][d]['mean'] is not None for d in dims)
-
-    # Exercise the real upstream VABench orchestration class, with the same
-    # fake compute_* scorers. Only model inference is substituted.
-    if SOURCE.exists():
-        (package / '__init__.py').write_text(
-            (SOURCE / 'vabench/__init__.py').read_text(encoding='utf-8'), encoding='utf-8')
-        (source / 'torch.py').write_text(
-            'def device(x): return x\n'
-            'class cuda:\n'
-            '    @staticmethod\n'
-            '    def is_available(): return False\n', encoding='utf-8')
-        (package / 'utils.py').write_text(
-            'import json\n'
-            'def init_submodules(*a, **kw): return {}\n'
-            'def load_json(p):\n'
-            '    with open(p, encoding="utf-8") as f: return json.load(f)\n'
-            'def save_json(obj, p):\n'
-            '    with open(p, "w", encoding="utf-8") as f: json.dump(obj, f)\n', encoding='utf-8')
-        mapping_dir = source / 'mapping'
-        mapping_dir.mkdir()
-        (mapping_dir / 'final_idx_to_prompt.csv').write_text(
-            'idx\tprompt\n' + entry['idx'] + '\t' + entry['metadata']['prompt_en'] + '\n',
-            encoding='utf-8')
-        # The source signature changed to install the real orchestrator;
-        # recompute both modes against this identical source snapshot.
-        adapter = run(prepared, source, cache, tmp_path / 'adapter_real_class',
-                      dimensions=dims, device='cpu')
-        official = run(prepared, source, cache, tmp_path / 'official_real_class',
-                       dimensions=dims, device='cpu', mode='official')
-        assert successful(official)
-        assert all(official['metrics'][d]['mean'] == adapter['metrics'][d]['mean'] for d in dims)

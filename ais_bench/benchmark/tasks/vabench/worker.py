@@ -4,7 +4,6 @@ from contextlib import redirect_stderr, redirect_stdout
 import importlib
 import importlib.metadata
 import functools
-import json
 import logging
 import os
 from pathlib import Path
@@ -218,7 +217,6 @@ def execute(request):
     os.environ['TRANSFORMERS_OFFLINE'] = '1'
     sys.path.insert(0, str(root))
     device = initialize_device(request['device'])
-    import torch
     omni = importlib.import_module('vabench.omni_runtime')
     # Capture model residency when loaded, before official release_omni()
     # discards its model. Do not change processor, decoding, or model weights.
@@ -259,12 +257,9 @@ def execute(request):
                         if request['device'].startswith('npu'):
                             params['device_map'] = {'': request['device']}
                             params.setdefault('attn_implementation', 'eager')
-                    if request['mode'] == 'official':
-                        raw = _official_scene(request, dimension, metadata, sandbox, device, params)
-                    else:
-                        result = getattr(module, f'compute_{dimension}')(
-                            str(full_info), device, submodules(dimension, request['cache_dir']), **params)
-                        raw = result[1]
+                    result = getattr(module, f'compute_{dimension}')(
+                        str(full_info), device, submodules(dimension, request['cache_dir']), **params)
+                    raw = result[1]
                     observed = _observe_devices(module)
             except Exception:
                 caught = traceback.format_exc()
@@ -309,48 +304,6 @@ def execute(request):
         except importlib.metadata.PackageNotFoundError:
             pass
     return dict(details=details, environment=dict(python=sys.version, packages=versions))
-
-
-def _official_scene(request, dimension, metadata, sandbox, device, params):
-    """Run the official class, fixing only its incorrect mapping lookup path.
-
-    Official filenames are recreated as symlinks in an isolated cwd. Linux is
-    the supported model runtime. Media content and metadata stay identical.
-    """
-    import csv
-    from vabench import VABench
-    from vabench import utils
-    # Avoid official init_submodules' network downloads. The adapter has
-    # already required the same explicit, local cache paths.
-    import vabench
-    vabench.init_submodules = lambda dims, local=False: {
-        d: submodules(d, request['cache_dir']) for d in dims}
-    mapping_file = Path(request['source_root']) / 'mapping/final_idx_to_prompt.csv'
-    with mapping_file.open(encoding='utf-8', newline='') as stream:
-        mapping = {r['idx']: json.loads('"' + r['prompt'] + '"')
-                   for r in csv.DictReader(stream, delimiter='\t')}
-
-    class OfficialWithMappingPath(VABench):
-        def load_prompt_mapping(self):
-            return mapping
-
-    for media in ('video', 'audio'):
-        folder = sandbox / media
-        folder.mkdir(exist_ok=True)
-        for item in metadata:
-            for source in item[f'{media}_list']:
-                target = folder / Path(source).name
-                if not target.exists():
-                    try:
-                        target.symlink_to(source)
-                    except OSError:
-                        # Windows without symlink privileges, same filesystem.
-                        target.hardlink_to(source)
-    model = OfficialWithMappingPath(device, str(sandbox / 'full_info.json'), str(sandbox))
-    model.evaluate(str(sandbox / 'video'), str(sandbox / 'audio'),
-                   'official', dimension_list=[dimension], local=True, **params)
-    results = utils.load_json(str(sandbox / 'official_eval_results.json'))
-    return results[dimension]['video_results']
 
 
 def main():

@@ -1,6 +1,10 @@
 
 # VABench 音视频评测快速上手
 
+**VABench** 是面向文本生成音视频（T2AV）的评测基准，覆盖音频质量、音视频一致性、同步性和内容表现。
+
+AISBench已接入VABench的 **15项指标**，在GPU上由外部官方评分实现评测已有带音轨MP4，展示原始均分、归一化分和总分。本指南包含778题标准集、固定78题子集以及原生官方对照步骤；视频生成在评测前完成。运行模板为 `ais_bench/configs/vabench_examples/eval_vabench_custom.py`。
+
 本文介绍 Linux GPU 机器上的手动准备和评测路线，前提是已有 AISBench 源码和 Conda；VABench 源码按第 1 节下载。需要 AISBench 自动准备评分依赖时，第 2.5 节仍使用安装工具，不等同于逐包手工安装。
 
 当前入口统一为 `ais_bench.tools.vabench`。Task、Dataset 和汇总已分别包化；原生官方准备/比较脚本也位于 tools，以下路径与当前实现一致。比较结果使用逐指标原始均分，逐题数值差异另列；GPU精度对齐仍需核验相同输入、权重、参数及失败状态。

@@ -37,12 +37,10 @@ def _validate_prepared_split(manifest, source_root):
 
 def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:0',
         python=None, device_overrides=None, params=None, dim_params=None,
-        mode='adapter', timeout=86400, progress=None, test_range=None):
+        timeout=86400, progress=None, test_range=None):
     dimensions = list(DIMENSIONS if dimensions is None else dimensions)
     if not dimensions or len(set(dimensions)) != len(dimensions) or set(dimensions) - set(DIMENSIONS):
         raise ValueError('Unknown, duplicate, or empty VABench dimensions')
-    if mode not in ('adapter', 'official'):
-        raise ValueError('mode must be adapter or official')
     overrides = dict(device_overrides or {})
     if set(overrides) - set(DIMENSIONS):
         raise ValueError('Unknown device override')
@@ -73,7 +71,7 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
                       weights_signature=object_digest(hashes) if not missing_weights else None,
                       scoring_signature=object_digest(dict(params=params or {}, dim_params=dim_params or {})),
                       weights=hashes, missing_weights=missing_weights,
-                      mode=mode, device=device, device_overrides=overrides,
+                      device=device, device_overrides=overrides,
                       scoring_params=params or {}, dim_params=dim_params or {},
                       selection=selection, environments=[])
     results = {}
@@ -86,7 +84,7 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
                        device=overrides.get(dims[0], device), dimensions=dims,
                        work_dir=str(work), response=str(work / 'response.json'),
                        records=manifest['records'], grouped=grouped,
-                       params=params or {}, dim_params=dim_params or {}, mode=mode)
+                       params=params or {}, dim_params=dim_params or {})
         write_json(work / 'request.json', request)
         missing = preflight(source_root, cache_dir, dims)
         error = None
