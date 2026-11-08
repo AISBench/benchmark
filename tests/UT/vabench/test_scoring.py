@@ -5,7 +5,7 @@ import csv
 import pytest
 
 from ais_bench.benchmark.utils.vabench import DIMENSIONS
-from ais_bench.benchmark.utils.vabench.data import digest, read_json, write_json
+from ais_bench.benchmark.utils.vabench.data import read_json, write_json
 from ais_bench.benchmark.tasks.vabench.engine import successful
 from ais_bench.benchmark.summarizers.vabench.results import (
     build_report, export_csv, export_official_results, format_summary,
@@ -252,45 +252,8 @@ def test_official_export_without_prepared_falls_back_to_raw_prompt_then_idx(tmp_
     assert not (folder / 'one_fixture_full_info.json').exists()
 
 
-def test_summarize_cli_reuses_old_raw_records_and_does_not_modify_input(tmp_path, capsys):
-    from ais_bench.tools.vabench.cli import main
-    manifest, details = fixture_inputs()
-    original = build_report(manifest, details, {})
-    original['schema_version'] = 1
-    original.pop('total')
-    source = tmp_path / 'old_report.json'
-    write_json(source, original)
-    signature = digest(source)
-    output = tmp_path / 'new_summary'
-    assert main(['summarize', '--report', str(source), '--output', str(output)]) == 0
-    report = read_json(output / 'report.json')
-    assert report['total']['score'] == 50 and digest(source) == signature
-    assert report['postprocessing']['model_inference_rerun'] is False
-    assert report['postprocessing']['source_report_sha256'] == signature
-    assert '正式总分' in capsys.readouterr().out
-    with pytest.raises(FileExistsError):
-        main(['summarize', '--report', str(source), '--output', str(output)])
 
 
-def test_summarize_cli_restores_official_prompt_names_from_prepared(tmp_path):
-    from ais_bench.tools.vabench.cli import main
-    entries = [dict(idx='a', category='one')]
-    raw = [dict(video_path='videos/a.mp4', video_results=0.2)]
-    details = {'second_desync': dict(records=normalize_records('second_desync', raw, entries))}
-    report = build_report(dict(input_signature='fixture', records=entries), details, {})
-    source = tmp_path / 'report.json'
-    write_json(source, report)
-    prepared = tmp_path / 'prepared'
-    write_json(prepared / 'json' / 'one.json',
-               [dict(prompt_en='Prompt A', video_list=['videos/a.mp4'], audio_list=[])])
-    output = tmp_path / 'summary'
-    assert main(['summarize', '--report', str(source), '--output', str(output),
-                 '--prepared', str(prepared)]) == 0
-    path = next(output.glob('official_eval_results/*/*_eval_results.csv'))
-    with path.open(encoding='utf-8', newline='') as stream:
-        rows = list(csv.DictReader(stream))
-    assert rows[0]['prompt_name'] == 'Prompt A'
-    assert float(rows[0]['second_desync']) == 0.2
 
 
 def test_old_false_success_is_reclassified_without_mutating_original_report():

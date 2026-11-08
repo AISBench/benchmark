@@ -9,18 +9,19 @@ from ais_bench.benchmark.runners import LocalRunner
 from ais_bench.benchmark.tasks import VABenchEvalTask
 from ais_bench.benchmark.summarizers import VABenchSummarizer
 
-PREPARED_DIR = '/workspace/prepared_all_official_v2'
+PREPARED_DIR = '/workspace/prepared_videos'
 SOURCE_ROOT = '/workspace/code/VABench-main'
 CACHE_DIR = '/workspace/vabench-cache'
 DEVICE = 'cuda:0'
 BACKEND_PYTHON = None  # e.g. '/root/miniconda3/envs/vabench311/bin/python3'
 NUM_DEVICES = 2  # number reserved by LocalRunner; GPU Omni may require more
 
-models = [dict(attr='local', type='VABenchEvalPlaceholder', abbr='custom_all_7')]
+models = [dict(attr='local', type='VABenchEvalPlaceholder', abbr='vabench_eval')]
 datasets = [dict(
     type=VABenchDataset,
     abbr='vabench_t2av',
     path=PREPARED_DIR,
+    reader_cfg=dict(input_columns=['idx'], output_column='idx'),
     eval_cfg=dict(
         source_root=SOURCE_ROOT,
         cache_dir=CACHE_DIR,

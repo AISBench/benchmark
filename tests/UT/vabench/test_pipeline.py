@@ -14,7 +14,7 @@ from ais_bench.benchmark.utils.vabench.data import (
     select_indices, select_prepared, verify_prepared, write_json)
 from ais_bench.benchmark.tasks.vabench.engine import run, successful
 from ais_bench.benchmark.summarizers.vabench.results import (
-    build_report, compare, normalize_records, summarize_dimension)
+    build_report, normalize_records, summarize_dimension)
 from ais_bench.benchmark.tasks.vabench.worker import failed_sample_ids, has_backend_error
 
 
@@ -166,43 +166,10 @@ def test_missing_ambiguous_and_silent_input(tmp_path, entry, video):
         prepare([dict(entry, idx='silent')], video.parent, tmp_path / 'out3')
 
 
-def _report(score=0.0, status='ok', dim='second_clap'):
-    records = [dict(idx='x', category='scene', status=status, score=score, raw={})]
-    return build_report(dict(input_signature='same', records=[{'idx': 'x'}]),
-                        {dim: {'records': records}},
-                        {k: 'same' for k in ('protocol_sha256', 'source_signature', 'integration_signature',
-                                             'weights_signature', 'scoring_signature')})
 
 
-def test_comparison_zero_negative_and_threshold():
-    reference = _report(0)
-    assert compare(reference, _report(0), ['second_clap'])['passed']
-    assert not compare(reference, _report(0.01), ['second_clap'])['passed']
-    assert compare(_report(-0.5), _report(-0.502), ['second_clap'])['passed']
-    # Boundary uses strict < 1%, rather than <= 1%.
-    assert not compare(_report(100), _report(101), ['second_clap'])['passed']
-    assert not compare(_report(), _report())['passed']  # fifteen dims required by default
-    with pytest.raises(ValueError, match='Invalid tolerance'):
-        compare(reference, reference, relative=float('inf'))
 
 
-@pytest.mark.parametrize('mutation', ['missing', 'failed', 'weights', 'media', 'duplicate', 'nan'])
-def test_alignment_cannot_pass_invalid_runs(mutation):
-    left, right = _report(0.5), _report(0.5)
-    if mutation == 'missing':
-        right['details']['second_clap']['records'][0]['status'] = 'missing'
-    elif mutation == 'failed':
-        for report in (left, right):
-            report['details']['second_clap']['records'][0]['status'] = 'backend_error'
-    elif mutation == 'weights':
-        right['provenance']['weights_signature'] = 'different'
-    elif mutation == 'media':
-        right['input_signature'] = 'different'
-    elif mutation == 'duplicate':
-        right['details']['second_clap']['records'] *= 2
-    elif mutation == 'nan':
-        right['details']['second_clap']['records'][0]['score'] = float('nan')
-    assert not compare(left, right, ['second_clap'])['passed']
 
 
 def test_statuses_and_weighted_mean():
@@ -479,16 +446,6 @@ def test_custom_scope_is_labeled_non_official():
     assert report['total']['label'] == '自定义子集总分（非官方）'
 
 
-def test_lsa_missing_sets_must_match_and_not_be_empty():
-    left = _report(2.0, dim='second_lsa')
-    left['details']['second_lsa']['records'].append(dict(idx='y', category='scene',
-                                                       status='missing', score=None))
-    left['sample_ids'] = ['x', 'y']
-    assert compare(left, copy.deepcopy(left), ['second_lsa'])['passed']
-    right = copy.deepcopy(left)
-    right['details']['second_lsa']['records'][1]['status'] = 'ok'
-    right['details']['second_lsa']['records'][1]['score'] = 2.0
-    assert not compare(left, right, ['second_lsa'])['passed']
 
 
 def test_real_worker_subprocess_and_mllm_grouping(tmp_path, entry, video, monkeypatch):
@@ -531,7 +488,7 @@ def test_real_worker_subprocess_and_mllm_grouping(tmp_path, entry, video, monkey
     assert len(list((tmp_path / 'run' / 'official_eval_results').glob('*/*_eval_results.csv'))) == 1
     request = read_json(tmp_path / 'run/job_00/request.json')
     assert request['dimensions'] == dims
-    assert compare(report, report, dims)['passed']
+    assert all(report['metrics'][d]['mean'] is not None for d in dims)
 
     # Exercise the real upstream VABench orchestration class, with the same
     # fake compute_* scorers. Only model inference is substituted.
@@ -562,4 +519,4 @@ def test_real_worker_subprocess_and_mllm_grouping(tmp_path, entry, video, monkey
         official = run(prepared, source, cache, tmp_path / 'official_real_class',
                        dimensions=dims, device='cpu', mode='official')
         assert successful(official)
-        assert compare(official, adapter, dims)['passed']
+        assert all(official['metrics'][d]['mean'] == adapter['metrics'][d]['mean'] for d in dims)

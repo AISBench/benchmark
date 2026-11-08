@@ -37,6 +37,20 @@ def test_no_top_level_compatibility_package_is_shipped():
                for package in find_packages())
 
 
+def test_only_the_manual_workflow_config_is_shipped():
+    from ais_bench.benchmark.utils.vabench.data import PACKAGE_ROOT
+    names = {p.name for p in (PACKAGE_ROOT / 'configs/vabench_examples').glob('eval_vabench*.py')}
+    assert names == {'eval_vabench_custom.py'}
+
+
+@pytest.mark.parametrize('command', ['run', 'summarize', 'compare'])
+def test_cli_rejects_retired_alternate_workflows(command):
+    from ais_bench.tools.vabench.cli import main
+    with pytest.raises(SystemExit) as exc:
+        main([command])
+    assert exc.value.code == 2
+
+
 @pytest.mark.parametrize('module', [
     'ais_bench.tools.vabench.cli',
     'ais_bench.tools.vabench.environment',
@@ -129,6 +143,9 @@ def test_protocol_is_in_source_distribution_manifest():
         files.process_template_line(line)
     paths = {Path(file).as_posix() for file in files.files}
     assert 'ais_bench/benchmark/utils/vabench/protocol.json' in paths
+    assert 'ais_bench/configs/vabench_examples/eval_vabench_custom.py' in paths
+    assert 'ais_bench/configs/vabench_examples/mini10pct.json' in paths
+    assert 'requirements/datasets/vabench.txt' in paths
 
 
 def test_framework_class_exports_and_lazy_summarizer_attributes():

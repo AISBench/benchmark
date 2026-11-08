@@ -1,25 +1,21 @@
-"""Lightweight preparation, runtime diagnostics, evaluation and comparison.
+"""Lightweight input preparation, runtime diagnostics and native result comparison.
 
 Usage: python3 -m ais_bench.tools.vabench.cli --help
 """
 import argparse
 import importlib.util
 import json
-import os
 from pathlib import Path
 import platform
 import shutil
 import subprocess
 import sys
 
-from ais_bench.benchmark.summarizers.vabench.results import (
-    compare, export_csv, export_official_results, format_summary, refresh_report)
-from ais_bench.benchmark.tasks.vabench.engine import run, successful
 from ais_bench.benchmark.tasks.vabench.resources import preflight
 from ais_bench.benchmark.tasks.vabench.worker import initialize_device
 from ais_bench.benchmark.utils.vabench import DIMENSIONS
 from ais_bench.benchmark.utils.vabench.data import (
-    PROTOCOL_PATH, catalog, catalog_videos, digest, media_tool, prepare, read_json,
+    PROTOCOL_PATH, catalog, catalog_videos, media_tool, prepare, read_json,
     write_json)
 from ais_bench.tools.vabench.official_compare import (
     compare_official_results, format_official_comparison)
@@ -28,7 +24,7 @@ from ais_bench.tools.vabench.official_compare import (
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    for command in ('catalog', 'prepare', 'doctor', 'run'):
+    for command in ('catalog', 'prepare', 'doctor'):
         cmd = commands.add_parser(command)
         cmd.add_argument('--source-root', required=True)
         if command == 'catalog':
@@ -37,27 +33,14 @@ def main(argv=None):
         if command == 'prepare':
             cmd.add_argument('--subset', choices=('standard', 'smoke', 'custom'), default='standard')
             cmd.add_argument('--sample-id', help='Exact pinned idx; required only for --subset smoke')
-        if command in ('catalog', 'prepare', 'run'):
+        if command in ('catalog', 'prepare'):
             cmd.add_argument('--output', required=True)
         if command == 'prepare':
             cmd.add_argument('--videos', required=True)
-        if command in ('doctor', 'run'):
+        if command == 'doctor':
             cmd.add_argument('--cache-dir', required=True)
             cmd.add_argument('--dimensions', nargs='+', choices=DIMENSIONS, default=list(DIMENSIONS))
             cmd.add_argument('--device', default='cuda:0')
-        if command == 'run':
-            cmd.add_argument('--prepared', required=True)
-            cmd.add_argument('--python', default=sys.executable)
-            cmd.add_argument('--mode', choices=('adapter', 'official'), default='adapter')
-            cmd.add_argument('--options', help='JSON: params, dim_params, device_overrides, timeout')
-    cmp = commands.add_parser('compare')
-    cmp.add_argument('--reference', required=True)
-    cmp.add_argument('--candidate', required=True)
-    cmp.add_argument('--output', required=True)
-    cmp.add_argument('--dimensions', nargs='+', choices=DIMENSIONS, default=list(DIMENSIONS))
-    cmp.add_argument('--relative', type=float, default=0.01)
-    cmp.add_argument('--near-zero', type=float, default=1e-6)
-    cmp.add_argument('--absolute', type=float, default=1e-6)
     official_cmp = commands.add_parser(
         'compare-official',
         help='Compare AISBench official-format backups with native VABench output')
@@ -71,10 +54,6 @@ def main(argv=None):
     official_cmp.add_argument('--relative', type=float, default=0.01)
     official_cmp.add_argument('--near-zero', type=float, default=1e-6)
     official_cmp.add_argument('--absolute', type=float, default=1e-6)
-    summary = commands.add_parser('summarize', help='Reaggregate an AISBench per-sample report without model inference')
-    summary.add_argument('--report', required=True)
-    summary.add_argument('--output', required=True, help='New output directory; original report is retained')
-    summary.add_argument('--prepared', help='Prepared directory used to restore official prompt names')
     args = parser.parse_args(argv)
     if args.command == 'catalog':
         entries = catalog(args.source_root, args.subset, sample_id=args.sample_id)
@@ -131,30 +110,6 @@ def main(argv=None):
                 required.update(['transformers', 'qwen_omni_utils'])
         return int(bool(info.get('device_error')) or bool(info['missing_resources']) or not info['ffmpeg'] or not info['ffprobe']
                    or any(not info['modules'][name] for name in required))
-    elif args.command == 'run':
-        options = read_json(args.options) if args.options else {}
-        allowed = {'params', 'dim_params', 'device_overrides', 'timeout'}
-        if set(options) - allowed:
-            parser.error(f'Unknown options: {set(options) - allowed}')
-        result = run(args.prepared, args.source_root, args.cache_dir, args.output,
-                     args.dimensions, device=args.device, python=args.python, mode=args.mode, **options)
-        print(format_summary(result))
-        print(f'Report: {Path(args.output).resolve() / "report.json"}')
-        return int(not successful(result))
-    elif args.command == 'summarize':
-        destination = Path(args.output).resolve()
-        if destination.exists() and any(destination.iterdir()):
-            raise FileExistsError(f'Choose a new summary directory: {destination}')
-        result = refresh_report(read_json(args.report))
-        result['postprocessing'] = dict(source_report=str(Path(args.report).resolve()),
-                                        source_report_sha256=digest(args.report), model_inference_rerun=False)
-        destination.mkdir(parents=True, exist_ok=True)
-        write_json(destination / 'report.json', result)
-        export_csv(result, destination)
-        export_official_results(result, destination, prepared=args.prepared)
-        print(format_summary(result))
-        print(f'Report: {destination / "report.json"}')
-        return 0
     elif args.command == 'compare-official':
         result = compare_official_results(
             args.aisbench, args.official, args.dimensions,
@@ -164,12 +119,6 @@ def main(argv=None):
         print(format_official_comparison(result))
         if args.output:
             print(f'Comparison report: {Path(args.output).resolve()}')
-        return int(not result['passed'])
-    else:
-        result = compare(read_json(args.reference), read_json(args.candidate),
-                         args.dimensions, args.relative, args.near_zero, args.absolute)
-        write_json(args.output, result)
-        print('PASS' if result['passed'] else 'FAIL')
         return int(not result['passed'])
     return 0
 

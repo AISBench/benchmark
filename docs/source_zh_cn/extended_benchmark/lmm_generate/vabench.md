@@ -1,110 +1,377 @@
-# VABench 音视频联合评测快速上手
 
-VABench 评估同一生成视频的音频质量、跨模态一致性、同步性和内容表现。本指南接入**已有带音轨 MP4**，由 AISBench 调度外部 VABench 计算 15 项指标，保存原始分数，并展示指标均分、归一化分和总分。视频生成 API 接入及 A3/NPU 验证属于后续阶段。
+# VABench 音视频评测快速上手
 
-VABench 与 [VBench 视频评测](vbench.md) 使用不同的数据和指标，不能共用权重清单或总分规则。本文的归一化和总分是项目约定的 AISBench 展示协议，**不是 VABench 官方总分**。
+本文介绍 Linux GPU 机器上的手动准备和评测路线，前提是已有 AISBench 源码和 Conda；VABench 源码按第 1 节下载。需要 AISBench 自动准备评分依赖时，第 2.5 节仍使用安装工具，不等同于逐包手工安装。
 
-已有 GPU 评分环境的推荐顺序：环境检查 → 获取题目 → 准备对应视频和 WAV → 运行 15 项评分 → 查看结果。第 3 节为固定 78 题输入准备，第 4 节为执行命令，第 6 节为原生官方对照。
+当前入口统一为 `ais_bench.tools.vabench`。Task、Dataset 和汇总已分别包化；原生官方准备/比较脚本也位于 tools，以下路径与当前实现一致。比较结果使用逐指标原始均分，逐题数值差异另列；GPU精度对齐仍需核验相同输入、权重、参数及失败状态。
 
-需要从新环境逐步操作时，参阅[手动四步评测指南](../../get_started/vabench_get_start.md)，包含源码补齐、权重下载、统一Conda环境、主命令及原生官方对照。Dataset、Task和汇总实现已分别包化，两个原生操作脚本位于tools；公开类导入和主CLI命令保持不变。
-
-## 1. 准备源码、环境与权重
-
-当前操作入口统一为 `ais_bench.tools.vabench`，早期顶层兼容包已移除；安装和评测请使用下文命令。
-
-以下命令在 Linux GPU 容器中执行，AISBench 源码目录为 `/workspace/code/benchmark`。评分环境使用 Conda Python 3.11。固定外部 VABench 版本：
+固定路径示例，换机器时整体替换：
 
 ```bash
-git clone https://github.com/tanABCC/VABench.git /workspace/code/VABench-main
-git -C /workspace/code/VABench-main checkout 12b9617a900a9eca1691da6b7115ce3d58f53a16
-
-source /root/miniconda3/etc/profile.d/conda.sh
-conda create -n vabench311 python=3.11 pip -y
-conda activate vabench311
-cd /workspace/code/benchmark
+export AISBENCH_ROOT=/workspace/code/benchmark
 export VABENCH_ROOT=/workspace/code/VABench-main
 export VABENCH_CACHE_DIR=/workspace/vabench-cache
-export CUDA_VISIBLE_DEVICES=6,7
+export CONDA_ENV=vabench311_new1
+export PY=/root/miniconda3/envs/${CONDA_ENV}/bin/python3
+export CUDA_VISIBLE_DEVICES=0,1
 ```
-
-已有源码或环境可直接复用，跳过对应的 `git clone`、`conda create` 和依赖安装。先激活实际评分环境、进入 AISBench 根目录并设置下列环境变量；目录和卡号按实际机器修改。物理卡 6、7 在进程内是逻辑卡 0、1；必须保证它们有足够空闲显存。`max_memory` 是模型分配上限，不表示预留了这些显存。
-
-### 已有评分环境：先检查新入口
-
-在源码根目录执行，确保当前导入的是更新后的本地代码：
 
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
-conda activate vabench311
-cd /workspace/code/benchmark
-export VABENCH_ROOT=/workspace/code/VABench-main
-export VABENCH_CACHE_DIR=/workspace/vabench-cache
-export CUDA_VISIBLE_DEVICES=6,7
-
-python3 -m ais_bench.tools.vabench.cli --help
-python3 -m ais_bench.tools.vabench.environment check \
-  --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
-  --work-dir /workspace/vabench-env-audit
+# 已有环境可先激活；全新环境在第 2.2 节创建后再激活。
+if [ -x "${PY}" ]; then
+  conda activate "${CONDA_ENV}"
+fi
+cd "${AISBENCH_ROOT}"
 ```
 
-若实际环境名为 `vabench311_new`，激活该环境，并将后续 `--python` 同步改为它的 `bin/python3`。检查失败时按审计报告处理，不以已运行过模型代替检查，也不通过重复安装覆盖现有环境。
+> 已有可用环境且模型权重齐全时，跳过第 2.2–2.5 节的下载/安装；但必须先确认第 1.1 节的 `third_party` 外部源码存在，并至少执行 2.5 节的 `environment check`、2.6 节的资源检查和 4.2 节的 `doctor`。
 
-此次删除兼容目录只改变命令和导入入口，15 项实现、权重缓存及准备协议保持不变。使用当前协议生成的准备目录可直接复用；所有脚本应使用新的 `ais_bench.tools.vabench` 操作命令。
-
-### 新环境：安装依赖
-
-先按 [GPU 环境指南](../../get_started/vabench_gpu_environment.md) 下载模型缓存及额外人脸权重，再安装依赖。工具不会通过 pip 下载全部模型权重：
+AISBench 源码必须包含 VABench 接入代码；先确认以下两个文件存在：
 
 ```bash
-python3 -m ais_bench.tools.vabench.environment install \
-  --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
+test -f ${AISBENCH_ROOT}/ais_bench/tools/vabench/cli.py
+test -f ${AISBENCH_ROOT}/ais_bench/benchmark/tasks/vabench/eval.py
+```
+
+---
+
+## 1. 下载 VABench 源码
+
+固定使用以下提交：
+
+下面的 clone 需要 Git，第 1.1 节手工补源码需要 curl；若容器缺少这些工具，先安装（Ubuntu/Debian root 容器）：
+
+```bash
+apt-get update
+apt-get install -y git curl ca-certificates
+```
+
+```bash
+git clone https://github.com/tanABCC/VABench.git ${VABENCH_ROOT}
+git -C ${VABENCH_ROOT} checkout 12b9617a900a9eca1691da6b7115ce3d58f53a16
+```
+
+检查：
+
+```bash
+ls ${VABENCH_ROOT}/evaluate.py
+ls ${VABENCH_ROOT}/vabench/config.yaml
+
+# 只有 git 目录才能核对提交号；解压得到的源码没有 .git 时跳过
+if [ -d ${VABENCH_ROOT}/.git ]; then
+  git -C ${VABENCH_ROOT} rev-parse HEAD
+fi
+```
+
+预期提交（git 目录）：
+
+```text
+12b9617a900a9eca1691da6b7115ce3d58f53a16
+```
+
+已有源码时不要重复 clone；如果源码是压缩包解压的，没有 `.git` 也能运行，但要记录来源和版本。
+
+### 1.1 补齐 third_party 外部源码
+
+固定提交的官方仓库中，`third_party/` 只有 `ViCLIP/`、`syncnet_eval/` 等，**不包含** `Synchformer` 和 `DNS-Challenge`。`first_dnsmos`、`second_desync` 会直接从源码目录加载它们，缺失时这两项会失败。必须存在：
+
+```text
+${VABENCH_ROOT}/third_party/Synchformer/scripts/train_utils.py
+${VABENCH_ROOT}/third_party/Synchformer/dataset/transforms.py
+${VABENCH_ROOT}/third_party/DNS-Challenge/DNSMOS/dnsmos_local.py
+```
+
+全新安装时，第 2.5 节的 `environment install` 会在这些路径缺失时自动补齐，不必先手工处理。下面的命令用于复用已有环境、跳过 install，或提前准备；它们依赖 2.3 节下载的缓存，新机器请先完成 2.3 再回来执行。
+
+模型缓存中的 `synchformer/Synchformer/` 是完整源码，软链即可，不必复制约 422 MB：
+
+```bash
+mkdir -p "${VABENCH_ROOT}/third_party"
+if [ ! -e "${VABENCH_ROOT}/third_party/Synchformer" ] && \
+   [ ! -L "${VABENCH_ROOT}/third_party/Synchformer" ]; then
+  ln -s "${VABENCH_CACHE_DIR}/synchformer/Synchformer" \
+        "${VABENCH_ROOT}/third_party/Synchformer"
+fi
+```
+
+DNSMOS 只缺一个 Python 源文件，按 AISBench 使用的固定提交下载：
+
+```bash
+mkdir -p "${VABENCH_ROOT}/third_party/DNS-Challenge/DNSMOS"
+if [ ! -e "${VABENCH_ROOT}/third_party/DNS-Challenge/DNSMOS/dnsmos_local.py" ]; then
+  curl -fL --retry 3 \
+    -o "${VABENCH_ROOT}/third_party/DNS-Challenge/DNSMOS/dnsmos_local.py" \
+    https://raw.githubusercontent.com/microsoft/DNS-Challenge/591184a9fcb2cbdec02520fed81a32bbbf9d73ff/DNSMOS/dnsmos_local.py
+fi
+```
+
+缓存里的 `dns_mos/` 只有 `sig_bak_ovr.onnx`、`model_v8.onnx` 两个权重，不是 DNS-Challenge 源码，不要把它当成源码复制进 `third_party`。也不需要 clone 整个 DNS-Challenge；已有完整 clone 时保留其中 `DNSMOS/dnsmos_local.py` 即可。
+
+已有源码不覆盖；若已有文件或软链不正确，先核对来源及内容再处理，不能仅以“路径存在”认定版本一致。访问 GitHub 需要代理或自签 CA 时，按 2.1 节设置代理，并给 `curl` 加 `--cacert` 或设置 `CURL_CA_BUNDLE`。
+
+检查：
+
+```bash
+test -f ${VABENCH_ROOT}/third_party/Synchformer/scripts/train_utils.py
+test -f ${VABENCH_ROOT}/third_party/Synchformer/dataset/transforms.py
+test -f ${VABENCH_ROOT}/third_party/DNS-Challenge/DNSMOS/dnsmos_local.py
+```
+
+第 2.5 节的 `environment install` 会在目标不存在时自动完成同样的补齐（软链 Synchformer、下载 `dnsmos_local.py`，并兼容 buffalo_l 布局）。但已安装 AISBench 的环境会被 `runtime_guard` 拒绝执行 install；复用已有环境时，必须按本节手动补齐。
+
+---
+
+## 2. 下载必备权重、依赖、工具
+
+### 2.1 系统工具
+
+Ubuntu/Debian root 容器：
+
+```bash
+apt-get update
+apt-get install -y git curl wget ffmpeg libsndfile1 build-essential ca-certificates unzip
+```
+
+检查：
+
+```bash
+nvidia-smi
+ffmpeg -version | head -1
+ffprobe -version | head -1
+```
+
+如果机器使用自签 CA，再按实际配置：
+
+```bash
+export PIP_CERT=/root/ca-bundle.crt
+export SSL_CERT_FILE=/root/ca-bundle.crt
+export REQUESTS_CA_BUNDLE=/root/ca-bundle.crt
+export GIT_SSL_CAINFO=/root/ca-bundle.crt
+```
+
+`wget` 如遇证书错误，加 `--ca-certificate=/root/ca-bundle.crt`。
+
+需要代理访问 GitHub/HuggingFace 时，先设置 `http_proxy`、`https_proxy`；`--index-url` 只影响 PyPI，不会代理 GitHub 或模型下载。
+
+### 2.2 创建 Conda 环境
+
+```bash
+conda create -n ${CONDA_ENV} python=3.11 pip -y
+conda activate ${CONDA_ENV}
+python3 --version
+```
+
+### 2.3 下载模型权重
+
+pip 不会下载 VABench 模型权重，必须单独准备。缓存约几十 GB：
+
+```bash
+${PY} -m pip install "huggingface-hub==0.35.3" \
+  --index-url https://repo.huaweicloud.com/repository/pypi/simple
+
+mkdir -p ${VABENCH_CACHE_DIR}
+
+hf download tanABBCC/VABENCH_CACHE_DIR \
+  --repo-type dataset \
+  --revision aa0c3da973d86f2994e9c8860f28785ce0cc6152 \
+  --local-dir ${VABENCH_CACHE_DIR}
+```
+
+这里固定与评分依赖一致的版本，并使用当前 Conda 的 `hf`。不要无版本限制地升级：Hugging Face v1 已移除 `huggingface-cli` 和 `[cli]` extra，见[官方迁移说明](https://huggingface.co/docs/huggingface_hub/en/concepts/migration)。若找不到 `hf`，先确认已激活 `${CONDA_ENV}`，再检查 `command -v hf`。
+
+下载后必须确认 `Qwen2.5_omni_7B/` 直接位于缓存根目录：
+
+```text
+/workspace/vabench-cache/Qwen2.5_omni_7B/
+```
+
+不能是多套一层目录。
+
+### 2.4 下载 LSA 辅助权重
+
+```bash
+CACHE=${VABENCH_CACHE_DIR}
+AUX="${CACHE}/checkpoints/auxiliary"
+
+mkdir -p "${AUX}/models"
+
+# 人脸检测模型
+wget -O "${AUX}/sfd_face.pth" \
+  https://huggingface.co/ByteDance/LatentSync-1.5/resolve/main/auxiliary/sfd_face.pth
+
+# InsightFace buffalo_l
+wget -O /tmp/buffalo_l.zip \
+  https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip
+unzip -q -o /tmp/buffalo_l.zip -d "${AUX}/models/buffalo_l"
+```
+
+至少确认：
+
+```text
+${AUX}/sfd_face.pth
+${AUX}/models/buffalo_l/det_10g.onnx
+${AUX}/models/buffalo_l/2d106det.onnx
+```
+
+如果已有 `checkpoints/auxiliary/buffalo_l/`，但缺少 `models/buffalo_l/`：
+
+```bash
+mkdir -p "${AUX}/models"
+ln -sfn ../buffalo_l "${AUX}/models/buffalo_l"
+```
+
+### 2.5 安装 VABench Python 依赖
+
+**必须在安装 AISBench 本体之前执行。** 在 AISBench 源码根目录运行：
+
+```bash
+cd ${AISBENCH_ROOT}
+
+${PY} -m ais_bench.tools.vabench.environment install \
+  --source-root ${VABENCH_ROOT} \
+  --cache-dir ${VABENCH_CACHE_DIR} \
   --work-dir /workspace/vabench-env-audit \
   --install-system-deps \
   --index-url https://repo.huaweicloud.com/repository/pypi/simple
+```
 
-python3 -m ais_bench.tools.vabench.environment check \
-  --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
+`--install-system-deps` 只适用于 Ubuntu/Debian root 容器；其他系统先手动装好系统工具，再去掉该参数。系统已有 2.1 节工具时也可以直接去掉该参数，避免 `apt-get update` 被代理或自签 CA 阻塞；本机验证时曾因 apt 源证书校验持续重试，改为不带该参数后正常继续。
+
+> 如果当前环境已经安装了 AISBench，`environment install` 会触发 `runtime_guard` 并停止，本次安装没有执行完成。已有环境运行 `environment check`；需要重新安装时使用干净的评分环境，避免改坏已有主环境。
+
+安装器会处理：
+
+- Torch 2.6.0+cu124、torchvision、torchaudio；
+- Transformers、ONNX Runtime、InsightFace、CLAP 等；
+- 固定 commit 的 ImageBind、PyTorchVideo、CLIP；
+- NISQA 2.0.post2 的元数据补丁；
+- setuptools 固定为 80.9.0（小于 82）；
+- 若 `third_party` 中缺少，软链缓存里的 Synchformer 源码并下载 `dnsmos_local.py`（见第 1.1 节）。
+
+检查：
+
+```bash
+${PY} -m ais_bench.tools.vabench.environment check \
+  --source-root ${VABENCH_ROOT} \
+  --cache-dir ${VABENCH_CACHE_DIR} \
   --work-dir /workspace/vabench-env-audit
 ```
 
-`--install-system-deps` 适用于使用 apt 的 root 容器，安装 Git、FFmpeg、编译工具等；已有系统依赖时省略。`--index-url` 只指定 PyPI 软件源，可以省略以使用 pip 默认配置，不能代理 GitHub。必须检查命令返回值和审计报告。
+统一环境里 `environment check` 可能只在 `pip_check` 处返回 FAIL，常见提示是 Pillow、fsspec、tqdm、decord；如果 `versions`、`git`、`nisqa`、`probes`、`missing_resources` 都通过，可以继续评测。要求依赖完全干净时，改用独立评分环境，通过 `BACKEND_PYTHON` 调用。
 
-安装入口处理固定版本的 PyPI/Git 包及 NISQA 元数据补丁。不能用一次 `pip install -r requirement.txt` 替代全部准备步骤。评分环境可与 AISBench 主环境分离；不要默认把两套依赖强行安装在一起。确需统一环境时参考已运行的 [统一环境记录](../../get_started/setup.md)，并如实保存 `pip check` 冲突。
-
-## 2. 取得题目并准备生成视频
-
-官方 `json_files/json_text/*.json` 共 848 条；本项目只使用与 `mapping/final_idx_to_prompt.csv` 精确匹配的 **778 条**。JSON 是题目和评分元数据，不包含待评测的生成视频。视频需要由被测模型生成或提供已有产物。
+### 2.6 快速检查缓存
 
 ```bash
-python3 -m ais_bench.tools.vabench.cli catalog \
-  --source-root "$VABENCH_ROOT" --subset standard \
+test -f ${VABENCH_CACHE_DIR}/Qwen2.5_omni_7B/config.json
+test -f ${VABENCH_CACHE_DIR}/checkpoints/auxiliary/sfd_face.pth
+test -e ${VABENCH_CACHE_DIR}/checkpoints/auxiliary/models/buffalo_l
+```
+
+其余权重由第 4.2 节的 `doctor` 统一检查；如果 `doctor` 报 `missing_resources`，按路径补齐。
+
+---
+
+## 3. 归档好 video 视频
+
+### 3.1 目录和命名要求
+
+把待评测视频放到一个目录，例如：
+
+```text
+/workspace/video/
+├── angry goose honking loudly.mp4
+├── angry turkey gobbling loudly.mp4
+├── bats echolocate in dark caves.mp4
+├── bee buzzing near flower stamens.mp4
+├── busy caf with chatter and coffee.mp4
+├── kitten curled up meowing.mp4
+└── news anchor delivers evening news.mp4
+```
+
+规则：
+
+- 每个 `idx` 只能有一个 MP4；
+- 文件名必须是 `idx.mp4`，例如 `kitten curled up meowing.mp4`；
+- 必须有音轨，不能是无声视频；
+- 不能混入同一道题的多模型结果；
+- 不能出现 778 题之外的未知视频；
+- 可以平铺，也可以按类别分目录；
+- 文件名可以包含空格，shell 参数要加引号；
+- `prepare` 之后不要移动或改写原始 MP4，否则运行前哈希校验会失败。
+
+查看视频：
+
+```bash
+find /workspace/video -type f -name '*.mp4' -printf '%f\n' | sort
+```
+
+### 3.2 导出 778 题标准清单
+
+```bash
+cd ${AISBENCH_ROOT}
+
+${PY} -m ais_bench.tools.vabench.cli catalog \
+  --source-root ${VABENCH_ROOT} \
+  --subset standard \
   --output /workspace/t2av_778_prompts.json
 ```
 
-- 标准集：778 题，使用 `--subset standard`。
-- 项目选定的 10% 子集：78 题，获取和评测见第 3 节。
+说明：
 
-生成时使用清单中 `entries[].metadata.prompt_en` 的完整文本。`idx` 只用于保存文件名，例如 `kitten curled up meowing.mp4`，不能用短标签替代完整 Prompt。每题保留一个模型的一份带音轨 MP4，可以平铺或按类别分目录；文件名中的空格合法，shell 参数须加引号。
+- 原始 JSON 有 848 条，AISBench 只使用与 `mapping/final_idx_to_prompt.csv` 精确匹配的 778 条；
+- 生成视频时使用 `entries[].metadata.prompt_en` 作为完整 Prompt；
+- 视频文件名使用 `entries[].idx`。
 
-本地 H3 请求中出现的 10 秒、768P、16:9 是该批次生成配置，不是官方评测器统一强制的输入规格。比较模型时应固定并记录生成参数，检查每项模型对实际媒体长度等条件的要求。
+### 3.3 准备自定义子集
 
-### 778 题完整集的输入准备
-
-完整集视频全部就位后执行：
+评测已有视频：
 
 ```bash
-python3 -m ais_bench.tools.vabench.cli prepare \
-  --source-root "$VABENCH_ROOT" --subset standard \
-  --videos /workspace/generated_standard --output /workspace/prepared_standard
+cd ${AISBENCH_ROOT}
+
+${PY} -m ais_bench.tools.vabench.cli prepare \
+  --source-root ${VABENCH_ROOT} \
+  --subset custom \
+  --videos /workspace/video \
+  --output /workspace/prepared_videos
 ```
 
-完整集继续第 4 节，将运行命令的 `--prepared` 改为 `/workspace/prepared_standard`、`--output` 改为新的完整集结果目录。评测固定 78 题时执行第 3 节，不使用这条完整集准备命令。
+输出会包含：
+
+```text
+/workspace/prepared_videos/
+├── manifest.json
+├── json/
+└── ... 同源 WAV 等
+```
+
+注意：
+
+- `prepare` 不会覆盖已有输出目录，重跑请换新目录；
+- 未知视频会报错并列出，不会静默跳过；
+- 无声视频不会自动补静音；
+- 如果提示 `Prepared protocol differs from installed protocol`，说明 prepared 目录来自旧协议，必须用当前源码重新准备，不能手改 manifest 哈希。
+
+### 3.4 准备 778 题完整集
+
+视频齐全后：
+
+```bash
+${PY} -m ais_bench.tools.vabench.cli prepare \
+  --source-root ${VABENCH_ROOT} \
+  --subset standard \
+  --videos /workspace/generated_standard \
+  --output /workspace/prepared_standard
+```
+
+---
 
 <a id="mini10pct-selection"></a>
 
-## 3. 获取并准备已选定的 10% 子集（78 题）
+### 3.5 选取并获取固定78题子集
 
-### 清单来源与抽样规则
+#### 清单来源与抽样规则
 
 固定清单位于 AISBench 的 **`ais_bench/configs/vabench_examples/mini10pct.json`**，名称是 `mini10pct`（表示10%），从 **778题标准集选出78题**。768P是视频生成分辨率，与题目数量不同。
 
@@ -121,11 +388,11 @@ python3 -m ais_bench.tools.vabench.cli prepare \
 
 该算法衡量词面多样性，不保证语义或全部指标适用性；题目覆盖不等于所有生成视频都可获得 LSA 等有效分数。清单保留上游提交、原始 778 清单、选择脚本及输出数据清单的 SHA256，便于审计。
 
-#### 第一步：确定778题候选池
+##### 第一步：确定778题候选池
 
 将固定官方源码的 `json_files/json_text/*.json` 与 `mapping/final_idx_to_prompt.csv` 按完整 Prompt 精确匹配，得到778个唯一idx。候选池包含24类，其中easy为10类、398题，hard为14类、380题。AISBench的 `catalog(..., 'standard')` 提供这批候选，子集不从原始848条直接抽取。
 
-#### 第二步：先分配类别名额
+##### 第二步：先分配类别名额
 
 目标数量为 `round(778×0.10)=78`，按以下规则分配：
 
@@ -140,7 +407,7 @@ hard类按“候选池数量降序、类别名升序”排列。最终easy每类
 
 这里平衡的是类别覆盖和easy/hard总体数量；并非每个类别都恰好抽10%。例如92题的 `hard_Virtual_Environment` 选3题，7题的 `hard_natural_environment` 选2题。
 
-#### 第三步：在每一类中选择词面差异较大的题
+##### 第三步：在每一类中选择词面差异较大的题
 
 1. 拼接每题的 `prompt_en + prompt_vision + prompt_audio`，转为小写。
 2. 按脚本固定分词规则和停用词表提取词项，去掉短于3个字符的词。
@@ -150,11 +417,11 @@ hard类按“候选池数量降序、类别名升序”排列。最终easy每类
 
 选取过程不使用随机数。脚本的确定性同分规则为：中心题取 `(平均相似度, idx的SHA256)` 最大者；后续候选取 `(与已选集合的最大相似度, 平均相似度, idx的SHA256)` 最小者。复现时应使用同一分词规则、停用词表和比较顺序，不能直接替换成另一套TF-IDF默认参数。
 
-#### 第四步：核验并固定清单
+##### 第四步：核验并固定清单
 
 合并24类的结果，检查78个idx互不重复、全部属于778题候选池、24类全覆盖、easy为40题、hard为38题，且各类数量符合配额。将idx和category固定到 `mini10pct.json`，连同来源及脚本哈希保存；完整Prompt从对应官方元数据导出。
 
-### 可选：离线复现选取结果
+#### 可选：离线复现选取结果
 
 需要审查“78题如何选出”时，可只调用原辅助脚本的两个选择函数，不执行它的构建入口。`build_mini10pct.py` 是项目辅助文件，**不包含在官方VABench仓库内**；应另行提供该文件，并把下列路径改为实际位置。
 
@@ -191,7 +458,7 @@ PY
 
 本段只读取题目并重算选择结果，不写请求文件、不复制视频，也不调用生成API。普通评测直接使用固定清单并执行下文的Prompt导出即可。
 
-### 与项目README后续替换记录的区别
+#### 与项目README后续替换记录的区别
 
 项目README新增了一次生成平台审核后的替换，类别仍为 `easy_human_nonverbal`：
 
@@ -204,7 +471,7 @@ PY
 
 原脚本的构建入口还包含固定路径、生成请求文件及复制辅助脚本等操作。复用固定清单或执行上述只读核验，不需要运行该入口及 `--force`。
 
-### 导出完整 Prompt
+#### 导出完整 Prompt
 
 在 AISBench 根目录执行以下脚本，校验固定清单并从官方源码导出对应元数据。它不调用任何生成 API：
 
@@ -231,7 +498,7 @@ PY
 
 从导出的 `entries[].metadata.prompt_en` 生成视频，保存为 `<idx>.mp4`。同步/复制原有产物时只需这78题对应的MP4；视频是否齐全应按当前清单和实际文件核验，不能用README里的历史下载数量判断本轮输入完整性。
 
-### 按固定 78 题准备输入
+#### 按固定 78 题准备输入
 
 视频齐全后，显式传入全部78题到准备函数。这样缺少任一视频都会报错，避免普通 `--subset custom` 根据已有文件自动缩成一个更小的集合：
 
@@ -247,214 +514,389 @@ print('已准备固定 78 题')
 PY
 ```
 
-准备完成后继续第 4 节执行评分，最后按第 5 节查看结果。
+准备完成后继续第4节执行评分并查看结果。
 
-当前报告scope为 `custom`，应与固化清单、导出的Prompt文件一起归档，并核对 `subset_size=78`。也可以将该准备目录填入主命令配置。若只想先测少量已有视频，可按[自定义子集说明](../../get_started/vabench_t2av.md)操作，并标明实际题数，不能当作78题结果。
+当前报告scope为 `custom`，应与固化清单、导出的Prompt文件一起归档，并核对 `subset_size=78`。也可以将该准备目录填入主命令配置。若只想先测少量已有视频，可按第3.3节准备自定义输入，并标明实际题数，不能当作78题结果。
 
-## 4. 用 AISBench 启动评测
 
-先按第 3 节导出固定 78 题并准备全部对应视频，生成 `/workspace/prepared_mini10pct`。激活实际评分 Conda 后，使用简化命令执行全部 15 项评分：
+---
+
+## 4. AISBench 下载依赖并下发测试
+
+### 4.1 安装 AISBench 依赖
+
+继续使用第 2 节创建的同一个 Conda 环境。先安装 AISBench runtime，并去掉会和 VABench/NISQA 冲突的 Pillow 固定版本：
 
 ```bash
-cd /workspace/code/benchmark
-export CUDA_VISIBLE_DEVICES=6,7
+cd ${AISBENCH_ROOT}
 
-python3 -m ais_bench.tools.vabench.cli run \
-  --source-root /workspace/code/VABench-main \
-  --cache-dir /workspace/vabench-cache \
-  --prepared /workspace/prepared_mini10pct \
-  --output /workspace/vabench_runs/mini10pct_simple
+sed -e 's/^gradio-client$/gradio-client==1.14.0/' \
+    -e 's/^openai$/openai==1.109.1/' \
+    requirements/runtime.txt \
+  | grep -viE '^\s*Pillow\s*==' \
+  > /workspace/aisbench_runtime_unified.txt
+
+printf 'anyio==4.10.0\n' >> /workspace/aisbench_runtime_unified.txt
+
+${PY} -m pip install \
+  -r /workspace/aisbench_runtime_unified.txt \
+  --index-url https://repo.huaweicloud.com/repository/pypi/simple
 ```
 
-目录和卡号按实际机器调整，`--output` 使用新的评分目录。省略参数的实际行为为：
-
-| 省略的参数 | 默认行为 |
-| --- | --- |
-| `--python` | 使用运行本命令的 Python，因此必须先激活评分 Conda |
-| `--device` | 请求逻辑 `cuda:0`；可见卡为 6、7 时对应物理卡 6，CUDA 不可用时会报错 |
-| `--options` | 使用代码及官方模型默认参数；DNSMOS 使用 CPU，Qwen 默认 `device_map="auto"`，每个评分子进程超时 24 小时 |
-
-Qwen 自动分配可使用多张可见 GPU，因此默认 `cuda:0` 不等于限制所有模型只用一张卡。省略 `--options` 不会自动读取外部 VABench 的 `config.yaml`，其 `max_memory` 等额外参数不会自动继承。
-
-需要指定另一个评分环境、设备或评分参数时，可使用以下完整命令，并按需修改选项；`options.json` 为可选配置文件：
+安装 AISBench 本体，不重新解析依赖：
 
 ```bash
-python3 -m ais_bench.tools.vabench.cli run \
-  --source-root /workspace/code/VABench-main \
-  --cache-dir /workspace/vabench-cache \
-  --prepared /workspace/prepared_mini10pct \
-  --python /root/miniconda3/envs/vabench311/bin/python3 \
-  --device cuda:0 \
-  --options ais_bench/configs/vabench_examples/options.json \
-  --output /workspace/vabench_runs/mini10pct_configured
+${PY} -m pip install \
+  -e ${AISBENCH_ROOT} \
+  --no-deps \
+  --no-build-isolation
 ```
 
-`prepare` 检查缺失、重复文件及音视频流，从第一条音轨抽取同源 PCM16 WAV，不主动裁剪、混声道或重采样，也不重编码 MP4。报告保存媒体哈希，原始 MP4 必须保留；移动机器后重新准备。准备目录和完整评分目录应使用新路径。当前协议生成的准备目录可复用。若更早清单版本的目录报协议不一致，应换新目录重新准备；不能直接修改 manifest 哈希绕过校验。
-
-默认计算全部 15 项。专家指标依次启动评分子进程，7 个 MLLM 指标在同一进程中复用 Qwen2.5-Omni-7B，无须部署 HTTP 服务。DNSMOS 显式使用 CPU ONNX。请求设备和观测到的模型设备分别记录。
-
-只有一条小猫视频时，可先验证部分链路：
+回钉统一环境需要的版本：
 
 ```bash
-python3 -m ais_bench.tools.vabench.cli prepare \
-  --source-root "$VABENCH_ROOT" --subset smoke \
-  --sample-id 'kitten curled up meowing' \
-  --videos /workspace/generated --output /workspace/prepared_kitten
-python3 -m ais_bench.tools.vabench.cli run \
-  --source-root "$VABENCH_ROOT" --cache-dir "$VABENCH_CACHE_DIR" \
-  --prepared /workspace/prepared_kitten --device cuda:0 \
-  --python /root/miniconda3/envs/vabench311/bin/python3 \
-  --dimensions second_clap --output /workspace/vabench_runs/kitten_clap
+${PY} -m pip install \
+  "fsspec==2025.9.0" "tqdm==4.66.2" \
+  --index-url https://repo.huaweicloud.com/repository/pypi/simple
 ```
 
-单指标成功不会生成 15 项总分。约 4 秒的小猫视频可能使 Synchformer 返回异常兜底值，无人脸时 LSA 可能省略结果；执行结束不等于 15 项均有效。
-
-### 使用 AISBench 主命令
-
-在主环境中安装 AISBench，编辑 `ais_bench/configs/vabench_examples/eval_vabench.py`：
-
-| 配置 | 含义 |
-| --- | --- |
-| `PREPARED_DIR` | 上一步的准备目录 |
-| `SOURCE_ROOT`、`CACHE_DIR` | 固定官方源码、模型缓存 |
-| `BACKEND_PYTHON` | 评分 Conda 的 `bin/python3` 绝对路径 |
-| `DEVICE` | 评分进程中的逻辑设备，例如 `cuda:0` |
-| `NUM_DEVICES` | LocalRunner 为该任务保留的卡数，按实际分配填写 |
+检查：
 
 ```bash
-ais_bench ais_bench/configs/vabench_examples/eval_vabench.py -m eval
+ais_bench --help
+${PY} -c "import ais_bench; print(ais_bench.__file__)"
+${PY} -m pip check > /workspace/vabench_pip_check.txt 2>&1
+PIP_CHECK_STATUS=$?
+cat /workspace/vabench_pip_check.txt
+echo "pip check exit status: ${PIP_CHECK_STATUS}"
 ```
 
-`max_num_workers` 控制独立任务数，不表示同一 VABench 数据集的视频并发。当前接入没有实现视频分片并行、结果自动合并或断点续评。最新看板按完成指标组数/总组数显示，实际视频数另存为 sample_count，并非逐视频实时完成数或有效覆盖率。
+> 上述检查在交互式 shell 执行；若脚本设置了 `set -e`，先用条件分支捕获非零状态再保存。统一环境可能出现 Pillow、fsspec、tqdm、decord 的已知声明冲突；须逐条对照已验证环境记录，新增冲突不能一概忽略。要求依赖完全干净时，改用独立评分环境，通过 `BACKEND_PYTHON` 调用。
 
-`--num-prompts N` 会截取 prepared manifest 的前 N 条，等价于 `reader_cfg.test_range='[:N]'`；报告 scope 仍是 `custom`，不会变成完整集。manifest 按类别排序，前 N 条不一定有人脸，`second_lsa` 可能因此 missing。默认完成度策略将纯 missing 视为跳过，不再让任务以非零码退出；但报告仍将其标为 `incomplete`。若 15 项均在请求范围内，缺失项按 0 计入，显示预览总分；只评测部分指标时不生成 15 项总分。`failed`、`backend_error`、`not_evaluated` 及未解释的样本缺口仍会导致任务失败。需要非前缀样本时，在配置中显式设置 `reader_cfg=dict(test_range='[4:5]')`。
-
-CLI 的结果目录就是 `--output`，例如 `/workspace/vabench_runs/mini10pct_simple`。主命令的输出由运行器工作目录控制，以任务日志给出的结果位置为准。
-
-## 5. 查看 15 项分数和总分
-
-结果位于 `--output` 指定目录：
+### 4.2 环境诊断
 
 ```bash
-cat /workspace/vabench_runs/mini10pct_simple/summary.md
+cd ${AISBENCH_ROOT}
+
+${PY} -m ais_bench.tools.vabench.cli doctor \
+  --source-root ${VABENCH_ROOT} \
+  --cache-dir ${VABENCH_CACHE_DIR}
 ```
 
-| 文件 | 内容 |
-| --- | --- |
-| `summary.md` | 可阅读的 15 项指标及总分 |
-| `metrics.csv`、`total.csv` | 原始均分、展示分、有效数、失败/缺失数、覆盖率和总分状态 |
-| `samples.csv`、`scenes.csv` | 逐题状态及各场景均分 |
-| `report.json` | 原始记录、汇总、输入/源码/权重/参数指纹及设备证据 |
-| `official_eval_results/<category>/` | 官方格式的原始 JSON、CSV、full_info 备份 |
-| `job_*/process.log`、`job_*/<dimension>/<category>/backend.log` | 子进程及评分日志 |
+必须确认：
 
-对每个指标，先将所有成功视频的原始分等权平均，再按下表转换为 0–100 展示分，并限制在该范围。原始值和超界信息保留；不会先裁剪每条分数再平均。
+- 15 个指标入口都存在；
+- 模型缓存没有缺失；
+- CUDA、decord、ONNX Runtime 正常；
+- `missing_resources` 为空。
 
-| 指标 | 原始方向 | 展示公式，m 为有效视频原始均分 |
-| --- | --- | --- |
-| `first_dnsmos`、`first_nisqa` | 越高越好 | `(m-1)/4*100` |
-| `first_audiobox` | 官方 `(CE+CU+PQ-PC)/4` 越高越好 | `(m+1.75)/9*100` |
-| `second_viclip`、`second_clap`、`second_imagebind` | 余弦相似度越高越好 | `(m+1)/2*100` |
-| `second_desync` | 绝对偏移秒数越小越好 | `(1-m/2)*100` |
-| `second_lsa` | 同步置信度越高越好 | `m/10*100` |
-| `third_alignment`、`third_audio_reality`、`third_visual_reality`、`third_expressiveness`、`third_artistry` | 1–5 越高越好 | `(m-1)/4*100` |
-| `fourth_qa_audio`、`fourth_qa_vision` | 官方正向极性比例越高越好 | `m*100` |
+`doctor` 检查模块可发现性、严格资源完整性，并在目标设备执行微小张量操作和CPU回拷。默认 `--device cuda:0`，设备不可用或操作失败会返回非零；仅检查CPU时显式传 `--device cpu`。它不代替全部评分模块加载、decord解码或ONNX provider验证，仍需结合第2.5节 `environment check` 的实际探针及后续评分日志。
 
-MOS 的 1/5、AudioBox 的 −1.75/7.25、LSA 的 0/10 是固定展示锚点，尤其 LSA 的 10 不宣称为模型硬上限。
+### 4.3 写评测配置
 
-总分为 15 项展示分等权平均，每项占 1/15，分母固定为 15：
-
-- 15 项均在请求范围内但任一指标无有效均分：缺失项按 0 计入，显示预览总分；`report.json` 和 `total.csv` 记录 `zero_filled_dimensions`。
-- 15 项都有分，但存在失败、缺失、LSA 省略或未解决的后端错误：展示预览总分，状态不完整。
-- 15 项均有分且应评样本覆盖率 100%、无已记录后端错误：展示当前范围的正式总分。
-- 只评测部分指标（例如 smoke 只跑 `second_clap`）时不生成 15 项总分，最终摘要不显示 total 行。
-
-LSA 沿用官方过滤逻辑，仅有效记录参与均值；无脸、零置信度或内部异常可能被省略，不能可靠区分原因，因此展示有效数/输入数及省略数，不伪造零分。省略数是 missing 的子集，不能相加重复计算。自定义 78 题的完整总分仅代表该子集，并非 778 标准集成绩或官方对齐证明。
-
-## 6. 官方原生评测与 AISBench 对照
-
-本节结合 [官方测试操作记录](../../get_started/vabench_official_test.md)，以固定源码的 `evaluate.py` 实际参数为准。
-
-| 项目 | 官方 `evaluate.py` | AISBench 接入 |
-| --- | --- | --- |
-| 输入 | `data/video/<类别>/<idx>.mp4`、`audio/<类别>/<idx>.wav`、`json/<类别>.json` | 准备目录 manifest、同源 WAV 与实际题目元数据 |
-| 执行 | 按场景、指标顺序调用，异常可能中断 | 独立子进程隔离专家，Qwen 组复用，保存失败和部分结果 |
-| 输出 | 每场景原始 `*_eval_results.json/csv` 和 `*_full_info.json` | 原始备份，加逐样本状态、均分、展示分、总分 |
-| 总分 | 该源码不提供本文约定的 15 项归一化总分 | 使用第 5 节项目协议 |
-| 适用用途 | 独立官方基线 | 编排、追踪、汇总及对齐验证 |
-
-### 为官方 CLI 准备相同输入
-
-可以复用第 3 节已经核验的 78 题媒体准备结果，生成官方需要的目录布局。下面只创建新目录和软链、复制 JSON，不修改官方评分源码，也不重新抽取音频。`prepared` 改为本次待对齐的准备目录：
+复制模板：
 
 ```bash
-cd /workspace/code/benchmark
-python3 - <<'PY'
-import json
-import os
-import shutil
-from pathlib import Path
-from ais_bench.benchmark.utils.vabench.data import verify_prepared
-
-prepared = Path('/workspace/prepared_mini10pct')
-root = Path('/workspace/official_mini10pct')
-source = Path(os.environ['VABENCH_ROOT'])
-manifest, _ = verify_prepared(prepared)
-root.mkdir(parents=True, exist_ok=False)
-for row in manifest['records']:
-    for media, suffix in [('video', '.mp4'), ('audio', '.wav')]:
-        target = root / 'data' / media / row['category'] / (row['idx'] + suffix)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.symlink_to(Path(row[media + '_path']).resolve())
-shutil.copytree(prepared / 'json', root / 'data/json')
-(root / 'mapping_text').mkdir()
-(root / 'mapping_text/final_idx_to_prompt.csv').symlink_to(
-    source / 'mapping/final_idx_to_prompt.csv')
-(root / 'input_manifest.json').write_text(
-    json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
-print(root)
-PY
+cp ${AISBENCH_ROOT}/ais_bench/configs/vabench_examples/eval_vabench_custom.py \
+   /workspace/eval_vabench.py
 ```
 
-官方实现从**运行目录**读取 `mapping_text/final_idx_to_prompt.csv`，因此要进入上述目录。缓存变量必须在 Python 导入官方模块前设置。使用相同评分 Conda 执行：
+编辑 `/workspace/eval_vabench.py`，至少修改以下字段：
+
+```python
+PREPARED_DIR = '/workspace/prepared_videos'
+SOURCE_ROOT = '/workspace/code/VABench-main'
+CACHE_DIR = '/workspace/vabench-cache'
+
+DEVICE = 'cuda:0'
+BACKEND_PYTHON = '/root/miniconda3/envs/vabench311_new1/bin/python3'
+NUM_DEVICES = 2
+```
+
+如果 AISBench 和 VABench 在同一个 Conda 环境，`BACKEND_PYTHON` 就指向该环境的 `bin/python3`。模板中其余字段（`models`、`datasets`、`eval`、`summarizer`）保持不变。
+
+### 4.4 下发测试
 
 ```bash
-conda activate vabench311
-export VABENCH_CACHE_DIR=/workspace/vabench-cache
-export CUDA_VISIBLE_DEVICES=6,7
-cd /workspace/official_mini10pct
-python3 - <<'PY'
-import os
-from pathlib import Path
-import yaml
+cd ${AISBENCH_ROOT}
 
-source = Path(os.environ['VABENCH_ROOT']) / 'vabench/config.yaml'
-cfg = yaml.safe_load(source.read_text(encoding='utf-8'))
-# 与本文 AISBench options 的 device_map:auto 一致；只写运行目录配置副本。
-cfg['params'].pop('max_memory', None)
-Path('config_aligned.yaml').write_text(
-    yaml.safe_dump(cfg, sort_keys=False), encoding='utf-8')
-PY
+ais_bench /workspace/eval_vabench.py \
+  -m eval \
+  -w /workspace/vabench_runs/run_$(date +%Y%m%d_%H%M%S)
+```
+
+参数：
+
+- `-m eval`：只评测，不重新推理；
+- `-w`：输出根目录，AISBench 会自动创建时间戳子目录；
+- 每次使用新目录，不要覆盖已有结果；
+- 现场 7 视频、15 项有约 10 分钟的运行记录；耗时受显卡空闲资源、媒体长度和缓存影响，不能据此保证固定耗时。
+
+### 4.5 查看结果
+
+结果目录：
+
+```text
+/workspace/vabench_runs/run_<时间>/
+└── <AISBench时间戳>/
+    ├── summary/
+    │   └── summary_<时间戳>.md
+    └── results/
+        └── <model>/<dataset>_artifacts/
+            ├── summary.md
+            ├── metrics.csv
+            ├── total.csv
+            ├── samples.csv
+            ├── scenes.csv
+            ├── report.json
+            └── official_eval_results/
+```
+
+重点看：
+
+```bash
+cat <artifacts>/summary.md
+cat <artifacts>/metrics.csv
+cat <artifacts>/total.csv
+```
+
+总分规则：
+
+- 15 项都有有效均分，覆盖率 100%，没有后端错误：正式总分；
+- 15 项都有分，但有失败、缺失、LSA 省略或后端错误：预览总分；
+- 请求全部 15 项但某项无有效均分：该项按 0 计入，固定除以 15，展示预览总分及 `zero_filled_dimensions`；原始均分仍留空；
+- 只跑部分指标：不生成 15 项总分。
+
+例如其余14项各60分、LSA无有效均分，预览总分为56。15项全无有效均分时仍保存0分预览，但任务返回失败。只有无后端错误的LSA省略可以在其他请求项有有效分时允许任务完成；其他指标missing、解析失败和后端异常均不能以补零掩盖。正式/预览状态与任务是否成功分开判断。官方VABench不提供这个总分；`total.csv`是AISBench展示协议。
+
+注意：
+
+- `second_lsa` 可能因无人脸、零置信度或内部异常省略记录；仅凭省略无法确定原因，需查看日志，不能一律判定不是依赖错误；
+- `second_desync` 对短于 Synchformer 固定 5 秒输入的视频会报 `backend_error`，不要用这类视频宣称 desync 完整；
+- 当前 CLAP 缓存使用随机截取 10 秒片段，长视频重复运行可能波动；短视频可避开这一随机裁剪分支，但不保证所有运算绝对确定。
+
+### 4.5.1 为什么 `second_clap` 会波动
+
+官方 `vabench/second_clap.py` 的预处理存在随机性；两边的子进程、场景顺序和模型生命周期也会影响实际随机状态：
+
+1. 官方代码调用 `processor(text=..., audio=..., sampling_rate=48000)` 时没有传 `truncation`；
+2. 当前缓存的 `clap/laion__clap-htsat-unfused/preprocessor_config.json` 配置为：
+
+```json
+{
+  "truncation": "rand_trunc",
+  "max_length_s": 10,
+  "nb_max_samples": 480000,
+  "sampling_rate": 48000
+}
+```
+
+3. 音频超过 10 秒时，Transformers 的 `ClapFeatureExtractor` 会执行：
+
+```python
+overflow = len(waveform) - max_length
+idx = np.random.randint(0, overflow + 1)
+waveform = waveform[idx:idx + max_length]
+```
+
+也就是每次随机选择不同的 10 秒起点，再计算 CLAP 相似度，所以同一个视频每次运行都可能得到不同的 `video_results`。
+
+4. CLAP 调用处没有单独固定这段 NumPy 随机数；`PYTHONHASHSEED=42` 只影响 Python 哈希，不会固定 `np.random`。官方 `omni_runtime` 初始化另有随机种子设置，跨场景的执行顺序也可能影响后续 CLAP 状态，因此应核查实际调用顺序，不能断言两条路径始终处于相同或完全未设置的随机状态。
+
+5. 音频不超过 10 秒时不会进入这段随机裁剪分支，可减少该来源的波动。
+
+因此 `second_clap` 有差异时，应先核查输入、预处理配置和随机状态。正式验收仍要求同一条件下原始均分相对误差 <1%；可通过外部启动包装控制随机状态而保留官方文件不变。排除 CLAP 只能得到其余 14 项的诊断结果，不能算完成 15 项对齐，也不能将超阈值直接记为通过。
+
+### 4.6 运行官方 VABench 作为对照（可选）
+
+如果要把 AISBench 结果与官方源码原生结果逐样本对比，先生成官方 `data_dir`。下面脚本只依赖 Python、ffmpeg 和官方源码，不依赖 AISBench：
+
+```bash
+STAMP=$(date +%Y%m%d_%H%M%S)
+export OFFICIAL_DATA=/workspace/vabench_official_data_${STAMP}
+export OFFICIAL_RUN=/workspace/vabench_official_run_${STAMP}
+export OFFICIAL_RESULT=/workspace/vabench_result_${STAMP}
+
+${PY} "${AISBENCH_ROOT}/ais_bench/tools/vabench/official_prepare.py" \
+  --source-root ${VABENCH_ROOT} \
+  --videos /workspace/video \
+  --output ${OFFICIAL_DATA}
+```
+
+脚本规则：
+
+脚本由AISBench工作区的 `tools/vabench/official_prepare.py` 提供，但按文件直接执行时只依赖Python标准库、ffmpeg和官方源码，不需要安装AISBench。也可在AISBench源码根目录执行 `python3 -m ais_bench.tools.vabench.official_prepare --help` 查看参数。
+
+- MP4 文件名去掉 `.mp4` 后必须精确等于官方 `mapping/final_idx_to_prompt.csv` 中的 `idx`；
+- 每个 MP4 必须有音轨，脚本用 ffmpeg 抽取第一条音轨为 WAV，不补静音、不重新编码视频；
+- 按题目 category 生成 `video/<category>/<idx>.mp4`、`audio/<category>/<idx>.wav`；
+- 只为实际视频生成 `json/<category>.json`，不会保留没有视频的题目；
+- `--output` 必须是新目录或空目录，已有内容的目录会被拒绝。
+
+脚本会打印每个类别的样本数。确认目录结构：
+
+```bash
+find ${OFFICIAL_DATA} -maxdepth 3 -type f | sort
+```
+
+官方 `evaluate.py` 读取的是当前工作目录下的相对路径 `./mapping_text/final_idx_to_prompt.csv`，但官方源码里的目录名叫 `mapping/`，所以运行目录必须放一个名为 `mapping_text` 的软链。运行目录可以是任意新目录，不要求使用固定路径：
+
+```bash
+mkdir -p ${OFFICIAL_RUN}
+ln -sfn ${VABENCH_ROOT}/mapping ${OFFICIAL_RUN}/mapping_text
+cd ${OFFICIAL_RUN}
+
+test -f mapping_text/final_idx_to_prompt.csv && echo mapping-ok
+```
+
+然后从该运行目录启动官方评测：
+
+```bash
+cd ${OFFICIAL_RUN}
 set -o pipefail
-python3 -u /workspace/code/VABench-main/evaluate.py \
-  --data_dir /workspace/official_mini10pct/data \
-  --config /workspace/official_mini10pct/config_aligned.yaml \
-  --output_dir /workspace/official_mini10pct/results \
-  2>&1 | tee /workspace/official_mini10pct/official.log
+
+CUDA_VISIBLE_DEVICES=0,1 \
+VABENCH_CACHE_DIR=${VABENCH_CACHE_DIR} \
+${PY} -u ${VABENCH_ROOT}/evaluate.py \
+  --data_dir ${OFFICIAL_DATA} \
+  --output_dir ${OFFICIAL_RESULT} \
+  2>&1 | tee ${OFFICIAL_RESULT}.log
 ```
 
-官方原配置含全部 15 项及 `device_map: auto`、逻辑卡 0/1 的 `max_memory`。本指南的 AISBench 简化命令不传 `--options`，Qwen 加载器默认使用 `device_map: auto`；上面生成的官方运行配置副本因此去掉显存上限，使实际加载策略一致，官方源码文件不变。请确认实际可用显存适合自动分配。若要沿用双卡 80GB 上限，须另行统一两边配置，并验证参数经过子进程 JSON 传递后仍保留 GPU 编号语义；当前入口没有数字键转换，不要直接假设 JSON 的字符串键等价于 Python 整数 GPU 编号。
+说明：
 
-检查每个场景是否都有 15 项原始结果、样本数是否一致及日志是否有异常。此版本官方入口捕获 fatal error 后未显式返回非零状态，不能单靠 shell 退出码判成功。CSV 的 `-1` 表示未取得该项成绩，不能参与均分。
+- `CUDA_VISIBLE_DEVICES` 按实际机器修改；官方默认 config 使用逻辑卡 0/1 和 `max_memory: {0: "80GB", 1: "80GB"}`，显存配置不同时用 `--config` 指定自己的副本；
+- `${PY}` 使用开头 `CONDA_ENV` 对应的环境；若使用 `vabench115`，把开头 `CONDA_ENV` 改为 `vabench115` 即可，官方评测不依赖 AISBench 安装；
+- `VABENCH_CACHE_DIR` 必须在启动 Python 前设置；
+- 官方入口会捕获异常，不能只靠退出码判断成功，必须同时检查日志和结果文件；
+- 结果目录结构为：
 
-将官方 `results/<category>/*_eval_results.json` 的逐题原始记录，与 AISBench 的 `official_eval_results` 逐项核对，再比较同一有效样本集合的原始均分。官方数值与剔除失败后的有效均分可能不同，需结合日志核验异常和 LSA 省略集合。不得拿归一化总分代替逐指标官方对齐。
+```text
+${OFFICIAL_RESULT}/<category>/
+├── <category>_<时间>_eval_results.json
+├── <category>_<时间>_eval_results.csv
+└── <category>_<时间>_full_info.json
+```
 
-验收口径：原始均分的相对误差严格 `<1%`；官方均分绝对值 `≤1e-6` 时，改为绝对差 `≤1e-6`。输入、权重、源码、预处理、参数和成功/失败/省略集合必须一致。CLAP 长音频存在随机截断，应核对实际缓存预处理配置并控制随机状态/裁剪条件；无法控制时保留波动证据，不能自动放宽上述验收口径。
+`eval_results.json` 是逐样本原始分，`full_info.json` 是本次实际题目的完整信息；CSV 中的 `-1` 表示该项没有取得分数，不能当作 0 分参与均值。确认每个类别都有预期指标和样本后再进入下一节对比，并把 `${OFFICIAL_RESULT}` 作为 `--official` 参数。
 
-AISBench 的 `--mode official` 是带资源注入和路径修正的官方类参考路径，**不等于独立运行上述官方 CLI**。`cli compare` 读取两份 AISBench `report.json`，用于适配器与参考路径对照；`cli compare-official` 可直接读取原生 `evaluate.py` 输出和 AISBench `official_eval_results`，按类别、指标、样本对齐并比较 `video_results`，打印缺失项和数值差异。后者仍需逐项核对输入、权重、源码和随机状态；CLAP 随机截断产生的差异不能据此宣称运行失败或对齐完成。更详细限制见 [接入说明](../../get_started/vabench_t2av.md)。
+### 4.7 与官方 VABench 比较原始均分及逐题差异（可选）
 
-## 7. 测试与设计资料
+如果另外跑过官方 `evaluate.py`，可以直接对比两边落盘的原始分：
 
-- [VABench 需求与设计](../../design/vabench-benchmark-design.md)：范围、架构、目录分析、评分协议、验收和测试设计。
-- UT 命令见设计文档第 4 节，源码内开发说明位于 `tests/UT/vabench/README.md`；测试包含子进程覆盖率收集，模型使用模拟实现，不能替代 GPU 评分验收。
-- [官方源码](https://github.com/tanABCC/VABench) 与 [模型缓存](https://huggingface.co/datasets/tanABBCC/VABENCH_CACHE_DIR)：评分算法、题目和缓存来源。
+```bash
+${PY} -m ais_bench.tools.vabench.cli compare-official \
+  --aisbench <AISBench artifacts 目录或其中的 official_eval_results> \
+  --official ${OFFICIAL_RESULT} \
+  --output /workspace/vabench_compare_official.json
+```
+
+如果使用已有的官方结果目录，把 `${OFFICIAL_RESULT}` 换成该目录路径。
+
+命令按类别、指标和媒体文件名对齐核心分 `video_results`，忽略不同绝对路径前缀，按全部有效视频等权计算每项原始均分。参考均分绝对值 `>1e-6` 时要求相对误差严格 `<1%`；否则要求绝对误差 `≤1e-6`。每个请求指标必须有有效成对分数；双边全空、缺失样本/指标/场景或非数值都不能通过。
+
+输出分别提供 `passed`（均分阈值和样本结构检查）、`metric_means_passed`、`sample_values_passed`。逐题数值有差异但同一有效集合均分达标时，可以均分PASS、逐题诊断FAIL；退出码按 `passed` 返回0或1，不把逐题阈值替代既定均分验收。
+
+双方使用单次运行的新目录；同一场景有多个结果文件会被拒绝，避免混用轮次。正式验收还需核验输入/源码/权重/参数及失败和省略集合。原始备份可能包含模型兜底数值，仅数值相同不等于评分有效。逐指标原始均分的阈值以上述规则为准。
+
+`second_clap` 的随机截断会显示为数值差异，应先确认输入和随机状态，不能直接判为 AISBench 调用错误。
+
+## 附录：评测数据流与进程时序
+
+数据流如下；评分组按顺序执行，8个专家指标各使用一个进程，7个MLLM指标在一个进程内复用Qwen。
+
+```mermaid
+flowchart TD
+    V["输入：带音轨 MP4"]
+    Q["题目数据：idx、Prompt、场景、QA"]
+    P["输入解析<br/>按 idx 关联题目；ffprobe 检查音视频流<br/>FFmpeg 提取 WAV"]
+    I["评测输入<br/>原 MP4 路径 + WAV + 场景 JSON + manifest"]
+    T["VABenchEvalTask / engine<br/>读取清单、筛选样本、按指标分组"]
+    E["8 个专家评分进程<br/>每项一个独立进程，依次执行"]
+    M["1 个 MLLM 评分进程<br/>7 项指标复用 Qwen2.5-Omni"]
+    X["原始评分结果<br/>逐视频分数、原始返回、缺失／失败状态"]
+    A["results.py<br/>对齐样本，计算各指标及各场景有效均分"]
+    N["scoring.py<br/>指标均分归一化到 0–100<br/>15 项等权计算总分"]
+    F["结果文件<br/>report.json、CSV、summary.md<br/>官方格式原始备份"]
+    S["VABenchSummarizer<br/>展示 15 项指标和总分状态"]
+
+    V --> P
+    Q --> P
+    P --> I
+    I --> T
+    T -->|MP4／WAV／题目；request.json| E
+    T -->|MP4／WAV／题目；request.json| M
+    E -->|调用官方专家 compute 函数| X
+    M -->|调用官方 MLLM compute 函数| X
+    X --> A --> N --> F --> S
+```
+
+主命令中的任务和评分进程时序如下。重复的worker泳道表示先后创建的进程，request.json和response.json用于传递输入与结果。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant P as 输入解析入口
+    participant R as AISBench 主流程 / LocalRunner
+    participant T as 评测任务进程 / engine
+    participant W as 评分 worker 子进程
+    participant F as 输入与结果文件
+
+    U->>P: 提交 MP4 和题目清单
+    P->>P: 按 idx 匹配题目，检查音视频流，提取 WAV
+    P->>F: 写入 manifest、场景 JSON 和 WAV
+    P-->>U: 返回评测输入目录
+
+    U->>R: 启动评测配置
+    R->>T: 创建 VABenchEvalTask 任务进程
+    T->>F: 读取 manifest 和场景 JSON
+    F-->>T: MP4／WAV 路径、Prompt、QA、场景
+    T->>T: 校验并筛选样本，拆分为 8 个专家组和 1 个 MLLM 组
+
+    loop 8 个专家组，依次执行
+        T->>F: 写入本组 request.json
+        T->>W: subprocess.run 创建新 worker，并等待结束
+        W->>F: 读取 request.json
+        W->>W: 导入官方指标模块，加载本指标模型
+        loop 各场景
+            W->>W: 调用官方 compute 函数，完成逐视频评分
+        end
+        W->>F: 写入 response.json 和评分日志
+        W-->>T: 进程退出，等待调用返回
+        T->>F: 读取 response.json，更新 partial_report.json
+    end
+
+    T->>F: 写入包含 7 项 MLLM 指标的 request.json
+    T->>W: 创建一个新的 MLLM worker，并等待结束
+    W->>F: 读取 request.json
+    W->>W: 首次使用时加载 Qwen2.5-Omni
+    loop 7 个 MLLM 指标
+        W->>W: 按场景调用官方 compute 函数，复用同一 Qwen 实例
+    end
+    W->>W: 释放 Qwen 实例
+    W->>F: 写入 response.json 和评分日志
+    W-->>T: 进程退出，等待调用返回
+    T->>F: 读取 response.json
+
+    T->>T: 对齐逐视频状态，计算有效均分、归一化分和总分
+    T->>F: 写入 report.json、CSV、summary.md 和官方格式备份
+    T-->>R: 返回任务成功或失败状态
+    R->>F: VABenchSummarizer 读取任务报告
+    F-->>R: 15 项指标、总分和完整性状态
+    R-->>U: 展示结果表并保存汇总文件
+```
+
+
+### 固定计分公式
+
+先对有效视频求原始均分m，再归一化并限制为0–100；总分固定为15项等权，缺项补0并显示预览状态。
+
+| 指标 | 原始均分 m 的归一化公式 |
+| --- | --- |
+| DNSMOS、NISQA、5 个 third 指标 | `(m−1)/4×100` |
+| AudioBox | `(m+1.75)/9×100` |
+| ViCLIP、CLAP、ImageBind | `(m+1)/2×100` |
+| Desync | `(1−m/2)×100`，原始偏移越小越好 |
+| LSA | `m/10×100`，10 为固定展示锚点 |
+| 2 个 QA 指标 | `m×100` |

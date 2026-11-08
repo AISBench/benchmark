@@ -155,7 +155,7 @@ def test_task_entrypoint_reports_final_state_and_joins_monitor(tmp_path, monkeyp
     assert states[-1]['status'] == ('error' if fails else 'finish') and joined
 
 
-def test_cli_catalog_custom_and_comparison_paths(tmp_path, monkeypatch):
+def test_cli_catalog_and_custom_preparation(tmp_path, monkeypatch):
     from ais_bench.tools.vabench import cli
     entry = {'idx': 'a', 'category': 'one'}
     monkeypatch.setattr(cli, 'catalog', lambda *a, **kw: [entry])
@@ -169,22 +169,6 @@ def test_cli_catalog_custom_and_comparison_paths(tmp_path, monkeypatch):
     with pytest.raises(SystemExit):
         cli.main(['prepare', '--source-root', 'source', '--subset', 'custom',
                   '--sample-id', 'a', '--videos', 'videos', '--output', 'out'])
-    from ais_bench.benchmark.summarizers.vabench.results import build_report
-    provenance = {k: 'same' for k in ['protocol_sha256', 'source_signature',
-                                    'integration_signature', 'weights_signature', 'scoring_signature']}
-    report = build_report({'input_signature': 'same', 'records': [entry]}, {
-        'second_clap': {'records': [dict(entry, score=0.0, status='ok', raw={})]}}, provenance)
-    path = tmp_path / 'report.json'; write_json(path, report)
-    assert cli.main(['compare', '--reference', str(path), '--candidate', str(path),
-                     '--dimensions', 'second_clap', '--output', str(tmp_path / 'comparison.json')]) == 0
-    assert read_json(tmp_path / 'comparison.json')['passed']
-    monkeypatch.setattr(cli, 'run', lambda *a, **kw: report)
-    assert cli.main(['run', '--source-root', 'source', '--cache-dir', 'cache',
-                     '--prepared', 'prepared', '--dimensions', 'second_clap', '--output', 'output']) == 0
-    bad_options = tmp_path / 'bad.json'; write_json(bad_options, {'unknown': 1})
-    with pytest.raises(SystemExit):
-        cli.main(['run', '--source-root', 'source', '--cache-dir', 'cache', '--prepared', 'prepared',
-                  '--output', 'output', '--options', str(bad_options)])
 
 
 @pytest.mark.parametrize('missing', [False, True])

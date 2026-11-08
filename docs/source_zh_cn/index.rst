@@ -33,7 +33,6 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
 
    get_started/install
    get_started/quick_start
-   get_started/vabench_get_start
    get_started/datasets
 
 .. toctree::
@@ -100,7 +99,6 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
    develop_guide/new_model
    develop_guide/new_dataset
    develop_guide/new_inferencer
-   design/vabench-benchmark-design
 
 .. toctree::
    :maxdepth: 2

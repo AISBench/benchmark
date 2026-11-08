@@ -12,28 +12,23 @@ from ais_bench.benchmark.utils.vabench.data import write_json
 
 def test_config_and_partitioning(tmp_path):
     from ais_bench.benchmark.partitioners import NaivePartitioner
-    cfg = Config.fromfile('ais_bench/configs/vabench_examples/eval_vabench.py')
+    cfg = Config.fromfile('ais_bench/configs/vabench_examples/eval_vabench_custom.py')
     cfg.work_dir = str(tmp_path)
     cfg.cli_args = {'mode': 'eval', 'debug': False}
     task_cfg = NaivePartitioner(keep_keys=['eval.runner.task.num_gpus'])(cfg)[0]
     task = VABenchEvalTask(task_cfg)
-    assert task.num_gpus == 1
+    assert task.num_gpus == 2
     assert len(task.dataset_cfgs) == 1
     command = task.get_command('config with spaces.py', '{task_cmd}')
     assert 'ais_bench.benchmark.tasks.vabench.eval' in command
     assert 'config with spaces.py' in command
 
 
-def test_smoke_config_selects_only_clap():
-    cfg = Config.fromfile('ais_bench/configs/vabench_examples/eval_vabench_smoke.py')
-    assert cfg.datasets[0].eval_cfg.dimensions == ['second_clap']
-    assert 'smoke' in cfg.models[0].abbr
-    assert 'smoke' in cfg.datasets[0].abbr
 
 
 def test_reader_config_and_dataset_use_the_same_selected_rows(tmp_path):
     from ais_bench.benchmark.datasets.vabench import VABenchDataset
-    cfg = Config.fromfile('ais_bench/configs/vabench_examples/eval_vabench_reader.py')
+    cfg = Config.fromfile('ais_bench/configs/vabench_examples/eval_vabench_custom.py')
     assert cfg.datasets[0].reader_cfg.input_columns == ['idx']
     assert cfg.datasets[0].eval_cfg.python is None
     records = [dict(idx='a'), dict(idx='b'), dict(idx='c')]
@@ -42,12 +37,6 @@ def test_reader_config_and_dataset_use_the_same_selected_rows(tmp_path):
     assert selected.dataset['idx'] == ['b']
 
 
-def test_published_custom_and_smoke_templates_are_loadable():
-    custom = Config.fromfile('ais_bench/configs/vabench_examples/eval_vabench_custom.py')
-    smoke = Config.fromfile('ais_bench/configs/vabench_examples/eval_vabench_smoke_clap.py')
-    assert custom.datasets[0].path == '/workspace/prepared_all_official_v2'
-    assert custom.eval.runner.task.num_gpus == 2
-    assert smoke.datasets[0].eval_cfg.dimensions == ['second_clap']
 
 
 def test_task_preserves_incomplete_report(tmp_path, monkeypatch):

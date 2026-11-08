@@ -2,7 +2,7 @@
 # Based on VABench@12b9617 and the unified environment in process/10.txt.
 # Step 1 of the complete install; NISQA and pinned Git packages need the
 # environment installer. Do not add this file to AISBench runtime/full extras.
-# See docs/source_zh_cn/get_started/vabench_gpu_environment.md.
+# See docs/source_zh_cn/extended_benchmark/lmm_generate/vabench.md.
 # NISQA: build a metadata-only patched wheel; never install upstream with deps.
 # pytorchvideo: install the fixed Git revision from vabench-git.txt, not PyPI.
 
