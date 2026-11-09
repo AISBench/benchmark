@@ -27,5 +27,5 @@ the measured coverage reports, and do not claim whole-repository coverage from
 these selected cases. Check the process exit code and JUnit failures, errors and
 skips; retain the logs, coverage outputs and tested source commit.
 
-B030 is not yet released. After release, use its official tag and re-run this
-command. Results from earlier development commits are not B030 validation.
+Select a public release tag or a fixed commit and record it with the results.
+Validation of a development commit does not certify a different release.
