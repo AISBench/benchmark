@@ -181,6 +181,12 @@
                         "engine_id"
                       ],
                       "additionalProperties": true
+                    },
+                    "proxy_program_key": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                      "default": "proxy_program",
+                      "description": "Proxy only: select the physical program path from bindings.nodes[node].paths."
                     }
                   },
                   "required": []

@@ -1,4 +1,5 @@
 """Read-only evidence for interactive job review; never repairs confirmed parameters."""
+from mount_profiles import resolve_mounts
 import argparse
 import copy
 import json
@@ -121,7 +122,7 @@ def review(spec, bindings):
         deps=[d for d in spec['deployments'] if any(i['placement']['node']==slot for i in d['instances'])]
         payload={'models':{d['model']['id']:binding['model_paths'][d['model']['id']] for d in deps},
                  'images':list({d['runtime']['image'] for d in deps}),'paths':list(binding.get('paths',{}).values()),
-                 'mount_sources':[m['source'] for m in binding.get('mounts',[])]}
+                 'mount_sources':[m['source'] for m in resolve_mounts(binding)]}
         response=subprocess.run(transport_argv(binding['host'],['python3','-c',PROBE]),input=json.dumps(payload),capture_output=True,text=True,timeout=180)
         if response.returncode:raise RuntimeError('Review probe failed on '+slot+': '+response.stderr)
         evidence[slot]=json.loads(response.stdout)

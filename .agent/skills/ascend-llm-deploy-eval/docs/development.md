@@ -24,3 +24,7 @@ python -m unittest discover -s tests/unit -v
 2026-11-04，Windows / Python 3.11：110项测试，107项通过，3项Linux专用测试跳过。当前环境未安装完整AISBench运行依赖，尚未进行真实CLI压测、模型部署或硬件性能回归。
 
 本轮修复、回归覆盖及实机验证边界见 [2026-11-05 修复记录](audit-repairs-20261105.md)。
+
+## Startup ownership evidence
+
+Generated start/probe scripts append host UTC time, NPU status, fuser PIDs for the deployment devices, PID cgroups and running container IDs/names to `logs/DEPLOYMENT-runNN/NODE-ownership.jsonl`. Each diagnostic command has a 3-second timeout. Missing tools, vanished processes and timeouts remain explicit unknowns, not proof of idle devices. No process arguments or environment are read, no resources are stopped, and diagnostic failure does not replace the deployment result. Synchronous sampling adds at most about 9 seconds per probe; no background monitor is created.

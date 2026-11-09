@@ -3,6 +3,7 @@
 Bindings must contain explicit network/ports for each deployment on every node.
 This entry never imports or mutates historical frozen task directories.
 """
+from mount_profiles import resolve_mounts
 import argparse
 import ast
 import base64
@@ -159,7 +160,7 @@ def _generate(spec, bindings, root):
     save(root/'bindings.json', bindings)
     helper = root/'.runtime'
     helper.mkdir(exist_ok=True)
-    for filename in ('container_dependencies.py','aisbench_cli.py','validate_case.py','cache_reset.py','metric_evidence.py','test_evidence.py'):
+    for filename in ('ownership_evidence.py','container_dependencies.py','aisbench_cli.py','validate_case.py','cache_reset.py','metric_evidence.py','test_evidence.py'):
         (helper/filename).write_bytes(Path(__file__).with_name(filename).read_bytes())
     (helper/'check_test.py').write_text('import sys\nfrom test_evidence import check\ncheck(*sys.argv[1:])\n',encoding='utf-8')
     plan = {'deployments': {}, 'tests': {}}
@@ -213,7 +214,7 @@ def _generate(spec, bindings, root):
                     'test "$(docker inspect -f '+q('{{ index .Config.Labels "bench.execution" }}')+' '+q(name)+')" = "$(cat '+q(token_file)+')"'
             folder = root/'scripts'/dep['id']
             remote_scripts = task+'/scripts/'+dep['id']
-            mounts = list(binding.get('mounts', []))
+            mounts = resolve_mounts(binding)
             model = binding['model_paths'][dep['model']['id']]
             for source in (task, model):
                 matching=[m for m in mounts if m['target']==source]
@@ -252,6 +253,11 @@ def _generate(spec, bindings, root):
                       'mkdir -p '+q(task+'/logs/'+dep['id']+'-')+'"$RUN"',
                       'printf "%s" "$RUN" > '+q(task+'/.runtime/'+dep['id']+'-'+slot+'.run')]
             probes = [guard,'RUN=$(cat '+q(task+'/.runtime/'+dep['id']+'-'+slot+'.run')+')','[[ "$RUN" =~ ^run[0-9]+$ ]]']
+            ownership = ('python3 '+q(task+'/.runtime/ownership_evidence.py')+' '+
+                         q(task+'/logs/'+dep['id']+'-')+'"$RUN"/'+q(slot+'-ownership.jsonl')+' '+
+                         ' '.join(str(int(device)) for device in group['npu_ids'])+' || true')
+            starts.append(ownership)
+            probes.append(ownership)
             dependency_env[dep['id']][slot]={}
             for item in group['commands']:
                 context = {'model': {'path': model, 'served_name':dep['model']['served_name']},

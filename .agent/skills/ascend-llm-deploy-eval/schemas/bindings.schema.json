@@ -149,6 +149,17 @@
               "type": "string",
               "pattern": "^/"
             }
+          },
+          "mount_profiles": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "ascend-runtime",
+                "ascend-hixl"
+              ]
+            },
+            "description": "Opt-in host mounts; explicit mounts override profile entries by target."
           }
         },
         "additionalProperties": false

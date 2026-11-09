@@ -34,6 +34,8 @@ def validate_deployment(dep):
             if place['devices']:
                 errors.append('Proxy must not claim model devices')
             continue
+        if 'proxy_program_key' in item['launch']:
+            errors.append('proxy_program_key is only valid for proxy instances: '+item['id'])
         if 'args' not in item['launch'] or any(k not in item['checks'] for k in ['prefix_cache_reset','metrics']):
             errors.append('Model launch/checks incomplete: '+item['id'])
             continue
@@ -176,7 +178,7 @@ def compile_deployment(dep, nodes):
         env = copy.deepcopy(launch.get('env', {}))
         if item['role'] == 'proxy':
             routing = next(x for x in dep['connections']['routing'] if x['proxy'] == item['id'])
-            argv = ['python3', '{{paths.proxy_program}}', '--host', node['network']['ip'], '--port', str(ports['http'])]
+            argv = ['python3', '{{paths.'+launch.get('proxy_program_key','proxy_program')+'}}', '--host', node['network']['ip'], '--port', str(ports['http'])]
             for prefix, peers in [('prefiller', routing['prefillers']), ('decoder', routing['decoders'])]:
                 argv += ['--'+prefix+'-hosts']+[addresses[p]['host'] for p in peers]
                 argv += ['--'+prefix+'-ports']+[str(addresses[p]['ports']['http']) for p in peers]
