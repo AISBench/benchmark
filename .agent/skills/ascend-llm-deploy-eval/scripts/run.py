@@ -537,12 +537,13 @@ def execute(root, spec, plan):
                     wait(futures)
                     raise
             drain()
-            if 'stages' in spec and any(status['cases'].get(sid)!='PASSED' for branch in stage['branches'] for sid in branch['sub_tasks']):
+            stage_passed=all(status['cases'].get(sid)=='PASSED' for branch in stage['branches'] for sid in branch['sub_tasks'])
+            if 'stages' in spec and not stage_passed:
                 event('stage',stage['id'],'FAILED')
                 raise RuntimeError('Stage failed: '+stage['id'])
             if 'stages' in spec:
                 collect(root,plan)
-            event('stage',stage['id'],'PASSED')
+            event('stage',stage['id'],'PASSED' if stage_passed else 'FAILED')
         status['status']='PASSED' if all(v=='PASSED' for v in status['cases'].values()) else 'FAILED'
     except BaseException as exc:
         drain()

@@ -40,6 +40,11 @@ class NativeCLITests(unittest.TestCase):
             models=next(n.value for n in tree.body if isinstance(n,ast.Assign)
                         and any(isinstance(t,ast.Name) and t.id=='models' for t in n.targets))
             fields={k.arg:k.value for k in models.elts[0].keywords}
+            # Native retry counts total attempts; zero would suppress all HTTP.
+            self.assertEqual(ast.literal_eval(fields['retry']),1)
+            from urllib.parse import urljoin
+            self.assertEqual(urljoin(ast.literal_eval(fields['url']), 'v1/completions'),
+                             'http://127.0.0.1:8000/v1/completions')
             self.assertEqual(ast.literal_eval(fields['max_out_len']),32)
             self.assertFalse(ast.literal_eval(fields['generation_kwargs'])['ignore_eos'])
             self.assertNotIn('ais_bench_prefix_cache',text)

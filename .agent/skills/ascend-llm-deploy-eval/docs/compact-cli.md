@@ -110,3 +110,5 @@ One Linux coordinator process uses worker threads for remote scripts; only its m
 Failure or interruption signals cooperative cancellation: pending cases, container creation and readiness loops stop progressing. Already running remote calls finish within their configured timeouts before cleanup; unrelated workloads are never stopped to implement cancellation. status.timeline records stage, branch and case events with Unix timestamps. Hard process termination still cannot guarantee finally cleanup.
 
 Migration: phase_id alone does not introduce parallelism. Add explicit stages and retain globally unique sub_task IDs; preserve configured deployment semantics and ports. Re-deployments receive distinct run numbers, and each case keeps separate result paths. Do not replay an existing task directory to recover a failed stage.
+
+AISBench 默认生成配置使用 `retry=1`：已核验的 AISBench 3.1 实现将该字段作为总尝试次数（`range(self.retry)`），因此这表示初次请求一次、工具内部零重试。`execution.max_retries=0` 仍表示协调器不重试 case；两层独立，不把协调器重试数直接写入工具字段。`VLLMCustomAPI` 接收服务根 URL 后追加 `v1/completions`。用户提供的原生配置保留原文，需现场核验其版本重试语义；本次修复不改 AISBench 包。

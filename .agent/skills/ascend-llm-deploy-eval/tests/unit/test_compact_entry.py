@@ -177,6 +177,7 @@ class CompactTests(unittest.TestCase):
             state=json.loads((root/'status.json').read_text())
             self.assertEqual(state['status'],'FAILED')
             self.assertIn('FAILED',state['cases'].values())
+            self.assertEqual([e['status'] for e in state['timeline'] if e['kind']=='stage'],['RUNNING','FAILED'])
             self.assertTrue(any(p.endswith('-stop.sh') for p in calls))
             self.assertFalse((root/'.runtime/task.lock').exists())
 

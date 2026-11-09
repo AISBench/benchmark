@@ -67,9 +67,11 @@ def write_config(spec, case, service, folder, *, check_files=True):
     if endpoint.scheme not in ('http', 'https') or not endpoint.hostname:
         raise ValueError('Invalid service endpoint')
     summarizer = 'stable_stage' if case.get('steady_state', False) else 'default_perf'
+    # AISBench 3.1 counts total attempts (range(self.retry)); one sends the
+    # initial request with no internal retry. Coordinator max_retries is separate.
     fields = dict(attr='service', abbr='service', path=spec['model']['path'],
                   model=spec['model']['served_name'], stream=True, request_rate=case.get('request_rate', 0),
-                  retry=0, host_ip=endpoint.hostname, host_port=endpoint.port or (443 if endpoint.scheme=='https' else 80),
+                  retry=1, host_ip=endpoint.hostname, host_port=endpoint.port or (443 if endpoint.scheme=='https' else 80),
                   url=service['endpoint'].rstrip('/')+'/', max_out_len=case['output_tokens'],
                   batch_size=case['concurrency'], trust_remote_code=False,
                   generation_kwargs={'temperature':0,'ignore_eos':False})

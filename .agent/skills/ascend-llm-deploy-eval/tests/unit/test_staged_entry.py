@@ -78,6 +78,24 @@ class StageTests(unittest.TestCase):
         self.assertEqual(starts,[('run01',),('run02',)])
         self.assertEqual([path for path,args in calls if path.startswith('scripts/tests')],['scripts/tests/a.sh','scripts/tests/b.sh','scripts/tests/c.sh'])
 
+    def test_implicit_serial_failure_and_skip_do_not_pass_stage_or_abort_remaining_cases(self):
+        spec,plan=fixture();spec.pop('stages')
+        spec['sub_tasks'][1]['deployment_id']='a';spec['sub_tasks'][1]['case_id']='larger'
+        spec['sub_tasks'][0]['on_failure']='skip_higher_concurrency'
+        spec['cases'].append({'id':'larger','concurrency':2})
+        calls=[]
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'.runtime').mkdir();(root/'.runtime/manifest.json').write_text('{"files":{}}')
+            def invoke(group,path,*args,**kwargs):
+                calls.append(path)
+                if path=='scripts/tests/a.sh':raise RuntimeError('first case failed')
+            with patch.object(entry,'distribute'),patch.object(entry,'claim_execution'),patch.object(entry,'collect'),patch.object(entry,'invoke',side_effect=invoke):entry.execute(root,spec,plan)
+            status=json.loads((root/'status.json').read_text())
+        self.assertEqual(status['cases'],{'a':'FAILED','b':'SKIPPED','c':'PASSED'})
+        self.assertIn('scripts/tests/c.sh',calls)
+        self.assertNotIn('scripts/tests/b.sh',calls)
+        self.assertEqual([e['status'] for e in status['timeline'] if e['kind']=='stage'],['RUNNING','FAILED'])
+
     def test_resource_and_task_validation(self):
         spec,_=fixture();spec['deployments']=[{'id':x,'instances':[{'placement':{'node':x}}]} for x in 'abc']
         self.assertEqual(validate_stages(spec),[])
