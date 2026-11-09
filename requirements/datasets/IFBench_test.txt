@@ -1,0 +1,3 @@
+emoji
+syllapy
+pyarrow==15.0.0
