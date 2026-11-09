@@ -12,6 +12,7 @@ sys.path.insert(0,str(PACKAGE/'scripts'))
 import run as entry
 from plan_run import normalize, validate
 from aisbench_cli import commands
+from bash_support import require_bash
 
 
 def inputs():
@@ -88,16 +89,12 @@ class CompactTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Failed'):validate_native_result(root,{'formal_requests':1})
 
     def test_shell_syntax(self):
-        bash=Path('C:/Program Files/Git/bin/bash.exe')
-        if not bash.exists():
-            import shutil
-            bash=shutil.which('bash')
-        if not bash:self.skipTest('Bash unavailable')
+        bash=require_bash()
         spec,bindings=inputs()
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)/'job';entry.generate(spec,bindings,root)
             for file in root.rglob('*.sh'):
-                result=subprocess.run([str(bash),'-n',str(file)],capture_output=True,text=True)
+                result=subprocess.run([str(bash),'-n',str(file)],capture_output=True,text=True,timeout=10)
                 self.assertEqual(result.returncode,0,result.stderr)
 
     def test_native_config_retains_adapter_and_task_load(self):

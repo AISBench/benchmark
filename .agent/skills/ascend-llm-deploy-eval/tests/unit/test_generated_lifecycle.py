@@ -7,13 +7,13 @@ import json
 import os
 from pathlib import Path
 import shlex
-import shutil
 import socket
 import subprocess
 import sys
 import tempfile
 import unittest
 from test_compact_entry import inputs
+from bash_support import require_bash
 import run as entry
 
 
@@ -70,8 +70,7 @@ exit "${FAKE_AISBENCH_EXIT:-0}"
 
 class GeneratedLifecycle(unittest.TestCase):
     def test_shell_lifecycle_success_failed_test_and_foreign_container(self):
-        bash=Path('C:/Program Files/Git/bin/bash.exe') if os.name=='nt' else shutil.which('bash')
-        if not bash or not Path(bash).exists():self.skipTest('Bash unavailable')
+        bash=require_bash()
         with tempfile.TemporaryDirectory() as tmp:
             base=Path(tmp);bin_dir=base/'bin';bin_dir.mkdir();state=base/'fake';state.mkdir()
             weights=base/'weights';weights.mkdir();dataset=base/'data.jsonl'

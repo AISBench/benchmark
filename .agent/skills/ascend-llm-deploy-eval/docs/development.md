@@ -8,7 +8,7 @@
 
 ```sh
 python -m pip install -r requirements.txt
-python -m unittest discover -s tests/unit -v
+python tests/run_unit_tests.py --output /path/outside/repo/unit-test-report.json
 ```
 
 测试通过模拟节点、临时目录与子进程检查规划、配置、打包、共享存储、执行生命周期和资源归属，不需要真实服务器或模型。Windows 会跳过标注为 Linux 专用的测试；完整检查应在 Linux 上执行。
@@ -23,7 +23,7 @@ python -m unittest discover -s tests/unit -v
 
 测试覆盖外部 JSONL/CSV 数据路径、原生配置与命令生成、成功/失败退出、请求数量和长度校验、日志落盘索引及只读日志观察器。测试不需要 Prefix Cache 插件；不使用真实模型、数据集或服务器。Linux 专用进程检查与真实硬件回归需在相应环境执行。
 
-历史记录（2026-11-04）：Windows 110 项中 107 项通过、3 项跳过，当时尚未完成真实 CLI 压测。此记录不表示当前验证状态。
+当前测试结果只维护在[机器生成的验证记录](unit-test-results.md)。旧计数不再作为当前验收依据；实际跳过项随操作系统与 Bash 可用性变化，以报告中的测试 ID 和原因核对。
 
 历史修复、回归覆盖及当时验证边界见 [2026-11-05 修复记录](audit-repairs-20261105.md)。
 
@@ -34,8 +34,15 @@ Generated start/probe scripts append host UTC time, NPU status, fuser PIDs for t
 
 ## 2026-11-09 综合检视修复验证
 
-本轮全量 unittest：Linux / Python 3.11 共 214 项全部通过；Windows / Python 3.11 共 214 项，203 项通过、11 项平台专用测试跳过。Windows 新增跳过两项 Linux flock 分发验证；Linux 已执行这两项。新增回归覆盖显式 privileged、最终 shell 参数边界/JSON/布尔值、日志积压与轮转、事件游标、零输出与 reset 聚合证据、分发失败/强杀/竞争发布。命令为 `python -m unittest discover -s tests/unit -q`。
+当前全量结果、Python/操作系统及每项跳过原因见[验证记录](unit-test-results.md)。报告脚本保留 unittest 的失败退出码，输出 JSON 包括源码摘要、Git 状态、计数及跳过原因；使用 `python tests/render_unit_test_report.py WINDOWS.json LINUX.json --output docs/unit-test-results.md` 生成展示记录，两份报告的测试源码摘要必须一致。
 
 开发过程中 V1–V6 已完成真实 AISBench 小负载流程验证（含原生预热）；V6 实际请求只覆盖 P1，P2/P3 仅健康验证。上述场景不是本次最新代码的完整实机重跑。本轮只执行离线测试，不重新部署模型、不占用 NPU。
 
 Ruff 0.17.4 已扫描 scripts/ 与 tests/：`python -m ruff check --isolated --select E9,F63,F7,F82 scripts tests` 正确性规则通过。另执行开发机现有广泛规则的 `python -m ruff check scripts tests`，仍存在导入排序、宽泛异常捕获、未使用导入等问题，不能标记完整 lint 全绿；没有为消除报告而批量改写历史生命周期实现。该广泛规则依赖开发机配置，不作为仓库统一 lint 基线。完整 lint 整理仍是待办。Git 空白检查及 skill 元数据校验单独执行，不能替代 lint 或真实部署验收。
+
+
+## CI 回归保护
+
+关联 benchmark 仓库的 `.github/workflows/run-ut-on-pr-py.yml` 对 `.agent/**` 及 workflow 自身变更触发。独立的 `skill_unit_tests` job 在 Linux runner 的临时虚拟环境安装本 skill 的 requirements.txt（含 jsonschema/packaging），并调用同一个 tests/run_unit_tests.py；测试失败直接使 job 失败，不依赖 AISBench 核心测试 job 的结果。JSON 报告通过 artifact 保存，runner 上未安装或无法安装依赖会明确失败，不静默跳过测试。
+
+Bash 相关测试共享可执行性探测：优先 Windows Git Bash，再检查 PATH 候选，实际读取 BASH_VERSION。启动失败、无有效版本或超时均以原因明确的 SkipTest 记录，WSL launcher 存在不等于 Bash 可用。Linux CI 必须提供可执行 Bash；测试 runner 支持 --require-bash，CI 启用该选项以防 shell 覆盖静默缺失。

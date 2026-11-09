@@ -19,6 +19,6 @@
 
 旧内部实现保留用于历史行为回归比较，旧命令不可用于新任务；未修改任何历史冻结任务。当前任务不复制整套技能快照。
 
-验证：Windows/Python 3.11、Git Bash；全量 145 项测试，142 项通过，3 项 Linux 专属测试跳过。脚本 AST、4 个 Schema 元语法、完整占位示例生成及 git diff 检查通过。故障注入中的异常日志是预期测试输出。
+历史验证环境为 Windows/Python 3.11 与 Git Bash；本文保留修复范围，不再维护独立测试计数。当前计数和平台跳过原因统一见[机器生成的验证记录](unit-test-results.md)。故障注入中的异常日志是预期测试输出。
 
-未执行真实 SSH、Docker、Ascend 模型部署或真实 AISBench 压测。本机无可用 WSL/Linux，Git Bash 集成不能替代 Linux 实测；上机验证仍需核验实际镜像版本、权重兼容与原生结果布局。accuracy、stop_service 和复杂自动恢复仍是明确拒绝的未实现能力，不属于此次宣称通过的功能。
+当时未执行真实 SSH、Docker、Ascend 模型部署或真实 AISBench 压测。本机无可用 WSL/Linux，Git Bash 集成不能替代 Linux 实测；上机验证仍需核验实际镜像版本、权重兼容与原生结果布局。accuracy、stop_service 和复杂自动恢复仍是明确拒绝的未实现能力，不属于此次宣称通过的功能。
