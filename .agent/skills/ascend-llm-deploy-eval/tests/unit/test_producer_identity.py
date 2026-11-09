@@ -1,7 +1,7 @@
 import copy
 import unittest
 from test_topology import deployment, bindings
-from topology import compile_deployment, validate_deployment
+from topology import compile_deployment, validate_deployment, producer_identity_warnings
 
 class ProducerIdentityTests(unittest.TestCase):
     def dep(self):
@@ -13,10 +13,20 @@ class ProducerIdentityTests(unittest.TestCase):
         dep['connections']['kv_transfer'].append({'producer':'p2','consumer':'d','connector':'MooncakeConnectorV2'})
         dep['connections']['routing'][0]['prefillers'].append('p2')
         return dep
-    def test_duplicate_across_nodes_blocks_generation(self):
+    def test_duplicate_across_nodes_warns_and_preserves_generation(self):
         dep=self.dep()
-        with self.assertRaisesRegex(ValueError,'producer engine_id collision'):
-            compile_deployment(dep,bindings())
+        self.assertTrue(producer_identity_warnings(dep))
+        self.assertEqual(validate_deployment(dep),[])
+        nodes=bindings();nodes['b']['ports']['p2']={'http':13001,'kv':13002}
+        compiled=compile_deployment(dep,nodes)
+        producers=[]
+        for group in compiled['groups'].values():
+            for command in group['commands']:
+                argv=command['argv']
+                if '--kv-transfer-config' in argv:
+                    kv=argv[argv.index('--kv-transfer-config')+1]['json']
+                    if kv['kv_role']=='kv_producer': producers.append(kv['engine_id'])
+        self.assertEqual(producers,['producer','producer'])
     def test_unique_ids_pass_and_preserve_values(self):
         dep=self.dep();dep['instances'][-1]['launch']['engine_id']='other'
         self.assertEqual(validate_deployment(dep),[])
@@ -27,7 +37,7 @@ class ProducerIdentityTests(unittest.TestCase):
     def test_full_kv_override_is_checked(self):
         dep=self.dep();dep['instances'][-1]['launch']['engine_id']='other'
         dep['instances'][-1]['launch']['kv_transfer_config']={'engine_id':'producer'}
-        self.assertTrue(any('collision' in e for e in validate_deployment(dep)))
+        self.assertTrue(producer_identity_warnings(dep))
     def test_no_unsupported_global_uniqueness_rule(self):
         dep=deployment();dep['connections']['kv_transfer'][0]['connector']='MooncakeConnectorV2'
         for item in dep['instances'][:2]:item['launch']['engine_id']='same'

@@ -32,7 +32,9 @@ def normalize(spec):
             container = dep['runtime'].setdefault('container', {})
             for key, value in {**DEFAULT_CONTAINER, 'devices': DEVICES}.items():
                 container.setdefault(key, copy.deepcopy(value))
-        s.setdefault('cleanup',{'after_case':'keep_service','task_end':'stop_container'})
+        cleanup=s.setdefault('cleanup',{})
+        cleanup.setdefault('after_case','keep_service')
+        cleanup.setdefault('task_end','stop_container')
         for case in s.get('cases',[]):
             case.setdefault('mode', 'perf')
             if case['mode'] != 'perf':

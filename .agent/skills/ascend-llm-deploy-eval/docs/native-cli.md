@@ -6,7 +6,7 @@
 
 ## 数据集绑定
 
-用户提供服务器上的 JSONL 或 CSV 文件绝对路径。文件通过同路径挂载供测试容器读取；已被现有挂载覆盖时复用该挂载，否则增加只读挂载。文件不会复制到 Skill、冻结任务包或 Git 仓库。
+用户提供服务器上的 JSONL 或 CSV 文件绝对路径。Agent 须在 bindings 的 mounts 中声明覆盖数据集和 generation_manifest 的挂载，并核验容器可读；生成器仅自动挂载任务与模型目录，不自动补数据挂载。文件不会复制到 Skill、冻结任务包或 Git 仓库。
 
 在节点 `bindings.benchmark.datasets` 中声明数据集，以 `case.dataset_id` 引用：
 
@@ -53,21 +53,22 @@ ais_bench /work/attempt/aisbench-config.py \
 使用标准模式，不加 `--debug`，让 AISBench 将 worker 日志原生落盘到：
 
 ```text
-attempt-NN/
-├── aisbench-config.py
-├── dataset.json                # 仅路径和字段映射，不包含数据内容
-├── benchmark-command.json
-├── execution.json              # CLI 退出码
-├── benchmark.log               # 主进程 stdout/stderr
+scripts/tests/SUBTASK.config.py   # 冻结的原生配置
+scripts/tests/SUBTASK.sh          # 包含实际 AISBench 命令
+results/SUBTASK-tryNN/
+├── aisbench.log                 # AISBench 主进程 stdout/stderr
+├── execution.json              # CLI 退出码（执行进入 after 阶段后）
 ├── outputs/<timestamp>/
 │   ├── configs/
 │   ├── logs/infer/<model>/<dataset>.out
 │   ├── performances/
 │   └── summary/
-├── log-index.json              # 原生日志、主进程日志及工作目录索引
-├── validated.json
-└── cleanup.json
+├── validated.json              # 验证通过后生成
+├── prefix-evidence.json         # 包含预热的缓存观测
+└── cache-reset.json             # 仅显式启用 reset 时
 ```
+
+逐实例 metrics 原文也保存在对应结果目录。失败可能发生在产物生成之前，缺失项须结合失败阶段解释；资源释放结论位于任务 status.json 和 .runtime/finalization.json，不以结果目录存在证明释放成功。
 
 成功和失败都保留日志。验证以退出码、原生请求明细、请求数量、错误与 token 长度以及原生日志为依据，不把进程正常退出直接当成测试通过。
 

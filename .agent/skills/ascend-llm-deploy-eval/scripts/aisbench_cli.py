@@ -26,6 +26,18 @@ def dataset_for(benchmark, case, *, check_files=True):
         raise ValueError('Dataset must be an existing absolute JSONL/CSV path: '+str(path))
     dataset.setdefault('input_column', 'question')
     dataset.setdefault('output_column', 'answer')
+    # The binding itself is knowable even when data lives only on the remote host.
+    # Do not create containers merely to discover a missing evidence path.
+    manifest_value = dataset.get('generation_manifest')
+    if 'shared_prefix_ratio' in case and not manifest_value:
+        raise ValueError('Shared prefix case requires generation manifest evidence')
+    if manifest_value:
+        if not isinstance(manifest_value, str):
+            raise ValueError('Generation manifest must be an absolute path string')
+        manifest_absolute = (Path(manifest_value).is_absolute() if check_files else
+                             PurePosixPath(manifest_value.replace('\\', '/')).is_absolute())
+        if not manifest_absolute:
+            raise ValueError('Generation manifest must be absolute')
     if not check_files:
         return dataset
     if dataset.get('generation_manifest'):
@@ -42,8 +54,6 @@ def dataset_for(benchmark, case, *, check_files=True):
             raise ValueError('Generated dataset input length differs from case')
         if len(evidence['token_lengths'])<case.get('formal_requests',1):
             raise ValueError('Generated dataset has insufficient audited requests')
-    elif 'shared_prefix_ratio' in case:
-        raise ValueError('Shared prefix case requires generation manifest evidence')
     if 'shared_prefix_ratio' in case and manifest['parameters']['prefix_ratio']!=case['shared_prefix_ratio']:
         raise ValueError('Generated prefix target differs from case')
     for name in ('input_column', 'output_column'):

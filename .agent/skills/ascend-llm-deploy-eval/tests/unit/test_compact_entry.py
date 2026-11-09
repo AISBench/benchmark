@@ -39,6 +39,16 @@ def inputs():
 
 
 class CompactTests(unittest.TestCase):
+    def test_missing_prefix_manifest_fails_transactional_generation_before_transport(self):
+        spec,bindings=inputs()
+        spec['cases'][0]['shared_prefix_ratio']=0
+        with tempfile.TemporaryDirectory() as tmp, patch.object(entry,'transport_argv') as transport:
+            root=Path(tmp)/'job'
+            with self.assertRaisesRegex(ValueError,'generation manifest'):
+                entry.generate(spec,bindings,root)
+            self.assertFalse(root.exists())
+            transport.assert_not_called()
+
     def test_cache_reset_api_default_and_opt_out(self):
         spec,bindings=inputs()
         for instance in spec['deployments'][0]['instances']:

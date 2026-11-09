@@ -43,7 +43,7 @@ scripts 不访问服务器，生成可手工检查、执行与复现的脚本。
 - case.mode=perf 使用原生 AISBench；accuracy 仅预留接口，当前拒绝执行，不回退成性能测试。原生配置保存原文，运行前核验模型、端点和负载，运行后核验预期模型×数据集结果组。
 - 全部服务健康且入口冒烟通过后才测试。缺失结果、worker 日志或部署日志不能报告整体通过。指标采集失败记录 UNVERIFIED，不把未知命中率当成零。
 - 只清理由本次执行标识确认拥有的容器。远端任务目录保留独占执行声明，禁止另一协调器重放同一任务。释放无法核验时停止推进；不删除锁后盲目重跑。
-- 支持 after_case=keep_service/stop_container、task_end=stop_container；stop_service 与复杂自动恢复当前阻塞。默认子任务串行；显式 stages 支持阶段内独立分支并行、分支内串行，阶段间强制释放和产物屏障（见统一 CLI）。NODE 表示物理机器，不是 P/D 角色。
+- 支持 after_case=keep_service/stop_container、task_end=stop_container；省略的 cleanup 字段分别默认 keep_service 和 stop_container，子任务显式 after_case 优先；stop_service 与复杂自动恢复当前阻塞。默认子任务串行；显式 stages 支持阶段内独立分支并行、分支内串行，阶段间强制释放和产物屏障（见统一 CLI）。NODE 表示物理机器，不是 P/D 角色。
 
 ## 目录、日志与完成条件
 

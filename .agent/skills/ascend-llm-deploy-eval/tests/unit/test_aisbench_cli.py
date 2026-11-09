@@ -9,6 +9,18 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
 from aisbench_cli import write_config, commands, dataset_for, check_dataset
 
 class NativeCLITests(unittest.TestCase):
+    def test_remote_only_generation_requires_manifest_binding_without_reading_files(self):
+        benchmark={'datasets':{'default':{'path':'/remote/data.jsonl'}}}
+        for ratio in (0,0.9):
+            with self.assertRaisesRegex(ValueError,'generation manifest'):
+                dataset_for(benchmark,{'shared_prefix_ratio':ratio},check_files=False)
+        benchmark['datasets']['default']['generation_manifest']='relative.json'
+        with self.assertRaisesRegex(ValueError,'absolute'):
+            dataset_for(benchmark,{'shared_prefix_ratio':0},check_files=False)
+        benchmark['datasets']['default']['generation_manifest']='/remote/generation.json'
+        self.assertEqual(dataset_for(benchmark,{'shared_prefix_ratio':0},check_files=False)['generation_manifest'],
+                         '/remote/generation.json')
+
     def test_generated_binding_checks_evidence_and_case(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);data=root/'data.jsonl';data.write_text('{"question":"abcd","answer":""}\n')

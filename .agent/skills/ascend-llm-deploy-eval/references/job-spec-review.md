@@ -15,7 +15,7 @@ NOTES 中的跨实例启动顺序也须列入清单：逐项核对前置实例�
 
 命令强校验由上游专门 Agent 负责，本技能仍检查结构、依赖、资源归属与结果证据。原生 AISBench 配置保存原文，目标/负载不一致时回到交互阶段修正后重新确认。
 `launch.args.device-ids`、`ASCEND_RT_VISIBLE_DEVICES` 和 `ASCEND_VISIBLE_DEVICES` 是显式设备选择，必须保留并与 placement.devices 的设备及顺序一致；冲突时报错，不把 CLI 替换成环境变量。未指定任何选择时，保真模式默认生成 ASCEND_RT_VISIBLE_DEVICES，其他模式默认生成 device-ids；交互规划须展示派生值及选择机制。
-多 P/D 审阅须核对同一 consumer 所接收的各 producer 的有效 engine_id。MooncakeConnectorV2 按远端 engine_id 缓存元数据，不能靠不同 IP/端口区分重复 ID；程序拒绝同一 consumer 的不同 producer 使用相同声明 ID。DP 的 _dpN 后缀只区分单个部署中的 rank，不保证独立 producer 唯一。采用实例唯一的基础 ID，并结合指定镜像构造逻辑核对有效 ID 集合（含不同基础 ID 经后缀变换后可能重叠的情况）；未核验的 connector 不套用这一实现假设。ID 调整属于需展示依据的参数调整，确认后冲突直接阻塞，不静默重命名。
+多 P/D 须记录 producer 声明 ID 与物理节点。重复基础 engine_id 仅作 UNVERIFIED 告警，不单凭声明重复认定运行冲突或阻止生成与 FULL。有效 ID、DP 后缀和元数据键依赖指定镜像实现，须结合镜像源码及运行证据核验；不同主机既不证明隔离，也不证明冲突。保持参考 ID，不静默重命名；用户授权实测时按原配置运行，真实启动、通信、冒烟或测试错误及有界超时由生命周期记录并释放本轮资源。
 
 `execution.proxy_start_after_models_healthy` 默认 true，并在规范化 job_spec 中显式物化。统一入口为每个 PD proxy 按其路由生成全部 P/D 实际健康 URL 的启动门控（含跨节点）；每轮逐项检查 HTTP 200，总等待受 startup_timeout_seconds 限制，单次请求有界且绕过环境 HTTP 代理，失败明确退出，不执行代理命令。门控写入实例脚本、位于 bootstrap 和环境设置之后、代理 exec 之前，不修改模型 CLI/KV/环境。审阅须展示此新默认及生成 URL；显式 false 保留原提前启动行为，须执行前说明与参考顺序的差异，不得把最终全组健康等待当成启动前门控。
 容器挂载与依赖审阅：新入口只自动挂载任务/模型，其余驱动库、通信、代理、数据路径须逐项确认实际容器可见性，不推断旧baseline会补齐，也不强制某固定宿主路径。模型依赖预检使用镜像ENV加launch.env，绝不重复执行任意bootstrap；bootstrap动态产生的必要环境须在规划中解析并展示为launch.env。预检错误可能是可见性或环境问题，不自动补挂载/安装依赖。测试工具使用实际测试命令环境独立检查；原生自定义数据只检查已定义本地文件契约，其他loader记PENDING_NATIVE_LOADER_VALIDATION，不下载、造数据或替换bindings。

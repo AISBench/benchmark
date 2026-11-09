@@ -10,6 +10,8 @@ generation.json记录源、上游代码、适配器、tokenizer文件摘要、�
 
 将派生路径放入`bindings.nodes.<node>.benchmark.datasets.<id>.path`，同项增加绝对路径`generation_manifest`。case指定`dataset_id`、`input_tokens`及`shared_prefix_ratio`。运行前核验内容摘要、长度、请求数量与前缀目标。原生预热仍为1次，不执行上游`prefix_test`；其额外请求及dp重复次数不能证明多P/DP覆盖。
 
+标准配置生成阶段即检查：显式声明 `shared_prefix_ratio`（包括 0）必须绑定绝对 `generation_manifest` 路径，缺失时生成失败且不保留半成品、不创建容器。scripts 模式仍不读取远端数据文件；路径存在性、摘要、实际 token 长度及目标比例由实际执行环境继续核验，不能以路径已填写代替数据证据。
+
 每个attempt保留各实例metrics前后原文和时间，prefix-evidence.json按命中增量之和除以查询增量之和计算；计数重置、缺失或标签变化标记无法验证。采样窗口包含原生预热，不能称为纯正式请求命中率；预热路由覆盖另需证据。
 
 `on_failure=skip_higher_concurrency`在失败且完成资源协调后暂停同部署、同输入长度的更高并发，其他长度可继续。未释放资源仍阻塞后续。所有结果与释放结论分别报告。

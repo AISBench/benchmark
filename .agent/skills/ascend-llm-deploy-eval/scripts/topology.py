@@ -17,6 +17,26 @@ def context_limit(args):
     return value
 
 
+def producer_identity_warnings(dep):
+    """Declared IDs alone do not establish image-specific runtime identity."""
+    instances = {i['id']: i for i in dep['instances']}
+    seen = {}; warnings = []
+    for link in dep.get('connections', {}).get('kv_transfer', []):
+        producer = instances.get(link['producer'], {})
+        if link['connector'] != 'MooncakeConnectorV2' or producer.get('role') != 'prefill':
+            continue
+        launch = producer['launch']
+        engine_id = launch.get('kv_transfer_config', {}).get(
+            'engine_id', launch.get('engine_id', dep['id']+'-'+producer['id']))
+        key = (link['consumer'], str(engine_id))
+        previous = seen.setdefault(key, producer['id'])
+        if previous != producer['id']:
+            warnings.append('UNVERIFIED MooncakeConnectorV2 declared producer engine_id duplicate for consumer '+
+                            link['consumer']+': '+previous+' and '+producer['id']+' use '+repr(engine_id)+
+                            '; preserve reference IDs and verify effective identities in the selected image and runtime')
+    return warnings
+
+
 def validate_deployment(dep):
     errors = []
     instances = {i['id']: i for i in dep['instances']}
@@ -81,22 +101,6 @@ def validate_deployment(dep):
             for key, role in [('producer', 'prefill'), ('consumer', 'decode')]:
                 if instances.get(link[key], {}).get('role') != role:
                     errors.append('Invalid KV '+key)
-        # V2 consumers cache remote metadata by producer engine_id, not address.
-        # DP suffixes distinguish ranks within one producer, not separate producers.
-        producer_ids = {}
-        for link in kv:
-            if link['connector'] != 'MooncakeConnectorV2' or link['producer'] not in prefills:
-                continue
-            producer = instances[link['producer']]
-            launch = producer['launch']
-            engine_id = launch.get('kv_transfer_config', {}).get(
-                'engine_id', launch.get('engine_id', dep['id']+'-'+producer['id']))
-            key = (link['consumer'], str(engine_id))
-            previous = producer_ids.setdefault(key, producer['id'])
-            if previous != producer['id']:
-                errors.append('MooncakeConnectorV2 producer engine_id collision for consumer '+
-                              link['consumer']+': '+previous+' and '+producer['id']+
-                              ' use '+repr(engine_id))
         for link in routing:
             if instances.get(link['proxy'], {}).get('role') != 'proxy':
                 errors.append('Invalid routing proxy')

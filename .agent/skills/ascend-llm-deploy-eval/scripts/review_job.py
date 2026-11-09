@@ -8,7 +8,7 @@ import subprocess
 import sys
 from remote_node import transport_argv
 from task_model import load_json, normalize, validate, validate_bindings
-from topology import compile_deployment
+from topology import compile_deployment, producer_identity_warnings
 
 
 PROBE = r'''
@@ -85,10 +85,11 @@ print(json.dumps(result))
 
 
 def assess(spec, bindings, evidence):
-    errors=[]; review=[]
+    errors=[]; review=[]; warnings=[]
     for slot,observed in evidence.items():
         errors.extend(slot+': '+e for e in observed['errors'])
     for dep in spec['deployments']:
+        warnings.extend(producer_identity_warnings(dep))
         compile_deployment(dep,{slot:bindings['nodes'][slot]['deployments'][dep['id']]
             for slot in {i['placement']['node'] for i in dep['instances']}})
         for item in dep['instances']:
@@ -102,7 +103,7 @@ def assess(spec, bindings, evidence):
                 'launch':item['launch'],'devices':item['placement']['devices'],
                 'requires_agent_review':['architecture and quantization support in selected image',
                     'context length / rope scaling','parallelism and memory capacity','connector and proxy dependencies']})
-    return {'status':'BLOCKED' if errors else 'REQUIRES_AGENT_REVIEW','errors':errors,'review':review,'nodes':evidence}
+    return {'status':'BLOCKED' if errors else 'REQUIRES_AGENT_REVIEW','errors':errors,'warnings':warnings,'review':review,'nodes':evidence}
 
 
 def review(spec, bindings):

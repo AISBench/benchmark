@@ -40,6 +40,8 @@ Generated start/probe scripts append host UTC time, NPU status, fuser PIDs for t
 
 上述“本轮”为此前综合检视记录。后续运行时发布修改的当前离线报告已重新生成：仅包含本次 Windows 结果，本机无可用 Linux/WSL，不能把此前 Linux 报告拼接为新源码的完整回归。`tests/unit/test_runtime_publication.py` 覆盖最小运行时导入闭包、文件摘要、显式输入映射、非法路径/主机、重名拒绝、发布失败及中断凭据、只计划模式；Linux 接收端冲突和符号链接隔离测试在 Windows 明确跳过。独立实机 Case 的状态和原始证据存放于仓库外验证目录，不以运行时发布成功代替模型性能或全部释放通过。
 
+前缀清单绑定校验现已提前到标准配置生成阶段；显式 0% 同样需要绝对路径，scripts 模式不因此读取远程文件。对应事务测试确认拒绝时无输出任务目录和传输调用。该修改首次 Windows 全量回归出现一次 `test_parallel_release_and_artifact_barrier` 的 `status.json.tmp` 原子替换 WinError 5；保留失败报告，未据此修改 Linux 协调器。阶段测试和随后全量重跑均通过，暂未确认 Windows 文件拒绝访问的外部原因；当前机器生成记录展示重跑结果，不表示首次运行全绿。
+
 当前可复现 lint 门禁使用本目录 ruff.toml（Python 3.10，E9 与完整 F 规则），检查语法、未定义名字、未使用导入/变量等问题；本轮已清理该范围的存量问题。命令：`python -m ruff check --config ruff.toml scripts tests`。requirements-dev.txt 固定 Ruff 版本，CI 在单元测试前执行，失败阻止 job 通过。此门禁不宣称通过开发机额外的格式、导入排序和全部风格规则，也不替代行为回归。
 
 ## CI 回归保护
@@ -50,3 +52,5 @@ Bash 相关测试共享可执行性探测：优先 Windows Git Bash，再检查 
 
 
 归属采样从 fuser 的 PID 输出列解析，不将设备路径数字当作 PID；保留命令 stdout/stderr、输出截断字符数与 pid_selection（上限、解析数量、超限丢弃数量）。进程在读取前退出仍明确记录读取失败，不将“查不到”解释为已证明设备空闲。
+
+重复 producer 基础 ID 现仅生成审阅告警，不能用未核验的镜像实现假设阻止用户授权实测；仍保留完整参考 KV 参数及运行健康、冒烟、测试和释放检查。部分 cleanup 字段现逐项补默认值，不覆盖显式子任务策略。新增回归覆盖跨节点重名的命令保真与 cleanup 缺省。v5 开发回归前两次因新增测试错误选择代理/consumer 命令而失败，修正测试后完整 235 项中 223 通过、12 Linux 专属跳过，原始失败报告保留在外部验证目录。
