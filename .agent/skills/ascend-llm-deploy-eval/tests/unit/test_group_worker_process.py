@@ -1,20 +1,21 @@
-"""Linux subprocess integration with synthetic job evidence; no Docker/NPU needed."""
+"""Retired entry rejection and historical evidence checks; no Docker/NPU needed."""
 import json
 import os
 from pathlib import Path
-import shutil
+import subprocess
 import sys
 import tempfile
 import time
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]/'scripts'))
-from group_worker import launch, status
+import group_worker
+from group_worker import prepared, terminal
 from stage_runtime import digest
 
 
 @unittest.skipUnless(os.name == 'posix', 'Detached host worker requires Linux')
 class WorkerProcessTests(unittest.TestCase):
-    def test_detached_worker_duplicate_launch_and_terminal_evidence(self):
+    def test_retired_worker_rejects_execution_and_terminal_evidence_remains_strict(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);(root/'logs').mkdir()
             spec={'schema_version':'3.0','job_id':'20260101-997','cleanup':{'task_end':'stop_container'},
@@ -37,20 +38,23 @@ time.sleep(0.4)
             (root/'synthetic.py').write_text(child)
             import shlex
             (root/'run.sh').write_text('exec '+shlex.join([sys.executable,str(root/'synthetic.py')])+'\n')
-            self.assertEqual(status(root,sha)['state'],'PENDING')
-            launch(root,sha);launch(root,sha)
-            deadline=time.monotonic()+10
-            while time.monotonic()<deadline:
-                observed=status(root,sha)
-                if observed['state']!='RUNNING': break
-                time.sleep(.1)
+            # Retirement is intentional: never re-enable the old public coordinator.
+            result=subprocess.run([sys.executable,str(Path(group_worker.__file__)),
+                                   '--execute',str(root),'--sha256',sha],capture_output=True,text=True,timeout=10)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('Retired lifecycle entry',result.stderr)
+            self.assertFalse((root/'starts').exists())
+            self.assertFalse((root/'group-worker.json').exists())
+            # Retained historical evidence readers are tested without launching the retired wrapper.
+            subprocess.run([sys.executable,str(root/'synthetic.py')],check=True,timeout=10)
+            parsed,resolved,_,_=prepared(root,sha)
+            observed=terminal(root,parsed,resolved)
             self.assertEqual(observed['state'],'DONE',observed)
             self.assertTrue(observed['cleanup_verified'])
             self.assertEqual((root/'starts').read_text(),'started\n')
-            self.assertEqual(launch(root,sha)['state'],'DONE')
             # A summary is insufficient if any registered node lacks release evidence.
             (root/'release-results.json').write_text('{}')
-            self.assertEqual(status(root,sha)['state'],'BLOCKED')
+            self.assertEqual(terminal(root,parsed,resolved)['state'],'BLOCKED')
 
 
 if __name__ == '__main__': unittest.main()

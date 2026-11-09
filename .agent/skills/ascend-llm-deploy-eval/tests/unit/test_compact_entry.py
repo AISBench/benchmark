@@ -120,7 +120,7 @@ class CompactTests(unittest.TestCase):
                 name=next(n for n in manifest if n in str(argv));return Mock(returncode=0,stdout=manifest[name]+' file')
             response=Mock();response.__enter__=Mock(return_value=Mock(status=200));response.__exit__=Mock(return_value=False)
             opener=Mock();opener.open.return_value=response
-            with patch.object(entry,'distribute'),patch.object(entry,'claim_execution'),patch.object(entry,'collect'),patch.object(entry,'invoke') as invoke,patch.object(entry.subprocess,'run',side_effect=remote),patch.object(entry.urllib.request,'build_opener',return_value=opener):
+            with patch.object(entry,'transport_argv',side_effect=lambda host,argv:argv),patch.object(entry,'distribute'),patch.object(entry,'claim_execution'),patch.object(entry,'collect'),patch.object(entry,'invoke') as invoke,patch.object(entry.subprocess,'run',side_effect=remote),patch.object(entry.urllib.request,'build_opener',return_value=opener):
                 entry.execute(root,spec,plan)
             state=json.loads((root/'status.json').read_text())
             self.assertEqual(state['status'],'PASSED')
@@ -172,7 +172,7 @@ class CompactTests(unittest.TestCase):
             def invoke(group,relative,*args,**kwargs):
                 calls.append(relative)
                 if relative.endswith('-start.sh'):raise RuntimeError('start failed')
-            with patch.object(entry,'distribute'),patch.object(entry,'claim_execution'),patch.object(entry,'collect'),patch.object(entry,'invoke',side_effect=invoke),patch.object(entry.subprocess,'run',side_effect=remote):
+            with patch.object(entry,'transport_argv',side_effect=lambda host,argv:argv),patch.object(entry,'distribute'),patch.object(entry,'claim_execution'),patch.object(entry,'collect'),patch.object(entry,'invoke',side_effect=invoke),patch.object(entry.subprocess,'run',side_effect=remote):
                 entry.execute(root,spec,plan)
             state=json.loads((root/'status.json').read_text())
             self.assertEqual(state['status'],'FAILED')
@@ -190,7 +190,7 @@ class CompactTests(unittest.TestCase):
                 return Mock(returncode=0,stdout=manifest[name]+' file')
             def invoke(group,relative,*args,**kwargs):
                 if relative.endswith('-start.sh'):raise KeyboardInterrupt()
-            with patch.object(entry,'distribute'),patch.object(entry,'claim_execution'),patch.object(entry,'collect'),patch.object(entry,'invoke',side_effect=invoke),patch.object(entry.subprocess,'run',side_effect=remote):
+            with patch.object(entry,'transport_argv',side_effect=lambda host,argv:argv),patch.object(entry,'distribute'),patch.object(entry,'claim_execution'),patch.object(entry,'collect'),patch.object(entry,'invoke',side_effect=invoke),patch.object(entry.subprocess,'run',side_effect=remote):
                 with self.assertRaises(KeyboardInterrupt):entry.execute(root,spec,plan)
             state=json.loads((root/'status.json').read_text())
             self.assertEqual(state['status'],'INTERRUPTED');self.assertNotIn('RUNNING',state['cases'].values())
