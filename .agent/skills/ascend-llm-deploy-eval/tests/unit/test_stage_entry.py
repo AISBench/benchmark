@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 import subprocess
 import sys
@@ -10,7 +9,7 @@ SCRIPTS = Path(__file__).resolve().parents[2]/'scripts'
 
 class StageEntryTests(unittest.TestCase):
     def invoke(self, root):
-        # Historical internal dispatch regression; public preflight CLI is retired.
+        # Retired dispatch must reject even if a valid historical plan exists.
         code = (
             'import runpy,sys,types; '
             f'sys.path.insert(0,{str(SCRIPTS)!r}); '
@@ -23,26 +22,30 @@ class StageEntryTests(unittest.TestCase):
         )
         return subprocess.run([sys.executable, '-c', code], capture_output=True, text=True)
 
-    def test_common_plan_reaches_dispatch(self):
+    def test_common_plan_cannot_reactivate_retired_dispatch(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root/'common').mkdir()
             (root/'common/plan.json').write_text('{}')
             result = self.invoke(root)
-            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-            self.assertEqual(json.loads(result.stdout)['message'], 'dispatched:preflight')
+            self.assert_retired(result)
+            self.assertEqual(sorted(p.relative_to(root).as_posix() for p in root.rglob('*')),
+                             ['common', 'common/plan.json'])
 
     def test_legacy_root_plan_does_not_mask_missing_task_plan(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root/'plan.json').write_text('{}')
             result = self.invoke(root)
-            self.assertEqual(result.returncode, 2, result.stderr)
-            report = json.loads(result.stdout)
-            self.assertEqual(report['status'], 'BLOCKED')
-            self.assertIn(str(root/'common/plan.json'), report['message'])
+            self.assert_retired(result)
+            self.assertEqual([p.name for p in root.iterdir()], ['plan.json'])
 
     def test_relative_run_directory_is_rejected(self):
         result = self.invoke(Path('relative-job'))
-        self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertIn('Absolute run-dir required', json.loads(result.stdout)['message'])
+        self.assert_retired(result)
+
+    def assert_retired(self, result):
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Retired lifecycle entry', result.stderr)
+        self.assertIn('scripts/run.py', result.stderr)
+        self.assertEqual(result.stdout, '')

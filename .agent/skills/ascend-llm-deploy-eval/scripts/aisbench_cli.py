@@ -6,6 +6,14 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 
+def dataset_digest(path):
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def dataset_for(benchmark, case, *, check_files=True):
     key = case.get('dataset_id', 'default')
     datasets = benchmark.get('datasets', {})
@@ -25,7 +33,7 @@ def dataset_for(benchmark, case, *, check_files=True):
         if not manifest_path.is_absolute():
             raise ValueError('Generation manifest must be absolute')
         manifest=json.loads(manifest_path.read_text(encoding='utf-8'))
-        if hashlib.sha256(path.read_bytes()).hexdigest()!=manifest['dataset_sha256']:
+        if dataset_digest(path)!=manifest['dataset_sha256']:
             raise ValueError('Generated dataset digest mismatch')
         evidence=manifest['audit']
         if not evidence['exact_lengths']:
@@ -143,4 +151,4 @@ def validate_native_result(folder, case):
     if not any(p.is_file() for p in (folder/'outputs').glob('*/logs/**/*')):
         raise ValueError('Missing native AISBench worker logs')
     (folder/'validated.json').write_text(json.dumps({'status':'PASSED','mode':'perf',
-        'config':'native','request_groups':len(files)},indent=2),encoding='utf-8')
+        'config':'native' if case.get('aisbench_config') else 'generated','request_groups':len(files)},indent=2),encoding='utf-8')

@@ -24,6 +24,7 @@ JOB_ID/
   bindings.json
   status.json
   scripts/DEPLOYMENT/NODE-container.sh
+  scripts/DEPLOYMENT/NODE-dependencies.sh
   scripts/DEPLOYMENT/NODE-start.sh
   scripts/DEPLOYMENT/NODE-INSTANCE.sh
   scripts/DEPLOYMENT/NODE-probe.sh
@@ -37,6 +38,8 @@ JOB_ID/
   results/SUBTASK-try01/outputs/...
   .runtime/
 ```
+
+`NODE-INSTANCE.sh` 中 INSTANCE 为 job_spec 的实例 id（包括 proxy），与节点级 container/dependencies/start/probe/stop 脚本并存；start.sh 调用这些实例脚本。
 
 `.runtime` 保存分发索引、文件摘要、任务锁、远端执行声明、容器 ID 与执行标识、运行编号和必要检查程序。没有逐阶段快照。status.json 只有协调器写入，包含 case、资源释放与产物汇集状态。共享目录验证可见且摘要一致后复用；独立目录分发同一包，结果最终收集到协调节点。文件和日志的 NODE 指物理机器，不是 P/D 角色。
 
@@ -117,3 +120,7 @@ AISBench 默认生成配置使用 `retry=1`：已核验的 AISBench 3.1 实现�
 FULL 增加创建全部容器→全部依赖预检通过→模型启动屏障。scripts生成NODE-dependencies.sh但不运行。模型import torch_npu使用镜像ENV+launch.env；不执行bootstrap。实际测试容器记录AISBench入口所属发行包/版本，检查数据可读与字段；原生未知loader延后原生加载验证。execution.dependency_timeout_seconds默认120秒，容器内监督进程超时终止检查进程组；失败按现有归属收尾。logs/DEPLOYMENT-runNN/NODE-dependencies.log为必需产物，重建容器重新检查。
 
 同一任务的不同部署需要不同代理程序时，在对应 proxy 实例设置 `launch.proxy_program_key`（默认 `proxy_program`，只允许字母/下划线开头的标识符），选择 `bindings.nodes[节点].paths[该键]` 的物理路径。例如 A/B 使用 `reference_proxy`，C/D 使用 `image_proxy`；同一节点同时绑定两个路径，无须切换文件或 wrapper。该字段仅供 proxy 使用，模型实例声明会被拒绝；缺少所选路径时生成阻断。它不改变代理参数、路由或健康门控。
+
+任务锁冲突时给出锁路径和 PID 存活线索。PID 存在不证明仍是原协调器（可能复用）；PID 不存在也不证明远端资源已释放。请核验协调器身份、status、两节点资源归属与日志，保留旧目录，使用新任务编号重新规划；不要直接删除锁重跑旧任务。
+
+自动重试只用于已识别的传输失败（SSH 退出码255）及测试阶段以外的连接/超时；配置错误、远端脚本拒绝、未分类错误和测试阶段失败/超时不重跑。status.attempt_failures 保留阶段、原因、可重试判断与实际是否重试，max_retries 仍是上限，释放失败继续阻止推进。

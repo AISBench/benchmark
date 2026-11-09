@@ -1,5 +1,7 @@
 """Shared stage IO, ownership checks, service state and container-wide lock."""
-import argparse
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts.')
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
@@ -165,16 +167,4 @@ def record(root,stage,operation):
 
 
 def entry(stage):
-    p=argparse.ArgumentParser(); p.add_argument('--run-dir',type=Path,required=True)
-    p.add_argument('--bindings',type=Path)
-    args=p.parse_args()
-    plan_path = args.run_dir/'common/plan.json'
-    error = ('Absolute run-dir required: '+str(args.run_dir) if not args.run_dir.is_absolute()
-             else 'Task plan missing: '+str(plan_path) if not plan_path.is_file() else None)
-    if error:
-        print(json.dumps({'stage':stage,'status':'BLOCKED','message':error,'artifacts':[]}))
-        return 2
-    def run():
-        from task_runtime import stage_entry
-        return stage_entry(stage,args.run_dir,args.bindings)
-    return record(args.run_dir,stage,run)
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts.')

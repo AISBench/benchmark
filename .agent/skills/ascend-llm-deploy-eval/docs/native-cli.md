@@ -78,3 +78,5 @@ python3 /work/JOB/common/skill-snapshot/scripts/watch_logs.py --run-dir /work/JO
 ```
 
 观察器同时跟踪 `benchmark.log`、`runner.log` 和 AISBench 原生 `.out`/`.log` 文件。Ctrl+C 只关闭观察，不停止任务。多节点按日志实际所在节点运行；任务数据与日志保存在仓库外。
+
+validated.json 的 config 为 generated（技能生成配置）或 native（case 提供 aisbench_config），与实际输入来源一致。数据集摘要采用分块 SHA256，不将整文件读入内存；行字段检查仍仅读取请求所需切片。

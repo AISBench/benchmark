@@ -50,7 +50,7 @@ def summarize(folder):
     previous={r['id']:r for r in before['instances']}
     records=[]
     for final in after['instances']:
-        if final.get('role')!='prefill': continue
+        if final.get('role') not in ('prefill','mixed'): continue
         record={'id':final['id'],'status':'UNVERIFIED'}
         try:
             initial=previous[final['id']]
@@ -72,7 +72,7 @@ def summarize(folder):
         except Exception as exc:
             record['error']=repr(exc)
         records.append(record)
-    complete=bool(records) and len(records)==sum(r.get('role')=='prefill' for r in before['instances']) and all(r['status']=='VERIFIED' for r in records)
+    complete=bool(records) and len(records)==sum(r.get('role') in ('prefill','mixed') for r in before['instances']) and all(r['status']=='VERIFIED' for r in records)
     report={'instances':records,'window':before['window'],'status':'VERIFIED' if complete else 'UNVERIFIED',
             'warmup_route_coverage':'UNVERIFIED','aggregation':'sum(hit deltas) / sum(query deltas)'}
     if complete:

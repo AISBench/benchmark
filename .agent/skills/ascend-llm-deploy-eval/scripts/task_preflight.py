@@ -1,4 +1,5 @@
 """Bind normalized task fields to this host before the serial loop starts."""
+from task_model import expand
 import hashlib
 import ipaddress
 import json
@@ -134,18 +135,19 @@ def inspect_image_tools(image, job_id):
     existing = subprocess.run(['docker', 'inspect', name], capture_output=True, text=True)
     if existing.returncode == 0:
         raise ValueError('Probe name already exists; do not reuse '+name)
+    image_id = json.loads(command(['docker', 'image', 'inspect', image]))[0]['Id']
     code = (PACKAGE/'scripts/discover_tool.py').read_text(encoding='utf-8-sig')
     try:
         output = command(['docker', 'run', '--rm', '--name', name,
             '--label', 'benchmark.job_id='+job_id, '--label', 'benchmark.role=preflight-probe',
-            '--network=none', '--entrypoint', 'python3', image, '-c', code], timeout=120)
+            '--network=none', '--entrypoint', 'python3', image_id, '-c', code], timeout=120)
         return json.loads(output)
     finally:
         remaining = subprocess.run(['docker', 'inspect', name], capture_output=True, text=True)
         if remaining.returncode == 0:
             container = json.loads(remaining.stdout)[0]
             labels = container['Config'].get('Labels') or {}
-            if labels.get('benchmark.job_id') != job_id or labels.get('benchmark.role') != 'preflight-probe' or container['Image'] != image:
+            if labels.get('benchmark.job_id') != job_id or labels.get('benchmark.role') != 'preflight-probe' or container['Image'] != image_id:
                 raise ValueError('Probe ownership changed; refuse cleanup')
             command(['docker', 'rm', '-f', container['Id']])
             if subprocess.run(['docker', 'inspect', container['Id']], capture_output=True).returncode == 0:
@@ -250,5 +252,3 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
     save(child/'scripts/service.json', service)
     return {'run_dir': str(child), 'execution_sha256': digest(execution),
             'service_fingerprint': fingerprint, 'scripts_sha256': fingerprints, 'tool_discovery': tools}
-
-from task_model import lookup, expand

@@ -8,6 +8,7 @@ import argparse
 import ast
 import base64
 import copy
+import csv
 import hashlib
 import json
 import logging
@@ -341,6 +342,24 @@ def _generate(spec, bindings, root):
     return spec, plan
 
 
+class ScriptFailure(RuntimeError):
+    def __init__(self, relative, returncode):
+        self.returncode = returncode
+        super().__init__(f'{relative} exited {returncode}')
+
+
+def retry_decision(error, phase):
+    if phase == 'test':
+        return False, 'Test failure or timeout; preserve result without replay'
+    if isinstance(error, ValueError):
+        return False, 'Invalid configuration'
+    if isinstance(error, ScriptFailure):
+        return error.returncode == 255, 'Transport failure' if error.returncode == 255 else 'Remote script rejected operation'
+    if isinstance(error, (TimeoutError, subprocess.TimeoutExpired, ConnectionError)):
+        return True, 'Infrastructure timeout or connection failure'
+    return False, 'Unclassified failure; no automatic replay'
+
+
 def invoke(group, relative, *args, timeout=240):
     argv = transport_argv(group['host'], ['bash',group['root']+'/'+relative,*args])
     logging.info('Executing %s on %s',relative,group['host'])
@@ -348,7 +367,7 @@ def invoke(group, relative, *args, timeout=240):
     if result.stdout: logging.info('%s',result.stdout.rstrip())
     if result.stderr: logging.info('%s',result.stderr.rstrip())
     if result.returncode:
-        raise RuntimeError(f'{relative} exited {result.returncode}')
+        raise ScriptFailure(relative, result.returncode)
     return result.stdout
 
 
@@ -448,10 +467,40 @@ def collect(root, plan):
     if missing:raise RuntimeError('Missing required artifacts: '+', '.join(missing))
 
 
+def check_process(pid):
+    if os.name == 'nt':
+        # os.kill(pid, 0) is not a non-destructive existence check on Windows.
+        result = subprocess.run(['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV', '/NH'],
+                                capture_output=True, text=True, timeout=10)
+        if result.returncode:
+            raise PermissionError('Cannot inspect process list')
+        if not any(len(row) > 1 and row[1] == str(pid)
+                   for row in csv.reader(result.stdout.splitlines())):
+            raise ProcessLookupError(pid)
+    else:
+        os.kill(pid, 0)
+
+
 def execute(root, spec, plan):
     """One foreground coordinator. Caller may manage its lifetime with a service manager."""
     lock=root/'.runtime/task.lock'
-    fd=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
+    try:
+        fd=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
+    except FileExistsError as error:
+        hint='unreadable or invalid PID'
+        try:
+            pid=int(lock.read_text())
+            if pid<=0: raise ValueError('Invalid PID')
+            try:
+                check_process(pid)
+                hint=f'PID {pid} exists (identity unverified)'
+            except ProcessLookupError:
+                hint=f'stale coordinator PID {pid}; remote resources may remain'
+            except PermissionError:
+                hint=f'PID {pid} cannot be inspected'
+        except (OSError,ValueError,subprocess.TimeoutExpired):
+            pass
+        raise FileExistsError(f'Task execution lock exists: {lock}; {hint}. Verify coordinator and remote resources; retain evidence and use a new task directory. Do not blindly delete the lock.') from error
     os.write(fd,str(os.getpid()).encode());os.close(fd)
     token=uuid.uuid4().hex
     status={'status':'RUNNING','cases':{},'release':{},'expected_artifacts':[], 'timeline':[]}
@@ -507,6 +556,7 @@ def execute(root, spec, plan):
                 dep_id=sub['deployment_id'];dep=plan['deployments'][dep_id]
                 case_state(sub['id'],'RUNNING')
                 for attempt in range(1,spec['execution']['max_retries']+2):
+                    phase='deployment'
                     try:
                         with state_lock: has_active=any(key[0] in owned for key in active)
                         if not has_active:
@@ -527,6 +577,7 @@ def execute(root, spec, plan):
                                 publish()
                                 invoke(group,f'scripts/{dep_id}/{slot}-start.sh',f'run{run_number:02}')
                         deadline=time.monotonic()+spec['execution']['startup_timeout_seconds']
+                        phase='health'
                         opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
                         while True:
                             require_running()
@@ -541,20 +592,28 @@ def execute(root, spec, plan):
                                 if time.monotonic()>=deadline: raise TimeoutError('Service readiness timed out')
                                 time.sleep(2)
                         if spec['execution']['smoke']!='skip':
+                            phase='smoke'
                             invoke(dep['groups'][dep['endpoint_node']],f'scripts/{dep_id}/smoke.sh',timeout=spec['execution']['smoke_timeout_seconds']+10)
                         test=plan['tests'][sub['id']]
                         with state_lock: status['expected_artifacts'].append(f"results/{sub['id']}-try{attempt:02}/aisbench.log")
                         publish()
                         require_running()
+                        phase='test'
                         invoke(dep['groups'][test['node']],f"scripts/tests/{sub['id']}.sh",f'try{attempt:02}',timeout=test['timeout'])
                         with state_lock: status['expected_artifacts'].append(f"results/{sub['id']}-try{attempt:02}/validated.json")
                         case_state(sub['id'],'PASSED');break
-                    except Exception:
+                    except Exception as error:
                         logging.exception('Subtask %s attempt %s failed',sub['id'],attempt)
+                        retryable,reason=retry_decision(error,phase)
+                        retrying=retryable and attempt<=spec['execution']['max_retries'] and not cancelled.is_set()
+                        with state_lock:
+                            status.setdefault('attempt_failures',[]).append({'case':sub['id'],'attempt':attempt,'phase':phase,'retryable':retryable,'retrying':retrying,'reason':reason,'error':str(error)})
+                        publish()
                         release(owned)
-                        if attempt==spec['execution']['max_retries']+1:
+                        if not retrying:
                             case_state(sub['id'],'FAILED')
                             if 'stages' in spec: cancelled.set()
+                            break
                 next_dep=subtasks[index+1]['deployment_id'] if index+1<len(subtasks) else None
                 if sub['after_case']!='keep_service' or next_dep!=dep_id:
                     release(owned)

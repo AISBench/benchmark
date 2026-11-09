@@ -75,6 +75,45 @@
           }
         }
       }
+    },
+    "attempt_failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case",
+          "attempt",
+          "phase",
+          "retryable",
+          "retrying",
+          "reason",
+          "error"
+        ],
+        "properties": {
+          "case": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "retrying": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
     }
   }
 }

@@ -13,3 +13,5 @@ generation.json记录源、上游代码、适配器、tokenizer文件摘要、�
 每个attempt保留各实例metrics前后原文和时间，prefix-evidence.json按命中增量之和除以查询增量之和计算；计数重置、缺失或标签变化标记无法验证。采样窗口包含原生预热，不能称为纯正式请求命中率；预热路由覆盖另需证据。
 
 `on_failure=skip_higher_concurrency`在失败且完成资源协调后暂停同部署、同输入长度的更高并发，其他长度可继续。未释放资源仍阻塞后续。所有结果与释放结论分别报告。
+
+前缀计数覆盖 prefill 和 mixed 实例，先逐实例/标签求增量再加权汇总；decode 不参与该口径。缺失、重置或标签变化继续标记 UNVERIFIED。

@@ -1,4 +1,7 @@
 """Serial topology coordinator; node operations use owned local lifecycle scripts."""
+
+if __name__ == '__main__':
+    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts.')
 import copy
 import json
 from pathlib import Path
@@ -9,6 +12,7 @@ import time
 from stage_runtime import save, digest, http, command
 from remote_node import RemoteNode, PortConflict, transport_argv
 from topology import compile_deployment, context_limit
+from task_model import higher_concurrency_blocker
 from task_events import emit
 from node_identity import node_job_id, node_root as physical_node_root
 
@@ -334,7 +338,3 @@ def run(root, spec, resolved):
         summary = {'status':'PASSED' if passed else 'FAILED','message':'Serial topology task finished; inspect per-node evidence','artifacts':[str(root/'summary.json')],'sub_tasks':results,'cleanup':cleanup}
         save(root/'summary.json', summary)
     return summary
-
-
-
-from task_model import higher_concurrency_blocker
