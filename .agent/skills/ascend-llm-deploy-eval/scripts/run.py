@@ -21,6 +21,9 @@ import time
 import urllib.request
 import uuid
 import tempfile
+import threading
+import queue
+from concurrent.futures import ThreadPoolExecutor, wait
 
 from aisbench_cli import commands, require_supported_mode, write_config
 from container_baseline import docker_run_args
@@ -94,6 +97,17 @@ def _generate(spec, bindings, root):
     errors = validate(spec)
     if errors:
         raise ValueError('; '.join(errors))
+    # Node aliases must not hide physical resource overlap between parallel branches.
+    tasks_by_id={s['id']:s for s in spec['sub_tasks']}
+    deps_by_id={d['id']:d for d in spec['deployments']}
+    for stage in spec.get('stages',[]):
+        reserved=set()
+        for branch in stage['branches']:
+            hosts={bindings['nodes'][i['placement']['node']]['host'].split('@')[-1].lower()
+                   for sid in branch['sub_tasks']
+                   for i in deps_by_id[tasks_by_id[sid]['deployment_id']]['instances']}
+            if hosts & reserved: raise ValueError('Parallel branches share a bound host')
+            reserved.update(hosts)
     if spec['state'] != 'ready':
         raise ValueError('Resolve draft before generating executable scripts')
     for case in spec['cases']:
@@ -386,19 +400,112 @@ def execute(root, spec, plan):
     fd=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
     os.write(fd,str(os.getpid()).encode());os.close(fd)
     token=uuid.uuid4().hex
-    status={'status':'RUNNING','cases':{},'release':{},'expected_artifacts':[]}
+    status={'status':'RUNNING','cases':{},'release':{},'expected_artifacts':[], 'timeline':[]}
     active={}
-    def publish(): save(root/'status.json',status)
-    def release():
+    run_counter=0
+    state_lock=threading.RLock()
+    cancelled=threading.Event()
+    pending=queue.Queue()
+    owner=threading.get_ident()
+    def drain():
+        while True:
+            try: snapshot=pending.get_nowait()
+            except queue.Empty: break
+            save(root/'status.json',snapshot)
+    def publish():
+        with state_lock: pending.put(copy.deepcopy(status))
+        if threading.get_ident()==owner: drain()
+    def event(kind, identity, value):
+        with state_lock:
+            status['timeline'].append({'time':time.time(),'kind':kind,'id':identity,'status':value})
+        logging.info('%s %s %s',kind,identity,value)
+        publish()
+    def case_state(identity,value):
+        with state_lock: status['cases'][identity]=value
+        event('case',identity,value)
+    def require_running():
+        if cancelled.is_set(): raise RuntimeError('Stage cancelled')
+    def release(owned=None):
         failures=[]
-        for (dep,slot),group in list(active.items()):
+        with state_lock: entries=list(active.items())
+        for (dep,slot),group in entries:
+            if owned is not None and dep not in owned: continue
             try:
                 invoke(group,f'scripts/{dep}/{slot}-stop.sh',token)
-                status['release'][dep+'/'+slot]='PASSED';del active[(dep,slot)]
+                with state_lock:
+                    status['release'][dep+'/'+slot]='PASSED';del active[(dep,slot)]
             except Exception as exc:
-                status['release'][dep+'/'+slot]=str(exc);failures.append(str(exc))
+                with state_lock: status['release'][dep+'/'+slot]=str(exc)
+                failures.append(str(exc))
         publish()
         if failures: raise RuntimeError('Release not verified: '+'; '.join(failures))
+    def branch_run(subtasks, branch_id):
+        nonlocal run_counter
+        owned={s['deployment_id'] for s in subtasks}
+        run_number=0
+        event('branch',branch_id,'RUNNING')
+        try:
+            for index,sub in enumerate(subtasks):
+                if cancelled.is_set(): raise RuntimeError('Stage cancelled')
+                with state_lock: previous={key:{'status':value} for key,value in status['cases'].items()}
+                if higher_concurrency_blocker({**spec, 'sub_tasks':subtasks},sub,previous):
+                    case_state(sub['id'],'SKIPPED');continue
+                dep_id=sub['deployment_id'];dep=plan['deployments'][dep_id]
+                case_state(sub['id'],'RUNNING')
+                for attempt in range(1,spec['execution']['max_retries']+2):
+                    try:
+                        with state_lock: has_active=any(key[0] in owned for key in active)
+                        if not has_active:
+                            with state_lock:
+                                run_counter+=1
+                                run_number=run_counter
+                            for slot,group in dep['groups'].items():
+                                require_running()
+                                with state_lock: active[(dep_id,slot)]=group
+                                invoke(group,f'scripts/{dep_id}/{slot}-container.sh',token)
+                            for slot,group in dep['groups'].items():
+                                with state_lock: status['expected_artifacts'].extend(f'logs/{dep_id}-run{run_number:02}/{name}' for name in group['log_names'])
+                                publish()
+                                invoke(group,f'scripts/{dep_id}/{slot}-start.sh',f'run{run_number:02}')
+                        deadline=time.monotonic()+spec['execution']['startup_timeout_seconds']
+                        opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                        while True:
+                            require_running()
+                            for slot,group in dep['groups'].items():
+                                invoke(group,f'scripts/{dep_id}/{slot}-probe.sh')
+                            try:
+                                for url in dep['health_urls']:
+                                    with opener.open(url,timeout=5) as response:
+                                        if response.status!=200: raise RuntimeError('Health failed')
+                                break
+                            except Exception:
+                                if time.monotonic()>=deadline: raise TimeoutError('Service readiness timed out')
+                                time.sleep(2)
+                        if spec['execution']['smoke']!='skip':
+                            invoke(dep['groups'][dep['endpoint_node']],f'scripts/{dep_id}/smoke.sh',timeout=spec['execution']['smoke_timeout_seconds']+10)
+                        test=plan['tests'][sub['id']]
+                        with state_lock: status['expected_artifacts'].append(f"results/{sub['id']}-try{attempt:02}/aisbench.log")
+                        publish()
+                        require_running()
+                        invoke(dep['groups'][test['node']],f"scripts/tests/{sub['id']}.sh",f'try{attempt:02}',timeout=test['timeout'])
+                        with state_lock: status['expected_artifacts'].append(f"results/{sub['id']}-try{attempt:02}/validated.json")
+                        case_state(sub['id'],'PASSED');break
+                    except Exception:
+                        logging.exception('Subtask %s attempt %s failed',sub['id'],attempt)
+                        release(owned)
+                        if attempt==spec['execution']['max_retries']+1:
+                            case_state(sub['id'],'FAILED')
+                            if 'stages' in spec: cancelled.set()
+                next_dep=subtasks[index+1]['deployment_id'] if index+1<len(subtasks) else None
+                if sub['after_case']!='keep_service' or next_dep!=dep_id:
+                    release(owned)
+        except BaseException as exc:
+            cancelled.set()
+            event('branch',branch_id,'INTERRUPTED' if isinstance(exc,KeyboardInterrupt) else 'FAILED')
+            raise
+        finally:
+            release(owned)
+        event('branch',branch_id,'PASSED' if all(status['cases'].get(s['id'])=='PASSED' for s in subtasks) else 'FAILED')
     try:
         distribute(root,plan)
         claim_execution(plan,token)
@@ -412,55 +519,34 @@ def execute(root, spec, plan):
                         result=subprocess.run(transport_argv(group['host'],command),capture_output=True,text=True,timeout=30)
                         if result.returncode or result.stdout.split()[0]!=digest:
                             raise ValueError('Bundle unavailable or changed on '+group['host']+': '+relative)
-        run_number=0
-        for index,sub in enumerate(spec['sub_tasks']):
-            previous={key:{'status':value} for key,value in status['cases'].items()}
-            if higher_concurrency_blocker(spec,sub,previous):
-                status['cases'][sub['id']]='SKIPPED';publish();continue
-            dep_id=sub['deployment_id'];dep=plan['deployments'][dep_id]
-            status['cases'][sub['id']]='RUNNING';publish()
-            for attempt in range(1,spec['execution']['max_retries']+2):
+        stages=spec.get('stages') or [{'id':'serial','branches':[{'id':'serial','sub_tasks':[s['id'] for s in spec['sub_tasks']]}]}]
+        tasks={s['id']:s for s in spec['sub_tasks']}
+        for stage in stages:
+            event('stage',stage['id'],'RUNNING')
+            with ThreadPoolExecutor(max_workers=len(stage['branches'])) as pool:
+                futures=[pool.submit(branch_run,[tasks[sid] for sid in branch['sub_tasks']],stage['id']+'/'+branch['id']) for branch in stage['branches']]
                 try:
-                    if not active:
-                        run_number+=1
-                        for slot,group in dep['groups'].items():
-                            active[(dep_id,slot)]=group
-                            invoke(group,f'scripts/{dep_id}/{slot}-container.sh',token)
-                        for slot,group in dep['groups'].items():
-                            status['expected_artifacts'].extend(f'logs/{dep_id}-run{run_number:02}/{name}' for name in group['log_names'])
-                            publish()
-                            invoke(group,f'scripts/{dep_id}/{slot}-start.sh',f'run{run_number:02}')
-                    deadline=time.monotonic()+spec['execution']['startup_timeout_seconds']
-                    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
-                    while True:
-                        for slot,group in dep['groups'].items():
-                            invoke(group,f'scripts/{dep_id}/{slot}-probe.sh')
-                        try:
-                            for url in dep['health_urls']:
-                                with opener.open(url,timeout=5) as response:
-                                    if response.status!=200: raise RuntimeError('Health failed')
-                            break
-                        except Exception:
-                            if time.monotonic()>=deadline: raise TimeoutError('Service readiness timed out')
-                            time.sleep(2)
-                    if spec['execution']['smoke']!='skip':
-                        invoke(dep['groups'][dep['endpoint_node']],f'scripts/{dep_id}/smoke.sh',timeout=spec['execution']['smoke_timeout_seconds']+10)
-                    test=plan['tests'][sub['id']]
-                    status['expected_artifacts'].append(f"results/{sub['id']}-try{attempt:02}/aisbench.log")
-                    publish()
-                    invoke(dep['groups'][test['node']],f"scripts/tests/{sub['id']}.sh",f'try{attempt:02}',timeout=test['timeout'])
-                    status['expected_artifacts'].append(f"results/{sub['id']}-try{attempt:02}/validated.json")
-                    status['cases'][sub['id']]='PASSED';publish();break
-                except Exception:
-                    logging.exception('Subtask %s attempt %s failed',sub['id'],attempt)
-                    release()
-                    if attempt==spec['execution']['max_retries']+1:
-                        status['cases'][sub['id']]='FAILED';publish()
-            next_dep=spec['sub_tasks'][index+1]['deployment_id'] if index+1<len(spec['sub_tasks']) else None
-            if sub['after_case']!='keep_service' or next_dep!=dep_id:
-                release()
+                    while not all(f.done() for f in futures):
+                        drain()
+                        wait(futures,timeout=0.05)
+                    drain()
+                    errors=[f.exception() for f in futures if f.exception() is not None]
+                    if errors: raise next((e for e in errors if isinstance(e,KeyboardInterrupt)),errors[0])
+                except BaseException:
+                    cancelled.set()
+                    wait(futures)
+                    raise
+            drain()
+            if 'stages' in spec and any(status['cases'].get(sid)!='PASSED' for branch in stage['branches'] for sid in branch['sub_tasks']):
+                event('stage',stage['id'],'FAILED')
+                raise RuntimeError('Stage failed: '+stage['id'])
+            if 'stages' in spec:
+                collect(root,plan)
+            event('stage',stage['id'],'PASSED')
         status['status']='PASSED' if all(v=='PASSED' for v in status['cases'].values()) else 'FAILED'
     except BaseException as exc:
+        drain()
+        if 'stage' in locals(): event('stage',stage['id'],'INTERRUPTED' if isinstance(exc,KeyboardInterrupt) else 'FAILED')
         status['status']='INTERRUPTED' if isinstance(exc,KeyboardInterrupt) else 'FAILED'
         for key,value in status['cases'].items():
             if value=='RUNNING':status['cases'][key]=status['status']

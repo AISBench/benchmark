@@ -33,9 +33,20 @@ def validate_deployment(dep):
         pcp = args.get('prefill-context-parallel-size', 1)
         if any(type(v) is not int or v < 1 for v in (dp, tp, pcp)) or dp*tp*pcp != len(place['devices']):
             errors.append('DP/TP/PCP does not match devices: '+item['id'])
-        if not isinstance(args.get('max-model-len'), int) or args['max-model-len'] < 1:
+        context_keys = [key for key in ('max-model-len','max_model_len') if key in args]
+        if len(context_keys) > 1:
+            errors.append('Duplicate max-model-len/max_model_len arguments: '+item['id'])
+        context_length = args[context_keys[0]] if context_keys else None
+        if type(context_length) is not int or context_length < 1:
             errors.append('Missing positive max-model-len: '+item['id'])
-        generated = {'host', 'port', 'served-model-name', 'device-ids', 'kv-transfer-config'}
+        visible = ','.join(map(str, place['devices']))
+        selection = {'device-ids': args['device-ids']} if 'device-ids' in args else {}
+        selection.update({k:v for k,v in item['launch'].get('env',{}).items()
+                          if k in ('ASCEND_RT_VISIBLE_DEVICES','ASCEND_VISIBLE_DEVICES')})
+        for key,value in selection.items():
+            if str(value) != visible:
+                errors.append('Confirmed device selection conflicts with placement: '+item['id']+'.'+key)
+        generated = {'host', 'port', 'served-model-name', 'kv-transfer-config'}
         if generated.intersection(args):
             errors.append('Runtime-generated arguments cannot be duplicated: '+item['id'])
     endpoint = dep['endpoint']
@@ -163,13 +174,18 @@ def compile_deployment(dep, nodes):
             args = copy.deepcopy(launch['args'])
             args.update(host=node['network']['ip'], port=ports['http'])
             args['served-model-name'] = dep['model']['served_name']
-            args['device-ids'] = ','.join(map(str, placement['devices']))
             if launch.get('preserve_reference'):
                 env = copy.deepcopy(launch.get('env',{}))
+            # Preserve explicit selection mechanism and spelling. Only an absent
+            # selection uses the legacy default for its launch mode.
+            has_selection = 'device-ids' in args or any(
+                key in env for key in ('ASCEND_RT_VISIBLE_DEVICES','ASCEND_VISIBLE_DEVICES'))
+            if not has_selection:
                 visible=','.join(map(str, placement['devices']))
-                if 'ASCEND_RT_VISIBLE_DEVICES' in env and str(env['ASCEND_RT_VISIBLE_DEVICES'])!=visible:
-                    raise ValueError('Confirmed visible devices conflict with placement: '+item['id'])
-                env['ASCEND_RT_VISIBLE_DEVICES']=args.pop('device-ids')
+                if launch.get('preserve_reference'):
+                    env['ASCEND_RT_VISIBLE_DEVICES']=visible
+                else:
+                    args['device-ids']=visible
             if 'rpc' in ports:
                 for key,value in {'data-parallel-rpc-port':ports['rpc'],'data-parallel-address':node['network']['ip']}.items():
                     if key in args and str(args[key])!=str(value) and '{{' not in str(args[key]):

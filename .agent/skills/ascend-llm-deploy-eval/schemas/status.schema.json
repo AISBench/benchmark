@@ -44,6 +44,37 @@
       "items": {
         "type": "string"
       }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "time",
+          "kind",
+          "id",
+          "status"
+        ],
+        "properties": {
+          "time": {
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "stage",
+              "case",
+              "branch"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
     }
   }
 }

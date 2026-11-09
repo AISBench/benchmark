@@ -90,3 +90,23 @@ job_spec.schema 校验任务；bindings.schema 在生成前校验绑定；shared
 交互预检使用 review_job.py 采集权重与环境证据供 Agent 判断；确认后发生冲突阻塞，不修改已确认参数。
 
 完整占位示例：[job_spec.compact.json](../examples/job_spec.compact.json) 与 [bindings.compact.json](../examples/bindings.compact.json)。示例为 draft，须现场审阅后解决 unresolved 并确认 ready。
+
+
+## Explicit stages and parallel branches
+
+Existing 3.0 inputs without `stages` retain serial `sub_tasks` semantics. Keep all sub_task definitions and add:
+
+```json
+{"stages":[
+  {"id":"single","branches":[{"id":"node17","sub_tasks":["a-t1"]},{"id":"node20","sub_tasks":["b-t1"]}]},
+  {"id":"multi","branches":[{"id":"cross-node","sub_tasks":["c-t1","c-t2","d-t1"]}]}
+]}
+```
+
+Every sub_task must occur exactly once. Stages run in array order; branches run concurrently, with serial cases inside each branch. Concurrent branches must own disjoint physical node sets. Generation checks both node IDs and identical bound hosts, ignoring SSH usernames. Normalize DNS/IP aliases for the same machine to one host before confirmation; different aliases do not prove physical isolation.
+
+One Linux coordinator process uses worker threads for remote scripts; only its main thread writes status.json. A branch may retain the same deployment between cases, but always releases at its end. Each stage waits for all branches, verified resource release, and collection of required artifacts before its successor starts. Any failed case, unverified release or missing artifact blocks later stages.
+
+Failure or interruption signals cooperative cancellation: pending cases, container creation and readiness loops stop progressing. Already running remote calls finish within their configured timeouts before cleanup; unrelated workloads are never stopped to implement cancellation. status.timeline records stage, branch and case events with Unix timestamps. Hard process termination still cannot guarantee finally cleanup.
+
+Migration: phase_id alone does not introduce parallelism. Add explicit stages and retain globally unique sub_task IDs; preserve configured deployment semantics and ports. Re-deployments receive distinct run numbers, and each case keeps separate result paths. Do not replay an existing task directory to recover a failed stage.

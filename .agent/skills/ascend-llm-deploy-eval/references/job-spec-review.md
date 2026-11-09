@@ -7,3 +7,4 @@
 5. 展示规范化默认值（包括 enable_cache_reset_api）、完整 KV 生成结果与脚本；确认后 job_spec 成为唯一任务需求源，bindings 仅解析显式现场字段。执行遇到冲突报错，不静默覆盖。
 
 命令强校验由上游专门 Agent 负责，本技能仍检查结构、依赖、资源归属与结果证据。原生 AISBench 配置保存原文，目标/负载不一致时回到交互阶段修正后重新确认。
+`launch.args.device-ids`、`ASCEND_RT_VISIBLE_DEVICES` 和 `ASCEND_VISIBLE_DEVICES` 是显式设备选择，必须保留并与 placement.devices 的设备及顺序一致；冲突时报错，不把 CLI 替换成环境变量。未指定任何选择时，保真模式默认生成 ASCEND_RT_VISIBLE_DEVICES，其他模式默认生成 device-ids；交互规划须展示派生值及选择机制。

@@ -11,8 +11,8 @@ from topology import compile_deployment
 
 
 PROBE = r'''
-import json,pathlib,subprocess,sys
-p=json.load(sys.stdin); result={'models':{},'errors':[],'paths':{}}
+import hashlib,json,pathlib,subprocess,sys
+p=json.load(sys.stdin); result={'models':{},'errors':[],'paths':{},'images':{}}
 def command(argv):
  try:
   r=subprocess.run(argv,capture_output=True,text=True,timeout=30)
@@ -23,13 +23,57 @@ def command(argv):
 result['hardware']=command(['npu-smi','info'])
 addresses=command(['ip','-j','address','show'])
 result['network']=json.loads(addresses) if addresses else []
-for image in p['images']: command(['docker','image','inspect',image])
+for image in p['images']:
+ raw=command(['docker','image','inspect',image])
+ if raw:
+  try:
+   records=json.loads(raw)
+   if not records: raise ValueError('Empty image inspection')
+   result['images'][image]=[{'id':v['Id'],'repo_tags':v.get('RepoTags'),
+       'repo_digests':v.get('RepoDigests'),'architecture':v.get('Architecture'),
+       'source':'docker image inspect'} for v in records]
+  except Exception as e: result['errors'].append(image+': '+str(e))
+def metadata(file, parse=False):
+ data=file.read_bytes()
+ if not data: raise ValueError('Empty file: '+str(file))
+ info={'size_bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()}
+ if parse: info['content']=json.loads(data)
+ return info
 for name,path in p['models'].items():
+ model={'path':path,'weights_present':False,'files':{},'shards':{},
+        'verification_scope':'Metadata hashes and readable nonempty shards; no full shard hash or tensor validation'}
+ result['models'][name]=model
  try:
-  root=pathlib.Path(path); config=json.loads((root/'config.json').read_text())
-  weights=any(root.glob('*.safetensors')) or any(root.glob('*.bin'))
-  if not weights: raise ValueError('No weight files found')
-  result['models'][name]={'path':path,'config':config,'weights_present':weights}
+  root=pathlib.Path(path)
+  model['files']['config.json']=metadata(root/'config.json',True)
+  model['config']=model['files']['config.json']['content']
+  if not isinstance(model['config'],dict): raise ValueError('config.json must be an object')
+  indexes=sorted(root.glob('*.index.json')); shards=set()
+  for index in indexes:
+   item=metadata(index,True); model['files'][index.name]=item
+   mapping=item['content'].get('weight_map')
+   if not isinstance(mapping,dict) or not mapping: raise ValueError('Invalid weight_map: '+index.name)
+   for value in mapping.values():
+    if not isinstance(value,str) or not value or pathlib.PurePosixPath(value).is_absolute() or '..' in pathlib.PurePosixPath(value).parts:
+     raise ValueError('Invalid shard path in '+index.name)
+    shards.add(value)
+  if not indexes:
+   shards={f.name for pattern in ('*.safetensors','*.bin') for f in root.glob(pattern)}
+  if not shards: raise ValueError('No weight files found')
+  model['indexed']=bool(indexes)
+  for shard in sorted(shards):
+   file=root/shard
+   with file.open('rb') as stream:
+    if not stream.read(1): raise ValueError('Empty shard: '+shard)
+   model['shards'][shard]={'size_bytes':file.stat().st_size,'readable':True}
+  model['weights_present']=True
+  tokenizer_files=[f for pattern in ('tokenizer*','special_tokens_map.json','vocab.*','merges.txt') for f in root.glob(pattern) if f.is_file()]
+  if not any(f.name in ('tokenizer.json','tokenizer.model','vocab.json','vocab.txt') or f.name.endswith('.model') for f in tokenizer_files):
+   raise ValueError('No tokenizer vocabulary artifact found')
+  for file in sorted(set(tokenizer_files)):
+   item=metadata(file,file.suffix=='.json')
+   item.pop('content',None)
+   model['files'][file.name]=item
  except Exception as e: result['errors'].append(name+': '+str(e))
 for path in p['paths']:
  result['paths'][path]={'present_on_host':pathlib.Path(path).exists(),'container_visibility':'REQUIRES_REVIEW'}

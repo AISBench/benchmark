@@ -86,6 +86,7 @@ def validate_task(spec):
             errors.append('Requests cannot reach concurrency: '+case['id'])
     if spec['state']=='ready' and spec['unresolved']:
         errors.append('Ready task has unresolved items')
+    errors.extend(validate_stages(spec))
     return errors
 
 def lookup(context, name):
@@ -147,3 +148,27 @@ def validate_bindings(bindings):
         for value in paths:
             if not PurePosixPath(value).is_absolute() or '..' in PurePosixPath(value).parts or any(c in value for c in ('\n','\r',':')):
                 raise ValueError('Invalid absolute Linux binding path: '+value)
+
+
+def validate_stages(spec):
+    errors=[]
+    tasks={s['id']:s for s in spec['sub_tasks']}
+    deps={d['id']:d for d in spec['deployments']}
+    used=[]; stages=set()
+    for stage in spec.get('stages',[]):
+        if stage['id'] in stages: errors.append('Duplicate stage ID')
+        stages.add(stage['id']); reserved=set(); branches=set()
+        for branch in stage['branches']:
+            if branch['id'] in branches: errors.append('Duplicate branch ID')
+            branches.add(branch['id']); nodes=set()
+            for sid in branch['sub_tasks']:
+                used.append(sid)
+                if sid not in tasks:
+                    errors.append('Unknown stage sub_task: '+sid); continue
+                dep=deps.get(tasks[sid]['deployment_id'])
+                if dep: nodes.update(i['placement']['node'] for i in dep['instances'])
+            if nodes & reserved: errors.append('Parallel branches share physical nodes')
+            reserved.update(nodes)
+    if 'stages' in spec and (len(used)!=len(set(used)) or set(used)!=set(tasks)):
+        errors.append('Stages must reference every sub_task exactly once')
+    return errors
