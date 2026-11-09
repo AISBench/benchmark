@@ -16,7 +16,7 @@ def load_json(path):
 def normalize(spec):
     s=copy.deepcopy(spec)
     e=s.setdefault('execution',{})
-    for k,v in {'smoke':'default','max_retries':3,'startup_timeout_seconds':1800,'smoke_timeout_seconds':240,
+    for k,v in {'smoke':'default','max_retries':3,'startup_timeout_seconds':1800,'dependency_timeout_seconds':120,'smoke_timeout_seconds':240,
                 'proxy_start_after_models_healthy':True,'enable_cache_reset_api':True}.items():
         e.setdefault(k,v)
     if s.get('schema_version')=='3.0':

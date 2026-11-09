@@ -9,7 +9,7 @@ from task_model import validate_stages
 
 def fixture():
     subs=[{'id':x,'deployment_id':x,'case_id':'case','after_case':'stop_container','on_failure':'record_only'} for x in 'abc']
-    spec={'sub_tasks':subs,'cases':[{'id':'case','concurrency':1}], 'execution':{'max_retries':0,'startup_timeout_seconds':1,'smoke':'skip'},
+    spec={'sub_tasks':subs,'cases':[{'id':'case','concurrency':1}], 'execution':{'max_retries':0,'startup_timeout_seconds':1,'dependency_timeout_seconds':120,'smoke':'skip'},
           'stages':[{'id':'parallel','branches':[{'id':x,'sub_tasks':[x]} for x in 'ab']},{'id':'next','branches':[{'id':'c','sub_tasks':['c']}]}]}
     plan={'deployments':{},'tests':{}}
     for x in 'abc':

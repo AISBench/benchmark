@@ -48,3 +48,4 @@ logs/coordinator.log 记录协调决策；logs/DEPLOYMENT-runNN/NODE-INSTANCE.lo
 提交前告知进展、服务日志和结果的实际路径。按用户授权推进，不因内部流程重复索要许可；设计讨论和手工执行不自动创建监控。目录不自动删除，资源释放已核验、所需结果已保留且无异常后可由外层释放；异常证据保留。
 
 本地 mock 和 Bash 测试不代表真实 Ascend/Linux/Docker/AISBench 版本验证。报告区分本地回归、Linux 集成与实际模型测试。
+`run.py` 只使用 bindings.mounts 显式挂载，另自动挂载任务目录和模型目录；不继承旧 container_baseline 的驱动、通信、数据集挂载。FULL 创建全部部署容器后，依赖预检全部通过才启动模型；dependency_timeout_seconds 默认120秒。预检使用镜像ENV和已确认launch.env，不执行bootstrap，规划须显式审阅依赖环境。

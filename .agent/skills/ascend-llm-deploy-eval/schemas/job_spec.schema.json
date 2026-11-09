@@ -458,6 +458,11 @@
         "proxy_start_after_models_healthy": {
           "type": "boolean",
           "default": true
+        },
+        "dependency_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 120
         }
       },
       "required": []

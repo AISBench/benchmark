@@ -159,11 +159,12 @@ def _generate(spec, bindings, root):
     save(root/'bindings.json', bindings)
     helper = root/'.runtime'
     helper.mkdir(exist_ok=True)
-    for filename in ('aisbench_cli.py','validate_case.py','cache_reset.py','metric_evidence.py','test_evidence.py'):
+    for filename in ('container_dependencies.py','aisbench_cli.py','validate_case.py','cache_reset.py','metric_evidence.py','test_evidence.py'):
         (helper/filename).write_bytes(Path(__file__).with_name(filename).read_bytes())
     (helper/'check_test.py').write_text('import sys\nfrom test_evidence import check\ncheck(*sys.argv[1:])\n',encoding='utf-8')
     plan = {'deployments': {}, 'tests': {}}
     resource_names=set()
+    dependency_env={}
     for dep in spec['deployments']:
         dep = copy.deepcopy(dep)
         for instance in dep['instances']:
@@ -195,6 +196,7 @@ def _generate(spec, bindings, root):
         compiled = compile_deployment(dep, nodes)
         record = {'groups': {}, 'health_urls': [], 'endpoint': compiled['endpoint'], 'reset_urls':compiled['reset_urls'], 'metric_instances':compiled['metric_instances']}
         plan['deployments'][dep['id']] = record
+        dependency_env[dep['id']]={}
         for group in compiled['groups'].values():
             slot = group['node']; binding = bindings['nodes'][slot]
             task = remote_root(binding, spec['job_id'])
@@ -250,6 +252,7 @@ def _generate(spec, bindings, root):
                       'mkdir -p '+q(task+'/logs/'+dep['id']+'-')+'"$RUN"',
                       'printf "%s" "$RUN" > '+q(task+'/.runtime/'+dep['id']+'-'+slot+'.run')]
             probes = [guard,'RUN=$(cat '+q(task+'/.runtime/'+dep['id']+'-'+slot+'.run')+')','[[ "$RUN" =~ ^run[0-9]+$ ]]']
+            dependency_env[dep['id']][slot]={}
             for item in group['commands']:
                 context = {'model': {'path': model, 'served_name':dep['model']['served_name']},
                            'paths':binding.get('paths', {}), 'network':nodes[slot]['network'],
@@ -259,6 +262,7 @@ def _generate(spec, bindings, root):
                 env = expand(item['env'],context)
                 if any(not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', k) for k in env):
                     raise ValueError('Invalid environment name')
+                if item['role']!='proxy':dependency_env[dep['id']][slot][item['name']]={k:str(v) for k,v in env.items()}
                 filename = slot+'-'+item['name']+'.sh'
                 gate=proxy_health_gate(item['startup_health_urls'],spec['execution']['startup_timeout_seconds']) if item['role']=='proxy' and spec['execution']['proxy_start_after_models_healthy'] else ''
                 script(folder/filename, '# Execute inside container '+name+' on '+binding['host']+'\n'+expand(item['bootstrap'],context,shell=True)+'\n'+
@@ -273,6 +277,10 @@ def _generate(spec, bindings, root):
                               'test -s '+q(pid)+' && kill -0 "$(cat '+q(pid)+')"']))
                 probes.append('if grep -Eq '+q('EngineCore failed to start|Engine core initialization failed')+' '+
                               q(log)+'"$RUN"/'+q(slot+'-'+item['name']+'.log')+'; then echo "Fatal engine startup failure" >&2; exit 1; fi')
+            dependency_log=task+'/logs/'+dep['id']+'-'
+            script(folder/(slot+'-dependencies.sh'), guard+'\nRUN=${1:-run01}\n[[ "$RUN" =~ ^run[0-9]+$ ]]\nmkdir -p '+q(dependency_log)+'"$RUN"\n'+
+                   shlex.join(['docker','exec',name,'python3',task+'/.runtime/container_dependencies.py',task,dep['id'],slot,str(spec['execution']['dependency_timeout_seconds'])])+
+                   ' > '+q(dependency_log)+'"$RUN"/'+q(slot+'-dependencies.log')+' 2>&1')
             script(folder/(slot+'-start.sh'), '\n'.join(starts))
             script(folder/(slot+'-probe.sh'), '\n'.join(probes))
             record['groups'][slot] = {'host':binding['host'], 'root':task, 'container':name,
@@ -317,6 +325,7 @@ def _generate(spec, bindings, root):
                    shlex.quote('OUT=$1; exec '+command)+' bash "$OUT" > "$OUT/aisbench.log" 2>&1 || RC=$?\n'+
                    shlex.join(['docker','exec',group['container'],'python3',group['root']+'/.runtime/check_test.py',group['root'],sub['id'],slot])+ ' "$OUT" after "$RC"')
             plan['tests'][sub['id']]={'node':slot,'deployment':dep['id'],'timeout':case['timeout_seconds']}
+    save(root/'.runtime/dependency-env.json',dependency_env)
     save(root/'.runtime/dispatch.json',plan)
     files = {str(p.relative_to(root)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest()
              for p in sorted(root.rglob('*')) if p.is_file()}
@@ -502,6 +511,11 @@ def execute(root, spec, plan):
                                 require_running()
                                 with state_lock: active[(dep_id,slot)]=group
                                 invoke(group,f'scripts/{dep_id}/{slot}-container.sh',token)
+                            for slot,group in dep['groups'].items():
+                                require_running()
+                                with state_lock: status['expected_artifacts'].append(f'logs/{dep_id}-run{run_number:02}/{slot}-dependencies.log')
+                                publish()
+                                invoke(group,f'scripts/{dep_id}/{slot}-dependencies.sh',f'run{run_number:02}',timeout=spec['execution']['dependency_timeout_seconds']+30)
                             for slot,group in dep['groups'].items():
                                 with state_lock: status['expected_artifacts'].extend(f'logs/{dep_id}-run{run_number:02}/{name}' for name in group['log_names'])
                                 publish()
