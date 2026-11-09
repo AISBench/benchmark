@@ -23,10 +23,19 @@ python -m unittest discover -s tests/unit -v
 
 测试覆盖外部 JSONL/CSV 数据路径、原生配置与命令生成、成功/失败退出、请求数量和长度校验、日志落盘索引及只读日志观察器。测试不需要 Prefix Cache 插件；不使用真实模型、数据集或服务器。Linux 专用进程检查与真实硬件回归需在相应环境执行。
 
-2026-11-04，Windows / Python 3.11：110项测试，107项通过，3项Linux专用测试跳过。当前环境未安装完整AISBench运行依赖，尚未进行真实CLI压测、模型部署或硬件性能回归。
+历史记录（2026-11-04）：Windows 110 项中 107 项通过、3 项跳过，当时尚未完成真实 CLI 压测。此记录不表示当前验证状态。
 
-本轮修复、回归覆盖及实机验证边界见 [2026-11-05 修复记录](audit-repairs-20261105.md)。
+历史修复、回归覆盖及当时验证边界见 [2026-11-05 修复记录](audit-repairs-20261105.md)。
 
 ## Startup ownership evidence
 
 Generated start/probe scripts append host UTC time, NPU status, fuser PIDs for the deployment devices, PID cgroups and running container IDs/names to `logs/DEPLOYMENT-runNN/NODE-ownership.jsonl`. Each diagnostic command has a 3-second timeout. Missing tools, vanished processes and timeouts remain explicit unknowns, not proof of idle devices. No process arguments or environment are read, no resources are stopped, and diagnostic failure does not replace the deployment result. Synchronous sampling adds at most about 9 seconds per probe; no background monitor is created.
+
+
+## 2026-11-09 综合检视修复验证
+
+本轮全量 unittest：Linux / Python 3.11 共 214 项全部通过；Windows / Python 3.11 共 214 项，203 项通过、11 项平台专用测试跳过。Windows 新增跳过两项 Linux flock 分发验证；Linux 已执行这两项。新增回归覆盖显式 privileged、最终 shell 参数边界/JSON/布尔值、日志积压与轮转、事件游标、零输出与 reset 聚合证据、分发失败/强杀/竞争发布。命令为 `python -m unittest discover -s tests/unit -q`。
+
+开发过程中 V1–V6 已完成真实 AISBench 小负载流程验证（含原生预热）；V6 实际请求只覆盖 P1，P2/P3 仅健康验证。上述场景不是本次最新代码的完整实机重跑。本轮只执行离线测试，不重新部署模型、不占用 NPU。
+
+Ruff 0.17.4 已扫描 scripts/ 与 tests/：`python -m ruff check --isolated --select E9,F63,F7,F82 scripts tests` 正确性规则通过。另执行开发机现有广泛规则的 `python -m ruff check scripts tests`，仍存在导入排序、宽泛异常捕获、未使用导入等问题，不能标记完整 lint 全绿；没有为消除报告而批量改写历史生命周期实现。该广泛规则依赖开发机配置，不作为仓库统一 lint 基线。完整 lint 整理仍是待办。Git 空白检查及 skill 元数据校验单独执行，不能替代 lint 或真实部署验收。

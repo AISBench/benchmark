@@ -33,6 +33,7 @@ from task_model import load_json, normalize, validate, validate_bindings, expand
 from remote_node import transport_argv
 from topology import compile_deployment
 from shared_storage import verify_groups
+from bundle_distribution import PROGRAM as DISTRIBUTE_PROGRAM
 
 
 def save(path, value):
@@ -60,6 +61,8 @@ def remote_root(binding, job_id):
 
 
 def port_check_program(ports):
+    # This is an availability check, not a reservation. A competing process can
+    # bind after it exits; startup/health must still fail safely on conflicts.
     # Linux server restarts may leave TIME_WAIT after all owned processes exit.
     # REUSEADDR permits that normal restart, but deliberately never REUSEPORT.
     # listen also rejects an existing listener when both sockets use REUSEADDR.
@@ -385,26 +388,13 @@ def distribute(root, plan):
         verify_groups(bindings,ssh,root/'.runtime/shared-storage.json')
     files={relative:base64.b64encode((root/relative).read_bytes()).decode() for relative in manifest['files']}
     files['.runtime/manifest.json']=base64.b64encode((root/'.runtime/manifest.json').read_bytes()).decode()
-    program='''import base64,hashlib,json,pathlib,sys
-p=json.load(sys.stdin); root=pathlib.Path(p['root']); files=p['files']; hashes=p['hashes']
-if root.exists():
-    if not all((root/name).is_file() and hashlib.sha256((root/name).read_bytes()).hexdigest()==digest for name,digest in hashes.items()):
-        raise SystemExit('Existing task directory differs; refusing overwrite')
-else:
-    root.mkdir(parents=True,exist_ok=False)
-    for name,data in files.items():
-        path=root/name; path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(base64.b64decode(data))
-if not all(hashlib.sha256((root/name).read_bytes()).hexdigest()==digest for name,digest in hashes.items()):
-    raise SystemExit('Uploaded bundle digest mismatch')
-print('Bundle verified')
-'''
     seen=set()
     for dep in plan['deployments'].values():
         for group in dep['groups'].values():
             key=(group['host'],group['root'])
             if key in seen: continue
             seen.add(key)
-            result=subprocess.run(transport_argv(group['host'],['python3','-c',program]),
+            result=subprocess.run(transport_argv(group['host'],['python3','-c',DISTRIBUTE_PROGRAM]),
                 input=json.dumps({'root':group['root'],'files':files,'hashes':manifest['files']}),
                 capture_output=True,text=True,timeout=120)
             if result.returncode: raise RuntimeError('Bundle distribution failed: '+result.stderr)

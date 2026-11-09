@@ -56,6 +56,7 @@ class CompactTests(unittest.TestCase):
         candidate['deployments'][0]['instances'][0]['launch']['env']['VLLM_SERVER_DEV_MODE']='1'
         self.assertEqual(normalize(candidate)['deployments'][0]['instances'][0]['launch']['env']['VLLM_SERVER_DEV_MODE'],'1')
 
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'Receiver uses Linux flock')
     def test_distribution_shared_path_reuses_and_changed_bundle_rejected(self):
         spec,bindings=inputs()
         with tempfile.TemporaryDirectory() as tmp:

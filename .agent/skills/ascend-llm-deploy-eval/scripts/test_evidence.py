@@ -4,7 +4,7 @@ import urllib.request
 from pathlib import Path
 from aisbench_cli import dataset_for, check_dataset, validate_native_result
 from validate_case import validate
-from cache_reset import reset_instances
+from cache_reset import reset_instances, validate_reset
 from metric_evidence import capture, summarize
 from urllib.parse import urlsplit
 
@@ -60,8 +60,7 @@ def check(task, sub_id, node, output, phase, returncode='0'):
     capture(service['metric_instances'],folder,'after')
     summarize(folder)
     if case.get('reset_cache'):
-        if json.loads((folder/'cache-reset.json').read_text())['status']!='PASSED':
-            raise ValueError('Cache reset not verified')
+        validate_reset(folder)
     if case.get('aisbench_config'):
         if not (folder/'native-expectations.json').is_file():raise ValueError('Missing resolved native config expectations')
         validate_native_result(folder,case)

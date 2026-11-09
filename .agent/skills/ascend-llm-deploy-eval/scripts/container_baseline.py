@@ -17,7 +17,7 @@ MOUNT_PATHS = [
 ]
 DEVICES = ['/dev/davinci_manager', '/dev/hisi_hdc', '/dev/ummu', '/dev/uburma'] + [
     '/dev/davinci'+str(i) for i in range(8)]
-DEFAULT_CONTAINER = {'shm_size': '500g', 'privileged': True, 'user': 'root', 'pid_mode': 'host'}
+DEFAULT_CONTAINER = {'shm_size': '500g', 'user': 'root', 'pid_mode': 'host'}
 
 
 def baseline_mounts(mounts, exists=None):
@@ -38,6 +38,8 @@ def baseline_mounts(mounts, exists=None):
 
 
 def docker_run_args(container):
+    if type(container.get('privileged')) is not bool:
+        raise ValueError('Explicit privileged=true/false is required; recommended Ascend value: true')
     values = {**DEFAULT_CONTAINER, **container}
     return ['-u', values['user'], '-it', '--net=host', '--pid='+values['pid_mode'],
             '--shm-size='+values['shm_size'], '--privileged='+str(values['privileged']).lower()]

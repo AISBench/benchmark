@@ -74,9 +74,16 @@ attempt-NN/
 通过已冻结 Skill 的只读观察器跟踪当前及后续 attempt 新建的日志：
 
 ```sh
-python3 /work/JOB/common/skill-snapshot/scripts/watch_logs.py --run-dir /work/JOB --kind test
+python3 /path/to/skill/scripts/watch_logs.py --run-dir /work/JOB --kind test
 ```
 
-观察器同时跟踪 `benchmark.log`、`runner.log` 和 AISBench 原生 `.out`/`.log` 文件。Ctrl+C 只关闭观察，不停止任务。多节点按日志实际所在节点运行；任务数据与日志保存在仓库外。
+观察器跟踪当前 `results/*/aisbench.log`、原生 outputs 下的 `.out`/`.log`，兼容历史任务的 benchmark/runner 日志。每轮按文件大小快照分块读完积压，新文件每 5 秒发现一次；service 模式读取 `logs/`。Ctrl+C 只关闭观察，不停止任务。多节点按日志实际所在节点运行；任务数据与日志保存在仓库外。
 
 validated.json 的 config 为 generated（技能生成配置）或 native（case 提供 aisbench_config），与实际输入来源一致。数据集摘要采用分块 SHA256，不将整文件读入内存；行字段检查仍仅读取请求所需切片。
+
+
+生成配置仅使用 CLI `--work-dir "$OUT/outputs"` 指定运行目录，不再重复写 config.work_dir；原生配置保留原文，CLI 覆盖其 work_dir。每个 case/attempt 的目录独立且拒绝复用。单模型、单数据集的生成配置要求恰好一份正式 details；原生多模型/数据集按已解析分组核验。原生预热和正式请求经同一次 CLI 执行，V1–V6 已有实际验证，不代表任意 AISBench 版本具有相同布局。
+
+成功请求允许 `output_tokens=0`（如立即结束），仍要求 success=true、无 error_info、合法整数长度和正确请求数；生成配置的 validated.formal.zero_output_requests 单独计数。零输出不能据此解释为有有效输出吞吐或 TPOT，失败请求、负数和超过上限的输出仍拒绝。
+
+缓存重置统一核验 cache-reset.json 总状态及各实例状态，不再依据原始 reset 文件名字典序选择“最新”。

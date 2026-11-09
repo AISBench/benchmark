@@ -101,7 +101,6 @@ def write_config(spec, case, service, folder, *, check_files=True):
         'retriever=dict(type=ZeroRetriever), inferencer=dict(type=GenInferencer)))]\n'
         'models = [dict(type=VLLMCustomAPI, '+', '.join(f'{k}={v!r}' for k,v in fields.items())+')]\n'
         'infer = dict(partitioner=dict(type=NaivePartitioner), runner=dict(type=LocalRunner, max_num_workers=1, task=dict(type=OpenICLApiInferTask)))\n'
-        f'work_dir = {str(folder/"outputs")!r}\n'
     )
     config.write_text(text, encoding='utf-8')
     (folder/'dataset.json').write_text(json.dumps(dataset, indent=2), encoding='utf-8')

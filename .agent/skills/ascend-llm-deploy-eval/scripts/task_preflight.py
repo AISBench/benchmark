@@ -85,6 +85,7 @@ def discover_network(preference=None):
 
 
 def allocate_ports(requests):
+    # Legacy availability probe only: closing sockets leaves a TOCTOU window.
     """Allocate disjoint ranges, holding sockets until all ranges are selected."""
     sockets, bases, all_ports = [], {}, []
     try:
@@ -198,6 +199,7 @@ def create_execution(spec, dep, root, index, bindings, network, port_bases, port
     for url in service['health_urls']+[service['endpoint']]+([service['gateway_health_url']] if service.get('gateway_health_url') else []):
         from urllib.parse import urlsplit
         parsed = urlsplit(url)
+        # Legacy local service validation; TLS was not part of this protocol.
         if parsed.scheme != 'http' or parsed.hostname not in ['127.0.0.1', 'localhost', network['ip']] or parsed.port not in ports:
             raise ValueError('Service URL must use allocated local port: '+url)
     from container_baseline import baseline_mounts, DEVICES, DEFAULT_CONTAINER

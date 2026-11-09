@@ -1,5 +1,6 @@
 """Validate standard AISBench perf artifacts without plugin dependencies."""
 import json
+from cache_reset import validate_reset
 
 
 def validate(folder, case):
@@ -10,6 +11,7 @@ def validate(folder, case):
     if len(files) != 1:
         raise ValueError('Expected one formal request detail file')
     seen = set()
+    zero_outputs = 0
     input_min = input_max = None
     output_min = output_max = None
     with files[0].open(encoding='utf-8') as stream:
@@ -22,8 +24,9 @@ def validate(folder, case):
             if row.get('success') is not True or row.get('error_info'):
                 raise ValueError('AISBench request failed')
             inputs, outputs = row.get('input_tokens'), row.get('output_tokens')
-            if type(inputs) is not int or inputs < 1 or type(outputs) is not int or outputs < 1 or outputs > case['output_tokens']:
+            if type(inputs) is not int or inputs < 1 or type(outputs) is not int or outputs < 0 or outputs > case['output_tokens']:
                 raise ValueError('Invalid request token lengths')
+            zero_outputs += outputs == 0
             if case.get('input_tokens') is not None and inputs != case['input_tokens']:
                 raise ValueError('Dataset input token length differs from explicit expectation')
             input_min = inputs if input_min is None else min(input_min, inputs)
@@ -33,15 +36,12 @@ def validate(folder, case):
     if len(seen) != case['formal_requests']:
         raise ValueError('Formal request count mismatch')
     if case.get('reset_cache', False):
-        for port in case.get('reset_ports', []):
-            resets = sorted(folder.glob(f'reset-{port}-*.json'))
-            if not resets or json.loads(resets[-1].read_text()).get('success') is not True:
-                raise ValueError('Cache reset not verified')
+        validate_reset(folder)
     logs = sorted(str(path) for path in (folder/'outputs').glob('*/logs/**/*') if path.is_file())
     if not logs:
         raise ValueError('Missing AISBench on-disk worker logs')
     result = dict(status='PASSED', case_id=case['id'], dataset_id=case.get('dataset_id','default'),
                   formal={'requests':len(seen),'details':str(files[0]),'input_min':input_min,'input_max':input_max,
-                          'output_min':output_min,'output_max':output_max}, logs=logs)
+                          'output_min':output_min,'output_max':output_max,'zero_output_requests':zero_outputs}, logs=logs)
     (folder/'validated.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     return result

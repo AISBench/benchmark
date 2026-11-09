@@ -54,7 +54,6 @@ def validate_task(spec):
     if len(deployments) != len(spec['deployments']) or len(cases) != len(spec['cases']):
         errors.append('Duplicate deployment/case ID')
     for dep in deployments.values():
-        import re
         for instance in dep['instances']:
             launch=instance.get('launch',{})
             if launch.get('preserve_reference'):

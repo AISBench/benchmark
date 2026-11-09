@@ -56,3 +56,12 @@ def reset_instances(folder, ports, http, target_urls=None):
         raise
     finally:
         (folder/'cache-reset.json').write_text(json.dumps(report, indent=2))
+
+
+def validate_reset(folder):
+    """The aggregate report is authoritative; raw filenames do not imply order."""
+    report = json.loads((folder/'cache-reset.json').read_text(encoding='utf-8'))
+    instances = report.get('instances', [])
+    if report.get('status') != 'PASSED' or not instances or any(
+            item.get('status') != 'PASSED' for item in instances):
+        raise ValueError('Cache reset not verified')

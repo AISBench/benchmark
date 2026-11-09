@@ -46,7 +46,7 @@ class ContainerBaselineTests(unittest.TestCase):
         self.assertIn(original[1], result)
 
     def test_host_execution_flags(self):
-        args = docker_run_args(dict(shm_size='500g'))
+        args = docker_run_args(dict(shm_size='500g', privileged=True))
         for flag in ['--pid=host', '--net=host', '--privileged=true', '--shm-size=500g', '-it']:
             self.assertIn(flag, args)
         self.assertEqual(len(DEVICES), 12)
