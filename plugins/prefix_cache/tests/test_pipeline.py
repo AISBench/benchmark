@@ -9,7 +9,8 @@ from ais_bench_prefix_cache.artifacts import artifact_paths, read_jsonl, sha256_
 from ais_bench_prefix_cache.pipeline import _apply_group_length_overrides, _length_summary, inspect_scenario, prepare_scenario
 from ais_bench_prefix_cache.errors import ArtifactValidationError
 from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
-from tests.test_core import _BoundaryMergeTokenizer, scenario_dict
+from tests.support import BoundaryMergeTokenizer
+from tests.test_core import scenario_dict
 
 
 class FakeTokenizer:
@@ -46,7 +47,7 @@ class PipelineTest(unittest.TestCase):
             data["prefix_cache"]["groups"]["count"] = 3
             scenario = root / "scenario.json"
             scenario.write_text(json.dumps(data), encoding="utf-8")
-            tokenizer = _BoundaryMergeTokenizer()
+            tokenizer = BoundaryMergeTokenizer()
             paths = prepare_scenario(scenario, tokenizer_loader=lambda _: tokenizer)
             rows = read_jsonl(paths.full)
             self.assertEqual(len(rows), 6)
@@ -258,6 +259,7 @@ class PipelineTest(unittest.TestCase):
             rows = [row for row in read_jsonl(paths.full) if row["group_id"] == "group-0"]
             self.assertTrue(all(row["actual_input_tokens"] == 80 for row in rows))
             self.assertTrue(any(len(set(row["gsm_indices"])) >= 2 for row in rows))
+
 
 if __name__ == "__main__":
     unittest.main()

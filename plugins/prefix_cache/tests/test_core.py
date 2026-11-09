@@ -1,11 +1,12 @@
 import json
 import itertools
+import re
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from ais_bench_prefix_cache.errors import ScenarioValidationError
+from ais_bench_prefix_cache.errors import ArtifactValidationError, ScenarioValidationError
 from ais_bench_prefix_cache.generation import (
     RequestPlan,
     _prefix_trajectory_issues,
@@ -17,6 +18,7 @@ from ais_bench_prefix_cache.generation import (
     build_canonical_prefixes,
     build_input_lengths,
     build_output_lengths,
+    build_prompt,
     build_unique_seed,
     build_unique_seed_tokens,
     find_boundary_safe_token_ids,
@@ -27,6 +29,8 @@ from ais_bench_prefix_cache.generation import (
     simulate_theory,
     solve_prefix_lengths,
 )
+from ais_bench_prefix_cache.scenario import load_scenario
+from tests.support import BoundaryMergeTokenizer
 
 
 class _FakeTokenizer:
@@ -52,30 +56,6 @@ class _FakeTokenizer:
                 out.append(ids[i])
                 i += 1
         return out
-
-
-class _BoundaryMergeTokenizer:
-    """A reversible tokenizer whose ' s' token crosses the marker boundary."""
-
-    all_special_ids = list(range(32))
-
-    def __len__(self):
-        return 257
-
-    def encode(self, text, add_special_tokens=False):
-        result, index = [], 0
-        while index < len(text):
-            if text[index:index + 2] == " s":
-                result.append(256)
-                index += 2
-            else:
-                result.append(ord(text[index]))
-                index += 1
-        return result
-
-    def decode(self, token_ids, skip_special_tokens=False):
-        return "".join(" s" if token_id == 256 else chr(token_id) for token_id in token_ids)
-from ais_bench_prefix_cache.scenario import load_scenario
 
 
 def scenario_dict(root: Path, mode: str = "cold", dp_size: int = 2) -> dict:
@@ -260,7 +240,7 @@ class CoreTest(unittest.TestCase):
         )
 
     def test_canonical_collision_round_trips_across_marker_boundary(self):
-        tokenizer = _BoundaryMergeTokenizer()
+        tokenizer = BoundaryMergeTokenizer()
         record = GSMRecord(0, "same question", "hash")
         sources = {f"group-{index}": [record, record] for index in range(3)}
         for length in (32, 96):
@@ -277,6 +257,71 @@ class CoreTest(unittest.TestCase):
                     self.assertEqual(
                         tokenizer.encode(prefix.text, add_special_tokens=False), list(prefix.token_ids)
                     )
+
+    def test_canonical_collision_replenishes_tokens_after_severe_contraction(self):
+        tokenizer = BoundaryMergeTokenizer("x x")
+        records = [GSMRecord(17, "x", "hash-17"), GSMRecord(23, "x", "hash-23")]
+        sources = {"group-0": records, "group-1": records}
+        lengths = {"group-0": 1, "group-1": 128}
+        canonical = build_canonical_prefixes(tokenizer, sources, lengths, 1)
+        prefix = canonical["group-1"]
+        # Joint encoding contracts the first 128 source tokens to a 93-token
+        # prefix, including the marker. The fallback must replenish the corpus.
+        self.assertGreaterEqual(len(prefix.token_ids), 128)
+        self.assertEqual(tokenizer.encode(prefix.text), list(prefix.token_ids))
+        _, expected_indices, expected_hashes = _repeat_tokens(records, tokenizer, 256)
+        self.assertEqual(prefix.gsm_indices, expected_indices)
+        self.assertEqual(prefix.gsm_hashes, expected_hashes)
+        text, prompt_ids, _, _ = build_prompt(tokenizer, prefix, 128, [ord("Z")], records, 129)
+        self.assertEqual(len(prompt_ids), 129)
+        self.assertEqual(tokenizer.encode(text), list(prompt_ids))
+        self.assertEqual(canonical, build_canonical_prefixes(tokenizer, sources, lengths, 1))
+
+    def test_canonical_collision_rejects_persistent_length_shortfall(self):
+        class CollapsingTokenizer(BoundaryMergeTokenizer):
+            def encode(self, text, add_special_tokens=False):
+                return super().encode(re.sub(r"(?:x )+x", "x", text), add_special_tokens)
+
+        tokenizer = CollapsingTokenizer()
+        record = GSMRecord(0, "x", "hash")
+        with self.assertRaisesRegex(
+            ArtifactValidationError, r"canonical prefix.*group-1.*required.*128.*actual"
+        ):
+            build_canonical_prefixes(
+                tokenizer,
+                {"group-0": [record], "group-1": [record]},
+                {"group-0": 1, "group-1": 128},
+                1,
+            )
+
+    def test_canonical_collision_rejects_normalized_away_marker(self):
+        class MarkerNormalizingTokenizer(BoundaryMergeTokenizer):
+            def encode(self, text, add_special_tokens=False):
+                text = re.sub(r"\d+ prefix-cache-group-group-\d+ ", "", text)
+                return super().encode(text, add_special_tokens)
+
+        record = GSMRecord(0, "same question", "hash")
+        with self.assertRaisesRegex(ArtifactValidationError, "collide in first block"):
+            build_canonical_prefixes(
+                MarkerNormalizingTokenizer(),
+                {"group-0": [record], "group-1": [record]},
+                {"group-0": 96, "group-1": 96},
+                4,
+            )
+
+    def test_boundary_merge_fixture_rejects_non_ascii_input(self):
+        with self.assertRaisesRegex(ValueError, "ASCII"):
+            BoundaryMergeTokenizer().encode("中文标点。")
+
+    def test_boundary_merge_fixture_uses_only_declared_vocabulary(self):
+        tokenizer = BoundaryMergeTokenizer()
+        text = "".join(chr(index) for index in range(128)) + " same question"
+        encoded = tokenizer.encode(text)
+        self.assertTrue(all(0 <= token_id < len(tokenizer) for token_id in encoded))
+        self.assertEqual(tokenizer.decode(encoded), text)
+        for invalid in (-1, len(tokenizer)):
+            with self.subTest(token_id=invalid), self.assertRaisesRegex(ValueError, "vocabulary"):
+                tokenizer.decode([invalid])
 
     def test_seed_capacity_is_rejected_during_scenario_validation(self):
         with tempfile.TemporaryDirectory() as folder:
