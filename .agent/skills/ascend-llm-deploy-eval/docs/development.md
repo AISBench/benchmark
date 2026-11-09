@@ -1,5 +1,7 @@
 # 开发与测试
 
+实际容器依赖屏障会读取本节点生成的代理启动脚本末尾 `exec python3` 命令，核验已绑定的代理程序为可读文件，包括 `proxy_program_key` 选择的路径。此检查不执行代理或 bootstrap，不验证代理协议兼容性；缺文件、目录或读取失败会在模型启动前阻塞。相关覆盖位于 `tests/unit/test_container_dependencies.py`。
+
 [返回快速开始](../README.md)
 
 本 skill 的实现、文档和测试均位于当前目录内，可整体复制。以下命令从 skill 根目录执行：

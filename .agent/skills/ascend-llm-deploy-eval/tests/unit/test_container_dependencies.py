@@ -8,6 +8,48 @@ import run as entry
 import container_dependencies as deps
 
 class DependencyTests(unittest.TestCase):
+    def test_selected_proxy_is_readable_without_execution(self):
+        spec,binding=inputs()
+        dep=spec['deployments'][0]
+        proxy=next(i for i in dep['instances'] if i['role']=='proxy')
+        proxy['launch']['proxy_program_key']='selected_proxy'
+        proxy['launch']['bootstrap']='# unrelated exec must not be mistaken for the generated command\nif false; then\nexec python3 /not-selected.py\nfi'
+        with tempfile.TemporaryDirectory() as d:
+            program=Path(d)/'selected proxy.py'
+            program.write_text('raise RuntimeError("must not execute")')
+            binding['nodes']['node_a']['paths']['selected_proxy']='/selected proxy.py'
+            root=Path(d)/'job';entry.generate(spec,binding,root)
+            script=root/'scripts'/dep['id']/('node_a-'+proxy['id']+'.sh')
+            script.write_text(script.read_text().replace("'/selected proxy.py'",__import__('shlex').quote(str(program))))
+            with patch.object(deps.subprocess,'run') as run:
+                deps.proxy_check(root,dep,'node_a')
+                run.assert_not_called()
+            program.unlink()
+            with self.assertRaisesRegex(ValueError,'Proxy program unavailable'):
+                deps.proxy_check(root,dep,'node_a')
+            # Another node must not check a proxy it does not own.
+            deps.proxy_check(root,dep,'other_node')
+
+    def test_proxy_directory_and_read_permission_failure(self):
+        spec,binding=inputs();dep=spec['deployments'][0]
+        with tempfile.TemporaryDirectory() as d:
+            program=Path(d)/'proxy.py';program.mkdir()
+            binding['nodes']['node_a']['paths']['proxy_program']='/selected-proxy.py'
+            root=Path(d)/'job';entry.generate(spec,binding,root)
+            proxy=next(i for i in dep['instances'] if i['role']=='proxy')
+            script=root/'scripts'/dep['id']/('node_a-'+proxy['id']+'.sh')
+            script.write_text(script.read_text().replace('/selected-proxy.py',__import__('shlex').quote(str(program))))
+            with self.assertRaisesRegex(ValueError,'Proxy program unavailable'):
+                deps.proxy_check(root,dep,'node_a')
+            program.rmdir();program.write_text('# proxy')
+            original=Path.open
+            def denied(path,*args,**kwargs):
+                if path==program:raise PermissionError('denied')
+                return original(path,*args,**kwargs)
+            with patch.object(Path,'open',denied):
+                with self.assertRaisesRegex(ValueError,'Proxy program unavailable'):
+                    deps.proxy_check(root,dep,'node_a')
+
     def test_failure_blocks_all_start_and_releases(self):
         spec,binding=inputs()
         with tempfile.TemporaryDirectory() as d:

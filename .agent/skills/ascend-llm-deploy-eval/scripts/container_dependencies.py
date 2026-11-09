@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import sys
 from aisbench_cli import dataset_for, check_dataset
@@ -38,9 +39,31 @@ def benchmark_check(root, spec, binding, sub):
     print(json.dumps(evidence),flush=True)
 
 
+def proxy_check(root, dep, node):
+    """Check the generated, fully bound proxy command without executing it."""
+    for instance in dep['instances']:
+        if instance['role']!='proxy' or instance['placement']['node']!=node:
+            continue
+        script=root/'scripts'/dep['id']/(node+'-'+instance['id']+'.sh')
+        # The generator writes the final exec after bootstrap and health gating.
+        command=shlex.split(script.read_text().splitlines()[-1])
+        if len(command)<3 or command[:2]!=['exec','python3']:
+            raise ValueError('Invalid generated proxy command: '+str(script))
+        program=Path(command[2])
+        try:
+            if not program.is_file():
+                raise OSError('not a regular file')
+            with program.open('rb') as source:
+                source.read(1)
+        except OSError as error:
+            raise ValueError('Proxy program unavailable in actual container: '+str(program)) from error
+        print(json.dumps({'proxy':instance['id'],'program':str(program),'status':'READABLE'}),flush=True)
+
+
 def worker(root, dep_id, node):
     root=Path(root);spec=json.loads((root/'job_spec.json').read_text());bindings=json.loads((root/'bindings.json').read_text())
     dep=next(d for d in spec['deployments'] if d['id']==dep_id)
+    proxy_check(root,dep,node)
     envs=json.loads((root/'.runtime/dependency-env.json').read_text())[dep_id][node]
     for instance,env in envs.items():
         print('MODEL '+instance+': image ENV + confirmed launch.env; bootstrap is NOT executed',flush=True)
