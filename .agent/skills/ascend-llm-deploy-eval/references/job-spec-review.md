@@ -9,5 +9,8 @@
 
 参数清单是规划证据，不是第二份执行配置。保存到仓库外审阅目录，或在 scripts 输出生成完成后保存到该任务 `.runtime`；不要预建 CLI 将拒绝覆盖的 run-dir，也不要在任务根目录新增清单文件。记录所核对输入与生成脚本摘要；FULL 使用独立新目录，执行输入如有改变须重新生成并核对。Schema 校验、review_job 探测或 scripts 生成成功均不能替代这一逐项核对。
 
+NOTES 中的跨实例启动顺序也须列入清单：逐项核对前置实例、就绪条件、失败阻断及其在正式 job_spec 和生成脚本中的落点。需要启动前健康门控时，可在 `launch.bootstrap` 中显式表达有界等待与失败退出；不能把进程已启动当作健康，也不能只依赖生成脚本隐式启用 `set -e`。顺序差异如拟判定等价，须在 FULL 前展示源码或现场证据、适用条件和审阅结论；无法证明或未解释的差异保留 unresolved，不得执行。最终报告事后披露不能替代执行前审阅。
+
 命令强校验由上游专门 Agent 负责，本技能仍检查结构、依赖、资源归属与结果证据。原生 AISBench 配置保存原文，目标/负载不一致时回到交互阶段修正后重新确认。
 `launch.args.device-ids`、`ASCEND_RT_VISIBLE_DEVICES` 和 `ASCEND_VISIBLE_DEVICES` 是显式设备选择，必须保留并与 placement.devices 的设备及顺序一致；冲突时报错，不把 CLI 替换成环境变量。未指定任何选择时，保真模式默认生成 ASCEND_RT_VISIBLE_DEVICES，其他模式默认生成 device-ids；交互规划须展示派生值及选择机制。
+多 P/D 审阅须核对同一 consumer 所接收的各 producer 的有效 engine_id。MooncakeConnectorV2 按远端 engine_id 缓存元数据，不能靠不同 IP/端口区分重复 ID；程序拒绝同一 consumer 的不同 producer 使用相同声明 ID。DP 的 _dpN 后缀只区分单个部署中的 rank，不保证独立 producer 唯一。采用实例唯一的基础 ID，并结合指定镜像构造逻辑核对有效 ID 集合（含不同基础 ID 经后缀变换后可能重叠的情况）；未核验的 connector 不套用这一实现假设。ID 调整属于需展示依据的参数调整，确认后冲突直接阻塞，不静默重命名。
