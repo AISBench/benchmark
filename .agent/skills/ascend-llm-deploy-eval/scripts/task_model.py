@@ -47,7 +47,7 @@ def normalize(spec):
     return s
 
 def validate_task(spec):
-    from topology import validate_deployment
+    from topology import validate_deployment, context_limit
     errors = []
     deployments = {d['id']:d for d in spec['deployments']}
     cases = {c['id']:c for c in spec['cases']}
@@ -74,7 +74,7 @@ def validate_task(spec):
         if dep is None or case is None:
             errors.append('Unknown deployment/case reference')
             continue
-        limits = [i['launch'].get('args',{}).get('max-model-len',0) for i in dep['instances'] if i['role'] != 'proxy']
+        limits = [context_limit(i['launch'].get('args',{})) for i in dep['instances'] if i['role'] != 'proxy']
         if case.get('mode','perf')=='perf' and limits and case.get('input_tokens',0)+case['output_tokens'] > min(limits):
             errors.append('Context limit exceeded: '+task['id'])
         if case.get('reset_cache') and any(i['launch'].get('env',{}).get('VLLM_SERVER_DEV_MODE')!='1' for i in dep['instances'] if i['role']!='proxy'):

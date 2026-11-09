@@ -6,6 +6,17 @@ import copy
 import re
 
 
+def context_limit(args):
+    """Read known context aliases without rewriting the authored CLI arguments."""
+    keys = [key for key in ('max-model-len', 'max_model_len') if key in args]
+    if len(keys) > 1:
+        raise ValueError('Duplicate max-model-len/max_model_len arguments')
+    value = args[keys[0]] if keys else None
+    if type(value) is not int or value < 1:
+        raise ValueError('Missing positive max-model-len')
+    return value
+
+
 def validate_deployment(dep):
     errors = []
     instances = {i['id']: i for i in dep['instances']}
@@ -33,12 +44,10 @@ def validate_deployment(dep):
         pcp = args.get('prefill-context-parallel-size', 1)
         if any(type(v) is not int or v < 1 for v in (dp, tp, pcp)) or dp*tp*pcp != len(place['devices']):
             errors.append('DP/TP/PCP does not match devices: '+item['id'])
-        context_keys = [key for key in ('max-model-len','max_model_len') if key in args]
-        if len(context_keys) > 1:
-            errors.append('Duplicate max-model-len/max_model_len arguments: '+item['id'])
-        context_length = args[context_keys[0]] if context_keys else None
-        if type(context_length) is not int or context_length < 1:
-            errors.append('Missing positive max-model-len: '+item['id'])
+        try:
+            context_limit(args)
+        except ValueError as exc:
+            errors.append(str(exc)+': '+item['id'])
         visible = ','.join(map(str, place['devices']))
         selection = {'device-ids': args['device-ids']} if 'device-ids' in args else {}
         selection.update({k:v for k,v in item['launch'].get('env',{}).items()

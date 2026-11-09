@@ -8,7 +8,7 @@ import subprocess
 import time
 from stage_runtime import save, digest, http, command
 from remote_node import RemoteNode, PortConflict, transport_argv
-from topology import compile_deployment
+from topology import compile_deployment, context_limit
 from task_events import emit
 from node_identity import node_job_id, node_root as physical_node_root
 
@@ -94,7 +94,7 @@ def preflight(root, spec, bindings, *, deployment_id=None, generation=None):
             if key == compiled['endpoint_group']:
                 service.update(endpoint=compiled['endpoint'], reset_urls=compiled['reset_urls'],
                                prefill_url=compiled['prefill_url'], metric_instances=compiled['metric_instances'])
-            max_length = min(i['launch']['args']['max-model-len'] for i in dep['instances'] if i['role'] != 'proxy')
+            max_length = min(context_limit(i['launch']['args']) for i in dep['instances'] if i['role'] != 'proxy')
             flat = {'id': dep['id']+'-'+key.replace('/', '-'), 'model': {**dep['model'], 'max_model_len': max_length},
                 'container': dep['runtime']['container'], 'npu_ids': group['npu_ids'],
                 'commands': group['commands'], 'service': service, 'prefill_dp': compiled['prefill_dp']}
