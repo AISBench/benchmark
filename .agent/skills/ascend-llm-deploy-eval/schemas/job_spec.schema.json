@@ -454,6 +454,10 @@
           "type": "boolean",
           "default": true,
           "description": "Inject VLLM_SERVER_DEV_MODE=1 into model instances, including preserve_reference. False disables injection and retains explicit reference environment. Does not execute cache reset."
+        },
+        "proxy_start_after_models_healthy": {
+          "type": "boolean",
+          "default": true
         }
       },
       "required": []

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -81,7 +82,29 @@ class GeneratedLifecycle(unittest.TestCase):
             binding=bindings['nodes']['node_a'];binding['work_dir']=bash_path(base)
             binding['model_paths']['dsv4']=bash_path(weights)
             binding['benchmark']['datasets'][case['dataset_id']]['path']=bash_path(dataset)
-            root=base/spec['job_id'];entry.generate(spec,bindings,root)
+            # Reserve an ephemeral contiguous range for each declared port block.
+            # Fixed example ports can belong to real workloads on a Linux test host.
+            reserved=[]
+            try:
+                for instance in dep['instances']:
+                    for name,width in instance['ports'].items():
+                        for attempt in range(100):
+                            block=[]
+                            try:
+                                first=socket.socket();block.append(first);first.bind(('0.0.0.0',0))
+                                port=first.getsockname()[1]
+                                if port+width>65536:raise OSError('range overflow')
+                                for offset in range(1,width):
+                                    item=socket.socket();block.append(item);item.bind(('0.0.0.0',port+offset))
+                                reserved.extend(block)
+                                binding['deployments'][dep['id']]['ports'][instance['id']][name]=port
+                                break
+                            except OSError:
+                                for item in block:item.close()
+                        else:raise RuntimeError('No isolated test port range available')
+                root=base/spec['job_id'];entry.generate(spec,bindings,root)
+            finally:
+                for item in reserved:item.close()
             bridge=base/'evidence_bridge.py'
             bridge.write_text('''import os,sys
 from pathlib import Path

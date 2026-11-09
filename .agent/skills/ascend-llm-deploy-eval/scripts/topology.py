@@ -242,7 +242,8 @@ def compile_deployment(dep, nodes):
                     args['kv-transfer-config']=exact
             argv = ['vllm', 'serve', '{{model.path}}']+cli_args(args)
         group['commands'].append({'name': item['id'], 'role':item['role'], 'argv': argv, 'env': env,
-                                  'bootstrap': launch.get('bootstrap', '')})
+                                  'bootstrap': launch.get('bootstrap', ''),
+                                  'startup_health_urls': [url(peer)+instances[peer]['checks']['health'] for peer in dict.fromkeys(routing['prefillers']+routing['decoders'])] if item['role']=='proxy' else []})
     prefill = next(i for i in instances.values() if i['role'] in ['prefill', 'mixed'])
     endpoint = dep['endpoint']
     return {'groups': groups, 'endpoint': url(endpoint['instance'], endpoint['port']),

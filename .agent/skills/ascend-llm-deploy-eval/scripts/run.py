@@ -68,6 +68,33 @@ def port_check_program(ports):
             ' except OSError as exc: raise RuntimeError("TCP port %s unavailable: %s" % (port,exc)) from exc')
 
 
+def proxy_health_gate(urls, timeout):
+    program = """import subprocess,time,sys
+urls=URLS
+deadline=time.monotonic()+TIMEOUT
+while True:
+    healthy=True
+    for url in urls:
+        remaining=deadline-time.monotonic()
+        if remaining<=0:
+            sys.exit('Proxy startup blocked: model health timeout: '+url)
+        limit=min(3.0,remaining)
+        try:
+            probe=subprocess.run(['curl','--noproxy','*','--silent','--show-error','--output','/dev/null','--write-out','%{http_code}','--max-time',str(limit),url],capture_output=True,text=True,timeout=limit)
+            ok=probe.returncode==0 and probe.stdout=='200'
+        except subprocess.TimeoutExpired:
+            ok=False
+        if not ok: healthy=False
+    if healthy:
+        print('Proxy model health dependencies ready',flush=True)
+        break
+    remaining=deadline-time.monotonic()
+    if remaining<=0: sys.exit('Proxy startup blocked: model health timeout')
+    time.sleep(min(1.0,remaining))
+""".replace('TIMEOUT',repr(timeout)).replace('URLS',repr(urls))
+    return shlex.join(['python3','-c',program])+' || exit $?\n'
+
+
 def generate(spec, bindings, root):
     """Transactional generation: failure never leaves a partially executable task."""
     if root.exists():
@@ -233,8 +260,9 @@ def _generate(spec, bindings, root):
                 if any(not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', k) for k in env):
                     raise ValueError('Invalid environment name')
                 filename = slot+'-'+item['name']+'.sh'
+                gate=proxy_health_gate(item['startup_health_urls'],spec['execution']['startup_timeout_seconds']) if item['role']=='proxy' and spec['execution']['proxy_start_after_models_healthy'] else ''
                 script(folder/filename, '# Execute inside container '+name+' on '+binding['host']+'\n'+expand(item['bootstrap'],context,shell=True)+'\n'+
-                       '\n'.join('export '+k+'='+q(str(v)) for k,v in env.items())+'\nexec '+shlex.join(args), strict=False)
+                       '\n'.join('export '+k+'='+q(str(v)) for k,v in env.items())+'\n'+gate+'exec '+shlex.join(args), strict=False)
                 pid = '/tmp/bench-'+slot+'-'+item['name']+'.pid'
                 # The PID is written by the shell that execs the generated script.
                 inner = 'echo $$ > '+q(pid)+'; exec bash '+q(remote_scripts+'/'+filename)
