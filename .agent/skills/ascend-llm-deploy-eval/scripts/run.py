@@ -57,6 +57,17 @@ def remote_root(binding, job_id):
     return str(path)
 
 
+def port_check_program(ports):
+    # Linux server restarts may leave TIME_WAIT after all owned processes exit.
+    # REUSEADDR permits that normal restart, but deliberately never REUSEPORT.
+    # listen also rejects an existing listener when both sockets use REUSEADDR.
+    return ('import socket; sockets=[]\nfor port in '+repr(ports)+':\n'
+            ' s=socket.socket(); sockets.append(s)\n'
+            ' s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)\n'
+            ' try: s.bind(("0.0.0.0",port)); s.listen(1)\n'
+            ' except OSError as exc: raise RuntimeError("TCP port %s unavailable: %s" % (port,exc)) from exc')
+
+
 def generate(spec, bindings, root):
     """Transactional generation: failure never leaves a partially executable task."""
     if root.exists():
@@ -198,7 +209,7 @@ def _generate(spec, bindings, root):
             checks.append('command -v fuser >/dev/null')
             for device in group['npu_ids']:
                 checks.append('RC=0; fuser '+q('/dev/davinci'+str(device))+' || RC=$?\ntest "$RC" -eq 1')
-            port_check='import socket; sockets=[]\nfor port in '+repr(group['ports'])+':\n s=socket.socket(); s.bind(("0.0.0.0",port)); sockets.append(s)'
+            port_check=port_check_program(group['ports'])
             checks.append(shlex.join(['python3','-c',port_check]))
             create=shlex.join(argv).replace('docker run ', 'docker run --label "bench.execution=$TOKEN" ',1)
             script(folder/(slot+'-container.sh'), '\n'.join(checks)+'\nTOKEN=${1:-$(python3 -c "import uuid; print(uuid.uuid4().hex)")}\n[[ "$TOKEN" =~ ^[a-f0-9]{32}$ ]]\nprintf "%s" "$TOKEN" > '+q(token_file)+'\n'+create+' > '+q(identity)+'\ncat '+q(identity))
