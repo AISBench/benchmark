@@ -28,3 +28,5 @@ def test_runner_selects_files_without_adding_entire_directory(
     command = start.call_args.args[0]
     targets = command[3 : command.index("--tb=short")]
     assert targets == (selected or [str(tmp_path.resolve())])
+
+    assert ("--cov-fail-under=0" in command) == bool(selected)

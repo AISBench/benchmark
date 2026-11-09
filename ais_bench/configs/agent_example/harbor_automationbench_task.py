@@ -4,7 +4,7 @@ from ais_bench.benchmark.summarizers.harbor import HarborSummarizer
 from ais_bench.benchmark.tasks.base import EmptyTask
 from ais_bench.benchmark.tasks.custom_tasks.harbor_agent_task import HarborAgentTask
 
-dataset_path = "/data/automationbench-public"
+dataset_path = "/path/to/automationbench-public"
 models = [dict(
     abbr="automationbench-official",
     agent_import_path="automationbench_adapter.agent:AutomationBenchOfficialAgent",
@@ -14,6 +14,7 @@ models = [dict(
 datasets = [dict(
     abbr="automationbench",
     args=dict(path=dataset_path, environment_type="docker", n_attempts=1),
+    # HarborTask/HarborAgentTask extension; other task types do not consume it.
     reporting=dict(
         publisher="automationbench_adapter.reporting:publish_job",
         kwargs=dict(manifest=dataset_path + "/manifest.json"),

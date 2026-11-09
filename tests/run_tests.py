@@ -277,6 +277,11 @@ class TestRunner:
         if max_failures:
             cmd.extend(['--maxfail', str(max_failures)])
 
+        if specific_tests:
+            # A subset cannot certify the repository-wide coverage threshold.
+            cmd.append('--cov-fail-under=0')
+            print("Targeted tests: coverage is reported without the full-suite threshold.")
+
         # Add other useful options
         cmd.extend([
             '--strict-markers',  # Strict marker checking

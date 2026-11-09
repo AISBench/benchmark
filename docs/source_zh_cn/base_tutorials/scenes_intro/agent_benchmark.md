@@ -423,6 +423,22 @@ pip install -r requirements/agent.txt
 
 ### AutomationBench 归一化结果
 
-使用 `ais_bench/configs/agent_example/harbor_automationbench_task.py`，在调度环境中安装 Harbor 和 AutomationBench 适配包。配置数据集目录、与本次选题完全一致的 manifest、模型连接和任务镜像。每个 Job 使用一次 attempt。三轮正式验收使用适配包的显式 Trial 索引汇总命令。
+示例配置：`ais_bench/configs/agent_example/harbor_automationbench_task.py`。在独立调度环境安装配套Harbor和适配包，配置 `/path/to/automationbench-public`、对应manifest、模型连接及任务镜像。每个Job使用一次attempt。
 
-`HarborAgentTask` 在 Job 完成或恢复后调用数据集配置中的 `reporting.publisher`。Harbor reporting 使用最终 Trial 列表校验完整性，写出 `summary/normalized_result.json` 和完成标记。AISBench 的模型/数据集结果索引保存相对路径。通用展示读取文件并校验完成标记哈希，按原单位展示 accuracy、integrity 和 acceptance。标记缺失或校验失败时，CSV 分数为空，验收状态为 blocked，并保留证据路径。
+`datasets[].reporting` 是 **HarborTask／HarborAgentTask专用扩展键**，不是其他任务的通用配置。`publisher` 格式为 `module:callable`，可选 `kwargs` 为字典。Job完成或恢复后调用publisher。结果文件保持原有 `total_count`、`n_errors`、`avg_score`、`reward_distribution`、`exception_distribution`、`n_total_trials`、`pass_at_k`，成功时附加 `normalized_result` 相对路径及 `result_format="harbor-normalized-index-v1"`。publisher导入、配置或执行失败时仍保存旧指标，并写入 `reporting_error`；已完成的Job不因可选后处理失败而丢失结果。
+
+归一化报告契约：
+
+| 项目 | 契约 |
+| --- | --- |
+| 报告文件 | `summary/normalized_result.json`，`schema_version="1.0"` |
+| 完成标记 | 同目录 `reporting_complete.json`；可选 `schema_version` 默认 `1.0` |
+| 推荐哈希 | 标记 `result_file_sha256` 为报告原始字节的SHA256；存在时优先采用，不重序列化 |
+| 兼容哈希 | 官方适配包已有 `result_sha256` 使用canonical-json-v1：UTF-8编码的Python `json.dumps(report, sort_keys=True, ensure_ascii=False, allow_nan=False)`，保留默认分隔符 `, ` 和 `: `；仅缺少原始字节哈希时使用 |
+| accuracy | `metrics.accuracy` 为0～1数值或null；完整性无效时必须为null |
+| integrity | `integrity.status`：`valid`／`invalid` |
+| acceptance | `acceptance.status`：`pass`／`fail`／`blocked` |
+
+校验实现位于 `ais_bench/benchmark/utils/harbor_reporting.py`。文件、路径类型、版本、字段或哈希无效时，归一化行显示 `integrity=invalid`、`acceptance=blocked`，accuracy无值，日志包含原因；其他数据集仍可展示。
+
+旧CSV列保持为 `agent,model_name,dataset,avg_score,correct,wrong,exception`。配置含数据集 `reporting` 时，固定追加 `accuracy,integrity,acceptance,evidence`；也可用顶层 `normalized_columns=True/False` 显式选择，列集不随结果是否损坏变化。`avg_score`始终为旧reward均值，官方accuracy使用独立列，null在控制台显示 `-`、在CSV为空。evidence为相对work_dir路径，迁移目录后仍可定位。离线读取旧索引时用 `normalized_columns=True` 启用附加列。
