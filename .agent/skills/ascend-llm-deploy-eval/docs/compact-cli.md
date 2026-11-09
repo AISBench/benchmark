@@ -44,6 +44,8 @@ JOB_ID/
 
 ## 现场绑定
 
+模板仅识别无空格的 `{{name}}` 或 `{{paths.key}}` 等标识符路径（字母/下划线开头，后续为字母、数字、下划线或点）。匹配的绑定不存在时仍报 `Unresolved binding`。其他花括号语法按原文保留，例如 `docker inspect -f '{{ index .Config.Labels "bench.task" }}'` 和 `{{.Id}}`。替换只进行一轮，不将绑定值中的花括号再次解释为模板；shell 场景中的绑定值仍通过 shell quoting 处理。
+
 节点绑定包含 host、work_dir、model_paths、paths、mounts、mount_profiles 和 benchmark 等字段。mount_profiles 显式选择驱动/通信模板，mounts 按 target 覆盖模板或追加；不隐式追加旧基线主机目录。生成器另合并任务目录（可写）与模型目录（默认只读）；同 target 的显式 source 必须与绑定路径一致，任务目录不能只读，模型目录保留显式访问模式。容器设备和基础选项由部署的 runtime.container 规范化，完整规则见 [容器基线](../references/container-baseline.md)。
 
 每个物理节点增加确定的部署网络与端口：

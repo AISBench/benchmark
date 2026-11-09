@@ -112,10 +112,10 @@ def expand(value, context, shell=False):
         if isinstance(result, (dict, list)):
             raise ValueError('Structured binding must occupy entire value: '+match[1])
         return shlex.quote(str(result)) if shell else str(result)
-    result = TOKEN.sub(replace, value)
-    if '{{' in result or '}}' in result:
-        raise ValueError('Unresolved or invalid template token')
-    return result
+    # Expand our tokens once. Other brace syntax (e.g. Docker Go templates)
+    # and braces in resolved binding values are literal text, not new tokens.
+    # Missing recognized bindings still fail in lookup above.
+    return TOKEN.sub(replace, value)
 
 def higher_concurrency_blocker(spec, subtask, results):
     cases={c['id']:c for c in spec['cases']}
