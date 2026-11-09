@@ -12,7 +12,7 @@
 
 - `mount_profiles` 显式选择驱动和通信挂载模板，具体路径见 [挂载模板](mount-profiles.md)。省略时不追加模板挂载。
 - `mounts` 按 target 覆盖模板的 source 和 read_only；重复显式 target 报错。
-- 生成器额外挂载任务目录（可写）和模型目录（只读）。显式声明同 target 时，source 及访问模式必须与自动挂载要求一致，否则报错。
+- 生成器额外挂载任务目录（可写）和模型目录（默认只读）。显式声明同 target 时，source 必须与绑定路径一致，任务目录不能只读；模型目录保留用户显式指定的访问模式。冲突时生成报错。
 - 数据集、宿主代理文件、rootinfo、日志目录及需要的 npu-smi 工具按现场需求显式绑定。不自动挂载整盘 /mnt、/home、/usr/lib64，也不同时要求两处 npu-smi 路径存在。
 
 完整示例见 [bindings.example.json](../examples/bindings.example.json)，与 [job_spec.compact.json](../examples/job_spec.compact.json) 配套；快速开始使用的 [bindings.compact.json](../examples/bindings.compact.json) 提供相同示例。示例路径、镜像、网络和端口均需现场审阅，不代表可直接在任意机器启动。job_spec 保持 draft，完成审阅后才设置 ready 并解决 unresolved。

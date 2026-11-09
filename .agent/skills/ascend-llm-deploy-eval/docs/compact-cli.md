@@ -44,7 +44,7 @@ JOB_ID/
 
 ## 现场绑定
 
-沿用 nodes、host、work_dir、model_paths、paths、mounts 和 benchmark 字段。新入口显式使用 bindings.mounts，不再隐式追加主机目录。容器设备和基础选项由 job_spec.runtime.container 规范化。额外挂载任务目录和模型目录。
+节点绑定包含 host、work_dir、model_paths、paths、mounts、mount_profiles 和 benchmark 等字段。mount_profiles 显式选择驱动/通信模板，mounts 按 target 覆盖模板或追加；不隐式追加旧基线主机目录。生成器另合并任务目录（可写）与模型目录（默认只读）；同 target 的显式 source 必须与绑定路径一致，任务目录不能只读，模型目录保留显式访问模式。容器设备和基础选项由部署的 runtime.container 规范化，完整规则见 [容器基线](../references/container-baseline.md)。
 
 每个物理节点增加确定的部署网络与端口：
 

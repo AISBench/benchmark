@@ -47,7 +47,7 @@ flowchart TD
 
 ## 容器与资源
 
-默认容器基线来自用户提供的启动命令：root、host网络/PID、500g共享内存、privileged、八卡和管理设备，以及通信、驱动、工具和数据目录挂载。runtime.container 显式参数优先；bindings.mounts 按目标路径覆盖或追加，完整清单由 [容器基线](../references/container-baseline.md) 维护，不在多处复制。
+容器基础选项默认使用 root、host 网络/PID、500g 共享内存、privileged、八卡和管理设备，runtime.container 显式参数优先。挂载独立配置：节点 mount_profiles 显式选择驱动/通信模板，mounts 按目标路径覆盖模板或追加；不隐式追加旧基线的整盘目录。生成器另合并任务目录（可写）和模型目录（默认只读），规则见 [容器基线](../references/container-baseline.md)。
 
 每台机器首个任务容器以总job_id命名，兼容配置跨部署复用，不兼容时使用子编号。服务身份和容器身份分离；切换部署默认停止服务，保留兼容容器。任务结束默认停止服务并删除本任务容器，保留日志、结果、脚本快照、共享镜像和权重。
 
