@@ -1,4 +1,5 @@
 """Bounded, container-local dependency evidence; never installs or starts services."""
+import argparse
 import importlib.metadata
 import json
 import os
@@ -45,10 +46,21 @@ def proxy_check(root, dep, node):
         if instance['role']!='proxy' or instance['placement']['node']!=node:
             continue
         script=root/'scripts'/dep['id']/(node+'-'+instance['id']+'.sh')
-        # The generator writes the final exec after bootstrap and health gating.
-        command=shlex.split(script.read_text().splitlines()[-1])
+        # A generator-owned marker prevents bootstrap exec lines from being selected.
+        text=script.read_text()
+        marker='# @proxy-command'
+        lines=text.splitlines()
+        positions=[i for i,line in enumerate(lines) if line.strip()==marker]
+        if len(positions)!=1:
+            raise ValueError('Missing or ambiguous proxy command marker: '+str(script))
+        tail='\n'.join(lines[positions[0]+1:]).replace('\\\n','')
+        line=next((line.strip() for line in tail.splitlines() if line.strip() and not line.lstrip().startswith('#')), '')
+        try:
+            command=shlex.split(line, comments=True)
+        except ValueError as error:
+            raise ValueError('Invalid generated proxy command in '+str(script)+': '+repr(line)) from error
         if len(command)<3 or command[:2]!=['exec','python3']:
-            raise ValueError('Invalid generated proxy command: '+str(script))
+            raise ValueError('Invalid generated proxy command in '+str(script)+': '+repr(line))
         program=Path(command[2])
         try:
             if not program.is_file():
@@ -76,10 +88,19 @@ def worker(root, dep_id, node):
 
 
 def main():
-    if sys.argv[1]=='--worker':
-        worker(*sys.argv[2:]);return
-    timeout=int(sys.argv[4])
-    process=subprocess.Popen([sys.executable,__file__,'--worker',*sys.argv[1:4]],start_new_session=True)
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--worker',action='store_true')
+    parser.add_argument('root')
+    parser.add_argument('deployment')
+    parser.add_argument('node')
+    parser.add_argument('timeout',type=int,nargs='?')
+    args=parser.parse_args()
+    if args.worker:
+        if args.timeout is not None: parser.error('--worker does not accept a timeout')
+        worker(args.root,args.deployment,args.node);return
+    if args.timeout is None or args.timeout<=0: parser.error('positive timeout is required')
+    timeout=args.timeout
+    process=subprocess.Popen([sys.executable,__file__,'--worker',args.root,args.deployment,args.node],start_new_session=True)
     try:
         rc=process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:

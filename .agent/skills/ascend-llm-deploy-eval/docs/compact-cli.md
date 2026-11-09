@@ -134,3 +134,24 @@ FULL 增加创建全部容器→全部依赖预检通过→模型启动屏障。
 - 分发在同一父目录下的独立临时目录写入、校验后再发布；同名发布通过 Linux flock 串行化。已存在且摘要匹配的目录可复用，内容不同则拒绝覆盖；独立 execution.claim 继续阻止重复协调执行。正常失败清理本次临时目录，强杀可能留下隐藏的 `.JOB.upload-*`，但不会占据最终目录。核验没有活动发布进程后可人工清理对应临时目录；不要删除共享 `.JOB.publish.lock` 文件或他人的任务目录。既有不完整最终目录、不同内容的同名任务，保留现场并改用新 job_id；本地目录保留为诊断证据。
 - 只读进度观察：`python scripts/watch_events.py --run-dir /work/JOB`，读取当前 status.timeline，按终端本地时区显示；历史任务兼容 logs/events.jsonl。仅保存读取游标，不累计无界去重集合。关闭观察器不控制任务。
 - launch.args 按最终 CLI 传递：True/False 为 `--name`/`--no-name`，dict/list 为单个 JSON 参数。只可用于目标版本支持此语法的参数；保真传参不是版本兼容性认证。示例中的 `attention_config.indexer_kv_dtype` 等是现场版本参数，须按所选镜像的 `vllm serve --help` 核验，不能当作通用默认参数照抄。
+
+
+## 现行代码导航与历史兼容范围
+
+新任务执行以 **run.py** 为准；这是唯一 FULL/scripts 生命周期入口。现行文件如下（均在 scripts/）：
+
+| 用途 | 文件 |
+|---|---|
+| 执行与分发 | run.py、bundle_distribution.py、remote_node.py、shared_storage.py |
+| 配置与脚本编译 | task_model.py、topology.py、container_baseline.py、mount_profiles.py |
+| 现场审阅与授权数据生成 | review_job.py、generate_gsm8k.py |
+| 容器依赖及测试证据 | container_dependencies.py、aisbench_cli.py、test_evidence.py、validate_case.py、cache_reset.py、metric_evidence.py、ownership_evidence.py |
+| 只读观察 | watch_logs.py、watch_events.py、task_events.py（历史事件流兼容） |
+
+以下文件保留用于历史协议回归或其内部依赖，不是新任务的执行入口：case_runner.py、cluster_runtime.py、deploy.py、discover_tool.py、disk_guard.py、evaluate.py、finalize.py、group_run.py、group_worker.py、node_identity.py、node_prepare.py、node_rpc.py、plan_run.py、preflight.py、run_task.py、service_process.py、stage_runtime.py、submission.py、submit_job.py、task_preflight.py、task_runtime.py。不移动历史模块以免破坏现有回归导入路径；新入口不依赖这些模块。停用的公开命令及 stage_runtime.entry 的拒绝执行由 test_review_closure.py/test_stage_entry.py 验证，stage_runtime 的模块执行共用 entry 的一处停用提示。
+
+采集通过 nonce 文件证明是否共享同一目录，并通过 is_local 显式选择本机复制或 SSH/scp，不以路径字符串相同或命令列表恰好相等作判定。
+
+最终收尾逐项尝试释放、采集、状态写入和解锁，记录 `.runtime/finalization.json` 的原始异常与各步骤结果。状态写入失败也会尝试解锁；解锁/写入错误不得覆盖原任务异常或用户中断。无原始异常但收尾失败时整体失败；若诊断文件本身无法写入，协调器日志保留错误。INTERRUPTED 不表示释放成功，必须另查 release 和 finalization 证据。
+
+代理依赖检查读取生成器写入的 `# @proxy-command` 标记后的命令，允许尾部空行/注释；不把 bootstrap 内的其他 exec 当成代理入口。参数缺失、非法超时或标记/命令异常会给出明确错误。

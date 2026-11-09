@@ -5,11 +5,10 @@ if __name__ == '__main__':
 import copy
 import json
 from pathlib import Path
-import shlex
 import re
 import subprocess
 import time
-from stage_runtime import save, digest, http, command
+from stage_runtime import save, digest, command
 from remote_node import RemoteNode, PortConflict, transport_argv
 from topology import compile_deployment, context_limit
 from task_model import higher_concurrency_blocker

@@ -2,8 +2,8 @@
 
 if __name__ == '__main__':
     raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
+from task_model import normalize, load_json, validate
 import argparse
-import copy
 import json
 from pathlib import Path
 import shutil
@@ -138,4 +138,3 @@ def main():
 
 if __name__=='__main__': raise SystemExit(main())
 
-from task_model import normalize, load_json, validate

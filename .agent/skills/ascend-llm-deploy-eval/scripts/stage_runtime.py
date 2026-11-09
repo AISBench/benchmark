@@ -1,7 +1,5 @@
 """Shared stage IO, ownership checks, service state and container-wide lock."""
 
-if __name__ == '__main__':
-    raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts.')
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
@@ -168,3 +166,7 @@ def record(root,stage,operation):
 
 def entry(stage):
     raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts.')
+
+
+if __name__ == '__main__':
+    entry(None)

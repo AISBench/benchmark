@@ -1,12 +1,11 @@
 import copy
 import json
-import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
-from test_compact_entry import inputs, PACKAGE
+from test_compact_entry import inputs
 import run as entry
 from test_evidence import native_config_check
 from aisbench_cli import validate_native_result

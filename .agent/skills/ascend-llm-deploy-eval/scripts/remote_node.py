@@ -7,7 +7,7 @@ import getpass
 import sys
 
 
-def transport_argv(host, argv):
+def is_local(host):
     """Use local transport only for the current user and an actual local IP."""
     user, separator, address = host.rpartition('@')
     address = address if separator else host
@@ -17,7 +17,13 @@ def transport_argv(host, argv):
             addresses={a['local'] for interface in json.loads(result.stdout)
                        for a in interface.get('addr_info',[]) if 'local' in a}
             if address in addresses:
-                return list(argv)
+                return True
+    return False
+
+
+def transport_argv(host, argv):
+    if is_local(host):
+        return list(argv)
     return ['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15',host,shlex.join(argv)]
 
 

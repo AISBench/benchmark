@@ -4,7 +4,6 @@ if __name__ == '__main__':
     raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import json
 from pathlib import Path
-import shutil
 import subprocess
 from preflight import check, CONTAINER_TMP
 from container_baseline import docker_run_args

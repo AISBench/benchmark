@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import re
 import sys
-import shutil
 from stage_runtime import save, command, PACKAGE, digest
 from task_preflight import discover_network, allocate_ports, inspect_image_tools, create_execution
 

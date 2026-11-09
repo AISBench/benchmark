@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shlex
 import signal
+import sys
 import shutil
 import subprocess
 import time
@@ -30,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from aisbench_cli import commands, require_supported_mode, write_config
 from container_baseline import docker_run_args
 from task_model import load_json, normalize, validate, validate_bindings, expand, higher_concurrency_blocker
-from remote_node import transport_argv
+from remote_node import transport_argv, is_local
 from topology import compile_deployment
 from shared_storage import verify_groups
 from bundle_distribution import PROGRAM as DISTRIBUTE_PROGRAM
@@ -74,9 +75,9 @@ def port_check_program(ports):
 
 
 def proxy_health_gate(urls, timeout):
-    program = """import subprocess,time,sys
-urls=URLS
-deadline=time.monotonic()+TIMEOUT
+    program = """import subprocess,time,sys,json
+urls=json.loads(sys.argv[1])
+deadline=time.monotonic()+float(sys.argv[2])
 while True:
     healthy=True
     for url in urls:
@@ -96,8 +97,8 @@ while True:
     remaining=deadline-time.monotonic()
     if remaining<=0: sys.exit('Proxy startup blocked: model health timeout')
     time.sleep(min(1.0,remaining))
-""".replace('TIMEOUT',repr(timeout)).replace('URLS',repr(urls))
-    return shlex.join(['python3','-c',program])+' || exit $?\n'
+"""
+    return shlex.join(['python3','-c',program,json.dumps(urls),str(timeout)])+' || exit $?\n'
 
 
 def generate(spec, bindings, root):
@@ -276,7 +277,7 @@ def _generate(spec, bindings, root):
                 filename = slot+'-'+item['name']+'.sh'
                 gate=proxy_health_gate(item['startup_health_urls'],spec['execution']['startup_timeout_seconds']) if item['role']=='proxy' and spec['execution']['proxy_start_after_models_healthy'] else ''
                 script(folder/filename, '# Execute inside container '+name+' on '+binding['host']+'\n'+expand(item['bootstrap'],context,shell=True)+'\n'+
-                       '\n'.join('export '+k+'='+q(str(v)) for k,v in env.items())+'\n'+gate+'exec '+shlex.join(args), strict=False)
+                       '\n'.join('export '+k+'='+q(str(v)) for k,v in env.items())+'\n'+gate+('# @proxy-command\n' if item['role']=='proxy' else '')+'exec '+shlex.join(args), strict=False)
                 pid = '/tmp/bench-'+slot+'-'+item['name']+'.pid'
                 # The PID is written by the shell that execs the generated script.
                 inner = 'echo $$ > '+q(pid)+'; exec bash '+q(remote_scripts+'/'+filename)
@@ -421,6 +422,25 @@ else:
             if result.returncode:raise RuntimeError('Execution claim failed: '+result.stderr)
 
 
+def collection_access(root, group):
+    """Prove directory sharing by a nonce, then select explicit local/SSH access."""
+    marker='.runtime/collect-'+uuid.uuid4().hex
+    token=uuid.uuid4().hex
+    path=root/marker
+    path.write_text(token)
+    try:
+        check=subprocess.run(transport_argv(group['host'],['cat',group['root']+'/'+marker]),
+                             capture_output=True,text=True,timeout=30)
+        if check.returncode==0 and check.stdout==token:
+            return 'shared'
+    finally:
+        try:
+            path.unlink()
+        except OSError:
+            logging.exception('Cannot remove collection probe %s',path)
+    return 'local' if is_local(group['host']) else 'ssh'
+
+
 def collect(root, plan):
     """Gather user artifacts only; never infer shared storage from matching strings."""
     seen=set()
@@ -429,15 +449,9 @@ def collect(root, plan):
             key=(group['host'],group['root'])
             if key in seen: continue
             seen.add(key)
-            marker='.runtime/collect-'+uuid.uuid4().hex
-            token=uuid.uuid4().hex
-            (root/marker).write_text(token)
-            try:
-                check=subprocess.run(transport_argv(group['host'],['cat',group['root']+'/'+marker]),capture_output=True,text=True,timeout=30)
-                if check.returncode==0 and check.stdout==token:
-                    continue  # Demonstrated same physical directory, even under different mount paths.
-            finally:
-                (root/marker).unlink()
+            access=collection_access(root,group)
+            if access=='shared':
+                continue
             for category in ('logs','results'):
                 source=group['root']+'/'+category
                 probe=['test','-d',source]
@@ -446,7 +460,7 @@ def collect(root, plan):
                 if checked.returncode==1: continue  # Required files checked below, including shared paths.
                 if checked.returncode: raise RuntimeError('Cannot collect '+source)
                 destination=root/category;destination.mkdir(exist_ok=True)
-                if argv==probe:
+                if access=='local':
                     if Path(source).resolve()!=destination.resolve():
                         shutil.copytree(source,destination,dirs_exist_ok=True)
                 else:
@@ -469,6 +483,48 @@ def check_process(pid):
             raise ProcessLookupError(pid)
     else:
         os.kill(pid, 0)
+
+
+def finish_execution(root, status, subtasks, release, collect_artifacts, publish, lock, primary_error):
+    """Attempt every finalization step without masking the original failure."""
+    steps = {}
+    failures = []
+
+    def attempt(name, operation):
+        try:
+            operation()
+            steps[name] = {'status':'PASSED'}
+        except Exception as error:
+            logging.exception('Finalization %s failed', name)
+            steps[name] = {'status':'FAILED', 'error':repr(error)}
+            failures.append(error)
+            if status['status'] != 'INTERRUPTED':
+                status['status'] = 'FAILED'
+
+    attempt('release', release)
+    if any(value != 'PASSED' for value in status['release'].values()) and status['status'] != 'INTERRUPTED':
+        status['status'] = 'FAILED'
+
+    def gather():
+        try:
+            collect_artifacts()
+            status['artifacts'] = 'COLLECTED' if status['expected_artifacts'] else 'NOT_PRODUCED'
+        except Exception as error:
+            status['artifacts'] = str(error)
+            raise
+
+    attempt('collect', gather)
+    for sub in subtasks:
+        status['cases'].setdefault(sub['id'], 'NOT_RUN')
+    attempt('publish', publish)
+    attempt('unlock', lock.unlink)
+    if steps['unlock']['status'] == 'FAILED':
+        attempt('publish_after_unlock_failure', publish)
+    report = {'status':status['status'], 'primary_error':repr(primary_error) if primary_error else None,
+              'steps':steps}
+    attempt('record', lambda: save(root/'.runtime/finalization.json', report))
+    if failures and primary_error is None:
+        raise RuntimeError('Task finalization failed; inspect coordinator log and .runtime/finalization.json') from failures[0]
 
 
 def execute(root, spec, plan):
@@ -654,26 +710,20 @@ def execute(root, spec, plan):
             event('stage',stage['id'],'PASSED' if stage_passed else 'FAILED')
         status['status']='PASSED' if all(v=='PASSED' for v in status['cases'].values()) else 'FAILED'
     except BaseException as exc:
-        drain()
-        if 'stage' in locals(): event('stage',stage['id'],'INTERRUPTED' if isinstance(exc,KeyboardInterrupt) else 'FAILED')
         status['status']='INTERRUPTED' if isinstance(exc,KeyboardInterrupt) else 'FAILED'
         for key,value in status['cases'].items():
             if value=='RUNNING':status['cases'][key]=status['status']
         logging.exception('Task stopped')
+        try:
+            drain()
+            if 'stage' in locals(): event('stage',stage['id'],status['status'])
+        except Exception:
+            logging.exception('Cannot publish original task failure; preserving original exception')
         raise
     finally:
-        try: release()
-        finally:
-            if any(v!='PASSED' for v in status['release'].values()):
-                status['status']='FAILED'
-            try:
-                collect(root,plan);status['artifacts']='COLLECTED' if status['expected_artifacts'] else 'NOT_PRODUCED'
-            except Exception as exc:
-                logging.exception('Artifact collection incomplete');status['artifacts']=str(exc)
-                status['status']='FAILED'
-            for sub in spec['sub_tasks']:
-                status['cases'].setdefault(sub['id'],'NOT_RUN')
-            publish();lock.unlink()
+        finish_execution(root,status,spec['sub_tasks'],release,
+                         lambda: collect(root,plan),publish,lock,sys.exc_info()[1])
+
 
 
 def main():

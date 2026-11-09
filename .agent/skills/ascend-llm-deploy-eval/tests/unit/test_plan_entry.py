@@ -2,7 +2,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 """Regression checks for planning entry points; no remote operations."""
-import copy
 import json
 from pathlib import Path
 import subprocess

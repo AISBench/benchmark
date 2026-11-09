@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import re
 import shlex
-import shutil
 import socket
 import secrets
 import subprocess

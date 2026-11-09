@@ -157,7 +157,7 @@ def _check(root, report):
             for port in service['ports']:
                 try:
                     probe_port(port)
-                except PortUnavailable as exc:
+                except PortUnavailable:
                     try:
                         evidence['port_conflict'] = command(['ss', '-ltnp', 'sport', '=', ':'+str(port)])
                     except Exception as detail:

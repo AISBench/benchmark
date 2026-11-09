@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]/'scripts'))
-from container_baseline import baseline_mounts, docker_run_args, DEVICES, MOUNT_PATHS
+from container_baseline import baseline_mounts, docker_run_args, DEVICES
 
 
 class ContainerBaselineTests(unittest.TestCase):

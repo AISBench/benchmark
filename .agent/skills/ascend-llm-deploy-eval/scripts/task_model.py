@@ -46,6 +46,23 @@ def normalize(spec):
         subtask.setdefault('on_failure', 'record_only')
     return s
 
+def logging_assignments(bootstrap, keys):
+    """Inspect assignment commands, not mentions in comments/echo/grep arguments."""
+    for number, line in enumerate(bootstrap.splitlines(), 1):
+        try:
+            tokens = shlex.split(line, comments=True)
+        except ValueError:
+            continue  # Full shell syntax belongs to generated script validation.
+        if tokens and tokens[0] == 'export':
+            tokens = tokens[1:]
+        for token in tokens:
+            if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*=', token):
+                break
+            key = token.split('=', 1)[0]
+            if key in keys:
+                yield key, number
+
+
 def validate_task(spec):
     from topology import validate_deployment, context_limit
     errors = []
@@ -58,9 +75,12 @@ def validate_task(spec):
             launch=instance.get('launch',{})
             if launch.get('preserve_reference'):
                 continue
-            for key in ('ASCEND_SLOG_PRINT_TO_STDOUT','ASCEND_GLOBAL_LOG_LEVEL'):
-                if key in launch.get('env',{}) or re.search(r'(?<![A-Za-z0-9_])'+key+r'\s*=',launch.get('bootstrap','')):
-                    errors.append('Remove operator logging assignment: '+key)
+            keys = ('ASCEND_SLOG_PRINT_TO_STDOUT','ASCEND_GLOBAL_LOG_LEVEL')
+            for key in keys:
+                if key in launch.get('env',{}):
+                    errors.append('Remove operator logging assignment: '+key+' in '+instance['id']+'.launch.env')
+            for key, line in logging_assignments(launch.get('bootstrap',''), keys):
+                errors.append('Remove operator logging assignment: '+key+' in '+instance['id']+'.bootstrap line '+str(line))
         errors.extend(validate_deployment(dep))
     if errors:
         return errors

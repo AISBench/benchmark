@@ -28,7 +28,7 @@ def main():
         for skip in r['skipped']:
             lines.append('- `'+skip['test']+'`：'+skip['reason'].replace('\n', ' '))
         lines.append('')
-    lines += ['离线测试不启动真实容器或模型，不证明真实硬件性能；本轮为测试基础设施和文档修改，无需重新执行实机部署。', '']
+    lines += ['本报告仅记录离线回归，不启动真实容器或模型，也不证明真实硬件性能；是否需要实机复验须按具体修改影响另行评估。', '']
     args.output.write_text('\n'.join(lines), encoding='utf-8')
 
 

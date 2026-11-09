@@ -9,10 +9,8 @@ from pathlib import Path, PurePosixPath
 import re
 import shlex
 import subprocess
-import sys
 import tarfile
 from plan_run import check_dependencies, load_json, normalize, validate, candidate_ids, plan
-from stage_runtime import PACKAGE
 
 
 def ssh(host, argv):

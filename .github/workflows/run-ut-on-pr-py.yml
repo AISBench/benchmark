@@ -152,7 +152,8 @@ jobs:
           set -euo pipefail
           venv_dir="$RUNNER_TEMP/ascend-skill-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           python3 -m venv "$venv_dir"
-          "$venv_dir/bin/python" -m pip install -r .agent/skills/ascend-llm-deploy-eval/requirements.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
+          "$venv_dir/bin/python" -m pip install -r .agent/skills/ascend-llm-deploy-eval/requirements-dev.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
+          "$venv_dir/bin/python" -m ruff check --config .agent/skills/ascend-llm-deploy-eval/ruff.toml .agent/skills/ascend-llm-deploy-eval/scripts .agent/skills/ascend-llm-deploy-eval/tests
           "$venv_dir/bin/python" .agent/skills/ascend-llm-deploy-eval/tests/run_unit_tests.py --require-bash --output "$RUNNER_TEMP/ascend-skill-unit-tests.json"
       - name: Upload skill test report
         if: always()

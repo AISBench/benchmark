@@ -1,4 +1,3 @@
-import copy
 import json
 from pathlib import Path
 import sys

@@ -1,4 +1,4 @@
-import copy,json,os,sys,tempfile,threading,time,subprocess,unittest
+import copy,os,sys,tempfile,threading,time,subprocess,unittest
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from test_compact_entry import inputs
@@ -34,7 +34,6 @@ class GateTests(unittest.TestCase):
                 return H
             server=ThreadingHTTPServer(('127.0.0.1',0),handler(index));servers.append(server)
             threading.Thread(target=server.serve_forever,daemon=True).start()
-        urls=['http://127.0.0.1:%s/health'%s.server_port for s in servers]
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);mark=root/'started';script=root/'proxy.sh'

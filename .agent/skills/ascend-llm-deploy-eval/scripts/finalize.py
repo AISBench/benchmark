@@ -9,7 +9,7 @@ import os
 import signal
 from service_process import ticks
 from pathlib import Path
-from stage_runtime import command,entry,inspect_owned,read_plan,save,state,transition,update,pool_state,save_pool
+from stage_runtime import command,entry,inspect_owned,read_plan,save,state,transition,pool_state,save_pool
 
 
 def release(root,policy,scope):

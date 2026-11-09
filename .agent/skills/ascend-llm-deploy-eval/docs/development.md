@@ -38,11 +38,13 @@ Generated start/probe scripts append host UTC time, NPU status, fuser PIDs for t
 
 开发过程中 V1–V6 已完成真实 AISBench 小负载流程验证（含原生预热）；V6 实际请求只覆盖 P1，P2/P3 仅健康验证。上述场景不是本次最新代码的完整实机重跑。本轮只执行离线测试，不重新部署模型、不占用 NPU。
 
-Ruff 0.17.4 已扫描 scripts/ 与 tests/：`python -m ruff check --isolated --select E9,F63,F7,F82 scripts tests` 正确性规则通过。另执行开发机现有广泛规则的 `python -m ruff check scripts tests`，仍存在导入排序、宽泛异常捕获、未使用导入等问题，不能标记完整 lint 全绿；没有为消除报告而批量改写历史生命周期实现。该广泛规则依赖开发机配置，不作为仓库统一 lint 基线。完整 lint 整理仍是待办。Git 空白检查及 skill 元数据校验单独执行，不能替代 lint 或真实部署验收。
-
+当前可复现 lint 门禁使用本目录 ruff.toml（Python 3.10，E9 与完整 F 规则），检查语法、未定义名字、未使用导入/变量等问题；本轮已清理该范围的存量问题。命令：`python -m ruff check --config ruff.toml scripts tests`。requirements-dev.txt 固定 Ruff 版本，CI 在单元测试前执行，失败阻止 job 通过。此门禁不宣称通过开发机额外的格式、导入排序和全部风格规则，也不替代行为回归。
 
 ## CI 回归保护
 
-关联 benchmark 仓库的 `.github/workflows/run-ut-on-pr-py.yml` 对 `.agent/**` 及 workflow 自身变更触发。独立的 `skill_unit_tests` job 在 Linux runner 的临时虚拟环境安装本 skill 的 requirements.txt（含 jsonschema/packaging），并调用同一个 tests/run_unit_tests.py；测试失败直接使 job 失败，不依赖 AISBench 核心测试 job 的结果。JSON 报告通过 artifact 保存，runner 上未安装或无法安装依赖会明确失败，不静默跳过测试。
+关联 benchmark 仓库的 `.github/workflows/run-ut-on-pr-py.yml` 对 `.agent/**` 及 workflow 自身变更触发。独立的 `skill_unit_tests` job 在 Linux runner 的临时虚拟环境安装本 skill 的 requirements-dev.txt（引用 requirements.txt，含 jsonschema/packaging 及固定版本 Ruff），并调用同一个 tests/run_unit_tests.py；测试失败直接使 job 失败，不依赖 AISBench 核心测试 job 的结果。JSON 报告通过 artifact 保存，runner 上未安装或无法安装依赖会明确失败，不静默跳过测试。
 
 Bash 相关测试共享可执行性探测：优先 Windows Git Bash，再检查 PATH 候选，实际读取 BASH_VERSION。启动失败、无有效版本或超时均以原因明确的 SkipTest 记录，WSL launcher 存在不等于 Bash 可用。Linux CI 必须提供可执行 Bash；测试 runner 支持 --require-bash，CI 启用该选项以防 shell 覆盖静默缺失。
+
+
+归属采样从 fuser 的 PID 输出列解析，不将设备路径数字当作 PID；保留命令 stdout/stderr、输出截断字符数与 pid_selection（上限、解析数量、超限丢弃数量）。进程在读取前退出仍明确记录读取失败，不将“查不到”解释为已证明设备空闲。

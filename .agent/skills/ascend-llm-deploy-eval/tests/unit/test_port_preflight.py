@@ -1,5 +1,5 @@
 """Linux socket-level preflight checks; ephemeral loopback ports, no model service."""
-import os,socket,subprocess,sys,unittest
+import socket,subprocess,sys,unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
 from run import port_check_program
@@ -27,7 +27,7 @@ class PortCheckTests(unittest.TestCase):
                 result=self.probe(port)
                 self.assertNotEqual(result.returncode,0)
                 self.assertIn('TCP port %s unavailable'%port,result.stderr)
-                with socket.create_connection(('127.0.0.1',port)) as client:
+                with socket.create_connection(('127.0.0.1',port)):
                     peer,_=server.accept();peer.close()
     def test_nonreusable_bound_socket_is_blocked(self):
         with socket.socket() as bound:

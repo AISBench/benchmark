@@ -1,4 +1,4 @@
-import copy,json,tempfile,threading,unittest
+import json,tempfile,threading,unittest
 from pathlib import Path
 from unittest.mock import patch
 import sys

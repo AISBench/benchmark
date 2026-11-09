@@ -4,7 +4,6 @@ if __name__ == '__main__':
     raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import argparse
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys

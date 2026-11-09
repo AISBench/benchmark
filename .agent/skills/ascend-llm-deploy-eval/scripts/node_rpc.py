@@ -9,7 +9,7 @@ import sys
 import shutil
 import time
 from datetime import datetime, timezone
-from stage_runtime import locked, read_plan, state, service_identity, http, save, transition
+from stage_runtime import locked, read_plan, state, service_identity, http, transition
 
 
 def execute(request):

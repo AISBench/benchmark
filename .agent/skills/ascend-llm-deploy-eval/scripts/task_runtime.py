@@ -53,4 +53,3 @@ def stage_entry(stage, root, bindings=None):
             return finalize(root,spec,resolved)
         raise ValueError('Use generated run.sh for topology deployment and execution')
 
-from task_model import validate_task

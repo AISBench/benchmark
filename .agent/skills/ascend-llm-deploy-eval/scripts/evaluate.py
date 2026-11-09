@@ -4,7 +4,6 @@ if __name__ == '__main__':
     raise SystemExit('Retired lifecycle entry. Use scripts/run.py --mode FULL|scripts; historical frozen jobs retain their own code.')
 import json
 from pathlib import Path
-import shutil
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -69,7 +68,6 @@ def evaluate(root, case):
             info.update(finished_at=datetime.now(timezone.utc).isoformat(),summary=summary,
                         status='PASSED' if passed else 'FAILED',returncode=returncode,cleanup=cleanup)
             save(public/'sub_task.json',info)
-        passed = returncode == 0 and summary['status'] == 'PASSED' and cleanup['released']
         try:
             unchanged = identity == service_identity(spec, root)
         except Exception:

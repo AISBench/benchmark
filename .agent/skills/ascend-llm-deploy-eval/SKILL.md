@@ -26,6 +26,8 @@ python3 scripts/run.py --job-spec /input/job_spec.json --bindings /input/binding
 
 scripts 不访问服务器，生成可手工检查、执行与复现的脚本。FULL 在 Linux 主节点运行一个协调进程，按相同脚本分发、创建容器、部署、冒烟、测试、有限重试、释放和汇集产物；远端没有第二个协调进程。启动前检查设备占用和端口，失败不抢占其他任务资源。
 
+现行实现文件与历史兼容文件的完整分类见[代码导航](docs/compact-cli.md#现行代码导航与历史兼容范围)，定位新任务行为以 run.py 及其现行辅助模块为准。
+
 旧 plan_run/submit_job/run_task/节点 RPC 等公开命令已停用。历史冻结任务使用其自带代码。仓库保留的旧内部实现供回归比较，不构成第二套公开运行协议。
 
 ## 配置与运行约束
