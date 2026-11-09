@@ -2,12 +2,11 @@
 
 由 tests/render_unit_test_report.py 根据原始 JSON 报告生成；不要手改计数。
 
-测试内容 SHA256：`f416a9e76b5d8fc3a28d0f40e588a28d6532b24fac9929172101e8129c0982c5`。文本换行统一为 LF 后计算，避免 Git 的 CRLF/LF 转换产生伪差异。摘要覆盖 scripts、tests、schemas、examples 的 Python/JSON 文件及 requirements.txt；不含本文和其他说明文档。
+测试内容 SHA256：`862542296727984cd9d303425aa447a5d17c3a5fa1380220e28b482c94dcb3ab`。文本换行统一为 LF 后计算，避免 Git 的 CRLF/LF 转换产生伪差异。摘要覆盖 scripts、tests、schemas、examples 的 Python/JSON 文件及 requirements.txt；不含本文和其他说明文档。
 
 | UTC 时间 | 系统 | Python | 总数 | 通过 | 失败 | 错误 | 跳过 | 结果 |
 |---|---|---|---:|---:|---:|---:|---:|---|
-| 2026-11-09T12:58:27.345912+00:00 | Windows | 3.11.4 | 224 | 213 | 0 | 0 | 11 | PASS |
-| 2026-11-09T12:57:13.519724+00:00 | Linux | 3.11.6 | 224 | 224 | 0 | 0 | 0 | PASS |
+| 2026-11-09T14:07:10.564816+00:00 | Windows | 3.11.4 | 231 | 219 | 0 | 0 | 12 | PASS |
 
 ## 平台及跳过原因
 
@@ -26,12 +25,6 @@
 - `test_port_preflight.PortCheckTests.test_time_wait_allows_restart_but_bare_bind_fails`：Linux TCP reuse semantics
 - `test_port_recovery.PortRecovery.test_time_wait_does_not_block_redeployment`：Linux server socket semantics
 - `test_proxy_gate.GateTests.test_generated_gate_waits_for_both_models_and_times_out`：Bash/curl behavior
-
-### Linux
-
-`Linux-6.6.0-159.4.16.170.oe2403sp4.aarch64-aarch64-with-glibc2.38`
-
-无跳过。
-
+- `test_runtime_publication.RuntimePublicationTests.test_receiver_idempotence_conflict_and_symlink_escape`：Linux receiver uses flock
 
 本报告仅记录离线回归，不启动真实容器或模型，也不证明真实硬件性能；是否需要实机复验须按具体修改影响另行评估。

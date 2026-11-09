@@ -9,7 +9,23 @@ python3 scripts/run.py --job-spec /input/job_spec.json --bindings /input/binding
 
 两个示例是不同任务，不应对同一目录连续执行生成。输出目录存在时拒绝覆盖，生成失败不留下半成品。CLI 为前台单协调进程，长任务由调用方使用现有进程管理方式托管；本入口不创建第二个后台协调器或监控。
 
-## 两种模式
+## 远程运行时发布
+
+本地冻结版本可通过本技能支持工具发布最小运行时，无需由调用方手工上传整个 skill。此操作写远程文件，须已有任务授权；不适用于只读预检。示例参数为占位，按已审阅任务填写：
+
+```sh
+python scripts/publish_runtime.py --host root@HOST --work-root /work/user --task-id JOB --input /local/proxy.py --input /local/job_spec.json --input /local/bindings.json --receipt /local/JOB-publication.json
+```
+
+`--plan-only` 仅生成本地发布计划，不访问远程。`--input` 可重复，只接收明确指定的单个文件；重名拒绝。发布凭据中 `input_paths` 给出每个文件的远程路径，不自动重写 job_spec/bindings。需要引用这些输入的路径应在审阅阶段明确绑定为 `/work/user/JOB.runtime/inputs/文件名`，有其他节点时按已确认共享关系或技能任务分发规则保证可见，不能因路径相同推定共享。代理及原生配置需按该实际路径挂载；本工具不自动准备依赖、数据或模型。
+
+运行时在 `/work/user/JOB.runtime`，有绑定任务身份和全部文件 SHA256 的 `runtime-manifest.json`；只包括执行所需模块、四份 Schema、依赖声明和显式输入，不包括测试、历史兼容模块或开发归档。运行时自身缺失第三方依赖时上报，不自动安装。
+
+在所选 Linux 主节点调用 `python3 -B /work/user/JOB.runtime/scripts/run.py ... --run-dir /work/user/JOB --mode FULL`，这是原有单协调器执行入口，发布工具不引入第二套生命周期。数据准备可使用同一冻结运行时的 `generate_gsm8k.py`，输出必须在已授权任务归属目录中。用 `-B` 避免生成额外字节码缓存。
+
+发布复用已有原子分发与 Linux flock：相同内容可以核验复用，内容不同拒绝覆盖；相同发布不等于允许重跑已执行任务。运行时和任务目录均保留，以凭据关联归属，不能据任务结束删除未知文件。发布失败或中断保留凭据及可能的上传残留，禁止手工绕过；本地凭据已存在也拒绝覆盖。修复后使用新的任务 ID 和冻结版本。
+
+## 两种执行模式
 
 - `scripts`：验证配置并生成脚本和测试配置，状态为 SCRIPTS_READY。不访问服务器、不创建容器、不启动模型。现场绑定必须完整；生成成功不代表现场预检通过。
 - `FULL`：完成同样的生成，分发并核验任务包，创建容器、检查设备占用和端口、执行部署和冒烟、原生 AISBench 测试、有限重试、释放并汇集产物。只清理任务标签和本次执行标识匹配的资源，启动和探测同时核验 ID。case 中断会记录 INTERRUPTED。
