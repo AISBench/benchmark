@@ -15,7 +15,7 @@ def main():
         raise ValueError('Reports must cover identical tested source')
     lines = ['# 当前单元测试验证记录', '',
              '由 tests/render_unit_test_report.py 根据原始 JSON 报告生成；不要手改计数。', '',
-             '测试内容 SHA256：`'+next(iter(hashes))+'`。摘要覆盖 scripts、tests、schemas、examples 的 Python/JSON 文件及 requirements.txt；不含本文和其他说明文档。', '',
+             '测试内容 SHA256：`'+next(iter(hashes))+'`。文本换行统一为 LF 后计算，避免 Git 的 CRLF/LF 转换产生伪差异。摘要覆盖 scripts、tests、schemas、examples 的 Python/JSON 文件及 requirements.txt；不含本文和其他说明文档。', '',
              '| UTC 时间 | 系统 | Python | 总数 | 通过 | 失败 | 错误 | 跳过 | 结果 |',
              '|---|---|---|---:|---:|---:|---:|---:|---|']
     for r in reports:

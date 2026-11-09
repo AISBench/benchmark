@@ -30,7 +30,8 @@ def source_identity():
     files.append(ROOT/'requirements.txt')
     for path in sorted(files):
         digest.update(path.relative_to(ROOT).as_posix().encode()+b'\0')
-        digest.update(hashlib.sha256(path.read_bytes()).digest())
+        # Git checkouts may use CRLF on Windows; fingerprint canonical text.
+        digest.update(hashlib.sha256(path.read_bytes().replace(b'\r\n', b'\n')).digest())
     try:
         commit = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'],
                                          text=True, stderr=subprocess.DEVNULL, timeout=5).strip()
@@ -39,7 +40,7 @@ def source_identity():
     except (OSError, subprocess.SubprocessError):
         commit, dirty = None, None
     return {'git_commit': commit, 'working_tree_dirty': dirty,
-            'tested_source_sha256': digest.hexdigest()}
+            'newline_policy': 'LF', 'tested_source_sha256': digest.hexdigest()}
 
 
 def main():
