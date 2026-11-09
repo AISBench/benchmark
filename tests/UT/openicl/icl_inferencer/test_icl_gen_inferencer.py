@@ -13,7 +13,8 @@ class DummyDataset:
         self.reader = type("R", (), {
             "output_column": "label",
             "get_max_out_len": lambda self=None: [5, 6],
-            "get_timestamp": lambda self=None: None
+            "get_timestamp": lambda self=None: None,
+            "get_session_id": lambda self=None: None,
         })()
         self.train = Dataset.from_dict({"text": ["t0", "t1"], "label": [0, 1]})
         self.test = Dataset.from_dict({"text": ["a", "b"], "label": [0, 1]})
@@ -245,7 +246,8 @@ class TestGenInferencer(unittest.TestCase):
                 self.reader = type("R", (), {
                     "output_column": "label",
                     "get_max_out_len": lambda self=None: [5, 6],
-                    "get_timestamp": lambda self=None: [1000, 2000]  # 毫秒单位
+                    "get_timestamp": lambda self=None: [1000, 2000],  # 毫秒单位
+                    "get_session_id": lambda self=None: None,
                 })()
                 self.train = Dataset.from_dict({"text": ["t0", "t1"], "label": [0, 1]})
                 self.test = Dataset.from_dict({"text": ["a", "b"], "label": [0, 1]})
@@ -290,7 +292,8 @@ class TestGenInferencer(unittest.TestCase):
                 self.reader = type("R", (), {
                     "output_column": "label",
                     "get_max_out_len": lambda self=None: [5, 6, 7],
-                    "get_timestamp": lambda self=None: [500, 1500, 3000]  # 毫秒单位
+                    "get_timestamp": lambda self=None: [500, 1500, 3000],  # 毫秒单位
+                    "get_session_id": lambda self=None: None,
                 })()
                 self.train = Dataset.from_dict({"text": ["t0", "t1", "t2"], "label": [0, 1, 2]})
                 self.test = Dataset.from_dict({"text": ["a", "b", "c"], "label": [0, 1, 2]})
