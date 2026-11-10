@@ -20,6 +20,9 @@ echo "Building package..."
 python -m build --no-isolation --sdist
 python -m build --no-isolation --wheel
 
+echo "Validating release artifacts..."
+python tools/verify_release_artifacts.py dist/*
+
 VERSION=$(python setup.py --version 2>/dev/null || git describe --abbrev=0 --tags | sed 's/^v//')
 
 echo "Version: $VERSION"
