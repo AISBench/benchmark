@@ -20,6 +20,7 @@ class RuntimePublicationTests(unittest.TestCase):
             manifest, payload = publish_runtime.build('root@example', '/work/user', 'case1', [source])
             self.assertEqual(manifest['runtime_root'], '/work/user/case1.runtime')
             self.assertFalse(any('tests/' in k or 'stage_runtime' in k for k in payload['files']))
+            self.assertNotIn('scripts/generate_gsm8k.py', payload['files'])
             self.assertEqual(manifest['input_paths'][str(source.resolve())], '/work/user/case1.runtime/inputs/proxy.py')
             root = Path(directory) / 'runtime'
             for name, value in payload['files'].items():
@@ -28,7 +29,7 @@ class RuntimePublicationTests(unittest.TestCase):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(content)
-            for module in ('run', 'review_job', 'generate_gsm8k', 'watch_events', 'watch_logs'):
+            for module in ('run', 'review_job', 'watch_events', 'watch_logs'):
                 result = subprocess.run([sys.executable, '-B', str(root / 'scripts' / (module + '.py')), '--help'], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
 

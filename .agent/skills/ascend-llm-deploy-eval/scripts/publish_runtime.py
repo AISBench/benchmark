@@ -14,7 +14,7 @@ PACKAGE = Path(__file__).resolve().parents[1]
 MODULES = (
     'run', 'bundle_distribution', 'remote_node', 'shared_storage', 'task_model',
     'topology', 'container_baseline', 'mount_profiles', 'review_job',
-    'generate_gsm8k', 'container_dependencies', 'aisbench_cli', 'test_evidence',
+    'container_dependencies', 'aisbench_cli', 'test_evidence',
     'validate_case', 'cache_reset', 'metric_evidence', 'ownership_evidence',
     'watch_events', 'task_events', 'watch_logs',
 )

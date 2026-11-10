@@ -1,4 +1,4 @@
-"""Build a standard AISBench perf config using an existing user dataset."""
+"""Build a standard AISBench perf config using external data or AISBench native synthetic data."""
 import csv
 import json
 import hashlib
@@ -14,12 +14,87 @@ def dataset_digest(path):
     return digest.hexdigest()
 
 
+def synthetic_config(case):
+    """Translate confirmed targets only; AISBench owns all sample generation."""
+    from decimal import Decimal
+    import math
+    size=case.get('input_tokens');count=case.get('formal_requests')
+    ratio=case.get('shared_prefix_ratio',0)
+    if type(size) is not int or not 1 <= size < 2**20:
+        raise ValueError('AISBench synthetic requires input_tokens in [1, 2**20)')
+    if type(count) is not int or not 1 <= count < 2**20:
+        raise ValueError('AISBench synthetic requires formal_requests in [1, 2**20)')
+    if type(ratio) not in (int,float) or not math.isfinite(ratio) or not 0 <= ratio <= 1:
+        raise ValueError('Invalid synthetic shared_prefix_ratio')
+    prefix=int(Decimal(size)*Decimal(str(ratio)))
+    return {'Type':'tokenid','RequestCount':count,'TrustRemoteCode':False,
+            'TokenIdConfig':{'RequestSize':size,'PrefixLen':prefix}}
+
+
+def check_synthetic_support(case):
+    """Check the installed AISBench implementation, without generating another sample set."""
+    import inspect
+    from ais_bench.benchmark.datasets import SyntheticDataset
+    config=synthetic_config(case)
+    SyntheticDataset._check_synthetic_config(config)
+    source=inspect.getsource(SyntheticDataset.load)
+    if 'PrefixLen' not in source:
+        raise ValueError('Installed AISBench SyntheticDataset has no inspectable PrefixLen support')
+    module=Path(inspect.getfile(SyntheticDataset))
+    return {'type':'aisbench_synthetic','config':config,'module':str(module),
+            'module_sha256':dataset_digest(module),'status':'CONFIG_CHECKED',
+            'sample_generation':'PENDING_NATIVE_LOADER_VALIDATION'}
+
+
+def audit_synthetic_result(folder, case, model_path, tokenizer=None):
+    """Measure original AISBench request text; never rewrite or regenerate it."""
+    report={'source':'AISBench SyntheticDataset','target':synthetic_config(case),
+            'scope':'formal request details; excludes warmup','status':'UNVERIFIED'}
+    try:
+        files=list((folder/'outputs').glob('*/performances/*/*_details.jsonl'))
+        if len(files)!=1:raise ValueError('Expected one synthetic formal detail file')
+        if tokenizer is None:
+            from transformers import AutoTokenizer, PreTrainedTokenizerFast
+            try:tokenizer=AutoTokenizer.from_pretrained(model_path,trust_remote_code=False)
+            except Exception:tokenizer=PreTrainedTokenizerFast.from_pretrained(model_path,trust_remote_code=False)
+        lengths=[];common=None
+        with files[0].open(encoding='utf-8') as stream:
+            for line in stream:
+                if not line.strip():continue
+                row=json.loads(line);text=row.get('input')
+                if not isinstance(text,str):raise ValueError('Missing native request input text')
+                tokens=tokenizer.encode(text,add_special_tokens=False);lengths.append(len(tokens))
+                if common is None:common=tokens
+                else:
+                    n=0
+                    for a,b in zip(common,tokens):
+                        if a!=b:break
+                        n+=1
+                    common=common[:n]
+        if len(lengths)!=case['formal_requests']:raise ValueError('Synthetic audit request count mismatch')
+        report.update(status='MEASURED',details_sha256=dataset_digest(files[0]),
+                      text_token_lengths=lengths,exact_input_lengths=all(n==case['input_tokens'] for n in lengths),
+                      common_prefix_tokens=len(common) if len(lengths)>1 else None,
+                      target_prefix_tokens=report['target']['TokenIdConfig']['PrefixLen'],
+                      note='Decode/re-encode can alter lengths and prefix boundaries; target is not cache hit rate')
+    except Exception as error:
+        report['error']=repr(error)
+        raise
+    finally:
+        (folder/'synthetic-evidence.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+    return report
+
+
 def dataset_for(benchmark, case, *, check_files=True):
     key = case.get('dataset_id', 'default')
     datasets = benchmark.get('datasets', {})
     if key not in datasets:
         raise ValueError('Missing benchmark.datasets binding: '+key)
     dataset = dict(datasets[key])
+    if dataset.get('type') == 'aisbench_synthetic':
+        if set(dataset) != {'type'}:
+            raise ValueError('AISBench synthetic binding must not contain external paths or generator settings')
+        return {**dataset,'config':synthetic_config(case),'input_column':'question','output_column':'answer'}
     path = Path(dataset.get('path', ''))
     absolute = path.is_absolute() if check_files else PurePosixPath(str(path).replace('\\', '/')).is_absolute()
     if not absolute or (check_files and not path.is_file()) or path.suffix.lower() not in ('.jsonl', '.csv'):
@@ -79,7 +154,8 @@ def check_dataset(dataset, count):
 def write_config(spec, case, service, folder, *, check_files=True):
     require_supported_mode(case)
     dataset = dataset_for(spec['benchmark'], case, check_files=check_files)
-    if check_files:
+    synthetic=dataset.get('type')=='aisbench_synthetic'
+    if check_files and not synthetic:
         check_dataset(dataset, case['formal_requests'])
     endpoint = urlsplit(service['endpoint'])
     if endpoint.scheme not in ('http', 'https') or not endpoint.hostname:
@@ -93,11 +169,14 @@ def write_config(spec, case, service, folder, *, check_files=True):
                   url=service['endpoint'].rstrip('/')+'/', max_out_len=case['output_tokens'],
                   batch_size=case['concurrency'], trust_remote_code=False,
                   generation_kwargs={'temperature':0,'ignore_eos':False})
+    dataset_class='SyntheticDataset' if synthetic else 'CustomDataset'
+    dataset_args=(f'config={dataset["config"]!r}, model_path={spec["model"]["path"]!r}' if synthetic else
+                  f'path={dataset["path"]!r}, meta_path=""')
     config = folder/'aisbench-config.py'
     text = (
         'from mmengine.config import read_base\n'
         'from ais_bench.benchmark.models import VLLMCustomAPI\n'
-        'from ais_bench.benchmark.datasets import CustomDataset\n'
+        f'from ais_bench.benchmark.datasets import {dataset_class}\n'
         'from ais_bench.benchmark.openicl.icl_prompt_template import PromptTemplate\n'
         'from ais_bench.benchmark.openicl.icl_retriever import ZeroRetriever\n'
         'from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer\n'
@@ -105,7 +184,7 @@ def write_config(spec, case, service, folder, *, check_files=True):
         'from ais_bench.benchmark.runners.local import LocalRunner\n'
         'from ais_bench.benchmark.tasks import OpenICLApiInferTask\n'
         f'with read_base():\n    from ais_bench.benchmark.configs.summarizers.perf.{summarizer} import summarizer\n'
-        f'datasets = [dict(type=CustomDataset, abbr="dataset", path={dataset["path"]!r}, meta_path="", '
+        f'datasets = [dict(type={dataset_class}, abbr="dataset", {dataset_args}, '
         f'reader_cfg=dict(input_columns={[dataset["input_column"]]!r}, output_column={dataset["output_column"]!r}), '
         f'infer_cfg=dict(prompt_template=dict(type=PromptTemplate, template={("{"+dataset["input_column"]+"}")!r}), '
         'retriever=dict(type=ZeroRetriever), inferencer=dict(type=GenInferencer)))]\n'

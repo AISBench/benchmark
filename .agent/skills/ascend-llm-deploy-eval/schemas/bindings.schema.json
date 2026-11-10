@@ -116,29 +116,45 @@
               "datasets": {
                 "type": "object",
                 "additionalProperties": {
-                  "type": "object",
-                  "required": [
-                    "path"
-                  ],
-                  "additionalProperties": false,
-                  "properties": {
-                    "path": {
-                      "type": "string",
-                      "pattern": "^/"
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "path"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^/"
+                        },
+                        "input_column": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                        },
+                        "output_column": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                        },
+                        "generation_manifest": {
+                          "type": "string",
+                          "pattern": "^/"
+                        }
+                      }
                     },
-                    "input_column": {
-                      "type": "string",
-                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-                    },
-                    "output_column": {
-                      "type": "string",
-                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-                    },
-                    "generation_manifest": {
-                      "type": "string",
-                      "pattern": "^/"
+                    {
+                      "type": "object",
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "aisbench_synthetic"
+                        }
+                      }
                     }
-                  }
+                  ]
                 }
               }
             }

@@ -8,7 +8,7 @@ import shutil
 import shlex
 import subprocess
 import sys
-from aisbench_cli import dataset_for, check_dataset
+from aisbench_cli import dataset_for, check_dataset, check_synthetic_support
 
 
 def benchmark_check(root, spec, binding, sub):
@@ -23,8 +23,12 @@ def benchmark_check(root, spec, binding, sub):
     if not distributions:raise ValueError('No installed distribution owns AISBench entry point: '+resolved)
     evidence={'subtask':sub['id'],'executable':resolved,'distributions':distributions}
     if not case.get('aisbench_config'):
-        data=dataset_for(binding['benchmark'],case);check_dataset(data,case['formal_requests'])
-        evidence['dataset']={'path':data['path'],'status':'CHECKED'}
+        data=dataset_for(binding['benchmark'],case)
+        if data.get('type')=='aisbench_synthetic':
+            evidence['dataset']=check_synthetic_support(case)
+        else:
+            check_dataset(data,case['formal_requests'])
+            evidence['dataset']={'path':data['path'],'status':'CHECKED'}
     else:
         from mmengine.config import Config
         config=Config.fromfile(str(root/'scripts/tests'/(sub['id']+'.config.py')))

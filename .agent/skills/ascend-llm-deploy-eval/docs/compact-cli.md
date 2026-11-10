@@ -21,7 +21,7 @@ python scripts/publish_runtime.py --host root@HOST --work-root /work/user --task
 
 运行时在 `/work/user/JOB.runtime`，有绑定任务身份和全部文件 SHA256 的 `runtime-manifest.json`；只包括执行所需模块、四份 Schema、依赖声明和显式输入，不包括测试、历史兼容模块或开发归档。运行时自身缺失第三方依赖时上报，不自动安装。
 
-在所选 Linux 主节点调用 `python3 -B /work/user/JOB.runtime/scripts/run.py ... --run-dir /work/user/JOB --mode FULL`，这是原有单协调器执行入口，发布工具不引入第二套生命周期。数据准备可使用同一冻结运行时的 `generate_gsm8k.py`，输出必须在已授权任务归属目录中。用 `-B` 避免生成额外字节码缓存。
+在所选 Linux 主节点调用 `python3 -B /work/user/JOB.runtime/scripts/run.py ... --run-dir /work/user/JOB --mode FULL`，这是原有单协调器执行入口，发布工具不引入第二套生命周期。前缀样本由本体 AISBench SyntheticDataset 在正式 CLI 流程生成，无外部生成器发布步骤。用 `-B` 避免生成额外字节码缓存。
 
 发布复用已有原子分发与 Linux flock：相同内容可以核验复用，内容不同拒绝覆盖；相同发布不等于允许重跑已执行任务。运行时和任务目录均保留，以凭据关联归属，不能据任务结束删除未知文件。发布失败或中断保留凭据及可能的上传残留，禁止手工绕过；本地凭据已存在也拒绝覆盖。修复后使用新的任务 ID 和冻结版本。
 
@@ -160,11 +160,11 @@ FULL 增加创建全部容器→全部依赖预检通过→模型启动屏障。
 |---|---|
 | 执行与分发 | run.py、bundle_distribution.py、remote_node.py、shared_storage.py |
 | 配置与脚本编译 | task_model.py、topology.py、container_baseline.py、mount_profiles.py |
-| 现场审阅与授权数据生成 | review_job.py、generate_gsm8k.py |
+| 现场审阅与原生数据配置 | review_job.py；AISBench原生合成配置由aisbench_cli.py生成 |
 | 容器依赖及测试证据 | container_dependencies.py、aisbench_cli.py、test_evidence.py、validate_case.py、cache_reset.py、metric_evidence.py、ownership_evidence.py |
 | 只读观察 | watch_logs.py、watch_events.py、task_events.py（历史事件流兼容） |
 
-以下文件保留用于历史协议回归或其内部依赖，不是新任务的执行入口：case_runner.py、cluster_runtime.py、deploy.py、discover_tool.py、disk_guard.py、evaluate.py、finalize.py、group_run.py、group_worker.py、node_identity.py、node_prepare.py、node_rpc.py、plan_run.py、preflight.py、run_task.py、service_process.py、stage_runtime.py、submission.py、submit_job.py、task_preflight.py、task_runtime.py。不移动历史模块以免破坏现有回归导入路径；新入口不依赖这些模块。停用的公开命令及 stage_runtime.entry 的拒绝执行由 test_review_closure.py/test_stage_entry.py 验证，stage_runtime 的模块执行共用 entry 的一处停用提示。
+以下文件保留用于历史协议回归或其内部依赖，不是新任务的执行入口：generate_gsm8k.py、case_runner.py、cluster_runtime.py、deploy.py、discover_tool.py、disk_guard.py、evaluate.py、finalize.py、group_run.py、group_worker.py、node_identity.py、node_prepare.py、node_rpc.py、plan_run.py、preflight.py、run_task.py、service_process.py、stage_runtime.py、submission.py、submit_job.py、task_preflight.py、task_runtime.py。不移动历史模块以免破坏现有回归导入路径；新入口不依赖这些模块。停用的公开命令及 stage_runtime.entry 的拒绝执行由 test_review_closure.py/test_stage_entry.py 验证，stage_runtime 的模块执行共用 entry 的一处停用提示。
 
 采集通过 nonce 文件证明是否共享同一目录，并通过 is_local 显式选择本机复制或 SSH/scp，不以路径字符串相同或命令列表恰好相等作判定。
 

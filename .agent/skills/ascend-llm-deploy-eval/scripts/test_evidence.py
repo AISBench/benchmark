@@ -2,7 +2,7 @@
 import json
 import urllib.request
 from pathlib import Path
-from aisbench_cli import dataset_for, check_dataset, validate_native_result
+from aisbench_cli import dataset_for, check_dataset, validate_native_result, audit_synthetic_result
 from validate_case import validate
 from cache_reset import reset_instances, validate_reset
 from metric_evidence import capture, summarize
@@ -45,7 +45,8 @@ def check(task, sub_id, node, output, phase, returncode='0'):
             (folder/'native-expectations.json').write_text(json.dumps(groups))
         if not case.get('aisbench_config'):
             dataset=dataset_for(bindings['nodes'][node]['benchmark'],case)
-            check_dataset(dataset,case['formal_requests'])
+            if dataset.get('type')!='aisbench_synthetic':
+                check_dataset(dataset,case['formal_requests'])
         if case.get('reset_cache'):
             targets={i:url.rsplit('/reset_prefix_cache',1)[0] for i,url in enumerate(service['reset_urls'])}
             opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -64,4 +65,9 @@ def check(task, sub_id, node, output, phase, returncode='0'):
     if case.get('aisbench_config'):
         if not (folder/'native-expectations.json').is_file():raise ValueError('Missing resolved native config expectations')
         validate_native_result(folder,case)
-    else:validate(folder,case)
+    else:
+        dataset=dataset_for(bindings['nodes'][node]['benchmark'],case)
+        if dataset.get('type')=='aisbench_synthetic' and int(returncode)==0:
+            deployment=next(d for d in spec['deployments'] if d['id']==sub['deployment_id'])
+            audit_synthetic_result(folder,case,bindings['nodes'][node]['model_paths'][deployment['model']['id']])
+        validate(folder,case)

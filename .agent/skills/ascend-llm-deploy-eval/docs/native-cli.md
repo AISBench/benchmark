@@ -2,7 +2,7 @@
 
 [返回快速开始](../README.md)
 
-测试容器内预先安装可运行服务化性能测试的 AISBench 及其常规依赖，不要求额外插件。默认使用外部数据；明确授权的GSM8K生成流程见[数据生成](generated-data.md)。不打包数据、模型或 PD 代理。
+测试容器内预先安装可运行服务化性能测试的 AISBench 及其常规依赖，不要求额外插件。普通性能任务可使用外部数据；前缀测试使用 AISBench 本体 SyntheticDataset，见[原生前缀数据](generated-data.md)。不打包数据、模型或 PD 代理。
 
 ## 数据集绑定
 
@@ -42,7 +42,7 @@ ais_bench /work/attempt/aisbench-config.py \
   --num-warmups 1
 ```
 
-配置使用 `VLLMCustomAPI` 流式 completions 接口、`CustomDataset` 和原生性能统计器。并发、请求速率、模型名、tokenizer 路径和服务地址来自冻结配置。`steady_state=true` 选择 `stable_stage` 统计器，不自动开启改变请求数量的压力模式。
+配置使用 `VLLMCustomAPI` 流式 completions 接口、外部数据的 `CustomDataset` 或原生合成数据的 `SyntheticDataset`，以及原生性能统计器。并发、请求速率、模型名、tokenizer 路径和服务地址来自冻结配置。`steady_state=true` 选择 `stable_stage` 统计器，不自动开启改变请求数量的压力模式。
 
 默认请求数为并发×4，默认原生预热 1 次；`num_warmups` 可覆盖，`warmup=false` 禁用预热。缓存清理默认关闭；明确设置 `reset_cache=true` 时才使用已核验服务的 reset 接口，接口不支持则阻塞，不能假报清理成功。重试保留独立结果；未启用清理时不保证各次尝试缓存状态一致。
 
