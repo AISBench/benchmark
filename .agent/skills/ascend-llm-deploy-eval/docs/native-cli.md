@@ -44,7 +44,7 @@ ais_bench /work/attempt/aisbench-config.py \
 
 配置使用 `VLLMCustomAPI` 流式 completions 接口、外部数据的 `CustomDataset` 或原生合成数据的 `SyntheticDataset`，以及原生性能统计器。并发、请求速率、模型名、tokenizer 路径和服务地址来自冻结配置。`steady_state=true` 选择 `stable_stage` 统计器，不自动开启改变请求数量的压力模式。
 
-默认请求数为并发×4，默认原生预热 1 次；`num_warmups` 可覆盖，`warmup=false` 禁用预热。缓存清理默认关闭；明确设置 `reset_cache=true` 时才使用已核验服务的 reset 接口，接口不支持则阻塞，不能假报清理成功。重试保留独立结果；未启用清理时不保证各次尝试缓存状态一致。
+默认请求数为普通case并发×4、稳态case并发×10，默认原生预热 1 次；`num_warmups` 可覆盖，`warmup=false` 禁用预热。缓存清理默认关闭；明确设置 `reset_cache=true` 时才使用已核验服务的 reset 接口，接口不支持则阻塞，不能假报清理成功。重试保留独立结果；未启用清理时不保证各次尝试缓存状态一致。
 
 模型部署仍需模型运行环境、NPU 与权重。PD 部署需用户提供 `bindings.paths.proxy_program`，不属于 AISBench 测试客户端依赖。
 
@@ -89,4 +89,4 @@ python3 /path/to/skill/scripts/watch_logs.py --run-dir /work/JOB --kind test
 
 缓存重置统一核验 cache-reset.json 总状态及各实例状态，不再依据原始 reset 文件名字典序选择“最新”。
 
-自然语言中的“稳态/稳态并发/steady state”由Agent映射为case.steady_state=true；明确非稳态或未指定时为false。现行生成器选择stable_stage（StablePerfMetricCalculator）或default_perf，CLI仍使用--mode perf。未指定正式总数时normalize设为并发×4，既用于SyntheticDataset.RequestCount，也用于--num-prompts；预热另计。例：“64K/1K，64并发（稳态）”应产生输入目标65536、输出上限1024、并发64、正式256、steady_state=true。稳态统计是否存在有效区间由AISBench结果决定，不把选中统计器当成实际稳态已经达成，也不自动加发请求。
+自然语言中的“稳态/稳态并发/steady state”由Agent映射为case.steady_state=true；明确非稳态或未指定时为false。现行生成器选择stable_stage（StablePerfMetricCalculator）或default_perf，CLI仍使用--mode perf。未指定正式总数时normalize设为普通case并发×4、稳态case并发×10（显式总数优先），既用于SyntheticDataset.RequestCount，也用于--num-prompts；预热另计。例：“64K/1K，64并发（稳态）”应产生输入目标65536、输出上限1024、并发64、正式640、steady_state=true。稳态统计是否存在有效区间由AISBench结果决定，不把选中统计器当成实际稳态已经达成，也不自动加发请求。

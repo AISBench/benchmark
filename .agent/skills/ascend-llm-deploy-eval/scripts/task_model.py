@@ -39,7 +39,7 @@ def normalize(spec):
             case.setdefault('mode', 'perf')
             if case['mode'] != 'perf':
                 continue
-            for k,v in {'formal_requests':case['concurrency']*4,'dataset_id':'default','num_warmups':1,
+            for k,v in {'formal_requests':case['concurrency']*(10 if case.get('steady_state',False) else 4),'dataset_id':'default','num_warmups':1,
                         'steady_state':False,'request_rate':0,'warmup':True,'reset_cache':False,'timeout_seconds':5400}.items():
                 case.setdefault(k,v)
     for subtask in s.get('sub_tasks', []):
@@ -103,7 +103,7 @@ def validate_task(spec):
     for case in cases.values():
         if case.get('mode','perf') != 'perf':
             continue
-        if case.get('formal_requests',case['concurrency']*4) < case['concurrency']:
+        if case.get('formal_requests',case['concurrency']*(10 if case.get('steady_state',False) else 4)) < case['concurrency']:
             errors.append('Requests cannot reach concurrency: '+case['id'])
     if spec['state']=='ready' and spec['unresolved']:
         errors.append('Ready task has unresolved items')

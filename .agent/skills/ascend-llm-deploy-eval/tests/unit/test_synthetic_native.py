@@ -104,14 +104,14 @@ class SyntheticNativeTests(unittest.TestCase):
                     case.pop('formal_requests',None)
                     bindings['nodes']['node_a']['benchmark']['datasets']={case.get('dataset_id','default'):{'type':'aisbench_synthetic'}}
                     root=Path(directory)/'task';normalized,_=entry.generate(spec,bindings,root)
-                    self.assertEqual(normalized['cases'][0]['formal_requests'],concurrency*4)
+                    self.assertEqual(normalized['cases'][0]['formal_requests'],concurrency*(10 if steady else 4))
                     self.assertEqual(normalized['cases'][0]['num_warmups'],1)
                     self.assertEqual(normalized['cases'][0]['steady_state'],steady)
                     text=next(root.glob('scripts/tests/*.config.py')).read_text()
-                    self.assertIn("'RequestCount': "+str(concurrency*4),text)
+                    self.assertIn("'RequestCount': "+str(concurrency*(10 if steady else 4)),text)
                     self.assertIn('summarizers.perf.'+('stable_stage' if steady else 'default_perf'),text)
                     script=next(root.glob('scripts/tests/*.sh')).read_text()
-                    self.assertIn('--num-prompts '+str(concurrency*4),script)
+                    self.assertIn('--num-prompts '+str(concurrency*(10 if steady else 4)),script)
                     self.assertIn('--num-warmups 1',script)
 
     def test_explicit_request_count_is_preserved_and_missing_steady_defaults_false(self):
@@ -121,3 +121,11 @@ class SyntheticNativeTests(unittest.TestCase):
         result=normalize(spec)['cases'][0]
         self.assertEqual(result['formal_requests'],128)
         self.assertFalse(result['steady_state'])
+
+    def test_explicit_steady_request_count_overrides_multiplier(self):
+        from task_model import normalize
+        spec,_=inputs();case=spec['cases'][0]
+        case.update(concurrency=64,formal_requests=128,steady_state=True)
+        result=normalize(spec)['cases'][0]
+        self.assertEqual(result['formal_requests'],128)
+        self.assertTrue(result['steady_state'])
