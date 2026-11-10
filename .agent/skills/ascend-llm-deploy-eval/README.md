@@ -4,31 +4,28 @@
 
 ## 快速开始
 
-1. 将 [ascend-llm-deploy-eval](.) 安装到所用 Agent 的 skill 目录，并确认已加载。
-2. 进入本 skill 目录，使用 Python 3.10+ 安装依赖：
-
-   ```sh
-   python -m pip install -r requirements.txt
-   ```
-
-3. 准备可免密 SSH 访问的 Linux 昇腾服务器、Docker、镜像、模型权重、外部数据集路径和部署参考脚本；测试镜像内预装 AISBench。替换以下占位内容后交给 Agent：
+1. 将 [ascend-llm-deploy-eval](SKILL.md) 所在的完整目录安装到 Agent 的 skill 目录，并确认已加载。
+2. 在 skill 目录使用 Python 3.10+ 安装 `requirements.txt`；准备免密 SSH、Docker、模型权重和部署参考，测试镜像内预装 AISBench。
+3. 替换以下占位地址和路径后交给 Agent：
 
    ```text
-   使用 $ascend-llm-deploy-eval 执行性能测试。
-   服务器：root@node-a.example，SSH免密，任务与日志目录/work/benchmark（仓库外）。
-   镜像：registry.example/vllm-ascend:verified，容器内已安装可运行的AISBench。
-   模型：模型名称，权重与tokenizer路径/mnt/models/example-model。
-   部署：单机混部，参考脚本/path/to/start.sh。
-   数据集：服务器上的/data/benchmark/dataset.jsonl，JSONL格式，输入字段question、参考字段answer；按原始数据测试，不生成或复制数据集。
-   测试：最大输出512 tokens，并发1、4，每个case正式请求100条，预热1次，请求速率不限。
-   输入长度：使用数据集实际长度，不要求定长。
-   缓存：不主动清理；统计使用default_perf。
-   日志：启用AISBench默认落盘，保留主进程日志、原生worker日志和性能结果；提交前给出进展、服务日志、测试日志查看命令。
+   $ascend-llm-deploy-eval
+   服务器：root@node-a.example、root@node-b.example，SSH免密。
+   远程工作目录：/mnt/work/benchmark
+   镜像：已核验的镜像ID；模型：DSV4 Flash。
+   权重：/mnt/models/DeepSeek-V4-Flash
+   数据：AISBench 原生合成。
+   单机参考：D:/cmd_reference/deepseekv4flash/single-pd-split-1p1d/p-dp4-tp1_d-dp4-tp1_mooncake-hybrid
+   双机参考：D:/cmd_reference/deepseekv4flash/double-pd-split-3p1d/dp1-pcp4-dspark1-3-mooncake-v2
+   单机测试case：64K/1K，64并发，前缀重复目标50%、90%。
+   双机测试case：64K/1K，128并发，前缀重复目标50%、90%。
    ```
 
-前缀性能测试可直接描述“输入64K、最大输出1K、并发4、正式请求4、前缀目标90%”；由AISBench本体生成合成样本，不需要数据集路径或外部生成工具目录，详见[原生前缀数据](docs/generated-data.md)。
+1K=1024 tokens，输出长度是上限。省略时正式请求数默认并发×4，预热1次、不主动清缓存、使用default_perf；Agent 在执行前展示默认值与现场绑定。只测一种部署时删除另一种参考和case行。
 
-Agent 将收集缺失信息、整理配置并进行现场预检。示例资源仅为占位，实际执行前需完成配置审阅。
+前缀数据使用 AISBench 本体的单公共前缀，不需要 GSM8K、外部生成工具或代理脚本的单独路径；代理由所给参考目录提供。前缀重复目标不等于实际缓存命中率。原生tokenid解码后重新分词可能改变实际长度，不能仅凭配置中的64K宣称定长验收通过，详见[原生前缀数据](docs/generated-data.md)。
+
+普通真实数据测试仍可明确提供JSONL/CSV路径，按原始数据测试；不要在原生合成示例中同时填写真实数据集路径。示例不是该镜像、模型和负载的通过承诺，执行前仍须现场审阅。
 
 ## 详细文档
 
