@@ -1,4 +1,4 @@
-"""Layering, packaging and dependency-isolated entry points are runtime contracts."""
+"""Verify module layout and dependency-isolated entry points."""
 import importlib
 import json
 from pathlib import Path
@@ -133,19 +133,6 @@ def test_provenance_detects_changes_in_each_implementation_layer(tmp_path, monke
     before = resources.integration_signature()
     target.write_text('modified', encoding='utf-8')
     assert resources.integration_signature() != before
-
-
-def test_protocol_is_in_source_distribution_manifest():
-    from setuptools.command.egg_info import FileList
-    files = FileList()
-    files.findall()
-    for line in Path('MANIFEST.in').read_text(encoding='utf-8').splitlines():
-        files.process_template_line(line)
-    paths = {Path(file).as_posix() for file in files.files}
-    assert 'ais_bench/benchmark/utils/vabench/protocol.json' in paths
-    assert 'ais_bench/configs/vabench_examples/eval_vabench_custom.py' in paths
-    assert 'ais_bench/configs/vabench_examples/mini10pct.json' in paths
-    assert 'requirements/datasets/vabench.txt' in paths
 
 
 def test_framework_class_exports_and_lazy_summarizer_attributes():

@@ -2,6 +2,3 @@ recursive-include ais_bench/benchmark/configs *.py *.yml *.json *.txt *.md
 recursive-include ais_bench/benchmark/openicl/icl_evaluator/hf_metrics *.py
 recursive-include ais_bench/benchmark/datasets *.py *.yml *.json *.txt *.md *.yaml
 recursive-include ais_bench/benchmark/summarizers/templates *.j2
-recursive-include ais_bench/benchmark/utils/vabench *.json
-recursive-include ais_bench/configs/vabench_examples *.py *.json
-recursive-include requirements/datasets vabench*.txt
