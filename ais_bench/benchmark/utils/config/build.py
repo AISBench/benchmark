@@ -1,6 +1,7 @@
 import os
 import copy
 import ipaddress
+import numbers
 from typing import Any
 
 from mmengine.config import ConfigDict
@@ -202,7 +203,9 @@ def validate_prefill_schedule(model_cfg, warn_on_large_concurrency=False):
             "Timestamp, prefill concurrency and request rate modes are mutually exclusive; "
             "priority: timestamp > prefill_concurrency > request_rate"
         )
-        raise AISBenchConfigError(UTL_CODES.PARAM_TYPE_ERROR, "; ".join(errors))
+        raise AISBenchConfigError(
+            UTILS_CODES.MODEL_CONFIG_VALIDATE_FAILED, "; ".join(errors)
+        )
 
     batch_size = model_cfg.get("batch_size", 1)
     if (
