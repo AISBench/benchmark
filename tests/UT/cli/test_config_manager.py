@@ -888,6 +888,30 @@ class TestConfigManager(unittest.TestCase):
         mock_dump_reload.assert_called_once()
         self.assertEqual(result, config_manager.cfg)
 
+    @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._update_and_init_work_dir')
+    @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._get_config_from_arg')
+    def test_load_config_rejects_schedule_conflict_before_task_setup(
+        self, mock_get_config, mock_update_work_dir
+    ):
+        mock_get_config.return_value = {
+            'models': [{
+                'abbr': 'vllm-api-stream-chat',
+                'stream': True,
+                'prefill_concurrency': 4,
+                'request_rate': 4,
+            }],
+            'datasets': [],
+        }
+        config_manager = ConfigManager(self.args)
+
+        with self.assertRaisesRegex(
+            AISBenchConfigError,
+            'prefill_concurrency=4 conflicts with request_rate/traffic_cfg',
+        ):
+            config_manager.load_config([])
+
+        mock_update_work_dir.assert_not_called()
+
     def _service_model(self, **overrides):
         """A service model that passes the response anomaly whitelist and
         model-resource checks (chat backend + tokenizer path fallback)."""

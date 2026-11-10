@@ -156,6 +156,66 @@ def build_dataset_from_cfg(dataset_cfg: ConfigDict, task_state_manager: Any = No
     return LOAD_DATASET.build(dataset_cfg)
 
 
+def validate_prefill_schedule(model_cfg, warn_on_large_concurrency=False):
+    """Validate prefill concurrency and scheduling mode compatibility."""
+    prefill_concurrency = model_cfg.get("prefill_concurrency", 0)
+    request_rate = model_cfg.get("request_rate", 0)
+    traffic_cfg = model_cfg.get("traffic_cfg", {})
+    use_timestamp = model_cfg.get("use_timestamp", False)
+    errors = []
+
+    prefill_valid = (
+        isinstance(prefill_concurrency, int)
+        and not isinstance(prefill_concurrency, bool)
+        and prefill_concurrency >= 0
+    )
+    if not prefill_valid:
+        errors.append("prefill_concurrency must be a non-negative integer")
+    prefill_enabled = prefill_valid and prefill_concurrency > 0
+    if prefill_enabled and model_cfg.get("stream", False) is not True:
+        errors.append("prefill_concurrency > 0 requires stream=True")
+
+    rate_valid = (
+        isinstance(request_rate, numbers.Number)
+        and not isinstance(request_rate, bool)
+        and 0 <= request_rate <= 64000
+    )
+    rate_enabled = (rate_valid and request_rate > 0) or (
+        isinstance(traffic_cfg, dict)
+        and any(value not in (None, "") for value in traffic_cfg.values())
+    )
+    timestamp_enabled = use_timestamp is True
+    if timestamp_enabled and prefill_enabled:
+        errors.append(
+            f"use_timestamp=True conflicts with prefill_concurrency={prefill_concurrency}"
+        )
+    if timestamp_enabled and rate_enabled:
+        errors.append(
+            "use_timestamp=True conflicts with request_rate/traffic_cfg"
+        )
+    if prefill_enabled and rate_enabled:
+        errors.append(
+            f"prefill_concurrency={prefill_concurrency} conflicts with request_rate/traffic_cfg"
+        )
+    if errors:
+        errors.append(
+            "Timestamp, prefill concurrency and request rate modes are mutually exclusive; "
+            "priority: timestamp > prefill_concurrency > request_rate"
+        )
+        raise AISBenchConfigError(UTL_CODES.PARAM_TYPE_ERROR, "; ".join(errors))
+
+    batch_size = model_cfg.get("batch_size", 1)
+    if (
+        warn_on_large_concurrency
+        and prefill_enabled
+        and prefill_concurrency > batch_size
+    ):
+        logger.warning(
+            f"prefill_concurrency ({prefill_concurrency}) exceeds batch_size ({batch_size}); "
+            "the batch size may prevent the prefill limit from being reached"
+        )
+
+
 def build_model_from_cfg(model_cfg: ConfigDict):
     logger.debug(f"Building model from config: type={model_cfg.get('type')} abbr={model_cfg.get('abbr')}")
     model_cfg = copy.deepcopy(model_cfg)
@@ -167,13 +227,7 @@ def build_model_from_cfg(model_cfg: ConfigDict):
             UTILS_CODES.MODEL_CONFIG_VALIDATE_FAILED,
             f"{model_name} build failed with the following errors: {errors}"
         )
-    prefill_concurrency = model_cfg.get("prefill_concurrency", 0)
-    batch_size = model_cfg.get("batch_size", 1)
-    if prefill_concurrency > batch_size:
-        logger.warning(
-            f"prefill_concurrency ({prefill_concurrency}) exceeds batch_size ({batch_size}); "
-            "the excess permits will not increase request concurrency."
-        )
+    validate_prefill_schedule(model_cfg, warn_on_large_concurrency=True)
     model_cfg.pop("use_timestamp", None)
     model_cfg.pop("run_cfg", None)
     model_cfg.pop("request_rate", None)

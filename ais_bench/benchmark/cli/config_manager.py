@@ -8,6 +8,7 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.utils.file import match_cfg_file
 from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
+from ais_bench.benchmark.utils.config.build import validate_prefill_schedule
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
 from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
 from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
@@ -111,6 +112,7 @@ class ConfigManager:
 
     def load_config(self, workflow):
         self.cfg = self._get_config_from_arg()
+        self._validate_prefill_schedules()
         self._init_response_anomaly_config()
         self._update_and_init_work_dir()
         self._inject_response_anomaly_payload_storage()
@@ -118,6 +120,12 @@ class ConfigManager:
         self._update_cfg_of_workflow(workflow)
         self._dump_and_reload_config()
         return self.cfg
+
+    def _validate_prefill_schedules(self):
+        """Fail on invalid scheduling combinations before launching any tasks."""
+        for model_cfg in self.cfg.get("models", []):
+            if isinstance(model_cfg, dict):
+                validate_prefill_schedule(model_cfg)
 
     def _init_response_anomaly_config(self):
         """Normalize the optional response anomaly detection configuration."""
