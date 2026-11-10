@@ -6,7 +6,7 @@
 
 ## 数据集绑定
 
-用户提供服务器上的 JSONL 或 CSV 文件绝对路径。Agent 须在 bindings 的 mounts 中声明覆盖数据集和 generation_manifest 的挂载，并核验容器可读；生成器仅自动挂载任务与模型目录，不自动补数据挂载。文件不会复制到 Skill、冻结任务包或 Git 仓库。
+用户提供服务器上的 JSONL 或 CSV 文件绝对路径。Agent 须在 bindings 的 mounts 中声明覆盖数据集和 generation_manifest 的挂载，并核验容器可读；生成器仅自动挂载任务与模型目录，不自动补数据挂载。数据不随 Skill 源码或 Git 仓库打包。外部数据通常由挂载读取；如需发布，须明确列为最小运行时的授权输入并记录传输凭据，不自动复制数据集。
 
 在节点 `bindings.benchmark.datasets` 中声明数据集，以 `case.dataset_id` 引用：
 
@@ -80,7 +80,7 @@ python3 /path/to/skill/scripts/watch_logs.py --run-dir /work/JOB --kind test
 
 观察器跟踪当前 `results/*/aisbench.log`、原生 outputs 下的 `.out`/`.log`，兼容历史任务的 benchmark/runner 日志。每轮按文件大小快照分块读完积压，新文件每 5 秒发现一次；service 模式读取 `logs/`。Ctrl+C 只关闭观察，不停止任务。多节点按日志实际所在节点运行；任务数据与日志保存在仓库外。
 
-validated.json 的 config 为 generated（技能生成配置）或 native（case 提供 aisbench_config），与实际输入来源一致。数据集摘要采用分块 SHA256，不将整文件读入内存；行字段检查仍仅读取请求所需切片。
+当前 FULL 的生成配置由 validate_case.py 验证，validated.json 包含 formal 请求数、token 范围、零输出数和日志路径，不含 config 字段。case 提供 aisbench_config 时走原生分组校验，结果包含 config=native 和 request_groups；两种结果结构不同，应结合 job_spec 与冻结配置识别输入来源。数据集摘要采用分块 SHA256，不将整文件读入内存；行字段检查仍仅读取请求所需切片。
 
 
 生成配置仅使用 CLI `--work-dir "$OUT/outputs"` 指定运行目录，不再重复写 config.work_dir；原生配置保留原文，CLI 覆盖其 work_dir。每个 case/attempt 的目录独立且拒绝复用。单模型、单数据集的生成配置要求恰好一份正式 details；原生多模型/数据集按已解析分组核验。原生预热和正式请求经同一次 CLI 执行，V1–V6 已有实际验证，不代表任意 AISBench 版本具有相同布局。
