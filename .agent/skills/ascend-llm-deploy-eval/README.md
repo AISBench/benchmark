@@ -29,11 +29,9 @@
 
 ## 详细文档
 
-- [使用与验证说明](docs/usage.md)：执行命令、整组任务、监控、检查项、资源释放与验证边界。
-- [Skill 使用流程](SKILL.md)：操作步骤与能力范围。
-- [任务配置示例](examples/job_spec.compact.json) · [现场绑定格式](docs/compact-cli.md)。
-- [历史设计](docs/design.md) · [历史工程计划](docs/project-plan.md) · [决策记录](docs/decisions.md)。
-
-- [开发与测试](docs/development.md)：目录约定、离线测试与现场验证边界。
-
-- [原生 CLI 适配](docs/native-cli.md)：镜像安装、现场参数与结果语义。
+- [使用说明](docs/usage.md)。
+- [Skill 使用流程](SKILL.md)。
+- [设计说明](docs/design.md)。
+- [统一 CLI 与配置](docs/compact-cli.md)。
+- [原生 CLI 适配](docs/native-cli.md)。
+- [原生前缀数据](docs/generated-data.md)。

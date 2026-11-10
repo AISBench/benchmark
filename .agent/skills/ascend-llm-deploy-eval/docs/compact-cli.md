@@ -132,7 +132,7 @@ Failure or interruption signals cooperative cancellation: pending cases, contain
 
 Migration: phase_id alone does not introduce parallelism. Add explicit stages and retain globally unique sub_task IDs; preserve configured deployment semantics and ports. Re-deployments receive distinct run numbers, and each case keeps separate result paths. Do not replay an existing task directory to recover a failed stage.
 
-AISBench 默认生成配置使用 `retry=1`：已核验的 AISBench 3.1 实现将该字段作为总尝试次数（`range(self.retry)`），因此这表示初次请求一次、工具内部零重试。`execution.max_retries=0` 仍表示协调器不重试 case；两层独立，不把协调器重试数直接写入工具字段。`VLLMCustomAPI` 接收服务根 URL 后追加 `v1/completions`。用户提供的原生配置保留原文，需现场核验其版本重试语义；本次修复不改 AISBench 包。
+AISBench 默认生成配置使用 `retry=1`：已核验的 AISBench 3.1 实现将该字段作为总尝试次数（`range(self.retry)`），因此这表示初次请求一次、工具内部零重试。`execution.max_retries=0` 仍表示协调器不重试 case；两层独立，不把协调器重试数直接写入工具字段。`VLLMCustomAPI` 接收服务根 URL 后追加 `v1/completions`。用户提供的原生配置保留原文，需现场核验其版本重试语义。
 FULL 增加创建全部容器→全部依赖预检通过→模型启动屏障。scripts生成NODE-dependencies.sh但不运行。模型import torch_npu使用镜像ENV+launch.env；不执行bootstrap。实际测试容器记录AISBench入口所属发行包/版本，检查数据可读与字段；原生未知loader延后原生加载验证。execution.dependency_timeout_seconds默认120秒，容器内监督进程超时终止检查进程组；失败按现有归属收尾。logs/DEPLOYMENT-runNN/NODE-dependencies.log为必需产物，重建容器重新检查。
 
 同一任务的不同部署需要不同代理程序时，在对应 proxy 实例设置 `launch.proxy_program_key`（默认 `proxy_program`，只允许字母/下划线开头的标识符），选择 `bindings.nodes[节点].paths[该键]` 的物理路径。例如 A/B 使用 `reference_proxy`，C/D 使用 `image_proxy`；同一节点同时绑定两个路径，无须切换文件或 wrapper。该字段仅供 proxy 使用，模型实例声明会被拒绝；缺少所选路径时生成阻断。它不改变代理参数、路由或健康门控。
@@ -164,7 +164,7 @@ FULL 增加创建全部容器→全部依赖预检通过→模型启动屏障。
 | 容器依赖及测试证据 | container_dependencies.py、aisbench_cli.py、test_evidence.py、validate_case.py、cache_reset.py、metric_evidence.py、ownership_evidence.py |
 | 只读观察 | watch_logs.py、watch_events.py、task_events.py（历史事件流兼容） |
 
-以下文件保留用于历史协议回归或其内部依赖，不是新任务的执行入口：generate_gsm8k.py、case_runner.py、cluster_runtime.py、deploy.py、discover_tool.py、disk_guard.py、evaluate.py、finalize.py、group_run.py、group_worker.py、node_identity.py、node_prepare.py、node_rpc.py、plan_run.py、preflight.py、run_task.py、service_process.py、stage_runtime.py、submission.py、submit_job.py、task_preflight.py、task_runtime.py。不移动历史模块以免破坏现有回归导入路径；新入口不依赖这些模块。停用的公开命令及 stage_runtime.entry 的拒绝执行由 test_review_closure.py/test_stage_entry.py 验证，stage_runtime 的模块执行共用 entry 的一处停用提示。
+旧公开入口 plan_run、submit_job、run_task 和节点 RPC 已停用；新任务仅使用 run.py。
 
 采集通过 nonce 文件证明是否共享同一目录，并通过 is_local 显式选择本机复制或 SSH/scp，不以路径字符串相同或命令列表恰好相等作判定。
 

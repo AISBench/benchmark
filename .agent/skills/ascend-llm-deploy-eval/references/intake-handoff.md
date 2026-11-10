@@ -12,10 +12,10 @@
 模型及权重路径（tokenizer路径不同则补充）：
 镜像名称/tag或ID：
 部署脚本或命令（本地路径、远程路径或粘贴内容）：
-数据集路径、格式、输入/参考字段：
+数据：AISBench 原生合成，或真实数据集路径、格式及字段：
 最大输出长度（1K=1024 tokens）；可选输入长度校验：
 并发数：
-请求数、预热次数及日志目录：
+请求数、预热次数及日志目录（如需覆盖默认值）：
 特殊测试要求（如有）：
 ```
 
@@ -29,9 +29,9 @@
 
 ## 无需首次询问的字段
 
-- 请求数、轮数及预热参数按[配置默认值](job-spec-review.md#配置默认值)补齐；用户覆盖优先。
+- 请求数、轮数及预热参数按[配置默认值](job-spec-review.md)补齐；用户覆盖优先。
 - 缓存默认不主动清理；预热使用 AISBench 的 num_warmups，特殊要求按[生命周期](service-lifecycle.md)处理。
-- AISBench从镜像中动态发现；路径或版本有歧义时再报告缺项。数据集由用户指定外部路径，不随Skill上传。
+- AISBench从镜像中动态发现；路径或版本有歧义时再报告缺项。原生合成数据由 AISBench 生成；真实数据使用用户指定外部路径，不随 Skill 上传。
 
 ## 现场核验
 
@@ -39,4 +39,4 @@
 
 ## 标准 CLI 现场输入
 
-确认容器内已安装可运行的 AISBench，不要求额外插件。用户指定数据集绝对路径、JSONL/CSV格式及字段映射，在节点 bindings.benchmark.datasets 中登记，由 case.dataset_id 引用。数据集不进入交付件；默认不生成、复制或下载。明确授权GSM8K生成时遵循 docs/generated-data.md，派生数据在任务空间保留摘要与生成记录。PD 部署另需现场代理路径。使用默认日志落盘，并提供原生日志跟踪命令；详见[CLI适配](../docs/native-cli.md)。
+确认容器内已安装可运行的 AISBench。前缀测试绑定 aisbench_synthetic，详见[原生前缀数据](../docs/generated-data.md)；真实数据绑定 JSONL/CSV 路径及字段，由 case.dataset_id 引用。PD 代理从参考目录提取并明确绑定。默认保存原生日志，配置与结果说明见[CLI 适配](../docs/native-cli.md)。

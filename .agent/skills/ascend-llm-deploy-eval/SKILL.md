@@ -30,7 +30,7 @@ scripts 不访问服务器，生成可手工检查、执行与复现的脚本。
 
 现行实现文件与历史兼容文件的完整分类见[代码导航](docs/compact-cli.md#现行代码导航与历史兼容范围)，定位新任务行为以 run.py 及其现行辅助模块为准。
 
-旧 plan_run/submit_job/run_task/节点 RPC 等公开命令已停用。历史冻结任务使用其自带代码。仓库保留的旧内部实现供回归比较，不构成第二套公开运行协议。
+旧 plan_run/submit_job/run_task/节点 RPC 等公开命令已停用。历史冻结任务使用其自带代码。旧内部模块不构成第二套公开运行协议。
 
 ## 配置与运行约束
 
@@ -56,7 +56,7 @@ logs/coordinator.log 记录协调决策；logs/DEPLOYMENT-runNN/NODE-INSTANCE.lo
 
 提交前告知进展、服务日志和结果的实际路径。按用户授权推进，不因内部流程重复索要许可；设计讨论和手工执行不自动创建监控。目录不自动删除，资源释放已核验、所需结果已保留且无异常后可由外层释放；异常证据保留。
 
-本地 mock 和 Bash 测试不代表真实 Ascend/Linux/Docker/AISBench 版本验证。报告区分本地回归、Linux 集成与实际模型测试。
+生成和配置检查不代表实机执行通过；任务报告须依据实际部署、请求和释放证据。
 `run.py` 支持节点 `mount_profiles` 模板及显式 mounts 覆盖，另自动挂载任务目录和模型目录。规划时根据现场依赖选择模板，展示展开与覆盖结果；见 [挂载模板](references/mount-profiles.md)。数据集、代理和诊断程序仍须单独审阅。FULL 创建全部部署容器后，依赖预检全部通过才启动模型；dependency_timeout_seconds 默认120秒。预检使用镜像ENV和已确认launch.env，不执行bootstrap，规划须显式审阅依赖环境。
 
 同一任务的不同部署需要不同代理程序时，在对应 proxy 实例设置 `launch.proxy_program_key`（默认 `proxy_program`，只允许字母/下划线开头的标识符），选择 `bindings.nodes[节点].paths[该键]` 的物理路径。例如 A/B 使用 `reference_proxy`，C/D 使用 `image_proxy`；同一节点同时绑定两个路径，无须切换文件或 wrapper。该字段仅供 proxy 使用，模型实例声明会被拒绝；缺少所选路径时生成阻断。它不改变代理参数、路由或健康门控。
