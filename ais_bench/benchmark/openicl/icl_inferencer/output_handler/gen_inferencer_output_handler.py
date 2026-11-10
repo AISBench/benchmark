@@ -74,8 +74,8 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
         if isinstance(output, Output):
             result_data["input_tokens"] = output.input_tokens
             result_data["output_tokens"] = output.output_tokens
-            if output.origin_logprobs:
-                result_data["origin_logprobs"] = output.origin_logprobs
+            # Keep per-token logprobs out of predictions to limit disk usage.
+            # Anomaly detection uses response_anomaly_payload independently.
 
         # When the model emits reasoning, ``prediction`` concatenates
         # ``reasoning_content + "\n\n" + content`` (see Output.get_prediction).
