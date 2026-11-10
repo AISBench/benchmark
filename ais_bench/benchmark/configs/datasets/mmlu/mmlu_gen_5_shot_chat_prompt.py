@@ -3,7 +3,7 @@ from ais_bench.benchmark.openicl.icl_retriever import FixKRetriever
 from ais_bench.benchmark.openicl.icl_inferencer import GenInferencer
 from ais_bench.benchmark.openicl.icl_evaluator import AccwithDetailsEvaluator
 from ais_bench.benchmark.datasets import MMLUDataset
-from ais_bench.benchmark.utils.text_postprocessors import first_option_postprocess
+from ais_bench.benchmark.utils.postprocess.text_postprocessors import first_option_postprocess
 
 # None of the mmlu dataset in huggingface is correctly parsed, so we use our own dataset reader
 # Please download the dataset from https://people.eecs.berkeley.edu/~hendrycks/data.tar
