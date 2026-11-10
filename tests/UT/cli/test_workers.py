@@ -9,6 +9,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from mmengine.config import ConfigDict
 
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
+
 from ais_bench.benchmark.cli.workers import (
     BaseWorker,
     Infer,
@@ -283,6 +285,91 @@ class TestInfer:
 
                 # 验证_merge_datasets被调用
                 mock_merge.assert_called_once_with(mock_tasks)
+
+    def test_validate_perf_tokenizer_path_empty_raises(self):
+        """perf 模式 path 为空时启动阶段即抛 AISBenchConfigError，避免跑完推理才报 (#643)"""
+        cfg = MockConfigDict({
+            'cli_args': {'mode': 'perf'},
+            'models': [{'abbr': 'vllm-api-stream-chat', 'path': ''}],
+        })
+        with pytest.raises(AISBenchConfigError, match='empty'):
+            Infer._validate_perf_tokenizer_path(cfg)
+
+    def test_validate_perf_tokenizer_path_missing_key_raises(self):
+        """perf 模式 model_cfg 完全没有 path 键时同样报错"""
+        cfg = MockConfigDict({
+            'cli_args': {'mode': 'perf'},
+            'models': [{'abbr': 'vllm-api-stream-chat'}],
+        })
+        with pytest.raises(AISBenchConfigError, match='empty'):
+            Infer._validate_perf_tokenizer_path(cfg)
+
+    def test_validate_perf_tokenizer_path_nonexistent_raises(self):
+        """perf 模式 path 非空但指向不存在的路径时报错"""
+        cfg = MockConfigDict({
+            'cli_args': {'mode': 'perf'},
+            'models': [{'abbr': 'vllm-api-stream-chat', 'path': '/nonexistent/tokenizer/dir'}],
+        })
+        with pytest.raises(AISBenchConfigError, match='does not exist'):
+            Infer._validate_perf_tokenizer_path(cfg)
+
+    def test_validate_perf_tokenizer_path_valid_no_raise(self, tmp_path):
+        """perf 模式 path 指向存在的目录时不抛错"""
+        cfg = MockConfigDict({
+            'cli_args': {'mode': 'perf'},
+            'models': [{'abbr': 'vllm-api-stream-chat', 'path': str(tmp_path)}],
+        })
+        # 不应抛出任何异常
+        Infer._validate_perf_tokenizer_path(cfg)
+
+    def test_validate_perf_tokenizer_path_validates_every_model(self, tmp_path):
+        """多 model 场景下任一 model 的 path 为空都应报错，且消息定位到具体 model"""
+        cfg = MockConfigDict({
+            'cli_args': {'mode': 'perf'},
+            'models': [
+                {'abbr': 'model-a', 'path': str(tmp_path)},
+                {'abbr': 'model-b', 'path': ''},
+            ],
+        })
+        with pytest.raises(AISBenchConfigError, match="model-b"):
+            Infer._validate_perf_tokenizer_path(cfg)
+
+    @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
+    @patch('ais_bench.benchmark.cli.workers.RUNNERS')
+    @patch('ais_bench.benchmark.cli.workers.logger')
+    def test_do_work_perf_mode_fails_fast_before_inference(self, mock_logger, mock_runners, mock_partitioners):
+        """perf 模式 path 空时在 partitioner 构建之前抛错，不启动推理 (#643)"""
+        mock_partitioner = MagicMock()
+        mock_partitioners.build.return_value = mock_partitioner
+        cfg = MockConfigDict({
+            'infer': {'partitioner': {}, 'runner': {}},
+            'cli_args': MockConfigDict({'mode': 'perf', 'merge_ds': False}),
+            'models': [{'abbr': 'vllm-api-stream-chat', 'path': ''}],
+        })
+        with pytest.raises(AISBenchConfigError, match='empty'):
+            self.infer_worker.do_work(cfg)
+        # 校验抛错发生在 partitioner 构建之前，推理未启动
+        mock_partitioners.build.assert_not_called()
+
+    @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
+    @patch('ais_bench.benchmark.cli.workers.RUNNERS')
+    @patch('ais_bench.benchmark.cli.workers.logger')
+    def test_do_work_non_perf_mode_skips_path_validation(self, mock_logger, mock_runners, mock_partitioners):
+        """非 perf 模式（如 infer）path 为空时不校验，正常进入推理"""
+        mock_partitioner = MagicMock()
+        mock_partitioners.build.return_value = mock_partitioner
+        mock_partitioner.return_value = []
+        mock_runner = MagicMock()
+        mock_runners.build.return_value = mock_runner
+        cfg = MockConfigDict({
+            'infer': {'partitioner': {}, 'runner': {}},
+            'cli_args': MockConfigDict({'mode': 'infer', 'merge_ds': False}),
+            'models': [{'abbr': 'vllm-api-stream-chat', 'path': ''}],
+        })
+        with patch.object(self.infer_worker, '_update_tasks_cfg'):
+            # 不应抛出 AISBenchConfigError，且应正常进入推理
+            self.infer_worker.do_work(cfg)
+        mock_partitioners.build.assert_called_once()
 
     def test_merge_datasets(self):
         """测试_merge_datasets方法"""

@@ -14,8 +14,8 @@ from mmengine.config import ConfigDict
 from ais_bench.benchmark.registry import PARTITIONERS, RUNNERS, build_from_cfg
 from ais_bench.benchmark.utils.config.run import get_config_type
 from ais_bench.benchmark.utils.logging.logger import AISLogger
-from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidException
-from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
+from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidException, AISBenchConfigError
+from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES, UTILS_CODES
 from ais_bench.benchmark.partitioners import NaivePartitioner
 from ais_bench.benchmark.runners import LocalRunner, TasksMonitor
 from ais_bench.benchmark.tasks.base import EmptyTask
@@ -127,10 +127,40 @@ class Infer(BaseWorker):
         cfg.infer.partitioner["out_dir"] = osp.join(cfg["work_dir"], "predictions/")
         return cfg
 
+    @staticmethod
+    def _validate_perf_tokenizer_path(cfg: ConfigDict) -> None:
+        """In perf mode a local tokenizer ``path`` is required to compute
+        token-level metrics. Validate it at inference startup so a missing or
+        non-existent path fails fast instead of wasting a full inference run
+        and only surfacing UTILS-FILE-002 at the summarize stage (#643).
+        """
+        for model_cfg in cfg.get("models", []):
+            path = model_cfg.get("path", "")
+            model_abbr = model_cfg.get("abbr") or model_cfg.get("type") or "model"
+            if not path:
+                raise AISBenchConfigError(
+                    UTILS_CODES.MODEL_CONFIG_VALIDATE_FAILED,
+                    f"perf mode requires a local tokenizer 'path' to compute "
+                    f"token-level metrics, but 'path' is empty for model "
+                    f"'{model_abbr}'. Set models[n]['path'] to a local tokenizer "
+                    f"directory.",
+                )
+            if not os.path.exists(path):
+                raise AISBenchConfigError(
+                    UTILS_CODES.MODEL_CONFIG_VALIDATE_FAILED,
+                    f"perf mode requires 'path' to point to an existing local "
+                    f"tokenizer, but '{path}' for model '{model_abbr}' does not "
+                    f"exist.",
+                )
+
     def do_work(self, cfg: ConfigDict):
         if self.skip:
             logger.info("EmptyTask is selected, skip inference.")
             return
+        # perf 模式需要本地 tokenizer 计算 token 级指标，启动阶段即校验 path，
+        # 避免推理跑完后才在汇总阶段报 UTILS-FILE-002 导致整轮压测数据作废 (#643)。
+        if cfg.get("cli_args", {}).get("mode") == "perf":
+            self._validate_perf_tokenizer_path(cfg)
         partitioner = PARTITIONERS.build(cfg.infer.partitioner)
         logger.info("Starting inference tasks...")
         tasks = partitioner(cfg)
