@@ -433,6 +433,19 @@ class DefaultSummarizer:
         # format table
         table = self._format_table(parsed_results, dataset_metrics, dataset_eval_mode, required_dataset_abbrs=self.dataset_abbrs)
 
+        if (self.cfg.get('response_anomaly') or {}).get('enabled', False):
+            from ais_bench.benchmark.summarizers.response_anomaly import append_anomaly_rows
+
+            model_pairs = list(dict.fromkeys(
+                (model_abbr_from_cfg(model), model_abbr_from_cfg_used_in_summarizer(model))
+                for model in self.model_cfgs
+            ))
+            table = append_anomaly_rows(
+                table, self.work_dir, model_pairs,
+                [dataset_abbr_from_cfg(dataset) for dataset in self.dataset_cfgs],
+                self.logger,
+            )
+
         # format raw txt
         raw_txts = self._format_raw_txt(raw_results)
 
