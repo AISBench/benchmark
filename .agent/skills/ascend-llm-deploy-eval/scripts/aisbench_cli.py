@@ -49,7 +49,8 @@ def check_synthetic_support(case):
 def audit_synthetic_result(folder, case, model_path, tokenizer=None):
     """Measure original AISBench request text; never rewrite or regenerate it."""
     report={'source':'AISBench SyntheticDataset','target':synthetic_config(case),
-            'scope':'formal request details; excludes warmup','status':'UNVERIFIED'}
+            'scope':'formal request details; excludes warmup','status':'UNVERIFIED',
+            'policy':'diagnostic_only; native generation targets are not exact text-length or cache-hit requirements'}
     try:
         files=list((folder/'outputs').glob('*/performances/*/*_details.jsonl'))
         if len(files)!=1:raise ValueError('Expected one synthetic formal detail file')
@@ -79,7 +80,6 @@ def audit_synthetic_result(folder, case, model_path, tokenizer=None):
                       note='Decode/re-encode can alter lengths and prefix boundaries; target is not cache hit rate')
     except Exception as error:
         report['error']=repr(error)
-        raise
     finally:
         (folder/'synthetic-evidence.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     return report

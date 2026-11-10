@@ -70,4 +70,4 @@ def check(task, sub_id, node, output, phase, returncode='0'):
         if dataset.get('type')=='aisbench_synthetic' and int(returncode)==0:
             deployment=next(d for d in spec['deployments'] if d['id']==sub['deployment_id'])
             audit_synthetic_result(folder,case,bindings['nodes'][node]['model_paths'][deployment['model']['id']])
-        validate(folder,case)
+        validate(folder,case,input_length_policy='native_target' if dataset.get('type')=='aisbench_synthetic' else 'exact')

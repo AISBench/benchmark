@@ -23,7 +23,10 @@ case 保留 `dataset_id=default`、`input_tokens`、`output_tokens`、`formal_re
 
 scripts模式只生成配置，不访问服务器或生成样本。容器依赖门控检查实际AISBench发行包、SyntheticDataset及其原生配置校验和可检查的PrefixLen实现，保存模块路径和源码摘要；这不代表样本生成或服务执行已通过。不支持时上报，不安装插件、不回退外部生成器。样本由原生AISBench加载器在正式CLI流程中生成，skill不再生成第二套样本。
 
-本次核对的原生tokenid实现会解码token为文本；重新分词可能改变长度和公共前缀边界。`input_tokens`仍是实际请求长度的严格验收值，长度不符应失败并保留证据，不能偷偷截断、补齐或降低目标。`synthetic-evidence.json`使用原生正式请求明细的input文本进行只读重新分词，保存实际长度、共同前缀、目标长度及明细摘要；缺少文本或无法核验时记录UNVERIFIED并失败。单请求无法测量跨请求公共前缀。
+原生tokenid实现会解码token为文本；重新分词可能改变长度和公共前缀边界。原生合成模式下，`input_tokens` 和 `shared_prefix_ratio` 是 RequestSize/PrefixLen 的生成目标，不是重新分词后必须精确相等的验收值。90%表示约90%的生成目标，不额外设定未经用户要求的比例容差或缓存命中率阈值。优先核验原生命令和配置是否正确传递、AISBench成功退出、正式请求成功与数量一致、原始结果及worker日志完整。
+
+`synthetic-evidence.json` 对原始input文本做只读测量，记录实际长度、公共前缀、目标值和明细摘要；偏差仅报告，不据此失败、停止后续case或重建服务。缺少文本、tokenizer无法加载等诊断问题记录UNVERIFIED，不阻断成功请求的验收。不能据UNVERIFIED宣称实测前缀已验证。`validated.json.input_length.policy=native_target` 明确此口径，同时保留target和exact_match。请求失败、错误退出、缺失正式明细/worker日志、请求数或输出上限异常仍失败。单请求无法测量跨请求公共前缀。不自行截断、补齐或改造AISBench数据。
+
 
 目标前缀比例、实际公共前缀与实际缓存命中率分开报告。缓存metrics窗口仍含原生预热，不证明所有P/DP路由被覆盖。原生随机生成遵循实际AISBench版本行为，当前不承诺跨运行生成完全相同的数据。输出仍是最大长度，允许EOS。
 

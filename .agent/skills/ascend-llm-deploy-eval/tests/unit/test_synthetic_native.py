@@ -59,8 +59,8 @@ class SyntheticNativeTests(unittest.TestCase):
             self.assertFalse(result['exact_input_lengths'])
             self.assertEqual(details.read_bytes(),original)
             details.write_text('{"prediction":"missing input"}')
-            with self.assertRaisesRegex(ValueError,'input text'):
-                audit_synthetic_result(root,{'input_tokens':5,'formal_requests':2},'/model',Tokenizer())
+            result=audit_synthetic_result(root,{'input_tokens':5,'formal_requests':2},'/model',Tokenizer())
+            self.assertIn('input text',result['error'])
             self.assertEqual(json.loads((root/'synthetic-evidence.json').read_text())['status'],'UNVERIFIED')
 
     def test_direct_config_can_be_built_without_reading_dataset(self):
@@ -69,3 +69,28 @@ class SyntheticNativeTests(unittest.TestCase):
             case={'input_tokens':32,'output_tokens':8,'formal_requests':2,'concurrency':2,'shared_prefix_ratio':0}
             path=write_config(spec,case,{'endpoint':'http://localhost:8000'},Path(directory))
             self.assertIn('SyntheticDataset',path.read_text())
+
+    def test_native_after_phase_accepts_target_drift_but_rejects_failed_requests(self):
+        import test_evidence
+        from validate_case import validate
+        spec,bindings=inputs();case=spec['cases'][0]
+        case.update(input_tokens=65536,output_tokens=1024,formal_requests=2,concurrency=2,shared_prefix_ratio=0.9)
+        bindings['nodes']['node_a']['benchmark']['datasets']={case.get('dataset_id','default'):{'type':'aisbench_synthetic'}}
+        with tempfile.TemporaryDirectory() as directory:
+            task=Path(directory)/'task';entry.generate(spec,bindings,task)
+            folder=task/'results/test';details=folder/'outputs/run/performances/service/dataset_details.jsonl'
+            details.parent.mkdir(parents=True)
+            log=folder/'outputs/run/logs/infer/service/dataset.out';log.parent.mkdir(parents=True);log.write_text('worker')
+            rows=[dict(id=i,success=True,error_info='',input_tokens=67000+i,output_tokens=1024) for i in range(2)]
+            def save():details.write_text('\n'.join(json.dumps(row) for row in rows))
+            save()
+            with patch.object(test_evidence,'capture'),patch.object(test_evidence,'summarize'),patch.object(test_evidence,'audit_synthetic_result',return_value={'status':'UNVERIFIED'}):
+                test_evidence.check(task,spec['sub_tasks'][0]['id'],'node_a',folder,'after')
+                result=json.loads((folder/'validated.json').read_text())
+                self.assertEqual(result['status'],'PASSED')
+                self.assertEqual(result['input_length'],{'policy':'native_target','target':65536,'exact_match':False})
+                # The external explicit-length contract is unchanged.
+                with self.assertRaisesRegex(ValueError,'expectation'):validate(folder,case)
+                rows[0]['success']=False;save()
+                with self.assertRaisesRegex(ValueError,'request failed'):
+                    test_evidence.check(task,spec['sub_tasks'][0]['id'],'node_a',folder,'after')

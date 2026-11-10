@@ -2,11 +2,11 @@
 
 由 tests/render_unit_test_report.py 根据原始 JSON 报告生成；不要手改计数。
 
-测试内容 SHA256：`f11b2470ea59d23995765325d89b9c054ff464857c5e04c40b9b11515e98b15a`。文本换行统一为 LF 后计算，避免 Git 的 CRLF/LF 转换产生伪差异。摘要覆盖 scripts、tests、schemas、examples 的 Python/JSON 文件及 requirements.txt；不含本文和其他说明文档。
+测试内容 SHA256：`a802c53ba262a03b07378c41be3e541214909340d447193cd2456b5b99b83725`。文本换行统一为 LF 后计算，避免 Git 的 CRLF/LF 转换产生伪差异。摘要覆盖 scripts、tests、schemas、examples 的 Python/JSON 文件及 requirements.txt；不含本文和其他说明文档。
 
 | UTC 时间 | 系统 | Python | 总数 | 通过 | 失败 | 错误 | 跳过 | 结果 |
 |---|---|---|---:|---:|---:|---:|---:|---|
-| 2026-11-10T01:53:26.753485+00:00 | Windows | 3.11.4 | 240 | 228 | 0 | 0 | 12 | PASS |
+| 2026-11-10T03:15:41.803950+00:00 | Windows | 3.11.4 | 241 | 229 | 0 | 0 | 12 | PASS |
 
 ## 平台及跳过原因
 
