@@ -94,7 +94,7 @@ JOB_ID/
 
 case.mode 默认为 `perf`；`accuracy` 是预留意图，可进行结构校验，但当前生成和执行均明确拒绝，不会回退成 perf。协调器 FULL/scripts 与测试 perf/accuracy 独立。AISBench 精度原生阶段为 all/infer/eval/viz，将来由独立适配器映射，不能直接把 accuracy 传给 AISBench。
 
-默认生成既有 VLLMCustomAPI + CustomDataset 的原生配置。可选 case.aisbench_config 指向 bindings.nodes.<测试节点>.benchmark.configs 中的配置 ID，其值为生成机上可读的原生 AISBench Python 配置路径。配置复制到 scripts/tests，保留原生模型/数据集适配器；原文不修改，模型、端点、并发、最大输出和请求速率在运行前与 job_spec/bindings 核验。配置须采用已安装包的绝对导入，不能依赖未打包的相对文件。配置中的地址、模型和数据路径须由调用者与当前部署对齐。
+默认生成 VLLMCustomAPI 配置：外部文件使用 CustomDataset，原生前缀绑定使用 SyntheticDataset。可选 case.aisbench_config 指向 bindings.nodes.<测试节点>.benchmark.configs 中的配置 ID，其值为生成机上可读的原生 AISBench Python 配置路径。配置复制到 scripts/tests，保留原生模型/数据集适配器；原文不修改，模型、端点、并发、最大输出和请求速率在运行前与 job_spec/bindings 核验。配置须采用已安装包的绝对导入，不能依赖未打包的相对文件。配置中的地址、模型和数据路径须由调用者与当前部署对齐。
 
 测试直接调用 `ais_bench CONFIG --mode perf --work-dir ... --num-prompts ... --num-warmups ...`，不加 debug，不修改 AISBench 源码。保留原生输出目录与 worker 日志；退出码、每组请求详情和成功状态均核验。自带配置支持多组性能结果，不要求全部结果压成单张自制表。不同 AISBench 版本的结果布局仍需现场验证，不能声称所有版本与全部插件均已验证。
 
@@ -171,3 +171,5 @@ FULL 增加创建全部容器→全部依赖预检通过→模型启动屏障。
 最终收尾逐项尝试释放、采集、状态写入和解锁，记录 `.runtime/finalization.json` 的原始异常与各步骤结果。状态写入失败也会尝试解锁；解锁/写入错误不得覆盖原任务异常或用户中断。无原始异常但收尾失败时整体失败；若诊断文件本身无法写入，协调器日志保留错误。INTERRUPTED 不表示释放成功，必须另查 release 和 finalization 证据。
 
 代理依赖检查读取生成器写入的 `# @proxy-command` 标记后的命令，允许尾部空行/注释；不把 bootstrap 内的其他 exec 当成代理入口。参数缺失、非法超时或标记/命令异常会给出明确错误。
+
+SIGTERM / Ctrl+C 属于协作式取消：停止派发后续工作，但不能抢占分支线程正在执行的远端 invoke。优雅中断的收尾开始时间受当前阶段 invoke 剩余超时约束；测试默认 timeout_seconds=5400，最坏可能等待约90分钟后才进入释放和采集，收尾本身还需额外时间。不能把信号已发送视为资源已释放，也不要用 SIGKILL、删锁或启动新协调器催促收尾；应观察 status、coordinator.log 和 finalization 证据。当前实现不承诺即时取消或远端进程协作终止。

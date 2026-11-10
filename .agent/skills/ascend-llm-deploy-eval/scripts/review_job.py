@@ -92,11 +92,14 @@ def assess(spec, bindings, evidence):
         warnings.extend(producer_identity_warnings(dep))
         compile_deployment(dep,{slot:bindings['nodes'][slot]['deployments'][dep['id']]
             for slot in {i['placement']['node'] for i in dep['instances']}})
-        for item in dep['instances']:
-            slot=item['placement']['node'];bound=bindings['nodes'][slot]['deployments'][dep['id']]['network']
+        # Network bindings belong to a deployment/node, not to each instance.
+        for slot in sorted({i['placement']['node'] for i in dep['instances']}):
+            bound=bindings['nodes'][slot]['deployments'][dep['id']]['network']
             observed=evidence[slot]
             if not any(i['ifname']==bound['interface'] and any(a.get('local')==bound['ip'] for a in i.get('addr_info',[])) for i in observed['network']):
-                errors.append(slot+': confirmed IP/interface not present on machine')
+                errors.append(dep['id']+'/'+slot+': confirmed IP/interface not present on machine')
+        for item in dep['instances']:
+            slot=item['placement']['node'];observed=evidence[slot]
             if item['role']=='proxy':continue
             config=observed['models'].get(dep['model']['id'],{}).get('config',{})
             review.append({'deployment':dep['id'],'instance':item['id'],'model_config':config,
