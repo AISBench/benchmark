@@ -88,3 +88,5 @@ python3 /path/to/skill/scripts/watch_logs.py --run-dir /work/JOB --kind test
 成功请求允许 `output_tokens=0`（如立即结束），仍要求 success=true、无 error_info、合法整数长度和正确请求数；生成配置的 validated.formal.zero_output_requests 单独计数。零输出不能据此解释为有有效输出吞吐或 TPOT，失败请求、负数和超过上限的输出仍拒绝。
 
 缓存重置统一核验 cache-reset.json 总状态及各实例状态，不再依据原始 reset 文件名字典序选择“最新”。
+
+自然语言中的“稳态/稳态并发/steady state”由Agent映射为case.steady_state=true；明确非稳态或未指定时为false。现行生成器选择stable_stage（StablePerfMetricCalculator）或default_perf，CLI仍使用--mode perf。未指定正式总数时normalize设为并发×4，既用于SyntheticDataset.RequestCount，也用于--num-prompts；预热另计。例：“64K/1K，64并发（稳态）”应产生输入目标65536、输出上限1024、并发64、正式256、steady_state=true。稳态统计是否存在有效区间由AISBench结果决定，不把选中统计器当成实际稳态已经达成，也不自动加发请求。

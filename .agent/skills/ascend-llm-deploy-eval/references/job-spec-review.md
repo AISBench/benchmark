@@ -19,3 +19,5 @@ NOTES 中的跨实例启动顺序也须列入清单：逐项核对前置实例�
 
 `execution.proxy_start_after_models_healthy` 默认 true，并在规范化 job_spec 中显式物化。统一入口为每个 PD proxy 按其路由生成全部 P/D 实际健康 URL 的启动门控（含跨节点）；每轮逐项检查 HTTP 200，总等待受 startup_timeout_seconds 限制，单次请求有界且绕过环境 HTTP 代理，失败明确退出，不执行代理命令。门控写入实例脚本、位于 bootstrap 和环境设置之后、代理 exec 之前，不修改模型 CLI/KV/环境。审阅须展示此新默认及生成 URL；显式 false 保留原提前启动行为，须执行前说明与参考顺序的差异，不得把最终全组健康等待当成启动前门控。
 容器挂载与依赖审阅：新入口只自动挂载任务/模型，其余驱动库、通信、代理、数据路径须逐项确认实际容器可见性，不推断旧baseline会补齐，也不强制某固定宿主路径。模型依赖预检使用镜像ENV加launch.env，绝不重复执行任意bootstrap；bootstrap动态产生的必要环境须在规划中解析并展示为launch.env。预检错误可能是可见性或环境问题，不自动补挂载/安装依赖。测试工具使用实际测试命令环境独立检查；原生自定义数据只检查已定义本地文件契约，显式 aisbench_synthetic 绑定检查原生配置和 PrefixLen 能力，样本由 AISBench 正式流程生成；其他loader记PENDING_NATIVE_LOADER_VALIDATION，不擅自下载、生成数据或替换bindings。
+
+负载意图审阅：逐case核对用户原文中的并发、正式总请求数及稳态要求。用户未指定总数时，formal_requests须为并发×4（预热另计），不能用一个并发批次冒充默认场景。明确要求稳态时steady_state=true，核对生成配置导入stable_stage；未要求或明确非稳态时为false/default_perf。审阅展示“并发 / 正式数 / 预热数 / 统计器”，不因稳态另改请求数量。

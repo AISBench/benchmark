@@ -37,6 +37,8 @@ scripts 不访问服务器，生成可手工检查、执行与复现的脚本。
 每个部署的 `runtime.container.privileged` 必须显式填写；规划示例默认/推荐 `true`，交互审阅展示后保留该选择，也可显式设为 `false`。遗漏不自动补齐，详见[容器基线](references/container-baseline.md)。
 
 - job_spec 是唯一任务需求源，bindings 是物理机器、路径、网络与端口映射。默认值在交互确认阶段呈现；生成不会引入额外调参策略。
+- 未指定正式总请求数时，每个 case 使用 `formal_requests=4×concurrency`（64并发→256条，128并发→512条），预热另计。Agent 应省略该字段交由 normalize 填充，或显式填写同一默认值；不能为缩短验证而擅自填成并发数。仅用户明确指定总请求数时覆盖默认值。
+- 自然语言要求“稳态”“稳态并发”或“steady state”时，相关 case 必须设置 `steady_state=true`，生成 AISBench `stable_stage` 统计配置；“非稳态/不取稳态”设为 false，未提及时默认 false。稳态不改变并发×4的正式请求数，也不自动启用无限压测或额外请求；按用户作用范围应用到各 case。
 - `execution.proxy_start_after_models_healthy` 默认 true，生成代理启动前的有界逐模型健康门控；审阅须展示默认值和路由对应的健康 URL。显式 false 保留提前启动行为，须说明参考时序差异，详见审阅规则。
 - `execution.enable_cache_reset_api` 默认 true，为非 proxy 实例补充 `VLLM_SERVER_DEV_MODE=1`；显式 0 与 true 冲突时报错。false 不注入，也不删除已有值。`case.reset_cache` 独立控制清理，默认 false；开启后逐模型实例核验空闲、直接重置并核验成功，再执行原生预热和测试。
 - `launch.kv_transfer_config` 表达完整原始 KV JSON，保留额外字段；connector、角色、engine_id 和端口须与拓扑一致。省略时沿用结构化连接的确定生成规则，交互确认时展示生成结果。
