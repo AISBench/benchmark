@@ -1,0 +1,4 @@
+target-version = "py310"
+
+[lint]
+select = ["E9", "F"]

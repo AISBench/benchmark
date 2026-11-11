@@ -10,6 +10,10 @@ from ais_bench.benchmark.cli.utils import (
     validate_num_prompts,
     validate_num_warmups,
     validate_pressure_time,
+    validate_batch_size,
+    validate_request_count,
+    validate_request_size,
+    validate_prefix_len,
     MAX_NUM_WORKERS,
     DEFAULT_PRESSURE_TIME
 )
@@ -212,6 +216,20 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(dataset_cfg["reader_cfg"].get("test_range"), "[:10]")
         mock_logger.info.assert_called_once_with("Keeping the first 10 prompts for dataset [test_dataset]")
 
+    @patch('ais_bench.benchmark.cli.utils.logger')
+    def test_fill_test_range_use_num_prompts_with_list_skips(self, mock_logger):
+        """多组合 sweep 时 num_prompts 为列表，test_range 由展开器逐副本写入"""
+        for num_prompts in ([10, 32], [10], (10, 32)):
+            with self.subTest(num_prompts=num_prompts):
+                dataset_cfg = {"reader_cfg": {}, "abbr": "test_dataset"}
+
+                fill_test_range_use_num_prompts(num_prompts, dataset_cfg)
+
+                self.assertNotIn("test_range", dataset_cfg["reader_cfg"])
+                mock_logger.info.assert_not_called()
+                mock_logger.warning.assert_not_called()
+                mock_logger.reset_mock()
+
 
 class TestValidateMaxWorkers(unittest.TestCase):
     """测试 validate_max_workers 函数"""
@@ -379,6 +397,51 @@ class TestValidatePressureTime(unittest.TestCase):
             validate_pressure_time("-5")
         self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
         self.assertIn("must be >=", str(context.exception))
+
+
+class TestValidateSweepScalarArgs(unittest.TestCase):
+    """测试 sweep 新增单值参数的校验器"""
+
+    def test_validate_batch_size_range(self):
+        self.assertEqual(validate_batch_size("1"), 1)
+        self.assertEqual(validate_batch_size("100000"), 100000)
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_batch_size("0")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_batch_size("100001")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_LARGE.full_code, str(context.exception))
+
+    def test_validate_request_count_range(self):
+        self.assertEqual(validate_request_count("1"), 1)
+        self.assertEqual(validate_request_count(str(2 ** 20)), 2 ** 20)
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_request_count("0")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_request_count(str(2 ** 20 + 1))
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_LARGE.full_code, str(context.exception))
+
+    def test_validate_request_size_range(self):
+        self.assertEqual(validate_request_size("1"), 1)
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_request_size("0")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_request_size(str(2 ** 20 + 1))
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_LARGE.full_code, str(context.exception))
+
+    def test_validate_prefix_len_absolute_tokens_only(self):
+        """prefix_len 接受 0 与正整数，拒绝小数/比例并提示需绝对 token 数"""
+        self.assertEqual(validate_prefix_len("0"), 0)
+        self.assertEqual(validate_prefix_len("512"), 512)
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_prefix_len("-1")
+        self.assertIn(UTILS_CODES.ARGUMENT_TOO_SMALL.full_code, str(context.exception))
+        with self.assertRaises(AISBenchConfigError) as context:
+            validate_prefix_len("0.5")
+        self.assertIn(UTILS_CODES.INVALID_INTEGER_TYPE.full_code, str(context.exception))
+        self.assertIn("absolute token count", str(context.exception))
 
 
 if __name__ == '__main__':

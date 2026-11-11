@@ -138,6 +138,35 @@ class TestInfer:
         assert cfg['infer']['runner']['task']['type'] == OpenICLInferTask
         assert cfg['infer']['runner']['debug'] == True
 
+    def test_update_cfg_skips_sweep_cooldown_without_sweep(self):
+        """老命令（配置无 sweep_cooldown_s）不向 runner 注入新参数"""
+        cfg = MockConfigDict({
+            'models': [{'attr': 'service', 'abbr': 'test_model'}],
+            'datasets': [{'abbr': 'test_dataset', 'infer_cfg': {'retriever': {}}}],
+            'work_dir': '/test/workdir',
+            'cli_args': MagicMock(debug=False),
+        })
+
+        with patch('os.path.join', return_value='/test/workdir/predictions/'):
+            self.infer_worker.update_cfg(cfg)
+
+        assert 'sweep_cooldown_s' not in cfg['infer']['runner']
+
+    def test_update_cfg_injects_sweep_cooldown_for_multi_sweep(self):
+        """多档 sweep 写入 sweep_cooldown_s 时才注入到 runner 配置"""
+        cfg = MockConfigDict({
+            'models': [{'attr': 'service', 'abbr': 'test_model'}],
+            'datasets': [{'abbr': 'test_dataset', 'infer_cfg': {'retriever': {}}}],
+            'work_dir': '/test/workdir',
+            'sweep_cooldown_s': 5,
+            'cli_args': MagicMock(debug=False),
+        })
+
+        with patch('os.path.join', return_value='/test/workdir/predictions/'):
+            self.infer_worker.update_cfg(cfg)
+
+        assert cfg['infer']['runner']['sweep_cooldown_s'] == 5
+
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')
     @patch('ais_bench.benchmark.cli.workers.logger')
