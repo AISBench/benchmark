@@ -1,12 +1,14 @@
 # VABench Audio-Video Evaluation Quick Start
 
-**VABench** evaluates text-to-audio-video (T2AV) generation across audio quality, audio-video consistency, synchronization, and content quality.
+**VABench** is a benchmark for text-to-audio-video (T2AV) generation, covering audio quality, audio-video consistency, synchronization, and content quality.
 
-AISBench runs all **15 VABench metrics** on GPU using the upstream scoring implementation. It takes existing MP4 files with audio tracks and reports raw means, normalized scores, and an overall score. This guide covers the 778-prompt standard set and comparison against native VABench. Generate the videos before running the evaluation. The AISBench configuration template is `ais_bench/configs/vabench_examples/eval_vabench_custom.py`.
+AISBench integrates all **15 VABench metrics** and evaluates existing MP4 files with audio tracks on GPU through the external upstream scoring implementation, reporting raw means, normalized scores, and a total score. This guide covers evaluating the 778-prompt standard set and comparing against native VABench; video generation is completed before the evaluation. The run template is `ais_bench/configs/vabench_examples/eval_vabench_custom.py`.
 
-You need a Linux GPU machine, an AISBench source checkout, and Conda. Download VABench in Section 1 and use the AISBench installer in Section 2.5 to set up scoring dependencies. The CLI, environment installer, and native comparison tools are under `ais_bench.tools.vabench`.
+This document describes the manual preparation and evaluation route on a Linux GPU machine. It assumes an AISBench source checkout and Conda are already available; the VABench source is downloaded in Section 1. When you want AISBench to prepare the scoring dependencies automatically, Section 2.5 still uses the installer tool, which is not equivalent to installing packages one by one by hand.
 
-Adapt the following paths and GPU selection to your machine.
+The entry point is unified under `ais_bench.tools.vabench`. Task, Dataset, and the summarizer are each packaged separately; the native official preparation/comparison scripts also live under tools, and the paths below match the current implementation. Comparison results use per-metric raw means, with per-sample numeric differences listed separately; GPU accuracy alignment still requires verifying identical inputs, weights, parameters, and failure states.
+
+The following paths are fixed examples. Replace them as a whole when switching machines:
 
 ```bash
 export AISBENCH_ROOT=/workspace/code/benchmark
@@ -19,16 +21,16 @@ export CUDA_VISIBLE_DEVICES=0,1
 
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
-# Activate an existing environment now, or create it in Section 2.2 first.
+# Activate an existing environment first; for a fresh environment, create it in Section 2.2 and activate it then.
 if [ -x "${PY}" ]; then
   conda activate "${CONDA_ENV}"
 fi
 cd "${AISBENCH_ROOT}"
 ```
 
-> If you already have a working environment and the model weights, you can skip the downloads and installation in Sections 2.2–2.5. Verify the third-party sources in Section 1.1 and run the environment check in Section 2.5, the cache check in Section 2.6, and `doctor` in Section 4.2.
+> If you already have a working environment and the model weights are complete, skip the downloads and installation in Sections 2.2–2.5. However, you must first confirm that the third-party external sources in Section 1.1 exist, and at minimum run the `environment check` in Section 2.5, the resource checks in Section 2.6, and `doctor` in Section 4.2.
 
-Check that your AISBench checkout contains the VABench integration.
+The AISBench source must contain the VABench integration. Confirm that the following two files exist first:
 
 ```bash
 test -f ${AISBENCH_ROOT}/ais_bench/tools/vabench/cli.py
@@ -39,43 +41,43 @@ test -f ${AISBENCH_ROOT}/ais_bench/benchmark/tasks/vabench/eval.py
 
 ## 1. Download the VABench source
 
-The clone uses Git and the manual setup in Section 1.1 uses curl. Install them first if they are missing from your Ubuntu or Debian container and you have root access.
+Use the following pinned revision:
+
+The clone below requires Git, and the manual source setup in Section 1.1 requires curl. If the container lacks these tools, install them first (Ubuntu/Debian root container):
 
 ```bash
 apt-get update
 apt-get install -y git curl ca-certificates
 ```
 
-Check out the pinned upstream revision.
-
 ```bash
 git clone https://github.com/tanABCC/VABench.git ${VABENCH_ROOT}
 git -C ${VABENCH_ROOT} checkout 12b9617a900a9eca1691da6b7115ce3d58f53a16
 ```
 
-Verify the source paths and, for a Git checkout, the revision.
+Check:
 
 ```bash
 ls ${VABENCH_ROOT}/evaluate.py
 ls ${VABENCH_ROOT}/vabench/config.yaml
 
-# Verify the revision for a Git checkout. Skip this check for an extracted archive.
+# The revision can only be verified in a Git checkout; skip this for source extracted from an archive without .git
 if [ -d ${VABENCH_ROOT}/.git ]; then
   git -C ${VABENCH_ROOT} rev-parse HEAD
 fi
 ```
 
-Expected revision for a Git checkout.
+Expected revision (Git checkout):
 
 ```text
 12b9617a900a9eca1691da6b7115ce3d58f53a16
 ```
 
-You can reuse an existing checkout. If you extracted the source from an archive, record its origin and revision.
+Do not clone again if the source already exists. Source extracted from an archive runs without `.git`, but you must record its origin and version.
 
-### 1.1 Set up third-party sources
+### 1.1 Complete the third-party external sources
 
-The pinned upstream checkout ships ViCLIP and SyncNet evaluation code. DNSMOS and Synchformer require these additional files for `first_dnsmos` and `second_desync`.
+In the pinned upstream repository, `third_party/` contains only `ViCLIP/`, `syncnet_eval/`, and similar directories — it does **not** include `Synchformer` or `DNS-Challenge`. `first_dnsmos` and `second_desync` load them directly from the source directory, and these two metrics fail when the files are missing. The following must exist:
 
 ```text
 ${VABENCH_ROOT}/third_party/Synchformer/scripts/train_utils.py
@@ -83,9 +85,9 @@ ${VABENCH_ROOT}/third_party/Synchformer/dataset/transforms.py
 ${VABENCH_ROOT}/third_party/DNS-Challenge/DNSMOS/dnsmos_local.py
 ```
 
-On a fresh environment, `environment install` in Section 2.5 fills in missing sources and supports the `buffalo_l` cache layout. When reusing an environment with AISBench already installed, complete this section manually after downloading the cache in Section 2.3.
+On a fresh installation, `environment install` in Section 2.5 fills in these paths automatically when they are missing, so there is no need to handle them manually first. The commands below are for reusing an existing environment, skipping install, or preparing in advance; they depend on the cache downloaded in Section 2.3, so on a new machine complete Section 2.3 first and then come back here.
 
-Link the Synchformer checkout in `synchformer/Synchformer/` from the model cache.
+The `synchformer/Synchformer/` directory in the model cache is the complete source. A symlink is enough — there is no need to copy about 422 MB:
 
 ```bash
 mkdir -p "${VABENCH_ROOT}/third_party"
@@ -96,7 +98,7 @@ if [ ! -e "${VABENCH_ROOT}/third_party/Synchformer" ] && \
 fi
 ```
 
-Fetch the single DNSMOS source file from the pinned Microsoft revision. An existing DNS-Challenge checkout can supply the same file.
+DNSMOS is only missing a single Python source file. Download it at the pinned revision used by AISBench:
 
 ```bash
 mkdir -p "${VABENCH_ROOT}/third_party/DNS-Challenge/DNSMOS"
@@ -107,9 +109,11 @@ if [ ! -e "${VABENCH_ROOT}/third_party/DNS-Challenge/DNSMOS/dnsmos_local.py" ]; 
 fi
 ```
 
-The cache's `dns_mos/` directory supplies the `sig_bak_ovr.onnx` and `model_v8.onnx` weights. Place `dnsmos_local.py` under `third_party/DNS-Challenge/DNSMOS/`. The commands preserve existing files and links. If an existing path points to the wrong revision, verify its source and contents before replacing it. For GitHub access behind a proxy or a private CA, see Section 2.1 and configure `CURL_CA_BUNDLE` or `curl --cacert` as needed.
+The `dns_mos/` directory in the cache contains only the two weights `sig_bak_ovr.onnx` and `model_v8.onnx` — it is not the DNS-Challenge source, so do not copy it into `third_party` as source code. There is also no need to clone the entire DNS-Challenge repository; if you already have a full clone, keep only `DNSMOS/dnsmos_local.py` from it.
 
-Check all three source files.
+Existing sources are not overwritten. If an existing file or symlink is incorrect, verify its origin and contents before handling it — do not assume the version matches just because "the path exists". When GitHub access requires a proxy or a private CA, set the proxy as described in Section 2.1, and add `--cacert` to `curl` or set `CURL_CA_BUNDLE`.
+
+Check:
 
 ```bash
 test -f ${VABENCH_ROOT}/third_party/Synchformer/scripts/train_utils.py
@@ -117,20 +121,22 @@ test -f ${VABENCH_ROOT}/third_party/Synchformer/dataset/transforms.py
 test -f ${VABENCH_ROOT}/third_party/DNS-Challenge/DNSMOS/dnsmos_local.py
 ```
 
+`environment install` in Section 2.5 performs the same setup automatically when the targets are missing (symlinking Synchformer, downloading `dnsmos_local.py`, and supporting the buffalo_l layout). However, an environment with AISBench already installed is rejected by `runtime_guard` for install; when reusing an existing environment, you must complete this section manually.
+
 ---
 
-## 2. Prepare the tools, weights, and scoring environment
+## 2. Download the required weights, dependencies, and tools
 
 ### 2.1 System tools
 
-For an Ubuntu or Debian container with root access, install the tools below.
+Ubuntu/Debian root container:
 
 ```bash
 apt-get update
 apt-get install -y git curl wget ffmpeg libsndfile1 build-essential ca-certificates unzip
 ```
 
-Check the GPU and media tools.
+Check:
 
 ```bash
 nvidia-smi
@@ -138,7 +144,7 @@ ffmpeg -version | head -1
 ffprobe -version | head -1
 ```
 
-If your network uses a private CA, set the certificate path for the relevant tools.
+If the machine uses a private CA, configure it as appropriate:
 
 ```bash
 export PIP_CERT=/root/ca-bundle.crt
@@ -147,7 +153,9 @@ export REQUESTS_CA_BUNDLE=/root/ca-bundle.crt
 export GIT_SSL_CAINFO=/root/ca-bundle.crt
 ```
 
-For wget, use `--ca-certificate=/root/ca-bundle.crt` if needed. Configure `http_proxy` and `https_proxy` for GitHub or Hugging Face access. Pip's `--index-url` selects a Python package index. Git and model downloads use their own network settings.
+If `wget` reports certificate errors, add `--ca-certificate=/root/ca-bundle.crt`.
+
+When a proxy is required to access GitHub/HuggingFace, set `http_proxy` and `https_proxy` first; `--index-url` only affects PyPI and does not proxy GitHub or model downloads.
 
 ### 2.2 Create the Conda environment
 
@@ -157,9 +165,9 @@ conda activate ${CONDA_ENV}
 python3 --version
 ```
 
-### 2.3 Download model weights
+### 2.3 Download the model weights
 
-Download the model cache separately from the Python packages. The cache takes tens of gigabytes of disk space.
+pip does not download the VABench model weights; they must be prepared separately. The cache is tens of gigabytes:
 
 ```bash
 ${PY} -m pip install "huggingface-hub==0.35.3" \
@@ -173,13 +181,15 @@ hf download tanABBCC/VABENCH_CACHE_DIR \
   --local-dir ${VABENCH_CACHE_DIR}
 ```
 
-Use the pinned `huggingface-hub` version and the `hf` executable from the active Conda environment. If the command is missing, activate the environment and run `command -v hf`. For CLI changes in version 1, see the [Hugging Face migration guide](https://huggingface.co/docs/huggingface_hub/en/concepts/migration).
+The version here is pinned to match the scoring dependencies, and it uses the `hf` executable from the current Conda environment. Do not upgrade without a version constraint: Hugging Face v1 removed `huggingface-cli` and the `[cli]` extra; see the [official migration guide](https://huggingface.co/docs/huggingface_hub/en/concepts/migration). If `hf` cannot be found, first confirm that `${CONDA_ENV}` is activated, then check `command -v hf`.
 
-Confirm that `Qwen2.5_omni_7B/` is directly under the cache root.
+After downloading, you must confirm that `Qwen2.5_omni_7B/` is directly under the cache root:
 
 ```text
 /workspace/vabench-cache/Qwen2.5_omni_7B/
 ```
+
+It must not be nested one level deeper.
 
 ### 2.4 Download the LSA auxiliary weights
 
@@ -199,7 +209,7 @@ wget -O /tmp/buffalo_l.zip \
 unzip -q -o /tmp/buffalo_l.zip -d "${AUX}/models/buffalo_l"
 ```
 
-Verify at least these files.
+Confirm at least the following:
 
 ```text
 ${AUX}/sfd_face.pth
@@ -207,16 +217,16 @@ ${AUX}/models/buffalo_l/det_10g.onnx
 ${AUX}/models/buffalo_l/2d106det.onnx
 ```
 
-If `checkpoints/auxiliary/buffalo_l/` already exists, create a link at `models/buffalo_l/` if that path is missing.
+If `checkpoints/auxiliary/buffalo_l/` already exists but `models/buffalo_l/` is missing:
 
 ```bash
 mkdir -p "${AUX}/models"
 ln -sfn ../buffalo_l "${AUX}/models/buffalo_l"
 ```
 
-### 2.5 Install VABench Python dependencies
+### 2.5 Install the VABench Python dependencies
 
-Run the installer **before installing AISBench** in this Conda environment. Start from the AISBench source root.
+**This must be run before installing AISBench itself.** Run from the AISBench source root:
 
 ```bash
 cd ${AISBENCH_ROOT}
@@ -229,13 +239,20 @@ ${PY} -m ais_bench.tools.vabench.environment install \
   --index-url https://repo.huaweicloud.com/repository/pypi/simple
 ```
 
-Use `--install-system-deps` only in an Ubuntu or Debian container with root access. Omit it when the tools in Section 2.1 are already installed or when you manage them separately. This also lets you proceed if the package mirror's certificate prevents `apt-get update`.
+`--install-system-deps` applies only to Ubuntu/Debian root containers; on other systems, install the system tools manually first and then drop the flag. You can also drop it directly when the tools from Section 2.1 are already installed, to avoid `apt-get update` being blocked by a proxy or a private CA; during local validation, the apt source certificate check once kept retrying, and removing the flag let the run continue normally.
 
-> The installer stops if AISBench is already installed in the target environment. Run `environment check` for an existing environment or use a fresh scoring environment for a new installation.
+> If AISBench is already installed in the current environment, `environment install` triggers `runtime_guard` and stops, and the installation has not completed. Run `environment check` for an existing environment; when a fresh install is needed, use a clean scoring environment to avoid breaking the existing primary environment.
 
-The installer sets up PyTorch 2.6.0 with CUDA 12.4, torchvision, torchaudio, Transformers, ONNX Runtime, InsightFace, CLAP, and the pinned Git revisions of ImageBind, PyTorchVideo, and CLIP. It applies the NISQA 2.0.post2 metadata patch, pins setuptools to 80.9.0, and prepares the missing sources described in Section 1.1.
+The installer handles:
 
-Check the installed environment.
+- Torch 2.6.0+cu124, torchvision, and torchaudio;
+- Transformers, ONNX Runtime, InsightFace, CLAP, and others;
+- ImageBind, PyTorchVideo, and CLIP at pinned commits;
+- the NISQA 2.0.post2 metadata patch;
+- setuptools pinned to 80.9.0 (below 82);
+- symlinking the Synchformer source from the cache and downloading `dnsmos_local.py` when they are missing from `third_party` (see Section 1.1).
+
+Check:
 
 ```bash
 ${PY} -m ais_bench.tools.vabench.environment check \
@@ -244,9 +261,9 @@ ${PY} -m ais_bench.tools.vabench.environment check \
   --work-dir /workspace/vabench-env-audit
 ```
 
-In a shared environment, `pip_check` can report known metadata conflicts involving Pillow, fsspec, tqdm, or decord. Review these against the verified environment and make sure `versions`, `git`, `nisqa`, `probes`, and `missing_resources` are clear before proceeding. To keep the scoring dependencies separate, point `BACKEND_PYTHON` at a dedicated scoring environment.
+In a unified environment, `environment check` may return FAIL only at `pip_check`, commonly reporting Pillow, fsspec, tqdm, or decord. If `versions`, `git`, `nisqa`, `probes`, and `missing_resources` all pass, you can continue with the evaluation. When completely clean dependencies are required, use a dedicated scoring environment invoked through `BACKEND_PYTHON`.
 
-### 2.6 Check the model cache
+### 2.6 Quick cache check
 
 ```bash
 test -f ${VABENCH_CACHE_DIR}/Qwen2.5_omni_7B/config.json
@@ -254,15 +271,15 @@ test -f ${VABENCH_CACHE_DIR}/checkpoints/auxiliary/sfd_face.pth
 test -e ${VABENCH_CACHE_DIR}/checkpoints/auxiliary/models/buffalo_l
 ```
 
-Run `doctor` in Section 4.2 to check the remaining resources. If `missing_resources` lists any paths, fill them in before scoring.
+The remaining weights are checked together by `doctor` in Section 4.2; if `doctor` reports `missing_resources`, fill them in by path.
 
 ---
 
-## 3. Prepare the generated videos
+## 3. Archive the generated videos
 
-### 3.1 Directory and naming
+### 3.1 Directory and naming requirements
 
-Place the videos for one model under a single input directory.
+Place the videos to evaluate in one directory, for example:
 
 ```text
 /workspace/video/
@@ -275,34 +292,26 @@ Place the videos for one model under a single input directory.
 └── news anchor delivers evening news.mp4
 ```
 
-- Name each file `<idx>.mp4` using the official ID, and include an audio track.
-- Supply exactly one MP4 per ID and keep different models in separate directories.
-- Use IDs from the 778-prompt set. Files can be flat or grouped by category.
-- File names can contain spaces. Quote paths when passing them to the shell.
-- Keep the source MP4 paths and contents intact after running `prepare`. Evaluation verifies the media hashes.
+Rules:
 
-List the input files.
+- Each `idx` must have exactly one MP4;
+- File names must be `idx.mp4`, for example `kitten curled up meowing.mp4`;
+- An audio track is required; silent videos are not accepted;
+- Do not mix results from multiple models for the same prompt;
+- Unknown videos outside the 778 prompts must not appear;
+- Files can be flat or organized into per-category directories;
+- File names may contain spaces; quote shell parameters;
+- Do not move or rewrite the original MP4 files after `prepare`, otherwise the pre-run hash verification fails.
+
+List the videos:
 
 ```bash
 find /workspace/video -type f -name '*.mp4' -printf '%f\n' | sort
 ```
 
-### 3.2 Export the standard 778 prompts
+### 3.2 Prepare a custom subset
 
-```bash
-cd ${AISBENCH_ROOT}
-
-${PY} -m ais_bench.tools.vabench.cli catalog \
-  --source-root ${VABENCH_ROOT} \
-  --subset standard \
-  --output /workspace/t2av_778_prompts.json
-```
-
-The upstream JSON files contain 848 prompts. The standard set consists of the 778 prompts that match `mapping/final_idx_to_prompt.csv` exactly. Use `entries[].metadata.prompt_en` for generation and `entries[].idx` as the MP4 file stem.
-
-### 3.3 Prepare a custom subset
-
-Run this command to evaluate the MP4 files already in your directory. `prepare` matches file names to official prompts and extracts their audio tracks.
+To evaluate existing videos:
 
 ```bash
 cd ${AISBENCH_ROOT}
@@ -314,42 +323,47 @@ ${PY} -m ais_bench.tools.vabench.cli prepare \
   --output /workspace/prepared_videos
 ```
 
-The output contains the evaluation manifest, per-category metadata, and extracted audio.
+The output contains:
 
 ```text
 /workspace/prepared_videos/
 ├── manifest.json
 ├── json/
-└── ... extracted WAV files
+└── ... same-source WAV files and more
 ```
 
-Choose a fresh output directory for each preparation. An unknown ID or a video without an audio track causes an error. If you see `Prepared protocol differs from installed protocol`, rebuild the prepared directory with the current AISBench checkout so it records the correct protocol hash.
+Notes:
 
-### 3.4 Prepare all 778 standard prompts
+- `prepare` does not overwrite an existing output directory; use a new directory when rerunning;
+- Unknown videos cause an error and are listed; they are not silently skipped;
+- Silent videos are not automatically padded with silence;
+- If you see `Prepared protocol differs from installed protocol`, the prepared directory comes from an older protocol and must be re-prepared with the current source. Do not hand-edit the manifest hashes.
 
-The full archive contains 778 videos generated by MiniMax H3. [Download the full video archive (ZIP)](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/vabench/minimax_h3_vabench_778_full_video.zip)
+### 3.3 Prepare the full 778-prompt set
 
-Extract the archive, set `--videos` below to the directory containing the MP4 files, and run `prepare`.
+You can download the 778 videos of the full set generated by MiniMax H3. [Download the full-set video ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/vabench/minimax_h3_vabench_778_full_video.zip)
+
+After extracting, change `--videos` below to the directory that actually contains the MP4 files, then run `prepare`.
 
 ```bash
 ${PY} -m ais_bench.tools.vabench.cli prepare \
   --source-root ${VABENCH_ROOT} \
-  --subset standard \
-  --videos /workspace/generated_standard \
-  --output /workspace/prepared_standard
+  --subset custom \
+  --videos /workspace/video \
+  --output /workspace/prepared_videos
 ```
 
-### 3.5 Get the VABench Mini subset
+### 3.4 Get the VABench Mini subset
 
-The archived videos for the Mini subset are available on Modelers. [VABench Mini dataset](https://modelers.cn/datasets/AISBench/vabench_mini)
+The archived videos of the Mini subset are available on Modelers. [VABench Mini dataset](https://modelers.cn/datasets/AISBench/vabench_mini)
 
 ---
 
-## 4. Install AISBench and run the evaluation
+## 4. Install AISBench dependencies and launch the evaluation
 
 ### 4.1 Install AISBench dependencies
 
-Use the Conda environment from Section 2. Install the AISBench runtime dependencies with the pins for the shared environment. The following command leaves the scoring environment's Pillow version in place.
+Continue using the same Conda environment created in Section 2. First install the AISBench runtime, dropping the Pillow pin that conflicts with VABench/NISQA:
 
 ```bash
 cd ${AISBENCH_ROOT}
@@ -367,7 +381,7 @@ ${PY} -m pip install \
   --index-url https://repo.huaweicloud.com/repository/pypi/simple
 ```
 
-Install AISBench in editable mode using the dependencies already installed.
+Install AISBench itself without re-resolving dependencies:
 
 ```bash
 ${PY} -m pip install \
@@ -376,7 +390,7 @@ ${PY} -m pip install \
   --no-build-isolation
 ```
 
-Restore the fsspec and tqdm versions used by the shared environment.
+Pin back the versions needed by the unified environment:
 
 ```bash
 ${PY} -m pip install \
@@ -384,7 +398,7 @@ ${PY} -m pip install \
   --index-url https://repo.huaweicloud.com/repository/pypi/simple
 ```
 
-Verify the installation and save the output and exit status from `pip check`.
+Check:
 
 ```bash
 ais_bench --help
@@ -395,9 +409,9 @@ cat /workspace/vabench_pip_check.txt
 echo "pip check exit status: ${PIP_CHECK_STATUS}"
 ```
 
-> In a script that uses `set -e`, capture the exit status in a conditional branch. Review any conflicts against the verified environment, including the known declarations involving Pillow, fsspec, tqdm, or decord. You can use a dedicated scoring environment by pointing `BACKEND_PYTHON` at its Python executable.
+> The checks above are run in an interactive shell; if a script sets `set -e`, capture the nonzero status in a conditional branch before saving. The unified environment may show known declaration conflicts for Pillow, fsspec, tqdm, and decord; review each item against the verified environment record — new conflicts must not be dismissed wholesale. When completely clean dependencies are required, use a dedicated scoring environment invoked through `BACKEND_PYTHON`.
 
-### 4.2 Diagnose the scoring environment
+### 4.2 Environment diagnostics
 
 ```bash
 cd ${AISBENCH_ROOT}
@@ -407,20 +421,25 @@ ${PY} -m ais_bench.tools.vabench.cli doctor \
   --cache-dir ${VABENCH_CACHE_DIR}
 ```
 
-Check that all 15 metric modules are discoverable, the cache is complete, CUDA, decord, and ONNX Runtime are available, and `missing_resources` is empty.
+You must confirm:
 
-`doctor` checks module discovery and resource completeness, then runs a small tensor operation and copies its result back to CPU. The default is `--device cuda:0`. An unavailable device or a failed operation produces a nonzero exit status. For CPU-only diagnostics, pass `--device cpu` explicitly. See the `environment check` probes in Section 2.5 and the scoring logs for module imports, decord decoding, and ONNX provider checks.
+- All 15 metric entry points exist;
+- The model cache has no missing items;
+- CUDA, decord, and ONNX Runtime work correctly;
+- `missing_resources` is empty.
 
-### 4.3 Configure the evaluation
+`doctor` checks module discoverability and strict resource integrity, then runs a small tensor operation on the target device and copies the result back to CPU. The default is `--device cuda:0`; an unavailable device or a failed operation returns a nonzero status. To check CPU only, pass `--device cpu` explicitly. It does not replace full scoring-module loading, decord decoding, or ONNX provider validation — combine it with the actual probes from `environment check` in Section 2.5 and the subsequent scoring logs.
 
-Copy the template.
+### 4.3 Write the evaluation configuration
+
+Copy the template:
 
 ```bash
 cp ${AISBENCH_ROOT}/ais_bench/configs/vabench_examples/eval_vabench_custom.py \
    /workspace/eval_vabench.py
 ```
 
-Set the following fields in `/workspace/eval_vabench.py`.
+Edit `/workspace/eval_vabench.py` and change at least the following fields:
 
 ```python
 PREPARED_DIR = '/workspace/prepared_videos'
@@ -432,9 +451,9 @@ BACKEND_PYTHON = '/root/miniconda3/envs/vabench311_new1/bin/python3'
 NUM_DEVICES = 2
 ```
 
-Set `PREPARED_DIR` to the output of the preparation step for your input set. When AISBench and VABench share a Conda environment, use that environment's `bin/python3` as `BACKEND_PYTHON`. The template supplies the `models`, `datasets`, `eval`, and `summarizer` configuration.
+If AISBench and VABench are in the same Conda environment, `BACKEND_PYTHON` points to that environment's `bin/python3`. Keep the remaining template fields (`models`, `datasets`, `eval`, `summarizer`) unchanged.
 
-### 4.4 Run the evaluation
+### 4.4 Launch the evaluation
 
 ```bash
 cd ${AISBENCH_ROOT}
@@ -444,13 +463,16 @@ ais_bench /workspace/eval_vabench.py \
   -w /workspace/vabench_runs/run_$(date +%Y%m%d_%H%M%S)
 ```
 
-- `-m eval` runs the evaluation phase on existing results.
-- `-w` sets the output root. AISBench creates a timestamped subdirectory. Use a fresh directory for each run.
-- One run of all 15 metrics on 7 videos took about 10 minutes. Timing depends on available GPU resources, media length, and the cache.
+Parameters:
 
-#### 4.4.1 Console output and field reference
+- `-m eval`: evaluate only, no re-inference;
+- `-w`: output root directory; AISBench creates a timestamped subdirectory automatically;
+- Use a new directory each time; do not overwrite existing results;
+- A live run of 7 videos with all 15 metrics took about 10 minutes; the time depends on free GPU resources, media length, and the cache, and does not guarantee a fixed runtime.
 
-AISBench organizes the 15 metrics into nine scoring groups. Progress at `9/9` means all nine groups have finished. Check the summary table to see which metrics have valid scores. The following excerpt is from a custom run with six videos. The total row retains the label printed by AISBench, which means “custom subset preview total (non-official).”
+#### 4.4.1 Console output sample and field reference
+
+All 15 metrics are organized into 9 scoring groups. `9/9` on the progress board means all 9 groups have finished; whether each metric obtained a valid score must be checked in the summary table. The following is an excerpt from a 6-video custom evaluation. (The total row keeps the label printed by AISBench, which reads "custom subset preview total, non-official".)
 
 ```text
 model         dataset/dimension           raw direction  raw mean  score/100  expected  scored  LSA omitted  missing  failed  coverage %  status
@@ -462,20 +484,22 @@ custom_all_7  vabench_t2av/total           higher                —      67.88 
 
 | Column | Meaning for a metric row |
 | --- | --- |
-| `model` | Model abbreviation from the AISBench configuration, typically `models[0]['abbr']` for a single-model run |
+| `model` | Model abbreviation in the AISBench configuration, usually `models[0]['abbr']` |
 | `dataset/dimension` | Dataset abbreviation and metric name, for example `vabench_t2av/second_lsa` |
-| `raw direction` | `higher` means a larger raw score is better. `lower` means a smaller score is better, as for `second_desync` |
-| `raw mean` | Arithmetic mean of valid raw scores, with equal weight per video |
-| `score/100` | Raw mean converted to a 0–100 display score using the fixed formula in the appendix |
-| `expected` / `scored` | Number of input videos and number with valid scores for the metric |
-| `LSA omitted` | Missing `second_lsa` records. These are also counted in `missing`. Check the logs for the reason. Other metric rows show 0 here |
-| `missing` / `failed` | Counts of videos with missing scoring records or with a recorded failure, such as a backend error or invalid score |
+| `raw direction` | Raw score direction. `higher` means larger is better, `lower` means smaller is better. Currently `second_desync` is `lower` |
+| `raw mean` | Mean of the valid raw scores for the metric, with each valid video weighted equally |
+| `score/100` | The raw mean normalized with the fixed formula in the appendix and clamped to 0–100 |
+| `expected` / `scored` | The number of input videos this run and the number that obtained a valid score for the metric |
+| `LSA omitted` | The number of `second_lsa` records missing, already counted in `missing` on the same row. Check the logs for the specific omission reason. Other metrics show 0 in this column |
+| `missing` / `failed` | `missing` counts samples without scoring records. `failed` counts samples marked as failed, such as backend errors or invalid scores |
 | `coverage %` | `scored / expected × 100` |
-| `status` | `complete` means all inputs have valid scores and there are no backend errors. `incomplete` indicates missing scores or errors. `not_evaluated` indicates that the metric was skipped |
+| `status` | `complete` means valid scores cover all inputs and there are no backend errors; `incomplete` means there are missing or errored items; `not_evaluated` means the metric was not evaluated |
 
-The `total` row counts metrics. In this example, `expected=15`, `scored=15`, and `missing=0` mean all 15 metrics have a valid mean. LSA has a valid mean but covers only `2/6 = 33.3%` of the inputs, so the run has a preview total. `raw mean`, `LSA omitted`, `failed`, and `coverage %` display `—` on the total row. Runs that request only some metrics omit the total row.
+The `total` row counts metrics. In the example, `expected=15`, `scored=15`, and `missing=0` mean all 15 metrics have valid means. LSA has a mean, but its coverage is only `2/6 = 33.3%`, so the whole run still shows a preview total. `raw mean`, `LSA omitted`, `failed`, and `coverage %` display `—` on the total row. When only some metrics are requested, the summary table omits the total row.
 
 ### 4.5 Inspect the results
+
+Result directory:
 
 ```text
 /workspace/vabench_runs/run_<timestamp>/
@@ -493,38 +517,45 @@ The `total` row counts metrics. In this example, `expected=15`, `scored=15`, and
             └── official_eval_results/
 ```
 
-The framework's `summary/` directory contains the combined table. Set `AISBENCH_ARTIFACTS` to the actual result directory for the model you want to inspect.
+The framework's `summary/` holds the overall summary table. After changing `AISBENCH_ARTIFACTS` below to the actual result directory of this evaluation, you can inspect a single model's results.
 
 ```bash
-export AISBENCH_ARTIFACTS=/workspace/vabench_runs/run_TIMESTAMP/AISBENCH_TIMESTAMP/results/MODEL/DATASET_artifacts
+export AISBENCH_ARTIFACTS=/workspace/vabench_runs/run_ACTUAL_TIMESTAMP/AISBench_timestamp/results/model_abbr/dataset_abbr_artifacts
 cat "${AISBENCH_ARTIFACTS}/summary.md"
 cat "${AISBENCH_ARTIFACTS}/metrics.csv"
 cat "${AISBENCH_ARTIFACTS}/total.csv"
 ```
 
-| File or directory | What to look for |
+| File or directory | What to check |
 | --- | --- |
-| `summary.md`, `metrics.csv`, `scenes.csv` | Summary, per-metric statistics, and per-category statistics. The CSV fields `mean`, `normalized_score`, and `omitted` correspond to `raw mean`, `score/100`, and `LSA omitted` |
-| `total.csv` | Total `score`, `status`, number of valid metrics in `valid_dimensions`, and zero-filled metrics in `zero_filled_dimensions` |
-| `samples.csv`, `report.json` | Sample status by `idx`. `score` is the valid value used in the mean. `original_score` retains the numeric value returned by the scorer for diagnosis. `report.json` also stores metric results, scoring details, and run provenance |
-| `official_eval_results/` | Raw scores in native VABench format for `compare-official` |
-| `input_manifest.json`, `partial_report.json` | Actual inputs and the report saved after the latest completed scoring group |
-| `job_00/` and other scoring group directories | `request.json`, `response.json`, and `process.log` for worker settings, responses, and errors |
+| `summary.md`, `metrics.csv`, `scenes.csv` | Report summary, per-metric statistics, and per-category statistics. The CSV fields `mean`, `normalized_score`, and `omitted` correspond to `raw mean`, `score/100`, and `LSA omitted` in the console |
+| `total.csv` | The total `score`, `status`, the number of valid metrics `valid_dimensions`, and zero-filled metrics `zero_filled_dimensions` |
+| `samples.csv`, `report.json` | Investigate per-sample status by `idx`. `score` is the valid score used in the mean, and `original_score` retains the raw numeric value for diagnosis. `report.json` also stores per-metric results, scoring details, and run provenance |
+| `official_eval_results/` | The raw scoring backup in official format, read by `compare-official` |
+| `input_manifest.json`, `partial_report.json` | Verify the actual inputs of this run and the report saved after the most recent completed scoring group |
+| `job_00/` and other scoring group directories | Inspect `request.json`, `response.json`, and `process.log` to locate subprocess configuration, return values, and errors |
 
-All 15 metrics carry equal weight in the AISBench total.
+Total score rules:
 
-- A **formal total** requires valid means for all 15 metrics, 100% coverage, and no backend errors.
-- Missing or failed samples, LSA omissions, and backend errors produce a **preview total**.
-- If all 15 metrics were requested and a metric has no valid mean, it contributes 0 to the preview total. The denominator stays at 15, the raw mean stays blank, and `zero_filled_dimensions` lists the affected metrics.
-- When only some metrics are requested, the 15-metric total is unavailable.
+- All 15 metrics have valid means, 100% coverage, and no backend errors: formal total;
+- All 15 metrics have scores, but there are failures, missing items, LSA omissions, or backend errors: preview total;
+- All 15 metrics requested but some metric has no valid mean: that metric counts as 0, the denominator stays fixed at 15, and the preview total and `zero_filled_dimensions` are shown; the raw mean stays blank;
+- Running only some metrics: no 15-metric total is generated.
 
-For example, if 14 metrics score 60 and LSA has no valid mean, the preview total is 56. If all requested metrics lack valid scores in a full run, AISBench saves a zero preview total and marks the task as failed. A clean LSA omission can still allow task completion if other requested metrics have valid results. Missing results in other metrics, parse failures, and backend errors fail the task. The total is an AISBench reporting convention. Use the raw means for comparison with upstream VABench.
+For example, with the other 14 metrics at 60 each and LSA having no valid mean, the preview total is 56. When none of the 15 metrics has a valid mean, a zero preview total is still saved, but the task returns failure. Only LSA omissions without backend errors can allow the task to complete when the other requested metrics have valid scores; missing results in other metrics, parse failures, and backend exceptions cannot be masked by zero-filling. The formal/preview status and whether the task succeeded are judged separately. Native VABench does not provide this total; `total.csv` is an AISBench display convention.
 
-Check logs for the cause of an LSA omission, which can occur when no face is detected, confidence is zero, or an internal error occurs. Synchformer expects a five-second input and can report `backend_error` for a shorter video. CLAP can select different audio windows from longer inputs as described below.
+Notes:
 
-### 4.5.1 Why CLAP scores can vary
+- `second_lsa` may omit records due to no face detected, zero confidence, or internal exceptions; an omission alone does not reveal the cause — check the logs instead of assuming it is not a dependency error;
+- `second_desync` reports `backend_error` for videos shorter than Synchformer's fixed 5-second input; do not claim desync completeness with such videos;
+- The current CLAP cache randomly crops a 10-second segment; repeated runs on long videos may fluctuate. Short videos avoid this random-crop branch, but absolute determinism of all computations is not guaranteed.
 
-The upstream `vabench/second_clap.py` calls `processor(text=..., audio=..., sampling_rate=48000)` without an explicit truncation argument. The cached `clap/laion__clap-htsat-unfused/preprocessor_config.json` specifies the following.
+### 4.5.1 Why `second_clap` fluctuates
+
+The preprocessing in the upstream `vabench/second_clap.py` has randomness; the subprocesses, scene order, and model lifecycles on both sides also affect the actual random state:
+
+1. The upstream code calls `processor(text=..., audio=..., sampling_rate=48000)` without passing `truncation`;
+2. The cached `clap/laion__clap-htsat-unfused/preprocessor_config.json` is configured as:
 
 ```json
 {
@@ -535,7 +566,7 @@ The upstream `vabench/second_clap.py` calls `processor(text=..., audio=..., samp
 }
 ```
 
-For audio longer than 10 seconds, Transformers' `ClapFeatureExtractor` chooses a random 10-second window.
+3. When the audio exceeds 10 seconds, Transformers' `ClapFeatureExtractor` executes:
 
 ```python
 overflow = len(waveform) - max_length
@@ -543,13 +574,17 @@ idx = np.random.randint(0, overflow + 1)
 waveform = waveform[idx:idx + max_length]
 ```
 
-That window can change the CLAP similarity and `video_results` across runs. `PYTHONHASHSEED=42` controls Python hashing. The CLAP call uses NumPy's random state, which can also be affected by upstream `omni_runtime` initialization and the execution order of scenes and scoring workers. Audio up to 10 seconds avoids this specific random-crop branch.
+That is, a different 10-second start position is chosen at random each time before the CLAP similarity is computed, so the same video can get different `video_results` on each run.
 
-If CLAP scores differ, check the inputs, preprocessing configuration, and random state. Under matching conditions, formal acceptance still requires a raw mean within the tolerance in Section 4.7. An external launcher can control the random state while keeping upstream files intact. A comparison that excludes CLAP covers only the other 14 metrics.
+4. The CLAP call site does not separately seed this NumPy randomness; `PYTHONHASHSEED=42` only affects Python hashing and does not fix `np.random`. The upstream `omni_runtime` initialization has its own random seed settings, and the execution order across scenes can also affect the later CLAP state. Therefore, verify the actual call order — do not assume that both paths are always in the same, or fully unset, random state.
 
-### 4.6 Run native VABench for comparison (optional)
+5. Audio up to 10 seconds does not enter this random-crop branch, which reduces this source of fluctuation.
 
-Prepare the upstream `data_dir` from the same videos used in AISBench. Set `--videos` to the directory for your run. When invoked by file path, `official_prepare.py` uses the Python standard library, FFmpeg, and the upstream source. From the AISBench checkout, you can also run `python3 -m ais_bench.tools.vabench.official_prepare --help`.
+Therefore, when `second_clap` differs, first check the inputs, preprocessing configuration, and random state. Formal acceptance still requires the raw mean within a relative error of <1% under identical conditions; you can control the random state through an external launch wrapper while keeping the official files unchanged. Excluding CLAP only yields diagnostic results for the other 14 metrics — it does not complete the 15-metric alignment, and out-of-tolerance values cannot be recorded as passing.
+
+### 4.6 Run native VABench as a reference (optional)
+
+To compare the AISBench results sample by sample against the native results of the official source, first generate the official `data_dir`. The script below depends only on Python, ffmpeg, and the official source — not on AISBench:
 
 ```bash
 STAMP=$(date +%Y%m%d_%H%M%S)
@@ -563,18 +598,23 @@ ${PY} "${AISBENCH_ROOT}/ais_bench/tools/vabench/official_prepare.py" \
   --output ${OFFICIAL_DATA}
 ```
 
-- Each MP4 stem must exactly match an upstream `idx`.
-- The script copies the video and extracts the first audio track into a WAV file.
-- It creates `video/<category>/<idx>.mp4`, `audio/<category>/<idx>.wav`, and `json/<category>.json` for the supplied inputs.
-- Pass a new or empty directory as `--output`.
+Script rules:
 
-Check the sample counts printed by the script and inspect the directory layout.
+The script is provided by `tools/vabench/official_prepare.py` in the AISBench workspace, but when executed directly by file path it depends only on the Python standard library, ffmpeg, and the official source; installing AISBench is not required. You can also run `python3 -m ais_bench.tools.vabench.official_prepare --help` from the AISBench source root to see the parameters.
+
+- After removing the `.mp4` suffix, each MP4 file name must exactly equal an `idx` in the official `mapping/final_idx_to_prompt.csv`;
+- Every MP4 must have an audio track; the script uses ffmpeg to extract the first audio track as WAV, without padding silence or re-encoding the video;
+- It generates `video/<category>/<idx>.mp4` and `audio/<category>/<idx>.wav` according to the prompt category;
+- `json/<category>.json` is generated only for videos that actually exist; prompts without videos are not kept;
+- `--output` must be a new or empty directory; a directory with existing content is rejected.
+
+The script prints the sample count of each category. Confirm the directory structure:
 
 ```bash
 find ${OFFICIAL_DATA} -maxdepth 3 -type f | sort
 ```
 
-Upstream `evaluate.py` reads `./mapping_text/final_idx_to_prompt.csv` relative to its working directory. Link the upstream `mapping/` directory into the new working directory as `mapping_text`.
+The official `evaluate.py` reads the relative path `./mapping_text/final_idx_to_prompt.csv` under the current working directory, but the directory in the official source is named `mapping/`, so the run directory must contain a symlink named `mapping_text`. The run directory can be any new directory; a fixed path is not required:
 
 ```bash
 mkdir -p ${OFFICIAL_RUN}
@@ -584,7 +624,7 @@ cd ${OFFICIAL_RUN}
 test -f mapping_text/final_idx_to_prompt.csv && echo mapping-ok
 ```
 
-Run the native evaluator from that working directory.
+Then launch the official evaluation from that run directory:
 
 ```bash
 cd ${OFFICIAL_RUN}
@@ -598,7 +638,13 @@ ${PY} -u ${VABENCH_ROOT}/evaluate.py \
   2>&1 | tee ${OFFICIAL_RESULT}.log
 ```
 
-Choose `CUDA_VISIBLE_DEVICES` for your machine. The default upstream configuration uses logical devices 0 and 1 with `max_memory: {0: "80GB", 1: "80GB"}`. If your GPUs have different memory limits, pass your own copy of the configuration with `--config`. Use `PY` from the desired scoring environment and set `VABENCH_CACHE_DIR` before Python starts. Check both the log and the result files because the upstream entry point can catch evaluation exceptions.
+Notes:
+
+- Adjust `CUDA_VISIBLE_DEVICES` to the actual machine; the official default config uses logical devices 0/1 and `max_memory: {0: "80GB", 1: "80GB"}`. With a different GPU memory configuration, pass your own copy via `--config`;
+- `${PY}` uses the environment corresponding to `CONDA_ENV` at the top; to use `vabench115`, simply change `CONDA_ENV` at the top to `vabench115` — the official evaluation does not depend on the AISBench installation;
+- `VABENCH_CACHE_DIR` must be set before Python starts;
+- The official entry point catches exceptions, so do not judge success by the exit code alone — check the logs and result files as well;
+- The result directory layout is:
 
 ```text
 ${OFFICIAL_RESULT}/<category>/
@@ -607,9 +653,11 @@ ${OFFICIAL_RESULT}/<category>/
 └── <category>_<timestamp>_full_info.json
 ```
 
-`eval_results.json` contains per-sample raw scores, and `full_info.json` lists the prompts used in the run. A CSV value of `-1` indicates a missing score and should be excluded from the mean. Verify that each category contains the expected metrics and samples before comparing the two runs.
+`eval_results.json` holds the per-sample raw scores, and `full_info.json` holds the full information of the prompts actually used in this run; `-1` in the CSV means the metric did not obtain a score and must not be treated as 0 in the mean. Confirm that every category has the expected metrics and samples before moving on to the comparison in the next section, and pass `${OFFICIAL_RESULT}` as the `--official` argument.
 
-### 4.7 Compare raw means and per-sample values (optional)
+### 4.7 Compare raw means and per-sample differences with official VABench (optional)
+
+If you have also run the official `evaluate.py`, you can directly compare the raw scores written by both sides:
 
 ```bash
 ${PY} -m ais_bench.tools.vabench.cli compare-official \
@@ -618,17 +666,19 @@ ${PY} -m ais_bench.tools.vabench.cli compare-official \
   --output /workspace/vabench_compare_official.json
 ```
 
-`AISBENCH_ARTIFACTS` can point to the directory from Section 4.5 or its `official_eval_results/` subdirectory. Set `OFFICIAL_RESULT` to the native evaluator's output directory.
+`AISBENCH_ARTIFACTS` uses the directory set in Section 4.5 and can also point directly at its `official_eval_results/`. To use an existing official result directory, set `OFFICIAL_RESULT` to that directory.
 
-The comparison aligns `video_results` by category, metric, and media file stem, ignoring absolute path prefixes. It averages valid paired videos with equal weight. When the absolute official mean exceeds `1e-6`, the relative error must be strictly below `1%`. For smaller or equal magnitudes, the absolute error must be at most `1e-6`. Every requested metric needs valid pairs, and missing samples, metrics, or categories and non-numeric results block a pass.
+The command aligns the core scores `video_results` by category, metric, and media file name, ignores different absolute path prefixes, and computes each raw mean with equal weight over all valid videos. When the absolute value of the reference mean is greater than `1e-6`, the relative error must be strictly `<1%`; otherwise the absolute error must be `≤1e-6`. Every requested metric must have valid paired scores; both sides fully empty, missing samples/metrics/scenes, or non-numeric values cannot pass.
 
-`passed` combines the metric-mean checks and structural checks. The report also records `metric_means_passed` and `sample_values_passed` separately. With matching valid samples, an individual value can be outside the sample tolerance while the metric means still pass.
+The output provides `passed` (mean thresholds and sample-structure checks), `metric_means_passed`, and `sample_values_passed` separately. When per-sample values differ but the means over the same valid set meet the threshold, the means can PASS while the per-sample diagnostic FAILs; the exit code follows `passed` and returns 0 or 1, and the per-sample threshold does not replace the established mean acceptance.
 
-Use separate directories for the two runs. Multiple result files for a category are rejected to keep runs from mixing. Verify that the inputs, source revision, weights, parameters, and failure or omission sets match. For CLAP differences, check the random audio cropping described in Section 4.5.1.
+Both sides use fresh directories from single runs; multiple result files for the same scene are rejected to avoid mixing runs. Formal acceptance also requires verifying the inputs, source, weights, and parameters, as well as the failure and omission sets. The raw backup may contain model fallback values — identical numbers alone do not mean the score is valid. The per-metric raw-mean thresholds follow the rules above.
+
+The random truncation of `second_clap` shows up as numeric differences; confirm the inputs and random state first instead of judging it directly as an AISBench invocation error.
 
 ### 4.8 `compare-official` output field reference
 
-This excerpt compares the same six videos used in the console example.
+The following is an excerpt from one comparison of the same 6 videos.
 
 ```text
 Official VABench raw-mean comparison: FAIL
@@ -647,21 +697,21 @@ Differences:
 
 | Output field | Meaning |
 | --- | --- |
-| `Official VABench raw-mean comparison` | Overall result, stored as `passed` in JSON. Every requested metric mean must meet the tolerance and the result structure and valid samples must align |
-| `official` / `aisbench` | Native `evaluate.py` output and the AISBench backup in native format |
-| `categories` / `dimensions` | Number of categories across both runs and number of requested metrics |
-| `compared values` | Number of valid video–metric pairs. The example has six pairs for each of 14 metrics and two LSA pairs, for 86 total |
-| `differences` | Number of per-sample, metric-mean, and structural differences |
-| `per-sample numeric diagnostic` | `sample_values_passed`, which fails when a sample exceeds the tolerance or the results have a structural difference |
-| Per-metric `PASS` / `FAIL` | The mean check for that metric. `official_mean` and `aisbench_mean` use the same valid pairs. `valid_pairs` gives their count |
+| `Official VABench raw-mean comparison` | Overall result, corresponding to `passed` in JSON. Requires every requested metric's raw mean to meet the tolerance and the result structure and valid samples to align on both sides |
+| `official` / `aisbench` | The official `evaluate.py` output directory and the AISBench backup in official format |
+| `categories` / `dimensions` | The number of categories involved in both results and the number of requested metrics |
+| `compared values` | The number of valid "video × metric" pairs. In the example, 14 metrics have 6 pairs each and LSA has 2, for 86 in total |
+| `differences` | The total number of difference entries, including per-sample values, per-metric means, and result-structure differences |
+| `per-sample numeric diagnostic` | The per-sample diagnostic, corresponding to `sample_values_passed`. FAIL when sample values exceed the tolerance or the result structure is abnormal |
+| Per-metric `PASS` / `FAIL` | The raw mean comparison for that metric. `official_mean` and `aisbench_mean` are averaged over the same set of valid pairs, and `valid_pairs` is the number of valid pairs |
 
-A `[value]` entry in `Differences`, recorded as `value_mismatch` in JSON, identifies the category, metric, and sample `idx`. `delta` is the absolute raw-score difference. `rel` divides the difference by the absolute official score. A `[mean_mismatch]` entry shows a difference in the metric mean across categories, so the category position is `?`. Its details include `absolute_error`, `relative_error`, and the tolerance `rule` (`relative` or `absolute`). Missing samples, categories, or metrics, non-numeric values, and scoring failures have their own entries.
+A `[value]` entry in `Differences` (`value_mismatch` in the JSON) locates the category, metric, and sample `idx`. `delta` is the absolute raw-score difference, and `rel` is the relative error computed with the absolute official score as the denominator. A `[mean_mismatch]` entry corresponds to a metric mean difference across categories — the category position shows `?`, and the detailed fields include `absolute_error`, `relative_error`, and the tolerance `rule` used this time (`relative` or `absolute`). Missing samples, missing categories, missing metrics, non-numeric values, and scoring failures are also listed separately.
 
-The command returns `0` when the overall comparison passes and `1` when it fails. In the example, the CLAP mean exceeds the tolerance, so the overall result is `FAIL`. The JSON saved through `--output` includes `metric_means_passed`, `thresholds`, `summary` with counts and mean comparisons, the full `differences` list, and `selected_files`. For input and model provenance, check `input_manifest.json`, `report.json`, and the logs.
+The command returns an exit code based on the overall result: `0` means pass, `1` means fail. In the example, the CLAP mean exceeds the tolerance, so the overall result is `FAIL`. The JSON saved via `--output` also contains `metric_means_passed` (whether all means meet the thresholds), `thresholds` (the actual tolerances), `summary` (per-metric counts and mean comparisons), `differences` (the full difference list), and `selected_files` (the files actually compared). When verifying inputs, models, and run parameters, use `input_manifest.json`, `report.json`, and the logs together.
 
-## Appendix. Evaluation data flow and process sequence
+## Appendix: Evaluation data flow and process sequence
 
-The eight expert metrics run in separate worker processes in sequence. The seven MLLM metrics share a worker that reuses Qwen2.5-Omni.
+The data flow is shown below; the scoring groups run in order, the eight expert metrics each use one process, and the seven MLLM metrics reuse Qwen in a single process.
 
 ```mermaid
 flowchart TD
@@ -689,7 +739,7 @@ flowchart TD
     X --> A --> N --> F --> S
 ```
 
-The sequence below shows how the AISBench task hands input to a series of workers through `request.json` and reads their results from `response.json`.
+The task and scoring process sequence in the main command is shown below. The repeated worker lanes represent processes created one after another; `request.json` and `response.json` carry the inputs and results.
 
 ```mermaid
 sequenceDiagram
@@ -747,7 +797,7 @@ sequenceDiagram
 
 ### Fixed scoring formulas
 
-For each metric, calculate the mean `m` over valid videos, then apply its formula and clamp the result to 0–100. The full total is the equally weighted mean of all 15 normalized scores. Missing metrics contribute 0 to the preview total.
+First compute the raw mean `m` over valid videos, then apply the formula and clamp the result to 0–100; the total is fixed at the equal-weighted mean of the 15 metrics, with missing metrics filled with 0 and shown with a preview status.
 
 | Metric | Normalization from the raw mean `m` |
 | --- | --- |

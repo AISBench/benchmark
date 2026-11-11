@@ -310,24 +310,7 @@ test -e ${VABENCH_CACHE_DIR}/checkpoints/auxiliary/models/buffalo_l
 find /workspace/video -type f -name '*.mp4' -printf '%f\n' | sort
 ```
 
-### 3.2 导出 778 题标准清单
-
-```bash
-cd ${AISBENCH_ROOT}
-
-${PY} -m ais_bench.tools.vabench.cli catalog \
-  --source-root ${VABENCH_ROOT} \
-  --subset standard \
-  --output /workspace/t2av_778_prompts.json
-```
-
-说明：
-
-- 原始 JSON 有 848 条，AISBench 只使用与 `mapping/final_idx_to_prompt.csv` 精确匹配的 778 条；
-- 生成视频时使用 `entries[].metadata.prompt_en` 作为完整 Prompt；
-- 视频文件名使用 `entries[].idx`。
-
-### 3.3 准备自定义子集
+### 3.2 准备自定义子集
 
 评测已有视频：
 
@@ -357,7 +340,7 @@ ${PY} -m ais_bench.tools.vabench.cli prepare \
 - 无声视频不会自动补静音；
 - 如果提示 `Prepared protocol differs from installed protocol`，说明 prepared 目录来自旧协议，必须用当前源码重新准备，不能手改 manifest 哈希。
 
-### 3.4 准备 778 题完整集
+### 3.3 准备 778 题完整集
 
 可下载 MiniMax H3 生成的 778 条完整集视频。[下载完整集视频 ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/vabench/minimax_h3_vabench_778_full_video.zip)
 
@@ -366,12 +349,12 @@ ${PY} -m ais_bench.tools.vabench.cli prepare \
 ```bash
 ${PY} -m ais_bench.tools.vabench.cli prepare \
   --source-root ${VABENCH_ROOT} \
-  --subset standard \
-  --videos /workspace/generated_standard \
-  --output /workspace/prepared_standard
+  --subset custom \
+  --videos /workspace/video \
+  --output /workspace/prepared_videos
 ```
 
-### 3.5 获取 VABench Mini 子集
+### 3.4 获取 VABench Mini 子集
 
 Mini 子集的归档视频可在 Modelers 查看。[VABench Mini 数据集](https://modelers.cn/datasets/AISBench/vabench_mini)
 

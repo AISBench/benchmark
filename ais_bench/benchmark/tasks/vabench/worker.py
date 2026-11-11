@@ -1,3 +1,4 @@
+
 """Isolated official model process, with an optional Ascend migration shim."""
 import argparse
 from contextlib import redirect_stderr, redirect_stdout
@@ -217,6 +218,14 @@ def execute(request):
     os.environ['TRANSFORMERS_OFFLINE'] = '1'
     sys.path.insert(0, str(root))
     device = initialize_device(request['device'])
+    if 'second_lsa' in request['dimensions']:
+        # Official VABench permanently enables cuDNN deterministic mode when
+        # Omni is loaded, and later LSA categories inherit that global setting.
+        # LSA runs in its own worker here, so set the same backend mode before
+        # importing the official module to keep native LSA scores aligned.
+        import torch
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
     omni = importlib.import_module('vabench.omni_runtime')
     # Capture model residency when loaded, before official release_omni()
     # discards its model. Do not change processor, decoding, or model weights.
