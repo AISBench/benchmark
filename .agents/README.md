@@ -5,6 +5,7 @@
 | Skill | 用途 | 使用入口 |
 |---|---|---|
 | [ascend-llm-deploy-eval](skills/ascend-llm-deploy-eval/SKILL.md) | 昇腾模型部署、预检、性能测试与资源释放 | [快速开始](skills/ascend-llm-deploy-eval/README.md) |
+| [pr-checklist](skills/pr-checklist/SKILL.md) | PR 贡献规范、说明材料与复审记录检查，不重复质量门禁 | [快速开始](skills/pr-checklist/README.md) |
 
 ## 加载与使用
 
