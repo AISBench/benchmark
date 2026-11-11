@@ -8,7 +8,7 @@
 
 ## 加载与使用
 
-选择需要的 skill，按照所用 Agent 的加载机制安装或引用完整的 `skills/<skill-name>/` 目录，再按该 skill 的快速开始准备依赖和运行环境。`.agent` 是本仓库的组织目录，不保证被所有 Agent 自动发现。
+选择需要的 skill，按照所用 Agent 的加载机制安装或引用完整的 `skills/<skill-name>/` 目录，再按该 skill 的快速开始准备依赖和运行环境。`.agents` 是本仓库的组织目录，不保证被所有 Agent 自动发现。
 
 ## 目录约定
 
