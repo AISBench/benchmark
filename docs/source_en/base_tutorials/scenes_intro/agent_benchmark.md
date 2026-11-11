@@ -443,6 +443,12 @@ Use `ais_bench/configs/agent_example/harbor_automationbench_task.py` with the ma
 
 #### OBS dataset download
 
+The standalone configuration lists model connection, Agent options, concurrency,
+timeouts, retries, Docker lifecycle, verification and monitoring settings.
+Export `DEEPSEEK_API_KEY` before loading it. `sampling_args=None` preserves the
+official scaffold defaults; toolset and turn budget come from the prepared
+dataset. Set `n_tasks` to a small number for an initial smoke run if needed.
+
 Download the prepared Harbor dataset from OBS without accessing GitHub or a
 remote dataset registry. It contains all 600 public tasks (100 per domain),
 manifest and shared runtime build context; simple tasks are excluded.
