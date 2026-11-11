@@ -177,9 +177,18 @@ def _probe(code, env, timeout=120):
 def expected_packages(requirements):
     pins = {}
     for name in ('vabench-build.txt', 'vabench.txt'):
-        for line in requirement_lines(Path(requirements) / name):
-            package, version = line.split('==')
-            pins[package.lower().replace('_', '-')] = version
+        path = Path(requirements) / name
+        with path.open(encoding='utf-8') as stream:
+            for number, raw in enumerate(stream, 1):
+                line = raw.split('#', 1)[0].strip()
+                if not line:
+                    continue
+                pin = re.fullmatch(
+                    r'([A-Za-z0-9][A-Za-z0-9_.-]*)==([A-Za-z0-9][A-Za-z0-9.!+_-]*)', line)
+                if not pin:
+                    raise ValueError(f'{path}:{number}: expected name==version, got {line!r}')
+                package, version = pin.groups()
+                pins[re.sub(r'[-_.]+', '-', package.lower())] = version
     return pins
 
 

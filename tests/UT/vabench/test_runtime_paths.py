@@ -42,7 +42,7 @@ def test_environment_audit_checks_versions_origins_probes_and_exact_exceptions(t
     monkeypatch.setattr(envmod.shutil, 'which', lambda n: '/bin/' + n)
     monkeypatch.setattr(envmod.sys, 'version_info', (3, 11, 0))
     monkeypatch.setattr(envmod, 'preflight', lambda *a, **kw: ['missing'] if scenario == 'missing_resources' else [])
-    def run(command, **kwargs):
+    def run(command, timeout, **kwargs):
         if command[0] == 'ffmpeg':
             if scenario == 'ffmpeg_failed':
                 raise subprocess.CalledProcessError(1, command)
@@ -320,11 +320,48 @@ def test_engine_keeps_failure_reports_and_ignores_progress_callback_errors(tmp_p
     def run(command, **kwargs):
         if scenario == 'timeout': raise subprocess.TimeoutExpired(command, 1)
         request = read_json(command[-1]); write_json(request['response'], {})
-        return subprocess.CompletedProcess(command, 2)
-    monkeypatch.setattr(engine.subprocess, 'run', run)
+        return 2
+    monkeypatch.setattr(engine, '_run_worker', run)
     def callback(*args): raise RuntimeError('UI must not affect scoring')
     output = tmp_path / 'output'
     report = engine.run('prepared', 'source', 'cache', output, ['second_clap'], device='cpu', progress=callback)
     assert report['metrics']['second_clap']['failed'] == 1
     assert report['total']['score'] is None and not engine.successful(report)
     assert (output / 'partial_report.json').exists() and (output / 'report.json').exists()
+    if scenario == 'missing':
+        monkeypatch.setattr(engine, 'preflight', lambda *a: [])
+
+        def score(command, timeout, **kwargs):
+            request = read_json(command[-1])
+            records = engine.normalize_records('second_clap', [
+                dict(video_path='a.mp4', video_results=0.8)], manifest['records'])
+            write_json(request['response'], {'details': {'second_clap': {'records': records}}})
+            return 0
+
+        monkeypatch.setattr(engine, '_run_worker', score)
+        retried = engine.run('prepared', 'source', 'cache', output, ['second_clap'], device='cpu')
+        attempt = Path(retried['provenance']['artifact_dir'])
+        assert engine.successful(retried) and attempt.parent == output
+        assert attempt.name.startswith('attempt_')
+        assert read_json(attempt / 'report.json') == retried
+        assert read_json(output / 'report.json') == report
+
+
+def test_worker_timeout_kills_its_posix_process_group(monkeypatch):
+    from unittest.mock import MagicMock
+    from ais_bench.benchmark.tasks.vabench import engine
+
+    command = ['worker']
+    proc = MagicMock(pid=123)
+    proc.__enter__.return_value = proc
+    proc.wait.side_effect = [subprocess.TimeoutExpired(command, 1), -9]
+    popen = MagicMock(return_value=proc)
+    kill_group = MagicMock()
+    monkeypatch.setattr(engine.subprocess, 'Popen', popen)
+    monkeypatch.setattr(engine.os, 'killpg', kill_group, raising=False)
+    monkeypatch.setattr(engine.signal, 'SIGKILL', 9, raising=False)
+    with pytest.raises(subprocess.TimeoutExpired):
+        engine._run_worker(command, 1)
+    popen.assert_called_once_with(command, start_new_session=True)
+    kill_group.assert_called_once_with(123, engine.signal.SIGKILL)
+    assert proc.wait.call_count == 2

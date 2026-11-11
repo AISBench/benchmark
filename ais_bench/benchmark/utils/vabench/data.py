@@ -15,6 +15,14 @@ PROTOCOL_PATH = Path(__file__).with_name('protocol.json')
 PACKAGE_ROOT = Path(__file__).resolve().parents[3]
 
 
+def require_protocol():
+    if not PROTOCOL_PATH.is_file():
+        raise FileNotFoundError(
+            f'VABench protocol missing: {PROTOCOL_PATH}. Run from the AISBench source '
+            'checkout with the VABench integration and install it in editable mode as needed.')
+    return PROTOCOL_PATH
+
+
 def media_tool(name):
     return os.environ.get(f'VABENCH_{name.upper()}', name)
 
@@ -66,7 +74,7 @@ def validate_idx(idx):
 def catalog(source_root, subset='standard', sample_id=None):
     """Read exact upstream prompts, never repair or fuzzy-match them."""
     root = Path(source_root).resolve()
-    protocol = read_json(PROTOCOL_PATH)
+    protocol = read_json(require_protocol())
     if subset not in ('standard', 'smoke'):
         raise ValueError('subset must be standard or smoke')
     if subset == 'smoke':
@@ -152,6 +160,7 @@ def prepare(entries, videos_path, output_path, subset=None):
     Missing/ambiguous samples fail preparation, rather than shrinking a mean.
     Subsets are prepared once before parallel evaluation tasks.
     """
+    protocol_path = require_protocol()
     if subset not in (None, 'standard', 'smoke', 'custom'):
         raise ValueError('Preparation subset must be standard, smoke or custom')
     if subset == 'smoke' and len(entries) != 1:
@@ -194,7 +203,7 @@ def prepare(entries, videos_path, output_path, subset=None):
         write_json(output / 'json' / f'{category}.json', items)
     manifest = dict(schema_version=1, subset_size=len(entries),
                     evaluation_scope=subset or 'custom',
-                    protocol_sha256=digest(PROTOCOL_PATH), records=records,
+                    protocol_sha256=digest(protocol_path), records=records,
                     ffmpeg=subprocess.check_output(
                         [media_tool('ffmpeg'), '-version'], text=True,
                         encoding='utf-8').splitlines()[0])
@@ -238,9 +247,6 @@ def select_indices(count, test_range=None):
         node = ast.parse(f'items[{match.group(1)}]', mode='eval').body
     except SyntaxError:
         return indices
-    if not isinstance(node, ast.Subscript) or not isinstance(node.slice, ast.Slice):
-        return indices
-
     def _bound(value):
         if value is None:
             return None
@@ -255,10 +261,18 @@ def select_indices(count, test_range=None):
             return -value.operand.value
         raise ValueError('non-integer slice bound')
 
+    slices = []
     try:
-        return indices[slice(_bound(node.slice.lower),
-                             _bound(node.slice.upper),
-                             _bound(node.slice.step))]
+        while isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Slice):
+            part = node.slice
+            slices.append(slice(_bound(part.lower), _bound(part.upper), _bound(part.step)))
+            node = node.value
+        if not isinstance(node, ast.Name) or node.id != 'items':
+            return indices
+        selected = indices
+        for part in reversed(slices):
+            selected = selected[part]
+        return selected
     except ValueError:
         return indices
 
@@ -342,9 +356,10 @@ def verify_prepared(prepared, test_range=None):
     ``--num-prompts`` run must not require media for samples it will not score;
     manifest/metadata signatures still cover the full prepared snapshot.
     """
+    protocol_path = require_protocol()
     root = Path(prepared).resolve()
     manifest = read_json(root / 'manifest.json')
-    if manifest['protocol_sha256'] != digest(PROTOCOL_PATH):
+    if manifest['protocol_sha256'] != digest(protocol_path):
         raise ValueError('Prepared protocol differs from installed protocol')
     records = manifest['records']
     if len({r['idx'] for r in records}) != len(records):

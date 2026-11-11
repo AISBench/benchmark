@@ -15,6 +15,7 @@ from ais_bench.benchmark.utils.vabench.data import read_json, write_json
 
 @pytest.mark.parametrize('scenario', [
     'ok', 'npu', 'exception', 'named_error', 'global_error', 'duplicate', 'invalid', 'missing',
+    'nan', 'inf', '-inf',
 ])
 def test_worker_execute_preserves_scores_failures_and_device_evidence(tmp_path, monkeypatch, scenario):
     source, work, cache = (tmp_path / name for name in ('source', 'work', 'cache'))
@@ -60,6 +61,10 @@ def test_worker_execute_preserves_scores_failures_and_device_evidence(tmp_path, 
                 for item in items]
             if scenario == 'duplicate':
                 raw.append(raw[0])
+            if scenario in ('nan', 'inf', '-inf'):
+                if dimension == 'third_alignment':
+                    raw[0]['video_results'] = float(scenario)
+                raw[1]['extra'] = [{'score': float('nan')}]
             return None, [] if scenario == 'missing' else raw
         return score
 
@@ -86,6 +91,14 @@ def test_worker_execute_preserves_scores_failures_and_device_evidence(tmp_path, 
             assert [row['status'] for row in rows] == ['ok', 'ok']
             assert detail['device_observations'][0]['observed_torch_devices'] == [device]
             assert detail['observed_omni_devices'] == [device]
+        elif scenario in ('nan', 'inf', '-inf'):
+            assert rows[0]['status'] == ('invalid_score' if dimension == 'third_alignment' else 'ok')
+            if dimension == 'third_alignment':
+                assert rows[0]['raw']['video_results'] is None
+                assert rows[0]['non_finite_fields'] == {'/video_results': scenario}
+            assert rows[1]['status'] == 'ok' and rows[1]['score'] is not None
+            assert rows[1]['raw']['extra'] == [{'score': None}]
+            assert rows[1]['non_finite_fields'] == {'/extra/0/score': 'nan'}
         elif scenario == 'named_error':
             assert [row['status'] for row in rows] == ['backend_error', 'ok']
             assert rows[0]['score'] is None and rows[1]['score'] is not None

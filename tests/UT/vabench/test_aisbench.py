@@ -37,12 +37,45 @@ def test_reader_config_and_dataset_use_the_same_selected_rows(tmp_path):
     assert selected.dataset['idx'] == ['b']
 
 
+@pytest.mark.parametrize(('test_range', 'expected'), [
+    ('[2:8]', ['2', '3', '4']),
+    ('[::-1]', ['9', '8', '7']),
+])
+def test_size_partitioner_applies_partition_to_user_range(tmp_path, monkeypatch, test_range, expected):
+    from ais_bench.benchmark.datasets.vabench import VABenchDataset
+    from ais_bench.benchmark.partitioners.size import SizePartitioner
+    from ais_bench.benchmark.utils.vabench.data import input_signature, select_prepared
+
+    records = [dict(idx=str(i), category='scene', video_sha256='video', audio_sha256='audio')
+               for i in range(10)]
+    manifest = dict(records=records, evaluation_scope='custom', input_signature=input_signature(records))
+    grouped = {'scene': [dict(video_list=[f'{i}.mp4']) for i in range(10)]}
+    write_json(tmp_path / 'manifest.json', manifest)
+    dataset_cfg = ConfigDict(abbr='vabench', reader_cfg={'test_range': test_range})
+    partitioner = SizePartitioner(out_dir=str(tmp_path), max_task_size=3)
+    size = len(VABenchDataset(tmp_path, reader_cfg=dataset_cfg.reader_cfg).dataset)
+    monkeypatch.setattr(partitioner, 'get_cost', lambda *args, **kwargs: (size, 1))
+    split = partitioner.split_dataset(dataset_cfg)[0]
+    dataset = VABenchDataset(tmp_path, reader_cfg=split.reader_cfg)
+    selected, metadata, _ = select_prepared(manifest, grouped, split.reader_cfg.test_range)
+    assert dataset.dataset['idx'] == expected
+    assert [record['idx'] for record in selected['records']] == expected
+    assert [row['video_list'][0] for row in metadata['scene']] == [f'{idx}.mp4' for idx in expected]
+
+
 
 
 def test_task_preserves_incomplete_report(tmp_path, monkeypatch):
     import ais_bench.benchmark.tasks.vabench.eval as task_module
     report = dict(metrics={'second_clap': dict(scored=0, failed=1, missing=0)}, details={})
-    monkeypatch.setattr(task_module, 'run', lambda *a, **kw: report)
+    destination = tmp_path / 'results/test/vabench.result'
+    monkeypatch.setattr(task_module, 'get_infer_output_path', lambda *a: str(destination))
+
+    def run(prepared, source, cache, output, **kwargs):
+        assert output == destination.with_name('vabench_artifacts')
+        return report
+
+    monkeypatch.setattr(task_module, 'run', run)
     prepared = tmp_path / 'prepared'
     write_json(prepared / 'manifest.json', dict(records=[]))
     cfg = ConfigDict(models=[dict(abbr='test')], datasets=[[
@@ -52,7 +85,7 @@ def test_task_preserves_incomplete_report(tmp_path, monkeypatch):
     import pytest
     with pytest.raises(RuntimeError, match='incomplete'):
         VABenchEvalTask(cfg).run()
-    assert (tmp_path / 'results/test/vabench.json').exists()
+    assert destination.exists()
 
 
 @pytest.mark.parametrize('has_valid_metric', [False, True])

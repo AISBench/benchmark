@@ -14,6 +14,15 @@ from ais_bench.benchmark.utils.vabench.data import digest, read_json, write_json
 from ais_bench.benchmark.tasks.vabench.resources import preflight
 
 
+@pytest.mark.parametrize('requirement', ['protobuf[grpc]==1.0', 'torch==2.6; python_version=="3.11"', 'torch>=2.6'])
+def test_expected_packages_reports_unsupported_pin_with_location(tmp_path, requirement):
+    (tmp_path / 'vabench-build.txt').write_text('wheel==1.0\n', encoding='utf-8')
+    (tmp_path / 'vabench.txt').write_text('# lock file\n' + requirement + '\n', encoding='utf-8')
+    with pytest.raises(ValueError, match=r'vabench\.txt:2: expected name==version') as error:
+        environment.expected_packages(tmp_path)
+    assert requirement in str(error.value)
+
+
 def original_wheel(tmp_path, missing=None):
     file = tmp_path / 'nisqa-2.0.post2-py3-none-any.whl'
     pins = dict(environment.NISQA_PINS, pillow='10.2.0', numpy='1.26.4')

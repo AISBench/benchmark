@@ -7,6 +7,12 @@ import pytest
 from ais_bench.benchmark.utils.vabench import data
 
 
+def test_catalog_reports_missing_protocol_with_source_checkout_guidance(tmp_path, monkeypatch):
+    monkeypatch.setattr(data, 'PROTOCOL_PATH', tmp_path / 'protocol.json')
+    with pytest.raises(FileNotFoundError, match=r'protocol\.json.*AISBench source checkout'):
+        data.catalog(tmp_path)
+
+
 @pytest.fixture
 def catalog_fixture(tmp_path, monkeypatch):
     root = tmp_path / 'source'

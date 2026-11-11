@@ -1,6 +1,7 @@
 """Official raw scores plus fixed display scores, coverage and an AISBench total."""
 import csv
 from datetime import datetime
+import math
 import os
 from pathlib import Path
 from statistics import mean
@@ -35,6 +36,21 @@ def record_failure(dimension, score, raw):
     return None
 
 
+def _clean_raw(value, non_finite, path=''):
+    """Preserve JSON shape and record non-finite values by JSON Pointer."""
+    if isinstance(value, float) and not math.isfinite(value):
+        non_finite[path] = str(value)
+        return None
+    if isinstance(value, dict):
+        return {
+            key: _clean_raw(item, non_finite, path + '/' + str(key).replace('~', '~0').replace('/', '~1'))
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_clean_raw(item, non_finite, f'{path}/{index}') for index, item in enumerate(value)]
+    return value
+
+
 def normalize_records(dimension, raw, expected, backend_errors=False, failed_ids=None):
     """Keep missing/failed outputs distinct from legitimate numerical zero.
 
@@ -60,9 +76,14 @@ def normalize_records(dimension, raw, expected, backend_errors=False, failed_ids
         status = ('backend_error' if backend_errors or entry['idx'] in failed_ids
                   else 'missing' if row is None
                   else record_failure(dimension, score, row) or 'ok')
-        result.append(dict(idx=entry['idx'], category=entry['category'], status=status,
-                           score=score if status == 'ok' else None,
-                           original_score=score if finite_number(score) else None, raw=row))
+        non_finite = {}
+        record = dict(idx=entry['idx'], category=entry['category'], status=status,
+                      score=score if status == 'ok' else None,
+                      original_score=score if finite_number(score) else None,
+                      raw=_clean_raw(row, non_finite))
+        if non_finite:
+            record['non_finite_fields'] = non_finite
+        result.append(record)
     return result
 
 

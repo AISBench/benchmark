@@ -1,6 +1,7 @@
 """AISBench eval-only VABench task with an isolated official backend."""
 import argparse
 import os.path as osp
+from pathlib import Path
 import shlex
 import subprocess
 import sys
@@ -74,7 +75,9 @@ class VABenchEvalTask(BaseTask):
                         other_kwargs={'dimension': ','.join(dimensions), 'sample_count': sample_count}))
 
             options.pop('test_range', None)
-            report = run(prepared, source, cache, destination[:-5] + '_artifacts',
+            result_path = Path(destination)
+            artifacts = result_path.with_name(f'{result_path.stem}_artifacts')
+            report = run(prepared, source, cache, artifacts,
                          progress=_on_progress if task_state_manager else None,
                          test_range=test_range, **options)
             write_json(destination, report)

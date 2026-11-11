@@ -1,8 +1,10 @@
 """Run official algorithms in isolated, device-specific subprocesses."""
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
+from tempfile import mkdtemp
 
 from ais_bench.benchmark.summarizers.vabench.results import (
     build_report, export_csv, export_official_results, normalize_records)
@@ -13,6 +15,22 @@ from ais_bench.benchmark.utils.vabench.data import (
 
 from .resources import (integration_signature, preflight, source_signature,
                         weight_fingerprints)
+
+
+def _run_worker(command, timeout, **kwargs):
+    kill_group = getattr(os, 'killpg', None)
+    if kill_group is None:
+        return subprocess.run(command, timeout=timeout, **kwargs).returncode
+    with subprocess.Popen(command, start_new_session=True, **kwargs) as proc:
+        try:
+            return proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try:
+                kill_group(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait()
+            raise
 
 
 def _validate_prepared_split(manifest, source_root):
@@ -53,9 +71,11 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
         print(f"Applied reader_cfg.test_range {test_range!r}: "
               f"{selection['selected']}/{selection['total']} samples", flush=True)
     output = Path(output).resolve()
-    if (output / 'report.json').exists():
-        raise FileExistsError(f'Choose a new run directory: {output}')
-    output.mkdir(parents=True, exist_ok=True)
+    try:
+        output.mkdir(parents=True)
+    except FileExistsError:
+        output = Path(mkdtemp(prefix='attempt_', dir=output))
+    print(f'VABench artifacts: {output}', flush=True)
     write_json(output / 'input_manifest.json', manifest)
     # DNSMOS official ONNX scorer uses CPU. Declare it, including on CUDA runs.
     overrides.setdefault('first_dnsmos', 'cpu')
@@ -65,7 +85,7 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
         jobs.append(mllm)
     print('Hashing local weights for provenance (may take several minutes).', flush=True)
     hashes, missing_weights = weight_fingerprints(dimensions, cache_dir)
-    provenance = dict(protocol_sha256=digest(PROTOCOL_PATH),
+    provenance = dict(artifact_dir=str(output), protocol_sha256=digest(PROTOCOL_PATH),
                       source_signature=source_signature(source_root),
                       integration_signature=integration_signature(),
                       weights_signature=object_digest(hashes) if not missing_weights else None,
@@ -102,12 +122,12 @@ def run(prepared, source_root, cache_dir, output, dimensions=None, device='cuda:
             print(f'Running {dims} on {request["device"]}', flush=True)
             try:
                 with (work / 'process.log').open('w', encoding='utf-8') as log:
-                    proc = subprocess.run(command, env=env, cwd=work, stdout=log,
-                                          stderr=subprocess.STDOUT, timeout=timeout)
+                    returncode = _run_worker(command, timeout, env=env, cwd=work,
+                                             stdout=log, stderr=subprocess.STDOUT)
                 response = read_json(work / 'response.json')
                 error = response.get('error')
-                if proc.returncode and not error:
-                    error = f'Worker exited {proc.returncode}; inspect process.log'
+                if returncode and not error:
+                    error = f'Worker exited {returncode}; inspect process.log'
             except Exception as exc:
                 error = f'{type(exc).__name__}: {exc}'
         if error:
