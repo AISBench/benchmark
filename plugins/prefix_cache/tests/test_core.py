@@ -3,10 +3,15 @@ import itertools
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from ais_bench_prefix_cache.errors import ScenarioValidationError
 from ais_bench_prefix_cache.generation import (
     RequestPlan,
+    _prefix_trajectory_issues,
+    _rate_trajectory_issues,
+    _repeat_tokens,
+    _scalable_cold_prefixes,
     assign_cold_routes,
     assign_groups,
     build_canonical_prefixes,
@@ -368,12 +373,183 @@ class CoreTest(unittest.TestCase):
             cumulative_hit += row.theoretical_hit_tokens
             rates.append(cumulative_hit / cumulative_input)
         self.assertEqual([row.theoretical_hit_tokens for row in rows[:2]], [0, 0])
+        self.assertEqual(result.trajectory_status, "PASS")
+        self.assertEqual(_prefix_trajectory_issues(rows, "cold", 4), [])
         self.assertTrue(
             all(later + 1e-12 >= earlier for earlier, later in zip(rates, rates[1:])),
             rates,
         )
         self.assertLessEqual(max(rates), result.effective_hit_rate + 1e-12)
         self.assertAlmostEqual(rates[-1], result.effective_hit_rate)
+
+    def test_large_monotonic_cold_solver_is_exact_and_non_overshooting(self):
+        count = 1818
+        lengths = [29_580 + index * 90 for index in range(count)]
+        groups = [f"group-{index % 6}" for index in range(count)]
+        ranks, lanes = assign_cold_routes(groups, 1)
+        result = solve_prefix_lengths(
+            lengths, [1] * count, groups, ranks, lanes,
+            128, 128, "cold", 0.9,
+        )
+
+        self.assertEqual(result.trajectory_status, "PASS")
+        self.assertFalse(result.trajectory_issues)
+        self.assertLessEqual(
+            abs(result.effective_hit_tokens - round(sum(lengths) * 0.9)),
+            64,
+        )
+
+        plans = [
+            RequestPlan(
+                f"r{index}", index, group, index, rank, lane,
+                length, length, 1, prefix, 128, length - prefix - 128,
+            )
+            for index, (length, group, rank, lane, prefix) in enumerate(
+                zip(lengths, groups, ranks, lanes, result.shared_prefix_tokens)
+            )
+        ]
+        rows = simulate_theory(plans, "cold", verbose=False).rows
+        cumulative_input = cumulative_hit = 0
+        rates = []
+        for row in rows:
+            cumulative_input += row.actual_input_tokens
+            cumulative_hit += row.theoretical_hit_tokens
+            rates.append(cumulative_hit / cumulative_input)
+        self.assertTrue(all(later + 1e-12 >= earlier for earlier, later in zip(rates, rates[1:])))
+        self.assertLessEqual(max(rates), result.effective_hit_rate + 1e-12)
+        self.assertAlmostEqual(rates[-1], result.effective_hit_rate)
+
+    def test_block_rounding_does_not_report_a_trajectory_warning(self):
+        lengths = [29_580 + index * 90 for index in range(3000)]
+        for mode, target in (("cold", 0.5), ("warmup", 0.9)):
+            with self.subTest(mode=mode):
+                result = solve_prefix_lengths(
+                    lengths, [1] * len(lengths), ["g0"] * len(lengths),
+                    [0] * len(lengths), list(range(len(lengths))),
+                    128, 128, mode, target,
+                )
+                self.assertEqual(result.trajectory_status, "PASS")
+                self.assertLessEqual(abs(result.effective_hit_tokens - sum(lengths) * target), 64)
+
+    def test_scalable_accepts_length_dips_with_equal_block_capacities(self):
+        lengths = [2040, 1930] * 300
+        # Large requests must never re-enter enumerative beam search.
+        with patch("ais_bench_prefix_cache.generation._target_convergent_cold_prefixes", side_effect=AssertionError("unexpected beam")):
+            result = solve_prefix_lengths(
+                lengths, [1] * len(lengths), ["g0"] * len(lengths),
+                [0] * len(lengths), list(range(len(lengths))),
+                128, 128, "cold", 0.4,
+            )
+        self.assertEqual(result.trajectory_status, "PASS")
+        self.assertFalse(result.trajectory_issues)
+        self.assertEqual(result.effective_hit_tokens, 476416)
+        prefixes = result.shared_prefix_tokens
+        self.assertTrue(all(a <= b for a, b in zip(prefixes, prefixes[1:])))
+
+    def test_beam_failure_tries_scalable_before_exact_fallback(self):
+        args = ([32] * 8, [1] * 8, ["g0"] * 8, [0] * 8, list(range(8)), 4, 4, "cold", 0.5)
+        with patch("ais_bench_prefix_cache.generation._target_convergent_cold_prefixes", return_value=None):
+            result = solve_prefix_lengths(*args)
+        self.assertEqual(result.effective_hit_tokens, 128)
+        self.assertEqual(result.trajectory_status, "PASS")
+        self.assertFalse(result.trajectory_issues)
+        with (
+            patch("ais_bench_prefix_cache.generation._target_convergent_cold_prefixes", return_value=None),
+            patch("ais_bench_prefix_cache.generation._scalable_cold_prefixes", return_value=(None, "scalable allocation failed")),
+        ):
+            result = solve_prefix_lengths(*args)
+        self.assertEqual(result.effective_hit_tokens, 128)
+        reasons = " ".join(result.trajectory_issues)
+        self.assertIn("beam search exhausted", reasons)
+        self.assertIn("scalable allocation failed", reasons)
+
+    def test_scalable_arithmetic_lengths_allow_block_rounding(self):
+        lengths = list(range(500, 1500, 100))
+        caps = [(length - 128) // 128 for length in lengths]
+        prefixes, reason = _scalable_cold_prefixes(lengths, ["g0"] * 10, [0] * 10, caps, 30, 128)
+        self.assertIsNone(reason)
+        plans = [RequestPlan(f"r{i}", i, "g0", i, 0, i, length, length, 1, prefix, 128, 0)
+                 for i, (length, prefix) in enumerate(zip(lengths, prefixes))]
+        rows = simulate_theory(plans, "cold", verbose=False).rows
+        self.assertEqual(sum(row.theoretical_hit_tokens for row in rows), 3840)
+        self.assertEqual(_prefix_trajectory_issues(rows, "cold", 128), [])
+
+    def test_quantization_tolerance_does_not_hide_real_or_accumulated_declines(self):
+        # Each individual decrease is small, but their total exceeds rounding.
+        plans = [RequestPlan(f"r{i}", i, "g0", i, 0, i, 10000, 10000, 1, 0, 0, 0,
+                             theoretical_hit_tokens=hit)
+                 for i, hit in enumerate([8000] + [4000] * 10)]
+        issues = _rate_trajectory_issues("g0", plans, 128)
+        self.assertTrue(any("not monotonic" in issue for issue in issues))
+        self.assertTrue(any("overshoots" in issue for issue in issues))
+
+    def test_scalable_tail_capacity_warning_remains_visible(self):
+        lengths = [2000] * 6 + [8000]
+        prefixes, reason = _scalable_cold_prefixes(
+            lengths, ["g0"] * 7, [0] * 7, [(length - 128) // 128 for length in lengths], 78, 128,
+        )
+        self.assertIsNone(reason)
+        plans = [RequestPlan(f"r{i}", i, "g0", i, 0, i, length, length, 1, prefix, 128, 0)
+                 for i, (length, prefix) in enumerate(zip(lengths, prefixes))]
+        rows = simulate_theory(plans, "cold", verbose=False).rows
+        self.assertEqual(sum(row.theoretical_hit_tokens for row in rows), 9984)
+        self.assertTrue(_prefix_trajectory_issues(rows, "cold", 128))
+
+    def test_corpus_token_cache_isolated_between_tokenizers(self):
+        class ShiftTokenizer:
+            __hash__ = None  # A tokenizer need not be hashable.
+
+            def __init__(self, shift):
+                self.shift = shift
+                self.calls = 0
+
+            def encode(self, text, add_special_tokens=False):
+                self.calls += 1
+                return [ord(char) + self.shift for char in text]
+
+        first, second = ShiftTokenizer(0), ShiftTokenizer(1000)
+        records = [GSMRecord(0, "abc", "sha")]
+        cache = {}
+        before = _repeat_tokens(records, first, 7, cache)
+        after = _repeat_tokens(records, second, 7, cache)
+        self.assertNotEqual(before[0], after[0])
+        calls = first.calls
+        self.assertEqual(_repeat_tokens(records, first, 7, cache), before)
+        self.assertEqual(first.calls, calls)
+
+    def test_cold_trajectory_is_checked_per_independent_lane(self):
+        plans = [
+            RequestPlan(
+                f"r{index}", index, group, index % 3, 0, index % 3,
+                16, 16, 1, 8, 4, 4,
+            )
+            for index, group in enumerate(["g0", "g0", "g0", "g1", "g1", "g1"])
+        ]
+        rows = simulate_theory(plans, "cold", verbose=False).rows
+        global_rates = [
+            sum(row.theoretical_hit_tokens for row in rows[:index])
+            / sum(row.actual_input_tokens for row in rows[:index])
+            for index in range(1, len(rows) + 1)
+        ]
+
+        self.assertLess(global_rates[3], global_rates[2])
+        self.assertEqual(_prefix_trajectory_issues(rows, "cold"), [])
+
+    def test_large_non_monotonic_lane_reports_exact_fallback_reason(self):
+        lengths = [1_000_000, 500_000, 750_000]
+        groups = ["g0"] * len(lengths)
+        ranks, lanes = assign_cold_routes(groups, 1)
+        result = solve_prefix_lengths(
+            lengths, [1] * len(lengths), groups, ranks, lanes,
+            128, 128, "cold", 0.2,
+        )
+
+        self.assertEqual(result.strategy, "exact_lane_fallback")
+        self.assertEqual(result.trajectory_status, "BEST_EFFORT")
+        self.assertTrue(
+            any("non-monotonic" in issue for issue in result.trajectory_issues),
+            result.trajectory_issues,
+        )
 
     def test_solver_matches_exhaustive_small_oracle(self):
         lengths = [16, 20, 24]

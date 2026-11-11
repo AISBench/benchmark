@@ -50,6 +50,7 @@ AISBench Benchmark 是基于 `OpenCompass <https://github.com/open-compass/openc
 
    advanced_tutorials/run_custom_config
    advanced_tutorials/stable_stage
+   advanced_tutorials/multi-concurrency_performance
    advanced_tutorials/rps_distribution
    advanced_tutorials/multiturn_benchmark
    advanced_tutorials/synthetic_dataset

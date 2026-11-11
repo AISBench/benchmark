@@ -3,9 +3,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from ais_bench_prefix_cache.artifacts import artifact_paths, read_jsonl, sha256_file, validate_artifacts
-from ais_bench_prefix_cache.pipeline import _length_summary, inspect_scenario, prepare_scenario
+from ais_bench_prefix_cache.pipeline import _apply_group_length_overrides, _length_summary, inspect_scenario, prepare_scenario
+from ais_bench_prefix_cache.errors import ArtifactValidationError
 from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
 from tests.test_core import scenario_dict
 
@@ -126,12 +128,28 @@ class PipelineTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             scenario = write_case(root)
-            summary = inspect_scenario(scenario, tokenizer_loader=lambda _: FakeTokenizer())
+            def tokenizer_must_not_load(_):
+                raise AssertionError("inspect must not load a tokenizer")
+
+            with self.assertWarnsRegex(DeprecationWarning, "deprecated and ignored"):
+                summary = inspect_scenario(scenario, tokenizer_loader=tokenizer_must_not_load)
             self.assertIn("reachable_min", summary)
             self.assertIn("reachable_max", summary)
             self.assertEqual(sum(summary["groups"].values()), 8)
             self.assertFalse(summary["sends_requests"])
+            self.assertTrue(summary["planning_only"])
+            self.assertTrue(summary["content_validation_deferred_to_prepare"])
             self.assertFalse((root / "out").exists())
+
+    def test_output_override_count_mismatch_fails_instead_of_truncating(self):
+        with (
+            patch("ais_bench_prefix_cache.pipeline.build_output_lengths", return_value=[1]),
+            self.assertRaisesRegex(ArtifactValidationError, "g0 output_length generated 1 values; expected 2"),
+        ):
+            _apply_group_length_overrides(
+                [32, 32], [1, 1], ["g0", "g0"],
+                {"g0": {"output_length": {"mode": "fixed", "value": 1}}}, 42,
+            )
 
     def test_deterministic_content_hashes(self):
         hashes = []

@@ -133,11 +133,12 @@ class TestHarborTask(unittest.TestCase):
         mock_trial_1 = mock.MagicMock()
         mock_trial_1.exception_info = None
         mock_trial_1.verifier_result = mock.MagicMock()
-        mock_trial_1.verifier_result.rewards = {"accuracy": 1.0}
+        mock_trial_1.verifier_result.rewards = {"reward": 1.0}
 
         mock_trial_2 = mock.MagicMock()
         mock_trial_2.exception_info = mock.MagicMock()
         mock_trial_2.exception_info.exception_type = "AgentTimeoutError"
+        mock_trial_2.verifier_result = None
 
         mock_job_result = mock.MagicMock()
         mock_job_result.trial_results = [mock_trial_1, mock_trial_2]
@@ -155,6 +156,8 @@ class TestHarborTask(unittest.TestCase):
         with open(out_json_path, 'r') as f:
             results = json.load(f)
         self.assertEqual(results["n_errors"], 1)
+        # 无 verifier_result 的异常用例按 0 分计入全部 trial 的分母 -> (1 + 0) / 2
+        self.assertEqual(results["avg_score"], 0.5)
         self.assertIn("pass@1", results["pass_at_k"])
 
     def test_dump_eval_results_all_errors(self):
@@ -170,6 +173,7 @@ class TestHarborTask(unittest.TestCase):
         mock_trial = mock.MagicMock()
         mock_trial.exception_info = mock.MagicMock()
         mock_trial.exception_info.exception_type = "AgentTimeoutError"
+        mock_trial.verifier_result = None
 
         mock_job_result = mock.MagicMock()
         mock_job_result.trial_results = [mock_trial]
@@ -231,6 +235,7 @@ class TestHarborTask(unittest.TestCase):
             mock_trial = mock.MagicMock()
             mock_trial.exception_info = mock.MagicMock()
             mock_trial.exception_info.exception_type = exc_type
+            mock_trial.verifier_result = None
             mock_trials.append(mock_trial)
 
         mock_job_result = mock.MagicMock()
@@ -246,6 +251,38 @@ class TestHarborTask(unittest.TestCase):
             results = json.load(f)
         self.assertEqual(results["n_errors"], 3)
         self.assertEqual(len(results["exception_distribution"]), 2)
+
+    def test_dump_eval_results_exception_with_reward(self):
+        task = HarborTask(self.cfg)
+        task.dataset_cfgs = [{"abbr": "test_dataset"}]
+        task.out_dir = os.path.join(self.temp_dir, "results")
+        task.logger = mock.MagicMock()
+        os.makedirs(task.out_dir, exist_ok=True)
+
+        mock_job = mock.MagicMock()
+        mock_job.config = mock.MagicMock()
+
+        # timeout 等异常但 verifier 仍产出 reward 的用例，应与普通用例一样计分
+        mock_trial = mock.MagicMock()
+        mock_trial.exception_info = mock.MagicMock()
+        mock_trial.exception_info.exception_type = "AgentTimeoutError"
+        mock_trial.verifier_result = mock.MagicMock()
+        mock_trial.verifier_result.rewards = {"reward": 1.0}
+
+        mock_job_result = mock.MagicMock()
+        mock_job_result.trial_results = [mock_trial]
+        mock_job_result.n_total_trials = 1
+        mock_job_result.stats = None
+
+        with mock.patch.object(task, '_get_task_count', return_value=1):
+            task._dump_eval_results(mock_job, mock_job_result)
+
+        out_json_path = os.path.join(task.out_dir, "test_dataset.json")
+        with open(out_json_path, 'r') as f:
+            results = json.load(f)
+        self.assertEqual(results["n_errors"], 1)
+        self.assertEqual(results["avg_score"], 1.0)
+        self.assertEqual(results["reward_distribution"], [{"score": 1.0, "count": 1}])
 
     def test_dump_eval_results_no_verifier_result(self):
         task = HarborTask(self.cfg)

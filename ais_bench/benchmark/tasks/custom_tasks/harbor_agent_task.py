@@ -96,10 +96,11 @@ class HarborAgentTask(HarborTask):
         """Real-time aggregate of the running harbor job, read from
         ``job_dir/result.json``:
 
-        - correct:   completed trials with reward >= 1.0
-        - wrong:     completed trials with reward < 1.0 (no exception)
+        - correct:   trials with reward >= 1.0 (may overlap with exception)
+        - wrong:     trials with 0 <= reward < 1.0 (may overlap with exception)
         - exception: trials with an exception
-        - avg_score: mean reward over the completed trials
+        - avg_score: mean reward over all trials, with a missing reward counted
+                     as 0, aligned with harbor's ``mean``
         """
         result_path = job_dir / "result.json"
         if not result_path.exists():
@@ -116,23 +117,26 @@ class HarborAgentTask(HarborTask):
         for tr in data.get("trial_results") or []:
             if not isinstance(tr, dict):
                 continue
+            # 异常统计与计分相互独立：与 harbor 的 mean 对齐，是否抛异常不影响得分，
+            # 只看 verifier_result 是否产出了 reward。
             if tr.get("exception_info") is not None:
                 n_exception += 1
-                continue
+
             verifier = tr.get("verifier_result")
-            if not isinstance(verifier, dict):
+            rewards_map = verifier.get("rewards") if isinstance(verifier, dict) else None
+            value: float | None = None
+            if isinstance(rewards_map, dict):
+                reward = rewards_map.get("reward")
+                if reward is not None:
+                    try:
+                        value = float(reward)
+                    except (TypeError, ValueError):
+                        value = None
+
+            # 分母为全部 trial；无 verifier_result / 无 reward 的用例按 0 分计入
+            rewards.append(value if value is not None else 0.0)
+            if value is None:
                 continue
-            rewards_map = verifier.get("rewards")
-            if not isinstance(rewards_map, dict):
-                continue
-            reward = rewards_map.get("reward")
-            if reward is None:
-                continue
-            try:
-                value = float(reward)
-            except (TypeError, ValueError):
-                continue
-            rewards.append(value)
             if value >= 1.0:
                 n_correct += 1
             else:

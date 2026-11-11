@@ -95,28 +95,45 @@ class TestHarborAgentTaskJobMetrics(unittest.TestCase):
             ]
         )
         m = self.task._job_metrics(self.job_dir)
-        self.assertEqual(m, {"correct": 2, "wrong": 1, "exception": 1, "avg_score": 1.0})
+        # avg_score 分母为全部 trial，异常用例无 verifier_result 时按 0 分计入。
+        self.assertEqual(m, {"correct": 2, "wrong": 1, "exception": 1, "avg_score": 0.75})
 
-    def test_no_verifier_result_skipped(self):
+    def test_no_verifier_result_counts_as_zero(self):
         self._write_result([{"trial_name": "a"}])
         m = self.task._job_metrics(self.job_dir)
         self.assertEqual(m["correct"], 0)
         self.assertEqual(m["wrong"], 0)
-        self.assertEqual(m["avg_score"], None)
+        self.assertEqual(m["avg_score"], 0.0)
 
-    def test_reward_none_skipped(self):
+    def test_reward_none_counts_as_zero(self):
         self._write_result([{"verifier_result": {"rewards": {"reward": None}}}])
         m = self.task._job_metrics(self.job_dir)
-        self.assertEqual(m["avg_score"], None)
+        self.assertEqual(m["avg_score"], 0.0)
 
-    def test_reward_non_numeric_skipped(self):
+    def test_reward_non_numeric_counts_as_zero(self):
         self._write_result([{"verifier_result": {"rewards": {"reward": "abc"}}}])
         m = self.task._job_metrics(self.job_dir)
-        self.assertEqual(m["avg_score"], None)
+        self.assertEqual(m["avg_score"], 0.0)
 
-    def test_exception_trial_excluded_from_score(self):
+    def test_exception_without_reward_counts_as_zero(self):
         self._write_result(
             [{"exception_info": {"type": "T"}}, {"verifier_result": {"rewards": {"reward": 1.0}}}]
+        )
+        m = self.task._job_metrics(self.job_dir)
+        self.assertEqual(m["exception"], 1)
+        self.assertEqual(m["correct"], 1)
+        # 无 verifier_result 的异常用例按 0 分计入分母 -> (0 + 1) / 2
+        self.assertEqual(m["avg_score"], 0.5)
+
+    def test_exception_with_reward_is_counted(self):
+        # timeout 等异常但 verifier 仍产出 reward 的用例应与普通用例一样计分
+        self._write_result(
+            [
+                {
+                    "exception_info": {"type": "AgentTimeoutError"},
+                    "verifier_result": {"rewards": {"reward": 1.0}},
+                }
+            ]
         )
         m = self.task._job_metrics(self.job_dir)
         self.assertEqual(m["exception"], 1)
@@ -140,12 +157,12 @@ class TestHarborAgentTaskJobMetrics(unittest.TestCase):
         m = self.task._job_metrics(self.job_dir)
         self.assertEqual(m["exception"], 1)
 
-    def test_rewards_not_dict_skipped(self):
+    def test_rewards_not_dict_counts_as_zero(self):
         self._write_result([{"verifier_result": {"rewards": "nope"}}])
         m = self.task._job_metrics(self.job_dir)
         self.assertEqual(m["correct"], 0)
         self.assertEqual(m["wrong"], 0)
-        self.assertEqual(m["avg_score"], None)
+        self.assertEqual(m["avg_score"], 0.0)
 
 
 class TestHarborAgentTaskRefreshMetrics(unittest.TestCase):
