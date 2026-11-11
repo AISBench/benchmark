@@ -437,42 +437,6 @@ pip install -r requirements/agent.txt
 > - warnings from the compilation/build of individual packages, or `yanked` / `deprecated` hints during dependency resolution.
 > As long as these do **not cause the installation to fail** (pip reports an `error` and stops), you can ignore them and continue; the installed Harbor agent evaluation works normally. To confirm a successful install, run `pip show harbor` to verify Harbor is properly in place.
 
-### AutomationBench normalized results
+### AutomationBench results
 
-Use `ais_bench/configs/agent_example/harbor_automationbench_task.py` with a matching
-Harbor adapter, `/path/to/automationbench-public`, manifest, model connection and
-prepared task image. Install the scheduler and official runtime in separate
-environments. Each Job uses one attempt.
-
-`datasets[].reporting` is a **HarborTask/HarborAgentTask-specific extension**.
-Other task types do not consume it. `publisher` is `module:callable`; optional
-`kwargs` must be a dictionary. After execution or resume, the publisher receives
-the final Job and trials. The result index retains `total_count`, `n_errors`,
-`avg_score`, `reward_distribution`, `exception_distribution`, `n_total_trials`
-and `pass_at_k`. Successful reporting adds a relative `normalized_result` path
-and `result_format="harbor-normalized-index-v1"`. Configuration, import or
-publisher failures preserve legacy metrics and record `reporting_error`; an
-optional postprocessor does not discard a completed Job.
-
-| Item | Contract |
-| --- | --- |
-| Report | `summary/normalized_result.json`, `schema_version="1.0"` |
-| Completion marker | Sibling `reporting_complete.json`; optional `schema_version` defaults to `1.0` |
-| Preferred hash | `result_file_sha256`: SHA256 of the exact report bytes, without reserialization; takes precedence |
-| Compatible hash | Existing adapter `result_sha256`, canonical-json-v1: UTF-8 Python `json.dumps(report, sort_keys=True, ensure_ascii=False, allow_nan=False)` with default separators `, ` and `: `; only used without the raw-byte hash |
-| Accuracy | `metrics.accuracy`: a number in [0,1] or null; invalid integrity requires null |
-| Integrity | `integrity.status`: `valid` or `invalid` |
-| Acceptance | `acceptance.status`: `pass`, `fail` or `blocked` |
-
-Verification lives in `ais_bench/benchmark/utils/harbor_reporting.py`. Invalid
-paths, files, versions, fields or hashes yield invalid/blocked normalized data
-and no accuracy, with a diagnostic warning. Other datasets remain displayable.
-
-Legacy CSV columns remain `agent,model_name,dataset,avg_score,correct,wrong,exception`.
-A dataset-level `reporting` configuration selects the fixed additional columns
-`accuracy,integrity,acceptance,evidence`. Top-level `normalized_columns=True/False`
-can select this explicitly, including when reading old indexes offline. Columns
-do not depend on result contents or corruption. `avg_score` retains its reward
-meaning; official accuracy has a separate column. Null accuracy displays as `-`
-in the console and as an empty CSV cell. Evidence paths are relative to work_dir
-so the directory can be relocated.
+Use `ais_bench/configs/agent_example/harbor_automationbench_task.py` with the matching Harbor adapter, prepared tasks and model connection. AISBench reuses its existing Harbor reward summary and CSV columns. Preserve the Harbor Job directory, Trial results, verifier output, logs and trajectories for offline inspection and recomputation. AutomationBench-specific reporting and validation remain in the Harbor adapter; AISBench does not load or visualize those reports.

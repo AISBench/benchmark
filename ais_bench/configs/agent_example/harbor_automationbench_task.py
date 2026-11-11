@@ -14,12 +14,8 @@ models = [dict(
 datasets = [dict(
     abbr="automationbench",
     args=dict(path=dataset_path, environment_type="docker", n_attempts=1),
-    # HarborTask/HarborAgentTask extension; other task types do not consume it.
-    reporting=dict(
-        publisher="automationbench_adapter.reporting:publish_job",
-        kwargs=dict(manifest=dataset_path + "/manifest.json"),
-    ),
+
 )]
 infer = dict(runner=dict(task=dict(type=EmptyTask)))
 eval = dict(runner=dict(type=HarborRunner, task=dict(type=HarborAgentTask)))
-summarizer = dict(attr="accuracy", type=HarborSummarizer)
+summarizer = dict(type=HarborSummarizer)

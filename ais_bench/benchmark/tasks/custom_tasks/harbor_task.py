@@ -368,44 +368,8 @@ class HarborTask(BaseTask):
             "pass_at_k": pass_at_k,
         }
 
-        reporting = dataset_cfg.get("reporting")
-        if reporting is not None:
-            try:
-                from importlib import import_module
-
-                if not isinstance(reporting, dict):
-                    raise ValueError("reporting must be a dictionary")
-                publisher = reporting.get("publisher")
-                if not isinstance(publisher, str) or publisher.count(":") != 1:
-                    raise ValueError("reporting.publisher must be module:callable")
-                kwargs = reporting.get("kwargs", {})
-                if not isinstance(kwargs, dict):
-                    raise ValueError("reporting.kwargs must be a dictionary")
-                module, name = publisher.split(":")
-                publish = getattr(import_module(module), name)
-                report = publish(job, job_result, **kwargs)
-                results.update(
-                    normalized_result=osp.relpath(report, self.out_dir),
-                    result_format="harbor-normalized-index-v1",
-                )
-            except Exception as exc:
-                results["reporting_error"] = f"{type(exc).__name__}: {exc}"
-                self.logger.warning(f"Optional Harbor reporting failed: {exc}")
-
-        from tempfile import NamedTemporaryFile
-
-        temporary_path = None
-        try:
-            with NamedTemporaryFile(
-                mode="w", encoding="utf-8", dir=self.out_dir, delete=False
-            ) as stream:
-                temporary_path = stream.name
-                json.dump(results, stream, indent=4)
-            # Close and flush before rename, including on Windows.
-            os.replace(temporary_path, out_json)
-        finally:
-            if temporary_path is not None and osp.exists(temporary_path):
-                os.unlink(temporary_path)
+        with open(out_json, "w") as f:
+            json.dump(results, f, indent=4)
 
         self.logger.info(f"Evaluation results saved to {out_json}")
 

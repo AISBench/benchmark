@@ -17,7 +17,6 @@ python tests/run_tests.py tests/UT \
   tests/UT/runners/test_harbor_runner.py \
   tests/UT/runners/test_harbor_monitor.py \
   tests/UT/test_run_tests.py \
-  tests/UT/test_harbor_reporting.py \
   --output test_reports/harbor -v
 ```
 

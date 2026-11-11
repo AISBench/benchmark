@@ -421,24 +421,6 @@ pip install -r requirements/agent.txt
 > 这些告警只要**未导致安装失败（pip 报 `error` 并中断）**，即可直接忽略，继续安装后的 Harbor Agent 测评即可正常使用。若确需判断是否安装成功，可在安装后执行 `pip show harbor` 确认 Harbor 已正确就位。
 
 
-### AutomationBench 归一化结果
+### AutomationBench 结果
 
-示例配置：`ais_bench/configs/agent_example/harbor_automationbench_task.py`。在独立调度环境安装配套Harbor和适配包，配置 `/path/to/automationbench-public`、对应manifest、模型连接及任务镜像。每个Job使用一次attempt。
-
-`datasets[].reporting` 是 **HarborTask／HarborAgentTask专用扩展键**，不是其他任务的通用配置。`publisher` 格式为 `module:callable`，可选 `kwargs` 为字典。Job完成或恢复后调用publisher。结果文件保持原有 `total_count`、`n_errors`、`avg_score`、`reward_distribution`、`exception_distribution`、`n_total_trials`、`pass_at_k`，成功时附加 `normalized_result` 相对路径及 `result_format="harbor-normalized-index-v1"`。publisher导入、配置或执行失败时仍保存旧指标，并写入 `reporting_error`；已完成的Job不因可选后处理失败而丢失结果。
-
-归一化报告契约：
-
-| 项目 | 契约 |
-| --- | --- |
-| 报告文件 | `summary/normalized_result.json`，`schema_version="1.0"` |
-| 完成标记 | 同目录 `reporting_complete.json`；可选 `schema_version` 默认 `1.0` |
-| 推荐哈希 | 标记 `result_file_sha256` 为报告原始字节的SHA256；存在时优先采用，不重序列化 |
-| 兼容哈希 | 官方适配包已有 `result_sha256` 使用canonical-json-v1：UTF-8编码的Python `json.dumps(report, sort_keys=True, ensure_ascii=False, allow_nan=False)`，保留默认分隔符 `, ` 和 `: `；仅缺少原始字节哈希时使用 |
-| accuracy | `metrics.accuracy` 为0～1数值或null；完整性无效时必须为null |
-| integrity | `integrity.status`：`valid`／`invalid` |
-| acceptance | `acceptance.status`：`pass`／`fail`／`blocked` |
-
-校验实现位于 `ais_bench/benchmark/utils/harbor_reporting.py`。文件、路径类型、版本、字段或哈希无效时，归一化行显示 `integrity=invalid`、`acceptance=blocked`，accuracy无值，日志包含原因；其他数据集仍可展示。
-
-旧CSV列保持为 `agent,model_name,dataset,avg_score,correct,wrong,exception`。配置含数据集 `reporting` 时，固定追加 `accuracy,integrity,acceptance,evidence`；也可用顶层 `normalized_columns=True/False` 显式选择，列集不随结果是否损坏变化。`avg_score`始终为旧reward均值，官方accuracy使用独立列，null在控制台显示 `-`、在CSV为空。evidence为相对work_dir路径，迁移目录后仍可定位。离线读取旧索引时用 `normalized_columns=True` 启用附加列。
+使用 `ais_bench/configs/agent_example/harbor_automationbench_task.py`，准备配套 Harbor 适配包、任务及模型连接。AISBench 复用现有 Harbor reward 汇总与 CSV 列。保留 Harbor Job 目录、Trial 结果、Verifier 输出、日志和轨迹，供离线检查及复算。AutomationBench 专项报告与校验由 Harbor 适配包负责，AISBench 不加载或展示这些专项报告。
