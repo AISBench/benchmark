@@ -8,6 +8,8 @@ This document describes the manual preparation and evaluation route on a Linux G
 
 The entry point is unified under `ais_bench.tools.vabench`. Task, Dataset, and the summarizer are each packaged separately; the native official preparation/comparison scripts also live under tools, and the paths below match the current implementation. Comparison results use per-metric raw means, with per-sample numeric differences listed separately; GPU accuracy alignment still requires verifying identical inputs, weights, parameters, and failure states.
 
+Run the integration from an AISBench source checkout that contains VABench support. Install AISBench in editable mode as shown in Section 4.1. The evaluator reads the protocol and dependency files from the source checkout.
+
 The following paths are fixed examples. Replace them as a whole when switching machines:
 
 ```bash
@@ -467,7 +469,7 @@ Parameters:
 
 - `-m eval`: evaluate only, no re-inference;
 - `-w`: output root directory; AISBench creates a timestamped subdirectory automatically;
-- Use a new directory each time; do not overwrite existing results;
+- Use a new work directory for a separate run. See Section 4.5 for retries in the same work directory.
 - A live run of 7 videos with all 15 metrics took about 10 minutes; the time depends on free GPU resources, media length, and the cache, and does not guarantee a fixed runtime.
 
 #### 4.4.1 Console output sample and field reference
@@ -517,7 +519,7 @@ Result directory:
             └── official_eval_results/
 ```
 
-The framework's `summary/` holds the overall summary table. After changing `AISBENCH_ARTIFACTS` below to the actual result directory of this evaluation, you can inspect a single model's results.
+The framework's `summary/` holds the overall summary table. Set `AISBENCH_ARTIFACTS` below to the directory printed as `VABench artifacts:` in the task log. Retrying in the same work directory writes new results under `_artifacts/attempt_*/` and preserves earlier reports and logs. The framework result JSON records the directory in `provenance.artifact_dir`.
 
 ```bash
 export AISBENCH_ARTIFACTS=/workspace/vabench_runs/run_ACTUAL_TIMESTAMP/AISBench_timestamp/results/model_abbr/dataset_abbr_artifacts
@@ -764,7 +766,7 @@ sequenceDiagram
 
     loop Eight expert groups in sequence
         T->>F: Write request.json for the group
-        T->>W: Start a worker with subprocess.run and wait for it
+        T->>W: Start a worker and wait for it
         W->>F: Read request.json
         W->>W: Import the upstream metric module and load its model
         loop Each category

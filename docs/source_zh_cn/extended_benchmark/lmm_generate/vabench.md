@@ -9,6 +9,8 @@ AISBench已接入VABench的 **15项指标**，在GPU上由外部官方评分实�
 
 当前入口统一为 `ais_bench.tools.vabench`。Task、Dataset 和汇总已分别包化；原生官方准备/比较脚本也位于 tools，以下路径与当前实现一致。比较结果使用逐指标原始均分，逐题数值差异另列；GPU精度对齐仍需核验相同输入、权重、参数及失败状态。
 
+从包含 VABench 适配的 AISBench 源码检出目录运行评测，并按第 4.1 节以可编辑方式安装。题库协议和依赖清单均从源码目录读取。
+
 固定路径示例，换机器时整体替换：
 
 ```bash
@@ -468,7 +470,7 @@ ais_bench /workspace/eval_vabench.py \
 
 - `-m eval`：只评测，不重新推理；
 - `-w`：输出根目录，AISBench 会自动创建时间戳子目录；
-- 每次使用新目录，不要覆盖已有结果；
+- 复用原工作目录重试时，新的评分产物写入 `_artifacts/attempt_*/`，原有报告和日志保留；
 - 现场 7 视频、15 项有约 10 分钟的运行记录；耗时受显卡空闲资源、媒体长度和缓存影响，不能据此保证固定耗时。
 
 #### 4.4.1 控制台输出样例与字段说明
@@ -518,7 +520,7 @@ custom_all_7  vabench_t2av/total           higher                —      67.88 
             └── official_eval_results/
 ```
 
-框架的 `summary/` 保存整体汇总表。将下面的 `AISBENCH_ARTIFACTS` 改为本次评测的实际结果目录后，可查看单个模型的结果。
+框架的 `summary/` 保存整体汇总表。将下面的 `AISBENCH_ARTIFACTS` 设为日志中 `VABench artifacts:` 显示的目录。框架结果 JSON 的 `provenance.artifact_dir` 也记录了本次目录。
 
 ```bash
 export AISBENCH_ARTIFACTS=/workspace/vabench_runs/run_实际时间/AISBench时间戳/results/模型缩写/数据集缩写_artifacts
@@ -765,7 +767,7 @@ sequenceDiagram
 
     loop 8 个专家组，依次执行
         T->>F: 写入本组 request.json
-        T->>W: subprocess.run 创建新 worker，并等待结束
+        T->>W: 创建新 worker 并等待结束
         W->>F: 读取 request.json
         W->>W: 导入官方指标模块，加载本指标模型
         loop 各场景
