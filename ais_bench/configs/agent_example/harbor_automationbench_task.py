@@ -1,7 +1,5 @@
 """Set the dataset path and model connection before running agent evaluation."""
 
-import os
-
 from ais_bench.benchmark.runners.harbor_runner import HarborRunner
 from ais_bench.benchmark.summarizers.harbor import HarborSummarizer
 from ais_bench.benchmark.tasks.base import EmptyTask
@@ -14,8 +12,8 @@ models = [
         "abbr": "automationbench-official",
         "agent_import_path": "automationbench_adapter.agent:AutomationBenchOfficialAgent",
         "model_names": ["deepseek-flash"],
-        # Export DEEPSEEK_API_KEY before loading this configuration.
-        "api_key": os.environ["DEEPSEEK_API_KEY"],
+        # Replace the placeholder or override it with --api-key.
+        "api_key": "sk-xxx",
         # Custom Agent options; do not use Terminus-2 llm_kwargs here.
         "agent_kwargs": {
             "base_url": "https://api.deepseek.com/v1",

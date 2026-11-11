@@ -427,7 +427,7 @@ pip install -r requirements/agent.txt
 #### OBS 数据集下载
 
 独立配置列出模型连接、Agent 参数、并发、超时、重试、Docker 生命周期、验证及监控设置。
-加载前设置 `DEEPSEEK_API_KEY` 环境变量。`sampling_args=None` 保留官方 scaffold
+将 `api_key` 占位值替换为实际密钥，或通过 `--api-key` 覆盖。`sampling_args=None` 保留官方 scaffold
 默认值；工具集及轮数预算由已准备的数据集决定。如需先冒烟，可将 `n_tasks` 设置为较小值。
 
 通过 OBS 下载已转换的 Harbor 数据集，无需访问 GitHub 或远程数据注册中心。
