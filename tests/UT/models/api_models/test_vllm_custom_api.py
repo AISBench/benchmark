@@ -150,17 +150,31 @@ class TestVLLMCustomAPI(unittest.TestCase):
         self.assertTrue(request_body["stream"])
 
     async def test_get_request_body_max_out_len_non_positive(self):
-        """测试max_out_len <= 0抛出AISBenchValueError，避免把非正值透传给服务端"""
+        """测试max_out_len <= 0抛出AISBenchValueError(MODEL-PARM-006)，避免把非正值透传给服务端"""
         model = VLLMCustomAPI(**self.default_kwargs)
         output = Output()
 
-        # 测试max_out_len = 0
-        with self.assertRaises(AISBenchValueError):
+        # 测试max_out_len = 0 / -1：锁住 error code
+        with self.assertRaisesRegex(AISBenchValueError, "must be a positive integer"):
             await model.get_request_body("test prompt", 0, output)
-
-        # 测试max_out_len = -1
-        with self.assertRaises(AISBenchValueError):
+        with self.assertRaisesRegex(AISBenchValueError, "must be a positive integer"):
             await model.get_request_body("test prompt", -1, output)
+
+    async def test_get_request_body_max_out_len_string_coerced(self):
+        """字符串来源(CSV custom dataset)的 max_out_len 数字应被兼容，非数字抛 AISBenchValueError 而非 TypeError"""
+        model = VLLMCustomAPI(**self.default_kwargs)
+        output = Output()
+
+        # 字符串数字应正常工作(CSV 分支读成 str 的存量用法)
+        request_body = await model.get_request_body("test prompt", "512", output)
+        self.assertEqual(request_body["max_tokens"], "512")
+
+        # 非数字字符串应抛 AISBenchValueError(MODEL-PARM-006)，不是裸 TypeError
+        with self.assertRaisesRegex(AISBenchValueError, "must be a positive integer"):
+            await model.get_request_body("test prompt", "abc", output)
+        # 字符串非正数同样拒绝
+        with self.assertRaisesRegex(AISBenchValueError, "must be a positive integer"):
+            await model.get_request_body("test prompt", "0", output)
 
     async def test_parse_text_response(self):
         """测试parse_text_response方法"""
@@ -330,6 +344,9 @@ class TestVLLMCustomAPI(unittest.TestCase):
 
     def test_get_request_body_max_out_len_non_positive_wrapper(self):
         self.run_async_test(self.test_get_request_body_max_out_len_non_positive())
+
+    def test_get_request_body_max_out_len_string_coerced_wrapper(self):
+        self.run_async_test(self.test_get_request_body_max_out_len_string_coerced())
 
     def test_parse_text_response_wrapper(self):
         self.run_async_test(self.test_parse_text_response())
