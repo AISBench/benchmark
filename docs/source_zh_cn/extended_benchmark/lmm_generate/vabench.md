@@ -3,7 +3,7 @@
 
 **VABench** 是面向文本生成音视频（T2AV）的评测基准，覆盖音频质量、音视频一致性、同步性和内容表现。
 
-AISBench已接入VABench的 **15项指标**，在GPU上由外部官方评分实现评测已有带音轨MP4，展示原始均分、归一化分和总分。本指南包含778题标准集、固定78题子集以及原生官方对照步骤；视频生成在评测前完成。运行模板为 `ais_bench/configs/vabench_examples/eval_vabench_custom.py`。
+AISBench已接入VABench的 **15项指标**，在GPU上由外部官方评分实现评测已有带音轨MP4，展示原始均分、归一化分和总分。本指南介绍 778 题标准集的评测和原生官方对照步骤；视频生成在评测前完成。运行模板为 `ais_bench/configs/vabench_examples/eval_vabench_custom.py`。
 
 本文介绍 Linux GPU 机器上的手动准备和评测路线，前提是已有 AISBench 源码和 Conda；VABench 源码按第 1 节下载。需要 AISBench 自动准备评分依赖时，第 2.5 节仍使用安装工具，不等同于逐包手工安装。
 
@@ -359,7 +359,9 @@ ${PY} -m ais_bench.tools.vabench.cli prepare \
 
 ### 3.4 准备 778 题完整集
 
-视频齐全后：
+可下载 MiniMax H3 生成的 778 条完整集视频。[下载完整集视频 ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/vabench/minimax_h3_vabench_778_full_video.zip)
+
+解压后，将下方 `--videos` 改为实际的 MP4 所在目录，再运行 `prepare`。
 
 ```bash
 ${PY} -m ais_bench.tools.vabench.cli prepare \
@@ -369,159 +371,9 @@ ${PY} -m ais_bench.tools.vabench.cli prepare \
   --output /workspace/prepared_standard
 ```
 
----
+### 3.5 获取 VABench Mini 子集
 
-<a id="mini10pct-selection"></a>
-
-### 3.5 选取并获取固定78题子集
-
-#### 清单来源与抽样规则
-
-固定清单位于 AISBench 的 **`ais_bench/configs/vabench_examples/mini10pct.json`**，名称是 `mini10pct`（表示10%），从 **778题标准集选出78题**。768P是视频生成分辨率，与题目数量不同。
-
-该清单来自项目辅助脚本 `VABench/build_mini10pct.py` 及其 `VABench/mini10pct` 产物。下面参照项目 README 的方法说明，并按脚本核实具体选择顺序。它是项目选定集合，不是上游官方发布的子集；AISBench评分时读取固定清单，不重新抽样。
-
-| 项目 | 核验结果 |
-| --- | --- |
-| 抽样基数 | 可映射的 778 题，不是原始 848 条 |
-| 选中数量 | `round(778×10%)=78`，实际占 10.03% |
-| 类别覆盖 | 24/24 类，每类 2–4 题 |
-| easy / hard | 40/398、38/380 |
-| 类别名额 | easy 10 类各 4；hard 14 类先各 2，剩余 10 个名额分给最大的 10 个 hard 类 |
-| 类内选择 | 对 `prompt_en + prompt_vision + prompt_audio` 做 TF-IDF，从 medoid 开始选择最远点，idx SHA256 解决同分；没有随机种子参数 |
-
-该算法衡量词面多样性，不保证语义或全部指标适用性；题目覆盖不等于所有生成视频都可获得 LSA 等有效分数。清单保留上游提交、原始 778 清单、选择脚本及输出数据清单的 SHA256，便于审计。
-
-##### 第一步：确定778题候选池
-
-将固定官方源码的 `json_files/json_text/*.json` 与 `mapping/final_idx_to_prompt.csv` 按完整 Prompt 精确匹配，得到778个唯一idx。候选池包含24类，其中easy为10类、398题，hard为14类、380题。AISBench的 `catalog(..., 'standard')` 提供这批候选，子集不从原始848条直接抽取。
-
-##### 第二步：先分配类别名额
-
-目标数量为 `round(778×0.10)=78`，按以下规则分配：
-
-| 分配步骤 | 数量 |
-| --- | --- |
-| 10个easy类，每类4题 | 40 |
-| 14个hard类，每类先2题 | 28 |
-| 将剩余10个名额分给候选池最大的10个hard类，每类再加1题 | 10 |
-| 合计 | 78 |
-
-hard类按“候选池数量降序、类别名升序”排列。最终easy每类4题，10个hard类各3题，其余4个hard类各2题。仅取2题的类别为：`hard_natural_environment`、`hard_Indoor_Environment_and_Urban_Atmosphere`、`hard_music`、`hard_strong_synchronization_and_rhythmic_movements`。
-
-这里平衡的是类别覆盖和easy/hard总体数量；并非每个类别都恰好抽10%。例如92题的 `hard_Virtual_Environment` 选3题，7题的 `hard_natural_environment` 选2题。
-
-##### 第三步：在每一类中选择词面差异较大的题
-
-1. 拼接每题的 `prompt_en + prompt_vision + prompt_audio`，转为小写。
-2. 按脚本固定分词规则和停用词表提取词项，去掉短于3个字符的词。
-3. **在当前类别内**计算TF-IDF：词频权重为 `1+ln(词频)`，逆文档频率为 `ln((类别题数+1)/(包含该词的题数+1))+1`；各题向量做L2归一化。
-4. 计算题目两两余弦相似度。先选平均相似度分值最高的中心题，即脚本中的medoid起点。
-5. 对每个未选候选，计算其与已选集合的**最大相似度**，选择这个值最小的题，直到填满本类名额。这相当于优先补入与已选题都不太相似的题。
-
-选取过程不使用随机数。脚本的确定性同分规则为：中心题取 `(平均相似度, idx的SHA256)` 最大者；后续候选取 `(与已选集合的最大相似度, 平均相似度, idx的SHA256)` 最小者。复现时应使用同一分词规则、停用词表和比较顺序，不能直接替换成另一套TF-IDF默认参数。
-
-##### 第四步：核验并固定清单
-
-合并24类的结果，检查78个idx互不重复、全部属于778题候选池、24类全覆盖、easy为40题、hard为38题，且各类数量符合配额。将idx和category固定到 `mini10pct.json`，连同来源及脚本哈希保存；完整Prompt从对应官方元数据导出。
-
-#### 可选：离线复现选取结果
-
-需要审查“78题如何选出”时，可只调用原辅助脚本的两个选择函数，不执行它的构建入口。`build_mini10pct.py` 是项目辅助文件，**不包含在官方VABench仓库内**；应另行提供该文件，并把下列路径改为实际位置。
-
-```bash
-export VABENCH_SELECTION_SCRIPT=/workspace/tools/build_mini10pct.py
-cd /workspace/code/benchmark
-python3 - <<'PY'
-import os
-import runpy
-from pathlib import Path
-from ais_bench.benchmark.utils.vabench.data import catalog, read_json
-
-script = Path(os.environ['VABENCH_SELECTION_SCRIPT'])
-assert script.is_file(), f'项目选取脚本不存在：{script}'
-# 使用非 __main__ 名称，仅载入函数，不执行原脚本的 main()。
-logic = runpy.run_path(str(script), run_name='mini10pct_selection_check')
-entries = catalog(os.environ['VABENCH_ROOT'], 'standard')
-target, allocation, summary, grouped = logic['allocate'](entries)
-chosen = []
-for category in sorted(grouped):
-    picked, _ = logic['diverse_select'](grouped[category], allocation[category])
-    chosen.extend(picked)
-
-fixed = read_json('ais_bench/configs/vabench_examples/mini10pct.json')
-actual = {(e['idx'], e['category']) for e in chosen}
-expected = {(e['idx'], e['category']) for e in fixed['entries']}
-assert target == len(chosen) == len(actual) == fixed['count'] == 78
-assert len(allocation) == 24
-assert summary['easy_selected'] == 40 and summary['hard_selected'] == 38
-assert actual == expected, '选取结果与AISBench固定版本不同，请核对脚本及替换记录'
-print('核验通过：778题选78题，24类全覆盖，easy=40、hard=38，与固定清单一致')
-PY
-```
-
-本段只读取题目并重算选择结果，不写请求文件、不复制视频，也不调用生成API。普通评测直接使用固定清单并执行下文的Prompt导出即可。
-
-#### 与项目README后续替换记录的区别
-
-项目README新增了一次生成平台审核后的替换，类别仍为 `easy_human_nonverbal`：
-
-| 版本 | 对应题目 |
-| --- | --- |
-| AISBench当前固定清单及原始脚本复现结果 | `teenager spills drink nervously apologizes` |
-| 项目README的后续替换记录 | `lost tourists in subway station` |
-
-因此，二者虽然都称78题，题目集合已有一题差异。README描述的替换版本保持其余77题不变；当前AISBench清单尚未包含该替换。比较不同模型前须固定同一个版本，并保存完整清单和替换记录；不能因某题缺视频临时换题后仍视为同一测试集。本说明保留当前AISBench清单。
-
-原脚本的构建入口还包含固定路径、生成请求文件及复制辅助脚本等操作。复用固定清单或执行上述只读核验，不需要运行该入口及 `--force`。
-
-#### 导出完整 Prompt
-
-在 AISBench 根目录执行以下脚本，校验固定清单并从官方源码导出对应元数据。它不调用任何生成 API：
-
-```bash
-cd /workspace/code/benchmark
-python3 - <<'PY'
-import os
-from ais_bench.benchmark.utils.vabench.data import catalog, read_json, write_json
-
-selected = read_json('ais_bench/configs/vabench_examples/mini10pct.json')
-standard = {e['idx']: e for e in catalog(os.environ['VABENCH_ROOT'], 'standard')}
-ids = [e['idx'] for e in selected['entries']]
-assert len(ids) == len(set(ids)) == selected['count'] == 78
-assert len({e['category'] for e in selected['entries']}) == 24
-assert all(standard[e['idx']]['category'] == e['category'] for e in selected['entries'])
-write_json('/workspace/mini10pct_prompts.json', {
-    'subset': selected['name'], 'count': 78,
-    'upstream_commit': selected['upstream_commit'],
-    'entries': [standard[idx] for idx in ids],
-})
-print('已导出 78 题：/workspace/mini10pct_prompts.json')
-PY
-```
-
-从导出的 `entries[].metadata.prompt_en` 生成视频，保存为 `<idx>.mp4`。同步/复制原有产物时只需这78题对应的MP4；视频是否齐全应按当前清单和实际文件核验，不能用README里的历史下载数量判断本轮输入完整性。
-
-#### 按固定 78 题准备输入
-
-视频齐全后，显式传入全部78题到准备函数。这样缺少任一视频都会报错，避免普通 `--subset custom` 根据已有文件自动缩成一个更小的集合：
-
-```bash
-python3 - <<'PY'
-from ais_bench.benchmark.utils.vabench.data import prepare, read_json
-
-prompts = read_json('/workspace/mini10pct_prompts.json')
-assert prompts['count'] == len(prompts['entries']) == 78
-prepare(prompts['entries'], '/workspace/generated_mini10pct',
-        '/workspace/prepared_mini10pct', subset='custom')
-print('已准备固定 78 题')
-PY
-```
-
-准备完成后继续第4节执行评分并查看结果。
-
-当前报告scope为 `custom`，应与固化清单、导出的Prompt文件一起归档，并核对 `subset_size=78`。也可以将该准备目录填入主命令配置。若只想先测少量已有视频，可按第3.3节准备自定义输入，并标明实际题数，不能当作78题结果。
-
+Mini 子集的归档视频可在 Modelers 查看。[VABench Mini 数据集](https://modelers.cn/datasets/AISBench/vabench_mini)
 
 ---
 
@@ -636,6 +488,33 @@ ais_bench /workspace/eval_vabench.py \
 - 每次使用新目录，不要覆盖已有结果；
 - 现场 7 视频、15 项有约 10 分钟的运行记录；耗时受显卡空闲资源、媒体长度和缓存影响，不能据此保证固定耗时。
 
+#### 4.4.1 控制台输出样例与字段说明
+
+全部 15 项指标分为 9 个评分组。进度板的 `9/9` 表示 9 组已执行完毕，每项是否取得有效分需查看汇总表。下面截取一次 6 视频自定义评测的结果。
+
+```text
+model         dataset/dimension           raw direction  raw mean  score/100  expected  scored  LSA omitted  missing  failed  coverage %  status
+custom_all_7  vabench_t2av/first_dnsmos    higher          1.68562      17.14         6       6            0        0       0       100.0  complete
+custom_all_7  vabench_t2av/second_desync   lower           0.18333      90.83         6       6            0        0       0       100.0  complete
+custom_all_7  vabench_t2av/second_lsa      higher          2.35772      23.58         6       2            4        4       0        33.3  incomplete
+custom_all_7  vabench_t2av/total           higher                —      67.88        15      15            —        0       —           —  自定义子集预览总分（非官方）
+```
+
+| 列名 | 指标行含义 |
+| --- | --- |
+| `model` | AISBench 配置中的模型缩写，通常取 `models[0]['abbr']` |
+| `dataset/dimension` | 数据集缩写和指标名，例如 `vabench_t2av/second_lsa` |
+| `raw direction` | 原始分方向。`higher` 越大越好，`lower` 越小越好。目前 `second_desync` 为 `lower` |
+| `raw mean` | 对该指标的有效原始分求平均，每条有效视频等权 |
+| `score/100` | 按附录中的固定计分公式，将原始均分归一化并限制在 0–100 分 |
+| `expected` / `scored` | 本轮输入视频数和该指标取得有效分数的视频数 |
+| `LSA omitted` | `second_lsa` 缺少评分记录的数量，已计入同一行的 `missing`。具体省略原因需查看日志。其他指标此列为 0 |
+| `missing` / `failed` | `missing` 统计缺少评分记录的样本。`failed` 统计被标记为失败的样本，例如后端错误或无效分数 |
+| `coverage %` | `scored / expected × 100` |
+| `status` | `complete` 表示有效分覆盖全部输入且无后端错误，`incomplete` 表示存在缺失或错误，`not_evaluated` 表示该项未评 |
+
+`total` 行按指标计数。示例中 `expected=15`、`scored=15`、`missing=0`，表示 15 项都有有效均分。LSA 虽然有均分，覆盖率只有 `2/6 = 33.3%`，因此整轮仍显示预览总分。`raw mean`、`LSA omitted`、`failed` 和 `coverage %` 在总分行显示 `—`。只请求部分指标时，汇总表省略总分行。
+
 ### 4.5 查看结果
 
 结果目录：
@@ -656,13 +535,23 @@ ais_bench /workspace/eval_vabench.py \
             └── official_eval_results/
 ```
 
-重点看：
+框架的 `summary/` 保存整体汇总表。将下面的 `AISBENCH_ARTIFACTS` 改为本次评测的实际结果目录后，可查看单个模型的结果。
 
 ```bash
-cat <artifacts>/summary.md
-cat <artifacts>/metrics.csv
-cat <artifacts>/total.csv
+export AISBENCH_ARTIFACTS=/workspace/vabench_runs/run_实际时间/AISBench时间戳/results/模型缩写/数据集缩写_artifacts
+cat "${AISBENCH_ARTIFACTS}/summary.md"
+cat "${AISBENCH_ARTIFACTS}/metrics.csv"
+cat "${AISBENCH_ARTIFACTS}/total.csv"
 ```
+
+| 文件或目录 | 查看内容 |
+| --- | --- |
+| `summary.md`、`metrics.csv`、`scenes.csv` | 查看报告摘要、逐指标统计和逐场景统计。CSV 中的 `mean`、`normalized_score`、`omitted` 分别对应控制台的 `raw mean`、`score/100`、`LSA omitted` |
+| `total.csv` | 查看总分 `score`、状态 `status`、有效指标数 `valid_dimensions` 和补零指标 `zero_filled_dimensions` |
+| `samples.csv`、`report.json` | 按 `idx` 排查逐样本状态。`score` 是参与均值的有效分，`original_score` 保留原始数值供排查。`report.json` 还保存逐指标结果、评分明细和运行来源信息 |
+| `official_eval_results/` | 官方格式的原始评分备份，供 `compare-official` 读取 |
+| `input_manifest.json`、`partial_report.json` | 核对本轮实际输入，以及最近一次评分组完成后保存的报告 |
+| `job_00/` 等评分组目录 | 查看 `request.json`、`response.json` 和 `process.log`，定位子进程配置、返回值和错误 |
 
 总分规则：
 
@@ -790,12 +679,12 @@ ${OFFICIAL_RESULT}/<category>/
 
 ```bash
 ${PY} -m ais_bench.tools.vabench.cli compare-official \
-  --aisbench <AISBench artifacts 目录或其中的 official_eval_results> \
-  --official ${OFFICIAL_RESULT} \
+  --aisbench "${AISBENCH_ARTIFACTS}" \
+  --official "${OFFICIAL_RESULT}" \
   --output /workspace/vabench_compare_official.json
 ```
 
-如果使用已有的官方结果目录，把 `${OFFICIAL_RESULT}` 换成该目录路径。
+`AISBENCH_ARTIFACTS` 使用第 4.5 节设置的目录，也可直接指向其中的 `official_eval_results/`。如果使用已有的官方结果目录，把 `OFFICIAL_RESULT` 设为该目录。
 
 命令按类别、指标和媒体文件名对齐核心分 `video_results`，忽略不同绝对路径前缀，按全部有效视频等权计算每项原始均分。参考均分绝对值 `>1e-6` 时要求相对误差严格 `<1%`；否则要求绝对误差 `≤1e-6`。每个请求指标必须有有效成对分数；双边全空、缺失样本/指标/场景或非数值都不能通过。
 
@@ -804,6 +693,39 @@ ${PY} -m ais_bench.tools.vabench.cli compare-official \
 双方使用单次运行的新目录；同一场景有多个结果文件会被拒绝，避免混用轮次。正式验收还需核验输入/源码/权重/参数及失败和省略集合。原始备份可能包含模型兜底数值，仅数值相同不等于评分有效。逐指标原始均分的阈值以上述规则为准。
 
 `second_clap` 的随机截断会显示为数值差异，应先确认输入和随机状态，不能直接判为 AISBench 调用错误。
+
+### 4.8 `compare-official` 输出字段说明
+
+下面截取同一批 6 个视频的一次对比结果。
+
+```text
+Official VABench raw-mean comparison: FAIL
+  official: /workspace/vabench_result_20261105_071201
+  aisbench: .../results/custom_all_7/vabench_t2av_artifacts/official_eval_results
+  categories: 3, dimensions: 15, compared values: 86
+  differences: 7
+  per-sample numeric diagnostic: FAIL
+  first_dnsmos: PASS official_mean=1.6856217 aisbench_mean=1.6856217 valid_pairs=6
+  second_clap: FAIL official_mean=0.24987 aisbench_mean=0.242165 valid_pairs=6
+  second_lsa: PASS official_mean=2.357725 aisbench_mean=2.357725 valid_pairs=2
+Differences:
+  [value] easy_bioacoustics/second_clap / angry goose honking loudly: official=0.22342 aisbench=0.20722 delta=0.0162 rel=7.2509%
+  [mean_mismatch] ?/second_clap: {'kind': 'mean_mismatch', ...}
+```
+
+| 输出字段 | 含义 |
+| --- | --- |
+| `Official VABench raw-mean comparison` | 整体结论，对应 JSON 的 `passed`。要求每个请求指标的原始均分达到容差，且两边的结果结构与有效样本对齐 |
+| `official` / `aisbench` | 官方 `evaluate.py` 的输出目录和 AISBench 的官方格式备份目录 |
+| `categories` / `dimensions` | 两侧结果中涉及的类别数，以及请求比较的指标数 |
+| `compared values` | 有效的「视频 × 指标」配对数。示例中 14 项各有 6 对，LSA 有 2 对，合计 86 对 |
+| `differences` | 差异条目总数，包含逐题数值、逐指标均分及结果结构差异 |
+| `per-sample numeric diagnostic` | 逐题诊断，对应 `sample_values_passed`。样本数值超出容差或结果结构异常时为 `FAIL` |
+| 每项指标的 `PASS` / `FAIL` | 该指标的原始均分比较结果。`official_mean` 和 `aisbench_mean` 在同一批有效配对上分别求平均，`valid_pairs` 是该指标的有效配对数 |
+
+`Differences` 中的 `[value]`（JSON 中的 `value_mismatch`）定位到类别、指标和样本 `idx`。`delta` 是原始分绝对差，`rel` 是以官方分绝对值为分母计算的相对误差。`[mean_mismatch]` 对应跨类别的指标均分差异，类别位置显示 `?`，详细字段包括 `absolute_error`、`relative_error` 和本次采用的容差 `rule`（`relative` 或 `absolute`）。缺样本、缺类别、缺指标、非数值和评分失败等差异也会单独列出。
+
+命令按整体结论返回退出码，`0` 表示通过，`1` 表示不通过。示例中 CLAP 的均分超出容差，因此整体为 `FAIL`。通过 `--output` 保存的 JSON 还包含 `metric_means_passed`（全部均分是否达标）、`thresholds`（实际容差）、`summary`（逐指标计数和均分比较）、`differences`（完整差异列表）和 `selected_files`（实际参与比较的文件）。核对输入、模型及运行参数时，可结合 `input_manifest.json`、`report.json` 和日志。
 
 ## 附录：评测数据流与进程时序
 
@@ -847,7 +769,7 @@ sequenceDiagram
     participant W as 评分 worker 子进程
     participant F as 输入与结果文件
 
-    U->>P: 提交 MP4 和题目清单
+    U->>P: 提供 MP4 目录和官方源码路径
     P->>P: 按 idx 匹配题目，检查音视频流，提取 WAV
     P->>F: 写入 manifest、场景 JSON 和 WAV
     P-->>U: 返回评测输入目录
