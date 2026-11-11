@@ -441,6 +441,8 @@ sha256sum -c automationbench-v1.0.6-offline.zip.sha256
 unzip automationbench-v1.0.6-offline.zip -d /data
 ```
 
-将示例 dataset_path 设置为 `/data/automationbench-public`。
+将示例配置中的 `/path/to/automationbench-public` 占位路径替换为实际解压目录。
+按上述命令解压时，dataset_path 设置为 `/data/automationbench-public`；
+`/data` 仅为示例，可按本机目录调整。
 
 SHA256: `7e84288da98b8e99d0cb92f7a6029973b035091323586e2c6b42a2146a86bb63`.

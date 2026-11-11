@@ -5,7 +5,8 @@ from ais_bench.benchmark.summarizers.harbor import HarborSummarizer
 from ais_bench.benchmark.tasks.base import EmptyTask
 from ais_bench.benchmark.tasks.custom_tasks.harbor_agent_task import HarborAgentTask
 
-dataset_path = "/data/automationbench-public"
+# Replace this placeholder with your extracted dataset directory.
+dataset_path = "/path/to/automationbench-public"
 models = [
     {
         "abbr": "automationbench-official",

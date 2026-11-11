@@ -461,6 +461,8 @@ sha256sum -c automationbench-v1.0.6-offline.zip.sha256
 unzip automationbench-v1.0.6-offline.zip -d /data
 ```
 
-Set `dataset_path` to `/data/automationbench-public` in the example.
+Replace the example configuration's `/path/to/automationbench-public` placeholder
+with your actual extracted dataset directory. For the extraction command above,
+set `dataset_path` to `/data/automationbench-public`; `/data` is only an example.
 
 SHA256: `7e84288da98b8e99d0cb92f7a6029973b035091323586e2c6b42a2146a86bb63`.
