@@ -185,16 +185,16 @@ with read_base():
 models = [
     dict(
         abbr="terminus-2",
-        agent_name="terminus-2",  # -a/--agent: harbor AgentName 或 module.path:ClassName
+        agent_name="terminus-2",            # -a/--agent: harbor AgentName 或 module.path:ClassName
         model_names=["hosted_vllm/qwen3"],  # --model: 模型名称（可多值）
         api_base="http://0.0.0.0:8080/v1",  # --api-base: 模型服务 base url（统一语义）
-        agent_api_key="sk-xxx",  # --agent-api-key: 模型服务 API key（统一语义）
-        llm_kwargs={"max_tokens": 4096},  # LLM 调用参数，合并进 agent kwargs
-        model_info={  # 模型 token 限制与成本信息
+        agent_api_key="sk-xxx",             # --agent-api-key: 模型服务 API key（统一语义）
+        llm_kwargs={"max_tokens": 4096},    # LLM 调用参数，合并进 agent kwargs
+        model_info={                        # 模型 token 限制与成本信息
             "max_input_tokens": 128000,
             "max_output_tokens": 4096,
         },
-        deps_path=None,  # （可选，推荐）--agent-deps: 离线 agent 依赖包路径, 里面放置各种os的tar.gz文件
+        deps_path=None,                  # （可选，推荐）--agent-deps: 离线 agent 依赖包路径, 里面放置各种os的tar.gz文件
     )
 ]
 
@@ -205,11 +205,11 @@ datasets = [
         args=dict(
             path="/path/to/terminal-bench-2/",  # -p/--agent-dataset-path: 本地数据集路径
             # dataset_name_version=None,        # -d/--dataset: 远程数据集 name@version / org/name@ref
-            n_concurrent_trials=5,  # -n/--n-concurrent: 并发 trial 数
-            n_attempts=1,  # -k/--n-attempts: 每个 trial 尝试次数
-            environment_type="docker",  # -e/--environment: 环境类型
-            max_retries=0,  # --max-retries: 最大重试次数
-            yes=True,  # -y/--yes: 自动确认环境变量提示
+            n_concurrent_trials=5,              # -n/--n-concurrent: 并发 trial 数
+            n_attempts=1,                       # -k/--n-attempts: 每个 trial 尝试次数
+            environment_type="docker",          # -e/--environment: 环境类型
+            max_retries=0,                      # --max-retries: 最大重试次数
+            yes=True,                           # -y/--yes: 自动确认环境变量提示
         ),
     )
 ]
@@ -219,7 +219,7 @@ infer = dict(runner=dict(task=dict(type=EmptyTask)))
 eval = dict(
     runner=dict(
         type=HarborRunner,
-        monitor_port=0,  # --monitor-port: 监控 HTTP 服务端口（0=关闭）
+        monitor_port=0,       # --monitor-port: 监控 HTTP 服务端口（0=关闭）
         task=dict(type=HarborAgentTask),
     ),
 )
@@ -419,7 +419,6 @@ pip install -r requirements/agent.txt
 > - 依赖版本冲突告警（例如 Harbor 会把 `datasets` 库升级到 4.0.0+，导致该库与其它依赖出现版本冲突告警）；
 > - 个别包编译/构建的 warning，或依赖解析时的 `yanked` / `deprecated` 提示等。
 > 这些告警只要**未导致安装失败（pip 报 `error` 并中断）**，即可直接忽略，继续安装后的 Harbor Agent 测评即可正常使用。若确需判断是否安装成功，可在安装后执行 `pip show harbor` 确认 Harbor 已正确就位。
-
 
 ### AutomationBench 结果
 

@@ -201,18 +201,16 @@ with read_base():
 models = [
     dict(
         abbr="terminus-2",
-        agent_name="terminus-2",  # -a/--agent: a harbor AgentName or module.path:ClassName
+        agent_name="terminus-2",            # -a/--agent: a harbor AgentName or module.path:ClassName
         model_names=["hosted_vllm/qwen3"],  # --model: model name (multi-valued)
         api_base="http://0.0.0.0:8080/v1",  # --api-base: model service base url (unified semantic)
-        agent_api_key="sk-xxx",  # --agent-api-key: model service API key (unified semantic)
-        llm_kwargs={
-            "max_tokens": 4096
-        },  # LLM call parameters, merged into agent kwargs
-        model_info={  # model token limits and cost info
+        agent_api_key="sk-xxx",             # --agent-api-key: model service API key (unified semantic)
+        llm_kwargs={"max_tokens": 4096},    # LLM call parameters, merged into agent kwargs
+        model_info={                        # model token limits and cost info
             "max_input_tokens": 128000,
             "max_output_tokens": 4096,
         },
-        deps_path=None,  # (optional, recommended) --agent-deps: path of the offline agent dependency packages, which contain the tar.gz files of various OSes
+        deps_path=None,                  # (optional, recommended) --agent-deps: path of the offline agent dependency packages, which contain the tar.gz files of various OSes
     )
 ]
 
@@ -223,11 +221,11 @@ datasets = [
         args=dict(
             path="/path/to/terminal-bench-2/",  # -p/--agent-dataset-path: local dataset path
             # dataset_name_version=None,        # -d/--dataset: remote dataset name@version / org/name@ref
-            n_concurrent_trials=5,  # -n/--n-concurrent: concurrent trial count
-            n_attempts=1,  # -k/--n-attempts: attempts per trial
-            environment_type="docker",  # -e/--environment: environment type
-            max_retries=0,  # --max-retries: max retry count
-            yes=True,  # -y/--yes: auto-confirm environment variable prompts
+            n_concurrent_trials=5,              # -n/--n-concurrent: concurrent trial count
+            n_attempts=1,                       # -k/--n-attempts: attempts per trial
+            environment_type="docker",          # -e/--environment: environment type
+            max_retries=0,                      # --max-retries: max retry count
+            yes=True,                           # -y/--yes: auto-confirm environment variable prompts
         ),
     )
 ]
@@ -237,7 +235,7 @@ infer = dict(runner=dict(task=dict(type=EmptyTask)))
 eval = dict(
     runner=dict(
         type=HarborRunner,
-        monitor_port=0,  # --monitor-port: monitoring HTTP service port (0 = off)
+        monitor_port=0,       # --monitor-port: monitoring HTTP service port (0 = off)
         task=dict(type=HarborAgentTask),
     ),
 )
