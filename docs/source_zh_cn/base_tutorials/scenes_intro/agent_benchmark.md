@@ -185,16 +185,16 @@ with read_base():
 models = [
     dict(
         abbr="terminus-2",
-        agent_name="terminus-2",            # -a/--agent: harbor AgentName 或 module.path:ClassName
+        agent_name="terminus-2",  # -a/--agent: harbor AgentName 或 module.path:ClassName
         model_names=["hosted_vllm/qwen3"],  # --model: 模型名称（可多值）
         api_base="http://0.0.0.0:8080/v1",  # --api-base: 模型服务 base url（统一语义）
-        agent_api_key="sk-xxx",             # --agent-api-key: 模型服务 API key（统一语义）
-        llm_kwargs={"max_tokens": 4096},    # LLM 调用参数，合并进 agent kwargs
-        model_info={                        # 模型 token 限制与成本信息
+        agent_api_key="sk-xxx",  # --agent-api-key: 模型服务 API key（统一语义）
+        llm_kwargs={"max_tokens": 4096},  # LLM 调用参数，合并进 agent kwargs
+        model_info={  # 模型 token 限制与成本信息
             "max_input_tokens": 128000,
             "max_output_tokens": 4096,
         },
-        deps_path=None,                  # （可选，推荐）--agent-deps: 离线 agent 依赖包路径, 里面放置各种os的tar.gz文件
+        deps_path=None,  # （可选，推荐）--agent-deps: 离线 agent 依赖包路径, 里面放置各种os的tar.gz文件
     )
 ]
 
@@ -205,11 +205,11 @@ datasets = [
         args=dict(
             path="/path/to/terminal-bench-2/",  # -p/--agent-dataset-path: 本地数据集路径
             # dataset_name_version=None,        # -d/--dataset: 远程数据集 name@version / org/name@ref
-            n_concurrent_trials=5,              # -n/--n-concurrent: 并发 trial 数
-            n_attempts=1,                       # -k/--n-attempts: 每个 trial 尝试次数
-            environment_type="docker",          # -e/--environment: 环境类型
-            max_retries=0,                      # --max-retries: 最大重试次数
-            yes=True,                           # -y/--yes: 自动确认环境变量提示
+            n_concurrent_trials=5,  # -n/--n-concurrent: 并发 trial 数
+            n_attempts=1,  # -k/--n-attempts: 每个 trial 尝试次数
+            environment_type="docker",  # -e/--environment: 环境类型
+            max_retries=0,  # --max-retries: 最大重试次数
+            yes=True,  # -y/--yes: 自动确认环境变量提示
         ),
     )
 ]
@@ -219,7 +219,7 @@ infer = dict(runner=dict(task=dict(type=EmptyTask)))
 eval = dict(
     runner=dict(
         type=HarborRunner,
-        monitor_port=0,       # --monitor-port: 监控 HTTP 服务端口（0=关闭）
+        monitor_port=0,  # --monitor-port: 监控 HTTP 服务端口（0=关闭）
         task=dict(type=HarborAgentTask),
     ),
 )
@@ -424,3 +424,23 @@ pip install -r requirements/agent.txt
 ### AutomationBench 结果
 
 使用 `ais_bench/configs/agent_example/harbor_automationbench_task.py`，准备配套 Harbor 适配包、任务及模型连接。AISBench 复用现有 Harbor reward 汇总与 CSV 列。保留 Harbor Job 目录、Trial 结果、Verifier 输出、日志和轨迹，供离线检查及复算。AutomationBench 专项报告与校验由 Harbor 适配包负责，AISBench 不加载或展示这些专项报告。
+
+#### OBS 数据集下载
+
+通过 OBS 下载已转换的 Harbor 数据集，无需访问 GitHub 或远程数据注册中心。
+包含六领域各 100 题、共 600 道公开任务、manifest 及共享运行构建上下文，不含 simple。
+目标机器须能够访问 OBS；完全断网时需预先转移数据包。本包不含已构建 Docker 镜像、
+Python 依赖或离线模型服务。
+
+[Dataset ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip) · [SHA256](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256)
+
+```bash
+curl -fLO https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip
+curl -fLO https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256
+sha256sum -c automationbench-v1.0.6-offline.zip.sha256
+unzip automationbench-v1.0.6-offline.zip -d /data
+```
+
+将示例 dataset_path 设置为 `/data/automationbench-public`。
+
+SHA256: `7e84288da98b8e99d0cb92f7a6029973b035091323586e2c6b42a2146a86bb63`.

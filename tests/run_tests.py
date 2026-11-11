@@ -219,7 +219,7 @@ class TestRunner:
         # Add --import-mode=importlib to avoid module import conflicts with same-named test files
         cmd = [
             sys.executable, '-m', 'pytest',
-            *(specific_tests or [str(self.test_dir)]),
+            str(self.test_dir),
             '--tb=short',  # Short error traceback
             '--cache-clear',  # Clear pytest cache before running
             '--import-mode=importlib',  # Use importlib to avoid conflicts with same-named modules
@@ -277,10 +277,9 @@ class TestRunner:
         if max_failures:
             cmd.extend(['--maxfail', str(max_failures)])
 
+        # If specific test files are specified
         if specific_tests:
-            # A subset cannot certify the repository-wide coverage threshold.
-            cmd.append('--cov-fail-under=0')
-            print("Targeted tests: coverage is reported without the full-suite threshold.")
+            cmd.extend(specific_tests)
 
         # Add other useful options
         cmd.extend([

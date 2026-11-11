@@ -201,16 +201,18 @@ with read_base():
 models = [
     dict(
         abbr="terminus-2",
-        agent_name="terminus-2",            # -a/--agent: a harbor AgentName or module.path:ClassName
+        agent_name="terminus-2",  # -a/--agent: a harbor AgentName or module.path:ClassName
         model_names=["hosted_vllm/qwen3"],  # --model: model name (multi-valued)
         api_base="http://0.0.0.0:8080/v1",  # --api-base: model service base url (unified semantic)
-        agent_api_key="sk-xxx",             # --agent-api-key: model service API key (unified semantic)
-        llm_kwargs={"max_tokens": 4096},    # LLM call parameters, merged into agent kwargs
-        model_info={                        # model token limits and cost info
+        agent_api_key="sk-xxx",  # --agent-api-key: model service API key (unified semantic)
+        llm_kwargs={
+            "max_tokens": 4096
+        },  # LLM call parameters, merged into agent kwargs
+        model_info={  # model token limits and cost info
             "max_input_tokens": 128000,
             "max_output_tokens": 4096,
         },
-        deps_path=None,                  # (optional, recommended) --agent-deps: path of the offline agent dependency packages, which contain the tar.gz files of various OSes
+        deps_path=None,  # (optional, recommended) --agent-deps: path of the offline agent dependency packages, which contain the tar.gz files of various OSes
     )
 ]
 
@@ -221,11 +223,11 @@ datasets = [
         args=dict(
             path="/path/to/terminal-bench-2/",  # -p/--agent-dataset-path: local dataset path
             # dataset_name_version=None,        # -d/--dataset: remote dataset name@version / org/name@ref
-            n_concurrent_trials=5,              # -n/--n-concurrent: concurrent trial count
-            n_attempts=1,                       # -k/--n-attempts: attempts per trial
-            environment_type="docker",          # -e/--environment: environment type
-            max_retries=0,                      # --max-retries: max retry count
-            yes=True,                           # -y/--yes: auto-confirm environment variable prompts
+            n_concurrent_trials=5,  # -n/--n-concurrent: concurrent trial count
+            n_attempts=1,  # -k/--n-attempts: attempts per trial
+            environment_type="docker",  # -e/--environment: environment type
+            max_retries=0,  # --max-retries: max retry count
+            yes=True,  # -y/--yes: auto-confirm environment variable prompts
         ),
     )
 ]
@@ -235,7 +237,7 @@ infer = dict(runner=dict(task=dict(type=EmptyTask)))
 eval = dict(
     runner=dict(
         type=HarborRunner,
-        monitor_port=0,       # --monitor-port: monitoring HTTP service port (0 = off)
+        monitor_port=0,  # --monitor-port: monitoring HTTP service port (0 = off)
         task=dict(type=HarborAgentTask),
     ),
 )
@@ -440,3 +442,25 @@ pip install -r requirements/agent.txt
 ### AutomationBench results
 
 Use `ais_bench/configs/agent_example/harbor_automationbench_task.py` with the matching Harbor adapter, prepared tasks and model connection. AISBench reuses its existing Harbor reward summary and CSV columns. Preserve the Harbor Job directory, Trial results, verifier output, logs and trajectories for offline inspection and recomputation. AutomationBench-specific reporting and validation remain in the Harbor adapter; AISBench does not load or visualize those reports.
+
+#### OBS dataset download
+
+Download the prepared Harbor dataset from OBS without accessing GitHub or a
+remote dataset registry. It contains all 600 public tasks (100 per domain),
+manifest and shared runtime build context; simple tasks are excluded.
+The host must have access to OBS; a completely disconnected host must receive
+the archive in advance. This download does not include built Docker images,
+Python dependencies or an offline model service.
+
+[Dataset ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip) · [SHA256](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256)
+
+```bash
+curl -fLO https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip
+curl -fLO https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256
+sha256sum -c automationbench-v1.0.6-offline.zip.sha256
+unzip automationbench-v1.0.6-offline.zip -d /data
+```
+
+Set `dataset_path` to `/data/automationbench-public` in the example.
+
+SHA256: `7e84288da98b8e99d0cb92f7a6029973b035091323586e2c6b42a2146a86bb63`.
