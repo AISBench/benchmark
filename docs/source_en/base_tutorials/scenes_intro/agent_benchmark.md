@@ -33,6 +33,7 @@ AISBench theoretically supports **all datasets adapted by Harbor**; for the conc
 | DeepSWE | https://github.com/AISBench/deep-swe | https://modelers.cn/datasets/AISBench/DeepSWE-mini | NA |
 | Nl2repobench | https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/NL2RepoBench.zip | NA | This dataset currently only supports the matching agents: claude-code, dsh-minimal, openhands |
 | terminal-bench 4.0 | Task package (extract to get the Harbor-format dataset): https://github.com/harbor-framework/terminal-bench/releases/download/v4.0.0/terminal-bench-prebuilt-v4.0.0.tar.gz <br>Source code: https://github.com/harbor-framework/terminal-bench/archive/refs/tags/v4.0.0.zip <br>Image manifest: https://github.com/harbor-framework/terminal-bench/releases/download/v4.0.0/prebuilt-images.json | https://modelers.cn/datasets/AISBench/terminal-bench-4-0-mini | 66 tasks (63 CPU + 3 GPU); for detailed steps see the [Terminal-Bench 4.0 adaptation guide](../../extended_benchmark/agent/terminal_bench_4.md) |
+| AutomationBench v1.0.6 | [ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip) · [SHA256](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256) | NA | 600 public tasks, 100 per domain, excluding simple. Includes manifest and runtime build context, not built images. OBS access required. |
 
 ### 2. Dataset-image preparation
 
@@ -159,6 +160,8 @@ cd {working path}
 👉 For more on building the agent runtime image and the one-click deployment script, see 📚 [One-click deployment script guide](https://github.com/AISBench/benchmark/blob/master/docker/agent_runtime/USAGE.md).
 
 ## Quick Start (either of the two ways)
+
+AutomationBench uses the standalone `ais_bench/configs/agent_example/harbor_automationbench_task.py` example and matching Harbor adapter. Verify the archive with its SHA256 file, extract it and replace the dataset path placeholder with the actual directory containing `manifest.json`. Replace `api_key` or override it with `--api-key`. `sampling_args=None` preserves official scaffold defaults; toolset and turn budget come from the dataset. AISBench reuses the existing reward summary; retain Job/Trial artifacts for offline inspection.
 
 | ⭐ Recommended: Use command-line parameters | Alternative: Use a custom config file |
 | :--- | :--- |
