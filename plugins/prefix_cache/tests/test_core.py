@@ -5,6 +5,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+try:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+except ImportError:  # pragma: no cover - exercised only without the optional parser
+    pa = pq = None
+
 from ais_bench_prefix_cache.errors import ScenarioValidationError
 from ais_bench_prefix_cache.generation import (
     RequestPlan,
@@ -216,6 +222,116 @@ class CoreTest(unittest.TestCase):
                 1,
             )
             self.assertEqual([row.line_index for row in selected], [1, 1, 1])
+
+    def test_load_gsm8k_accepts_strings_messages_and_lists(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.jsonl"
+            rows = [
+                {"prompt": "  alpha \n beta  "},
+                {"prompt": ["gamma", "delta"]},
+                {
+                    "prompt": [
+                        {"role": "user", "content": "epsilon"},
+                        {"role": "assistant", "content": "zeta"},
+                    ]
+                },
+                {"prompt": {"role": "user", "content": "eta"}},
+                {"prompt": {"content": "theta"}},
+            ]
+            corpus.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+            records = load_gsm8k(corpus, field="prompt")
+            self.assertEqual(
+                [record.question for record in records],
+                [
+                    "alpha beta",
+                    "gamma delta",
+                    "user: epsilon assistant: zeta",
+                    "user: eta",
+                    "theta",
+                ],
+            )
+
+    def test_load_gsm8k_rejects_unsupported_field_items(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.jsonl"
+            corpus.write_text(
+                json.dumps({"question": [123]}) + "\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(
+                ScenarioValidationError, "corpus field list items"
+            ):
+                load_gsm8k(corpus)
+
+    @unittest.skipUnless(pq is not None, "pyarrow is required")
+    def test_load_gsm8k_reads_parquet_and_decodes_json_messages(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.parquet"
+            pq.write_table(
+                pa.table(
+                    {
+                        "question": ["  alpha \n beta  ", "gamma"],
+                        "prompt": [
+                            json.dumps(
+                                [
+                                    {"role": "user", "content": "epsilon"},
+                                    {"role": "assistant", "content": "zeta"},
+                                ]
+                            ),
+                            json.dumps({"role": "user", "content": "eta"}),
+                        ],
+                    }
+                ),
+                corpus,
+            )
+            self.assertEqual(
+                [record.question for record in load_gsm8k(corpus)],
+                ["alpha beta", "gamma"],
+            )
+            records = load_gsm8k(corpus, field="prompt")
+            self.assertEqual(
+                [record.question for record in records],
+                ["user: epsilon assistant: zeta", "user: eta"],
+            )
+            self.assertEqual([record.line_index for record in records], [0, 1])
+
+    @unittest.skipUnless(pq is not None, "pyarrow is required")
+    def test_load_gsm8k_reads_native_parquet_message_lists(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.parquet"
+            pq.write_table(
+                pa.table(
+                    {
+                        "prompt": [
+                            [{"role": "user", "content": "epsilon"}],
+                            [
+                                {"role": "user", "content": "eta"},
+                                {"role": "assistant", "content": "theta"},
+                            ],
+                        ]
+                    }
+                ),
+                corpus,
+            )
+            self.assertEqual(
+                [
+                    record.question
+                    for record in load_gsm8k(corpus, field="prompt")
+                ],
+                ["user: epsilon", "user: eta assistant: theta"],
+            )
+
+    @unittest.skipUnless(pq is not None, "pyarrow is required")
+    def test_load_gsm8k_parquet_reports_available_fields(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.parquet"
+            pq.write_table(pa.table({"question": ["alpha"]}), corpus)
+            with self.assertRaisesRegex(
+                ScenarioValidationError, "available fields: question"
+            ):
+                load_gsm8k(corpus, field="prompt")
 
     def test_canonical_collision_uses_group_fallback(self):
         class CharTokenizer:

@@ -15,7 +15,7 @@ _ALLOWED = {
     "": {"schema_version", "run", "tokenizer", "corpus", "requests", "output", "prefix_cache", "service", "validation", "aisbench", "multimodal"},
     "run": {"run_id", "random_seed", "output_dir", "overwrite"},
     "tokenizer": {"path", "block_size", "revision", "trust_remote_code"},
-    "corpus": {"path", "field", "selection"},
+    "corpus": {"path", "field", "selection", "suffix_mode"},
     "corpus.selection": {"mode", "values", "indices", "question_sha256"},
     "requests": {"count", "input_length", "output_length"},
     "requests.input_length": {"mode", "value", "values", "ranges", "min", "max", "mean", "std", "path"},
@@ -39,6 +39,7 @@ _MODES = {
     "input": {"fixed", "explicit", "range", "truncated_normal", "csv"},
     "output": {"fixed", "uniform", "truncated_normal", "csv"},
     "selection": {"random", "indices", "question_sha256", "mixed"},
+    "suffix": {"records", "source_tail"},
     "assignment": {"uniform", "zipf", "weights"},
     "order": {"sequential", "within_group_shuffle", "interleave", "global_shuffle", "input_len_asc"},
     "cache": {"cold", "warmup"},
@@ -439,6 +440,14 @@ def _validate(raw: dict[str, Any], source: Path, *, mode: str = "text") -> dict[
     if isinstance(selection, dict):
         selection.setdefault("mode", "random")
     _mode(selection, _MODES["selection"], "corpus.selection")
+    # suffix_mode=source_tail 时，自然后缀取自共享前缀所来源的那条语料的结尾，
+    # 从而让 prompt 以该语料原本的任务/问题结尾（而不是截断的半句话）。
+    suffix_mode = corpus.get("suffix_mode", "records")
+    if suffix_mode not in _MODES["suffix"]:
+        raise ScenarioValidationError(
+            f"corpus.suffix_mode must be one of {sorted(_MODES['suffix'])}"
+        )
+    corpus["suffix_mode"] = suffix_mode
     count = _positive(requests.get("count"), "requests.count")
     input_cfg = _require_dict(input_cfg, "requests.input_length")
     output_cfg = _require_dict(output_cfg, "requests.output_length")

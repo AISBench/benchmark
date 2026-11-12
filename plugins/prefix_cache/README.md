@@ -15,7 +15,7 @@ Scenario 示例见 [config_examples/scenario.example.json](config_examples/scena
 运行环境需要满足：
 
 - Python 3.10 或更高版本；
-- **JSONL 语料**。每个非空行必须是 JSON 对象，并包含 `corpus.field` 指定的文本字段，默认是 GSM8K 数据集中的 `question`；若想用类似 GSM8K 的语料，需参考 GSM8K 格式。
+- **JSONL / Parquet 语料**。`corpus.path` 支持 `.jsonl`（每个非空行必须是 JSON 对象）和 `.parquet` / `.pq`（按 `corpus.field` 列流式读取，行号从 0 开始）。字段默认是 GSM8K 数据集中的 `question`。该字段支持三种形式：字符串；字符串列表；OpenAI 风格的消息列表（如 `[{"role": "user", "content": "..."}]`，每条消息格式化为 `role: content`，用空行拼接）。单条消息对象同样保留 `role: content`。列表形式会先拼接再统一折叠空白。Parquet 单元格若是 JSON 编码的消息数组/对象（MRCR 的 `prompt` 即如此），会自动解码。
 - 在线 `run` 还需要一个启用 Prefix Cache 的 vLLM Completions 服务。
 
 依赖安装分两种场景（见第 2 节）：
@@ -84,7 +84,7 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 作用：复制一份可编辑的 Scenario。执行前至少核对：
 
 - `tokenizer.path`：与 vLLM 一致的 tokenizer；
-- `corpus.path`：本地 GSM8K JSONL；
+- `corpus.path`：本地 GSM8K JSONL 或 Parquet 语料；
 - `tokenizer.block_size`：与服务端 Prefix Cache Block 大小一致；
 - `service.dp_size`：需要模拟 cold 多 DP 路由或生成 warmup 计划时，应与目标服务的 DP 数量一致。
 - `service.inference_url`、`metrics_url`、`reset_url` 和 `model`：在线 `run` 使用；
@@ -115,8 +115,8 @@ Scenario 采用严格白名单，未列出的字段会被拒绝；省略的字�
 | `tokenizer.revision` | Tokenizer 仓库版本；`null` 表示默认版本。 |
 | `tokenizer.trust_remote_code` | 是否信任 Tokenizer 自定义代码。 |
 | `corpus` | 自然后缀语料配置。 |
-| `corpus.path` | JSONL 语料文件路径；语料格式需与 GSM8K 一致。 |
-| `corpus.field` | JSONL 中的问题文本字段名，默认 `question`。 |
+| `corpus.path` | JSONL 或 Parquet 语料文件路径；Parquet 按 `field` 列流式读取，行号从 0 开始。 |
+| `corpus.field` | 语料字段名，默认 `question`；值可为字符串、字符串列表或 `[{role, content}]` 消息列表；消息按 `role: content` 用空行拼接后统一折叠空白。 |
 | `corpus.selection` | 语料样本选择规则。 |
 | `corpus.selection.mode` | 选择模式：`random`（按 `run.random_seed` 确定性打乱）、`indices`（按零基行号选择）、`question_sha256`（按规范化 question 的 SHA-256 选择）、`mixed`（先加入 `indices`，再加入 `question_sha256`）。 |
 | `corpus.selection.values` | 非 mixed 模式的行号或哈希值列表；指定样本不足时按已选顺序循环复用。 |
@@ -334,7 +334,7 @@ ais-bench-prefix-cache validate --manifest ./outputs/gsm8k-prefix-cache-60_<时�
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-完整流程为：读取显式 `prepare` 生成的 Manifest 并自动识别 text/mm 模式；校验本时间戳的产物；逐 DP 探活；reset Prefix Cache（或按配置记录 `ASSUME_EMPTY_CACHE`）；warmup 模式按每个 `Prefix Group × DP rank` 定向预热；预热完成后采集正式 baseline；运行 AISBench `perf`；采集 after 并计算每 DP、全局实际命中率；最后把 `runtime`、`actual`、理论/实际差值和告警写回 `result/<run_id>.analysis.json`。warmup 在 baseline 之前完成，因此不进入正式吞吐、时延或命中率统计。
+完整流程为：读取显式 `prepare` 生成的 Manifest 并自动识别 text/mm 模式；校验本时间戳的产物；逐 DP 探活；reset Prefix Cache（或按配置记录 `ASSUME_EMPTY_CACHE`）；warmup 模式按每个 `Prefix Group × DP rank` 定向预热；预热完成后采集正式 baseline；运行 AISBench `perf`；采集 after 并计算每 DP、全局实际命中率以及投机推理的真实接受率/效率；最后把 `runtime`、`actual`、理论/实际差值和告警写回 `result/<run_id>.analysis.json`。warmup 在 baseline 之前完成，因此不进入正式吞吐、时延或命中率统计。
 
 `run` 的 Prefix Cache 插件流程日志只写入 `output_dir_时间戳/log/<run_id_时间戳>.run.log`，不会作为插件日志回显到 CLI 终端。text 模式结束时，stdout 先打印 AISBench 风格的 `[时间] [ais_bench_prefix_cache] [INFO] Prefix Cache Results of task [run_id]:` 标题，再以 `Prefix Cache Metric | Value` 两列表格展示总体目标命中率、总体理论命中率、总体实际命中率、理论与实际命中率的绝对偏差、理论与目标命中率的绝对偏差；表格后输出 `[INFO] Detailed analysis is available at: <path>`，完整 analysis 仍落盘在 `result/<run_id_时间戳>.analysis.json`。mm 模式 stdout 输出 AISBench 多模态任务结果 JSON，性能指标可通过 `report` 查看。AISBench 子进程继续继承 stdout/stderr，其运行过程会实时展示在 CLI 中。插件日志覆盖执行上下文、产物复用、precheck、reset、每个 Group × DP warmup、baseline/after 指标、AISBench 静态配置与启动命令、KV 周期采样、每 DP query/hit 差值、全局命中率及告警。日志只记录 Prompt 长度和 SHA-256，不打印 Prompt 正文、API key、Authorization Header 或原始请求体。
 
@@ -503,6 +503,15 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 - `warnings`：零个或多个告警。`TARGET_UNREACHABLE` 包含 requested target 和可达上下界，`TARGET_DEVIATION` 包含 `difference_pp`。
 
 成功生成时 `status="prepared"`；`run` 完成后为 `"complete"`，`analyze` 复算后为 `"analyzed"`。在线阶段新增 `runtime.metrics_baseline/metrics_after`（含原始 Prometheus 文本和分 DP 累计值）、`actual`、`theory_actual_*_difference_pp` 及 `validation.actual_status`。偏差告警只改变展示值，不改变成功退出码。
+
+`run`/`analyze` 同时解析 vLLM 投机推理（speculative decoding）指标：`vllm:spec_decode_num_{draft,accepted,emitted}_tokens[_total]`，以及可选的 `vllm:spec_decode_draft_acceptance_rate`、`vllm:spec_decode_efficiency`。baseline 与 after 的原始累计值分别写入 `runtime.metrics_baseline.spec_decode` 和 `runtime.metrics_after.spec_decode`；正式阶段的"真正数据"写入 `actual.spec_decode`：
+
+- `global_draft_tokens` / `global_accepted_tokens` / `global_emitted_tokens`：两次快照 Counter 的差值；
+- `global_draft_acceptance_rate = accepted_delta / draft_delta`；
+- `global_efficiency = emitted_delta / draft_delta`；
+- `by_dp.<rank>`：该 rank 的 `before`、`after`、`deltas` 及上述速率；`covered_ranks` / `missing_ranks` 标明参与汇总的 rank。
+
+指标不存在时 `status="unavailable"`，不会中断基准流程；部分 rank 缺失或 Counter 回退分别标记为 `partial` / `counter_regressed`。
 
 `run` 在正式跑分期间按 `service.poll_interval_seconds` 周期轮询 `metrics_url` 采样 KV 用量（kv 是瞬时 gauge，跑分结束后会归零，必须在跑分期间采样），结果写入 `runtime.kv_cache_polling`：`interval_seconds`、`count`、`summary`（每 DP 的 `peak`/`avg`/`sample_count` 及 `global_peak`/`global_avg`）与逐样本明细 `samples`（`elapsed_seconds` + 每 DP 用量）。同时把峰值/均值合并进 `actual`：`actual.by_dp.*.kv_cache_usage_peak`、`kv_cache_usage_avg`、`actual.global_kv_cache_usage_peak`、`global_kv_cache_usage_avg`；`actual.by_dp.*.kv_cache_usage` 仍为 after 快照的瞬时值。`poll_interval_seconds` 设为 0 可关闭轮询；单次抓取失败只跳过该样本，不中断跑分。
 
