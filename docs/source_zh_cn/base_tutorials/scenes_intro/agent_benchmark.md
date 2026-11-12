@@ -27,7 +27,7 @@ AISBench 理论上支持全量Harbor适配的数据集，具体支持的数据�
 | terminal-bench 2.0 | https://github.com/AISBench/terminal-bench-2 | https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini | ⚠️执行过程中agent需要访问外网 |
 | terminal-bench 2.1 | https://github.com/AISBench/terminal-bench-2-1 | https://modelers.cn/datasets/AISBench/terminal-bench-2-1-mini | ⚠️执行过程中需要agent访问外网 |
 | DeepSWE | https://github.com/AISBench/deep-swe | https://modelers.cn/datasets/AISBench/DeepSWE-mini | NA |
-| Nl2repobench | https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/NL2RepoBench.zip | NA | 此数据集当前仅支持配套的agent：claude-code，dsh-minimal，openhands |
+| Nl2repobench | https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/NL2RepoBench.zip | NA | 此数据集输入长度过长，当前仅支持配套的agent：claude-code，dsh-minimal，openhands，使用其他agent（有128K输入长度限制）会导致部分case执行异常 |
 
 ### 2. 数据集对应镜像准备
 agent数据集的测评每一个case都有对应的镜像，这些镜像名称在数据集中定义，如果在x86_64服务器上，网络条件良好且能够访问外网，执行过程中会自动拉取并构建对应的镜像。但是这个过程往往比较漫长。
@@ -44,7 +44,7 @@ agent数据集的测评每一个case都有对应的镜像，这些镜像名称�
 | terminal-bench 2.0 | x86_64: <br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_x86_64.tar <br> aarch64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-prepared-images_aarch64.tar | x86_64: <br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.10_x86_64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.14_x86_64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.20_x86_64.tar <br> aarch64: https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.10_aarch64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.14_aarch64.tar <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2-offline-prepared-images-selected-0.20_aarch64.tar | ubuntu:24.04, debian:11, debian:12, debian:13 | NA |
 |terminal-bench 2.1| x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-x86_64.tar <br>aarch64:<br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/terminal-bench-2-images/terminal-bench-2.1-images-aarch64.tar | NA | ubuntu:24.04, debian:12, debian:13 |  NA |
 | DeepSWE | x86_64: <br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/deepswe/deep-swe-v1.1-task-images.tar.gz | NA | debian:12 | 不支持aarch64 |
-| Nl2repobench | 执行镜像(x86_64)：<br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/nl2repobench_images/nikolaik-python3.12-nodejs22.tar.gz  <br>验证镜像(x86_64)：<br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/nl2repobench_images/nl2repobench_eval_images_x86_64.tar.gz | NA | debian:12 | 不支持aarch64 |
+| Nl2repobench | 执行镜像(x86_64)：<br> https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/nl2repobench_images/nikolaik-python3.12-nodejs22.tar.gz  <br>验证镜像(x86_64)：<br>https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/nl2repobench_images/nl2repobench_eval_images_x86_64.tar.gz | NA | debian:12（执行镜像基底） | 不支持aarch64 |
 
 ### 3. Agent 依赖准备
 
