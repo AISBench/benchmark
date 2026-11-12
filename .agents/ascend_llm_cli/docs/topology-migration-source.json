@@ -1,0 +1,22 @@
+{
+  "commit": "74a7feffb76c32b23658d37ea681784b3a9b2474",
+  "files": [
+    {
+      "source": "skills/ascend-llm-deploy-eval/scripts/topology.py",
+      "sha256": "dff15899f74668a5b81b68819d42ca04b388923de20a4f337ac275a337cb7c47"
+    },
+    {
+      "source": "skills/ascend-llm-deploy-eval/scripts/container_baseline.py",
+      "sha256": "e63f166daa67f5085707cd9ed3087724892754a5623e2dca666651cb2d6d00c3"
+    },
+    {
+      "source": "skills/ascend-llm-deploy-eval/scripts/mount_profiles.py",
+      "sha256": "8fbb7a260dc7fbdfcb4e99d8fd3dc4e4109e2c277d78a9c691619a3bc5459597"
+    },
+    {
+      "source": "skills/ascend-llm-deploy-eval/schemas/bindings.schema.json",
+      "sha256": "19ac6ac79b2a8dbea6bcf3a0767839e9a29a9111ea554b34f1effd2d57dce7fc",
+      "changes": "v2 task_id/schema_version envelope"
+    }
+  ]
+}

@@ -1,0 +1,544 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "task_id",
+    "seq",
+    "task_version",
+    "operation_id",
+    "type",
+    "time",
+    "status",
+    "data"
+  ],
+  "properties": {
+    "protocol_version": {
+      "const": "1.0"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "task_version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operation_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]{0,127}$"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "status": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+    },
+    "data": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "command.accepted"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "request_id",
+              "request_hash",
+              "operation_id",
+              "kind",
+              "after_seq"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "request_hash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "operation_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "kind": {
+                "enum": [
+                  "deploy",
+                  "eval",
+                  "release",
+                  "cancel"
+                ]
+              },
+              "after_seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "scope": {
+                "enum": [
+                  "task",
+                  "operation"
+                ]
+              },
+              "idle_cancel": {
+                "type": "boolean"
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "RUNNING"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "phase.changed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "phase"
+            ],
+            "properties": {
+              "phase": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "RUNNING"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "deployment.ready"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "service_id",
+              "endpoint",
+              "model",
+              "evidence_ref"
+            ],
+            "properties": {
+              "service_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "endpoint": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "model": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "evidence_ref": {
+                "type": "string",
+                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "maxLength": 512
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "READY"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "evaluation.completed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "case_id",
+              "result_ref",
+              "execution_status",
+              "performance_validity"
+            ],
+            "properties": {
+              "case_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "result_ref": {
+                "type": "string",
+                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "maxLength": 512
+              },
+              "execution_status": {
+                "enum": [
+                  "SUCCEEDED",
+                  "FAILED",
+                  "CANCELLED"
+                ]
+              },
+              "performance_validity": {
+                "enum": [
+                  "VERIFIED",
+                  "UNVERIFIED",
+                  "INVALID"
+                ]
+              },
+              "evidence_status": {
+                "enum": [
+                  "COMPLETE",
+                  "PARTIAL",
+                  "INVALID"
+                ]
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "EVALUATED"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "operation.failed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "phase",
+              "error_code",
+              "evidence_ref",
+              "cleanup_status"
+            ],
+            "properties": {
+              "phase": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "error_code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "evidence_ref": {
+                "type": "string",
+                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "maxLength": 512
+              },
+              "cleanup_status": {
+                "enum": [
+                  "VERIFIED",
+                  "UNVERIFIED",
+                  "NOT_REQUESTED",
+                  "SIMULATED"
+                ]
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "FAILED",
+              "RECOVERY_REQUIRED"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "operation.cancelled"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "cleanup_status",
+              "evidence_ref"
+            ],
+            "properties": {
+              "cleanup_status": {
+                "enum": [
+                  "VERIFIED",
+                  "UNVERIFIED",
+                  "NOT_REQUESTED",
+                  "SIMULATED"
+                ]
+              },
+              "evidence_ref": {
+                "type": "string",
+                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "maxLength": 512
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "CANCELLED",
+              "RECOVERY_REQUIRED"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "release.completed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "service_id",
+              "resource_results_ref"
+            ],
+            "properties": {
+              "service_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "resource_results_ref": {
+                "type": "string",
+                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "maxLength": 512
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "RELEASED"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "release.unverified"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "service_id",
+              "resource_results_ref",
+              "reason"
+            ],
+            "properties": {
+              "service_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "resource_results_ref": {
+                "type": "string",
+                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "maxLength": 512
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "RECOVERY_REQUIRED"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.expired"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "reason",
+              "cleanup_status"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "cleanup_status": {
+                "enum": [
+                  "VERIFIED",
+                  "UNVERIFIED",
+                  "NOT_REQUESTED",
+                  "SIMULATED"
+                ]
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "RELEASED",
+              "RECOVERY_REQUIRED"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "runtime.recovery_required"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "reason",
+              "resource_refs"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "resource_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 512
+                }
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "RECOVERY_REQUIRED"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.initialized"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "required": [
+              "task_id",
+              "service_id",
+              "ownership",
+              "bundle_sha256"
+            ],
+            "properties": {
+              "task_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "service_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "ownership": {
+                "const": "external"
+              },
+              "bundle_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          },
+          "status": {
+            "enum": [
+              "EXTERNAL_READY"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "nodes",
+    "schema_version",
+    "task_id"
+  ],
+  "properties": {
+    "nodes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "host",
+          "work_dir",
+          "model_paths",
+          "deployments"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "pattern": "^(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          },
+          "work_dir": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "model_paths": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^/"
+            }
+          },
+          "deployments": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": [
+                "network",
+                "ports"
+              ],
+              "properties": {
+                "network": {
+                  "type": "object",
+                  "required": [
+                    "ip",
+                    "interface"
+                  ],
+                  "properties": {
+                    "ip": {
+                      "type": "string",
+                      "format": "ipv4"
+                    },
+                    "interface": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_.:-]+$"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "ports": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 65535
+                    }
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "mounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "source",
+                "target"
+              ],
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "pattern": "^/"
+                },
+                "target": {
+                  "type": "string",
+                  "pattern": "^/"
+                },
+                "read_only": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "benchmark": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "executable": {
+                "type": "string",
+                "minLength": 1
+              },
+              "configs": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "datasets": {
+                "type": "object",
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "path"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^/"
+                        },
+                        "input_column": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                        },
+                        "output_column": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                        },
+                        "generation_manifest": {
+                          "type": "string",
+                          "pattern": "^/"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "aisbench_synthetic"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "paths": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^/"
+            }
+          },
+          "mount_profiles": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "ascend-runtime",
+                "ascend-hixl"
+              ]
+            },
+            "description": "Opt-in host mounts; explicit mounts override profile entries by target."
+          },
+          "machine_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$"
+      }
+    },
+    "shared_storage_groups": {
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+    },
+    "testers": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/tester"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^/",
+      "maxLength": 4096
+    },
+    "tester": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "work_root",
+        "python",
+        "aisbench",
+        "model_path",
+        "datasets"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        },
+        "work_root": {
+          "$ref": "#/$defs/path"
+        },
+        "python": {
+          "$ref": "#/$defs/path"
+        },
+        "aisbench": {
+          "$ref": "#/$defs/path"
+        },
+        "model_path": {
+          "$ref": "#/$defs/path"
+        },
+        "datasets": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/id"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/dataset"
+          }
+        },
+        "machine_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
+        }
+      }
+    },
+    "dataset": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "aisbench_synthetic"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "path",
+            "input_column",
+            "output_column"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "jsonl",
+                "csv"
+              ]
+            },
+            "path": {
+              "$ref": "#/$defs/path"
+            },
+            "input_column": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            },
+            "output_column": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            },
+            "generation_manifest": {
+              "$ref": "#/$defs/path"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
