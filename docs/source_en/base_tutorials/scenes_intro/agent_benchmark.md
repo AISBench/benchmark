@@ -31,6 +31,7 @@ AISBench theoretically supports **all datasets adapted by Harbor**; for the conc
 | terminal-bench 2.0 | https://github.com/AISBench/terminal-bench-2 | https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini | ⚠️ the agent needs to access the internet during execution |
 | terminal-bench 2.1 | https://github.com/AISBench/terminal-bench-2-1 | https://modelers.cn/datasets/AISBench/terminal-bench-2-1-mini | ⚠️ the agent needs to access the internet during execution |
 | DeepSWE | https://github.com/AISBench/deep-swe | https://modelers.cn/datasets/AISBench/DeepSWE-mini | NA |
+| AutomationBench v1.0.6 | [ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip) · [SHA256](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256) | NA | 600 public tasks, 100 per domain, excluding simple. Includes manifest and runtime build context, not built images. OBS access required. |
 
 ### 2. Dataset-image preparation
 
@@ -144,6 +145,8 @@ cd {working path}
 👉 For more on building the agent runtime image and the one-click deployment script, see 📚 [One-click deployment script guide](https://github.com/AISBench/benchmark/blob/master/docker/agent_runtime/USAGE.md).
 
 ## Quick Start (either of the two ways)
+
+AutomationBench uses the standalone `ais_bench/configs/agent_example/harbor_automationbench_task.py` example and matching Harbor adapter. Verify the archive with its SHA256 file, extract it and replace the dataset path placeholder with the actual directory containing `manifest.json`. Replace `api_key` or override it with `--api-key`. `sampling_args=None` preserves official scaffold defaults; toolset and turn budget come from the dataset. AISBench reuses the existing reward summary; retain Job/Trial artifacts for offline inspection.
 
 | ⭐ Recommended: Use command-line parameters | Alternative: Use a custom config file |
 | :--- | :--- |
@@ -436,38 +439,3 @@ pip install -r requirements/agent.txt
 > - dependency version-conflict warnings (e.g. Harbor upgrades the `datasets` library to 4.0.0+, which may produce version-conflict warnings with other dependencies);
 > - warnings from the compilation/build of individual packages, or `yanked` / `deprecated` hints during dependency resolution.
 > As long as these do **not cause the installation to fail** (pip reports an `error` and stops), you can ignore them and continue; the installed Harbor agent evaluation works normally. To confirm a successful install, run `pip show harbor` to verify Harbor is properly in place.
-
-### AutomationBench results
-
-Use `ais_bench/configs/agent_example/harbor_automationbench_task.py` with the matching Harbor adapter, prepared tasks and model connection. AISBench reuses its existing Harbor reward summary and CSV columns. Preserve the Harbor Job directory, Trial results, verifier output, logs and trajectories for offline inspection and recomputation. AutomationBench-specific reporting and validation remain in the Harbor adapter; AISBench does not load or visualize those reports.
-
-#### OBS dataset download
-
-The standalone configuration lists model connection, Agent options, concurrency,
-timeouts, retries, Docker lifecycle, verification and monitoring settings.
-Replace the `api_key` placeholder or override it with `--api-key`.
-`sampling_args=None` preserves the
-official scaffold defaults; toolset and turn budget come from the prepared
-dataset. Set `n_tasks` to a small number for an initial smoke run if needed.
-
-Download the prepared Harbor dataset from OBS without accessing GitHub or a
-remote dataset registry. It contains all 600 public tasks (100 per domain),
-manifest and shared runtime build context; simple tasks are excluded.
-The host must have access to OBS; a completely disconnected host must receive
-the archive in advance. This download does not include built Docker images,
-Python dependencies or an offline model service.
-
-[Dataset ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip) · [SHA256](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256)
-
-```bash
-curl -fLO https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip
-curl -fLO https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256
-sha256sum -c automationbench-v1.0.6-offline.zip.sha256
-unzip automationbench-v1.0.6-offline.zip -d /data
-```
-
-Replace the example configuration's `/path/to/automationbench-public` placeholder
-with your actual extracted dataset directory. For the extraction command above,
-set `dataset_path` to `/data/automationbench-public`; `/data` is only an example.
-
-SHA256: `7e84288da98b8e99d0cb92f7a6029973b035091323586e2c6b42a2146a86bb63`.

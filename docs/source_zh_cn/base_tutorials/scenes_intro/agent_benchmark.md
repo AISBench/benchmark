@@ -27,6 +27,7 @@ AISBench 理论上支持全量Harbor适配的数据集，具体支持的数据�
 | terminal-bench 2.0 | https://github.com/AISBench/terminal-bench-2 | https://modelers.cn/datasets/AISBench/terminal-bench-2-offline-mini | ⚠️执行过程中agent需要访问外网 |
 | terminal-bench 2.1 | https://github.com/AISBench/terminal-bench-2-1 | https://modelers.cn/datasets/AISBench/terminal-bench-2-1-mini | ⚠️执行过程中需要agent访问外网 |
 | DeepSWE | https://github.com/AISBench/deep-swe | https://modelers.cn/datasets/AISBench/DeepSWE-mini | NA |
+| AutomationBench v1.0.6 | [ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip) · [SHA256](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256) | NA | 六领域各100题，共600题，不含simple；含manifest及运行构建上下文，不含已构建镜像。下载需访问OBS，完全断网时预先转移。 |
 
 ### 2. 数据集对应镜像准备
 agent数据集的测评每一个case都有对应的镜像，这些镜像名称在数据集中定义，如果在x86_64服务器上，网络条件良好且能够访问外网，执行过程中会自动拉取并构建对应的镜像。但是这个过程往往比较漫长。
@@ -129,6 +130,8 @@ cd {工作路径}
 👉 更多agent runtime 镜像构建以及一键部署脚本的说明请参考 [一键部署脚本说明](https://github.com/AISBench/benchmark/blob/master/docker/agent_runtime/USAGE.md)
 
 ## agent测评快速入门（两种方式任选其一）
+
+AutomationBench 使用独立示例 `ais_bench/configs/agent_example/harbor_automationbench_task.py` 及配套 Harbor 适配包。使用资源表中的 SHA256 文件校验压缩包后解压，将配置路径占位值替换为包含 `manifest.json` 的实际目录；替换 `api_key` 或使用 `--api-key` 覆盖。`sampling_args=None` 保留官方 scaffold 默认值，工具集及轮数预算由数据集决定。AISBench 复用既有 reward 汇总，保留 Job/Trial 原始产物供离线检查。
 
 | ⭐ 推荐：使用命令行参数 | 备选：使用自定义配置文件 |
 | :--- | :--- |
@@ -419,33 +422,3 @@ pip install -r requirements/agent.txt
 > - 依赖版本冲突告警（例如 Harbor 会把 `datasets` 库升级到 4.0.0+，导致该库与其它依赖出现版本冲突告警）；
 > - 个别包编译/构建的 warning，或依赖解析时的 `yanked` / `deprecated` 提示等。
 > 这些告警只要**未导致安装失败（pip 报 `error` 并中断）**，即可直接忽略，继续安装后的 Harbor Agent 测评即可正常使用。若确需判断是否安装成功，可在安装后执行 `pip show harbor` 确认 Harbor 已正确就位。
-
-### AutomationBench 结果
-
-使用 `ais_bench/configs/agent_example/harbor_automationbench_task.py`，准备配套 Harbor 适配包、任务及模型连接。AISBench 复用现有 Harbor reward 汇总与 CSV 列。保留 Harbor Job 目录、Trial 结果、Verifier 输出、日志和轨迹，供离线检查及复算。AutomationBench 专项报告与校验由 Harbor 适配包负责，AISBench 不加载或展示这些专项报告。
-
-#### OBS 数据集下载
-
-独立配置列出模型连接、Agent 参数、并发、超时、重试、Docker 生命周期、验证及监控设置。
-将 `api_key` 占位值替换为实际密钥，或通过 `--api-key` 覆盖。`sampling_args=None` 保留官方 scaffold
-默认值；工具集及轮数预算由已准备的数据集决定。如需先冒烟，可将 `n_tasks` 设置为较小值。
-
-通过 OBS 下载已转换的 Harbor 数据集，无需访问 GitHub 或远程数据注册中心。
-包含六领域各 100 题、共 600 道公开任务、manifest 及共享运行构建上下文，不含 simple。
-目标机器须能够访问 OBS；完全断网时需预先转移数据包。本包不含已构建 Docker 镜像、
-Python 依赖或离线模型服务。
-
-[Dataset ZIP](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip) · [SHA256](https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256)
-
-```bash
-curl -fLO https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip
-curl -fLO https://aisbench.obs.cn-north-4.myhuaweicloud.com/datasets/harbor_adapt_datasets/automationbench-v1.0.6-offline.zip.sha256
-sha256sum -c automationbench-v1.0.6-offline.zip.sha256
-unzip automationbench-v1.0.6-offline.zip -d /data
-```
-
-将示例配置中的 `/path/to/automationbench-public` 占位路径替换为实际解压目录。
-按上述命令解压时，dataset_path 设置为 `/data/automationbench-public`；
-`/data` 仅为示例，可按本机目录调整。
-
-SHA256: `7e84288da98b8e99d0cb92f7a6029973b035091323586e2c6b42a2146a86bb63`.
