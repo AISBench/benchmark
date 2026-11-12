@@ -58,7 +58,7 @@ def validate_query(request):
         if not isinstance(ref, str) or not 1 <= len(ref) <= 512 or '\\' in ref or '\x00' in ref:
             raise ProtocolError('INVALID_INPUT')
         parts = ref.split('/')
-        if parts[0] not in ('logs', 'results') or len(parts) < 2 or any(p in ('', '.', '..') for p in parts):
+        if ref not in ('task.jsonl','service.json') and (parts[0] not in ('logs', 'results') or len(parts) < 2 or any(p in ('', '.', '..') for p in parts)):
             raise ProtocolError('INVALID_INPUT')
 
 

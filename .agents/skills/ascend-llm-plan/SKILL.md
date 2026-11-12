@@ -13,6 +13,8 @@ description: 为 Deploy and Eval v2 整理部署或独立测试需求、现场�
 
 部署需求逐项保留参考脚本的 export、unset、bootstrap、CLI、完整 KV JSON 和代理参数；每个绑定差异记录原值、解析值及理由。检查权重、镜像、网络、端口、设备、挂载和依赖可见性；只读取证与真实环境修改分开。
 
+独立阶段先调用 `prepare-inputs --request task.json`：只部署使用 stage=deploy、destination、deployment（完整 deploy-plan）、bindings，并显式设置 keep_service，不嵌入 evaluation/testers；只评测使用 stage=eval、destination、task_id、endpoint+model 或 service 对象、cases、tester。输出待审阅 plan/bindings 路径及派生默认值，随后仍按现有审阅、冻结、发布链执行。
+
 独立测试仅要求端点、served model、测试机/工具/数据绑定及权限；外部部署摘要未知就记录未知，不补造健康或部署来源。
 
 默认值在审阅中展示：普通 formal_requests=concurrency×4，steady_state=true 时×10；显式数值优先。保留预热、输出长度、请求速率及缓存策略，禁止为缩短验证降载。清缓存是独立授权，端点可访问不表示允许清缓存。
@@ -21,7 +23,7 @@ description: 为 Deploy and Eval v2 整理部署或独立测试需求、现场�
 
 ## 本阶段参考与交付
 
-依赖 CLI >=0.1.0a6、协议 1.0。规划时读取 [计划与绑定](references/plan-contract.md)、[审阅摘要](references/review-summary.md)；参考脚本迁移见 [部署映射](references/deployment-migration.md)，完整字段见 references/schemas/。命令封装见已安装 ascend-llm-router 的 references/cli-contract.md。
+依赖 CLI >=0.1.0a7、协议 1.0。规划时读取 [计划与绑定](references/plan-contract.md)、[审阅摘要](references/review-summary.md)；参考脚本迁移见 [部署映射](references/deployment-migration.md)，完整字段由 `export-contracts` 从已安装 CLI 导出；不维护技能内 Schema 副本。命令封装见已安装 ascend-llm-router 的 references/cli-contract.md。
 
 按用户授权发现现场，生成 plan、bindings，执行 draft-review；消除 unresolved 并绑定实际授权证据后 freeze-inputs，再 check-ready。交付冻结目录、runtime_sha256、bundle_sha256、原始需求与差异映射，以及下一阶段所需控制端配置。候选 Python/镜像只是发现线索，缺失时允许只读寻找已有兼容候选；实际绑定必须有证据，不擅自安装或修改已有环境。
 

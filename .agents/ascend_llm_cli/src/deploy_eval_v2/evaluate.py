@@ -107,6 +107,7 @@ def execute_external_case(plan, bindings, case_id, folder, cancelled, *, verifie
     result = dict(schema_version='1.0', service_id=plan['service']['service_id'],
                   case_id=case_id, execution_status='SUCCEEDED', evidence_status='COMPLETE' if verified else 'PARTIAL',
                   performance_validity='VERIFIED' if verified else 'UNVERIFIED',
+                  performance=performance,
                   performance_evidence=dict(host=verified_local_host,path=str(folder/'performance-evidence.json')),
                   prefix_metric_status=prefix['status'],prefix_evidence=dict(host=verified_local_host,path=str(folder/'prefix-evidence.json')),
                   reason='Native request performance evidence verified' if verified else 'See performance and prefix evidence for unverified conditions',

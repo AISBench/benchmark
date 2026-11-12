@@ -26,7 +26,7 @@ class BenchmarkPreflightTests(unittest.TestCase):
                              time.monotonic()+5,threading.Event())
             self.assertNotEqual(code,0)
             self.assertFalse(result.exists())
-            self.assertIn('entry point',log.read_text(encoding='utf-8'))
+            self.assertIn('entry point',(log.parent/'task.jsonl').read_text(encoding='utf-8'))
 
     def setup_files(self,folder):
         root=Path(folder)

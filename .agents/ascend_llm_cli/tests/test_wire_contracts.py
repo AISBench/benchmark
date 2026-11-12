@@ -45,7 +45,7 @@ class WireContractTests(unittest.TestCase):
             journal=Journal(folder,'t')
             with self.assertRaisesRegex(ProtocolError,'event schema'):
                 journal.append('deployment.ready','../outside',1,'READY',{})
-            self.assertFalse((Path(folder)/'events.jsonl').exists())
+            self.assertFalse((Path(folder)/'task.jsonl').exists())
             self.assertEqual(journal.events,[])
 
     def test_page_identity_cursor_and_error_structure_are_checked(self):

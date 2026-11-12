@@ -20,7 +20,7 @@ def read_result(root, task_id, artifact_ref, offset=0, max_bytes=8192, *, tail_b
         raise ProtocolError('INVALID_INPUT: artifact locator')
     root = Path(root).resolve()
     relative = Path(artifact_ref)
-    if not relative.parts or relative.is_absolute() or '..' in relative.parts or relative.parts[0] not in ('results', 'logs'):
+    if not relative.parts or relative.is_absolute() or '..' in relative.parts or (relative.parts[0] not in ('results', 'logs') and str(relative) not in ('task.jsonl','service.json')):
         raise ProtocolError('INVALID_INPUT: artifact path')
     path = (root/relative).resolve()
     if not path.is_relative_to(root):
@@ -31,7 +31,7 @@ def read_result(root, task_id, artifact_ref, offset=0, max_bytes=8192, *, tail_b
         if expected_sha256 is not None:
             if not isinstance(expected_sha256,str) or not re.fullmatch('[a-f0-9]{64}',expected_sha256):
                 raise ProtocolError('INVALID_INPUT: evidence digest')
-            if relative.parts[0]!='results' or size>4*1024*1024:
+            if (relative.parts[0]!='results' and str(relative)!='service.json') or size>4*1024*1024:
                 raise ProtocolError('INVALID_INPUT: digest verification requires result artifact up to 4 MiB')
             stream.seek(0)
             hasher=hashlib.sha256()

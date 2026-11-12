@@ -26,7 +26,7 @@ def dispatch(root,request,*,guard_root=GUARD_ROOT,node_factory=DockerNode):
     common={'protocol_version','task_id','node','action','command_id','runtime_sha256','bundle_sha256','token','timeout_seconds'}
     fields={'claim':{'group'},'install':{'group'},'create':{'group'},'start':{'container_id'},
             'dependency':{'group','instance','container_id'},'service':{'group','instance','container_id'},
-            'release':{'containers','keep_claims'},'release_unstarted':set()}
+            'release':{'containers','keep_claims'},'release_unstarted':set(),'log-page':{'log_offset'},'log-ack':{'log_sha256'}}
     if (not isinstance(request,dict) or request.get('action') not in fields or
             set(request)!=common|fields[request['action']] or request['protocol_version']!='1.0'):
         raise ProtocolError('INVALID_INPUT: node request fields')
@@ -59,6 +59,12 @@ def dispatch(root,request,*,guard_root=GUARD_ROOT,node_factory=DockerNode):
                 raise ProtocolError('RECOVERY_REQUIRED: node execution identity changed')
         else:
             atomic_json(identity_path,identity)
+    if request['action'] in ('log-page','log-ack'):
+        from .log_transfer import serve
+        response=envelope(request['task_id'],0)
+        response.update(command_id=request['command_id'],result=serve(root,request['action'],
+            offset=request.get('log_offset',0),sha256=request.get('log_sha256')))
+        return response
     selected=None
     if 'group' in request:
         selected=groups.get(request['group'])

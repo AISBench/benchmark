@@ -53,7 +53,7 @@ class EvaluateTests(unittest.TestCase):
             code = run_logged([sys.executable, '-c', "print('x'*1000000)"], log,
                               time.monotonic()+5, threading.Event())
             self.assertEqual(code, 0)
-            self.assertGreater(log.stat().st_size, 1000000)
+            self.assertGreater((log.parent/'task.jsonl').stat().st_size, 1000000)
 
     def test_real_child_deadline_and_cancellation(self):
         with tempfile.TemporaryDirectory() as root:

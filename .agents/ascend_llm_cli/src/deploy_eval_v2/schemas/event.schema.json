@@ -180,7 +180,7 @@
               },
               "evidence_ref": {
                 "type": "string",
-                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "pattern": "^(?:task\\.jsonl|service\\.json|(results|logs)/[^\\\\\\u0000]+)$",
                 "maxLength": 512
               }
             }
@@ -217,7 +217,7 @@
               },
               "result_ref": {
                 "type": "string",
-                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "pattern": "^(?:task\\.jsonl|service\\.json|(results|logs)/[^\\\\\\u0000]+)$",
                 "maxLength": 512
               },
               "execution_status": {
@@ -281,7 +281,7 @@
               },
               "evidence_ref": {
                 "type": "string",
-                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "pattern": "^(?:task\\.jsonl|service\\.json|(results|logs)/[^\\\\\\u0000]+)$",
                 "maxLength": 512
               },
               "cleanup_status": {
@@ -329,7 +329,7 @@
               },
               "evidence_ref": {
                 "type": "string",
-                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "pattern": "^(?:task\\.jsonl|service\\.json|(results|logs)/[^\\\\\\u0000]+)$",
                 "maxLength": 512
               }
             }
@@ -365,7 +365,7 @@
               },
               "resource_results_ref": {
                 "type": "string",
-                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "pattern": "^(?:task\\.jsonl|service\\.json|(results|logs)/[^\\\\\\u0000]+)$",
                 "maxLength": 512
               }
             }
@@ -401,7 +401,7 @@
               },
               "resource_results_ref": {
                 "type": "string",
-                "pattern": "^(results|logs)/[^\\\\\\u0000]+$",
+                "pattern": "^(?:task\\.jsonl|service\\.json|(results|logs)/[^\\\\\\u0000]+)$",
                 "maxLength": 512
               },
               "reason": {

@@ -10,7 +10,7 @@ from .ssh_transport import exchange,ssh_argv
 class SSHNode:
     remote=True
 
-    def __init__(self,task_id,node,compiled,bundle_digest,runtime_digest,token,python='/usr/bin/python3',transport=exchange):
+    def __init__(self,task_id,node,compiled,bundle_digest,runtime_digest,token,python='/usr/bin/python3',transport=exchange,coordinator_root=None):
         self.task_id,self.node=task_id,node
         self.groups={k:g for k,g in compiled['topology']['groups'].items() if g['node']==node}
         if not self.groups:
@@ -19,6 +19,7 @@ class SSHNode:
         self.root,self.host=group['root'],group['host']
         self.bundle_digest,self.runtime_digest,self.token=bundle_digest,runtime_digest,token
         self.transport=transport
+        self.coordinator_root=coordinator_root
         # No shell config/body interpolation; ssh_argv quotes each argument.
         bootstrap='import sys; sys.path.insert(0, '+repr(self.root+'/runtime')+'); from deploy_eval_v2.node_worker import main; raise SystemExit(main())'
         self.argv=ssh_argv(self.host,[python,'-B','-c',bootstrap,'--root',self.root])
@@ -31,7 +32,21 @@ class SSHNode:
         request=dict(protocol_version='1.0',task_id=self.task_id,node=self.node,action=action,
             command_id=command_id,runtime_sha256=self.runtime_digest,bundle_sha256=self.bundle_digest,
             token=self.token,timeout_seconds=seconds,**fields)
-        response=self.transport(self.argv,request,timeout=seconds,cancelled=cancelled)
+        try:
+            response=self.transport(self.argv,request,timeout=seconds,cancelled=cancelled)
+        finally:
+            if self.coordinator_root is not None and action not in ('log-page','log-ack'):
+                from .log_transfer import collect
+                from .task_log import diagnostic
+                log_deadline=time.monotonic()+15
+                try:
+                    collect(self.coordinator_root,self.host+':'+self.root,
+                        lambda kind,**extra:self._call(kind,command_id,log_deadline,threading.Event(),**extra))
+                except Exception as error:
+                    diagnostic(__import__('pathlib').Path(self.coordinator_root)/'task.jsonl',
+                               'Remote log retained; collection pending',event='remote.log.pending',
+                               remote_source=self.host+':'+self.root,error_type=type(error).__name__)
+
         if response['status']=='ERROR':
             raise ProtocolError(response['error']['code'])
         if response.get('command_id')!=command_id or not isinstance(response.get('result'),dict):

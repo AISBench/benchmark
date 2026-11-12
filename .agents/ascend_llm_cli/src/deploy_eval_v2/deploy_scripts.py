@@ -52,7 +52,7 @@ def compile_service_scripts(compiled):
                 raise ProtocolError('INVALID_INPUT: instance script name')
             for purpose, renderer in [('service', render_service_script), ('dependency', render_dependency_script)]:
                 path = group['root']+'/scripts/'+name+'.'+purpose+'.sh'
-                log = group['root']+'/logs/'+name+'.'+purpose+'.log'
+                log = group['root']+'/logs/'+name+'.service.log'
                 content = renderer(command, log)
                 scripts.append(dict(instance=name, purpose=purpose, host=group['host'], path=path,
                                     log=dict(host=group['host'], path=log), content=content,

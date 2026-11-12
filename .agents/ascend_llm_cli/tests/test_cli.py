@@ -50,3 +50,9 @@ class CLITests(unittest.TestCase):
         code, result, _ = self.invoke(['wait-event', '--task-ref', 't', '--after-seq', '3'], response=envelope('t', 3, 'WAIT_TIMEOUT'))
         self.assertEqual(code, 0)
         self.assertEqual(result['next_cursor'], 3)
+
+    def test_task_handoff_and_unified_log_are_readable_through_cli(self):
+        for artifact in ('task.jsonl','service.json'):
+            code,result,transport=self.invoke(['read-result','--task-ref','t','--artifact-ref',artifact],response=envelope('t',0))
+            self.assertEqual(code,0)
+            self.assertEqual(transport.call_args.args[1]['artifact_ref'],artifact)

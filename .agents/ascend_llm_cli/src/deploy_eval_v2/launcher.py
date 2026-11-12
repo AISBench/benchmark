@@ -26,7 +26,7 @@ def launch_argv(identity, python, identity_file, *, fake=False):
         if not isinstance(value,str) or not value.startswith('/') or '..' in PurePosixPath(value).parts:
             raise ProtocolError('INVALID_INPUT: launcher path')
     root=identity['task_root']
-    bootstrap='import sys; sys.path.insert(0, '+repr(root+'/runtime')+'); from deploy_eval_v2.server import main; main()'
+    bootstrap='import sys; sys.path.insert(0, '+repr(root+'/runtime')+'); from deploy_eval_v2.task_log import redirect_output; redirect_output('+repr(root)+'); from deploy_eval_v2.server import main; main()'
     return [python,'-B','-c',bootstrap,'--root',root,'--task-id',identity['task_id'],'--identity-file',identity_file]+(['--fake'] if fake else [])
 
 
@@ -45,7 +45,7 @@ def spawn_owned(argv, log, record):
     from .durable import atomic_json
     if os.name!='posix':
         raise ProtocolError('INVALID_INPUT: Linux required')
-    with Path(log).open('ab',buffering=0) as output:
+    with open(os.devnull,'ab',buffering=0) as output:
         process=subprocess.Popen(argv,stdin=subprocess.DEVNULL,stdout=output,stderr=subprocess.STDOUT,start_new_session=True,close_fds=True)
     evidence=process_identity(process.pid)
     atomic_json(record,evidence)
@@ -65,7 +65,7 @@ def ensure_started(identity, python, identity_file, *, fake=False,allow_start=Tr
     if not record.exists():
         if not allow_start:
             raise ProtocolError('UNKNOWN_OUTCOME: prior launch requires reconciliation')
-        evidence=spawn_owned(argv,root/'logs/runtime.log',record)
+        evidence=spawn_owned(argv,root/'task.jsonl',record)
     else:
         evidence=load_json(record)
     deadline=time.monotonic()+10
@@ -76,7 +76,7 @@ def ensure_started(identity, python, identity_file, *, fake=False,allow_start=Tr
             handshake=probe_identity(root,identity['task_id'],timeout=1)
             if handshake.get('identity')!=identity or handshake.get('pid')!=evidence['pid']:
                 raise ProtocolError('RECOVERY_REQUIRED: socket identity mismatch')
-            return dict(evidence,identity_verified=True,log=str(root/'logs/runtime.log'))
+            return dict(evidence,identity_verified=True,log=str(root/'task.jsonl'))
         except (OSError,ValueError):
             if time.monotonic()>=deadline:
                 raise ProtocolError('UNKNOWN_OUTCOME: inspect runtime log and process receipt')

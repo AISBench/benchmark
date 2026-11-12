@@ -60,7 +60,7 @@ def build_executor(root,identity,*,machine_id_reader=local_machine_id,guard_root
             nodes[slot]=DockerNode(HostGuard(guard_root,plan['task_id'],identity['nonce']))
         else:
             nodes[slot]=SSHNode(plan['task_id'],slot,compiled,identity['bundle_sha256'],
-                               identity['runtime_sha256'],identity['nonce'])
+                               identity['runtime_sha256'],identity['nonce'],coordinator_root=root)
     if len(local)!=1:
         raise ProtocolError('INVALID_INPUT: runtime must match one reviewed deployment node')
     tester_host=None
@@ -72,6 +72,6 @@ def build_executor(root,identity,*,machine_id_reader=local_machine_id,guard_root
         if tester['machine_id']!=machine:
             from .remote_evaluation import RemoteEvaluation
             options['evaluator']=RemoteEvaluation(plan['task_id'],tester,identity['bundle_sha256'],
-                                                 identity['runtime_sha256'],identity['nonce'])
+                                                 identity['runtime_sha256'],identity['nonce'],coordinator_root=root)
         tester_host=tester['host']
     return OwnedExecutor(*args,nodes,verified_tester_host=tester_host,**options)

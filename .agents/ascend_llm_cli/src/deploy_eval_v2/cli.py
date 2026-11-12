@@ -24,10 +24,10 @@ def main(argv=None):
     request = {}
     try:
         parser = Parser()
-        parser.add_argument('--version', action='version', version='deploy-eval-v2 0.1.0a6; protocol 1.0; production_executor=guarded; acceptance=local-only')
+        parser.add_argument('--version', action='version', version='deploy-eval-v2 0.1.0a7; protocol 1.0; production_executor=guarded; acceptance=local-only')
         parser.add_argument('--config', default=os.environ.get('DEPLOY_EVAL_V2_CONFIG'))
         commands = parser.add_subparsers(dest='kind', required=True)
-        for name in ('deploy', 'eval', 'release', 'cancel', 'freeze-inputs', 'verify-inputs','draft-review','package-runtime','publish-task','start-task','check-ready','install-skills','socket-start','stop-runtime'):
+        for name in ('deploy', 'eval', 'release', 'cancel', 'freeze-inputs', 'verify-inputs','draft-review','package-runtime','publish-task','start-task','check-ready','install-skills','socket-start','stop-runtime','prepare-inputs','export-contracts'):
             commands.add_parser(name).add_argument('--request', required=True)
         for name in ('get-status', 'wait-event', 'read-result'):
             child = commands.add_parser(name)
@@ -49,9 +49,15 @@ def main(argv=None):
                 child.add_argument('--scan-offset',type=int,default=0)
                 child.add_argument('--scan-line',type=int,default=1)
         args = parser.parse_args(argv)
-        if args.kind in ('freeze-inputs', 'verify-inputs','draft-review','package-runtime','publish-task','start-task','check-ready','install-skills','socket-start','stop-runtime'):
+        if args.kind in ('freeze-inputs', 'verify-inputs','draft-review','package-runtime','publish-task','start-task','check-ready','install-skills','socket-start','stop-runtime','prepare-inputs','export-contracts'):
             request=load(args.request)
-            if args.kind in ('socket-start','stop-runtime'):
+            if args.kind=='prepare-inputs':
+                from .stage_inputs import prepare
+                response=prepare(request)
+            elif args.kind=='export-contracts':
+                from .stage_inputs import export_contracts
+                response=export_contracts(request)
+            elif args.kind in ('socket-start','stop-runtime'):
                 from .socket_validation import start_socket,stop_runtime
                 if not args.config:
                     raise ProtocolError('INVALID_INPUT: config required')

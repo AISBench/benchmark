@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 import traceback
+from .task_log import DiagnosticStream, task_root, record_exception
 from .compiler import verify_frozen
 from .publication import verify_runtime
 from .hashes import digest
@@ -22,8 +23,9 @@ from .launcher import spawn_owned, process_identity
 
 def verified_inputs(root,request):
     fields={'protocol_version','task_id','operation_id','case_id','runtime_sha256','bundle_sha256','token','action'}
-    if (not isinstance(request,dict) or set(request)!=fields or request['protocol_version']!='1.0' or
-            request['action'] not in ('run','cancel')):
+    extras={'log-page':{'log_offset'},'log-ack':{'log_sha256'}}
+    if (not isinstance(request,dict) or set(request)!=fields|extras.get(request.get('action'),set()) or request['protocol_version']!='1.0' or
+            request['action'] not in ('run','cancel','log-page','log-ack')):
         raise ProtocolError('INVALID_INPUT: tester request')
     for key in ('task_id','operation_id','case_id'):
         if not isinstance(request[key],str) or not re.fullmatch('[A-Za-z0-9][A-Za-z0-9_-]{0,63}',request[key]):
@@ -52,7 +54,7 @@ def verified_inputs(root,request):
 
 def operation_paths(root,request):
     folder=root/'results'/'tester'/request['operation_id']
-    identity={k:v for k,v in request.items() if k!='action'}
+    identity={k:v for k,v in request.items() if k not in ('action','log_offset','log_sha256')}
     unit=digest(identity)[:32]
     return folder,identity,unit
 
@@ -84,12 +86,12 @@ def execute(root,request,*,evaluator=None):
         response.update(operation_id=request['operation_id'],result=result,result_sha256=digest(result),
                         evidence=dict(host=tester['host'],path=str(folder/'benchmark')),cleanup_status='VERIFIED')
     except Exception:
-        with (folder/'error.log').open('w',encoding='utf-8') as stream:
+        with DiagnosticStream((folder/'error.log')) as stream:
             traceback.print_exc(file=stream)
         response=envelope(request['task_id'],0,'ERROR')
         response.update(operation_id=request['operation_id'],cleanup_status='VERIFIED',
             error=dict(code='EVALUATION_FAILED',message='Remote evaluator failed; inspect evidence',retryable=False),
-            evidence=dict(host=tester['host'],path=str(folder/'error.log')))
+            evidence=dict(host=tester['host'],path=str(task_root(folder/'error.log')/'task.jsonl')))
     if len(encode(response))>8192:
         raise ProtocolError('TRANSPORT_PROTOCOL_ERROR: tester result budget')
     atomic_json(folder/'response.json',response)
@@ -107,6 +109,12 @@ def dispatch(root,request,*,runner=bounded_command,logged=run_logged):
             raise ProtocolError('RECOVERY_REQUIRED: tester task execution identity')
         if not identity_path.exists():
             atomic_json(identity_path,task_identity)
+    if request['action'] in ('log-page','log-ack'):
+        from .log_transfer import serve
+        response=envelope(request['task_id'],0)
+        response.update(operation_id=request['operation_id'],result=serve(root,request['action'],
+            offset=request.get('log_offset',0),sha256=request.get('log_sha256')))
+        return response
     folder.mkdir(parents=True,exist_ok=True)
     with exclusive(folder/'launch.lock'):
         saved=folder/'request.json'
@@ -144,7 +152,7 @@ def dispatch(root,request,*,runner=bounded_command,logged=run_logged):
             raise ProtocolError('UNKNOWN_OUTCOME: tester operation already accepted')
         atomic_json(saved,expected)
         atomic_json(folder/'launch-accepted.json',identity)
-        bootstrap='import sys; sys.path.insert(0, '+repr(str(root/'runtime'))+'); from deploy_eval_v2.tester_worker import main; raise SystemExit(main())'
+        bootstrap='import sys; sys.path.insert(0, '+repr(str(root/'runtime'))+'); from deploy_eval_v2.task_log import redirect_output; redirect_output('+repr(str(root))+'); from deploy_eval_v2.tester_worker import main; raise SystemExit(main())'
         argv=[tester['python'],'-B','-c',bootstrap,'--root',str(root),'--execute',str(saved)]
         spawn_owned(argv,folder/'worker.log',folder/'process.json')
     deadline=time.monotonic()+case['timeout_seconds']+20

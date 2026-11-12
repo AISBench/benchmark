@@ -78,11 +78,12 @@ class RuntimeTests(unittest.TestCase):
             runtime=Runtime(root,'t',FakeExecutor())
             accepted=runtime.submit(command(plan_ref='frozen'))
             finish(runtime)
-            path=Path(root)/'operations'/(accepted['operation_id']+'.json')
-            self.assertEqual(load_json(path)['event_type'],'deployment.ready')
+            path=Path(root)/'results'/'operation-index.json'
+            operation=accepted['operation_id']
+            self.assertEqual(load_json(path)['operations'][operation]['event_type'],'deployment.ready')
             path.unlink()
             restored=Runtime(root,'t',FakeExecutor())
-            self.assertEqual(load_json(path)['status'],'READY')
+            self.assertEqual(load_json(path)['operations'][operation]['status'],'READY')
             self.assertEqual(restored.operations[accepted['operation_id']]['terminal_seq'],2)
     def test_replay_and_lifecycle(self):
         with tempfile.TemporaryDirectory() as root:

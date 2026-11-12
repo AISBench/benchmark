@@ -16,34 +16,37 @@ class Journal:
     def __init__(self, directory, task_id, *, repair_tail=False):
         self.root = Path(directory)
         self.root.mkdir(parents=True, exist_ok=True)
-        self.path = self.root / 'events.jsonl'
+        (self.root/'.runtime').mkdir(exist_ok=True)
+        self.path = self.root / 'task.jsonl'
         self.task_id = task_id
         self.condition = threading.Condition()
         self.events = []
         self.projections = {}
+        repaired_tail = None
         if self.path.exists():
-            with self.path.open('rb') as stream:
+            from .task_log import locked_stream
+            with locked_stream(self.path) as stream:
+                stream.seek(0)
                 while True:
                     line = stream.readline(16386)
                     if not line:
                         break
-                    if not line.endswith(b'\n') and len(line) <= 16384 and stream.peek(1) == b'' and repair_tail:
+                    if not line.endswith(b'\n') and len(line) <= 16384 and stream.read(1) == b'' and repair_tail:
                         # Caller must already hold the exclusive runtime lock.
                         offset = stream.tell()-len(line)
-                        diagnostics = self.root/'logs'
-                        diagnostics.mkdir(exist_ok=True)
-                        import uuid
-                        with (diagnostics/('journal-tail-'+uuid.uuid4().hex+'.bin')).open('xb') as evidence:
-                            evidence.write(line)
-                            evidence.flush()
-                            os.fsync(evidence.fileno())
-                        with self.path.open('r+b') as repair:
-                            repair.truncate(offset)
-                            repair.flush()
-                            os.fsync(repair.fileno())
+                        stream.truncate(offset)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                        repaired_tail = line.hex()
                         break
                     try:
                         event = json.loads(line, object_pairs_hook=unique_object, parse_constant=reject_constant)
+                        if not isinstance(event, dict) or not line.endswith(b'\n') or len(line) > 16385:
+                            raise ValueError('Invalid journal record')
+                        if event.get('record_type') == 'diagnostic':
+                            if any(not isinstance(event.get(k), str) for k in ('time', 'source', 'message')) or len(event['message']) > 2048:
+                                raise ValueError('Invalid diagnostic')
+                            continue
                         validate_event(event)
                         if (not line.endswith(b'\n') or len(line) > 16385 or
                                 event['task_id'] != task_id or event['protocol_version'] != '1.0' or
@@ -55,6 +58,10 @@ class Journal:
                     except (ValueError, KeyError, TypeError) as exc:
                         raise ProtocolError('RECOVERY_REQUIRED') from exc
                     self.events.append(event)
+
+        if repaired_tail is not None:
+            from .task_log import diagnostic
+            diagnostic(self.path, repaired_tail, event='journal.partial_tail', encoding='hex')
 
     def visible(self, event):
         if len(encode(event)) <= 6000 and summary_bytes(event) <= 256:
@@ -88,10 +95,8 @@ class Journal:
             validate_event(event)
             if len(encode(event)) > 16384:
                 raise ProtocolError('INVALID_INPUT: internal event exceeds 16 KiB; use artifact reference')
-            with self.path.open('ab') as stream:
-                stream.write(encode(event)+b'\n')
-                stream.flush()
-                os.fsync(stream.fileno())
+            from .task_log import append
+            append(self.path,event)
             self.events.append(event)
             if before_notify is not None:
                 before_notify(event)

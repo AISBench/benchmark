@@ -2,6 +2,7 @@
 import time
 from pathlib import Path
 import traceback
+from .task_log import DiagnosticStream, task_root, record_exception
 from .compiler import digest
 from .durable import atomic_json
 from .process_guard import remaining, Cancelled
@@ -12,6 +13,9 @@ from .protocol import ProtocolError
 def execute_deployment(compiled, nodes, execution, evidence_path, cancelled, *, health=None, smoke=None):
     """Retry only confirmed failures after verified cleanup, within one deadline."""
     target=Path(evidence_path)
+    # Standalone adapter tests also get one root, not a log per retry.
+    root=task_root(target)
+    (root/'.runtime').mkdir(parents=True,exist_ok=True)
     deadline=time.monotonic()+execution['startup_timeout_seconds']
     attempts=[]
     for attempt in range(execution.get('max_retries',0)+1):
@@ -25,8 +29,7 @@ def execute_deployment(compiled, nodes, execution, evidence_path, cancelled, *, 
                 not result.get('retryable',False) or cancelled.is_set() or time.monotonic()>=deadline):
             break
     result=dict(result,attempts=attempts)
-    if 'error_ref' in result:
-        result['error_ref']=(path.parent/result['error_ref']).relative_to(target.parent).as_posix()
+
     atomic_json(target,result)
     return result
 
@@ -99,7 +102,7 @@ def _execute_attempt(compiled, nodes, execution, evidence_path, cancelled, *, he
         return report
     except Exception as error:
         evidence_path.parent.mkdir(parents=True,exist_ok=True)
-        with evidence_path.with_suffix('.error.log').open('w',encoding='utf-8') as stream:
+        with DiagnosticStream(evidence_path.with_suffix('.error.log')) as stream:
             traceback.print_exc(file=stream)
         cleanup = {}
         # Aggregate a physical host before unlocking any of its resource claims.
@@ -133,7 +136,7 @@ def _execute_attempt(compiled, nodes, execution, evidence_path, cancelled, *, he
                 cleanup[name] = dict(cleanup_status='UNVERIFIED',claims_released=False)
         report = dict(schema_version='1.0',execution_status='CANCELLED' if isinstance(error,Cancelled) else 'FAILED',
                       phase=phase,containers=created,cleanup=cleanup,
-                      error_ref=evidence_path.with_suffix('.error.log').name,
+                      error_ref='task.jsonl',
                       cleanup_status='VERIFIED' if all(r['cleanup_status']=='VERIFIED' for r in cleanup.values()) else 'UNVERIFIED')
         error_code=str(error).split(':',1)[0] if isinstance(error,ProtocolError) else type(error).__name__
         report.update(error_code=error_code,retryable=phase in ('dependencies','health','smoke') and

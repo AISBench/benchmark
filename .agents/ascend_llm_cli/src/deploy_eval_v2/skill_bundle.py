@@ -72,5 +72,5 @@ def install(request):
                 os.rename(stage/name,destination/name)
     inventory(destination)
     response=envelope(None,0)
-    response.update(skills=list(NAMES),cli_version='0.1.0a6',protocol_version='1.0',installed=True)
+    response.update(skills=list(NAMES),cli_version='0.1.0a7',protocol_version='1.0',installed=True)
     return response

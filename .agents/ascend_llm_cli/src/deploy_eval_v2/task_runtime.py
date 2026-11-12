@@ -2,6 +2,7 @@
 import threading
 import uuid
 import traceback
+from .task_log import DiagnosticStream, task_root, record_exception
 from datetime import datetime,timezone
 from .contracts import validate_command, fingerprint
 from .event_journal import Journal
@@ -39,7 +40,7 @@ class Runtime:
             # A durable acceptance is NOT permission to replay an uncertain effect.
             self._emit('runtime.recovery_required',self.active,'RECOVERY_REQUIRED',dict(
                 reason='Runtime restarted with an accepted operation lacking terminal evidence',
-                resource_refs=['commands/','operations/','service.json']))
+                resource_refs=['task.jsonl','service.json']))
         self._snapshot()
         self._schedule_idle()
 
@@ -83,17 +84,6 @@ class Runtime:
 
     def _snapshot(self):
         root = self.journal.root
-        for request_id, data in self.commands.items():
-            # Journal replay must not turn corrupt identities into filesystem paths.
-            import re
-            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', request_id):
-                raise ProtocolError('RECOVERY_REQUIRED: command identity')
-            atomic_json(root/'commands'/(request_id+'.json'), data)
-        for operation_id,data in self.operations.items():
-            import re
-            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}',operation_id):
-                raise ProtocolError('RECOVERY_REQUIRED: operation identity')
-            atomic_json(root/'operations'/(operation_id+'.json'),data)
         atomic_json(root/'results'/'operation-index.json',dict(schema_version='1.0',task_id=self.journal.task_id,
                     operations=self.operations))
         atomic_json(root/'state.json', dict(protocol_version='1.0', task_id=self.journal.task_id,
@@ -228,10 +218,10 @@ class Runtime:
             kind, status, data = self.executor(command, operation, self.cancelled)
         except Exception:
             # Preserve diagnostics even when the stage adapter itself fails.
-            reference='logs/executor-'+operation+'.log'
+            reference='task.jsonl'
             path=self.journal.root/reference
             path.parent.mkdir(parents=True,exist_ok=True)
-            with path.open('w',encoding='utf-8') as stream:
+            with DiagnosticStream(path) as stream:
                 traceback.print_exc(file=stream)
             kind, status, data = 'operation.failed', 'RECOVERY_REQUIRED', {
                 'error_code': 'EXECUTOR_FAILED', 'cleanup_status': 'UNVERIFIED','evidence_ref':reference}

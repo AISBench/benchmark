@@ -17,6 +17,6 @@ release.completed 后检查逐资源结果及 resource_results_ref。release.unv
 
 ## 本阶段参考与交付
 
-依赖 CLI >=0.1.0a6、协议 1.0。资源归属与终态语义见 [生命周期边界](references/lifecycle-boundaries.md)，部分创建失败见 [创建前清理](references/precreate-cleanup.md)。共享命令格式见已安装 ascend-llm-router 的 references/cli-contract.md；停止观察 runtime 见 ascend-llm-deployment 的 references/launcher.md。
+依赖 CLI >=0.1.0a7、协议 1.0。资源归属与终态语义见 [生命周期边界](references/lifecycle-boundaries.md)，部分创建失败见 [创建前清理](references/precreate-cleanup.md)。共享命令格式见已安装 ascend-llm-router 的 references/cli-contract.md；停止观察 runtime 见 ascend-llm-deployment 的 references/launcher.md。
 
 get-status 后按当前版本提交 release，活动测试需先按授权 cancel 并等待清理证据。资源释放核验完成后，使用原 task_ref 和 nonce 执行 stop-runtime，核对 runtime_stopped=true。runtime 停止通过认证 socket 请求完成，不猜 PID 或运行系统服务命令。保留任务日志、请求、冻结包和结果，交付已释放/未知资源清单。

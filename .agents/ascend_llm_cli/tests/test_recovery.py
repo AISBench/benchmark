@@ -19,13 +19,13 @@ class RecoveryTests(unittest.TestCase):
                 stream.write(b'{"seq":2')
             recovered = Journal(folder, 't', repair_tail=True)
             self.assertEqual(len(recovered.events), 1)
-            diagnostics = list((Path(folder)/'logs').glob('journal-tail-*.bin'))
-            self.assertEqual(diagnostics[0].read_bytes(), b'{"seq":2')
+            diagnostics=[json.loads(line) for line in recovered.path.read_text().splitlines() if json.loads(line).get('record_type')=='diagnostic']
+            self.assertEqual(bytes.fromhex(diagnostics[0]['message']),b'{"seq":2')
             self.assertEqual(len(Journal(folder, 't').events), 1)
 
     def test_complete_corrupt_line_is_never_repaired(self):
         with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder)/'events.jsonl'
+            path = Path(folder)/'task.jsonl'
             original = b'{bad}\n{partial'
             path.write_bytes(original)
             with self.assertRaises(ProtocolError):
@@ -39,12 +39,13 @@ class RecoveryTests(unittest.TestCase):
             accepted = runtime.submit(req)
             finish(runtime)
             root = Path(folder)
-            (root/'commands/r.json').unlink()
+            self.assertFalse((root/'commands').exists())
             (root/'state.json').write_text('{"state":"NEW"}')
             recovered = Runtime(folder, 't', FakeExecutor())
             self.assertEqual(recovered.submit(req), accepted)
             self.assertEqual(json.loads((root/'state.json').read_text())['state'], 'READY')
-            self.assertTrue((root/'commands/r.json').exists())
+            self.assertFalse((root/'commands').exists())
+            self.assertIn('r',recovered.commands)
 
     def test_snapshot_failure_never_starts_side_effect(self):
         with tempfile.TemporaryDirectory() as folder:

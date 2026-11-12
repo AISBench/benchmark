@@ -3,6 +3,7 @@ import hashlib
 import os
 from pathlib import Path
 import traceback
+from .task_log import DiagnosticStream, task_root, record_exception
 from .compiler import verify_frozen, canonical
 from .evaluate import execute_external_case
 from .process_guard import Cancelled
@@ -77,14 +78,14 @@ class ExternalExecutor:
                         performance_validity=result['performance_validity'])
             return 'evaluation.completed', 'EVALUATED', data
         except Exception as error:
-            with (operation_root/'error.log').open('w', encoding='utf-8') as stream:
+            with DiagnosticStream((operation_root/'error.log')) as stream:
                 traceback.print_exc(file=stream)
             stopped = isinstance(error, Cancelled)
             result = dict(task_id=self.task_id, operation_id=operation,
                           execution_status='CANCELLED' if stopped else 'FAILED',
                           evidence_status='PARTIAL', performance_validity='UNVERIFIED',
                           external_service_action='NONE', cleanup_status='UNVERIFIED',
-                          error_ref=(operation_root/'error.log').relative_to(self.root).as_posix())
+                          error_ref='task.jsonl')
             result=evaluation_result(result,task_id=self.task_id,operation_id=operation,
                 service_id=self.service_id,case_id=command['case_id'])
             data['result_sha256'] = persist(evidence, result)

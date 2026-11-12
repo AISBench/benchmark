@@ -2,6 +2,7 @@
 from pathlib import Path
 import threading
 import traceback
+from .task_log import DiagnosticStream, task_root, record_exception
 from .compiler import verify_frozen,digest
 from .deploy import execute_deployment
 from .durable import atomic_json
@@ -98,7 +99,7 @@ class OwnedExecutor:
                     result_ref=reference,result_sha256=digest(result),execution_status=result['execution_status'],
                     evidence_status=result['evidence_status'],performance_validity=result['performance_validity'])
             except Exception as error:
-                with (folder/'evaluation-error.log').open('w',encoding='utf-8') as stream:
+                with DiagnosticStream((folder/'evaluation-error.log')) as stream:
                     traceback.print_exc(file=stream)
                 # Release is the frozen owning-task failure policy, independent of
                 # the evaluation adapter's permissions and cancellation signal.
@@ -109,7 +110,7 @@ class OwnedExecutor:
                     cleanup=self._release(values,self.service(),operation,folder)
                 result=dict(execution_status='CANCELLED' if isinstance(error,Cancelled) else 'FAILED',
                             cleanup_status=cleanup['cleanup_status'],cleanup=cleanup,
-                            error_ref=(folder/'evaluation-error.log').relative_to(self.root).as_posix())
+                            error_ref='task.jsonl')
                 result=evaluation_result(dict(result,evidence_status='PARTIAL',performance_validity='UNVERIFIED'),
                     task_id=self.task_id,operation_id=operation,service_id=self.service_id,case_id=command['case_id'])
                 atomic_json(target,result)
@@ -129,10 +130,9 @@ class OwnedExecutor:
                     containers=result['containers'])
                 validate_service(service)
                 atomic_json(self.root/'service.json',service)
-                atomic_json(folder/'service.json',service)
                 return 'deployment.ready','READY',dict(service_id=self.service_id,endpoint=service['endpoint'],
                     model=service['model'],evidence_ref=reference,result_sha256=digest(result),
-                    service_ref=(folder/'service.json').relative_to(self.root).as_posix())
+                    service_ref='service.json')
             stopped=result['execution_status']=='CANCELLED'
             return ('operation.cancelled' if stopped else 'operation.failed',
                     'CANCELLED' if stopped else 'FAILED',dict(evidence_ref=reference,
@@ -159,7 +159,7 @@ class OwnedExecutor:
                 results[name]=release_host_resources(node.guard,'release-'+operation,containers,resources,
                                                     folder/(name+'-resources.json'),runner=node.runner)
             except Exception:
-                with (folder/(name+'-error.log')).open('w',encoding='utf-8') as stream:
+                with DiagnosticStream((folder/(name+'-error.log'))) as stream:
                     traceback.print_exc(file=stream)
                 results[name]=dict(cleanup_status='UNVERIFIED',claims_released=False)
         verified=all(r['cleanup_status']=='VERIFIED' for r in results.values())
