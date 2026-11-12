@@ -7,3 +7,4 @@ agent评测基准
    swe_bench
    swe_bench_pro
    harbor_bench
+   terminal_bench_4

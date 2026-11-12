@@ -1,5 +1,7 @@
 # VBench 1.0
 
+需要同时评估音轨、音视频一致性及同步性时，参见 [VABench 音视频联合评测快速上手](vabench.md)，其中包含 15 项指标、官方评测对照及项目选定的 10% 子集获取步骤。
+
 **VBench**（VBench: Comprehensive Benchmark Suite for Video Generative Models）是面向视频生成模型的评测基准套件，围绕主体一致性、运动平滑度、时序闪烁、空间关系等与感知相关的指标组织评测（官方 Standard 套件为 **16 个维度**），并提供与各维度匹配的 prompt、流程与校验方式。
 
 AISBench **已适配 VBench 1.0**。仓库目录 `ais_bench/configs/vbench_examples/` 下放的是 **独立配置文件** 示例，在 **GPU** 或 **NPU** 上对**生成视频**做质量/语义类维度测评。**当前 AISBench 不包含多模态视频生成**，请先完成视频生成后再进行测评(Standard模式参考[数据集生成](#推理结果视频生成)章节)。

@@ -1,0 +1,8 @@
+{
+  "group_id": "20260101-900",
+  "tasks": [
+    {"id": "single_a", "host": "user@node-a.example", "run_dir": "/work/20260101-901", "plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "depends_on": []},
+    {"id": "single_b", "host": "user@node-b.example", "run_dir": "/work/20260101-902", "plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "depends_on": []},
+    {"id": "dual", "host": "user@node-a.example", "run_dir": "/work/20260101-903", "plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "depends_on": ["single_a", "single_b"]}
+  ]
+}

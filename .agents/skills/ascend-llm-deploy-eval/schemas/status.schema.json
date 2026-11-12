@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "status",
+    "cases",
+    "release"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "enum": [
+        "SCRIPTS_READY",
+        "RUNNING",
+        "PASSED",
+        "FAILED",
+        "INTERRUPTED"
+      ]
+    },
+    "cases": {
+      "type": "object",
+      "additionalProperties": {
+        "enum": [
+          "NOT_RUN",
+          "RUNNING",
+          "PASSED",
+          "FAILED",
+          "INTERRUPTED",
+          "SKIPPED"
+        ]
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "artifacts": {
+      "type": "string"
+    },
+    "expected_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "time",
+          "kind",
+          "id",
+          "status"
+        ],
+        "properties": {
+          "time": {
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "stage",
+              "case",
+              "branch"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "attempt_failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case",
+          "attempt",
+          "phase",
+          "retryable",
+          "retrying",
+          "reason",
+          "error"
+        ],
+        "properties": {
+          "case": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "retrying": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
