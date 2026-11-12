@@ -44,6 +44,7 @@ class BaseInferencerOutputHandler:
         perf_mode: bool = False,
         save_every: int = 100,
         response_anomaly_payload_storage: Optional[dict] = None,
+        response_anomaly_enabled: bool = False,
     ) -> None:
         """
         Initialize the base inferencer output handler.
@@ -60,6 +61,7 @@ class BaseInferencerOutputHandler:
         self.perf_mode = perf_mode
         self.all_success = True
         self.save_every = save_every
+        self.response_anomaly_enabled = response_anomaly_enabled
         self.response_anomaly_payload_storage = response_anomaly_payload_storage
         self._response_anomaly_staging_writer = None
         self._response_anomaly_staging_error = None

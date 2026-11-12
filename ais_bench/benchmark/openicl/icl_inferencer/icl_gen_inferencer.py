@@ -57,6 +57,7 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
         self.output_handler = GenInferencerOutputHandler(
             perf_mode=self.perf_mode,
             save_every=self.save_every,
+            response_anomaly_enabled=self.response_anomaly_enabled,
             response_anomaly_payload_storage=(
                 self.response_anomaly_payload_storage
             ),
