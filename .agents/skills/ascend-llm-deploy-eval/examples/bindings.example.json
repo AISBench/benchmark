@@ -1,0 +1,69 @@
+{
+  "nodes": {
+    "node_a": {
+      "model_paths": {
+        "dsv4": "/path/to/model-weights"
+      },
+      "paths": {
+        "shell_rc": "/root/.bashrc",
+        "ascend_env": "/usr/local/Ascend/ascend-toolkit/set_env.sh",
+        "atb_env": "/usr/local/Ascend/nnal/atb/set_env.sh",
+        "opapi": "/usr/local/Ascend/ascend-toolkit/latest/lib64/libopapi_nn.so",
+        "comm": "/etc/hixlep",
+        "proxy_program": "/path/to/reviewed-pd-proxy.py"
+      },
+      "mounts": [
+        {
+          "source": "/path/to/dataset.jsonl",
+          "target": "/path/to/dataset.jsonl",
+          "read_only": true
+        },
+        {
+          "source": "/path/to/reviewed-pd-proxy.py",
+          "target": "/path/to/reviewed-pd-proxy.py",
+          "read_only": true
+        }
+      ],
+      "host": "user@benchmark-host.example",
+      "work_dir": "/path/to/task-workspace",
+      "benchmark": {
+        "datasets": {
+          "default": {
+            "path": "/path/to/dataset.jsonl",
+            "input_column": "question",
+            "output_column": "answer"
+          }
+        }
+      },
+      "deployments": {
+        "pd-a": {
+          "network": {
+            "ip": "192.0.2.1",
+            "interface": "eth0"
+          },
+          "ports": {
+            "prefill": {
+              "http": 18000,
+              "kv": 18002,
+              "rpc": 18004,
+              "hccl": 18009
+            },
+            "decode": {
+              "http": 18026,
+              "kv": 18028,
+              "rpc": 18030,
+              "hccl": 18039
+            },
+            "proxy": {
+              "http": 18056
+            }
+          }
+        }
+      },
+      "mount_profiles": [
+        "ascend-runtime",
+        "ascend-hixl"
+      ]
+    }
+  }
+}

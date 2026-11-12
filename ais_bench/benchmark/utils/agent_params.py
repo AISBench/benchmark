@@ -52,6 +52,14 @@ EXPLICIT_MAP: dict[str, dict[str, tuple[str, str]]] = {
         "api_base": ("env", "DSH_BASE_URL"),
         "api_key": ("env", "DSH_API_KEY"),
     },
+    # dsh-minimal is the standalone Harness runtime rather than the dsh CLI
+    # above: it reads the endpoint/key from its own variables, and the runtime
+    # appends `/v1/messages` to the base, so api_base must be the Messages root
+    # (e.g. ``https://api.deepseek.com/anthropic``).
+    "dsh-minimal": {
+        "api_base": ("env", "DEEPSEEK_BASE_URL"),
+        "api_key": ("env", "DEEPSEEK_API_KEY"),
+    },
     "swe-agent": {
         "api_base": ("env", "OPENAI_BASE_URL"),
         "api_key": ("env", "OPENAI_API_KEY"),
