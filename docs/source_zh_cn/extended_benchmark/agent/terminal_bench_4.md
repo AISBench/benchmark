@@ -30,11 +30,11 @@ Agent 离线依赖包按 [Agent 依赖准备](../../base_tutorials/scenes_intro/
 | `dep/07-payments-verifier/install_payments_verifier.sh` | 幂等安装 payments verifier 的 pip 镜像源补丁；脚本从自身目录取 `payments_pip.py`/`__init__.py`，不再依赖 `/root/code/...` | §6 步骤 6 |
 | `dep/runtime-patches/install_runtime_patches.sh` | 安装官方 runtime 镜像缺失的两个 Python 补丁（mini-swe-agent 的 ConfigDict 归一化、logger.exception）；测模型前必做 | §6 步骤 7 |
 | `dep/runtime-patches/task-fixes/apply_task_fixes.sh` | 去 `task.toml` digest、修 3 个任务配置、重建 `local/tb4-fixes:*` 验证器镜像 | §6 步骤 7 |
+| `dep/run/run_tb4_full_eval.sh` | **推荐的一键启动器**：默认 `N=6`，跑前逐项校验容器、66 个任务、去 digest、任务补丁、runtime 补丁、payments verifier、159 个镜像与磁盘；再做余额/参数探针并启动全量，日志打码、产物脱敏；`CHECK_ONLY=1` 只预检 | §6 步骤 11 |
 | `dep/run/run_mini_swe_full_n8.sh`（及 `run/` 下 helper） | 63 任务全量运行封装：镜像校验、余额/参数探针、日志与产物打码；`BASE` 从脚本位置推导 | §6 步骤 11 |
 | `dep/build-patch/tb4-manifest.json` | 159 个镜像 RepoTag 清单，供 `run/verify_dind_images.sh` 校验内层 daemon | §6 步骤 11 |
+| `dep/run/probe_deepseek_balance.py` | 查询 DeepSeek 账户可用状态和余额 | §6 步骤 8 |
 | `dep/README.md` | 换机三个适配点（路径 / 代理地址 / 镜像名） | §3 步骤 1 注 |
-
-> 上表文件均已收录进 2026-11-11 更新后的 `dep` 包（本机目录 `/home/chenjiansheng/dep/deps/dep`）。`apply_task_fixes.sh`、`run/*.sh`、`runtime-patches/*` 都是从本机适配产物回填进包内的，不再散落在包外。
 
 ## 2. 两种运行模式
 
@@ -42,7 +42,7 @@ Agent 离线依赖包按 [Agent 依赖准备](../../base_tutorials/scenes_intro/
 | --- | --- | --- |
 | 原理 | 挂载宿主机 `/var/run/docker.sock`（DooD），容器内 docker 命令直接操作宿主机 daemon | `--privileged` 在容器内拉起独立 dockerd（DinD），trial 容器只出现在内层 daemon |
 | 题目镜像 | 提前在**宿主机** `docker load`，容器内直接可见 | 通过 `--case-images` 传入镜像包（必选），启动脚本自动 load 进**内层** daemon |
-| 数据挂载 | 数据集 / agent-deps / 产物目录按宿主机原路径**同路径透传**（保证 trial 容器的 bind mount 在宿主 daemon 上可解析） | 数据集只读挂载到 `/opt/data/`，agent-deps 挂载到 `/opt/agent-resources/deps`，产物写到 `--trials-dir` |
+| 数据挂载 | 数据集 / agent-deps / 产物目录按宿主机原路径**同路径透传**（保证 trial 容器的 bind mount 在宿主 daemon 上可解析） | 数据集、agent-deps 和产物目录均按宿主机原路径挂载，同时可通过 `/opt/data/terminal-bench-2`、`/opt/agent-resources/deps` 和 `/benchmark/outputs` 访问。数据集和 agent-deps 只读 |
 | docker 版本 | 无特殊要求 | > 20.0.0（启动脚本使用 `--cgroupns=host`；宿主 Docker 过老如 18.09 时不可直接使用） |
 | 适用场景 | 宿主 daemon 可直接使用，镜像与排障最省事 | 需要强隔离，或宿主 daemon 不宜被评测直接操作 |
 | 安全 | 容器内持有 docker.sock 等价于宿主 root 级 daemon 控制权，勿在容器内执行不受信任指令 | trial 容器不影响宿主 daemon，隔离性好 |
@@ -51,16 +51,25 @@ Agent 离线依赖包按 [Agent 依赖准备](../../base_tutorials/scenes_intro/
 
 ### 步骤 1：物料校验与任务包解压
 
+在存放下载物料的宿主机目录中执行。后续宿主机命令沿用这里定义的变量。
+
 ```bash
+TB4_WORKDIR="$(pwd -P)"
+export TB4_WORKDIR
+export TB4_DEP_DIR="$TB4_WORKDIR/dep"
+export TB4_TASKS="$TB4_WORKDIR/prebuilt/tasks"
+export TB4_AGENT_DEPS="$TB4_WORKDIR/agent-deps"
+export TB4_TRIALS="$TB4_WORKDIR/trials"
+
 # 1) 下载第 1 节 5 份物料后，先比对 SHA256（与 GitHub 发布页一致）
 sha256sum terminal-bench-prebuilt-v4.0.0.tar.gz prebuilt-images.json
 
 # 2) 解压依赖文档（以下校验/修补/运行脚本均由 dep.zip 提供）
-unzip dep.zip -d dep
+unzip dep.zip -d "$TB4_DEP_DIR"
 
 # 3) 校验 release：release_tag=v4.0.0、66 任务、157 镜像、digest 全 pin
 #    脚本来自 dep.zip 的 01-release-validation/ 目录
-python3 dep/01-release-validation/validate_release.py
+python3 "$TB4_DEP_DIR/01-release-validation/validate_release.py"
 
 # 4) 解压任务包（prebuilt/tasks/ 即为数据集，含 66 个任务目录）
 mkdir -p prebuilt
@@ -68,10 +77,10 @@ tar -xzf terminal-bench-prebuilt-v4.0.0.tar.gz -C prebuilt/
 
 # 5) 交叉核对任务包 / manifest / compose 三者一致
 #    同样来自 dep.zip 的 01-release-validation/ 目录
-python3 dep/01-release-validation/check_package_consistency.py
+python3 "$TB4_DEP_DIR/01-release-validation/check_package_consistency.py"
 ```
 
-> 步骤 1 用到的 `validate_release.py`、`check_package_consistency.py`，以及下面引用的 `dep/README.md`，都是 `dep.zip` 解压出来的文件；换机时按 `dep/README.md` 的三个适配点（路径 / 代理地址 / 镜像名）批量替换。
+> 步骤 1 用到的 `validate_release.py`、`check_package_consistency.py`，以及下面引用的 `dep/README.md`，都是 `dep.zip` 解压出来的文件；校验脚本默认从当前目录读取 `prebuilt-images.json` 和 `prebuilt/tasks`。一致性检查脚本需要 PyYAML。其他环境适配见 `dep/README.md`。
 
 ### 步骤 2：task.toml 去 digest（使用镜像包必做）
 
@@ -113,20 +122,20 @@ docker tag harborframework/terminal-bench:7-alpine redis:7-alpine
 # 脚本来源二选一：
 #   - OBS 官方版（socket/DooD 足够）：下面的 wget，文件名 start_agent_runtime.sh
 #   - dep 副本（推荐，含 dind 同路径挂载）：dep/03-runtime-container/start_tb4_agent_runtime.sh
-wget https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/scripts/start_agent_runtime.sh
+wget -O start_agent_runtime.sh https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/scripts/start_agent_runtime.sh
 
-./start_agent_runtime.sh \
+bash ./start_agent_runtime.sh \
     --image ghcr.io/aisbench/agent-runtime:v3.1-20261013-master-ubuntu24.04-py312-x86_64 \
-    --dataset /abs/path/prebuilt/tasks \
-    --agent-deps /abs/path/agent-deps \
+    --dataset "$TB4_TASKS" \
+    --agent-deps "$TB4_AGENT_DEPS" \
     --agent mini-swe-agent \
     --name tb4-agent-runtime \
-    --trials-dir /abs/path/trials
+    --trials-dir "$TB4_TRIALS"
 ```
 
 - socket 模式题目镜像已在宿主机，无需 `--case-images`。
 - runtime 镜像 tag 以 [Agent runtime 镜像列表](https://github.com/AISBench/benchmark/wiki/Agent-runtime-images) 最新为准。
-- 若直接用 dep 副本，把 `./start_agent_runtime.sh` 换成 `bash dep/03-runtime-container/start_tb4_agent_runtime.sh`，参数相同；包内旧名 `start_agent_runtime.sh` 是兼容 wrapper。
+- 若直接用 dep 副本，把 `bash ./start_agent_runtime.sh` 换成 `bash "$TB4_DEP_DIR/03-runtime-container/start_tb4_agent_runtime.sh"`，参数相同；包内旧名 `start_agent_runtime.sh` 是兼容 wrapper。
 
 ## 5. 模式二：dind（DinD）操作步骤
 
@@ -135,15 +144,14 @@ wget https://aisbench.obs.cn-north-4.myhuaweicloud.com/agent/scripts/start_agent
 ```bash
 # 必须用 dep.zip 内的 TB4 版（含 dataset/agent-deps/trials 同路径挂载）；
 # OBS 上的官方版只挂 /opt/data 等固定路径，步骤 7 的内层构建会找不到上下文
-cd /home/chenjiansheng/dep   # dep.zip 解压后的工作目录
-bash dep/03-runtime-container/start_tb4_agent_runtime.sh --mode dind \
+bash "$TB4_DEP_DIR/03-runtime-container/start_tb4_agent_runtime.sh" --mode dind \
     --name tb4-agent-runtime \
     --image ghcr.io/aisbench/agent-runtime:v3.1-20261013-master-ubuntu24.04-py312-x86_64 \
-    --dataset /abs/path/prebuilt/tasks \
-    --case-images /abs/path/terminal-bench-4.0-images-x86_64.tar \
-    --agent-deps /abs/path/agent-deps \
+    --dataset "$TB4_TASKS" \
+    --case-images "$TB4_WORKDIR/terminal-bench-4.0-images-x86_64.tar" \
+    --agent-deps "$TB4_AGENT_DEPS" \
     --agent mini-swe-agent \
-    --trials-dir /abs/path/trials
+    --trials-dir "$TB4_TRIALS"
 ```
 
 脚本会在容器内拉起独立 dockerd，并自动把镜像包 `docker load` 进内层 daemon（约 177G，耗时数分钟）。dep 副本还会把 dataset / agent-deps / trials **各以同路径再挂载一次**；步骤 7 的 `apply_task_fixes.sh` 通过内层 daemon 构建验证器镜像时，构建上下文必须能在容器内解析到同一绝对路径，因此不要删这三组同路径 `-v`。
@@ -165,16 +173,16 @@ docker exec tb4-agent-runtime docker images --format '{{.Repository}}:{{.Tag}}' 
   | grep -cE '^(apache/kafka-native:4.3.1|redis:7-alpine)$'   # 应为 2
 ```
 
-## 6. 评测执行（两种模式相同）
+## 6. 评测执行
 
 ### 步骤 6：安装 payments verifier（出分关键）
 
-`payments-pipeline-fix` 的 verifier 以 `env -i` 执行 pip，会清空 pip 镜像源环境变量导致必挂；`PipConfVerifier` 在 verify 前把镜像源写进 `/etc/pip.conf`（文件可扛过 `env -i`）。
+`payments-pipeline-fix` 的 verifier 以 `env -i` 执行 pip，会清空 pip 镜像源环境变量导致必挂；`PipConfVerifier` 在 verify 前把华为云镜像源写进 `/etc/pip.conf`（文件可扛过 `env -i`）。
 
 ```bash
 # 宿主机执行（幂等；runtime 容器每次重建后重跑；脚本已从自身目录取 verifier 文件）
 # 脚本来自 dep.zip 的 07-payments-verifier/ 目录
-bash dep/07-payments-verifier/install_payments_verifier.sh
+bash "$TB4_DEP_DIR/07-payments-verifier/install_payments_verifier.sh"
 ```
 
 ### 步骤 7：运行前补丁（runtime Python 补丁 + 任务配置，Harbor 运行前必做）
@@ -184,8 +192,7 @@ bash dep/07-payments-verifier/install_payments_verifier.sh
 先安装 runtime Python 补丁（**测模型前必做**，oracle 不需要）：
 
 ```bash
-cd /home/chenjiansheng/dep
-bash runtime-patches/install_runtime_patches.sh
+bash "$TB4_DEP_DIR/runtime-patches/install_runtime_patches.sh"
 ```
 
 该脚本把官方 runtime 镜像缺失的两个文件补进容器：`mini_swe_agent.py`（把 `mmengine.ConfigDict` 经 JSON 归一化后再 `yaml.safe_dump`，否则步骤 11 的嵌套 `llm_kwargs.config` 会报 "cannot represent an object"）和 `logger.py`（补 `Logger.exception()`）。脚本按 sha256 幂等，原文件备份在 `runtime-patches/backups/<时间戳>/`；**容器每次重建后要重跑**。
@@ -200,38 +207,40 @@ bash runtime-patches/install_runtime_patches.sh
 3. 在目标 daemon（默认 DinD 内层）重建 `sglang-qwen-burst`、`retro-console-soc` 两个本地验证器镜像，并把对应 `task.toml` 指向 `local/tb4-fixes:*`。
 
 ```bash
-# 宿主机执行；cd 用于相对路径，脚本从自身位置推导 BASE（= /home/chenjiansheng/dep）
-cd /home/chenjiansheng/dep
-
-# 只读预检：66 个任务、补丁内容、local 镜像是否就绪
-bash runtime-patches/task-fixes/apply_task_fixes.sh check
-
-# 应用配置修改并重建本地验证器镜像
-bash runtime-patches/task-fixes/apply_task_fixes.sh all
+# MODE=dind or MODE=dood
+MODE=dind
+BASE="$TB4_WORKDIR" bash "$TB4_DEP_DIR/runtime-patches/task-fixes/apply_task_fixes.sh" \
+    all --mode "$MODE" --tasks "$TB4_TASKS"
+BASE="$TB4_WORKDIR" bash "$TB4_DEP_DIR/runtime-patches/task-fixes/apply_task_fixes.sh" \
+    check --mode "$MODE" --tasks "$TB4_TASKS"
 ```
 
-脚本默认 `--mode dind`（通过 `docker exec tb4-agent-runtime docker ...` 操作内层 daemon）；DooD 模式传 `--mode dood`。`--force-build` 强制重建已有镜像，`--dry-run` 只打印计划。改动前会自动备份到 `runtime-patches/task-fixes/backups/<时间戳>/`。
+DooD 模式将 `MODE` 改为 `dood`，脚本会在宿主 daemon 构建镜像。DinD 模式在内层 daemon 构建。首次应用后再执行 `check`。可用 `--force-build` 重建已有镜像，或用 `all --dry-run` 预览。修改前的备份保存在 `dep/runtime-patches/task-fixes/backups/<时间戳>/`。
 
-配置修改和镜像就绪后，再执行步骤 11 的全量运行。也可以直接用 `bash runtime-patches/task-fixes/apply_task_fixes.sh all --run-full`，脚本完成补丁和镜像后会调用全量运行脚本（`N=6`）。
+### 步骤 8：余额与模型参数探针
 
-### 步骤 8：余额探针（开跑前必做）
+手动启动或续测 DeepSeek 评测前，在宿主机检查余额和推理参数。步骤 11 的 DinD 启动脚本会自动做这两项检查。
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://api.deepseek.com/v1/models \
-  -H "Authorization: Bearer sk-..."
-# 200 = 余额充足；402 = 先充值再开跑（余额耗尽会把 trial 记成 UnknownApiError，整批被截断）
+read -rsp "DeepSeek API key: " AIS_AGENT_API_KEY; echo
+export AIS_AGENT_API_KEY
+export API_BASE=https://api.deepseek.com/v1
+export MODEL=openai/deepseek-chat
+python3 -I "$TB4_DEP_DIR/run/probe_deepseek_balance.py" &&
+    python3 -I "$TB4_DEP_DIR/run/probe_model_params.py" "$API_BASE" "$MODEL"
 ```
 
-### 步骤 9：进入 runtime 容器（只进一次）
+余额探针调用 [DeepSeek 余额接口](https://api-docs.deepseek.com/zh-cn/api/get-user-balance/)。确认 `is_available=true`，并核对各币种的 `total_balance` 是否覆盖计划用量。`GET /models` 可用于鉴权、连通性及查看模型列表。参数探针发送一次实际推理请求，使用示例的 mini-swe-agent 参数。换模型服务时，按该服务的方式查询余额，并用实际配置的参数验证推理请求。
+
+### 步骤 9：进入 runtime 容器
 
 ```bash
-docker exec -it tb4-agent-runtime /bin/bash
-agent_env harbor        # 激活 harbor venv
+docker exec -it -e TB4_TASKS -e TB4_AGENT_DEPS -e TB4_TRIALS tb4-agent-runtime bash
+agent_env harbor
+cd "$TB4_TRIALS"
 ```
 
-- DooD：产物目录 `/abs/path/trials` 与宿主机同路径透传，可直接 `cd /abs/path/trials`。
-- DinD：数据集、agent-deps、产物都同时以**宿主机原路径**和 `/opt/data/terminal-bench-2`、`/opt/agent-resources/deps`、`/benchmark/outputs` 两套路径挂载；`run/` 脚本使用原路径，`RUN_HINT` 会打印完整模板。
-- 进入后保持该 shell，后续 oracle、全量、续测都在容器内执行。
+两种模式均可在容器内使用上面传入的同路径变量。DinD 的固定挂载路径见第 2 节。oracle 冒烟、手动全量和手动续测在此 shell 执行。使用宿主机启动脚本时，先退出此 shell。
 
 ### 步骤 10：oracle canary 冒烟（不消耗模型费用）
 
@@ -239,10 +248,11 @@ agent_env harbor        # 激活 harbor venv
 # 容器内执行；oracle 不调用模型，key 仅需非空占位
 ais_bench /benchmark/ais_bench/configs/agent_example/harbor_agent_task.py --mode agent \
     -a oracle --model openai/any --api-base http://127.0.0.1:1/v1 --agent-api-key unused \
-    -p <数据集路径> --agent-deps <agent-deps 路径> \
-    --include-task-name ctr-optimization -n 1 -k 1
-# 期望 reward 1.0（覆盖 compose/sidecar 链路）；
+    -p "$TB4_TASKS" --agent-deps "$TB4_AGENT_DEPS" \
+    --include-task-name batched-eval-parity -n 1 -k 1 -y
+# 期望 reward 1.0（覆盖 compose/sidecar 链路，verifier 约 10 分钟）；
 # 再跑一次 --include-task-name payments-pipeline-fix 验证步骤 6 生效，期望 reward 1.0
+# 注：ctr-optimization 的 oracle 在当前环境会挂 2 个断言（任务自身问题），不要用它做 canary
 ```
 
 ### 步骤 11：全量运行（63 个 CPU 任务）
@@ -316,23 +326,35 @@ models = [
 - `temperature`、`top_p` 也必须放在 `model_kwargs` 内才会真正传给 API。
 - `agent_name`、`model_names`、`api_base` 按实际使用的 agent 和服务填写，并与命令行 `-a`、`--model`、`--api-base` 保持一致；oracle 冒烟不需要改这些。
 
-然后执行全量命令：
+#### 方式 A：在容器内手动启动（DooD 或 DinD）
 
 ```bash
+read -rsp "Model API key: " AIS_AGENT_API_KEY; echo
+export API_BASE=https://api.deepseek.com/v1
+export MODEL=openai/deepseek-chat
 ais_bench /benchmark/ais_bench/configs/agent_example/harbor_agent_task.py --mode agent \
     -a mini-swe-agent \
-    --model openai/deepseek-chat \
-    --api-base https://api.deepseek.com/v1 \
-    --agent-api-key sk-... \
-    -p <数据集路径> \
-    --agent-deps <agent-deps 路径> \
+    --model "$MODEL" \
+    --api-base "$API_BASE" \
+    --agent-api-key "$AIS_AGENT_API_KEY" \
+    -p "$TB4_TASKS" \
+    --agent-deps "$TB4_AGENT_DEPS" \
     --exclude-task-name fp8-rmsnorm-gemm jax-speedrun-gpu math-eval-grader \
     -n 6 -k 1 \
-    --no-force-build --delete
+    --no-force-build --delete -y
 ```
 
+#### 方式 B：在宿主机用脚本启动（DinD）
+
+配置好容器内的模型参数后，回到宿主机执行以下命令。脚本会通过 `docker exec` 启动评测。全量运行选 A 或 B 即可。
+
+```bash
+BASE="$TB4_WORKDIR" bash "$TB4_DEP_DIR/run/run_tb4_full_eval.sh"
+```
+
+默认 `N=6`。脚本会检查数据、补丁、镜像和磁盘，再做余额及参数探针并启动评测。设 `CHECK_ONLY=1` 可只检查环境。也可以用 `BASE="$TB4_WORKDIR" N=6 bash "$TB4_DEP_DIR/run/run_mini_swe_full_n8.sh"` 启动旧版封装。
+
 - 66 任务中 3 个 GPU 任务（`fp8-rmsnorm-gemm`、`jax-speedrun-gpu`、`math-eval-grader`）默认排除；**Pass@1 分数 = 通过数 / 63**。
-- 全量基线使用 `N=6`（`n_concurrent_trials=6`）。包内 `run/run_mini_swe_full_n8.sh` 已封装上面的 `ais_bench` 命令（并自动做镜像校验、余额/参数探针、日志与产物打码），默认值仍是 `N=8`；用 `N=6 bash run/run_mini_swe_full_n8.sh` 即可，脚本从自身位置推导 `BASE`。N=8 尚未在本机全量验证；改 8 前先观察 API 429/5xx 与宿主内存。
 - 结果目录里的 `harbor_terminal-bench-2` 是 AISBench/Harbor 的 `sub_tasks` 键，**不是 TB 2.x 数据集**；本次实际任务是 v4.0.0 的 66 个 task。不要与 `terminal-bench-2.1-images-x86_64.tar` 混用。
 - 换用 `claude-code` 时已验证参数：`--ak reasoning_effort=max --ak max_turns=500`（模型服务走 anthropic 格式接口）。
 - 首次运行建议先 `--include-task-name <单个任务>` 或 `--n-tasks 1` 跑通流程。
@@ -340,9 +362,9 @@ ais_bench /benchmark/ais_bench/configs/agent_example/harbor_agent_task.py --mode
 ### 步骤 12：中断续测与补跑
 
 ```bash
-# 402/UnknownApiError 等：充值 -> 探针 200 后，只重跑异常 trial（已通过的不重复计费）
+# 处理异常原因。若为 HTTP 402，充值后重新确认 is_available=true 和余额，再续测。
 ais_bench /benchmark/ais_bench/configs/agent_example/harbor_agent_task.py --mode agent \
-    ...（同步骤 11 参数）... --reuse <时间戳> --purge-exception-cases
+    ...（同步骤 11 的手动运行参数）... --reuse <时间戳> --purge-exception-cases
 ```
 
 - verifier 超时类失败用 `harbor trial regrade` 只重跑 verifier（可加 `--verifier-timeout-multiplier`），不要重跑 agent。
