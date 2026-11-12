@@ -21,7 +21,7 @@ class FakeOutput:
 
 
 def load_prediction_method():
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[5]
     path = root / 'ais_bench/benchmark/openicl/icl_inferencer/output_handler/gen_inferencer_output_handler.py'
     tree = ast.parse(path.read_text(encoding='utf-8'))
     cls = next(node for node in tree.body if isinstance(node, ast.ClassDef))
