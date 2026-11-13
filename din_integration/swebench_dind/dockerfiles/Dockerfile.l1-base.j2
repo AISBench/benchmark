@@ -1,0 +1,6 @@
+# L1 case-base: FROM upstream SWE-bench prebuilt → add /testbed, /logs
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+WORKDIR /testbed
+RUN mkdir -p /logs
