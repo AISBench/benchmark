@@ -42,7 +42,7 @@ def load_prediction_keys(path, logger):
                         path, line_number, exc,
                     )
                     return None
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         logger.warning('Cannot read predictions %s: %s', path, exc)
         return None
     return keys
@@ -73,7 +73,7 @@ def read_anomaly_counts(path, logger, valid_keys=None):
                 except (ValueError, TypeError) as exc:
                     logger.warning('Invalid anomaly result %s:%d: %s', path, line_number, exc)
                     return None
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         logger.warning('Cannot read anomaly results %s: %s', path, exc)
         return None
     if valid_keys is not None:

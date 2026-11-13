@@ -129,6 +129,27 @@ class AnomalySummaryTest(unittest.TestCase):
             exec(compiled, {'self': SimpleNamespace(cfg=cfg), 'table': table})
             self.assertEqual(table, self.table())
 
+    def test_invalid_utf8_predictions_are_skipped(self):
+        """非法 UTF-8 字节不应中断汇总，只跳过该组"""
+        record = {'id': 1, 'uuid': 'a', 'detection_status': 'completed',
+                  'anomaly_type_name': 'normal', 'is_anomaly': False}
+        self.write_results([record])
+        path = self.write_predictions([])
+        path.write_bytes(b'{"id":1,"uuid":"a"}\n\xff\xfe\x00broken\n')
+        self.assertIsNone(module.load_prediction_keys(path, self.logger))
+        table = self.table()
+        self.assertEqual(self.append(table), [table[0]])
+
+    def test_invalid_utf8_results_are_skipped(self):
+        record = {'id': 1, 'uuid': 'a', 'detection_status': 'completed',
+                  'anomaly_type_name': 'normal', 'is_anomaly': False}
+        self.write_predictions([record])
+        path = self.write_results([])
+        path.write_bytes(b'{"id":1,"uuid":"a"}\n\xc3\x28\n')
+        self.assertIsNone(module.read_anomaly_counts(path, self.logger))
+        table = self.table()
+        self.assertEqual(self.append(table), [table[0]])
+
     def test_all_three_outputs_include_metrics(self):
         record = {'id': 1, 'uuid': 'a', 'detection_status': 'unavailable'}
         self.write_predictions([record])
