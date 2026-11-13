@@ -45,22 +45,16 @@ class PredictionLogprobsSwitchTest(unittest.TestCase):
             self.assertEqual(result['input_tokens'], 3)
             self.assertEqual(result['output_tokens'], 2)
 
-    def test_enabled_omits_logprobs_only_when_payload_captured(self):
-        payload = {'tokens': [1], 'topk_logprobs': [{1: -0.1}]}
-        output = FakeOutput([{'token': 'answer', 'logprob': -0.1}], payload)
-        handler = SimpleNamespace(response_anomaly_enabled=True, response_anomaly_payload_storage=None)
-        result = load_prediction_method()(handler, output)
-        self.assertNotIn('origin_logprobs', result)
-        self.assertTrue(result['logprobs_omitted'])
-        self.assertEqual(result['response_anomaly_payload'], payload)
-
-    def test_enabled_keeps_logprobs_when_service_returned_no_payload(self):
-        """服务未返回 token id 时检测拿不到数据，不能在丢检测的同时再丢概率"""
-        output = FakeOutput([{'token': 'answer', 'logprob': -0.1}], None)
-        handler = SimpleNamespace(response_anomaly_enabled=True, response_anomaly_payload_storage=None)
-        result = load_prediction_method()(handler, output)
-        self.assertEqual(result['origin_logprobs'], output.origin_logprobs)
-        self.assertNotIn('logprobs_omitted', result)
+    def test_enabled_omits_logprobs_regardless_of_payload(self):
+        """检测开关打开即不落盘，与是否真的拿到 payload 无关"""
+        for payload in (None, {'tokens': [1], 'topk_logprobs': [{1: -0.1}]}):
+            output = FakeOutput([{'token': 'answer', 'logprob': -0.1}], payload)
+            handler = SimpleNamespace(response_anomaly_enabled=True, response_anomaly_payload_storage=None)
+            result = load_prediction_method()(handler, output)
+            self.assertNotIn('origin_logprobs', result)
+            self.assertTrue(result['logprobs_omitted'])
+            if payload is not None:
+                self.assertEqual(result['response_anomaly_payload'], payload)
 
     def test_empty_logprobs_not_written(self):
         result = load_prediction_method()(SimpleNamespace(response_anomaly_enabled=False), FakeOutput([]))

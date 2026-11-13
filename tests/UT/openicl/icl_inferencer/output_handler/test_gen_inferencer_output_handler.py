@@ -309,7 +309,7 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         self.assertEqual(result["origin_logprobs"], [{"token": "B", "logprob": -0.5, "top_logprobs": [{"token": "B", "logprob": -0.5}]}])
 
     def test_get_prediction_result_omits_logprobs_when_anomaly_enabled(self):
-        """异常检测已归档概率数据时不再重复落盘 logprobs"""
+        """异常检测开启即不落盘 logprobs，避免 predictions 体积膨胀"""
         handler = GenInferencerOutputHandler(perf_mode=False, response_anomaly_enabled=True)
 
         output = Output()
@@ -318,9 +318,6 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         output.input_tokens = 100
         output.output_tokens = 50
         output.origin_logprobs = [{"token": "B", "logprob": -0.5, "top_logprobs": [{"token": "B", "logprob": -0.5}]}]
-        output.extra_details_data["response_anomaly_payload"] = {
-            "tokens": [1], "topk_logprobs": [{1: -0.5}]
-        }
         output.get_prediction = mock.Mock(return_value="predicted_text")
 
         result = handler.get_prediction_result(output, "gold", "input", "data_abbr")
@@ -329,23 +326,6 @@ class TestGenInferencerOutputHandler(unittest.TestCase):
         self.assertTrue(result["logprobs_omitted"])
         self.assertEqual(result["input_tokens"], 100)
         self.assertEqual(result["output_tokens"], 50)
-
-    def test_get_prediction_result_keeps_logprobs_when_payload_missing(self):
-        """检测开启但服务未返回 token id 时仍保留 logprobs"""
-        handler = GenInferencerOutputHandler(perf_mode=False, response_anomaly_enabled=True)
-
-        output = Output()
-        output.success = True
-        output.uuid = "test_uuid"
-        output.input_tokens = 100
-        output.output_tokens = 50
-        output.origin_logprobs = [{"token": "B", "logprob": -0.5, "top_logprobs": [{"token": "B", "logprob": -0.5}]}]
-        output.get_prediction = mock.Mock(return_value="predicted_text")
-
-        result = handler.get_prediction_result(output, "gold", "input", "data_abbr")
-
-        self.assertIn("origin_logprobs", result)
-        self.assertNotIn("logprobs_omitted", result)
 
     def test_get_prediction_result_without_logprobs(self):
         """测试 get_prediction_result 在无 logprobs 数据时不输出 logprobs 字段"""
