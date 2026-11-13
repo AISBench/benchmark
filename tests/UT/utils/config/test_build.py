@@ -100,6 +100,53 @@ class TestConfigBuildUtilities(unittest.TestCase):
             build_model_from_cfg(ConfigDict({"generation_kwargs": "not a dict", "type": "model.Type"}))
 
     @patch("ais_bench.benchmark.utils.config.build.logger")
+    @patch("ais_bench.benchmark.utils.config.build.MODELS")
+    def test_build_model_from_cfg_with_url_skips_host_validation(self, mock_models, _mock_logger):
+        """host_ip/host_port are ignored once a non-empty url is provided"""
+        mock_models.build.return_value = MagicMock()
+
+        # A custom url makes host_ip/host_port irrelevant: empty values are fine.
+        cfg = ConfigDict(
+            {
+                "attr": "service",
+                "type": "some.model.Type",
+                "url": "http://example.com/v1/chat/completions",
+                "host_ip": "",
+                "host_port": "",
+                "retry": 2,
+            }
+        )
+        build_model_from_cfg(cfg)
+        mock_models.build.assert_called_once()
+
+        # Without url the same empty host fields are still rejected.
+        with self.assertRaises(AISBenchConfigError):
+            build_model_from_cfg(
+                ConfigDict(
+                    {
+                        "attr": "service",
+                        "type": "some.model.Type",
+                        "host_ip": "",
+                        "host_port": "",
+                    }
+                )
+            )
+
+        # A whitespace-only url must not bypass the validation either.
+        with self.assertRaises(AISBenchConfigError):
+            build_model_from_cfg(
+                ConfigDict(
+                    {
+                        "attr": "service",
+                        "type": "some.model.Type",
+                        "url": "   ",
+                        "host_ip": "",
+                        "host_port": "",
+                    }
+                )
+            )
+
+    @patch("ais_bench.benchmark.utils.config.build.logger")
     @patch("os.path.exists", return_value=True)
     @patch("ais_bench.benchmark.utils.config.build.MODELS")
     def test_build_model_from_cfg_with_traffic_cfg(self, mock_models, _mock_exists, _mock_logger):
