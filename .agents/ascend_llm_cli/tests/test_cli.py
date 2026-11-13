@@ -46,6 +46,14 @@ class CLITests(unittest.TestCase):
         code, _, _ = self.invoke(['get-status', '--task-ref', 't'], response=result)
         self.assertEqual(code, 3)
 
+    def test_validation_reason_is_preserved_and_bounded(self):
+        reason = 'INVALID_INPUT: bound deployment Model launch/checks incomplete: p'
+        code, result, _ = self.invoke(['get-status', '--task-ref', 't'], effect=ProtocolError(reason))
+        self.assertEqual(code, 2)
+        self.assertEqual(result['error']['message'], reason)
+        _, result, _ = self.invoke(['get-status', '--task-ref', 't'], effect=ProtocolError('INVALID_INPUT: '+'x'*20000))
+        self.assertLessEqual(len(result['error']['message']), 1000)
+
     def test_wait_timeout_is_successful_observation(self):
         code, result, _ = self.invoke(['wait-event', '--task-ref', 't', '--after-seq', '3'], response=envelope('t', 3, 'WAIT_TIMEOUT'))
         self.assertEqual(code, 0)

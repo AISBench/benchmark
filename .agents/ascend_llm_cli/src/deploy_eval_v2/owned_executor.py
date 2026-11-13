@@ -48,13 +48,17 @@ class OwnedExecutor:
         validate_service(value)
         values=self.inputs()
         compiled=values['compiled.json']
+        deployment = values['plan.json']['deployment']
+        health_path = next(item['checks']['health'] for item in deployment['instances']
+                           if item['id'] == deployment['endpoint']['instance'])
         if (value.get('service_id')!=self.service_id or value.get('task_id')!=self.task_id or
                 value.get('bundle_sha256')!=self.bundle_digest or value.get('ownership')!='owned' or
                 value['runtime_sha256']!=self.runtime_digest or
                 value['policy']!=values['plan.json']['policy'] or
                 value['endpoint']!=compiled['topology']['endpoint'] or value['model']!=compiled['model'] or
                 set(value['containers'])!=set(compiled['topology']['groups']) or
-                value.get('metrics',[])!=compiled['topology']['metric_instances']):
+                value.get('metrics',[])!=compiled['topology']['metric_instances'] or
+                value.get('health_path', health_path) != health_path):
             raise ProtocolError('RECOVERY_REQUIRED: service identity mismatch')
         return value
 
@@ -128,6 +132,9 @@ class OwnedExecutor:
                     deployment_summary=dict(container_groups=len(result['containers'])),
                     metrics=values['compiled.json']['topology']['metric_instances'],
                     containers=result['containers'])
+                deployment = values['plan.json']['deployment']
+                service['health_path'] = next(item['checks']['health'] for item in deployment['instances']
+                    if item['id'] == deployment['endpoint']['instance'])
                 validate_service(service)
                 atomic_json(self.root/'service.json',service)
                 return 'deployment.ready','READY',dict(service_id=self.service_id,endpoint=service['endpoint'],

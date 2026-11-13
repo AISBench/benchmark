@@ -21,7 +21,7 @@ def request(url, deadline, cancelled, *, payload=None, max_bytes=65536):
         raise Cancelled('HTTP probe cancelled')
     timeout = remaining(deadline)
     connection = (http.client.HTTPSConnection if parts.scheme=='https' else http.client.HTTPConnection)(
-        parts.hostname,parts.port,timeout=min(10,timeout))
+        parts.hostname,parts.port,timeout=timeout)
     done, stopped = threading.Event(), threading.Event()
     result = []
     body = None if payload is None else json.dumps(payload,ensure_ascii=False,allow_nan=False).encode('utf-8')

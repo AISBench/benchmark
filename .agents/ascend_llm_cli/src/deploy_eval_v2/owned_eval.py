@@ -19,6 +19,9 @@ def owned_eval_inputs(plan,bindings,service):
         policy=dict(idle_timeout_seconds=plan['policy']['idle_timeout_seconds'],on_idle='keep_service',
                     on_failure='stop_owned_clients'))
     test_bindings=dict(schema_version='1.0',task_id=plan['task_id'],testers=bindings['testers'])
+    endpoint = plan['deployment']['endpoint']
+    entry = next(item for item in plan['deployment']['instances'] if item['id'] == endpoint['instance'])
+    adapted['service']['health_path'] = service.get('health_path', entry['checks']['health'])
     if 'metrics' in service:
         adapted['service']['metrics']=service['metrics']
     if any(case['reset_cache'] for case in evaluation['cases']):

@@ -89,6 +89,27 @@
             "maxLength": 8192,
             "pattern": "^[^\\u0000]*$"
           }
+        },
+        "container": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "image"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "image": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            }
+          }
+        },
+        "host_python": {
+          "$ref": "#/$defs/path"
         }
       }
     },

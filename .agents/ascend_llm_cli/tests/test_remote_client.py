@@ -8,6 +8,22 @@ from test_cli import Output
 
 
 class RemoteClientTests(unittest.TestCase):
+    def test_stopped_task_artifacts_remain_readable_with_identity(self):
+        import tempfile
+        from pathlib import Path
+        from deploy_eval_v2.durable import atomic_json
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            atomic_json(root/'.runtime/identity.json',dict(task_id='t',task_root=str(root)))
+            (root/'task.jsonl').write_bytes(b'saved evidence\n')
+            request=dict(protocol_version='1.0',task_id='t',kind='read-result',artifact_ref='task.jsonl')
+            factory=MagicMock(side_effect=ConnectionRefusedError())
+            response=relay(root,request,socket_factory=factory)
+            self.assertEqual(response['content'],'saved evidence\n')
+            request['task_id']='foreign'
+            with self.assertRaises(ProtocolError):
+                relay(root,request,socket_factory=factory)
+
     def setUp(self):
         # Transport mocks exercise framing on Windows without claiming a real
         # Unix socket connection. Linux integration remains a separate gate.

@@ -29,6 +29,17 @@ def relay(root,request,*,socket_factory=socket.socket):
             with client.makefile('rb') as reader:
                 raw=reader.readline(limit+2)
     except OSError as error:
+        if request['kind']=='read-result':
+            from .json_io import load_json
+            from .artifacts import read_result
+            try:
+                identity=load_json(Path(root)/'.runtime/identity.json')
+                if identity.get('task_id')!=request['task_id'] or identity.get('task_root')!=str(Path(root)):
+                    raise ProtocolError('RECOVERY_REQUIRED: offline artifact identity mismatch')
+            except (OSError,ValueError) as identity_error:
+                raise ProtocolError('UNKNOWN_OUTCOME: offline artifact identity unavailable') from identity_error
+            fields={key:value for key,value in request.items() if key not in ('kind','protocol_version','task_id')}
+            return read_result(root,request['task_id'],**fields)
         raise ProtocolError('UNKNOWN_OUTCOME: runtime socket observation failed') from error
     if not raw.endswith(b'\n') or len(raw)>limit+1:
         raise ProtocolError('TRANSPORT_PROTOCOL_ERROR: runtime response framing or budget')

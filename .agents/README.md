@@ -5,6 +5,13 @@
 | Skill | 用途 | 使用入口 |
 |---|---|---|
 | [ascend-llm-deploy-eval](skills/ascend-llm-deploy-eval/SKILL.md) | 昇腾模型部署、预检、性能测试与资源释放 | [快速开始](skills/ascend-llm-deploy-eval/README.md) |
+| [ascend-llm-router](skills/ascend-llm-router/SKILL.md) | 新版任务入口、意图识别与阶段交接 | [CLI 安装与使用](ascend_llm_cli/README.md) |
+| [ascend-llm-plan](skills/ascend-llm-plan/SKILL.md) | 现场绑定、审阅与输入冻结 | [计划与绑定](skills/ascend-llm-plan/references/plan-contract.md) |
+| [ascend-llm-deployment](skills/ascend-llm-deployment/SKILL.md) | 部署、健康检查、冒烟与服务保留 | [部署技能](skills/ascend-llm-deployment/SKILL.md) |
+| [ascend-llm-eval](skills/ascend-llm-eval/SKILL.md) | 原生性能评测、证据核验与独立评测收尾 | [评测技能](skills/ascend-llm-eval/SKILL.md) |
+| [ascend-llm-release](skills/ascend-llm-release/SKILL.md) | 按资源归属核验并释放自有服务 | [释放技能](skills/ascend-llm-release/SKILL.md) |
+
+五个新版技能共用 [ascend_llm_cli](ascend_llm_cli/README.md)，通过 `deploy-eval-v2` 的公开 JSON 契约协作；架构见 [DESIGN](ascend_llm_cli/DESIGN.md)。稳定版 `ascend-llm-deploy-eval` 独立保留，不随新版任务迁移或改写历史产物。
 
 ## 加载与使用
 

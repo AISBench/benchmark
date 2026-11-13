@@ -49,6 +49,12 @@ def main():
     args=parser.parse_args()
     request=load_json(args.request)
     result=inspect_environment(request['tester'],request['case'],config_path=request['config'])
+    if request.get('endpoint'):
+        from urllib.request import urlopen
+        with urlopen(request['endpoint'].rstrip('/')+request.get('health_path', '/health'), timeout=10) as response:
+            if response.status != 200:
+                raise ProtocolError('INVALID_INPUT: service unhealthy from tester environment')
+        result['service_health'] = 'VERIFIED_FROM_TESTER'
     atomic_json(Path(args.result),result)
 
 

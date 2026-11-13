@@ -1,6 +1,6 @@
 ---
 name: ascend-llm-deployment
-description: Deploy and Eval v2 的部署阶段交接与事件处理，检查冻结输入、健康和冒烟证据；支持经授权的开发验收，实机验证待完成。
+description: Deploy and Eval v2 的部署阶段交接与事件处理，检查冻结输入、健康和冒烟证据；支持仅部署保留服务及经授权的开发验收。
 ---
 
 # Deploy

@@ -44,6 +44,16 @@ class Runtime:
         self._snapshot()
         self._schedule_idle()
 
+    def can_stop(self):
+        if self.active:
+            return False
+        if self.state in ('NEW', 'RELEASED', 'CANCELLED'):
+            return True
+        if self.state == 'FAILED' and self.journal.events:
+            event = self.journal.events[-1]
+            return event['type'] == 'operation.failed' and event['data'].get('cleanup_status') == 'VERIFIED'
+        return False
+
     def _schedule_idle(self):
         if self.idle_timer is not None:
             self.idle_timer.cancel()

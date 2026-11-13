@@ -52,9 +52,20 @@ def stop_runtime(request, config):
     if set(request) != {'task_ref','nonce'}:
         raise ProtocolError('INVALID_INPUT: stop-runtime request')
     binding=task_binding(config,request['task_ref'])
-    script='import sys,json; sys.path.insert(0, '+repr(binding['root']+'/runtime')+'); from deploy_eval_v2.socket_validation import stop_installed; print(json.dumps(stop_installed('+repr(binding['root'])+',json.load(sys.stdin))))'
+    script='import sys; sys.path.insert(0, '+repr(binding['root']+'/runtime')+'); from deploy_eval_v2.socket_validation import stop_cli; stop_cli('+repr(binding['root'])+')'
     return exchange(ssh_argv(binding['host'],[binding['python'],'-B','-c',script]),
                     dict(task_id=request['task_ref'],nonce=request['nonce']),timeout=15)
+
+
+def stop_cli(root):
+    import sys,json
+    request=json.load(sys.stdin)
+    try:
+        response=stop_installed(root,request)
+    except ProtocolError as error:
+        response=envelope(request.get('task_id'),0,'ERROR')
+        response['error']=dict(code=str(error).split(':',1)[0],message=str(error)[:1000],retryable=False)
+    print(json.dumps(response))
 
 
 def stop_installed(root,request):
@@ -67,7 +78,7 @@ def stop_installed(root,request):
     if identity['task_id']!=request['task_id'] or identity['nonce']!=request['nonce']:
         raise ProtocolError('REQUEST_CONFLICT: stop identity')
     status=relay(root,dict(protocol_version='1.0',task_id=request['task_id'],kind='get-status'))
-    if status.get('task_state') not in ('NEW','RELEASED','CANCELLED'):
+    if status.get('task_state') not in ('NEW','RELEASED','CANCELLED','FAILED'):
         raise ProtocolError('RESOURCE_BUSY: release or cancel and verify resources before stopping runtime')
     expected=load_json(root/'.runtime/process.json')
     if process_identity(expected['pid'])!=expected:

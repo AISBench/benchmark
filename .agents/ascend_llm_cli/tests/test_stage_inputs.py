@@ -45,6 +45,15 @@ class IndependentStageTests(unittest.TestCase):
             self.assertEqual(plan['service']['ownership'],'external')
             self.assertFalse(plan['service']['permissions']['restart'])
 
+    def test_proxy_health_path_is_preserved_without_service_authority(self):
+        with tempfile.TemporaryDirectory() as folder:
+            request=self.eval_request(Path(folder)/'prepared')
+            request['health_path']='/healthcheck'
+            result=prepare(request)
+            plan=json.loads(Path(result['plan']).read_text())
+            self.assertEqual(plan['service']['health_path'],'/healthcheck')
+            self.assertFalse(plan['service']['permissions']['release'])
+
     def test_deploy_only_rejects_hidden_evaluation_or_idle_release(self):
         with tempfile.TemporaryDirectory() as folder:
             plan=deploy_plan();plan['policy']['on_idle']='release_owned'

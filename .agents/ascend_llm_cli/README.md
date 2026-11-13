@@ -66,4 +66,8 @@ stdout 仅返回有界 JSON。长操作先返回 RUNNING、operation_id 和 next
 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
 
-本版本不宣称已通过真实模型性能验收。Linux 专用项在不支持 Unix socket 的系统上跳过；本地模拟与原生产物 fixture 不等于模型或 NPU 测试。
+2026-11-13 已完成 Ascend950DT、DeepSeek-V4-Flash、DP4/TP1 的 1P1D 真实技能功能验收，覆盖部署并评测、仅部署保留服务、独立评测后由原归属流程释放服务。各场景使用全新测试 Agent；原生合成负载为 concurrency=1、input_tokens=128、output_tokens=16、formal_requests=4、num_warmups=1、steady_state=false、reset_cache=false。健康、冒烟、原生性能证据、日志归集及自有资源收尾通过；这不是稳态性能、精度或其他平台兼容性结论。现场报告与调试产物保存在仓库外。
+
+本地回归运行205项，1项因平台条件跳过。Linux 专用项在不支持 Unix socket 的系统上跳过；本地模拟与原生产物 fixture 不等于模型或 NPU 测试。CLI 的 acceptance=local-only 标签仍保留，不以单一现场功能验收承诺通用生产就绪。
+
+容器 tester（CLI >=0.1.0a8）：绑定 container.id（完整容器 ID）与 container.image（sha256 镜像摘要）；python/aisbench/model_path/environment 属于容器，host_python 属于宿主框架。复用已有运行容器，只创建任务独立工具目录，不安装依赖或授予容器管理权限。工具预检和负载在容器执行，证据回收到宿主任务目录。

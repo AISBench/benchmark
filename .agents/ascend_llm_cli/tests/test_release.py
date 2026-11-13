@@ -12,6 +12,21 @@ from deploy_eval_v2.protocol import ProtocolError
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_transient_port_occupancy_is_rechecked_without_weakening_bind(self):
+        import threading
+        listener=socket.socket()
+        listener.bind(('127.0.0.1',0))
+        listener.listen()
+        resource='tcp:'+str(listener.getsockname()[1])
+        timer=threading.Timer(.1,listener.close)
+        timer.start()
+        try:
+            result=verify_resources_absent([resource],Mock(),time.monotonic()+3)
+            self.assertEqual(result[0]['status'],'ABSENT_VERIFIED')
+        finally:
+            listener.close()
+            timer.join()
+
     def test_resource_probe_checks_real_port_and_fuser_errors(self):
         with socket.socket() as listener:
             listener.bind(('127.0.0.1', 0))

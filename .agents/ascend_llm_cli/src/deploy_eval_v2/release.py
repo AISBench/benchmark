@@ -3,6 +3,7 @@ import json
 import re
 import socket
 import time
+import errno
 from pathlib import Path
 from .durable import atomic_json
 from .compiler import digest
@@ -31,7 +32,16 @@ def verify_resources_absent(resources, runner, deadline):
                     probes.append(probe)
                     if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
                         probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-                    probe.bind(('0.0.0.0', int(value)))
+                    # Closed server connections can retain TIME_WAIT briefly.
+                    # Keep exclusive bind semantics; wait within the release budget.
+                    while True:
+                        try:
+                            probe.bind(('0.0.0.0', int(value)))
+                            break
+                        except OSError as error:
+                            if error.errno != errno.EADDRINUSE or time.monotonic()+1 >= deadline:
+                                raise
+                            time.sleep(min(.5, deadline-time.monotonic()))
                     status = 'ABSENT_VERIFIED'
             except (OSError, ValueError, ProtocolError, TimeoutError):
                 pass

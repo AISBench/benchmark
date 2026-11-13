@@ -144,6 +144,11 @@
               }
             }
           }
+        },
+        "health_path": {
+          "type": "string",
+          "pattern": "^/[A-Za-z0-9_./-]*$",
+          "maxLength": 256
         }
       }
     },

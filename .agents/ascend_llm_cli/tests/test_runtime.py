@@ -25,6 +25,18 @@ def finish(runtime):
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_failed_runtime_stop_requires_verified_cleanup_evidence(self):
+        for cleanup in ('VERIFIED','UNVERIFIED'):
+            with self.subTest(cleanup=cleanup), tempfile.TemporaryDirectory() as root:
+                def executor(*args):
+                    return 'operation.failed','FAILED',dict(cleanup_status=cleanup,error_code='DEPLOYMENT_FAILED')
+                runtime=Runtime(root,'t',executor)
+                runtime.submit(command(plan_ref='frozen'))
+                finish(runtime)
+                self.assertEqual(runtime.can_stop(),cleanup=='VERIFIED')
+                runtime.active='unknown-operation'
+                self.assertFalse(runtime.can_stop())
+
     def test_cancel_accepted_before_success_boundary_runs_cleanup(self):
         entered=threading.Event();complete=threading.Event();cleaning=threading.Event();cleaned=threading.Event()
         class Executor:

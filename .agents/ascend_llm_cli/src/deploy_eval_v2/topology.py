@@ -79,7 +79,8 @@ def validate_deployment(dep):
                 errors.append('Confirmed device selection conflicts with placement: '+item['id']+'.'+key)
         generated = {'host', 'port', 'served-model-name', 'kv-transfer-config'}
         if generated.intersection(args):
-            errors.append('Runtime-generated arguments cannot be duplicated: '+item['id'])
+            errors.append('Runtime-generated arguments cannot be duplicated: '+item['id']+
+                          ' ['+', '.join(sorted(generated.intersection(args)))+']; use network.ip, ports.http, model.served_name, launch.kv_transfer_config respectively')
     endpoint = dep['endpoint']
     if endpoint['instance'] not in instances or endpoint['port'] not in instances[endpoint['instance']]['ports']:
         errors.append('Invalid deployment endpoint')

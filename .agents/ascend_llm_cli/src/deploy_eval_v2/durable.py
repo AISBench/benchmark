@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 import tempfile
-from .protocol import encode
+from .hashes import canonical
 
 
 def atomic_json(path, value):
@@ -12,7 +12,7 @@ def atomic_json(path, value):
     temporary = Path(name)
     try:
         with os.fdopen(descriptor, 'wb') as stream:
-            stream.write(encode(value))
+            stream.write(canonical(value))
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)

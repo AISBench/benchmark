@@ -24,7 +24,7 @@ def main(argv=None):
     request = {}
     try:
         parser = Parser()
-        parser.add_argument('--version', action='version', version='deploy-eval-v2 0.1.0a7; protocol 1.0; production_executor=guarded; acceptance=local-only')
+        parser.add_argument('--version', action='version', version='deploy-eval-v2 0.1.0a13; protocol 1.0; production_executor=guarded; acceptance=local-only')
         parser.add_argument('--config', default=os.environ.get('DEPLOY_EVAL_V2_CONFIG'))
         commands = parser.add_subparsers(dest='kind', required=True)
         for name in ('deploy', 'eval', 'release', 'cancel', 'freeze-inputs', 'verify-inputs','draft-review','package-runtime','publish-task','start-task','check-ready','install-skills','socket-start','stop-runtime','prepare-inputs','export-contracts'):
@@ -117,7 +117,10 @@ def main(argv=None):
                 value = request.get(field)
                 if isinstance(value, str) and len(value) <= 64:
                     response[field] = value
-        response['error'] = dict(code=error, message=error, retryable=False)
+        # Public validation reasons let callers correct business input without
+        # reading implementation code. Unexpected exception text stays private.
+        message = str(exc)[:1000] if isinstance(exc, ProtocolError) else error
+        response['error'] = dict(code=error, message=message, retryable=False)
         code = exit_code(response)
     sys.stdout.buffer.write(encode(response)+b'\n')
     return code

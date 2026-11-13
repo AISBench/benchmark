@@ -57,22 +57,26 @@ def execute_external_case(plan, bindings, case_id, folder, cancelled, *, verifie
         raise ProtocolError('INVALID_INPUT: unknown case')
     deadline = time.monotonic()+case['timeout_seconds']
     # Health is rechecked now; no previous deployment health claim is reused.
-    url = plan['service']['endpoint'].rstrip('/')+'/health'
+    url = plan['service']['endpoint'].rstrip('/')+plan['service'].get('health_path', '/health')
     health_evidence = wait_health([url],deadline,cancelled)
     # Imports and dataset checks execute in the bound tester interpreter, under
     # the same stage deadline, rather than in the coordinator's Python environment.
     case, tester, argv = prepare_case(plan, bindings, case_id, folder,check_files=False)
     folder = Path(folder)
     (folder/'health.json').write_text(json.dumps(health_evidence), encoding='utf-8')
-    if not Path(tester['aisbench']).is_file() or not Path(tester['model_path']).is_dir():
+    runner = run_logged
+    if 'container' in tester:
+        from .container_tester import ContainerTester
+        runner = ContainerTester(tester, folder, deadline).run
+    elif not Path(tester['aisbench']).is_file() or not Path(tester['model_path']).is_dir():
         raise ProtocolError('INVALID_INPUT: AISBench or tokenizer assets unavailable')
     environment = dict(os.environ)
     environment.update(tester.get('environment', {}))
     atomic_json(folder/'tester-environment.json', tester.get('environment', {}))
     preflight_request=folder/'preflight-request.json'
-    atomic_json(preflight_request,dict(tester=tester,case=case,config=str(folder/'aisbench-config.py')))
+    atomic_json(preflight_request,dict(tester=tester,case=case,config=str(folder/'aisbench-config.py'), endpoint=plan['service']['endpoint'], health_path=plan['service'].get('health_path', '/health')))
     bootstrap='import sys; sys.path.insert(0, '+repr(str(Path(__file__).parent.parent))+'); from deploy_eval_v2.benchmark_preflight import main; main()'
-    preflight=run_logged([tester['python'],'-B','-c',bootstrap,'--request',str(preflight_request),
+    preflight=runner([tester['python'],'-B','-c',bootstrap,'--request',str(preflight_request),
                          '--result',str(folder/'preflight.json')],folder/'preflight.log',deadline,cancelled,env=environment)
     if preflight or load_json(folder/'preflight.json').get('status')!='VERIFIED':
         raise ProtocolError('INVALID_INPUT: benchmark environment preflight failed')
@@ -81,7 +85,7 @@ def execute_external_case(plan, bindings, case_id, folder, cancelled, *, verifie
         reset_instances(plan['service'],folder,deadline,cancelled)
     metrics=plan['service'].get('metrics',[])
     metric_evidence.capture(metrics,folder,'before',deadline,cancelled)
-    returncode = run_logged(argv, folder/'aisbench.log', deadline, cancelled,env=environment)
+    returncode = runner(argv, folder/'aisbench.log', deadline, cancelled,env=environment)
     metric_evidence.capture(metrics,folder,'after',deadline,cancelled)
     prefix=metric_evidence.summarize(folder,case)
     (folder/'execution.json').write_text(json.dumps({'returncode': returncode}), encoding='utf-8')
@@ -91,7 +95,7 @@ def execute_external_case(plan, bindings, case_id, folder, cancelled, *, verifie
         postflight=folder/'postflight-request.json'
         atomic_json(postflight,dict(folder=str(folder),case=case,model_path=tester['model_path']))
         script='import sys; sys.path.insert(0, '+repr(str(Path(__file__).parent.parent))+'); from deploy_eval_v2.native_postflight import main; main()'
-        code=run_logged([tester['python'],'-B','-c',script,'--request',str(postflight)],folder/'postflight.log',deadline,cancelled,env=environment)
+        code=runner([tester['python'],'-B','-c',script,'--request',str(postflight)],folder/'postflight.log',deadline,cancelled,env=environment)
         if not code and (folder/'synthetic-evidence.json').exists():
             synthetic=load_json(folder/'synthetic-evidence.json')
         else:
@@ -99,11 +103,11 @@ def execute_external_case(plan, bindings, case_id, folder, cancelled, *, verifie
             atomic_json(folder/'synthetic-evidence.json',synthetic)
     from .performance_evidence import summarize
     performance=summarize(folder,case,native,deadline=deadline,cancelled=cancelled)
-    verified=performance['status']=='VERIFIED' and (not metrics or prefix['status']=='VERIFIED')
+    verified=performance['status']=='VERIFIED'
     # Prefix routing coverage is separate from native request performance.
     if 'shared_prefix_ratio' in case:
         dataset_verified=(synthetic is not None and synthetic['status']=='MEASURED') or tester['datasets'][case['dataset_id']].get('generation_manifest') is not None
-        verified=verified and dataset_verified and prefix['routing_coverage']=='VERIFIED' and prefix['warmup_route_coverage'] in ('VERIFIED','NOT_REQUESTED')
+        verified=verified and dataset_verified and prefix['status']=='VERIFIED' and prefix['routing_coverage']=='VERIFIED' and prefix['warmup_route_coverage'] in ('VERIFIED','NOT_REQUESTED')
     result = dict(schema_version='1.0', service_id=plan['service']['service_id'],
                   case_id=case_id, execution_status='SUCCEEDED', evidence_status='COMPLETE' if verified else 'PARTIAL',
                   performance_validity='VERIFIED' if verified else 'UNVERIFIED',

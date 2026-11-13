@@ -25,3 +25,7 @@ Runtime also rebuilds operations/OPERATION_ID.json from journal acceptance and
 known terminal events. Missing index files are not evidence that an operation did
 not run. Unknown event types remain observable but cannot clear an active operation
 or replace its service/state.
+
+## 本地请求精确字段
+freeze-inputs的request为plan、bindings、review（三者为JSON文件路径）、destination（新的冻结目录）、runtime_sha256（64位摘要），不得额外增加字段。verify-inputs为directory、sha256、runtime_sha256。draft-review字段见上文。请求字段正确仍可能因计划、绑定或审阅内容不满足Schema或语义约束而失败，须依据error.message定位，不把所有INVALID_INPUT都解释为请求字段错误。
+模型实例的checks必须有health、prefix_cache_reset、metrics三个HTTP路径；proxy只需health。这些是检查/指标/缓存接口的路径元数据，不授予清缓存权限；本轮reset_cache=false时不得调用缓存清理接口。freeze会验证完整模型launch与这些检查元数据。实际路径应从所选框架公开接口确认；vLLM通常为/health、/reset_prefix_cache、/metrics。

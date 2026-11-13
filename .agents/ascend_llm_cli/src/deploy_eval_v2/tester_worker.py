@@ -153,7 +153,7 @@ def dispatch(root,request,*,runner=bounded_command,logged=run_logged):
         atomic_json(saved,expected)
         atomic_json(folder/'launch-accepted.json',identity)
         bootstrap='import sys; sys.path.insert(0, '+repr(str(root/'runtime'))+'); from deploy_eval_v2.task_log import redirect_output; redirect_output('+repr(str(root))+'); from deploy_eval_v2.tester_worker import main; raise SystemExit(main())'
-        argv=[tester['python'],'-B','-c',bootstrap,'--root',str(root),'--execute',str(saved)]
+        argv=[tester.get('host_python', '/usr/bin/python3') if 'container' in tester else tester['python'],'-B','-c',bootstrap,'--root',str(root),'--execute',str(saved)]
         spawn_owned(argv,folder/'worker.log',folder/'process.json')
     deadline=time.monotonic()+case['timeout_seconds']+20
     while not (folder/'response.json').exists():

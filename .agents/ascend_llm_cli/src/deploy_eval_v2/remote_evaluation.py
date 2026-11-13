@@ -14,7 +14,7 @@ class RemoteEvaluation:
         self.bundle_digest,self.runtime_digest,self.token=bundle_digest,runtime_digest,token
         self.root=str(PurePosixPath(tester['work_root'])/task_id)
         bootstrap='import sys; sys.path.insert(0, '+repr(self.root+'/runtime')+'); from deploy_eval_v2.tester_worker import main; raise SystemExit(main())'
-        self.argv=ssh_argv(tester['host'],[tester['python'],'-B','-c',bootstrap,'--root',self.root])
+        self.argv=ssh_argv(tester['host'],[tester.get('host_python', '/usr/bin/python3') if 'container' in tester else tester['python'],'-B','-c',bootstrap,'--root',self.root])
         self.transport=transport
         self.coordinator_root=coordinator_root
 

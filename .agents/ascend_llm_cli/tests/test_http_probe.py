@@ -25,6 +25,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         data=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         self.server.last_payload=data
+        if self.path.startswith('/delayed/'):
+            time.sleep(10.2)
         self.send_response(200);self.end_headers()
         self.wfile.write(json.dumps({'choices':[{'text':'Hello'}]}).encode())
 
@@ -62,3 +64,7 @@ class HttpProbeTests(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             request(self.url+'/slow',start+.15,threading.Event())
         self.assertLess(time.monotonic()-start,1)
+
+    def test_smoke_uses_reviewed_budget_beyond_ten_seconds(self):
+        result=smoke_completion(self.url+'/delayed','model',time.monotonic()+15,threading.Event())
+        self.assertEqual(result['status'],'VERIFIED')

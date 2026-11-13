@@ -112,6 +112,11 @@
         },
         "policy": {
           "$ref": "external-eval-plan.schema.json#/properties/policy"
+        },
+        "health_path": {
+          "type": "string",
+          "pattern": "^/[A-Za-z0-9_./-]*$",
+          "maxLength": 256
         }
       }
     }

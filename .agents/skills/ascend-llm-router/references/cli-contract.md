@@ -1,6 +1,25 @@
-# Public CLI contract (0.1.0a7 / protocol 1.0)
+# Public CLI contract (0.1.0a13 / protocol 1.0)
 
-Production execution is guarded and implemented. Freeze validates schemas, semantic references and compiled inputs. check-ready is local only; it does not attest host readiness. publish-task installs immutable runtime/input packages; start-task verifies detached Python process and live socket identity. Host acceptance is not yet complete.
+## 准备、审阅与发布请求
+
+以下均为 `deploy-eval-v2 COMMAND --request FILE` 的公开 JSON 请求。表中字段全部必填，不添加阶段命令的 request_id/expected_version 等字段。路径是控制端本地路径；远端路径仅来自 control.json 和冻结绑定。所有摘要使用 CLI 返回的原值。
+
+| COMMAND | FILE 的字段 | 输出及约束 |
+| --- | --- | --- |
+| package-runtime | destination | 将当前已安装 CLI 打包到新的本地 ZIP 文件；返回 runtime_package，其中 archive、runtime_sha256 用于后续命令 |
+| draft-review | plan, bindings, destination, runtime_sha256 | plan/bindings 为文件路径，destination 为新目录；生成 review.json 和 review-summary.json，初始为 DRAFT，必须按实际授权审阅后批准 |
+| freeze-inputs | plan, bindings, review, destination, runtime_sha256 | review 为已审阅文件路径；返回 input_bundle.path 与 input_bundle.sha256，后者作为 bundle_sha256 |
+| verify-inputs | directory, sha256, runtime_sha256 | directory 为冻结目录，sha256 为 input_bundle.sha256；只校验，不修改冻结输入 |
+| check-ready | task_ref, runtime_archive, input_directory, runtime_sha256, bundle_sha256 | 需要 --config CONTROL；仅本地可执行性检查，不代表现场预检成功 |
+| publish-task | task_ref, runtime_archive, input_directory, runtime_sha256, bundle_sha256 | 需要 --config CONTROL；发布包到授权任务目录，不能预先用其他文件占据该目录 |
+| start-task | task_ref, runtime_sha256, bundle_sha256, nonce | 需要 --config CONTROL；两项摘要和 nonce 都必须是64位小写十六进制字符串（正则[a-f0-9]{64}）；nonce 一次生成并保存，未知结果先查询，不更换身份盲目重试 |
+| stop-runtime | task_ref, nonce | 需要 --config CONTROL；使用原启动 nonce，仅停止已允许收尾的框架进程，不替代服务释放 |
+
+例如 package-runtime 的请求文件内容为 `{"destination":"runtime.zip"}`。准备顺序为打包、审阅、冻结、check-ready，再由对应阶段技能发布与启动。destination 使用未存在的新文件或目录（类型按表）；冻结后不手工修改内容。prepare-inputs/export-contracts 见下文及 plan 技能。control.json 的任务键、冻结 plan.task_id 和 task_ref 必须一致。
+
+nonce 是启动身份随机值，不是摘要计算结果，也不是32位GUID；可用控制端 Python `secrets.token_hex(32)` 生成64位值，保存到请求后始终复用。`INVALID_INPUT: startup digest` 表示 runtime_sha256、bundle_sha256 或 nonce 中至少一项格式不符合上述契约；不能因此把已发布包推断为已启动。对未知启动结果仍按身份与持久回执查询，禁止换nonce盲重试。
+
+Production execution is guarded and implemented. Freeze validates schemas, semantic references and compiled inputs. check-ready is local only; it does not attest host readiness. publish-task installs immutable runtime/input packages; start-task verifies detached Python process and live socket identity. Real-host functional acceptance covers the three scenarios and bounded workload documented in the CLI README; it does not attest readiness of another host.
 
 For a model-free Linux socket run use socket-start, documented in socket-validation.md. This explicitly simulates stages; the Agent must submit each subsequent phase itself through the normal CLI.
 
@@ -42,3 +61,5 @@ durable and prevents later phases; cleanup completes asynchronously and its even
 must be checked. Acceptance is not evidence of resource release.
 
 本地业务输入：`prepare-inputs --request task.json`（详见 plan 技能）返回 plan/bindings 路径及待审阅默认值；`export-contracts --request export.json` 导出与 CLI 同版本的权威 JSON Schema。新日志布局仅用于新任务，不用新包接管历史冻结任务。远端日志归集未完成时 task.jsonl 记录 remote.log.pending，不能声称日志完整；原生服务/AISBench 日志保持原位。
+
+CLI >=0.1.0a12：原子JSON产物采用与事件摘要相同的规范序列化，expected-sha256验证文件字节；不改旧包旧产物。read-result在runtime socket不可用时，可核对持久任务身份后只读本任务受限路径的产物；不恢复执行、不改变状态或授权其他任务。停机后仍按offset/next_offset有界取回日志，并独立核验完整性。

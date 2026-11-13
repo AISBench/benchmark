@@ -6,6 +6,16 @@ from deploy_eval_v2.protocol import encode, ProtocolError
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_persisted_json_bytes_match_event_content_digest(self):
+        from deploy_eval_v2.durable import atomic_json
+        from deploy_eval_v2.hashes import digest
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            value={'z':1,'a':{'second':'中文','first':True}}
+            atomic_json(root/'results/stage.json',value)
+            response=read_result(root,'t','results/stage.json',expected_sha256=digest(value))
+            self.assertEqual(response['verified_sha256'],digest(value))
+
     def test_result_digest_checked_before_returning_partial_content(self):
         import hashlib
         with tempfile.TemporaryDirectory() as folder:

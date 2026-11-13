@@ -54,7 +54,7 @@ def serve(root, task_id, executor, identity=None):
                         if identity is None or request.get('nonce') != identity['nonce']:
                             raise ProtocolError('REQUEST_CONFLICT: runtime stop identity')
                         with api.runtime.lock:
-                            if api.runtime.state not in ('NEW','RELEASED','CANCELLED') or api.runtime.active:
+                            if not api.runtime.can_stop():
                                 raise ProtocolError('RESOURCE_BUSY: runtime holds active resources')
                             # Prevent new phases from racing an admitted shutdown.
                             api.runtime.task_cancelled = True
