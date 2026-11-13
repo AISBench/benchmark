@@ -11,6 +11,7 @@ the concrete submodule directly and is unaffected by a skipped re-export.
 
 # flake8: noqa: F401, F403
 _DATASET_MODULES = [
+    "ais_bench.benchmark.datasets.simpleqa_verified",
     "ais_bench.benchmark.datasets.aime2024",
     "ais_bench.benchmark.datasets.aime2025",
     "ais_bench.benchmark.datasets.aime2026",
