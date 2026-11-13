@@ -120,33 +120,157 @@ class SolveResult:
     trajectory_issues: tuple[str, ...] = () # 无法完全满足平滑轨迹时的诊断
 
 
-def normalize_question(value: str) -> str:
-    """规范化题干：合并空白、去首尾空格。"""
-    return " ".join(value.strip().split())
+def _message_text(message: dict, index: int | None = None) -> str:
+    """Extract ``role`` and string ``content`` from one OpenAI-style message."""
+    content = message.get("content")
+    if not isinstance(content, str):
+        where = f" at index {index}" if index is not None else ""
+        raise TypeError(
+            f"message object{where} must have a string 'content' field, "
+            f"got {type(content).__name__}"
+        )
+    role = message.get("role")
+    if isinstance(role, str) and role:
+        return f"{role}: {content}"
+    return content
+
+
+def normalize_question(value: Any) -> str:
+    """规范化语料文本：支持纯文本、消息列表和单条消息。
+
+    - ``str``: 保持原有行为（合并空白、去首尾空格）。
+    - ``list`` / ``tuple``: 逐项提取文本后拼接；字符串原样保留，
+      ``{"role": ..., "content": ...}`` 消息保留 ``role: content``，
+      项之间用空行分隔。
+    - ``dict``: 取 ``role: content``（无 role 时只取 content）。
+
+    其它类型抛 ``TypeError``，由 :func:`load_gsm8k` 转为可读的语料校验错误。
+    """
+    if isinstance(value, str):
+        text = value
+    elif isinstance(value, dict):
+        text = _message_text(value)
+    elif isinstance(value, (list, tuple)):
+        parts: list[str] = []
+        for index, item in enumerate(value):
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                parts.append(_message_text(item, index))
+            else:
+                raise TypeError(
+                    "corpus field list items must be strings or message "
+                    f"objects, got {type(item).__name__} at index {index}"
+                )
+        text = "\n\n".join(parts)
+    else:
+        raise TypeError(
+            "corpus field must be a string, a message list, or a message "
+            f"object, got {type(value).__name__}"
+        )
+    return " ".join(text.strip().split())
+
+
+_PARQUET_SUFFIXES = frozenset({".parquet", ".pq"})
+_PARQUET_BATCH_SIZE = 16
+
+
+def _decode_parquet_cell(value: Any) -> Any:
+    """解码 parquet 中以字符串存储的 JSON 数组/对象。
+
+    MRCR 的 ``prompt`` 列在 parquet 中是 JSON 字符串；若不解析，消息结构会被
+    当成普通 JSON 文本拼进语料，``role`` 和 ``content`` 都无法按字段处理。
+    """
+    if not isinstance(value, str):
+        return value
+    stripped = value.lstrip()
+    if not stripped.startswith(("[", "{")):
+        return value
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError:
+        return value
+    return decoded if isinstance(decoded, (list, dict)) else value
+
+
+def _parquet_field_values(path: Path, field: str) -> Iterable[Any]:
+    """按批流式读取 parquet 的一列，避免一次性载入整个大文件。"""
+    try:
+        import pyarrow.parquet as pq
+    except ImportError as exc:
+        raise ScenarioValidationError(
+            "pyarrow is required to read parquet corpora; "
+            "install it with 'pip install pyarrow'"
+        ) from exc
+    try:
+        parquet = pq.ParquetFile(path)
+    except Exception as exc:
+        raise ScenarioValidationError(f"cannot read parquet corpus {path}: {exc}") from exc
+    available = parquet.schema_arrow.names
+    if field not in available:
+        raise ScenarioValidationError(
+            f"parquet corpus {path} has no field {field!r}; "
+            f"available fields: {', '.join(available)}"
+        )
+    for batch in parquet.iter_batches(columns=[field], batch_size=_PARQUET_BATCH_SIZE):
+        for value in batch.column(0).to_pylist():
+            yield _decode_parquet_cell(value)
 
 
 def load_gsm8k(path: Path, field: str = "question") -> list[GSMRecord]:
-    """逐行读取 GSM8K JSONL 语料并构造 GSMRecord 列表，校验空内容。"""
-    logger.info("[gen] load_gsm8k path=%s field=%s", path, field)
+    """读取 JSONL 或 Parquet 语料并构造 GSMRecord 列表，校验空内容。
+
+    - ``.parquet`` / ``.pq``：按 ``field`` 列流式读取，行号从 0 开始；
+      若单元格是 JSON 编码的消息数组/对象（如 MRCR 的 ``prompt``），
+      会自动解码后交给 :func:`normalize_question`。
+    - 其它后缀：按 JSONL 逐行读取，每行须包含 ``field``。
+    """
+    parquet_input = path.suffix.lower() in _PARQUET_SUFFIXES
+    logger.info(
+        "[gen] load_gsm8k path=%s field=%s format=%s",
+        path, field, "parquet" if parquet_input else "jsonl",
+    )
+    if parquet_input:
+        items: Iterable[Any] = _parquet_field_values(path, field)
+        kind = "row"
+    else:
+        try:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+        except OSError as exc:
+            raise ScenarioValidationError(f"cannot read corpus {path}: {exc}") from exc
+        logger.info("[gen] load_gsm8k lines=%d", len(lines))
+        items = lines
+        kind = "line"
     records: list[GSMRecord] = []
     try:
-        lines = path.read_text(encoding="utf-8-sig").splitlines()
-    except OSError as exc:
-        raise ScenarioValidationError(f"cannot read GSM8K {path}: {exc}") from exc
-    logger.info("[gen] load_gsm8k lines=%d", len(lines))
-    for line_index, line in enumerate(lines):
-        try:
-            raw = json.loads(line)
-            question = normalize_question(raw[field])
-        except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
-            raise ScenarioValidationError(f"GSM8K line {line_index} is invalid: {exc}") from exc
-        if not question:
-            raise ScenarioValidationError(f"GSM8K line {line_index} has empty {field}")
-        digest = hashlib.sha256(question.encode("utf-8")).hexdigest()
-        records.append(GSMRecord(line_index, question, digest))
+        for index, item in enumerate(items):
+            try:
+                value = item if parquet_input else json.loads(item)[field]
+                question = normalize_question(value)
+            except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
+                raise ScenarioValidationError(
+                    f"{path.name} {kind} {index} is invalid: {exc}"
+                ) from exc
+            if not question:
+                raise ScenarioValidationError(
+                    f"{path.name} {kind} {index} has empty {field}"
+                )
+            digest = hashlib.sha256(question.encode("utf-8")).hexdigest()
+            records.append(GSMRecord(index, question, digest))
+    except ScenarioValidationError:
+        raise
+    except Exception as exc:
+        if parquet_input:
+            raise ScenarioValidationError(
+                f"cannot read parquet corpus {path}: {exc}"
+            ) from exc
+        raise
     if not records:
-        raise ScenarioValidationError("GSM8K corpus is empty")
-    logger.info("[gen] load_gsm8k records=%d first_line_index=%d first_sha256=%s", len(records), records[0].line_index, records[0].question_sha256)
+        raise ScenarioValidationError("corpus is empty")
+    logger.info(
+        "[gen] load_gsm8k records=%d first_index=%d first_sha256=%s",
+        len(records), records[0].line_index, records[0].question_sha256,
+    )
     return records
 
 
@@ -1477,18 +1601,37 @@ def build_prompt(
     suffix_records: Sequence[GSMRecord],
     target_tokens: int,
     token_cache: CorpusTokenCache | None = None,
+    source_case_tokens: Sequence[int] | None = None,
 ) -> tuple[str, tuple[int, ...], tuple[int, ...], tuple[str, ...]]:
     """按 共享前缀 + 唯一seed + 自然后缀 拼接出目标长度的 prompt 文本。
+
+    source_case_tokens 提供时（corpus.suffix_mode=source_tail），自然后缀取该
+    token 序列的最后 suffix_len 个 token，使 prompt 以这条语料原本的结尾
+    （通常是最后一条任务/问题）收尾；要求该语料同时覆盖共享前缀与后缀，
+    避免前缀与后缀在语料内重叠。
 
     返回 (文本, 实际token, 后缀来源索引, 后缀来源hash)，并校验 round-trip。
     token_cache 按 tokenizer 实例隔离；实例存活期间不可修改其分词配置。
     """
-    logger.info("[gen] build_prompt group=%s shared_prefix_tokens=%d seed_len=%d target_tokens=%d suffix_records=%d", canonical.group_id, shared_prefix_tokens, len(seed), target_tokens, len(suffix_records))
+    logger.info("[gen] build_prompt group=%s shared_prefix_tokens=%d seed_len=%d target_tokens=%d suffix_records=%d source_case=%s", canonical.group_id, shared_prefix_tokens, len(seed), target_tokens, len(suffix_records), len(source_case_tokens) if source_case_tokens is not None else None)
     suffix_len = target_tokens - shared_prefix_tokens - len(seed)
     logger.info("[gen] build_prompt suffix_len=%d", suffix_len)
     if suffix_len < 0:
         raise ArtifactValidationError("prefix and seed exceed target input length")
-    suffix, indices, hashes = _repeat_tokens(suffix_records, tokenizer, suffix_len, token_cache) if suffix_len else ([], (), ())
+    if source_case_tokens is not None:
+        case_len = len(source_case_tokens)
+        if shared_prefix_tokens + suffix_len > case_len:
+            raise ArtifactValidationError(
+                "corpus.suffix_mode=source_tail requires the source case to cover "
+                f"prefix+suffix ({shared_prefix_tokens}+{suffix_len}={shared_prefix_tokens + suffix_len} tokens); "
+                f"the selected case has only {case_len} tokens"
+            )
+        suffix = list(source_case_tokens[case_len - suffix_len:]) if suffix_len else []
+        indices = canonical.gsm_indices[:1]
+        hashes = canonical.gsm_hashes[:1]
+        logger.info("[gen] build_prompt source_tail case_len=%d suffix_len=%d suffix_source=%s", case_len, len(suffix), indices[:1])
+    else:
+        suffix, indices, hashes = _repeat_tokens(suffix_records, tokenizer, suffix_len, token_cache) if suffix_len else ([], (), ())
     expected = list(canonical.token_ids[:shared_prefix_tokens]) + list(seed) + suffix
     text = tokenizer.decode(expected, skip_special_tokens=False)
     actual = tokenizer.encode(text, add_special_tokens=False)
