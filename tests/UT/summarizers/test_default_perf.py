@@ -167,7 +167,7 @@ class TestDefaultPerfSummarizer(unittest.TestCase):
         summarizer._calc_perf_data(manager_list, self.model_cfg, "/tmp/db", [perf_data])
 
         self.assertEqual(len(manager_list), 1)
-        self.assertEqual(manager_list[0], {"success": False})
+        self.assertEqual(manager_list[0], {"success": False, "excluded": False})
 
     @patch('ais_bench.benchmark.summarizers.default_perf.build_model_from_cfg')
     @patch('ais_bench.benchmark.summarizers.default_perf.init_db')
@@ -199,7 +199,7 @@ class TestDefaultPerfSummarizer(unittest.TestCase):
         summarizer._calc_perf_data(manager_list, self.model_cfg, "/tmp/db", [perf_data])
 
         self.assertEqual(len(manager_list), 1)
-        self.assertEqual(manager_list[0], {"success": False})
+        self.assertEqual(manager_list[0], {"success": False, "excluded": False})
 
     @patch('os.path.exists')
     def test_load_tmp_result_no_dir(self, mock_exists):

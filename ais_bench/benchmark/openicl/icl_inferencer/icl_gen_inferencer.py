@@ -3,7 +3,7 @@
 import copy
 import uuid
 from multiprocessing import BoundedSemaphore
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import aiohttp
 
@@ -79,10 +79,40 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
         data_abbr = data.pop("data_abbr")
         max_out_len = data.pop("max_out_len")
         gold = data.pop("gold", None)
+
+        session_id = data.pop("session_id", "")
+        data.pop("timestamp", None)
+        data.pop("stage", None)
+        is_manage_req = False
+        raw_agent_hint = data.get("agent_hint", {})
+        if isinstance(raw_agent_hint, dict):
+            cm = raw_agent_hint.get("context_management", {})
+            if isinstance(cm, dict) and cm.get("manage_request") is True:
+                is_manage_req = True
+
+        if not getattr(self, "pass_agent_hint", False):
+            if is_manage_req:
+                self.logger.info(
+                    f"[session-aware] skip manage_request since pass_agent_hint=False, "
+                    f"session_id={session_id} data_id={index}"
+                )
+                return
+            data.pop("agent_hint", None)
+
         uid = str(uuid.uuid4()).replace("-", "")
         output = RequestOutput(self.perf_mode)
         output.uuid = uid
         output.data_id = index
+
+        output.session_id = session_id
+        if getattr(self, "pass_agent_hint", False):
+            self.logger.info(
+                f"[agent_hint][generate] data_id={index} session_id={session_id} "
+                f"agent_hint_in_data={'agent_hint' in data} "
+                f"agent_hint={data.get('agent_hint')}"
+            )
+            output.extra_perf_data["manage_request"] = is_manage_req
+
         await self.status_counter.post()
         await self.model.generate(input, max_out_len, output, session=session, **data)
         if output.success:
@@ -176,4 +206,108 @@ class GenInferencer(BaseApiInferencer, BaseLocalInferencer):
             for index, timestamp in enumerate(timestamps):
                 if isinstance(timestamp, (int, float)):
                     data_list[index]["timestamp"] = timestamp / 1000 # ms to s
+
+        raw_test = None
+        try:
+            raw_reader = retriever.dataset_reader.dataset
+            raw_test = raw_reader['test'] if 'test' in raw_reader else raw_reader
+        except Exception:
+            raw_test = None
+
+        # Columns that are either consumed into the prompt or are control
+        # fields and therefore must NOT be forwarded into the request body.
+        _consumed = {"prompt", "question", "data_abbr", "index", "max_out_len",
+                     "gold", "timestamp", "session_id", "answer"}
+        if raw_test is not None and len(raw_test) > 0:
+            for col in raw_test.column_names:
+                if col in _consumed:
+                    continue
+                try:
+                    values = raw_test[col]
+                    for index, val in enumerate(values):
+                        if index < len(data_list):
+                            data_list[index][col] = val
+                except Exception:
+                    continue
+
+        # ---- attach session_id (top-level column OR agent_hint.session_id) ----
+        # Priority: explicit top-level "session_id" column > agent_hint.session_id
+        session_ids = retriever.dataset_reader.get_session_id()
+        if session_ids is not None:
+            for index, sid in enumerate(session_ids):
+                data_list[index]["session_id"] = str(sid) if sid is not None else ""
+        elif raw_test is not None and len(raw_test) > 0 and \
+                "agent_hint" in raw_test.column_names:
+            # Auto-extract session_id from nested agent_hint.session_id
+            try:
+                agent_hints = raw_test["agent_hint"]
+                for index, ah in enumerate(agent_hints):
+                    if index >= len(data_list):
+                        break
+                    sid = ""
+                    if isinstance(ah, dict):
+                        sid = ah.get("session_id") or ""
+                    data_list[index]["session_id"] = str(sid)
+                self.logger.info(
+                    "[session-aware] auto-extracted session_id from agent_hint.session_id"
+                )
+            except Exception as e:
+                self.logger.warning(
+                    f"[session-aware] failed to extract session_id from agent_hint: {e}"
+                )
+        else:
+            # No session info at all -> fall back to per-request (blank session)
+            for index in range(len(data_list)):
+                data_list[index]["session_id"] = ""
+
+        # ---- attach stage (top-level column OR agent_hint.stage) ----
+        # stage marks a request's position within its session:
+        #   start / stage-N / end. It drives session end-of-life decisions in
+        # the session-aware worker loop (a session ends at stage=end).
+        stages = None
+        if raw_test is not None and len(raw_test) > 0:
+            if "stage" in raw_test.column_names:
+                stages = raw_test["stage"]
+            elif "agent_hint" in raw_test.column_names:
+                try:
+                    agent_hints = raw_test["agent_hint"]
+                    stages = [
+                        (ah.get("stage") if isinstance(ah, dict) else None)
+                        for ah in agent_hints
+                    ]
+                except Exception:
+                    stages = None
+        if stages is not None:
+            for index, st in enumerate(stages):
+                if index < len(data_list):
+                    data_list[index]["stage"] = str(st) if st is not None else ""
+
+        # Validate per-session start/end marking (non-fatal; warn only).
+        session_stage_map: Dict[str, List[str]] = {}
+        for sample in data_list:
+            sid = sample.get("session_id", "")
+            session_stage_map.setdefault(sid, []).append(sample.get("stage", ""))
+        for sid, stages_of_sid in session_stage_map.items():
+            if not stages_of_sid:
+                continue
+            # Filter empty stages (missing markers) for inspection.
+            meaningful = [s for s in stages_of_sid if s]
+            if not meaningful:
+                self.logger.warning(
+                    f"[session-aware] session '{sid}' has no 'stage' markers "
+                    "(no start/end). It cannot end based on stage; will end on queue drain."
+                )
+                continue
+            first = meaningful[0].lower()
+            last = meaningful[-1].lower()
+            if first != "start":
+                self.logger.warning(
+                    f"[session-aware] session '{sid}' first meaningful stage is "
+                    f"'{first}', expected 'start'."
+                )
+            if last != "end":
+                self.logger.warning(
+                    f"[session-aware] session '{sid}' last meaningful stage is "
+                    f"'{last}', expected 'end'."
+                )
         return data_list
