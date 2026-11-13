@@ -9,6 +9,7 @@ from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.utils.file import match_cfg_file
 from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
+from ais_bench.benchmark.utils.config.build import validate_prefill_schedule
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
 from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
 from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
@@ -117,14 +118,23 @@ class ConfigManager:
 
     def load_config(self, workflow):
         self.cfg = self._get_config_from_arg()
+        self._validate_prefill_schedules()
         self._init_response_anomaly_config()
         self._update_and_init_work_dir()
         self._expand_sweep_configs()
+        # Sweep expansion applies stream/use_timestamp CLI overrides.
+        self._validate_prefill_schedules()
         self._inject_response_anomaly_payload_storage()
         self._fill_dataset_configs()
         self._update_cfg_of_workflow(workflow)
         self._dump_and_reload_config()
         return self.cfg
+
+    def _validate_prefill_schedules(self):
+        """Fail on invalid scheduling combinations before launching any tasks."""
+        for model_cfg in self.cfg.get("models", []):
+            if isinstance(model_cfg, dict):
+                validate_prefill_schedule(model_cfg)
 
     def _expand_sweep_configs(self):
         """按 `--batch-size`/`--num-prompts` 展开多组合配置并落盘 manifest。"""
@@ -845,9 +855,9 @@ class ConfigManager:
         MindieStreamApi) are not passed unexpected keywords. The model-name
         field is resolved by the model `type` signature.
         """
-        fields = ["path", "request_rate", "retry", "api_key", "host_ip",
-                  "host_port", "url", "max_out_len", "batch_size",
-                  "trust_remote_code", "generation_kwargs"]
+        fields = ["path", "request_rate", "prefill_concurrency", "retry",
+                  "api_key", "host_ip", "host_port", "url", "max_out_len",
+                  "batch_size", "trust_remote_code", "generation_kwargs"]
         for model_cfg in models:
             if model_cfg.get("attr", "service") != "service":
                 unsupported_args = [
@@ -878,10 +888,13 @@ class ConfigManager:
                         'neither model nor model_name',
                         model_val, type_name,
                     )
-            # 2) Other common fields: only overwrite existing keys.
+            # 2) Other common fields: only overwrite existing keys. The new
+            # scheduling option defaults to 0, so its CLI override may add it.
             for field in fields:
                 cli_val = getattr(self.args, field, None)
-                if cli_val is None or field not in model_cfg:
+                if cli_val is None:
+                    continue
+                if field not in model_cfg and field != "prefill_concurrency":
                     continue
                 if field == "batch_size":
                     # 多档 sweep 时 batch_size 是列表，由组合展开器逐副本写入；

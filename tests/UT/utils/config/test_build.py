@@ -60,6 +60,7 @@ class TestConfigBuildUtilities(unittest.TestCase):
         passed_cfg = mock_models.build.call_args[0][0]
         self.assertNotIn("run_cfg", passed_cfg)
         self.assertNotIn("request_rate", passed_cfg)
+        self.assertNotIn("prefill_concurrency", passed_cfg)
         self.assertNotIn("batch_size", passed_cfg)
         self.assertNotIn("abbr", passed_cfg)
         self.assertNotIn("attr", passed_cfg)
@@ -98,6 +99,69 @@ class TestConfigBuildUtilities(unittest.TestCase):
         # Invalid generation_kwargs
         with self.assertRaises(AISBenchConfigError):
             build_model_from_cfg(ConfigDict({"generation_kwargs": "not a dict", "type": "model.Type"}))
+
+    @patch("ais_bench.benchmark.utils.config.build.MODELS")
+    def test_prefill_concurrency_validation(self, mock_models):
+        mock_models.build.return_value = MagicMock()
+
+        for value in (0, 1, 8):
+            cfg = ConfigDict({
+                "type": "model.Type",
+                "stream": True,
+                "prefill_concurrency": value,
+            })
+            build_model_from_cfg(cfg)
+            passed_cfg = mock_models.build.call_args[0][0]
+            self.assertNotIn("prefill_concurrency", passed_cfg)
+
+        for value in (-1, 1.5, "8", True):
+            with self.subTest(value=value):
+                with self.assertRaises(AISBenchConfigError):
+                    build_model_from_cfg(ConfigDict({
+                        "type": "model.Type",
+                        "stream": True,
+                        "prefill_concurrency": value,
+                    }))
+
+        with self.assertRaisesRegex(AISBenchConfigError, "requires stream=True"):
+            build_model_from_cfg(ConfigDict({
+                "type": "model.Type",
+                "stream": False,
+                "prefill_concurrency": 1,
+            }))
+
+    def test_schedule_mode_conflicts(self):
+        conflict_cases = [
+            {"use_timestamp": True, "prefill_concurrency": 1},
+            {"use_timestamp": True, "request_rate": 10},
+            {"prefill_concurrency": 1, "request_rate": 10},
+            {
+                "prefill_concurrency": 1,
+                "traffic_cfg": {"ramp_up_strategy": "linear"},
+            },
+        ]
+        for overrides in conflict_cases:
+            with self.subTest(overrides=overrides):
+                cfg = ConfigDict({
+                    "type": "model.Type",
+                    "stream": True,
+                    **overrides,
+                })
+                with self.assertRaisesRegex(AISBenchConfigError, "mutually exclusive"):
+                    build_model_from_cfg(cfg)
+
+        with self.assertRaises(AISBenchConfigError) as ctx:
+            build_model_from_cfg(ConfigDict({
+                "type": "model.Type",
+                "stream": True,
+                "use_timestamp": True,
+                "prefill_concurrency": 1,
+                "request_rate": 10,
+            }))
+        message = str(ctx.exception)
+        self.assertIn("use_timestamp=True conflicts with prefill_concurrency=1", message)
+        self.assertIn("use_timestamp=True conflicts with request_rate/traffic_cfg", message)
+        self.assertIn("prefill_concurrency=1 conflicts with request_rate/traffic_cfg", message)
 
     @patch("ais_bench.benchmark.utils.config.build.logger")
     @patch("os.path.exists", return_value=True)

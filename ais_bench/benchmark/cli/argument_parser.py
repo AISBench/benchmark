@@ -430,6 +430,8 @@ class ArgumentParser():
                             'confusion with --models')
         parser.add_argument('--request-rate', type=float, default=None,
                             help='Request rate override in the range [0, 64000]')
+        parser.add_argument('--prefill-concurrency', type=int, default=None,
+                            help='Global number of streaming requests allowed before their first token; 0 disables it')
         parser.add_argument('--retry', type=int, default=None,
                             help='Retry count override in the range [0, 1000]')
         parser.add_argument('--api-key', type=str, default=None,

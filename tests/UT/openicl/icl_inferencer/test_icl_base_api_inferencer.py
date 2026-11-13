@@ -8,10 +8,12 @@ import time
 from multiprocessing import shared_memory, BoundedSemaphore
 
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_api_inferencer import (
+    ApiInferencerConfig,
     BaseApiInferencer,
     StatusCounter,
     DEFAULT_SAVE_EVERY_FACTOR,
 )
+from ais_bench.benchmark.models.api_models.base_api import SharedPrefillLimiter
 from ais_bench.benchmark.utils.config.message_constants import MESSAGE_TYPE_NUM
 from ais_bench.benchmark.utils.logging.exceptions import AISBenchImplementationError, ParameterValueError
 from ais_bench.benchmark.tasks.utils import MESSAGE_INFO
@@ -70,6 +72,43 @@ class TestBaseApiInferencer(unittest.TestCase):
         m_build.return_value = DummyModel()
         inf = ConcreteApiInferencer(model_cfg={}, batch_size=100, save_every=2)
         self.assertEqual(inf.save_every, 10)
+
+    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_api_inferencer.AsyncPrefillLimiter")
+    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
+    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
+    def test_prefill_limiter_injection_and_close(self, m_abbr, m_build, m_limiter):
+        model = DummyModel()
+        model.set_prefill_limiter = mock.Mock()
+        m_build.return_value = model
+        inf = ConcreteApiInferencer(model_cfg={})
+        shared_limiter = SharedPrefillLimiter(2)
+        config = ApiInferencerConfig(
+            global_index=inf.global_index,
+            global_lock=inf.global_lock,
+            prefill_limiter=shared_limiter,
+        )
+
+        inf.set_config(config)
+
+        m_limiter.assert_called_once_with(shared_limiter)
+        model.set_prefill_limiter.assert_called_once_with(m_limiter.return_value)
+        inf._close_prefill_limiter()
+        m_limiter.return_value.close.assert_called_once()
+        self.assertIsNone(inf.async_prefill_limiter)
+
+    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
+    @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
+    def test_prefill_limiter_rejects_unsupported_model(self, m_abbr, m_build):
+        m_build.return_value = DummyModel()
+        inf = ConcreteApiInferencer(model_cfg={})
+        config = ApiInferencerConfig(
+            global_index=inf.global_index,
+            global_lock=inf.global_lock,
+            prefill_limiter=SharedPrefillLimiter(1),
+        )
+
+        with self.assertRaises(AISBenchImplementationError):
+            inf.set_config(config)
 
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.build_model_from_cfg")
     @mock.patch("ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer.model_abbr_from_cfg", return_value="mabbr")
