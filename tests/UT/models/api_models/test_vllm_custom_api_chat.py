@@ -1,9 +1,11 @@
 import unittest
 import asyncio
+import base64
 import json
 import os
 import tempfile
 import uuid
+from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 from typing import Dict, List
 
@@ -131,6 +133,40 @@ class TestVLLMCustomAPIChat(unittest.TestCase):
         self.assertEqual(request_body["messages"][2]["content"], "I'm doing well, thank you!")
         self.assertEqual(request_body["messages"][3]["role"], "user")
         self.assertEqual(request_body["messages"][3]["content"], "What's your name?")
+
+    def test_get_request_body_inlines_local_image(self):
+        model = VLLMCustomAPIChat(**self.default_kwargs)
+        output = RequestOutput()
+
+        with tempfile.NamedTemporaryFile(suffix=".png") as image_file:
+            image_bytes = b"issue-630-image"
+            image_file.write(image_bytes)
+            image_file.flush()
+            image_uri = Path(image_file.name).as_uri()
+            prompt_list = [
+                {
+                    "role": "HUMAN",
+                    "prompt": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_uri},
+                        },
+                        {"type": "text", "text": "What is in the image?"},
+                    ],
+                }
+            ]
+
+            request_body = asyncio.run(
+                model.get_request_body(prompt_list, 100, output)
+            )
+
+        image_url = request_body["messages"][0]["content"][0]["image_url"]["url"]
+        prefix, encoded_image = image_url.split(",", 1)
+        self.assertEqual(prefix, "data:image/png;base64")
+        self.assertEqual(base64.b64decode(encoded_image), image_bytes)
+        self.assertEqual(
+            prompt_list[0]["prompt"][0]["image_url"]["url"], image_uri
+        )
     
     async def test_get_request_body_max_out_len_zero(self):
         """测试max_out_len <= 0的情况"""
