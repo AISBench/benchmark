@@ -114,4 +114,12 @@ def GPQA_Simple_Eval_postprocess(text: str) -> str:
     if matches:
         # 返回最后一个匹配项，通常是最终确定的答案
         return matches[-1]
+
+    # 兜底：部分模型以 \boxed{X}（含 \boxed{\text{X}}）给出最终答案而不写 Answer: 行
+    BOXED_ANSWER_PATTERN = r'\\boxed\{\s*(?:\\text\{\s*)?([A-D])\s*\}?\s*\}'
+    boxed_matches = re.findall(BOXED_ANSWER_PATTERN, text)
+
+    if boxed_matches:
+        # 返回最后一个匹配项，通常是最终确定的答案
+        return boxed_matches[-1]
     return None
