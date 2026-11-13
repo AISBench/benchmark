@@ -155,7 +155,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "开始验证镜像功能..."
-validation_output=$(docker run --rm ${image_name} ais_bench --models vllm_api_stream_chat --datasets synthetic_gen -s 2>&1)
+validation_output=$(docker run --rm ${image_name} ais_bench --models vllm_api_stream_chat --datasets synthetic_gen cmmlu_gen_0_shot_cot_chat_prompt -s 2>&1)
 validation_status=$?
 
 if [ $validation_status -ne 0 ]; then
@@ -171,8 +171,10 @@ validation_checks=(
     "Config File Path"
     "vllm_api_stream_chat"
     "synthetic_gen"
+    "cmmlu_gen_0_shot_cot_chat_prompt"
     "/benchmark/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py"
     "/benchmark/ais_bench/benchmark/configs/datasets/synthetic/synthetic_gen.py"
+    "/benchmark/ais_bench/benchmark/configs/datasets/cmmlu/cmmlu_gen_0_shot_cot_chat_prompt.py"
 )
 
 all_checks_passed=true
@@ -194,6 +196,24 @@ if [ "$all_checks_passed" = false ]; then
 fi
 
 echo "镜像验证成功！"
+
+cmmlu_validation_output=$(docker run --rm ${image_name} python3 -c \
+    "from ais_bench.benchmark.configs.datasets.cmmlu.cmmlu_gen_0_shot_cot_chat_prompt import cmmlu_datasets; assert len(cmmlu_datasets) == 67; print('CMMLU configurations:', len(cmmlu_datasets))" 2>&1)
+cmmlu_validation_status=$?
+
+if [ ${cmmlu_validation_status} -ne 0 ]; then
+    echo "错误：镜像中的 CMMLU 配置导入失败（退出码: ${cmmlu_validation_status}）"
+    echo "输出：${cmmlu_validation_output}"
+    exit 1
+fi
+
+if ! echo "${cmmlu_validation_output}" | grep -F "CMMLU configurations: 67" > /dev/null 2>&1; then
+    echo "错误：镜像中的 CMMLU 配置不完整"
+    echo "输出：${cmmlu_validation_output}"
+    exit 1
+fi
+
+echo "CMMLU 镜像验证成功！"
 
 echo "开始验证 Docker 与 Docker Compose 基本命令..."
 
