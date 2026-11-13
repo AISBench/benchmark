@@ -534,7 +534,7 @@ CLI 最后一段 JSON 的固定字段为：
 
 公共前缀按 `block_size` 对齐，cold 还受顺序、组、DP 路由和缓存水位约束。插件选择最接近的可达结果，并记录 requested、effective、theoretical 和偏差原因。
 
-如果多个 Prefix Group 选择了相同的首个 GSM8K 样本，插件会先尝试轮换组内样本；所有轮换仍碰撞时才使用确定性的组标记兜底，避免小语料或重复 indices 让整个 prepare 直接失败。
+如果多个 Prefix Group 选择了相同的首个 GSM8K 样本，插件会先尝试轮换组内样本；所有轮换仍碰撞时才使用确定性的组标记兜底。兜底分支将组标记与解码后的语料合并为文本后统一分词，不拼接分别编码的 Token ID。重新分词后必须达到组内最大共享长度与 `block_size` 中的较大值；不足时将语料 Token 预算翻倍后重建，最多尝试 4 次，并同步更新来源索引与 hash。若长度仍不足、首块仍碰撞或分词往返校验失败，`prepare` 会明确抛出 `ArtifactValidationError`，不会静默缩短前缀或跳过校验。此兜底不承诺任意 tokenizer 都能生成有效前缀。
 
 ### warmup 为什么不进入正式统计？
 
