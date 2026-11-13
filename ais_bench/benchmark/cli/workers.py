@@ -640,10 +640,20 @@ class AccViz(BaseWorker):
             summarizer.summarize(time_str=self.args.cfg_time_str)
 
     def _cfg_pre_process(self, cfg: ConfigDict) -> None:
-        for i, dataset in enumerate(cfg.datasets):
+        storage_abbrs = {}
+        for dataset in cfg.datasets:
             if dataset.get("judge_infer_cfg"):
-                cfg.datasets[i]["abbr"] = f'{cfg.datasets[i]["abbr"]}-{cfg.datasets[i]["judge_infer_cfg"]["judge_model"]["abbr"]}'
-                cfg.datasets[i].pop("judge_infer_cfg")
+                inference_abbr = dataset["abbr"]
+                dataset["abbr"] = (
+                    f'{inference_abbr}-{dataset["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                )
+                storage_abbrs[dataset["abbr"]] = inference_abbr
+                dataset.pop("judge_infer_cfg")
+        # Judge datasets are renamed for display, while their inference
+        # artifacts stay under the original abbreviation. Keep this idempotent:
+        # a second pass sees no judge_infer_cfg and must not wipe the mapping.
+        if storage_abbrs:
+            cfg["response_anomaly_dataset_storage_abbrs"] = storage_abbrs
         return cfg
 
 
