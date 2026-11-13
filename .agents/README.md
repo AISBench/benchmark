@@ -5,6 +5,7 @@
 | Skill | 用途 | 使用入口 |
 |---|---|---|
 | [ascend-llm-deploy-eval](skills/ascend-llm-deploy-eval/SKILL.md) | 昇腾模型部署、预检、性能测试与资源释放 | [快速开始](skills/ascend-llm-deploy-eval/README.md) |
+| [check-api-compat](skills/check-api-compat/SKILL.md) | 已有客户端协议适配的接口兼容性核查与证据分类 | [快速开始](skills/check-api-compat/README.md) |
 
 ## 加载与使用
 
