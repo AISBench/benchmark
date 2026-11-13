@@ -5,6 +5,7 @@
 | Skill | 用途 | 使用入口 |
 |---|---|---|
 | [ascend-llm-deploy-eval](skills/ascend-llm-deploy-eval/SKILL.md) | 昇腾模型部署、预检、性能测试与资源释放 | [快速开始](skills/ascend-llm-deploy-eval/README.md) |
+| [ci-failure-triage](skills/ci-failure-triage/SKILL.md) | GitHub Actions 只读证据收集、CI 失败分类与最小复现建议 | [使用说明](skills/ci-failure-triage/README.md) |
 
 ## 加载与使用
 
