@@ -3,6 +3,9 @@ accelerate>=0.19.0
 cpm_kernels
 pyarrow<26.0.0 # third-party dependency of datasets; versions above 26.0.0 require numpy>=2.0.0
 datasets>=2.12.0,<=3.6.0
+# filelock>=3.30.0 在 import 时注册 os.fork 审计钩子，会拒绝 human_eval/humanevalx 等多线程
+# multiprocessing fork 场景（issue #613）；3.29.7 是最后一个无此机制的版本，且已含 CVE-2025-68146 修复
+filelock<3.30.0
 einops>=0.5.0
 evaluate>=0.3.0
 func_timeout
