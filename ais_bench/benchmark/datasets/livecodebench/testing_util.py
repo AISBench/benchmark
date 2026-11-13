@@ -29,6 +29,8 @@ if not hasattr(inspect, 'getargspec'):
 
 import numpy as np
 from pyext import RuntimeModule
+from ais_bench.benchmark.datasets.livecodebench.problem_judges import (
+    judge_call, judge_stdio)
 
 
 def truncatefn(s, length=300):
@@ -288,20 +290,25 @@ def run_test(sample, test=None, debug=False, timeout=6):
                     if isinstance(output, tuple):
                         output = list(output)
 
-                    tmp_result = output == in_outs['outputs'][index]
-                    if (isinstance(in_outs['outputs'][index], list)
-                            and in_outs['outputs'][index]):
-                        tmp_result = tmp_result or (
-                            output == in_outs['outputs'][index][0])
+                    special_result = judge_call(
+                        sample.get('question_id'), inputs, output)
+                    if special_result is not None:
+                        tmp_result = special_result
+                    else:
+                        tmp_result = output == in_outs['outputs'][index]
+                        if (isinstance(in_outs['outputs'][index], list)
+                                and in_outs['outputs'][index]):
+                            tmp_result = tmp_result or (
+                                output == in_outs['outputs'][index][0])
 
-                    # ground truth sequences are not tuples
-                    try:
-                        if isinstance(output[0], tuple):
-                            tmp_result = tmp_result or ([
-                                list(x) for x in output
-                            ] == in_outs['outputs'][index][0])
-                    except Exception as e:  # noqa: F841
-                        True
+                        # ground truth sequences are not tuples
+                        try:
+                            if isinstance(output[0], tuple):
+                                tmp_result = tmp_result or ([
+                                    list(x) for x in output
+                                ] == in_outs['outputs'][index][0])
+                        except Exception as e:  # noqa: F841
+                            True
                     results.append(tmp_result)
                     if tmp_result is not True:
                         return results, {
@@ -386,6 +393,19 @@ def run_test(sample, test=None, debug=False, timeout=6):
                     signal.alarm(0)
                 raw_true_output = output[0]
                 raw_true_output_copy = truncatefn(raw_true_output, 200)
+                special_result = judge_stdio(
+                    sample.get('question_id'), inputs, raw_true_output)
+                if special_result is not None:
+                    results.append(special_result)
+                    if not special_result:
+                        return results, {
+                            'output': raw_true_output_copy,
+                            'expected': raw_outputs,
+                            'inputs': raw_inputs,
+                            'error_code': -2,
+                            'error_message': 'Wrong Answer (task-specific judge)',
+                        }
+                    continue
                 output = raw_true_output.splitlines()
                 if not passed:
                     if debug:
