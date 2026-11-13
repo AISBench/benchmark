@@ -650,8 +650,10 @@ class AccViz(BaseWorker):
                 storage_abbrs[dataset["abbr"]] = inference_abbr
                 dataset.pop("judge_infer_cfg")
         # Judge datasets are renamed for display, while their inference
-        # artifacts stay under the original abbreviation.
-        cfg["response_anomaly_dataset_storage_abbrs"] = storage_abbrs
+        # artifacts stay under the original abbreviation. Keep this idempotent:
+        # a second pass sees no judge_infer_cfg and must not wipe the mapping.
+        if storage_abbrs:
+            cfg["response_anomaly_dataset_storage_abbrs"] = storage_abbrs
         return cfg
 
 

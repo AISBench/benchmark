@@ -104,6 +104,20 @@ def _format_value(metric, counts):
     return str(counts[metric])
 
 
+def build_dataset_pairs(display_abbrs, wanted, storage_abbrs):
+    """Pair storage and display abbreviations for the summary rows.
+
+    ``wanted`` mirrors the display filter used for the accuracy table, so
+    restricting the summary never adds rows for hidden datasets.
+    """
+    pairs = []
+    for display in display_abbrs:
+        if wanted is not None and display not in wanted:
+            continue
+        pairs.append((storage_abbrs.get(display, display), display))
+    return list(dict.fromkeys(pairs))
+
+
 def append_anomaly_rows(table, work_dir, model_pairs, datasets, logger):
     """Append persisted detection metrics without changing the summary schema.
 
@@ -114,6 +128,11 @@ def append_anomaly_rows(table, work_dir, model_pairs, datasets, logger):
     """
     metrics = ('total',) + RESULT_NAMES + ('count', 'rate')
     header = table[0]
+    if 'mode' not in header:
+        logger.debug(
+            'Summary table has no mode column; response anomaly metrics are skipped.'
+        )
+        return table
     mode_index = header.index('mode')
     model_columns = header[mode_index + 1:]
     has_total_count = 'total_count' in header

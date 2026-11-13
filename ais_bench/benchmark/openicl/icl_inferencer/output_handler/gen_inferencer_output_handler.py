@@ -74,8 +74,17 @@ class GenInferencerOutputHandler(BaseInferencerOutputHandler):
         if isinstance(output, Output):
             result_data["input_tokens"] = output.input_tokens
             result_data["output_tokens"] = output.output_tokens
-            if output.origin_logprobs and not self.response_anomaly_enabled:
-                result_data["origin_logprobs"] = output.origin_logprobs
+            if output.origin_logprobs:
+                # Only drop the per-token probabilities when the anomaly
+                # pipeline actually captured its own copy; otherwise the
+                # response would carry no probability data at all.
+                if (
+                    self.response_anomaly_enabled
+                    and 'response_anomaly_payload' in result_data
+                ):
+                    result_data["logprobs_omitted"] = True
+                else:
+                    result_data["origin_logprobs"] = output.origin_logprobs
 
         # When the model emits reasoning, ``prediction`` concatenates
         # ``reasoning_content + "\n\n" + content`` (see Output.get_prediction).

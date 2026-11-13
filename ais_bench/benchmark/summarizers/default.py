@@ -434,20 +434,23 @@ class DefaultSummarizer:
         table = self._format_table(parsed_results, dataset_metrics, dataset_eval_mode, required_dataset_abbrs=self.dataset_abbrs)
 
         if (self.cfg.get('response_anomaly') or {}).get('enabled', False):
-            from ais_bench.benchmark.summarizers.response_anomaly import append_anomaly_rows
+            from ais_bench.benchmark.summarizers.response_anomaly import (
+                append_anomaly_rows,
+                build_dataset_pairs,
+            )
 
             model_pairs = list(dict.fromkeys(
                 (model_abbr_from_cfg(model), model_abbr_from_cfg_used_in_summarizer(model))
                 for model in self.model_cfgs
             ))
             storage_abbrs = self.cfg.get('response_anomaly_dataset_storage_abbrs') or {}
-            dataset_pairs = list(dict.fromkeys(
-                (
-                    storage_abbrs.get(dataset_abbr_from_cfg(dataset), dataset_abbr_from_cfg(dataset)),
-                    dataset_abbr_from_cfg(dataset),
-                )
-                for dataset in self.dataset_cfgs
-            ))
+            # Honour the same display filter as the accuracy table so that
+            # --datasets / dataset_abbrs never grows extra rows silently.
+            dataset_pairs = build_dataset_pairs(
+                [dataset_abbr_from_cfg(dataset) for dataset in self.dataset_cfgs],
+                self.dataset_abbrs,
+                storage_abbrs,
+            )
             table = append_anomaly_rows(
                 table, self.work_dir, model_pairs, dataset_pairs, self.logger,
             )

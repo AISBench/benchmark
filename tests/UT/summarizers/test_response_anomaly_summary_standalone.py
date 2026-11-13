@@ -129,6 +129,28 @@ class AnomalySummaryTest(unittest.TestCase):
             exec(compiled, {'self': SimpleNamespace(cfg=cfg), 'table': table})
             self.assertEqual(table, self.table())
 
+    def test_table_without_mode_column_is_left_untouched(self):
+        """自定义 summarizer 的表头没有 mode 列时不应打断汇总"""
+        record = {'id': 1, 'uuid': 'a', 'detection_status': 'completed',
+                  'anomaly_type_name': 'normal', 'is_anomaly': False}
+        self.write_predictions([record])
+        self.write_results([record])
+        table = [['dataset', 'metric', 'model']]
+        self.assertEqual(
+            module.append_anomaly_rows(table, self.root, [('model', 'model')],
+                                       [('data', 'data')], self.logger),
+            [['dataset', 'metric', 'model']],
+        )
+
+    def test_build_dataset_pairs_honours_display_filter(self):
+        pairs = module.build_dataset_pairs(
+            ['a', 'b', 'c'], ['b', 'c'], {'c': 'c-infer'})
+        self.assertEqual(pairs, [('b', 'b'), ('c-infer', 'c')])
+        self.assertEqual(
+            module.build_dataset_pairs(['a'], None, {}),
+            [('a', 'a')],
+        )
+
     def test_invalid_utf8_predictions_are_skipped(self):
         """非法 UTF-8 字节不应中断汇总，只跳过该组"""
         record = {'id': 1, 'uuid': 'a', 'detection_status': 'completed',

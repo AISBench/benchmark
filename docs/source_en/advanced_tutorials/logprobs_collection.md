@@ -93,7 +93,10 @@ New fields per case:
 |-------|------|-------------|
 | `input_tokens` | Int | Number of input tokens |
 | `output_tokens` | Int | Number of output tokens |
-| `origin_logprobs` | List[Dict\|None] | Token logprobs information list; not persisted when disabled |
+| `origin_logprobs` | List[Dict\|None] | Token logprobs information list; not persisted when disabled, and not persisted when response anomaly detection is enabled and this case's probabilities were archived (marked by `logprobs_omitted` instead) |
+| `logprobs_omitted` | Bool | Present only when response anomaly detection is enabled and the probabilities were archived; set to `true` so downstream can distinguish "no logprobs" from "omitted to save disk" |
+
+> **Note**: with [response anomaly detection](response_anomaly_detection.md) (`--response-anomaly`) enabled, the per-token probabilities are already archived in the detection payload, so they are not duplicated into predictions. If detection is enabled but the service returns no token ids (detection can only be marked `skipped`), `origin_logprobs` is still persisted so the probability data is never lost.
 
 ### Performance Evaluation Scenario
 
