@@ -35,6 +35,16 @@ git rev-parse --absolute-git-dir     # 不能假设 .git 一定是目录（workt
 
 ## 命令
 
+**首选入口**：`devflow.py` 在 action 边界一次性完成判定、记账与下一步提示。
+
+```bash
+python scripts/devflow.py status                     # 状态 + staleness + 下一步
+python scripts/devflow.py develop --pr-type <type> --issue <N>
+python scripts/devflow.py pr --pr-type <type> --issue <N> --title "<标题>" --body-file <body>
+```
+
+**底层账本命令**：
+
 ```bash
 python scripts/ledger.py path                       # 打印解析后的账本路径与 .git 形态
 python scripts/ledger.py show                       # 账本 + 当前事实 + staleness + resume_from
@@ -66,4 +76,4 @@ Idempotency keys: branch (`repo + branch`), commit (`worktree state`), push (`sh
 
 On an uncertain remote write, verify first and retry at most once; if still unknown, return `blocked: write-uncertain` with the target identifiers. Recovery re-reads local and remote facts, marks ledger entries whose SHA no longer matches as `STALE`, resumes from the last state still backed by evidence, and reports where it stopped, why, and where it continues.
 
-Commands: `ledger.py path` (resolved location and whether `.git` is a directory or file), `show` (ledger, current facts, `staleness`, `resume_from`), `set` (atomic, locked field update; `--head` re-binds to the current commit), `gate --name --status --evidence` (records one verdict; `UNKNOWN` joins `unverified`, other verdicts leave it), and `clear --yes`.
+Commands: `devflow.py status|develop|pr` is the preferred entry point — one call judges the boundary, records verdicts with the head SHA, and reports the next action. Lower level: `ledger.py path` (resolved location and whether `.git` is a directory or file), `show` (ledger, current facts, `staleness`, `resume_from`), `set` (atomic, locked field update; `--head` re-binds to the current commit), `gate --name --status --evidence` (records one verdict; `UNKNOWN` joins `unverified`, other verdicts leave it), and `clear --yes`.

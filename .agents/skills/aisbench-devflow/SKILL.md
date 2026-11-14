@@ -65,15 +65,35 @@ compatibility: 需要 Git 与 Python 3.10+；远端读写依赖已登录的 GitH
 
 ## 门禁
 
-完整矩阵、判定语义与补救方式见 [references/gates.md](references/gates.md)。可本地预检的项：
+完整矩阵、判定语义与补救方式见 [references/gates.md](references/gates.md)。**每个 action 边界用 `devflow.py` 判定并把结论写进账本**，它不做任何远端写：
+
+```bash
+# develop 边界：判定 + 记录，达标则推进到 locally-verified
+python scripts/devflow.py develop --pr-type <type> --issue <N>
+
+# pr 边界：门禁 + 正文自检，达标则推进到 pr-open
+python scripts/devflow.py pr --pr-type <type> --issue <N> --title "<标题>" --body-file <body.md>
+
+# 随时查看当前状态、是否陈旧、下一步该做什么
+python scripts/devflow.py status
+```
+
+单项诊断仍可直接调用：
 
 ```bash
 python scripts/gate_check.py --base origin/master --pr-type <type> --issue <N> \
   --title "<拟用标题>" --pr-body-file <body.md> --out gates.json
 python scripts/pr_body.py check --body-file <body.md> --workflow .github/workflows/auto_label_pr.yml --issue <N>
 python scripts/ut_map.py suggest --changed <改动源码...>
-python scripts/ledger.py show
 ```
+
+无法由脚本判定的门禁（当前仅 `docs_content`）必须由调用方显式复核后确认，确认会连同证据写入账本：
+
+```bash
+python scripts/devflow.py develop --pr-type docs --confirm "docs_content=逐段核对中英一致"
+```
+
+没有任何 `--confirm` 时该项保持 `UNKNOWN` 并阻断晋级——这是设计意图，不是缺陷。
 
 判定约定：
 
@@ -119,6 +139,8 @@ Hard boundaries, regardless of mode or authorization:
 4. Never report "not checked" as passing — verdicts are `PASS / FAIL / UNKNOWN / NOT_APPLICABLE` only.
 
 Actions: `discover`, `issue`, `plan`, `develop`, `pr`, `ci`, `feedback`, `review`, `merge` (verify only), `dataset-onboard` (same skill, not a second one). Each action does exactly one thing, stops on completion, and returns `blocked` with the missing evidence plus the suggested upstream action instead of silently continuing.
+
+Each action boundary is judged and persisted by `devflow.py` (`develop`, `pr`, `status`), which performs no remote write: it runs the gates, records verdicts and `head_sha` in the ledger, and reports blockers plus the next action. Gates that no script can decide (`docs_content`) stay `UNKNOWN` and block promotion until the caller confirms them explicitly with `--confirm docs_content=<evidence>`; the confirmation is stored with its evidence and a `confirmed` flag.
 
 Startup: resolve the checkout and remotes, read the repository profile with `gate_check.py --profile`, validate the capability ladder (`gh` → host tools → `gh api graphql` → manual → blocked), cross-check the ledger via `ledger.py show` (it prints `staleness` and `resume_from`), then judge the gates. The ledger is a resumable cache at `<git rev-parse --absolute-git-dir>/aisbench-devflow/ledger.json`; when `stale=true`, every recorded verdict is void.
 

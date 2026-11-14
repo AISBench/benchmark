@@ -725,30 +725,100 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+class Options:
+    """Minimal input bag shared by the CLI and the programmatic entry point."""
+
+    def __init__(
+        self,
+        base: str | None = None,
+        head: str = "HEAD",
+        pr_type: str | None = None,
+        issue: int | None = None,
+        title: str | None = None,
+        pr_body_file: str | None = None,
+        docs_policy: str = "all-bilingual",
+    ) -> None:
+        self.base = base
+        self.head = head
+        self.pr_type = pr_type
+        self.issue = issue
+        self.title = title
+        self.pr_body_file = pr_body_file
+        self.docs_policy = docs_policy
+
+
+def run_checks(
+    repo_root: str | Path,
+    options: "Options",
+    confirmations: dict[str, str] | None = None,
+) -> dict:
+    """Judge every gate and return the report.
+
+    ``confirmations`` lets the caller assert a gate that cannot be decided by a
+    script (currently ``docs_content``), together with the evidence for that
+    assertion.  The confirmation is recorded in the report so the claim stays
+    auditable instead of silently turning into a PASS.
+    """
+    repo = Repo(Path(repo_root).resolve())
+    profile = Profile(repo)
+    base_ref = options.base or profile.repo.default_branch() or "master"
+    base = repo.merge_base(base_ref, options.head)
+    head = repo.rev(options.head)
+    report = build_report(repo, profile, options, base, head)
+
+    for name, evidence in (confirmations or {}).items():
+        row = report["gates"].get(name)
+        if row is None:
+            raise GateError(f"cannot confirm unknown gate: {name}")
+        if row["status"] == PASS:
+            continue
+        row.clear()
+        row.update(
+            gate(
+                PASS,
+                confirmed=True,
+                evidence=evidence or "caller confirmation",
+                previous=UNKNOWN,
+            )
+        )
+
+    report["unverified"] = sorted(
+        name for name, row in report["gates"].items() if row["status"] == UNKNOWN
+    )
+    report["promotion_blockers"] = [
+        {"gate": name, "status": row["status"], "reason": row.get("reason") or row.get("remedy") or ""}
+        for name, row in report["gates"].items()
+        if row["status"] in (FAIL, UNKNOWN)
+    ]
+    report["exit"] = 1 if any(row["status"] == FAIL for row in report["gates"].values()) else 0
+    return report
+
+
 def main(argv: list[str] | None = None) -> int:
     configure_stdout()
     args = parse_args(argv)
     try:
-        repo = Repo(Path(args.repo_root).resolve())
-        profile = Profile(repo)
-
         if args.profile:
-            payload = profile.as_dict()
+            repo = Repo(Path(args.repo_root).resolve())
+            payload = Profile(repo).as_dict()
             text = json.dumps(payload, ensure_ascii=False, indent=2)
             if args.out:
                 Path(args.out).write_text(text + "\n", encoding="utf-8")
             print(text)
             return 0
 
-        base_ref = args.base or profile.repo.default_branch() or "master"
-        base = repo.merge_base(base_ref, args.head)
-        head = repo.rev(args.head)
-        report = build_report(repo, profile, args, base, head)
+        options = Options(
+            base=args.base,
+            head=args.head,
+            pr_type=args.pr_type,
+            issue=args.issue,
+            title=args.title,
+            pr_body_file=args.pr_body_file,
+            docs_policy=args.docs_policy,
+        )
+        report = run_checks(args.repo_root, options)
 
-        if args.format == "text":
-            rendered = render_text(report)
-        else:
-            rendered = json.dumps(report, ensure_ascii=False, indent=2)
+        rendered = render_text(report) if args.format == "text" else json.dumps(report, ensure_ascii=False, indent=2)
         if args.out:
             Path(args.out).write_text(
                 json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

@@ -24,6 +24,21 @@ Git and Python 3.10+ (standard library only at runtime). Remote reads/writes nee
 
 ## Quick start
 
+### Preferred entry point: `devflow.py` (judge + persist + next step)
+
+```bash
+python .agents/skills/aisbench-devflow/scripts/devflow.py develop --pr-type feature --issue 651
+
+python .agents/skills/aisbench-devflow/scripts/devflow.py pr --pr-type feature --issue 651 \
+  --title "[feat][datasets]support X" --body-file /tmp/pr-body.md
+
+python .agents/skills/aisbench-devflow/scripts/devflow.py status
+```
+
+`devflow.py` performs no remote write: it does not commit, push, open PRs, comment, or merge.
+
+### Individual tools
+
 ```bash
 python .agents/skills/aisbench-devflow/scripts/gate_check.py --profile
 
@@ -81,6 +96,7 @@ aisbench-devflow/
 │   ├── pr_body.py        # template rendering and self-check
 │   ├── ut_map.py         # source↔test mapping, scoped coverage
 │   └── ledger.py         # resume ledger: atomic writes, locking, worktree-safe, identity-guarded
+│   └── devflow.py        # action driver: judge + persist + next step (no remote writes)
 └── tests/                # unittest, real temporary git repositories
 ```
 

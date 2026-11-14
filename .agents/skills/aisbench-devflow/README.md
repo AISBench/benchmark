@@ -25,6 +25,24 @@
 
 ## 快速开始
 
+### 推荐入口：`devflow.py`（判定 + 记账 + 下一步）
+
+```bash
+# develop 边界：不达标就列出 blocker，达标则推进到 locally-verified
+python .agents/skills/aisbench-devflow/scripts/devflow.py develop --pr-type feature --issue 651
+
+# pr 边界：门禁 + 正文自检，达标则推进到 pr-open
+python .agents/skills/aisbench-devflow/scripts/devflow.py pr --pr-type feature --issue 651 \
+  --title "[feat][datasets]支持 X" --body-file /tmp/pr-body.md
+
+# 当前状态 / 是否陈旧 / 下一步
+python .agents/skills/aisbench-devflow/scripts/devflow.py status
+```
+
+`devflow.py` 不做任何远端写：不 commit、不 push、不开 PR、不评论、不合入。
+
+### 单项工具
+
 ```bash
 # 1. 读取仓库画像（阈值/模板/标签映射/文档树，全部现读，不硬编码）
 python .agents/skills/aisbench-devflow/scripts/gate_check.py --profile
@@ -89,7 +107,8 @@ aisbench-devflow/
 │   ├── gate_check.py     # 本地门禁预检
 │   ├── pr_body.py        # 模板渲染与自检
 │   ├── ut_map.py         # 源码↔UT 映射、子集覆盖率
-│   └── ledger.py         # 恢复账本：原子写、加锁、worktree 兼容、身份隔离
+│   ├── ledger.py         # 恢复账本：原子写、加锁、worktree 兼容、身份隔离
+│   └── devflow.py        # action 驱动：判定 + 记账 + 下一步（无远端写）
 └── tests/                # unittest（含真实 git 仓夹具）
 ```
 

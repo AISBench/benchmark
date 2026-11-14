@@ -44,9 +44,11 @@ python scripts/pr_body.py render \
 自检：
 
 ```bash
-python scripts/pr_body.py check --body-file <body.md> \
-  --workflow .github/workflows/auto_label_pr.yml --issue <N> --title "<标题>"
+python scripts/devflow.py pr --pr-type <type> --issue <N> \
+  --title "<标题>" --body-file <body.md>
 ```
+
+`devflow.py pr` 会同时跑门禁与正文自检（`body_trailer`、`body_type_selection`、`body_label_mapping`），任何一项 `FAIL` 都阻断 `pr-open`；达标时写入账本并提示下一步为 `ci`。
 
 ## 创建 PR
 
@@ -76,4 +78,4 @@ python scripts/pr_body.py check --body-file <body.md> \
 
 Render the body with `pr_body.py render` so the template structure is preserved, exactly one PR type is ticked using the template's own wording, the label drift is reported instead of patched, and `<!-- aisbench-devflow -->` appears exactly once. Unfilled placeholder sections are listed in a comment and are never treated as completed evidence.
 
-Open a normal (non-draft) PR with a conforming title and an issue reference, then read back the title, body hash, issue link, `headRefOid` and base branch. `pr-open` completes when the read-back matches and no locally decidable gate fails. Do not monitor CI here, do not request reviews, and never rewrite template wording to force a label.
+Open a normal (non-draft) PR with a conforming title and an issue reference, then read back the title, body hash, issue link, `headRefOid` and base branch. `pr-open` completes when the read-back matches and no locally decidable gate fails. `devflow.py pr --title ... --body-file ...` runs the gates and the body checks (`body_trailer`, `body_type_selection`, `body_label_mapping`) together; any `FAIL` blocks `pr-open`, and success records the state and points to `ci`. Do not monitor CI here, do not request reviews, and never rewrite template wording to force a label.

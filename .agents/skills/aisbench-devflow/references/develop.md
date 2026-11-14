@@ -17,10 +17,11 @@
    ```
    按建议路径补 `tests/UT/<sub>/test_*.py`；feature 必补，bugfix 超过阈值必补。
 5. **双语文档**：任何文档改动（新增/修改/删除/重命名）同步对侧语言，并逐项对齐语义。
-6. **跑本地门禁**：
+6. **跑本地门禁并推进状态**：
    ```bash
-   python scripts/gate_check.py --base origin/master --pr-type <type> --issue <N>
+   python scripts/devflow.py develop --pr-type <type> --issue <N>
    ```
+   达标（无 blocker）即推进到 `locally-verified` 并写入账本；否则输出 blocker 与建议路径，按提示修复后重跑。
    子集覆盖率（可选，不安装依赖）：
    ```bash
    python scripts/ut_map.py coverage --test-dir tests/UT/<sub> --dry-run   # 先看命令
@@ -46,7 +47,7 @@
 
 ## English
 
-`develop` requires a verified issue and a confirmed scope. Create a working branch from the latest canonical default branch (never work on the default branch), state the affected files and `tests/UT/<sub>` directories, implement only the confirmed scope, and add tests using `ut_map.py suggest`. Any documentation change is mirrored into the other language and reviewed item by item. Then run `gate_check.py` for locally decidable gates and `ut_map.py coverage --dry-run` before any scoped coverage run.
+`develop` requires a verified issue and a confirmed scope. Create a working branch from the latest canonical default branch (never work on the default branch), state the affected files and `tests/UT/<sub>` directories, implement only the confirmed scope, and add tests using `ut_map.py suggest`. Any documentation change is mirrored into the other language and reviewed item by item. Then run `devflow.py develop`, which judges the gates, records them in the ledger and advances to `locally-verified` only when no blocker remains; `ut_map.py coverage --dry-run` shows the scoped coverage command without installing anything.
 
 `locally-verified` requires: changes match the agreed scope, affected tests actually ran, no locally decidable `FAIL`, documentation pairs present with reviewed content, and every unverified item disclosed (NPU hardware, full-suite coverage, external builds).
 
