@@ -155,10 +155,26 @@ jobs:
           "$venv_dir/bin/python" -m pip install -r .agents/skills/ascend-llm-deploy-eval/requirements-dev.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
           "$venv_dir/bin/python" -m ruff check --config .agents/skills/ascend-llm-deploy-eval/ruff.toml .agents/skills/ascend-llm-deploy-eval/scripts .agents/skills/ascend-llm-deploy-eval/tests
           "$venv_dir/bin/python" .agents/skills/ascend-llm-deploy-eval/tests/run_unit_tests.py --require-bash --output "$RUNNER_TEMP/ascend-skill-unit-tests.json"
+      - name: Run aisbench-devflow unit tests in an isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          venv_dir="$RUNNER_TEMP/devflow-skill-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python3 -m venv "$venv_dir"
+          "$venv_dir/bin/python" -m pip install -r .agents/skills/aisbench-devflow/requirements-dev.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
+          "$venv_dir/bin/python" -m ruff check --config .agents/skills/aisbench-devflow/ruff.toml .agents/skills/aisbench-devflow/scripts .agents/skills/aisbench-devflow/tests
+          "$venv_dir/bin/python" .agents/skills/aisbench-devflow/tests/run_unit_tests.py --output "$RUNNER_TEMP/devflow-skill-unit-tests.json"
       - name: Upload skill test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ascend-skill-unit-tests
           path: ${{ runner.temp }}/ascend-skill-unit-tests.json
+          if-no-files-found: warn
+      - name: Upload devflow skill test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devflow-skill-unit-tests
+          path: ${{ runner.temp }}/devflow-skill-unit-tests.json
           if-no-files-found: warn

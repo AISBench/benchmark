@@ -5,6 +5,7 @@
 | Skill | 用途 | 使用入口 |
 |---|---|---|
 | [ascend-llm-deploy-eval](skills/ascend-llm-deploy-eval/SKILL.md) | 昇腾模型部署、预检、性能测试与资源释放 | [快速开始](skills/ascend-llm-deploy-eval/README.md) |
+| [aisbench-devflow](skills/aisbench-devflow/SKILL.md) | Issue 到 PR 的研发流程编排：本地门禁预检、合规 PR、CI 与检视闭环；只核验、不执行合入 | [快速开始](skills/aisbench-devflow/README.md) |
 
 ## 加载与使用
 
