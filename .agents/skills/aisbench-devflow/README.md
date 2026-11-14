@@ -47,6 +47,12 @@ python .agents/skills/aisbench-devflow/scripts/pr_body.py render \
 # 5. 自检正文
 python .agents/skills/aisbench-devflow/scripts/pr_body.py check \
   --body-file /tmp/pr-body.md --workflow .github/workflows/auto_label_pr.yml --issue 651
+
+# 6. 记录/恢复进度（只写 Git 元数据目录，不进出 diff）
+python .agents/skills/aisbench-devflow/scripts/ledger.py show
+python .agents/skills/aisbench-devflow/scripts/ledger.py set --repo AISBench/benchmark \
+  --field run_id=pr-651-20261114-a1b2 --field last_completed_state=pr-open --head
+python .agents/skills/aisbench-devflow/scripts/ledger.py gate --name size --status PASS --evidence "412 lines"
 ```
 
 `--sections` 是 JSON：`{"Motivation": "变更动机正文", "Modification": "修改内容"}`，键按标题模糊匹配。
@@ -79,12 +85,20 @@ aisbench-devflow/
 ├── SKILL.md              # 规则入口：action 路由、契约、状态机
 ├── README.md / README_en.md
 ├── references/           # 按 action 渐进加载的细则（单文件双语）
-├── scripts/              # 只判定、不修改
+├── scripts/              # 只判定、不修改（账本仅写 Git 元数据目录）
 │   ├── gate_check.py     # 本地门禁预检
 │   ├── pr_body.py        # 模板渲染与自检
-│   └── ut_map.py         # 源码↔UT 映射、子集覆盖率
+│   ├── ut_map.py         # 源码↔UT 映射、子集覆盖率
+│   └── ledger.py         # 恢复账本：原子写、加锁、worktree 兼容、身份隔离
 └── tests/                # unittest（含真实 git 仓夹具）
 ```
+
+## 账本
+
+- 位置：`<git rev-parse --absolute-git-dir>/aisbench-devflow/ledger.json`，兼容 worktree/submodule（`.git` 为文件）。
+- 只存标识与结论：`head_sha`、门禁状态、`unverified`；**不存 Token、绝对路径、日志**。
+- 原子写 + `ledger.lock`，过期锁需显式 `--break-lock`；身份不匹配时拒绝覆盖（`--reinit` 才重建）。
+- `show` 会与当前 `HEAD` 比对并输出 `stale`：账本陈旧时，其中门禁结论一律作废。
 
 ## 与只读技能的分工
 

@@ -33,6 +33,20 @@ git rev-parse --absolute-git-dir     # 不能假设 .git 一定是目录（workt
 2. 查到未生效 → 允许重试一次；
 3. 仍不确定 → `blocked: write-uncertain`，输出目标标识（PR 号 / 评论 ID / thread ID）交人判断。
 
+## 命令
+
+```bash
+python scripts/ledger.py path                       # 打印解析后的账本路径与 .git 形态
+python scripts/ledger.py show                       # 账本 + 当前事实 + staleness + resume_from
+python scripts/ledger.py set --repo <owner/repo> \
+  --field run_id=... --field last_completed_state=... --head
+python scripts/ledger.py gate --name <gate> --status PASS|FAIL|UNKNOWN|NOT_APPLICABLE \
+  --evidence "<一句话证据>"
+python scripts/ledger.py clear --yes                # 显式清空
+```
+
+`gate` 写入 `UNKNOWN` 会自动加入 `unverified`；改判为非 `UNKNOWN` 会自动移出。
+
 ## 恢复流程
 
 1. 读账本，标记为待校验；
@@ -51,3 +65,5 @@ The ledger lives at `<absolute-git-dir>/aisbench-devflow/ledger.json`, resolved 
 Idempotency keys: branch (`repo + branch`), commit (`worktree state`), push (`sha + remote + branch`), PR (`head + base + repo`), comments (`pr + head_sha + body hash`), thread resolution (`thread id`), and `/pr_check` triggering (`pr + head_sha`).
 
 On an uncertain remote write, verify first and retry at most once; if still unknown, return `blocked: write-uncertain` with the target identifiers. Recovery re-reads local and remote facts, marks ledger entries whose SHA no longer matches as `STALE`, resumes from the last state still backed by evidence, and reports where it stopped, why, and where it continues.
+
+Commands: `ledger.py path` (resolved location and whether `.git` is a directory or file), `show` (ledger, current facts, `staleness`, `resume_from`), `set` (atomic, locked field update; `--head` re-binds to the current commit), `gate --name --status --evidence` (records one verdict; `UNKNOWN` joins `unverified`, other verdicts leave it), and `clear --yes`.

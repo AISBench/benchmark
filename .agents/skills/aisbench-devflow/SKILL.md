@@ -53,7 +53,14 @@ compatibility: 需要 Git 与 Python 3.10+；远端读写依赖已登录的 GitH
 1. 确认仓库、reflog 干净的 remotes、源分支与目标分支。
 2. `python scripts/gate_check.py --profile` 现读仓库画像（阈值、模板、标签映射、文档树）。
 3. 校验能力梯度：`gh` typed 命令 → 宿主 GitHub 工具 → `gh api graphql` → 人工网页 → `blocked`。
-4. 读 `.git/aisbench-devflow/ledger.json`（经 `git rev-parse --absolute-git-dir` 解析）并与事实交叉校验。
+4. 读账本并与事实交叉校验：
+
+   ```bash
+   python scripts/ledger.py show      # 输出账本、当前 HEAD、staleness、resume_from、unverified
+   python scripts/ledger.py gate --name <gate> --status <verdict> --evidence "<证据>"
+   ```
+
+   账本只是恢复缓存，位于 `<git rev-parse --absolute-git-dir>/aisbench-devflow/ledger.json`；`stale=true` 时其中的门禁结论全部作废。
 5. 判定当前门禁，按 §门禁执行。
 
 ## 门禁
@@ -65,6 +72,7 @@ python scripts/gate_check.py --base origin/master --pr-type <type> --issue <N> \
   --title "<拟用标题>" --pr-body-file <body.md> --out gates.json
 python scripts/pr_body.py check --body-file <body.md> --workflow .github/workflows/auto_label_pr.yml --issue <N>
 python scripts/ut_map.py suggest --changed <改动源码...>
+python scripts/ledger.py show
 ```
 
 判定约定：
@@ -112,7 +120,7 @@ Hard boundaries, regardless of mode or authorization:
 
 Actions: `discover`, `issue`, `plan`, `develop`, `pr`, `ci`, `feedback`, `review`, `merge` (verify only), `dataset-onboard` (same skill, not a second one). Each action does exactly one thing, stops on completion, and returns `blocked` with the missing evidence plus the suggested upstream action instead of silently continuing.
 
-Startup: resolve the checkout and remotes, read the repository profile with `gate_check.py --profile`, validate the capability ladder (`gh` → host tools → `gh api graphql` → manual → blocked), cross-check the ledger at the real Git directory, then judge the gates.
+Startup: resolve the checkout and remotes, read the repository profile with `gate_check.py --profile`, validate the capability ladder (`gh` → host tools → `gh api graphql` → manual → blocked), cross-check the ledger via `ledger.py show` (it prints `staleness` and `resume_from`), then judge the gates. The ledger is a resumable cache at `<git rev-parse --absolute-git-dir>/aisbench-devflow/ledger.json`; when `stale=true`, every recorded verdict is void.
 
 Verdict contract: `PASS` requires evidence; `UNKNOWN` means the gate cannot be decided locally (remote reviews, thread state, full-suite coverage, external docs builds, self-hosted smoke). Exit code `0` means "no known FAIL" only — promotion also requires an empty `promotion_blockers` list. Documentation changes must be bilingual as a hard requirement; `UNKNOWN` cannot be waived by an ordinary autonomous grant.
 

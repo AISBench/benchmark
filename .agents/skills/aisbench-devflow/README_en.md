@@ -41,6 +41,11 @@ python .agents/skills/aisbench-devflow/scripts/pr_body.py render \
 
 python .agents/skills/aisbench-devflow/scripts/pr_body.py check \
   --body-file /tmp/pr-body.md --workflow .github/workflows/auto_label_pr.yml --issue 651
+
+python .agents/skills/aisbench-devflow/scripts/ledger.py show
+python .agents/skills/aisbench-devflow/scripts/ledger.py set --repo AISBench/benchmark \
+  --field run_id=pr-651-20261114-a1b2 --field last_completed_state=pr-open --head
+python .agents/skills/aisbench-devflow/scripts/ledger.py gate --name size --status PASS --evidence "412 lines"
 ```
 
 `--sections` takes JSON keyed by a heading fragment: `{"Motivation": "...", "Modification": "..."}`.
@@ -71,9 +76,20 @@ aisbench-devflow/
 ├── SKILL.md              # rules: action routing, contracts, state machine
 ├── README.md / README_en.md
 ├── references/           # per-action details, loaded on demand (bilingual single files)
-├── scripts/              # judge only, never modify
+├── scripts/              # judge only (the ledger writes inside the Git directory)
+│   ├── gate_check.py     # local gate preflight
+│   ├── pr_body.py        # template rendering and self-check
+│   ├── ut_map.py         # source↔test mapping, scoped coverage
+│   └── ledger.py         # resume ledger: atomic writes, locking, worktree-safe, identity-guarded
 └── tests/                # unittest, real temporary git repositories
 ```
+
+## Ledger
+
+- Location: `<git rev-parse --absolute-git-dir>/aisbench-devflow/ledger.json`, correct for worktrees and submodules where `.git` is a file.
+- Stores identifiers and verdicts only: `head_sha`, gate statuses, `unverified`. No tokens, no absolute paths, no logs.
+- Atomic writes plus `ledger.lock`; a stale lock needs an explicit `--break-lock`, and an identity mismatch refuses to overwrite (`--reinit` rebuilds).
+- `show` compares against the current `HEAD` and prints `stale`; a stale ledger voids every verdict it holds.
 
 ## Division of labour
 
