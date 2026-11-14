@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Render and self-check an AISBench pull request body.
 
@@ -52,7 +52,7 @@ class BodyError(RuntimeError):
 def load_label_map(workflow: Path) -> dict[str, str]:
     if not workflow.is_file():
         raise BodyError(f"workflow not found: {workflow}")
-    text = workflow.read_text(encoding="utf-8", errors="replace")
+    text = workflow.read_text(encoding="utf-8-sig", errors="replace")
     block = re.search(r"const\s+typeToLabel\s*=\s*\{(?P<body>.*?)\n\s*\};", text, re.S)
     if not block:
         raise BodyError("typeToLabel block not found in auto_label_pr.yml")
@@ -62,7 +62,7 @@ def load_label_map(workflow: Path) -> dict[str, str]:
 def read_template(path: Path) -> str:
     if not path.is_file():
         raise BodyError(f"template not found: {path}")
-    return path.read_text(encoding="utf-8", errors="replace")
+    return path.read_text(encoding="utf-8-sig", errors="replace")
 
 
 def template_options(text: str) -> list[str]:
@@ -214,7 +214,12 @@ def cmd_render(args: argparse.Namespace) -> int:
         solution = set_issue_line(solution, args.issue)
     sections = {}
     if args.sections:
-        sections = json.loads(Path(args.sections).read_text(encoding="utf-8"))
+        try:
+            sections = json.loads(Path(args.sections).read_text(encoding="utf-8-sig"))
+        except json.JSONDecodeError as exc:
+            raise BodyError(f"sections file is not valid JSON: {exc}") from exc
+        if not isinstance(sections, dict):
+            raise BodyError("sections file must contain a JSON object of {heading: text}")
     solution = fill_sections(solution, sections)
     solution = ensure_trailer(solution)
 
@@ -246,7 +251,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     path = Path(args.body_file)
     if not path.is_file():
         raise BodyError(f"body file not found: {path}")
-    body = path.read_text(encoding="utf-8", errors="replace")
+    body = path.read_text(encoding="utf-8-sig", errors="replace")
     label_map = load_label_map(Path(args.workflow))
 
     checks: dict[str, dict] = {}

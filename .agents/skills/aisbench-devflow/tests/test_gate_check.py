@@ -1,4 +1,4 @@
-﻿"""Unit tests for scripts/gate_check.py (read-only local preflight)."""
+"""Unit tests for scripts/gate_check.py (read-only local preflight)."""
 
 from __future__ import annotations
 
@@ -201,6 +201,24 @@ class DocsParityGate(GateTestCase):
         _, payload = run_gate(self.repo, "--base", self.base)
         self.assertEqual(payload["gates"]["docs_parity"]["status"], gate_check.FAIL)
         self.assertTrue(payload["gates"]["docs_parity"]["value"]["readme_unpaired"])
+
+    def test_nested_readme_pair_must_stay_synced(self) -> None:
+        support.commit(
+            self.repo,
+            "add skill docs",
+            {"skill/README.md": "# skill\n", "skill/README_en.md": "# skill\n"},
+        )
+        base = support.git(self.repo, "rev-parse", "HEAD").strip()
+        support.commit(self.repo, "zh only", {"skill/README.md": "# skill v2\n"})
+        _, payload = run_gate(self.repo, "--base", base)
+        row = payload["gates"]["docs_parity"]
+        self.assertEqual(row["status"], gate_check.FAIL)
+        self.assertIn("skill/README_en.md", " ".join(row["value"]["readme_unpaired"]))
+
+    def test_nested_readme_without_english_is_not_forced(self) -> None:
+        support.commit(self.repo, "solo readme", {"solo/README.md": "# solo\n"})
+        _, payload = run_gate(self.repo, "--base", self.base)
+        self.assertEqual(payload["gates"]["docs_parity"]["status"], gate_check.PASS)
 
     def test_deleted_doc_requires_counterpart_deletion(self) -> None:
         support.commit(

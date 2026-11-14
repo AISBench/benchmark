@@ -1,4 +1,4 @@
-"""Run the aisbench-devflow unit tests and write a JSON report.
+﻿"""Run the aisbench-devflow unit tests and write a JSON report.
 
 Usage:
     python tests/run_unit_tests.py [--output report.json]

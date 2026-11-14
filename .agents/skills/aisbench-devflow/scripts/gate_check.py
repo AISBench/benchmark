@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """AISBench DevFlow local gate preflight.
 
@@ -212,7 +212,7 @@ class Profile:
         """Options from the PR Type block only (not the Checklist section)."""
         if not self.template_path:
             return []
-        lines = self.template_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = self.template_path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
         start = None
         for index, line in enumerate(lines):
             if re.search(r"PR\s*Type", line, re.IGNORECASE):
@@ -242,7 +242,7 @@ class Profile:
         path = self._workflow("auto_label_pr.yml")
         if not path:
             return {}
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding="utf-8-sig", errors="replace")
         block = re.search(r"const\s+typeToLabel\s*=\s*\{(?P<body>.*?)\n\s*\};", text, re.S)
         if not block:
             self.warnings.append("label_map_unreadable: auto_label_pr.yml 中未找到 typeToLabel 映射")
@@ -257,7 +257,7 @@ class Profile:
     def _read_size_limit(self) -> int:
         path = self._workflow("pr_quality_check.yml")
         if path:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
             match = re.search(r"if\s*\(\s*additions\s*>\s*(\d+)\s*\)", text)
             if match:
                 return int(match.group(1))
@@ -267,7 +267,7 @@ class Profile:
     def _read_ut_prefix(self) -> str:
         path = self._workflow("pr_quality_check.yml")
         if path:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
             match = re.search(r"UT_DIR_PREFIX\s*=\s*'([^']+)'", text)
             if match:
                 return match.group(1)
@@ -277,7 +277,7 @@ class Profile:
     def _read_bugfix_threshold(self) -> int:
         path = self._workflow("pr_quality_check.yml")
         if path:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
             match = re.search(r"hasBugfix\s*&&\s*additions\s*>\s*(\d+)", text)
             if match:
                 return int(match.group(1))
@@ -288,14 +288,14 @@ class Profile:
         path = self._workflow("run-ut-on-pr-py.yml")
         thresholds = {"total": 80, "line": 80, "branch": 60}
         if path:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
             for name, value in re.findall(r"\$(total|line|branch)_coverage'\)\s*<\s*(\d+)", text):
                 thresholds[name] = int(value)
         pytest_ini = self.repo.top / "tests" / "pytest.ini"
         if pytest_ini.is_file():
             match = re.search(
                 r"fail_under\s*=\s*(\d+)",
-                pytest_ini.read_text(encoding="utf-8", errors="replace"),
+                pytest_ini.read_text(encoding="utf-8-sig", errors="replace"),
             )
             if match:
                 thresholds["fail_under"] = int(match.group(1))
@@ -382,7 +382,7 @@ def read_body(path: str | None) -> str | None:
     candidate = Path(path)
     if not candidate.is_file():
         raise GateError(f"pr body file not found: {path}")
-    return candidate.read_text(encoding="utf-8", errors="replace")
+    return candidate.read_text(encoding="utf-8-sig", errors="replace")
 
 
 def issue_numbers(text: str) -> list[int]:
@@ -538,7 +538,7 @@ def _counterpart(path: str, src_root: str, dst_root: str) -> str | None:
 def check_docs_parity(repo: Repo, profile: Profile, base: str, head: str) -> dict:
     changes = repo.changed_files(base, head)
     doc_changes = [(s, p) for s, p in changes if p.startswith((DOCS_ZH_ROOT + "/", DOCS_EN_ROOT + "/"))]
-    readme_changes = [p for _, p in changes if p in (README_ZH, README_EN)]
+    readme_changes = [p for _, p in changes if Path(p).name in (README_ZH, README_EN)]
     if not doc_changes and not readme_changes:
         return gate(NOT_APPLICABLE, reason="本次变更不涉及文档")
 
@@ -556,10 +556,22 @@ def check_docs_parity(repo: Repo, profile: Profile, base: str, head: str) -> dic
                 missing.append(f"{path} 缺少对侧 {pair}")
 
     readme_unpaired: list[str] = []
+    # Root README always needs its English counterpart.
     if README_ZH in readme_changes and README_EN not in readme_changes:
         readme_unpaired.append(f"{README_ZH} 变更但 {README_EN} 未同步")
     if README_EN in readme_changes and README_ZH not in readme_changes:
         readme_unpaired.append(f"{README_EN} 变更但 {README_ZH} 未同步")
+    # Any other directory that already ships both languages must keep them paired.
+    for path in readme_changes:
+        if path in (README_ZH, README_EN):
+            continue
+        pure = Path(path)
+        sibling_name = README_EN if pure.name == README_ZH else README_ZH
+        sibling = (pure.parent / sibling_name).as_posix()
+        if not repo.exists_at(head, sibling):
+            continue
+        if sibling not in readme_changes:
+            readme_unpaired.append(f"{path} 变更但 {sibling} 未同步")
 
     payload = {
         "policy": "all-bilingual",
@@ -606,7 +618,8 @@ def build_report(
     doc_change_count = sum(
         1
         for _, path in repo.changed_files(base, head)
-        if path.startswith((DOCS_ZH_ROOT + "/", DOCS_EN_ROOT + "/")) or path in (README_ZH, README_EN)
+        if path.startswith((DOCS_ZH_ROOT + "/", DOCS_EN_ROOT + "/"))
+        or Path(path).name in (README_ZH, README_EN)
     )
     gates["docs_content"] = check_docs_content(doc_change_count)
 

@@ -1,4 +1,4 @@
-"""Shared fixtures for aisbench-devflow unit tests.
+﻿"""Shared fixtures for aisbench-devflow unit tests.
 
 Every test builds a throwaway git repository so the preflight logic is exercised
 against real ``git`` output instead of mocked strings.
@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -63,6 +64,23 @@ def new_workdir() -> Path:
 
 
 def cleanup(path: Path) -> None:
+    """Remove a test work tree, including read-only git objects on Windows."""
+
+    def force_writable(func, target, _exc_info):  # pragma: no cover - platform specific
+        try:
+            os.chmod(target, 0o700)
+            func(target)
+        except OSError:
+            pass
+
+    if not path.exists():
+        return
+    for _ in range(3):
+        shutil.rmtree(path, onexc=force_writable) if sys.version_info >= (3, 12) else shutil.rmtree(
+            path, onerror=force_writable
+        )
+        if not path.exists():
+            return
     shutil.rmtree(path, ignore_errors=True)
 
 PR_TEMPLATE = """Thanks for your contribution.
