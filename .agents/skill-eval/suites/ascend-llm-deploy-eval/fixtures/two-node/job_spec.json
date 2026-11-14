@@ -1,0 +1,153 @@
+{
+  "schema_version": "3.0",
+  "job_id": "20261112-002",
+  "state": "ready",
+  "deployments": [
+    {
+      "id": "pd-b",
+      "topology": "pd",
+      "model": {
+        "id": "dsv4",
+        "served_name": "demo-model"
+      },
+      "runtime": {
+        "image": "registry.example/vllm-ascend:verified-tag",
+        "container": {
+          "shm_size": "500g",
+          "privileged": true
+        }
+      },
+      "instances": [
+        {
+          "id": "prefill",
+          "role": "prefill",
+          "placement": {
+            "node": "node_p",
+            "devices": [0, 1, 2, 3]
+          },
+          "launch": {
+            "program": "vllm serve",
+            "args": {
+              "data-parallel-size": 2,
+              "tensor-parallel-size": 2,
+              "max-model-len": 131072,
+              "max-num-batched-tokens": 8192,
+              "max-num-seqs": 64
+            },
+            "env": {
+              "VLLM_SERVER_DEV_MODE": "1"
+            },
+            "bootstrap": "set -o pipefail\nsource {{paths.shell_rc}}\nexport ASCEND_LOCAL_COMM_RES_PATH={{paths.comm}}\n",
+            "preserve_reference": true,
+            "engine_id": "prefill"
+          },
+          "ports": {
+            "http": 1,
+            "kv": 1,
+            "rpc": 4,
+            "hccl": 16
+          },
+          "checks": {
+            "health": "/health",
+            "prefix_cache_reset": "/reset_prefix_cache",
+            "metrics": "/metrics"
+          }
+        },
+        {
+          "id": "decode",
+          "role": "decode",
+          "placement": {
+            "node": "node_q",
+            "devices": [0, 1, 2, 3]
+          },
+          "launch": {
+            "program": "vllm serve",
+            "args": {
+              "data-parallel-size": 4,
+              "tensor-parallel-size": 1,
+              "max-model-len": 131072,
+              "max-num-batched-tokens": 512,
+              "max-num-seqs": 64
+            },
+            "env": {
+              "VLLM_SERVER_DEV_MODE": "1"
+            },
+            "bootstrap": "set -o pipefail\nsource {{paths.shell_rc}}\nexport ASCEND_LOCAL_COMM_RES_PATH={{paths.comm}}\n",
+            "preserve_reference": true,
+            "engine_id": "decode"
+          },
+          "ports": {
+            "http": 1,
+            "kv": 1,
+            "rpc": 4,
+            "hccl": 16
+          },
+          "checks": {
+            "health": "/health",
+            "prefix_cache_reset": "/reset_prefix_cache",
+            "metrics": "/metrics"
+          }
+        },
+        {
+          "id": "proxy",
+          "role": "proxy",
+          "placement": {
+            "node": "node_p",
+            "devices": []
+          },
+          "launch": {
+            "adapter": "external_pd_proxy",
+            "bootstrap": "unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY\n"
+          },
+          "ports": {
+            "http": 1
+          },
+          "checks": {
+            "health": "/healthcheck"
+          }
+        }
+      ],
+      "connections": {
+        "kv_transfer": [
+          {
+            "producer": "prefill",
+            "consumer": "decode",
+            "connector": "MooncakeHybridConnector"
+          }
+        ],
+        "routing": [
+          {
+            "proxy": "proxy",
+            "prefillers": ["prefill"],
+            "decoders": ["decode"]
+          }
+        ]
+      },
+      "endpoint": {
+        "instance": "proxy",
+        "port": "http"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "32k-c16",
+      "input_tokens": 32768,
+      "output_tokens": 1024,
+      "concurrency": 16,
+      "dataset_id": "default"
+    }
+  ],
+  "cleanup": {
+    "after_case": "keep_service",
+    "task_end": "stop_container"
+  },
+  "unresolved": [],
+  "sub_tasks": [
+    {
+      "id": "x-16",
+      "deployment_id": "pd-b",
+      "case_id": "32k-c16"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "E02",
+  "title": "非法规划：nodes=0 时在 stderr 说明原因并退出 2",
+  "dimension": "契约",
+  "weight": 1,
+  "fixture": "base",
+  "why": "SKILL.md 承诺非法输入打印 PLAN INVALID 且退出码 2；退出码 2 与 0 必须可区分，否则调用方无法判断成败。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/nodes", "value": 0}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 2},
+    {"type": "stderr_contains", "value": "PLAN INVALID: nodes must be >= 1"}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "C02",
+  "title": "ready 但 pending 未闭环（unresolved 非空）拒绝生成",
+  "dimension": "D1 契约与状态机",
+  "weight": 4,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "task_model.validate_task：「Ready task has unresolved items」；SKILL.md「不足之处保留 unresolved」。ready 只是声明，unresolved 必须为空。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/unresolved", "value": ["confirm host bindings before execution"]}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Ready task has unresolved items"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

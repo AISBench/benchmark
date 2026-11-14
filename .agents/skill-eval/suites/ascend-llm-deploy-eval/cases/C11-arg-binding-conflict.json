@@ -1,0 +1,17 @@
+{
+  "id": "C11",
+  "title": "参考脚本里写死的 data-parallel-address 与绑定不一致时阻断",
+  "dimension": "D3 绑定保真与阻断",
+  "weight": 4,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md 同一条保真约束也覆盖 CLI 参数：host/port/rpc 地址由 bindings 派生，任何作者写死的冲突值都必须报错而不是被生成值覆盖。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/deployments/0/instances/0/launch/args/data-parallel-address", "value": "10.0.0.99"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Confirmed argument conflicts with binding: prefill.data-parallel-address"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

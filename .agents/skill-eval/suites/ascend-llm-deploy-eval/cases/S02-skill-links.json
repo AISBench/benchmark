@@ -1,0 +1,12 @@
+{
+  "id": "S02",
+  "title": "SKILL.md 引用的相对文件全部存在（references/docs/schemas/scripts）",
+  "dimension": "D7 内容与格式规范",
+  "weight": 4,
+  "fixture": "base",
+  "adapter": {"type": "static"},
+  "why": "SKILL.md 把审阅规则、容器基线、挂载模板等下沉到 references/ 与 docs/，链接失效等于规则失联——这是 SKILL 演进中最常见的隐性破坏。",
+  "expect": [
+    {"type": "relative_links_exist", "path": "SKILL.md"}
+  ]
+}

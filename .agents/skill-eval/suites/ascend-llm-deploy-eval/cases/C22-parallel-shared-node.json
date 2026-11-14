@@ -1,0 +1,17 @@
+{
+  "id": "C22",
+  "title": "并行分支共用同一物理节点时阻断",
+  "dimension": "D6 并行与阶段",
+  "weight": 3,
+  "fixture": "multi",
+  "mode": "scripts",
+  "why": "docs/compact-cli.md「Concurrent branches must own disjoint physical node sets. Generation checks both node IDs and identical bound hosts」。否则两个分支会抢同一台机器的端口和 NPU。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/sub_tasks/1/deployment_id", "value": "solo-p"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Parallel branches share physical nodes"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

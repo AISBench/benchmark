@@ -1,0 +1,41 @@
+﻿{
+  "name": "ascend-llm-deploy-eval",
+  "version": "1.0.0",
+  "skill": {
+    "name": "ascend-llm-deploy-eval",
+    "repo": "AISBench/benchmark",
+    "path": ".agents/skills/ascend-llm-deploy-eval",
+    "ref": "master",
+    "commit": "1aead1f12bd35746672bda5a8a2330f58e7ba651",
+    "local_dir": "../../../skills/ascend-llm-deploy-eval"
+  },
+  "adapter": {
+    "type": "command",
+    "workdir": "{skill_dir}",
+    "command": [
+      "{python}",
+      "scripts/run.py",
+      "--job-spec",
+      "{job_spec}",
+      "--bindings",
+      "{bindings}",
+      "--run-dir",
+      "{run_dir}",
+      "--mode",
+      "{mode}"
+    ],
+    "env": {},
+    "note": "只调用 SKILL 自带的离线入口 scripts/run.py --mode scripts；不 arch/不 import 被测代码，不需要 SSH、Docker、NPU。"
+  },
+  "requirements": {
+    "python": ">=3.10",
+    "packages": ["jsonschema>=4.18,<5", "packaging>=23"],
+    "install": "uv pip install --target .deps -r <skill_dir>/requirements.txt"
+  },
+  "limits": [
+    "FULL 模式实机链路（SSH 免密、Docker 建容器、昇腾 NPU、AISBench 实装、真实权重）离线不可执行；本测评只判定「同一份 job_spec/bindings 生成的脚本是否正确、可审计」，不判定实机是否跑通吞吐/时延。",
+    "review_job.py 的现场证据采集需要真实主机；本测评用 review_job.assess() 的判定契约（C24）替代，不覆盖 PROBE 采集实现。",
+    "代理脚本、镜像内 vLLM/AISBench 版本行为、指标采集正确性依赖现场版本，不作为通过条件。",
+    "被测 SKILL 自带 tests/ 单元测试不计入本测评分数（避免用自己的测试给自己的行为打分），仅作参考。"
+  ]
+}

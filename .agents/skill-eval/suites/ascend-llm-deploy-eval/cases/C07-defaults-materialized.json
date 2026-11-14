@@ -1,0 +1,32 @@
+{
+  "id": "C07",
+  "title": "非稳态用例派生 4× 并发，零散默认值（预热/超时/收尾/执行/容器）全部落盘",
+  "dimension": "D2 规范化与派生默认值",
+  "weight": 6,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「普通 case 使用 formal_requests=4×concurrency」「预热另计」；默认值必须在确认后固化进 job_spec.json，否则脚本与审阅口径不一致。",
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cases/0/formal_requests", "value": 64},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cases/0/mode", "value": "perf"},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cases/0/num_warmups", "value": 1},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cases/0/warmup", "value": true},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cases/0/timeout_seconds", "value": 5400},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cases/0/request_rate", "value": 0},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cleanup/after_case", "value": "keep_service"},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cleanup/task_end", "value": "stop_container"},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/execution/max_retries", "value": 3},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/execution/startup_timeout_seconds", "value": 1800},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/execution/dependency_timeout_seconds", "value": 120},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/execution/proxy_start_after_models_healthy", "value": true},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/execution/enable_cache_reset_api", "value": true},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/sub_tasks/1/on_failure", "value": "record_only"},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/sub_tasks/1/phase_id", "value": "pp1"},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/deployments/0/runtime/container/user", "value": "root"},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/deployments/0/runtime/container/pid_mode", "value": "host"},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/deployments/0/runtime/container/devices/0", "value": "/dev/davinci_manager"},
+    {"type": "text_contains", "path": "scripts/tests/t-16.config.py", "value": "summarizers.perf.default_perf"},
+    {"type": "text_contains", "path": "scripts/tests/t-16.sh", "value": "--num-prompts 64"}
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "C18",
+  "title": "原生合成数据用 SyntheticDataset，按输入长度与前缀比例生成 RequestSize/PrefixLen",
+  "dimension": "D5 AISBench 测试语义",
+  "weight": 5,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「前缀测试使用 AISBench 本体 SyntheticDataset，通过 bindings…type=aisbench_synthetic 选择，按输入长度和目标比例生成 RequestSize/PrefixLen 配置；不要求外部生成工具或 GSM8K 路径」。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/cases/0/dataset_id", "value": "synthetic"},
+    {"file": "job_spec.json", "pointer": "/cases/0/shared_prefix_ratio", "value": 0.5}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "text_contains", "path": "scripts/tests/t-16.config.py", "value": [
+      "from ais_bench.benchmark.datasets import SyntheticDataset",
+      "'Type': 'tokenid'",
+      "'RequestCount': 64",
+      "'RequestSize': 65536",
+      "'PrefixLen': 32768",
+      "model_path='/mnt/models/demo-model'"
+    ]},
+    {"type": "text_not_contains", "path": "scripts/tests/t-16.config.py", "value": "CustomDataset"},
+    {"type": "text_not_contains", "path": "scripts/tests/t-16.sh", "value": "gsm8k"}
+  ]
+}
