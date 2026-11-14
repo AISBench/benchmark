@@ -1,0 +1,24 @@
+{
+  "id": "C21",
+  "title": "显式 stages：两个独立分支各自生成，dispatch 覆盖全部子任务",
+  "dimension": "D6 并行与阶段",
+  "weight": 4,
+  "fixture": "multi",
+  "mode": "scripts",
+  "why": "docs/compact-cli.md「Existing 3.0 inputs without stages retain serial sub_tasks semantics… Every sub_task must occur exactly once. Stages run in array order; branches run concurrently」。",
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "file_exists", "value": [
+      "scripts/solo-p/node_p-container.sh",
+      "scripts/solo-p/node_p-mixed.sh",
+      "scripts/solo-q/node_q-container.sh",
+      "scripts/solo-q/node_q-mixed.sh",
+      "scripts/tests/p1.sh",
+      "scripts/tests/q1.sh"
+    ]},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/stages/0/branches/0/sub_tasks/0", "value": "p1"},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/stages/0/branches/1/sub_tasks/0", "value": "q1"},
+    {"type": "json_equals", "path": ".runtime/dispatch.json", "pointer": "/tests/q1/node", "value": "node_q"},
+    {"type": "json_equals", "path": ".runtime/dispatch.json", "pointer": "/tests/p1/node", "value": "node_p"}
+  ]
+}

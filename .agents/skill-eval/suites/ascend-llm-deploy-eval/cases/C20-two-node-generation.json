@@ -1,0 +1,34 @@
+{
+  "id": "C20",
+  "title": "双机 PD：两个节点各自生成容器/实例脚本，跨节点 IP 与端口不串台",
+  "dimension": "D6 并行与阶段",
+  "weight": 5,
+  "fixture": "two-node",
+  "mode": "scripts",
+  "why": "SKILL.md「支持多模型、跨服务器整组任务」「NODE 表示物理机器，不是 P/D 角色」；docs/compact-cli.md「每个物理节点增加确定的部署网络与端口」。跨机部署最容易出现 IP/端口张冠李戴。",
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "file_exists", "value": [
+      "scripts/pd-b/node_p-container.sh",
+      "scripts/pd-b/node_p-prefill.sh",
+      "scripts/pd-b/node_p-proxy.sh",
+      "scripts/pd-b/node_q-container.sh",
+      "scripts/pd-b/node_q-decode.sh",
+      "scripts/pd-b/smoke.sh"
+    ]},
+    {"type": "text_contains", "path": "scripts/pd-b/node_q-decode.sh", "value": [
+      "--host 10.0.0.22",
+      "--port 18000",
+      "kv_role\": \"kv_consumer"
+    ]},
+    {"type": "text_contains", "path": "scripts/pd-b/node_p-prefill.sh", "value": [
+      "--host 10.0.0.21",
+      "kv_role\": \"kv_producer"
+    ]},
+    {"type": "text_contains", "path": "scripts/pd-b/smoke.sh", "value": "http://10.0.0.21:18056/v1/completions"},
+    {"type": "text_not_contains", "path": "scripts/pd-b/node_q-container.sh", "value": "18056"},
+    {"type": "json_equals", "path": ".runtime/dispatch.json", "pointer": "/deployments/pd-b/groups/node_q/host", "value": "root@10.0.0.22"},
+    {"type": "json_equals", "path": ".runtime/dispatch.json", "pointer": "/tests/x-16/node", "value": "node_p"},
+    {"type": "json_equals", "path": ".runtime/dispatch.json", "pointer": "/deployments/pd-b/groups/node_q/container", "value": "20261112-002-pd-b-node_q"}
+  ]
+}
