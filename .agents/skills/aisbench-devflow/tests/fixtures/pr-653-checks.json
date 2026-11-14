@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "source": "AISBench/benchmark#653 checks",
+  "captured_at": "2026-11-14",
+  "note": "Recorded check names/statuses only. Used to assert that gates we cannot decide locally stay UNKNOWN instead of being reported as PASS.",
+  "checks": [
+    {
+      "name": "PR Quality Gate",
+      "conclusion": "FAILURE",
+      "decidable_locally": "partial",
+      "local_gates": ["size", "issue_link", "ut_changed", "labels", "review_present", "threads_resolved"]
+    },
+    {
+      "name": "auto-label",
+      "conclusion": "SUCCESS",
+      "decidable_locally": "partial",
+      "local_gates": ["labels"]
+    },
+    {
+      "name": "pr_run_test",
+      "conclusion": "SUCCESS",
+      "decidable_locally": "no",
+      "local_gates": ["coverage_scope"]
+    },
+    {
+      "name": "run_smoke_test_cases",
+      "conclusion": "SUCCESS",
+      "decidable_locally": "no",
+      "local_gates": ["rtd_and_smoke"]
+    },
+    {
+      "name": "docs/readthedocs.org:ais-bench-benchmark",
+      "conclusion": "SUCCESS",
+      "decidable_locally": "no",
+      "local_gates": ["rtd_and_smoke"]
+    },
+    {
+      "name": "docs/readthedocs.org:ais-bench-benchmark-en",
+      "conclusion": "SUCCESS",
+      "decidable_locally": "no",
+      "local_gates": ["rtd_and_smoke"]
+    }
+  ]
+}
