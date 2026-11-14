@@ -1,0 +1,26 @@
+{
+  "id": "C24",
+  "title": "现场证据与绑定不一致时评审判定 BLOCKED；一致时只停在待 Agent 审阅",
+  "dimension": "D3 绑定保真与阻断",
+  "weight": 5,
+  "fixture": "two-node",
+  "mode": "scripts",
+  "why": "SKILL.md「探测成功只表示证据可读，不等于语义已确认；不足之处保留 unresolved」与「现场绑定差异必须展示原值、解析值及依据」。实机探测需 SSH，这里用 assess() 验证判定契约本身。",
+  "adapter": {
+    "type": "probe",
+    "command": [
+      "{python}",
+      "{suite_dir}/probes/review_gate.py",
+      "{skill_dir}",
+      "{job_spec}",
+      "{bindings}"
+    ]
+  },
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "probe_json", "pointer": "/healthy/status", "equals": "REQUIRES_AGENT_REVIEW"},
+    {"type": "probe_json", "pointer": "/healthy/errors", "equals": []},
+    {"type": "probe_json", "pointer": "/mismatch/status", "equals": "BLOCKED"},
+    {"type": "probe_json", "pointer": "/mismatch/errors/0", "contains": "pd-b/node_q: confirmed IP/interface not present on machine"}
+  ]
+}

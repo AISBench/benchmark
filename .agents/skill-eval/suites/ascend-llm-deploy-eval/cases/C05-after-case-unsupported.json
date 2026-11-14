@@ -1,0 +1,17 @@
+{
+  "id": "C05",
+  "title": "after_case=stop_service 明确拒绝",
+  "dimension": "D1 契约与状态机",
+  "weight": 3,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "同 C04 的收尾策略契约：子任务级 stop_service 尚未接入，必须显式失败而不是降级成 stop_container 或 keep_service。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/sub_tasks/0/after_case", "value": "stop_service"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Compact runner requires task_end=stop_container"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

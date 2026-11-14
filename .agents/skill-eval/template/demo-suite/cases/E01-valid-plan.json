@@ -1,0 +1,12 @@
+{
+  "id": "E01",
+  "title": "合法规划：输出总端口数并退出 0",
+  "dimension": "契约",
+  "weight": 1,
+  "fixture": "base",
+  "why": "SKILL.md 承诺合法输入打印 PLAN OK 且退出码 0。",
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "stdout_contains", "value": "PLAN OK nodes=2 ports=16"}
+  ]
+}

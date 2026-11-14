@@ -1,0 +1,18 @@
+{
+  "id": "C06",
+  "title": "稳态用例派生 formal_requests=并发×10 并选用 stable_stage 统计",
+  "dimension": "D2 规范化与派生默认值",
+  "weight": 6,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「稳态 case 使用 formal_requests=10×concurrency（稳态64并发→640条…）」「自然语言要求稳态时…生成 AISBench stable_stage 统计配置」。这是最容易被后续改动破坏的默认值。",
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "stdout_contains", "value": "SCRIPTS_READY"},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cases/1/concurrency", "value": 32},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/cases/1/formal_requests", "value": 320},
+    {"type": "text_contains", "path": "scripts/tests/t-32s.config.py", "value": "summarizers.perf.stable_stage"},
+    {"type": "text_contains", "path": "scripts/tests/t-32s.sh", "value": "--num-prompts 320"},
+    {"type": "text_contains", "path": "scripts/tests/t-32s.config.py", "value": "batch_size=32"}
+  ]
+}

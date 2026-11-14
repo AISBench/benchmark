@@ -15,3 +15,7 @@
 每个 skill 的 `SKILL.md` 描述触发条件与执行流程；`scripts/`、`references/`、`assets/`、`schemas/` 和 `examples/` 按需提供运行资源；`tests/` 与 `docs/` 保存该 skill 自身的测试和文档。新增 skill 使用独立目录，并在上表添加入口。
 
 公共层仅保留导航与跨 skill 的通用约定。日志、现场绑定、模型权重和任务产物保存在仓库外。
+
+## SKILL 测评
+
+[skill-eval](skill-eval/README.md) 提供离线、黑盒的 SKILL 质量测评：把 `job_spec`/`bindings` 喂给被测 skill，按契约断言退出码、生成脚本与产物，输出可复现的评分报告。当前覆盖 `ascend-llm-deploy-eval` 的离线生成链路（27 个用例、7 个维度），并附带 mutation 自检与可迁移模板；不覆盖需要实机的 `FULL` 链路。
