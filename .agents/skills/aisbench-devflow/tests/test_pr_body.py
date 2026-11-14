@@ -138,6 +138,29 @@ class Render(BodyCase):
         )
         body = out.read_text(encoding="utf-8")
         self.assertIn("unfilled-sections", body)
+        self.assertIn("Modification", body)
+
+    def test_static_reference_blocks_are_not_flagged(self) -> None:
+        out = self.work / "body.md"
+        sections = self.sections(
+            {"Motivation": "动机", "Modification": "改动", "Associated Test Results": "97 passed"}
+        )
+        run_cli(
+            "render",
+            "--template",
+            str(self.template),
+            "--workflow",
+            str(self.workflow),
+            "--pr-type",
+            "feature",
+            "--sections",
+            sections,
+            "--out",
+            str(out),
+        )
+        body = out.read_text(encoding="utf-8")
+        # The checklist block is checkbox-only and must never be reported.
+        self.assertNotIn("Checklist", body.split("unfilled-sections")[-1] if "unfilled-sections" in body else "")
 
     def test_unknown_pr_type_is_rejected(self) -> None:
         code, _ = run_cli(

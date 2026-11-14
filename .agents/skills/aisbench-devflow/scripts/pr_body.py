@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Render and self-check an AISBench pull request body.
 
@@ -31,6 +31,9 @@ HEADING_RE = re.compile(r"^(#{2,3})\s+(.+?)\s*$")
 ISSUE_REF_RE = re.compile(r"#(\d+)")
 TITLE_RE = re.compile(r"^\[(feat|fix|docs|style|refactor|test|chore|perf|build|ci|dep|deps)\](\[[^\]]+\])?.+$")
 RELATED_LINE_RE = re.compile(r"^\s*Fixes\s*#.*$", re.IGNORECASE)
+# Placeholder prose left in the template: instructive sentences or "@xxx" holders.
+# Static reference blocks (tables, checklists) must not be reported as unfilled.
+PLACEHOLDER_RE = re.compile(r"(?i)\bplease\b|\bxxx\b|请(?:描述|说明|提供|填写)")
 
 TYPE_KEYWORD = {
     "feature": "Feature",
@@ -175,7 +178,7 @@ def fill_sections(body: str, sections: dict[str, str]) -> str:
             out.append("")
             continue
         if any(
-            item.strip() and not CHECKBOX_ANY_RE.match(item)
+            item.strip() and not CHECKBOX_ANY_RE.match(item) and PLACEHOLDER_RE.search(item)
             for item in block
         ):
             unfilled.append(heading.group(2))
