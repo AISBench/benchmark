@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deploy-eval-v2"
+version = "0.1.0a14+local.devicemap1"
+requires-python = ">=3.11"
+dependencies = ["jsonschema>=4.18"]
+
+[project.scripts]
+deploy-eval-v2 = "deploy_eval_v2.cli:main"
+
+[tool.setuptools.package-data]
+deploy_eval_v2 = ["schemas/*.json"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

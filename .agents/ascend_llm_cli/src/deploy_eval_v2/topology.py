@@ -1,0 +1,315 @@
+"""Compile deployment instances and connections using discovered node bindings.
+
+No SSH or Docker side effects. Node-local execution retains the existing lifecycle.
+"""
+import copy
+import re
+
+
+def context_limit(args):
+    """Read known context aliases without rewriting the authored CLI arguments."""
+    keys = [key for key in ('max-model-len', 'max_model_len') if key in args]
+    if len(keys) > 1:
+        raise ValueError('Duplicate max-model-len/max_model_len arguments')
+    value = args[keys[0]] if keys else None
+    if type(value) is not int or value < 1:
+        raise ValueError('Missing positive max-model-len')
+    return value
+
+
+def producer_identity_warnings(dep):
+    """Declared IDs alone do not establish image-specific runtime identity."""
+    instances = {i['id']: i for i in dep['instances']}
+    seen = {}; warnings = []
+    for link in dep.get('connections', {}).get('kv_transfer', []):
+        producer = instances.get(link['producer'], {})
+        if link['connector'] != 'MooncakeConnectorV2' or producer.get('role') != 'prefill':
+            continue
+        launch = producer['launch']
+        engine_id = launch.get('kv_transfer_config', {}).get(
+            'engine_id', launch.get('engine_id', dep['id']+'-'+producer['id']))
+        key = (link['consumer'], str(engine_id))
+        previous = seen.setdefault(key, producer['id'])
+        if previous != producer['id']:
+            warnings.append('UNVERIFIED MooncakeConnectorV2 declared producer engine_id duplicate for consumer '+
+                            link['consumer']+': '+previous+' and '+producer['id']+' use '+repr(engine_id)+
+                            '; preserve reference IDs and verify effective identities in the selected image and runtime')
+    return warnings
+
+
+
+def container_device_id_map(dep):
+    """Validate an operator-confirmed physical -> container-logical mapping.
+
+    No inference from --device order: the runtime/image must be probed first.
+    Legacy plans without a map retain their original selection semantics.
+    """
+    container = dep.get('runtime', {}).get('container', {})
+    mapping = container.get('device_id_map')
+    if mapping is None:
+        return None
+    if not isinstance(mapping, dict) or not mapping:
+        raise ValueError('device_id_map must be a non-empty physical-to-logical map')
+    if container.get('privileged') is not False:
+        raise ValueError('device_id_map requires non-privileged device isolation')
+    if any(not isinstance(k, str) or not re.fullmatch(r'0|[1-9][0-9]*', k)
+           or type(v) is not int or v < 0 for k, v in mapping.items()):
+        raise ValueError('device_id_map requires canonical physical IDs and non-negative logical IDs')
+    physical = {int(k) for k in mapping}
+    if sorted(mapping.values()) != list(range(len(mapping))):
+        raise ValueError('device_id_map logical IDs must be unique and contiguous from zero')
+    nodes = container.get('devices', [])
+    # Reject Docker source:target remapping here rather than misinterpreting it.
+    if any(not isinstance(node, str) or ':' in node for node in nodes):
+        raise ValueError('device_id_map requires explicit unremapped device paths')
+    mapped = {int(match[1]) for node in nodes
+              if (match := re.fullmatch(r'/dev/davinci(0|[1-9][0-9]*)', node))}
+    if mapped != physical:
+        raise ValueError('device_id_map must exactly cover explicitly mapped physical NPU devices')
+    by_node = {}
+    for item in dep['instances']:
+        if item['role'] != 'proxy':
+            by_node.setdefault(item['placement']['node'], set()).update(item['placement']['devices'])
+    if not by_node or any(devices != physical for devices in by_node.values()):
+        raise ValueError('device_id_map devices must exactly match physical placement on each model node')
+    return mapping
+
+
+def logical_devices(placement, mapping):
+    return [mapping[str(device)] for device in placement['devices']] if mapping is not None else placement['devices']
+
+
+def validate_deployment(dep):
+    errors = []
+    try:
+        device_map = container_device_id_map(dep)
+    except ValueError as exc:
+        return [str(exc)]
+    instances = {i['id']: i for i in dep['instances']}
+    if len(instances) != len(dep['instances']):
+        errors.append('Duplicate instance ID')
+    occupied = {}
+    for item in instances.values():
+        place = item['placement']
+        for device in place['devices']:
+            key = (place['node'], device)
+            if key in occupied:
+                errors.append('Device assigned to multiple model instances: '+str(key))
+            occupied[key] = item['id']
+        if item['role'] == 'proxy':
+            if place['devices']:
+                errors.append('Proxy must not claim model devices')
+            continue
+        if 'proxy_program_key' in item['launch']:
+            errors.append('proxy_program_key is only valid for proxy instances: '+item['id'])
+        if 'args' not in item['launch'] or any(k not in item['checks'] for k in ['prefix_cache_reset','metrics']):
+            errors.append('Model launch/checks incomplete: '+item['id'])
+            continue
+        args = item['launch']['args']
+        if item['launch'].get('preserve_reference') and item['role'] in ('prefill','decode') and not item['launch'].get('engine_id'):
+            errors.append('Reference-preserving PD launch requires engine_id: '+item['id'])
+        dp, tp = args.get('data-parallel-size', 1), args.get('tensor-parallel-size', 1)
+        pcp = args.get('prefill-context-parallel-size', 1)
+        if any(type(v) is not int or v < 1 for v in (dp, tp, pcp)) or dp*tp*pcp != len(place['devices']):
+            errors.append('DP/TP/PCP does not match devices: '+item['id'])
+        try:
+            context_limit(args)
+        except ValueError as exc:
+            errors.append(str(exc)+': '+item['id'])
+        physical_visible = ','.join(map(str, place['devices']))
+        visible = ','.join(map(str, logical_devices(place, device_map)))
+        selection = {'device-ids': args['device-ids']} if 'device-ids' in args else {}
+        selection.update({k:v for k,v in item['launch'].get('env',{}).items()
+                          if k in ('ASCEND_RT_VISIBLE_DEVICES','ASCEND_VISIBLE_DEVICES')})
+        for key,value in selection.items():
+            # ASCEND_VISIBLE_DEVICES is a physical container-runtime selector;
+            # ASCEND_RT_VISIBLE_DEVICES and model device-ids select logical IDs.
+            expected = physical_visible if key == 'ASCEND_VISIBLE_DEVICES' else visible
+            if str(value) != expected:
+                errors.append('Confirmed device selection conflicts with placement: '+item['id']+'.'+key)
+        generated = {'host', 'port', 'served-model-name', 'kv-transfer-config'}
+        if generated.intersection(args):
+            errors.append('Runtime-generated arguments cannot be duplicated: '+item['id']+
+                          ' ['+', '.join(sorted(generated.intersection(args)))+']; use network.ip, ports.http, model.served_name, launch.kv_transfer_config respectively')
+    endpoint = dep['endpoint']
+    if endpoint['instance'] not in instances or endpoint['port'] not in instances[endpoint['instance']]['ports']:
+        errors.append('Invalid deployment endpoint')
+    kv = dep.get('connections', {}).get('kv_transfer', [])
+    routing = dep.get('connections', {}).get('routing', [])
+    if dep['topology'] == 'colocated':
+        if len(instances) != 1 or next(iter(instances.values()))['role'] != 'mixed' or kv or routing:
+            errors.append('Colocated deployment requires one mixed instance and no PD connections')
+    else:
+        prefills = {i['id'] for i in instances.values() if i['role']=='prefill'}
+        decodes = {i['id'] for i in instances.values() if i['role']=='decode'}
+        proxies = {i['id'] for i in instances.values() if i['role']=='proxy'}
+        if not prefills or not decodes or len(proxies)!=1 or len(routing)!=1 or any(i['role']=='mixed' for i in instances.values()):
+            errors.append('PD requires prefill/decode instances and one proxy routing table')
+        pairs = [(x['producer'], x['consumer']) for x in kv]
+        if len(set(pairs))!=len(pairs) or set(pairs)!={(p,d) for p in prefills for d in decodes}:
+            errors.append('KV connections must cover every routed P/D pair exactly once')
+        for link in kv:
+            for key, role in [('producer', 'prefill'), ('consumer', 'decode')]:
+                if instances.get(link[key], {}).get('role') != role:
+                    errors.append('Invalid KV '+key)
+        for link in routing:
+            if instances.get(link['proxy'], {}).get('role') != 'proxy':
+                errors.append('Invalid routing proxy')
+            for key, role in [('prefillers', 'prefill'), ('decoders', 'decode')]:
+                expected = prefills if role=='prefill' else decodes
+                if len(set(link[key])) != len(link[key]) or set(link[key]) != expected:
+                    errors.append('Invalid routing '+key)
+        for item in instances.values():
+            links = [x for x in kv if item['id'] in (x['producer'], x['consumer'])]
+            signatures = set()
+            for link in links:
+                if link['producer'] not in prefills or link['consumer'] not in decodes:
+                    continue
+                signatures.add((link['connector'], *tuple(
+                    instances[link[side]]['launch']['args'].get(name,1)
+                    for side in ('producer','consumer')
+                    for name in ('data-parallel-size','tensor-parallel-size','prefill-context-parallel-size'))))
+            if len(signatures)>1:
+                errors.append('Inconsistent KV parallelism or connector for '+item['id'])
+        if instances.get(endpoint['instance'], {}).get('role') != 'proxy':
+            errors.append('PD endpoint must reference proxy')
+    return errors
+
+
+def cli_args(values):
+    result = []
+    for name, value in values.items():
+        if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]*', name):
+            raise ValueError('Invalid CLI option: '+name)
+        if isinstance(value, bool):
+            result.append('--'+('' if value else 'no-')+name)
+        elif isinstance(value, (dict, list)):
+            result.extend(['--'+name, {'json': value}])
+        else:
+            result.extend(['--'+name, str(value)])
+    return result
+
+
+def compile_deployment(dep, nodes):
+    """nodes keyed by logical slot contain network, per-instance ports and paths."""
+    errors = validate_deployment(dep)
+    if errors:
+        raise ValueError('; '.join(errors))
+    device_map = container_device_id_map(dep)
+    instances = {i['id']: i for i in dep['instances']}
+    addresses = {}
+    allocated = set()
+    for item in instances.values():
+        node = nodes[item['placement']['node']]
+        ports = node['ports'][item['id']]
+        for name,width in item['ports'].items():
+            base=ports[name]
+            if type(base) is not int or base<1 or base+width-1>65535:
+                raise ValueError('Invalid bound port: '+item['id']+'.'+name)
+            for port in range(base,base+width):
+                identity=(node['network']['ip'],port)
+                if identity in allocated:
+                    raise ValueError('Overlapping bound ports: '+str(identity))
+                allocated.add(identity)
+        addresses[item['id']] = {'host': node['network']['ip'], 'ports': ports}
+    def url(instance, port='http'):
+        address = addresses[instance]
+        return 'http://'+address['host']+':'+str(address['ports'][port])
+    groups = {}
+    for item in instances.values():
+        placement = item['placement']
+        key = placement['node']+'/model'
+        node = nodes[placement['node']]
+        ports = node['ports'][item['id']]
+        group = groups.setdefault(key, {'node': placement['node'], 'container_group': 'model',
+            'commands': [], 'npu_ids': [], 'ports': [], 'health_urls': [], 'model_health_urls':[], 'instances': []})
+        group['instances'].append(item['id'])
+        group['npu_ids'].extend(placement['devices'])
+        for name, width in item['ports'].items():
+            group['ports'].extend(range(ports[name], ports[name]+width))
+        group['health_urls'].append(url(item['id'])+item['checks']['health'])
+        if item['role']!='proxy':
+            group['model_health_urls'].append(url(item['id'])+item['checks']['health'])
+        launch = item['launch']
+        env = copy.deepcopy(launch.get('env', {}))
+        if item['role'] == 'proxy':
+            routing = next(x for x in dep['connections']['routing'] if x['proxy'] == item['id'])
+            argv = ['python3', '{{paths.'+launch.get('proxy_program_key','proxy_program')+'}}', '--host', node['network']['ip'], '--port', str(ports['http'])]
+            for prefix, peers in [('prefiller', routing['prefillers']), ('decoder', routing['decoders'])]:
+                argv += ['--'+prefix+'-hosts']+[addresses[p]['host'] for p in peers]
+                argv += ['--'+prefix+'-ports']+[str(addresses[p]['ports']['http']) for p in peers]
+            extras=copy.deepcopy(launch.get('args',{}))
+            managed={'host','port','prefiller-hosts','prefiller-ports','decoder-hosts','decoder-ports'}
+            if managed.intersection(extras):
+                raise ValueError('Proxy endpoint options belong in confirmed topology/bindings')
+            argv += cli_args(extras)
+        else:
+            expected={'HCCL_IF_IP':node['network']['ip'], 'VLLM_HOST_IP':node['network']['ip'],
+                      'GLOO_SOCKET_IFNAME':node['network']['interface'], 'TP_SOCKET_IFNAME':node['network']['interface'],
+                      'HCCL_SOCKET_IFNAME':node['network']['interface']}
+            if launch.get('preserve_reference'):
+                for key,value in expected.items():
+                    if key in env and '{{' not in str(env[key]) and env[key]!=value:
+                        raise ValueError('Confirmed environment conflicts with binding: '+item['id']+'.'+key)
+            env.update(HCCL_IF_IP=node['network']['ip'], VLLM_HOST_IP=node['network']['ip'],
+                       GLOO_SOCKET_IFNAME=node['network']['interface'], TP_SOCKET_IFNAME=node['network']['interface'],
+                       HCCL_SOCKET_IFNAME=node['network']['interface'])
+            args = copy.deepcopy(launch['args'])
+            args.update(host=node['network']['ip'], port=ports['http'])
+            args['served-model-name'] = dep['model']['served_name']
+            if launch.get('preserve_reference'):
+                env = copy.deepcopy(launch.get('env',{}))
+            # Preserve explicit selection mechanism and spelling. Only an absent
+            # selection uses the legacy default for its launch mode.
+            has_selection = 'device-ids' in args or 'ASCEND_RT_VISIBLE_DEVICES' in env or (
+                device_map is None and 'ASCEND_VISIBLE_DEVICES' in env)
+            if not has_selection:
+                visible=','.join(map(str, logical_devices(placement, device_map)))
+                if launch.get('preserve_reference'):
+                    env['ASCEND_RT_VISIBLE_DEVICES']=visible
+                else:
+                    args['device-ids']=visible
+            if 'rpc' in ports:
+                for key,value in {'data-parallel-rpc-port':ports['rpc'],'data-parallel-address':node['network']['ip']}.items():
+                    if key in args and str(args[key])!=str(value) and '{{' not in str(args[key]):
+                        raise ValueError('Confirmed argument conflicts with binding: '+item['id']+'.'+key)
+                args['data-parallel-rpc-port'] = ports['rpc']
+                args['data-parallel-address'] = node['network']['ip']
+            if 'hccl' in ports and not launch.get('preserve_reference'):
+                env['HCCL_IF_BASE_PORT'] = str(ports['hccl'])
+            if item['role'] in ['prefill', 'decode']:
+                link = next(x for x in dep['connections']['kv_transfer'] if item['id'] in [x['producer'], x['consumer']])
+                p = instances[link['producer']]['launch']['args']
+                d = instances[link['consumer']]['launch']['args']
+                args['kv-transfer-config'] = {'kv_connector': link['connector'],
+                    'kv_role': 'kv_producer' if item['role'] == 'prefill' else 'kv_consumer',
+                    'kv_port': str(ports['kv']), 'engine_id': launch.get('engine_id',dep['id']+'-'+item['id']),
+                    'kv_connector_extra_config': {'ascend_local_comm_res_path': '{{paths.comm}}',
+                        'prefill': {'dp_size': p.get('data-parallel-size', 1), 'tp_size': p.get('tensor-parallel-size', 1)},
+                        'decode': {'dp_size': d.get('data-parallel-size', 1), 'tp_size': d.get('tensor-parallel-size', 1)}}}
+                if link['connector']=='MooncakeConnectorV2':
+                    # This connector only loads endpoint files when explicitly
+                    # configured. Do not force legacy endpoint-file semantics.
+                    args['kv-transfer-config']['kv_connector_extra_config'].pop('ascend_local_comm_res_path')
+                if 'kv_transfer_config' in launch:
+                    exact=copy.deepcopy(launch['kv_transfer_config'])
+                    for key in ('kv_connector','kv_role','kv_port','engine_id'):
+                        expected=args['kv-transfer-config'][key]
+                        if str(exact[key])!=str(expected) and '{{' not in str(exact[key]):
+                            raise ValueError('Confirmed KV configuration conflicts with topology: '+item['id']+'.'+key)
+                    args['kv-transfer-config']=exact
+            argv = ['vllm', 'serve', '{{model.path}}']+cli_args(args)
+        group['commands'].append({'name': item['id'], 'role':item['role'], 'argv': argv, 'env': env,
+                                  'bootstrap': launch.get('bootstrap', ''),
+                                  'startup_health_urls': [url(peer)+instances[peer]['checks']['health'] for peer in dict.fromkeys(routing['prefillers']+routing['decoders'])] if item['role']=='proxy' else []})
+    prefill = next(i for i in instances.values() if i['role'] in ['prefill', 'mixed'])
+    endpoint = dep['endpoint']
+    return {'groups': groups, 'endpoint': url(endpoint['instance'], endpoint['port']),
+        'endpoint_group': instances[endpoint['instance']]['placement']['node']+'/model',
+        'reset_urls': [url(i['id'])+i['checks']['prefix_cache_reset'] for i in instances.values() if i['role'] != 'proxy'],
+        'metrics_urls': [url(i['id'])+i['checks']['metrics'] for i in instances.values() if i['role'] != 'proxy'],
+        'metric_instances': [{'id':i['id'],'role':i['role'],'node':i['placement']['node'],
+            'url':url(i['id'])+i['checks']['metrics'],
+            'dp':i['launch']['args'].get('data-parallel-size',1)}
+            for i in instances.values() if i['role']!='proxy'],
+        'prefill_url': url(prefill['id']), 'prefill_dp': prefill['launch']['args'].get('data-parallel-size', 1)}
