@@ -37,8 +37,54 @@ def producer_identity_warnings(dep):
     return warnings
 
 
+
+def container_device_id_map(dep):
+    """Validate an operator-confirmed physical -> container-logical mapping.
+
+    No inference from --device order: the runtime/image must be probed first.
+    Legacy plans without a map retain their original selection semantics.
+    """
+    container = dep.get('runtime', {}).get('container', {})
+    mapping = container.get('device_id_map')
+    if mapping is None:
+        return None
+    if not isinstance(mapping, dict) or not mapping:
+        raise ValueError('device_id_map must be a non-empty physical-to-logical map')
+    if container.get('privileged') is not False:
+        raise ValueError('device_id_map requires non-privileged device isolation')
+    if any(not isinstance(k, str) or not re.fullmatch(r'0|[1-9][0-9]*', k)
+           or type(v) is not int or v < 0 for k, v in mapping.items()):
+        raise ValueError('device_id_map requires canonical physical IDs and non-negative logical IDs')
+    physical = {int(k) for k in mapping}
+    if sorted(mapping.values()) != list(range(len(mapping))):
+        raise ValueError('device_id_map logical IDs must be unique and contiguous from zero')
+    nodes = container.get('devices', [])
+    # Reject Docker source:target remapping here rather than misinterpreting it.
+    if any(not isinstance(node, str) or ':' in node for node in nodes):
+        raise ValueError('device_id_map requires explicit unremapped device paths')
+    mapped = {int(match[1]) for node in nodes
+              if (match := re.fullmatch(r'/dev/davinci(0|[1-9][0-9]*)', node))}
+    if mapped != physical:
+        raise ValueError('device_id_map must exactly cover explicitly mapped physical NPU devices')
+    by_node = {}
+    for item in dep['instances']:
+        if item['role'] != 'proxy':
+            by_node.setdefault(item['placement']['node'], set()).update(item['placement']['devices'])
+    if not by_node or any(devices != physical for devices in by_node.values()):
+        raise ValueError('device_id_map devices must exactly match physical placement on each model node')
+    return mapping
+
+
+def logical_devices(placement, mapping):
+    return [mapping[str(device)] for device in placement['devices']] if mapping is not None else placement['devices']
+
+
 def validate_deployment(dep):
     errors = []
+    try:
+        device_map = container_device_id_map(dep)
+    except ValueError as exc:
+        return [str(exc)]
     instances = {i['id']: i for i in dep['instances']}
     if len(instances) != len(dep['instances']):
         errors.append('Duplicate instance ID')
@@ -70,12 +116,16 @@ def validate_deployment(dep):
             context_limit(args)
         except ValueError as exc:
             errors.append(str(exc)+': '+item['id'])
-        visible = ','.join(map(str, place['devices']))
+        physical_visible = ','.join(map(str, place['devices']))
+        visible = ','.join(map(str, logical_devices(place, device_map)))
         selection = {'device-ids': args['device-ids']} if 'device-ids' in args else {}
         selection.update({k:v for k,v in item['launch'].get('env',{}).items()
                           if k in ('ASCEND_RT_VISIBLE_DEVICES','ASCEND_VISIBLE_DEVICES')})
         for key,value in selection.items():
-            if str(value) != visible:
+            # ASCEND_VISIBLE_DEVICES is a physical container-runtime selector;
+            # ASCEND_RT_VISIBLE_DEVICES and model device-ids select logical IDs.
+            expected = physical_visible if key == 'ASCEND_VISIBLE_DEVICES' else visible
+            if str(value) != expected:
                 errors.append('Confirmed device selection conflicts with placement: '+item['id']+'.'+key)
         generated = {'host', 'port', 'served-model-name', 'kv-transfer-config'}
         if generated.intersection(args):
@@ -145,6 +195,7 @@ def compile_deployment(dep, nodes):
     errors = validate_deployment(dep)
     if errors:
         raise ValueError('; '.join(errors))
+    device_map = container_device_id_map(dep)
     instances = {i['id']: i for i in dep['instances']}
     addresses = {}
     allocated = set()
@@ -210,10 +261,10 @@ def compile_deployment(dep, nodes):
                 env = copy.deepcopy(launch.get('env',{}))
             # Preserve explicit selection mechanism and spelling. Only an absent
             # selection uses the legacy default for its launch mode.
-            has_selection = 'device-ids' in args or any(
-                key in env for key in ('ASCEND_RT_VISIBLE_DEVICES','ASCEND_VISIBLE_DEVICES'))
+            has_selection = 'device-ids' in args or 'ASCEND_RT_VISIBLE_DEVICES' in env or (
+                device_map is None and 'ASCEND_VISIBLE_DEVICES' in env)
             if not has_selection:
-                visible=','.join(map(str, placement['devices']))
+                visible=','.join(map(str, logical_devices(placement, device_map)))
                 if launch.get('preserve_reference'):
                     env['ASCEND_RT_VISIBLE_DEVICES']=visible
                 else:

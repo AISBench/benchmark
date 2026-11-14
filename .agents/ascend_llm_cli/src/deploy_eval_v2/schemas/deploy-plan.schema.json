@@ -91,6 +91,18 @@
                     "type": "string",
                     "pattern": "^/dev/"
                   }
+                },
+                "device_id_map": {
+                  "description": "Operator-confirmed host physical NPU ID to container logical ID mapping, established by a runtime probe; only for non-privileged explicit device isolation. Placement and claims remain physical.",
+                  "type": "object",
+                  "minProperties": 1,
+                  "propertyNames": {
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
                 }
               },
               "required": [

@@ -71,3 +71,18 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 本地回归运行205项，1项因平台条件跳过。Linux 专用项在不支持 Unix socket 的系统上跳过；本地模拟与原生产物 fixture 不等于模型或 NPU 测试。CLI 的 acceptance=local-only 标签仍保留，不以单一现场功能验收承诺通用生产就绪。
 
 容器 tester（CLI >=0.1.0a8）：绑定 container.id（完整容器 ID）与 container.image（sha256 镜像摘要）；python/aisbench/model_path/environment 属于容器，host_python 属于宿主框架。复用已有运行容器，只创建任务独立工具目录，不安装依赖或授予容器管理权限。工具预检和负载在容器执行，证据回收到宿主任务目录。
+
+## 显式容器逻辑卡映射（本地补丁 local.devicemap1）
+
+`placement.devices` 始终表示宿主物理卡，资源声明、占用检查和收尾不变。
+对已做运行时探针验证的非特权设备隔离容器，可在 `runtime.container`
+增加 `"device_id_map": {"2": 0}`，同时显式映射 `/dev/davinci2` 及所需管理设备。
+此时 `ASCEND_RT_VISIBLE_DEVICES` / `device-ids` 使用逻辑编号 `0`；若未显式提供
+进程选择器，编译器按该映射生成。`ASCEND_VISIBLE_DEVICES` 仍按物理编号校验，
+不会单独抑制逻辑选择器的生成。不得仅凭 `--device` 参数顺序推断该映射。
+
+映射必须覆盖显式映射的全部物理 NPU，并与每个模型节点的物理资源归属集合一致；
+逻辑编号必须从0连续且唯一。特权容器、源/目标设备路径重映射、遗漏/额外物理卡
+或冲突选择器会被拒绝。不带此字段的既有计划行为不变。完整映射写入审阅摘要、
+冻结输入及编译后的容器配置，随输入及 runtime 摘要校验；旧冻结包不能原地修改。
+这不代表运行时一定可用，也不代表服务部署或性能验收通过。
