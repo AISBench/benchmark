@@ -37,6 +37,7 @@ ais_bench [OPTIONS]
 | `--merge-ds`   | 开启同类数据集合并推理（同一任务多数据集一起跑）。| `--merge-ds`|
 | `--num-prompts` | 指定数据集测评条数（按照数据集顺序选取），需传入正整数，超过数据集条数或默认情况下表示对全量数据集进行测评。支持传入多个值，空格分隔（与 `--batch-size` 一一对应）。 | `--num-prompts 500`<br>`--num-prompts 4 8 16` |
 | `--max-num-workers`   | 并行任务数，范围 `[1, CPU 核数]`，默认 `1`。在指定`--debug`时配置无效，所有任务串行执行。注意：性能测评场景下，并发数过高可能会导致不同进程出现资源抢占，导致测试结果失真。  | `--max-num-workers 2` |
+| `--cooldown` | 相邻两个测试任务之间的等待秒数，非负有限数，默认 `5`；设为 `0` 表示不等待。仅在 `--max-num-workers 1` 串行执行时生效，避免上一任务的排队请求污染下一任务。 | `--cooldown 5` |
 |`--num-warmups`|发送请求前预热次数，按照数据集顺序选取数据进行测试，大概num-warmups大于数据集条数时，会循环发送数据集中数据。默认 `1`；若设为0，则不预热。如果warmup阶段所有请求失败，后续推理任务将不会执行。| `--num-warmups 10` |
 | `--response-anomaly` | 开启推理响应异常检测，无需额外配置：命令行增加 `--response-anomaly` 即开启，不增加默认不开启。检测串行绑定在推理阶段内：推理结束后启动检测并等待其完成（专属状态面板打印最终结果后）才进入后续 Judge / Eval / 汇总流程；需服务返回 token id 与 top-k logprobs。仅支持 `all`、`infer`、`infer_judge` 普通生成链路，不支持性能模式与 Agent 测评模式。详细用法见 📚 [推理响应异常检测](../../advanced_tutorials/response_anomaly_detection.md)。 | `--response-anomaly` |
 | `--response-anomaly-payload-retention` | 异常检测完成后的 payload 保存模式：`all` 保存全部，`anomalies` 保存异常及检测失败/不可用 Case，`none` 不保存。默认 `anomalies`。 | `--response-anomaly-payload-retention anomalies` |

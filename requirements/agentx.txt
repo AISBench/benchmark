@@ -1,0 +1,27 @@
+# AgentX（SemiAnalysis InferenceX）性能测评依赖集。
+#
+# 不要与 AISBench 装在同一环境：AISBench 锁 Pillow==11.2.1，而
+# agentx-harness 要求 pillow~=12.3.0，pip 会直接解析失败；同时其内置的
+# fork 版 aiperf 还会与上游 aiperf 争用同名模块。
+#
+# 安装方式（独立 Python 环境，推荐 Conda）：
+#     conda create -n agentx113 python=3.11 -y
+#     conda run -n agentx113 python -m pip install -r requirements/agentx.txt
+# 也可使用独立 venv：
+#     python3.11 -m venv ~/venvs/agentx113
+#     ~/venvs/agentx113/bin/pip install -r requirements/agentx.txt
+# Conda 和 venv 的使用方式相同：通过 --agentx-python 或配置字段 agentx_python
+# 显式提供对应环境的 Python 路径，也可设置 AISBENCH_AGENTX_PYTHON。
+# Conda 默认路径示例：~/miniconda3/envs/agentx113/bin/python；
+# 实际路径可通过 conda run -n agentx113 which python 查询。
+#
+# 装好后可直接用命令行发起评测，无需配置文件：
+#     ais_bench --mode agentx --url http://127.0.0.1:8000 \
+#         --model-name <模型名> --path <模型/tokenizer路径> --batch-size 8 \
+#         --agentx-dataset-variant 256k \
+#         --agentx-python ~/miniconda3/envs/agentx113/bin/python
+#
+# 版本以 InferenceX 榜单实际 pin 为准（inferencex-e2e/infx/bench/agentic/
+# requirements.txt），当前为 1.0.13；前台 quickstart 与上游 README 示例仍写 1.0.7，
+# 属文档未同步。
+agentx-harness==1.0.13

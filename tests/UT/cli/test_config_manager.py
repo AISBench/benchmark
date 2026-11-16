@@ -1597,6 +1597,7 @@ class TestExpandSweepCombinations(unittest.TestCase):
             "max_num_workers": 1,
             "num_warmups": 1,
             "max_out_len": None,
+            "cooldown": None,
         }
         args.update(overrides)
         return args
@@ -1624,6 +1625,13 @@ class TestExpandSweepCombinations(unittest.TestCase):
             combo["batch_size"] for combo in result.manifest["combos"]
         ]
         self.assertEqual(manifest_batch_sizes, [1, 8])
+
+    def test_cooldown_comes_from_cli(self):
+        result = expand_sweep_combinations(
+            [self._model()], [self._dataset()],
+            self._args(batch_size=[1, 8], num_prompts=[1, 8], cooldown=2.5),
+        )
+        self.assertEqual(result.sweep_cooldown_s, 2.5)
 
     def test_duplicate_dataset_abbr_allowed_without_multi_sweep(self):
         """单档/非 sweep 路径沿用既有多数据集同名 abbr 合并行为，不受 V03 拦截"""
@@ -1670,7 +1678,7 @@ class TestExpandSweepCombinations(unittest.TestCase):
 
         self.assertEqual(result.combinations, [])
         self.assertIsNone(result.manifest)
-        self.assertEqual(result.sweep_cooldown_s, 0)
+        self.assertEqual(result.sweep_cooldown_s, 5)
         self.assertEqual(result.models[0]["abbr"], "qwen")
         # 单值时 test_range 仍由 _fill_dataset_configs 写入
         self.assertNotIn("test_range", result.datasets[0]["reader_cfg"])

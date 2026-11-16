@@ -17,13 +17,12 @@ from ais_bench.benchmark.cli.utils import (
     MAX_BATCH_SIZE,
     MAX_REQUEST_COUNT,
     MAX_REQUEST_SIZE,
+    SWEEP_COOLDOWN_SECONDS,
     get_config_type,
 )
 
 logger = AISLogger()
 
-# 多组合 sweep 的内部调度字段（非 CLI、不进 manifest）
-SWEEP_COOLDOWN_SECONDS = 5
 # 多档展开的组合数上限：避免档位数 × 模型数 × 数据集数一次性生成上百个任务
 MAX_SWEEP_COMBOS = 200
 
@@ -55,7 +54,7 @@ class SweepResult:
     datasets: List[dict] = field(default_factory=list)
     combinations: List[dict] = field(default_factory=list)
     manifest: Optional[dict] = None
-    sweep_cooldown_s: int = 0
+    sweep_cooldown_s: Optional[float] = None
 
 
 def _normalize_sweep_arg(value) -> Union[int, List[int], None]:
@@ -672,6 +671,8 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
         )
 
     is_multi = len(pairs) > 1
+    cooldown = cli_args.get("cooldown")
+    cooldown = SWEEP_COOLDOWN_SECONDS if cooldown is None else cooldown
 
     # 多档展开会把 N 份 model/dataset 副本写回 cfg，非 perf 链路没有统一去重，
     # 会重复输出结果，因此仅在 perf/perf_viz 下支持多档 sweep
@@ -805,13 +806,14 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
         )
 
     if not is_multi:
-        # 单值等价路径：不产生 model_dataset_combinations / manifest / 冷却字段
+        # 单值等价路径：不产生 model_dataset_combinations / manifest；
+        # 任务间冷却统一由 --cooldown 控制
         return SweepResult(
             models=combo_models,
             datasets=combo_datasets,
             combinations=[],
             manifest=None,
-            sweep_cooldown_s=0,
+            sweep_cooldown_s=cooldown,
         )
 
     combinations = [
@@ -823,5 +825,5 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
         datasets=combo_datasets,
         combinations=combinations,
         manifest=_build_manifest(specs, cli_args, warnings),
-        sweep_cooldown_s=SWEEP_COOLDOWN_SECONDS,
+        sweep_cooldown_s=cooldown,
     )
