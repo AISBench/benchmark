@@ -1,0 +1,17 @@
+{
+  "id": "C04",
+  "title": "task_end=keep_service 明确拒绝（当前只支持 stop_container）",
+  "dimension": "D1 契约与状态机",
+  "weight": 3,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「支持 after_case=keep_service/stop_container、task_end=stop_container……stop_service 与复杂自动恢复当前阻塞」，docs/compact-cli.md：不能用新入口静默替代不支持的策略。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/cleanup/task_end", "value": "keep_service"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Compact runner requires task_end=stop_container"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

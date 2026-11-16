@@ -1,0 +1,10 @@
+{
+  "id": "D02",
+  "title": "正文引用的相对文件都存在",
+  "dimension": "内容规范",
+  "weight": 1,
+  "why": "SKILL.md 把细则下沉到 references/，断链等于规则失联，Agent 会拿着空引用继续执行。",
+  "expect": [
+    {"type": "relative_links_exist", "path": "SKILL.md"}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "C19",
+  "title": "外部数据集声明前缀比例但缺 generation_manifest 时阻断",
+  "dimension": "D5 AISBench 测试语义",
+  "weight": 3,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "aisbench_cli.dataset_for：「Shared prefix case requires generation manifest evidence」。外部数据的前缀比例无法自证，必须要求可审计的生成清单，否则报告里的命中率不可信。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/cases/0/shared_prefix_ratio", "value": 0.5}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Shared prefix case requires generation manifest evidence"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

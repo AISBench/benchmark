@@ -1,0 +1,20 @@
+{
+  "id": "C08",
+  "title": "enable_cache_reset_api=false：不注入 DEV_MODE、也不删除用户显式值",
+  "dimension": "D2 规范化与派生默认值",
+  "weight": 5,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「enable_cache_reset_api 默认 true，为非 proxy 实例补充 VLLM_SERVER_DEV_MODE=1……false 不注入，也不删除已有值」。关闭注入后必须尊重参考脚本原值，否则等于静默改参。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/execution/enable_cache_reset_api", "value": false},
+    {"file": "job_spec.json", "pointer": "/deployments/0/instances/0/launch/env/VLLM_SERVER_DEV_MODE", "value": "0"},
+    {"file": "job_spec.json", "pointer": "/deployments/0/instances/1/launch/env/VLLM_SERVER_DEV_MODE", "op": "remove"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "json_equals", "path": "job_spec.json", "pointer": "/execution/enable_cache_reset_api", "value": false},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-prefill.sh", "value": "export VLLM_SERVER_DEV_MODE=0"},
+    {"type": "text_not_contains", "path": "scripts/pd-a/node_a-decode.sh", "value": "VLLM_SERVER_DEV_MODE"}
+  ]
+}

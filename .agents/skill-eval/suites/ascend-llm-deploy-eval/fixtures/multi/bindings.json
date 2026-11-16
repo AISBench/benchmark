@@ -1,0 +1,70 @@
+{
+  "nodes": {
+    "node_p": {
+      "host": "root@10.0.0.21",
+      "work_dir": "/work/eval",
+      "model_paths": {
+        "dsv4": "/mnt/models/demo-model"
+      },
+      "paths": {
+        "shell_rc": "/root/.bashrc"
+      },
+      "mounts": [],
+      "benchmark": {
+        "datasets": {
+          "default": {
+            "path": "/data/eval.jsonl",
+            "input_column": "question",
+            "output_column": "answer"
+          }
+        }
+      },
+      "deployments": {
+        "solo-p": {
+          "network": {
+            "ip": "10.0.0.21",
+            "interface": "eth0"
+          },
+          "ports": {
+            "mixed": {
+              "http": 18000
+            }
+          }
+        }
+      }
+    },
+    "node_q": {
+      "host": "root@10.0.0.22",
+      "work_dir": "/work/eval",
+      "model_paths": {
+        "dsv4": "/mnt/models/demo-model"
+      },
+      "paths": {
+        "shell_rc": "/root/.bashrc"
+      },
+      "mounts": [],
+      "benchmark": {
+        "datasets": {
+          "default": {
+            "path": "/data/eval.jsonl",
+            "input_column": "question",
+            "output_column": "answer"
+          }
+        }
+      },
+      "deployments": {
+        "solo-q": {
+          "network": {
+            "ip": "10.0.0.22",
+            "interface": "eth0"
+          },
+          "ports": {
+            "mixed": {
+              "http": 18000
+            }
+          }
+        }
+      }
+    }
+  }
+}
