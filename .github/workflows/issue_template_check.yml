@@ -1,0 +1,132 @@
+name: Issue Template Check
+
+# 背景：
+#   .github/ISSUE_TEMPLATE/*.yml 只在网页端 "New issue" 时渲染，config.yml 的
+#   blank_issues_enabled: false 也只是隐藏空白 Issue 入口。通过 API 创建的 Issue
+#   （AI 助手、gh issue create、脚本等）不会带上模板定义的 labels。
+#
+# 规则：
+#   新建 Issue 只要带有任意一个模板定义的 label 即视为按模板创建；
+#   一个都没有则说明绕过了模板，直接关闭 Issue（GitHub 没有 Issue 创建前的服务端钩子，
+#   自动关闭是"提 Issue 阶段"唯一可落地的拦截手段）。
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check-issue-template:
+    name: Issue Template Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Close issues created without a template
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue = context.payload.issue;
+            const LABEL = 'template_missing';
+            const TEMPLATE_DIR = path.join(process.env.GITHUB_WORKSPACE, '.github', 'ISSUE_TEMPLATE');
+
+            // 解析模板里的 labels，支持 ["bug", "待处理"]、bug, 待处理、以及 - bug 块列表
+            const parseLabels = (text) => {
+              const result = [];
+              const lines = text.split(/\r?\n/);
+              for (let i = 0; i < lines.length; i++) {
+                const match = lines[i].match(/^labels:\s*(.*)$/);
+                if (!match) continue;
+                const value = match[1].trim();
+                if (value) {
+                  value.replace(/^\[|\]$/g, '').split(',')
+                    .map(item => item.trim().replace(/^["']|["']$/g, ''))
+                    .filter(Boolean)
+                    .forEach(item => result.push(item));
+                } else {
+                  for (let j = i + 1; j < lines.length; j++) {
+                    const item = lines[j].match(/^\s*-\s*(.+)$/);
+                    if (!item) break;
+                    result.push(item[1].trim().replace(/^["']|["']$/g, ''));
+                  }
+                }
+                break;
+              }
+              return result;
+            };
+
+            const templateLabels = new Set();
+            for (const file of fs.readdirSync(TEMPLATE_DIR)) {
+              if (!/\.ya?ml$/.test(file) || file === 'config.yml') continue;
+              parseLabels(fs.readFileSync(path.join(TEMPLATE_DIR, file), 'utf8'))
+                .forEach(label => templateLabels.add(label));
+            }
+
+            if (templateLabels.size === 0) {
+              console.log('No issue template labels found, skip.');
+              return;
+            }
+
+            const currentLabels = (issue.labels || []).map(label => label.name);
+            const matched = currentLabels.filter(label => templateLabels.has(label));
+            console.log(`Issue labels: ${currentLabels.join(', ') || '(none)'}`);
+            if (matched.length > 0) {
+              console.log(`Issue carries template label(s): ${matched.join(', ')}`);
+              return;
+            }
+
+            const zh = /[\u4e00-\u9fa5]/.test((issue.title || '') + (issue.body || ''));
+            const labelList = [...templateLabels].sort()
+              .map(label => `\`${label}\``)
+              .join(zh ? '、' : ', ');
+            const comment = zh
+              ? [
+                  '<!-- issue-template-check -->',
+                  '## ⚠️ Issue 未通过模板创建',
+                  '',
+                  `本 Issue 没有携带任何 Issue 模板定义的标签（${labelList}），说明它不是通过 Issue 模板提交的`,
+                  '（例如由 AI 助手或 API 直接创建）。',
+                  '',
+                  `请通过模板重新提交：https://github.com/${owner}/${repo}/issues/new/choose`,
+                  '',
+                  '如果内容确实是完整的，为 Issue 补充上述任一模板标签后重新打开即可。'
+                ].join('\n')
+              : [
+                  '<!-- issue-template-check -->',
+                  '## ⚠️ Issue was not created from a template',
+                  '',
+                  `This issue does not carry any label declared by the issue templates (${labelList}),`,
+                  'which means it was not created through an issue template (for example by an AI agent or the API).',
+                  '',
+                  `Please submit it again from a template: https://github.com/${owner}/${repo}/issues/new/choose`,
+                  '',
+                  'If the content is complete, add one of the template labels above and reopen the issue.'
+                ].join('\n');
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: LABEL });
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              await github.rest.issues.createLabel({
+                owner, repo, name: LABEL, color: 'd73a4a', description: 'Issue 未通过 Issue 模板创建'
+              });
+            }
+
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: issue.number, body: comment
+            });
+            await github.rest.issues.addLabels({
+              owner, repo, issue_number: issue.number, labels: [LABEL]
+            });
+            await github.rest.issues.update({
+              owner, repo, issue_number: issue.number, state: 'closed', state_reason: 'not_planned'
+            });
+            console.log(`Closed issue #${issue.number}: none of the template labels is present.`);
