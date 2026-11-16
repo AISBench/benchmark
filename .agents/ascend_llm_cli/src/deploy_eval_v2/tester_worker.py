@@ -85,12 +85,14 @@ def execute(root,request,*,evaluator=None):
         response=envelope(request['task_id'],0)
         response.update(operation_id=request['operation_id'],result=result,result_sha256=digest(result),
                         evidence=dict(host=tester['host'],path=str(folder/'benchmark')),cleanup_status='VERIFIED')
-    except Exception:
+    except Exception as error:
+        from .remote_evaluation import RemoteCleanupUnknown
+        unknown = isinstance(error, RemoteCleanupUnknown)
         with DiagnosticStream((folder/'error.log')) as stream:
             traceback.print_exc(file=stream)
         response=envelope(request['task_id'],0,'ERROR')
-        response.update(operation_id=request['operation_id'],cleanup_status='VERIFIED',
-            error=dict(code='EVALUATION_FAILED',message='Remote evaluator failed; inspect evidence',retryable=False),
+        response.update(operation_id=request['operation_id'],cleanup_status='UNVERIFIED' if unknown else 'VERIFIED',
+            error=dict(code='REMOTE_CLEANUP_UNKNOWN' if unknown else 'EVALUATION_FAILED',message='Remote evaluator failed; inspect evidence',retryable=False),
             evidence=dict(host=tester['host'],path=str(task_root(folder/'error.log')/'task.jsonl')))
     if len(encode(response))>8192:
         raise ProtocolError('TRANSPORT_PROTOCOL_ERROR: tester result budget')
@@ -139,6 +141,9 @@ def dispatch(root,request,*,runner=bounded_command,logged=run_logged):
                     if time.monotonic()>=deadline:
                         raise ProtocolError('RECOVERY_REQUIRED: tester cancellation unverified')
                     time.sleep(.1)
+                terminal = load_json(folder/'response.json', 8192)
+                if terminal.get('operation_id') != request['operation_id'] or terminal.get('cleanup_status') != 'VERIFIED':
+                    raise ProtocolError('REMOTE_CLEANUP_UNKNOWN: tester stop unverified')
             elif (folder/'launch-accepted.json').exists():
                 raise ProtocolError('UNKNOWN_OUTCOME: tester launch identity unavailable')
             response=envelope(request['task_id'],0)

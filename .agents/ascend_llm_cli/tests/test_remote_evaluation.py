@@ -101,3 +101,19 @@ class TesterWorkerTests(unittest.TestCase):
             logged=Mock()
             self.assertEqual(dispatch(root,request,logged=logged),response)
             logged.assert_not_called()
+
+    def test_unknown_cleanup_survives_worker_and_cancel(self):
+        with tempfile.TemporaryDirectory() as folder, patch(
+                'deploy_eval_v2.tester_worker.verified_inputs', return_value=self.inputs()):
+            root = Path(folder)
+            request = self.request()
+            path, _, _ = operation_paths(root, request)
+            atomic_json(path/'request.json', request)
+            atomic_json(path/'process.json', dict(pid=1))
+            execute(root, request, evaluator=Mock(side_effect=RemoteCleanupUnknown()))
+            import json
+            terminal = json.loads((path/'response.json').read_text())
+            self.assertEqual(terminal['error']['code'], 'REMOTE_CLEANUP_UNKNOWN')
+            self.assertEqual(terminal['cleanup_status'], 'UNVERIFIED')
+            with self.assertRaisesRegex(ProtocolError, 'REMOTE_CLEANUP_UNKNOWN'):
+                dispatch(root, self.request('cancel'))

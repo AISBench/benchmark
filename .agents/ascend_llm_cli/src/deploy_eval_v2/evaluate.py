@@ -39,6 +39,14 @@ def prepare_case(plan, bindings, case_id, folder, check_files=True):
     return case, tester, argv
 
 
+def matches_prefix_target(observation, case):
+    from .aisbench_cli import synthetic_config
+    minimum = synthetic_config(case)['TokenIdConfig']['PrefixLen']
+    common = observation.get('common_prefix_tokens')
+    return (observation.get('status') == 'MEASURED' and observation.get('exact_input_lengths') is True
+            and (minimum == 0 or isinstance(common, int) and common >= minimum))
+
+
 def execute_external_case(plan, bindings, case_id, folder, cancelled, *, verified_local_host):
     """Must run on the explicitly verified tester; never choose local by hostname guess."""
     normalized, derived = normalize_external_plan(plan)
@@ -106,7 +114,10 @@ def execute_external_case(plan, bindings, case_id, folder, cancelled, *, verifie
     verified=performance['status']=='VERIFIED'
     # Prefix routing coverage is separate from native request performance.
     if 'shared_prefix_ratio' in case:
-        dataset_verified=(synthetic is not None and synthetic['status']=='MEASURED') or tester['datasets'][case['dataset_id']].get('generation_manifest') is not None
+        if synthetic is None:
+            dataset_verified = tester['datasets'][case['dataset_id']].get('generation_manifest') is not None
+        else:
+            dataset_verified = matches_prefix_target(synthetic, case)
         verified=verified and dataset_verified and prefix['status']=='VERIFIED' and prefix['routing_coverage']=='VERIFIED' and prefix['warmup_route_coverage'] in ('VERIFIED','NOT_REQUESTED')
     result = dict(schema_version='1.0', service_id=plan['service']['service_id'],
                   case_id=case_id, execution_status='SUCCEEDED', evidence_status='COMPLETE' if verified else 'PARTIAL',
@@ -115,7 +126,8 @@ def execute_external_case(plan, bindings, case_id, folder, cancelled, *, verifie
                   performance_evidence=dict(host=verified_local_host,path=str(folder/'performance-evidence.json')),
                   prefix_metric_status=prefix['status'],prefix_evidence=dict(host=verified_local_host,path=str(folder/'prefix-evidence.json')),
                   reason='Native request performance evidence verified' if verified else 'See performance and prefix evidence for unverified conditions',
-                  time=now(), actual_load=case)
+                  time=now(), actual_load=dict(planned=case, observed=({k: synthetic[k] for k in
+                      ('request_count','input_tokens','common_prefix_tokens') if k in synthetic} if synthetic else None)))
     if synthetic is not None:
         result['synthetic_evidence']=dict(status=synthetic['status'],host=verified_local_host,path=str(folder/'synthetic-evidence.json'))
     (folder/'result.json').write_text(json.dumps(result, ensure_ascii=False), encoding='utf-8')

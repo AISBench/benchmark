@@ -46,10 +46,16 @@ class DockerNode:
         def action():
             self.guard.claim(resources)
             for device in group['npu_ids']:
-                code, _, _ = self.runner(['fuser', '/dev/davinci'+str(device)],
+                code, output, error = self.runner(['fuser', '/dev/davinci'+str(device)],
                                           timeout=min(30, remaining(deadline)), limit=8192)
-                if code != 1:
-                    raise ProtocolError('RESOURCE_BUSY: NPU occupancy not verified clear')
+                from .durable import atomic_json
+                atomic_json(self.guard.root/'probes'/(digest([command_id, device])+'.json'),
+                            dict(device=device, code=code, stdout=output.decode(errors='replace'),
+                                 stderr=error.decode(errors='replace')))
+                if code == 0:
+                    raise ProtocolError('RESOURCE_BUSY: NPU in use')
+                if code != 1 or output.strip() or error.strip():
+                    raise ProtocolError('RECOVERY_REQUIRED: NPU occupancy probe inconclusive')
             # Keep all probe sockets alive together to catch overlap before create.
             probes = []
             try:

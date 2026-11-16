@@ -89,6 +89,20 @@ def release_container(container_id, task_id, token, runner=bounded_command, *, d
     return {'container_id': container_id, 'status': 'RELEASED_VERIFIED'}
 
 
+def release_known(containers, task_id, token, runner, deadline):
+    results = []
+    for cid in containers:
+        try:
+            result = release_container(cid, task_id, token, runner,
+                                       deadline=deadline)
+        except Exception as error:
+            # Bound the summary, do not expose daemon diagnostics in events.
+            result = dict(container_id=cid, status='UNVERIFIED',
+                          error_code=str(error).split(':', 1)[0] if isinstance(error, ProtocolError) else 'IO_ERROR')
+        results.append(result)
+    return results
+
+
 def release_host_resources(guard, command_id, containers, resources, evidence_path,
                            *, timeout=120, runner=bounded_command):
     """Release a frozen host inventory; retain all claims unless all absence is proven.
@@ -106,16 +120,7 @@ def release_host_resources(guard, command_id, containers, resources, evidence_pa
                    evidence_path=str(Path(evidence_path).absolute()))
     def action():
         deadline = time.monotonic()+timeout
-        results = []
-        for cid in payload['containers']:
-            try:
-                result = release_container(cid, guard.owner['task_id'], guard.owner['token'], runner,
-                                           deadline=deadline)
-            except (ProtocolError, OSError) as error:
-                # Bound the summary, do not expose daemon diagnostics in events.
-                result = dict(container_id=cid, status='UNVERIFIED',
-                              error_code=str(error).split(':', 1)[0] if isinstance(error, ProtocolError) else 'IO_ERROR')
-            results.append(result)
+        results = release_known(payload['containers'], guard.owner['task_id'], guard.owner['token'], runner, deadline)
         verified = all(r['status'] in ('ABSENT_VERIFIED', 'RELEASED_VERIFIED') for r in results)
         resource_results = verify_resources_absent(payload['resources'], runner, deadline) if verified else []
         verified = verified and all(r['status'] == 'ABSENT_VERIFIED' for r in resource_results)

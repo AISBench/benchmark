@@ -51,3 +51,14 @@ class DockerNodeTests(unittest.TestCase):
             with self.assertRaisesRegex(ProtocolError,'RESOURCE_BUSY'):
                 node.create('create1',group,time.monotonic()+30,threading.Event())
             self.assertEqual(runner.call_count,1)
+
+    def test_partial_process_visibility_blocks_create(self):
+        for code, stdout in [(1, b''), (0, b'123')]:
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as folder:
+                runner = Mock(return_value=(code, stdout, b'Cannot stat /proc/123/fd: Permission denied'))
+                node = DockerNode(HostGuard(folder, 't', 'b'*64), runner)
+                with self.assertRaises(ProtocolError):
+                    node.create('probe', dict(npu_ids=[0], ports=[]), time.monotonic()+30, threading.Event())
+                self.assertEqual(runner.call_count, 1)
+                evidence = json.loads(next((Path(folder)/'probes').glob('*.json')).read_text())
+                self.assertIn('Permission denied', evidence['stderr'])

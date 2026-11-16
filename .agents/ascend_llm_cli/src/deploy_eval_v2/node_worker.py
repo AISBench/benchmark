@@ -17,7 +17,7 @@ from .json_io import unique_object,reject_constant,load_json
 from .protocol import ProtocolError,encode,envelope
 from .publication import verify_runtime
 from .remote_guard import HostGuard,exclusive
-from .release import release_host_resources,release_container
+from .release import release_host_resources,release_known
 
 GUARD_ROOT='/var/lib/deploy-eval-v2/guard'
 
@@ -109,8 +109,7 @@ def dispatch(root,request,*,guard_root=GUARD_ROOT,node_factory=DockerNode):
         evidence=root/'results'/'node'/(command+'.json')
         if request['keep_claims']:
             def clean_known():
-                entries=[release_container(cid,request['task_id'],request['token'],node.runner,deadline=deadline)
-                         for cid in containers]
+                entries=release_known(containers,request['task_id'],request['token'],node.runner,deadline)
                 atomic_json(evidence,dict(containers=entries,claims_released=False))
                 return dict(cleanup_status='UNVERIFIED',claims_released=False)
             result=guard.command(command,dict(containers=containers,keep_claims=True),clean_known)

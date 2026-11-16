@@ -120,11 +120,10 @@ def _execute_attempt(compiled, nodes, execution, evidence_path, cancelled, *, he
                     # Unknown create may have consumed the same claims: clean known
                     # containers but never unlock this host's entire inventory.
                     if uncertain:
-                        from .release import release_container
-                        for cid in known:
-                            release_container(cid,node.guard.owner['task_id'],node.guard.owner['token'],
-                                              node.runner,deadline=time.monotonic()+30)
-                        cleanup[name] = dict(cleanup_status='UNVERIFIED',claims_released=False)
+                        from .release import release_known
+                        entries = release_known(known, node.guard.owner['task_id'], node.guard.owner['token'],
+                                                node.runner, time.monotonic()+30)
+                        cleanup[name] = dict(cleanup_status='UNVERIFIED',claims_released=False,containers=entries)
                     else:
                         cleanup[name] = release_host_resources(node.guard,command(name,'cleanup'),known,resources,
                             evidence_path.parent/(name+'-cleanup.json'),runner=node.runner)
