@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "intent",
+    "service",
+    "cases",
+    "test_binding",
+    "policy",
+    "unresolved"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "task_id": {
+      "$ref": "#/$defs/id"
+    },
+    "intent": {
+      "enum": [
+        "external_eval",
+        "service_eval"
+      ]
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service_id",
+        "endpoint",
+        "model",
+        "ownership",
+        "deployment_summary",
+        "permissions"
+      ],
+      "properties": {
+        "service_id": {
+          "$ref": "#/$defs/id"
+        },
+        "endpoint": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "ownership": {
+          "enum": [
+            "external",
+            "owned"
+          ]
+        },
+        "deployment_summary": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reset_cache",
+            "restart",
+            "release"
+          ],
+          "properties": {
+            "reset_cache": {
+              "type": "boolean"
+            },
+            "restart": {
+              "const": false
+            },
+            "release": {
+              "const": false
+            }
+          }
+        },
+        "metrics": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "role",
+              "url"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "role": {
+                "enum": [
+                  "mixed",
+                  "prefill",
+                  "decode"
+                ]
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "node": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "dp": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "reset_targets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "url",
+              "metrics_url"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "metrics_url": {
+                "type": "string",
+                "maxLength": 2048
+              }
+            }
+          }
+        },
+        "health_path": {
+          "type": "string",
+          "pattern": "^/[A-Za-z0-9_./-]*$",
+          "maxLength": 256
+        }
+      }
+    },
+    "test_binding": {
+      "$ref": "#/$defs/id"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "idle_timeout_seconds",
+        "on_idle",
+        "on_failure"
+      ],
+      "properties": {
+        "idle_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "on_idle": {
+          "enum": [
+            "keep_external_service",
+            "keep_service"
+          ]
+        },
+        "on_failure": {
+          "const": "stop_owned_clients"
+        }
+      }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "concurrency",
+        "input_tokens",
+        "output_tokens",
+        "steady_state",
+        "num_warmups",
+        "reset_cache",
+        "dataset_id",
+        "timeout_seconds"
+      ],
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/id"
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "formal_requests": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "steady_state": {
+          "type": "boolean"
+        },
+        "num_warmups": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reset_cache": {
+          "type": "boolean"
+        },
+        "dataset_id": {
+          "$ref": "#/$defs/id"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "request_rate": {
+          "type": "number",
+          "minimum": 0
+        },
+        "shared_prefix_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "intent": {
+            "const": "external_eval"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "service": {
+            "properties": {
+              "ownership": {
+                "const": "external"
+              }
+            }
+          },
+          "policy": {
+            "properties": {
+              "on_idle": {
+                "const": "keep_external_service"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "service": {
+            "properties": {
+              "ownership": {
+                "const": "owned"
+              }
+            }
+          },
+          "policy": {
+            "properties": {
+              "on_idle": {
+                "const": "keep_service"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
