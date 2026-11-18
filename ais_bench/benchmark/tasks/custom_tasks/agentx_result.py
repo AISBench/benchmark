@@ -53,6 +53,19 @@ def atomic_write_json(path: str, payload: Any) -> None:
         raise
 
 
+# 常见 HTTP header 形态的密钥：console 摘要日志与配置快照共用同一条规则。
+# 名称左侧要求非标识符边界，避免把 prompt_tokens/total_tokens 之类的指标误判；
+# 取值支持 "Bearer <token>" 这类 scheme + token，并遮到空白/引号/逗号/右括号为止。
+HEADER_SECRET_RE = re.compile(
+    r"(?i)(?P<name>(?:^|[^A-Za-z0-9_-])"
+    r"[A-Za-z0-9_-]*(?:authorization|api[-_]?key|api[-_]?token|auth[-_]?token"
+    r"|access[-_]?token|secret|password|credential|cookie)[A-Za-z0-9_-]*)"
+    r"(?P<sep>\s*['\"]?\s*[:=]\s*)"
+    r"(?P<quote>['\"]?)"
+    r"(?P<value>(?:(?:bearer|basic|token|digest)\s+)?[^\s'\",}\]]+)"
+)
+
+
 def redact_text(text: str, secrets: List[str]) -> str:
     """文本脱敏：先按长度倒序替换已知密钥，再兜底处理 header 与 ``--api-key``。"""
     result = text
@@ -60,8 +73,7 @@ def redact_text(text: str, secrets: List[str]) -> str:
     # 的子串，先替换短值会残留 "extra-<redacted>"，导致回显并非完整脱敏。
     for secret in sorted({str(item) for item in secrets if item}, key=len, reverse=True):
         result = result.replace(secret, "<redacted>")
-    result = re.sub(r"(?i)(authorization|proxy-authorization|x-api-key|x-auth-token)\s*[:=]\s*\S+",
-                    r"\1:<redacted>", result)
+    result = HEADER_SECRET_RE.sub(r"\g<name>\g<sep>\g<quote><redacted>", result)
     result = re.sub(r"(--api-key(?:=|\s+))\S+", r"\1<redacted>", result)
     return result
 
@@ -143,6 +155,9 @@ def normalize_agentx_result(
         aisbench_reasons.append(f"data_status:{data_status}")
     if dataset.get("source") not in ("public", "local") or not _verification_recorded(dataset.get("verification")):
         aisbench_reasons.append("dataset_provenance_unverified")
+    if dataset.get("source") == "public" and dataset.get("registered") is False:
+        # 未注册的 --public-dataset 别名无法核对语料身份，不能按 official_agentx 计分。
+        aisbench_reasons.append("dataset_alias_unregistered")
     if dataset.get("sha256_mismatch"):
         aisbench_reasons.append("dataset_sha256_mismatch")
 

@@ -232,7 +232,7 @@ class TestAgentXSummarizer(unittest.TestCase):
         self.assertEqual(written["result"]["raw_artifacts"], "custom_raw")
 
     def test_summarize_keeps_console_log_when_artifacts_lie_outside_run_dir(self):
-        # agentx_raw 场景：extra args 可把 --output-artifact-dir 覆盖到档位目录之外，
+        # 产物目录可能位于档位目录之外（历史 manifest / 人工迁移），
         # viz 重建 summary 日志时仍必须能读到 console 指标，不能被覆盖成空。
         run_dir = self.work_dir / "performances" / "agentx_full_batchsize_8"
         raw_dir = self.work_dir / "custom_artifacts"

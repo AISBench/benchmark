@@ -672,7 +672,11 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
 
     is_multi = len(pairs) > 1
     cooldown = cli_args.get("cooldown")
-    cooldown = SWEEP_COOLDOWN_SECONDS if cooldown is None else cooldown
+    # 只有显式传入 --cooldown 才算“要求注入冷却”；缺省时单档运行保持不注入，
+    # 多档 sweep 仍按内部默认 5 秒调度，避免把默认值扩散到所有模式。
+    explicit_cooldown = cooldown is not None
+    if cooldown is None:
+        cooldown = SWEEP_COOLDOWN_SECONDS
 
     # 多档展开会把 N 份 model/dataset 副本写回 cfg，非 perf 链路没有统一去重，
     # 会重复输出结果，因此仅在 perf/perf_viz 下支持多档 sweep
@@ -807,13 +811,13 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
 
     if not is_multi:
         # 单值等价路径：不产生 model_dataset_combinations / manifest；
-        # 任务间冷却统一由 --cooldown 控制
+        # 未显式给 --cooldown 时也不产生冷却字段（保持历史行为）
         return SweepResult(
             models=combo_models,
             datasets=combo_datasets,
             combinations=[],
             manifest=None,
-            sweep_cooldown_s=cooldown,
+            sweep_cooldown_s=cooldown if explicit_cooldown else None,
         )
 
     combinations = [

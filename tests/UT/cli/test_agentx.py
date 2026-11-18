@@ -74,8 +74,8 @@ class TestAgentXArgumentParser(AgentXCLITestBase):
     def test_agentx_defaults_do_not_override_config(self):
         args = self.parse()
         self.assertIsNone(args.endpoint)
-        # --cooldown 是唯一带默认值的参数：配置文件没有该字段，只认 CLI
-        self.assertEqual(args.cooldown, 5)
+        # --cooldown 缺省 None，AgentX 侧由 resolve_cooldown 回落 5 秒
+        self.assertIsNone(args.cooldown)
         self.assertIsNone(args.agentx_run_mode)
         self.assertIsNone(args.agentx_duration)
         self.assertIsNone(args.agentx_trace_limit)
@@ -287,8 +287,8 @@ class TestAgentXConfigManager(AgentXCLITestBase):
         args = self.parse()
         ConfigManager(args)._apply_agentx_cli_overrides(preserved)
         self.assertEqual(preserved["datasets"][0]["args"]["concurrency"], 3)
-        # --cooldown 只认 CLI，配置文件里的同名字段不参与
-        self.assertEqual(preserved["datasets"][0]["args"]["cooldown"], 5)
+        # --cooldown 只认 CLI，配置文件里的同名字段不参与；缺省写 None 后回落 5 秒
+        self.assertIsNone(preserved["datasets"][0]["args"]["cooldown"])
         self.assertEqual(preserved["models"][0]["endpoint"], "/config/chat")
         self.assertEqual(preserved["models"][0]["model"], "qwen3.8")
 
@@ -419,7 +419,9 @@ class TestAgentXConfigManager(AgentXCLITestBase):
             "--agentx-env", "PUBLIC=visible",
             # 与真实用法一致带花括号：裸的 "--api-key=..." 会被 argparse 当成 AISBench 自己的
             # --api-key 选项，导致 --agentx-extra-arg 缺少参数。
-            "--agentx-extra-arg", "{ --api-key=extra-secret --max-context-length 204800 }",
+            "--agentx-extra-arg",
+            "{ --api-key=extra-secret --header 'Authorization: Bearer header-secret' "
+            "--max-context-length 204800 }",
         )
         manager = ConfigManager(args)
         manager.cfg_time_str = "20261106_000000"
@@ -432,7 +434,10 @@ class TestAgentXConfigManager(AgentXCLITestBase):
                     "concurrency": 1,
                     "api_key": "secret",
                     "env": {"API_TOKEN": "env-token-value", "PUBLIC": "visible"},
-                    "extra_args": "--api-key=extra-secret",
+                    "extra_args": (
+                        "--api-key=extra-secret "
+                        "--header 'Authorization: Bearer header-secret'"
+                    ),
                 },
             }],
             "cli_args": vars(args),
@@ -453,10 +458,12 @@ class TestAgentXConfigManager(AgentXCLITestBase):
         self.assertEqual(manager.cfg["datasets"][0]["args"]["env"]["PUBLIC"], "visible")
         self.assertEqual(
             manager.cfg["cli_args"]["agentx_extra_arg"],
-            "{ --api-key=extra-secret --max-context-length 204800 }",
+            "{ --api-key=extra-secret --header 'Authorization: Bearer header-secret' "
+            "--max-context-length 204800 }",
         )
         self.assertEqual(
-            manager.cfg["datasets"][0]["args"]["extra_args"], "--api-key=extra-secret"
+            manager.cfg["datasets"][0]["args"]["extra_args"],
+            "--api-key=extra-secret --header 'Authorization: Bearer header-secret'",
         )
 
 

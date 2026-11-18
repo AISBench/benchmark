@@ -23,6 +23,7 @@ from ais_bench.benchmark.cli.sweep import (
     _normalize_sweep_arg,
     expand_sweep_combinations,
 )
+from ais_bench.benchmark.tasks.custom_tasks.agentx_result import redact_text
 from ais_bench.benchmark.tasks.custom_tasks.agentx_spec import extra_arg_value, validate_agentx_args
 
 RESPONSE_ANOMALY_TOP_LOGPROBS = 20
@@ -802,16 +803,19 @@ class ConfigManager:
                         TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
                         f"--mode agentx without a config file requires {', '.join(missing)}."
                     )
-            # AgentX 的并发档位统一用 --batch-size 表达（缺省 1）；
-            # 多档由 AgentXTask 逐档串行执行，每档独立 Harness 进程和输出目录。
-            concurrency = args.batch_size if args.batch_size is not None else 1
-            if raw_mode and args.batch_size is None:
-                # raw 模式无法从外部推断并发档位，按 extra args 里的 --concurrency 定目录名。
+            # agentx 的并发档位用 --batch-size 表达（缺省 1），多档由 AgentXTask 逐档
+            # 串行执行，每档独立 Harness 进程和输出目录。
+            # agentx_raw 不接受 --batch-size（见 AGENTX_RAW_ALLOWED_DESTS），并发档位只能
+            # 按 extra args 里的 --concurrency 反推，缺省 1。
+            if raw_mode:
+                concurrency = 1
                 extra_concurrency = extra_arg_value(args.agentx_extra_arg, '--concurrency')
                 try:
                     concurrency = int(extra_concurrency) if extra_concurrency else 1
                 except (TypeError, ValueError):
                     concurrency = 1
+            else:
+                concurrency = args.batch_size if args.batch_size is not None else 1
 
             model_cfg = dict(abbr=args.model_abbr or args.model_name or 'agentx-raw')
             if args.model_name:
@@ -880,7 +884,7 @@ class ConfigManager:
         """配置文件与纯 CLI 共用显式覆盖规则和启动前校验。
 
         CLI 显式值覆盖配置值，未给的参数保持配置值；``cooldown`` 例外，只认
-        ``--cooldown``（默认 5 秒由参数定义提供）。
+        ``--cooldown``（缺省 None，由 ``resolve_cooldown`` 回落 5 秒）。
         """
         models = config.get('models') or []
         datasets = config.get('datasets') or []
@@ -925,7 +929,8 @@ class ConfigManager:
             value = getattr(self.args, cli_name, None)
             if value is not None:
                 dataset_args[field] = value
-        # 配置文件里没有 cooldown 字段，任务间等待只由 --cooldown 决定
+        # 配置文件里没有 cooldown 字段，任务间等待只由 --cooldown 决定；
+        # 未显式传入时写 None，最终由 resolve_cooldown 回落 5 秒。
         dataset_args['cooldown'] = self.args.cooldown
         if getattr(self.args, 'agentx_extra_arg', None):
             dataset_args['extra_args'] = self.args.agentx_extra_arg
@@ -1198,9 +1203,12 @@ class ConfigManager:
     def _redact_secret_argv_text(cls, text):
         # 透传参数串（--agentx-extra-arg / 数据集 extra_args）里的敏感选项值同样要脱敏，
         # 否则会以明文写进 configs/<时间戳>_<pid>.py 快照。
-        return cls._AGENTX_SECRET_ARG_RE.sub(
+        redacted = cls._AGENTX_SECRET_ARG_RE.sub(
             lambda match: match.group(1) + match.group(2) + '<redacted>', str(text)
         )
+        # --header/-H 里的 Authorization、X-Api-Key 等不命中上面的选项名规则，
+        # 复用 console 日志同一条 header 规则补齐。
+        return redact_text(redacted, [])
 
     def _redact_agentx_snapshot(self, cfg):
         cli_args = cfg.get('cli_args') or {}

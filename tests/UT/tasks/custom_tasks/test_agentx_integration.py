@@ -60,6 +60,9 @@ else:
         json.dump(raw, file)
     with open(os.path.join(args.output_artifact_dir, "profile_export_aiperf.csv"), "w", encoding="utf-8") as file:
         file.write("metric,avg\nrequest_throughput,2\n")
+    with open(os.path.join(args.output_artifact_dir, "profile_export_console.txt"), "w", encoding="utf-8") as file:
+        file.write("NVIDIA AIPerf | Authorization: Bearer console-secret\n")
+        file.write("X-Api-Key: console-secret\n")
 if mode == "nonzero":
     sys.exit(7)
 sys.exit(0)
@@ -175,7 +178,9 @@ class TestAgentXFakeHarnessIntegration(unittest.TestCase):
         self.assertEqual(manifest["result"]["summary_csv"], "agentx_summary.csv")
         self.assertEqual(manifest["result"]["raw_artifacts"], "agentx_raw")
         self.assertEqual(manifest["dataset"]["variant"], "full")
-        self.assertEqual(manifest["agentx_command"]["parameters"]["--scenario"], "agentx")
+        # --scenario 不是 AISBench 生成的参数，未显式传入时由 agentx 入口默认决定
+        self.assertNotIn("--scenario", manifest["agentx_command"]["parameters"])
+        self.assertEqual(manifest["test_params"]["scenario"], "agentx")
         self.assertEqual(manifest["agentx_command"]["parameters"]["--concurrency"], "2")
         self.assertEqual(manifest["agentx_command"]["parameters"]["--model"], "qwen3.8")
         self.assertEqual(manifest["agentx_command"]["extra_args"], [])
@@ -191,6 +196,9 @@ class TestAgentXFakeHarnessIntegration(unittest.TestCase):
         summary_log = (logs_dir / "agentx_summary.log").read_text(encoding="utf-8")
         self.assertIn("agentx_full_batchsize_2", summary_log)
         self.assertIn("performances/agentx_full_batchsize_2/agentx_summary.csv", summary_log)
+        # console 产物里的 header 形态密钥（Bearer、X-Api-Key）不能原样进日志
+        self.assertNotIn("console-secret", summary_log)
+        self.assertIn("<redacted>", summary_log)
         # 根目录只保留框架级 configs/、logs/ 和 performances/；任务自身不创建 configs/。
         self.assertFalse((work_dir / "agentx_summary.csv").exists())
         self.assertFalse((work_dir / "agentx_summary.json").exists())
@@ -233,13 +241,38 @@ class TestAgentXFakeHarnessIntegration(unittest.TestCase):
                 )
                 self.assertEqual(manifest["test_params"]["batch_size"], concurrency)
                 self.assertEqual(
-                    manifest["agentx_command"]["parameters"]["--concurrency"], "5"
+                    manifest["agentx_command"]["parameters"]["--concurrency"], str(concurrency)
                 )
-                self.assertEqual(manifest["agentx_command"]["parameters"]["--model"], "Qwen")
+                self.assertEqual(
+                    manifest["agentx_command"]["parameters"]["--model"], "qwen3.8"
+                )
                 self.assertEqual(
                     manifest["agentx_command"]["extra_args"],
                     ["--concurrency", "5", "--model", "Qwen"],
                 )
+                # 与 AISBench 生成项同名的 extra 片段不生效，但完整保留供审计
+                self.assertEqual(
+                    manifest["agentx_command"]["ignored_extra_args"],
+                    ["--concurrency", "5", "--model", "Qwen"],
+                )
+
+    def test_extra_args_cannot_override_dataset_provenance(self):
+        """extra args 想切到本地语料时必须被忽略，manifest 溯源与命令保持一致。"""
+        other = self.root / "other-corpus"
+        other.mkdir()
+        task, work_dir = self.make_task(
+            "provenance", extra_args=f"--hf-weka-dataset {other}"
+        )
+        self.run_task(task, "success")
+        manifest = json.loads(
+            (self.run_dir(work_dir, 2) / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["dataset"]["source"], "public")
+        self.assertNotIn("--hf-weka-dataset", manifest["agentx_command"]["parameters"])
+        self.assertEqual(
+            manifest["agentx_command"]["ignored_extra_args"],
+            ["--hf-weka-dataset", str(other)],
+        )
 
     def test_multiple_concurrency_levels_run_independently(self):
         task, work_dir = self.make_task("multi", concurrency=[1, 4, 8])
@@ -332,21 +365,25 @@ class TestAgentXFakeHarnessIntegration(unittest.TestCase):
         self.assertNotIn("extra-secret", manifest_text)
 
     def test_test_params_follow_effective_argv(self):
-        # test_params 与最终生效 argv 口径一致：extra args 覆盖 duration/seed/warmup 后，
-        # 不再出现 test_params 与 agentx_command.parameters 互相矛盾的记录。
+        # test_params 与最终生效 argv 口径一致：extra args 只能补充 AISBench 未生成的参数，
+        # 与 AISBench 生成项同名的取值以 AISBench 为准并记录到 ignored_extra_args。
         task, work_dir = self.make_task(
             "params_argv", duration=1000,
             extra_args="--benchmark-duration 1800 --random-seed 7 --num-warmup-requests 5",
         )
         self.run_task(task, "success")
         manifest = self.load_manifest(task, work_dir)
-        self.assertEqual(manifest["test_params"]["benchmark_duration_s"], 1800.0)
+        self.assertEqual(manifest["test_params"]["benchmark_duration_s"], 1000.0)
         self.assertEqual(manifest["test_params"]["random_seed"], 7)
         self.assertEqual(manifest["test_params"]["warmup_requests_per_lane"], 5)
         parameters = manifest["agentx_command"]["parameters"]
-        self.assertEqual(parameters["--benchmark-duration"], "1800")
+        self.assertEqual(parameters["--benchmark-duration"], "1000")
         self.assertEqual(parameters["--random-seed"], "7")
         self.assertEqual(parameters["--num-warmup-requests"], "5")
+        self.assertEqual(
+            manifest["agentx_command"]["ignored_extra_args"],
+            ["--benchmark-duration", "1800"],
+        )
 
 
 if __name__ == "__main__":

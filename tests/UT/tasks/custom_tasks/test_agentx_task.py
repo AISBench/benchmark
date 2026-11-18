@@ -1,9 +1,11 @@
 import http.client
+import io
 import json
 import os
 import os.path as osp
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -174,12 +176,13 @@ class TestAgentXValidation(AgentXTaskTestBase):
                 self.model_cfg(), self.dataset_args(run_mode="smoke", trace_limit=1.5)
             )
 
-    def test_extra_args_passthrough(self):
+    def test_extra_args_only_add_parameters_not_generated_by_aisbench(self):
         extra_args = (
             "--log-level INFO --verbose --benchmark-duration 901 "
-            "--random-seed 7 --concurrency 2 --scenario agentx --model Qwen"
+            "--random-seed 7 --concurrency 2 --scenario custom_trace --model Qwen"
         )
         validate_agentx_args(self.model_cfg(), self.dataset_args(extra_args=extra_args))
+        ignored = []
         command = build_agentx_command(
             ["agentx"],
             url=self.model_cfg()["url"],
@@ -188,21 +191,22 @@ class TestAgentXValidation(AgentXTaskTestBase):
             dataset_alias=DATASETS["full"]["alias"],
             artifact_dir="/out/run/artifacts",
             extra_args=extra_args,
+            ignored_out=ignored,
         )
-        # 重复参数以 extra args 为准，基础命令中的同名选项被移除
+        # 同名参数以 AISBench 生成为准，extra args 中的冲突项被忽略并原样返回；
+        # --scenario 不是 AISBench 生成的参数，完全由 extra args 决定。
         self.assertEqual(command.count("--model"), 1)
-        self.assertEqual(command[command.index("--model") + 1], "Qwen")
+        self.assertEqual(command[command.index("--model") + 1], "qwen3.8")
         self.assertEqual(command.count("--concurrency"), 1)
-        self.assertEqual(command[command.index("--concurrency") + 1], "2")
+        self.assertEqual(command[command.index("--concurrency") + 1], "8")
         self.assertEqual(command.count("--scenario"), 1)
-        self.assertNotIn("qwen3.8", command)
-        # 未被覆盖的参数保持原值，extra args 整体追加在末尾
+        self.assertEqual(command[command.index("--scenario") + 1], "custom_trace")
+        self.assertNotIn("Qwen", command)
+        self.assertEqual(ignored, ["--concurrency", "2", "--model", "Qwen"])
+        # AISBench 未生成的参数照常透传，追加在末尾
         self.assertEqual(command[command.index("--url") + 1], self.model_cfg()["url"])
-        self.assertEqual(command[-13:], [
-            "--log-level", "INFO", "--verbose", "--benchmark-duration", "901",
-            "--random-seed", "7", "--concurrency", "2", "--scenario", "agentx",
-            "--model", "Qwen",
-        ])
+        self.assertEqual(command[-9:], ["--log-level", "INFO", "--verbose", "--benchmark-duration",
+                                        "901", "--random-seed", "7", "--scenario", "custom_trace"])
         braced = build_agentx_command(
             ["agentx"],
             url=self.model_cfg()["url"],
@@ -212,11 +216,47 @@ class TestAgentXValidation(AgentXTaskTestBase):
             artifact_dir="/out/run/artifacts",
             extra_args="{ --concurrency 1 --model Qwen }",
         )
-        self.assertEqual(braced[-4:], ["--concurrency", "1", "--model", "Qwen"])
+        self.assertEqual(braced.count("--concurrency"), 1)
+        self.assertEqual(braced[braced.index("--concurrency") + 1], "8")
+        self.assertNotIn("Qwen", braced)
         for item in ("", "  ", [], ["--log-level=INFO"]):
             with self.subTest(item=item):
                 with self.assertRaises(ValueError):
                     validate_agentx_args(self.model_cfg(), self.dataset_args(extra_args=item))
+
+    def test_extra_args_cannot_switch_dataset_source(self):
+        """语料来源选项互斥：AISBench 生成一个后，extra args 里的另一个也不生效。"""
+        other_dir = str(self.root / "other-corpus")
+        ignored = []
+        command = build_agentx_command(
+            ["agentx"],
+            url=self.model_cfg()["url"],
+            model="qwen3.8",
+            concurrency=8,
+            dataset_alias=DATASETS["full"]["alias"],
+            artifact_dir="/out/run/artifacts",
+            extra_args=f"--hf-weka-dataset {other_dir} --random-seed 7",
+            ignored_out=ignored,
+        )
+        self.assertEqual(command.count("--public-dataset"), 1)
+        self.assertNotIn("--hf-weka-dataset", command)
+        self.assertEqual(ignored, ["--hf-weka-dataset", other_dir])
+        self.assertEqual(command[-2:], ["--random-seed", "7"])
+
+        ignored = []
+        command = build_agentx_command(
+            ["agentx"],
+            url=self.model_cfg()["url"],
+            model="qwen3.8",
+            concurrency=8,
+            dataset_dir=str(self.model_dir),
+            artifact_dir="/out/run/artifacts",
+            extra_args="--public-dataset other-alias",
+            ignored_out=ignored,
+        )
+        self.assertEqual(command.count("--hf-weka-dataset"), 1)
+        self.assertNotIn("--public-dataset", command)
+        self.assertEqual(ignored, ["--public-dataset", "other-alias"])
 
     def test_raw_mode_skips_model_url_and_variant_checks(self):
         args = {
@@ -233,11 +273,9 @@ class TestAgentXValidation(AgentXTaskTestBase):
             ["agentx"], concurrency=8, artifact_dir="/out/raw",
             extra_args=extra, run_mode="smoke", raw=True,
         )
-        # raw 模式基础命令只保留 scenario/并发/产物目录，其余全部来自 extra args
-        self.assertEqual(command[:6], [
-            "agentx", "profile", "--scenario", "agentx", "--concurrency", "8",
-        ])
-        self.assertEqual(command[6:8], ["--output-artifact-dir", "/out/raw"])
+        # raw 模式基础命令只保留并发/产物目录，其余全部来自 extra args
+        self.assertEqual(command[:4], ["agentx", "profile", "--concurrency", "8"])
+        self.assertEqual(command[4:6], ["--output-artifact-dir", "/out/raw"])
         for option in ("--url", "--model", "--public-dataset"):
             with self.subTest(option=option):
                 self.assertEqual(command.count(option), 1)
@@ -278,8 +316,9 @@ class TestAgentXCommand(AgentXTaskTestBase):
             api_key="secret",
             extra_args="--log-level=INFO",
         )
-        self.assertEqual(command[:3], ["agentx", "profile", "--scenario"])
-        self.assertEqual(command[3], "agentx")
+        self.assertEqual(command[:2], ["agentx", "profile"])
+        # --scenario 属于 agentx 入口参数，AISBench 不注入
+        self.assertNotIn("--scenario", command)
         self.assertEqual(command[command.index("--url") + 1], "http://127.0.0.1:8000")
         self.assertEqual(command[command.index("--endpoint") + 1], "/v1/chat/completions")
         self.assertEqual(command[command.index("--concurrency") + 1], "8")
@@ -325,9 +364,9 @@ class TestAgentXCommand(AgentXTaskTestBase):
         self.assertEqual(command[command.index("--benchmark-duration") + 1], "2")
         self.assertEqual(command[command.index("--num-dataset-entries") + 1], "4")
 
-    def test_extra_args_override_flag_options_keep_next_token(self):
+    def test_extra_args_dedup_of_flag_options_keeps_next_token(self):
         # --unsafe-override / --tokenizer-trust-remote-code 都不带取值，
-        # 与 extra args 同名去重时只能移除旗标本身，不能连带删掉后面的选项。
+        # 与基础命令同名时只丢弃旗标本身，不能连带删掉后面的选项。
         command = build_agentx_command(
             ["agentx"],
             url=self.model_cfg()["url"],
@@ -339,24 +378,31 @@ class TestAgentXCommand(AgentXTaskTestBase):
             tokenizer_path=str(self.model_dir),
             tokenizer_trust_remote_code=True,
             api_key="k",
-            extra_args="--unsafe-override --tokenizer-trust-remote-code",
+            extra_args=(
+                "--unsafe-override --verbose --tokenizer-trust-remote-code --log-level INFO"
+            ),
         )
         self.assertEqual(command.count("--unsafe-override"), 1)
         self.assertEqual(command.count("--tokenizer-trust-remote-code"), 1)
         self.assertEqual(command.count("--hf-weka-dataset"), 1)
         self.assertEqual(command[command.index("--tokenizer") + 1], str(self.model_dir))
         self.assertEqual(command[command.index("--api-key") + 1], "k")
-        self.assertEqual(command[-2:], ["--unsafe-override", "--tokenizer-trust-remote-code"])
+        self.assertEqual(command[-3:], ["--verbose", "--log-level", "INFO"])
 
-    def test_extra_args_flag_dedup_needs_no_known_flag_list(self):
-        # 去重不依赖名单：任何无值开关都按“下一个 token 不是选项”判定。
+    def test_extra_args_dedup_keeps_aisbench_value(self):
+        # 去重不依赖名单：任何无值开关都按“下一个 token 不是选项”判定，
+        # 被忽略的片段完整返回给调用方记录。
         self.assertEqual(
             _apply_extra_args(["--custom-flag", "--model", "m"], ["--custom-flag"]),
-            ["--model", "m", "--custom-flag"],
+            (["--custom-flag", "--model", "m"], ["--custom-flag"]),
         )
         self.assertEqual(
-            _apply_extra_args(["--model", "m", "--custom-flag"], ["--custom-flag"]),
-            ["--model", "m", "--custom-flag"],
+            _apply_extra_args(["--unsafe-override"], ["--unsafe-override", "--verbose"]),
+            (["--unsafe-override", "--verbose"], ["--unsafe-override"]),
+        )
+        self.assertEqual(
+            _apply_extra_args(["--model", "m"], ["--verbose"]),
+            (["--model", "m", "--verbose"], []),
         )
 
     def test_benchmark_duration_override_is_forwarded(self):
@@ -392,7 +438,49 @@ class TestAgentXCommand(AgentXTaskTestBase):
             dataset_alias=DATASETS["full"]["alias"], artifact_dir="/out/benchmark",
             tokenizer_path="~/tokenizer",
         )
-        self.assertEqual(command[command.index("--tokenizer") + 1], osp.expanduser("~/tokenizer"))
+        self.assertEqual(
+            command[command.index("--tokenizer") + 1],
+            osp.abspath(osp.expanduser("~/tokenizer")),
+        )
+
+    def test_command_makes_relative_dataset_and_tokenizer_absolute(self):
+        """Harness 的 cwd 是 work_dir，相对路径必须在生成命令时转成绝对路径。"""
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        os.chdir(self.root)
+        expected_corpus = osp.join(os.getcwd(), "corpus")
+        expected_tokenizer = osp.join(os.getcwd(), "model")
+        command = build_agentx_command(
+            ["agentx"], url="http://127.0.0.1:8000", model="m", concurrency=1,
+            dataset_dir="corpus", artifact_dir="/out/benchmark", tokenizer_path="model",
+        )
+        self.assertEqual(
+            command[command.index("--hf-weka-dataset") + 1], expected_corpus
+        )
+        self.assertEqual(command[command.index("--tokenizer") + 1], expected_tokenizer)
+
+    def test_effective_artifact_dir_resolves_relative_against_harness_cwd(self):
+        self.assertEqual(
+            AgentXTask._effective_artifact_dir(
+                {"--output-artifact-dir": "relative_results"}, str(self.work_dir)
+            ),
+            osp.join(str(self.work_dir), "relative_results"),
+        )
+
+    def test_drain_stdout_reads_partial_output_without_blocking(self):
+        """管道里只有无换行的半行数据时，排空也不能阻塞在 readline 上。"""
+        read_fd, write_fd = os.pipe()
+        stream = os.fdopen(read_fd, "r", encoding="utf-8")
+        try:
+            os.write(write_fd, b"partial-line-without-newline")
+            log = io.StringIO()
+            start = time.monotonic()
+            self.task()._drain_stdout(SimpleNamespace(stdout=stream), log, [])
+            self.assertLess(time.monotonic() - start, 2.0)
+            self.assertIn("partial-line-without-newline", log.getvalue())
+        finally:
+            stream.close()
+            os.close(write_fd)
 
     def test_process_timeout_env(self):
         self.assertIsNone(_process_timeout({}))
@@ -453,12 +541,23 @@ class TestAgentXDatasetAndEnvironment(AgentXTaskTestBase):
         )
         dataset = task._resolve_dataset("smoke")
         self.assertEqual(dataset["source"], "public")
+        self.assertTrue(dataset["registered"])
         self.assertEqual(dataset["variant"], "full")
         self.assertEqual(dataset["registry_alias"], alias)
         self.assertEqual(dataset["repo"], DATASETS["full"]["hf_repo"])
         self.assertEqual(dataset["revision"], DATASETS["full"]["hf_revision"])
         self.assertEqual(dataset["expected_sha256"], DATASETS["full"]["sha256"])
         self.assertEqual(dataset["num_dataset_entries"], 12)
+        self.assertEqual(dataset["provenance_origin"], "--public-dataset")
+
+    def test_raw_unregistered_public_dataset_alias_is_not_official(self):
+        """未注册别名只记录来源，不能伪装成官方语料的 registry 记录。"""
+        task = self.task(raw_mode=True, extra_args="{ --public-dataset custom-trace }")
+        dataset = task._resolve_dataset("benchmark")
+        self.assertEqual(dataset["source"], "public")
+        self.assertFalse(dataset["registered"])
+        self.assertIsNone(dataset["registry_alias"])
+        self.assertEqual(dataset["variant"], "raw")
         self.assertEqual(dataset["provenance_origin"], "--public-dataset")
 
     def test_raw_dataset_provenance_from_local_dataset_flag(self):
@@ -558,7 +657,7 @@ class TestAgentXDatasetAndEnvironment(AgentXTaskTestBase):
 
 
     def test_test_params_scenario_comes_from_final_command(self):
-        """scenario 被 extra args 覆盖后，test_params 记录最终命令里的真实值。"""
+        """test_params 以最终 argv 的 --scenario 为准，不硬编码固定值。"""
         plan = {
             "argv": ["agentx", "profile", "--scenario", "custom_trace", "--concurrency", "8"],
             "concurrency": 8, "trace_limit": None,
@@ -566,12 +665,13 @@ class TestAgentXDatasetAndEnvironment(AgentXTaskTestBase):
         params = self.task(raw_mode=True)._test_params(plan, {})
         self.assertEqual(params["scenario"], "custom_trace")
 
-    def test_test_params_defaults_scenario_to_agentx(self):
+    def test_test_params_falls_back_to_harness_default_scenario(self):
         plan = {
-            "argv": ["agentx", "profile", "--scenario", "agentx", "--concurrency", "8"],
+            "argv": ["agentx", "profile", "--concurrency", "8"],
             "concurrency": 8, "trace_limit": None,
         }
         params = self.task()._test_params(plan, {})
+        # AISBench 不注入 --scenario，未显式传入时记录 agentx 入口的默认口径
         self.assertEqual(params["scenario"], AGENTX_SCENARIO)
 
 
@@ -650,16 +750,12 @@ class TestAgentXTaskLifecycle(AgentXTaskTestBase):
         self.assertFalse(stale_summary.exists())
         self.assertFalse(manifest_path.exists())
 
-    def test_prepare_follows_output_artifact_dir_from_final_command(self):
-        """extra args 覆盖 --output-artifact-dir 后，结果收集改用命令里的路径。"""
+    def test_prepare_ignores_conflicting_output_artifact_dir_override(self):
+        """extra args 与 AISBench 同名时以 AISBench 为准，产物目录仍按档位生成。"""
         custom = self.root / "custom_artifacts"
         task = self.task(
             raw_mode=True,
-            extra_args=(
-                "{ --url http://127.0.0.1:8000 --model qwen3.8 "
-                f"--public-dataset {DATASETS['full']['alias']} "
-                f"--output-artifact-dir {custom} }}"
-            ),
+            extra_args=f"{{ --random-seed 7 --output-artifact-dir {custom} }}",
         )
         with mock.patch(
             "ais_bench.benchmark.tasks.custom_tasks.agentx_task.resolve_harness_python",
@@ -669,36 +765,41 @@ class TestAgentXTaskLifecycle(AgentXTaskTestBase):
             return_value=self.harness_metadata(),
         ):
             plan = task._prepare()[0]
-        expected = osp.abspath(str(custom))
+        expected = osp.abspath(osp.join(
+            self.work_dir, "performances", "agentx_raw_batchsize_8", "agentx_raw"
+        ))
         self.assertEqual(plan["run_id"], "agentx_raw_batchsize_8")
         self.assertEqual(plan["artifact_dir"], expected)
         self.assertEqual(plan["summary_path"], str(Path(expected) / "profile_export_aiperf.json"))
-        self.assertTrue(custom.is_dir())
+        self.assertEqual(plan["ignored_extra_args"], ["--output-artifact-dir", str(custom)])
+        self.assertTrue(Path(expected).is_dir())
+        self.assertFalse(custom.exists())
+        plan_text = Path(plan["plan_path"]).read_text(encoding="utf-8")
+        self.assertIn("ignored_extra_args", plan_text)
+        self.assertIn("--output-artifact-dir", plan_text)
 
-    def _reuse_task_with_artifact_dir(self, path):
+    def _reuse_raw_task(self):
         return AgentXTask(ConfigDict({
             "work_dir": str(self.work_dir),
             "models": [self.model_cfg()],
             "datasets": [{"abbr": "weka", "args": self.dataset_args(
                 raw_mode=True,
-                extra_args=(
-                    "{ --url http://127.0.0.1:8000 --model qwen3.8 "
-                    f"--public-dataset {DATASETS['full']['alias']} "
-                    f"--output-artifact-dir {path} }}"
-                ),
+                extra_args="{ --random-seed 7 }",
             )}],
             "cli_args": {"debug": False, "reuse": "latest"},
         }))
 
-    def test_reuse_keeps_files_in_custom_artifact_dir(self):
-        """自定义产物目录同样只清理本轮结果文件，保留其他文件"""
-        custom = self.work_dir / "custom_artifacts"
-        custom.mkdir()
-        keep = custom / "stale.txt"
+    def test_reuse_keeps_files_in_aisbench_artifact_dir(self):
+        """产物目录只清理本轮结果文件，保留其他文件"""
+        artifact_dir = (
+            self.work_dir / "performances" / "agentx_raw_batchsize_8" / "agentx_raw"
+        )
+        artifact_dir.mkdir(parents=True)
+        keep = artifact_dir / "stale.txt"
         keep.write_text("stale", encoding="utf-8")
-        old_summary = custom / "profile_export_aiperf.json"
+        old_summary = artifact_dir / "profile_export_aiperf.json"
         old_summary.write_text("{}", encoding="utf-8")
-        task = self._reuse_task_with_artifact_dir(custom)
+        task = self._reuse_raw_task()
         with mock.patch(
             "ais_bench.benchmark.tasks.custom_tasks.agentx_task.resolve_harness_python",
             return_value="python",
@@ -707,8 +808,8 @@ class TestAgentXTaskLifecycle(AgentXTaskTestBase):
             return_value=self.harness_metadata(),
         ):
             plan = task._prepare()[0]
-        self.assertEqual(plan["artifact_dir"], osp.abspath(str(custom)))
-        self.assertTrue(custom.is_dir())
+        self.assertEqual(plan["artifact_dir"], osp.abspath(str(artifact_dir)))
+        self.assertTrue(artifact_dir.is_dir())
         self.assertTrue(keep.exists())
         self.assertFalse(old_summary.exists())
 

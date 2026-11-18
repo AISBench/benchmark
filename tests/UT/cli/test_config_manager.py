@@ -1678,7 +1678,13 @@ class TestExpandSweepCombinations(unittest.TestCase):
 
         self.assertEqual(result.combinations, [])
         self.assertIsNone(result.manifest)
-        self.assertEqual(result.sweep_cooldown_s, 5)
+        # 未显式给 --cooldown 时单档不产生冷却字段，避免默认值扩散到所有模式
+        self.assertIsNone(result.sweep_cooldown_s)
+        explicit = expand_sweep_combinations(
+            [self._model()], [self._dataset()],
+            self._args(num_prompts=10, cooldown=2.5),
+        )
+        self.assertEqual(explicit.sweep_cooldown_s, 2.5)
         self.assertEqual(result.models[0]["abbr"], "qwen")
         # 单值时 test_range 仍由 _fill_dataset_configs 写入
         self.assertNotIn("test_range", result.datasets[0]["reader_cfg"])

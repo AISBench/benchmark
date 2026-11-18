@@ -11,6 +11,7 @@ from ais_bench.benchmark.tasks.custom_tasks.agentx_result import (
     atomic_write_json,
     json_safe,
     normalize_agentx_result,
+    redact_text,
 )
 
 
@@ -137,6 +138,17 @@ class TestAgentXResultAdapter(unittest.TestCase):
         )
         self.assertEqual(empty["run"]["comparison_scope"], "internal_only")
 
+    def test_unregistered_public_alias_is_not_official(self):
+        result = normalized(
+            dataset={"source": "public", "registered": False, "variant": "raw"}
+        )
+        self.assertFalse(result["run"]["benchmark_valid"])
+        self.assertEqual(result["run"]["comparison_scope"], "invalid")
+        self.assertIn(
+            "dataset_alias_unregistered",
+            result["validity"]["aisbench_invalid_reasons"],
+        )
+
     def test_completed_without_metrics_is_not_benchmark_valid(self):
         # 退出码 0、解析成功但 summary 无任何指标：data_status=unavailable 时
         # benchmark_valid 不能仍为 True，comparison_scope 不能仍是 official_agentx。
@@ -207,6 +219,33 @@ class TestAgentXResultAdapter(unittest.TestCase):
                     atomic_write_json(str(path), {"new": True})
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"old": True})
             self.assertEqual(list(Path(temp_dir).glob(".agentx-*")), [])
+
+
+class TestRedactText(unittest.TestCase):
+    def test_header_forms_redact_whole_value(self):
+        cases = (
+            "Authorization: Bearer sk-abc",
+            "-H 'X-Api-Key: sk-abc'",
+            '{"Authorization": "Bearer sk-abc"}',
+            "--header=Cookie: sid=sk-abc",
+            "client_secret: sk-abc",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                redacted = redact_text(text, [])
+                self.assertNotIn("sk-abc", redacted)
+                self.assertIn("<redacted>", redacted)
+
+    def test_token_metrics_are_not_mistaken_for_headers(self):
+        line = "input_tokens: 128 total_tokens: 256 prompt_tokens: 64"
+        self.assertEqual(redact_text(line, []), line)
+
+    def test_known_secret_values_still_replaced_longest_first(self):
+        text = "api_key=secret extra-secret"
+        self.assertEqual(
+            redact_text(text, ["secret", "extra-secret"]),
+            "api_key=<redacted> <redacted>",
+        )
 
 
 if __name__ == "__main__":

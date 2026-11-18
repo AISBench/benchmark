@@ -51,6 +51,7 @@ from ais_bench.benchmark.utils.core.abbr import task_abbr_from_cfg
 from ais_bench.benchmark.utils.logging import AISLogger
 
 AGENTX_PACKAGE = "agentx-harness"
+# agentx 入口未显式指定 scenario 时的默认口径；仅用于回填记录，不注入命令行。
 AGENTX_SCENARIO = "agentx"
 DEFAULT_HARNESS_VERSION = SUPPORTED_HARNESS_VERSION
 IMAGE_HARNESS_PYTHON = "/opt/venvs/agentx113/bin/python"
@@ -64,7 +65,13 @@ ENGINE_PROBE_TIMEOUT = 5.0
 MANIFEST_SCHEMA_VERSION = "1.0"
 
 _REDACT_NEXT_FLAGS = ("--api-key",)
-_REDACT_HEADER_NAMES = ("authorization", "proxy-authorization", "x-api-key", "x-auth-token")
+# 语料来源选项互斥：AISBench 生成其中一个时，extra args 里的另一个也必须忽略，
+# 否则实际压测语料与溯源记录会不一致。
+_DATASET_SOURCE_OPTIONS = ("--public-dataset", "--hf-weka-dataset")
+_REDACT_HEADER_NAMES = (
+    "authorization", "proxy-authorization", "x-api-key", "api-key",
+    "x-auth-token", "x-api-token", "cookie", "set-cookie",
+)
 _SECRET_ENV_RE = re.compile(r"(?:key|token|secret|password|credential|authorization)", re.I)
 _SAFE_COMPONENT_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
@@ -132,27 +139,40 @@ def _option_name(token: str) -> Optional[str]:
     return token.split("=", 1)[0]
 
 
-def _apply_extra_args(command: List[str], extra_tokens: List[str]) -> List[str]:
-    """extra args 优先级最高：移除基础命令中的同名选项后，再整体追加到末尾。"""
-    overridden = {name for name in map(_option_name, extra_tokens) if name}
-    if not overridden:
-        return command + extra_tokens
-    merged: List[str] = []
+def _apply_extra_args(
+    command: List[str], extra_tokens: List[str]
+) -> Tuple[List[str], List[str]]:
+    """AISBench 生成的参数优先：丢弃 extra args 中与基础命令同名的选项。
+
+    extra args 只用于补充 AISBench 未生成的参数；被丢弃的片段原样返回，
+    由调用方写入日志与 manifest，避免用户误以为同名覆盖已经生效。
+    ``--public-dataset`` / ``--hf-weka-dataset`` 互斥：基础命令已生成其中一个时，
+    extra args 里的另一个同样丢弃，防止语料被换掉而溯源不变。
+    """
+    base_names = {name for name in map(_option_name, command) if name}
+    if not base_names:
+        return command + extra_tokens, []
+    if base_names.intersection(_DATASET_SOURCE_OPTIONS):
+        base_names.update(_DATASET_SOURCE_OPTIONS)
+    kept: List[str] = []
+    ignored: List[str] = []
     index = 0
-    while index < len(command):
-        token = command[index]
-        name = _option_name(token)
-        if name in overridden:
+    while index < len(extra_tokens):
+        token = extra_tokens[index]
+        if _option_name(token) not in base_names:
+            kept.append(token)
             index += 1
-            # 与 _argv_parameters 同一口径：下一个 token 不是选项才视为本选项的取值。
-            # 无值开关（如 --unsafe-override）因此不会连带吞掉后面的选项，
-            # 新增无值开关时也无需维护名单。
-            if "=" not in token and index < len(command) and _option_name(command[index]) is None:
-                index += 1
             continue
-        merged.append(token)
+        ignored.append(token)
         index += 1
-    return merged + extra_tokens
+        # 与 _argv_parameters 同一口径：下一个 token 不是选项才视为本选项的取值。
+        # 无值开关（如 --unsafe-override）因此不会连带吞掉后面的选项，
+        # 新增无值开关时也无需维护名单。
+        if ("=" not in token and index < len(extra_tokens)
+                and _option_name(extra_tokens[index]) is None):
+            ignored.append(extra_tokens[index])
+            index += 1
+    return command + kept, ignored
 
 
 def _argv_parameters(argv: List[str]) -> Dict[str, Any]:
@@ -186,12 +206,14 @@ def build_agentx_command(
     api_key: Optional[str] = None, extra_args: Optional[str] = None,
     run_mode: str = "benchmark", duration: Optional[float] = None,
     trace_limit: Optional[int] = None, raw: bool = False,
+    ignored_out: Optional[List[str]] = None,
 ) -> List[str]:
     """唯一的真实/dry-run 命令生成器；benchmark 默认沿用 preset，显式 duration 透传。
 
     ``raw`` 为真时不要求基础参数齐全：url/model/语料全部由 ``extra_args`` 描述。
+    ``ignored_out`` 非空时收集因与 AISBench 生成项同名而被忽略的 extra 片段。
     """
-    command = list(agentx_bin) + ["profile", "--scenario", "agentx"]
+    command = list(agentx_bin) + ["profile"]
     if url:
         endpoint = resolve_endpoint(endpoint)
         command += ["--url", normalize_base_url(url, endpoint), "--endpoint", endpoint]
@@ -201,13 +223,18 @@ def build_agentx_command(
         "--concurrency", str(concurrency), "--output-artifact-dir", artifact_dir,
     ]
     if dataset_dir:
-        command += ["--hf-weka-dataset", dataset_dir, "--unsafe-override"]
+        # Harness 子进程的 cwd 是 work_dir，不是 AISBench 启动目录；路径必须先转绝对，
+        # 否则相对语料路径在子进程里会指向错误位置。
+        command += [
+            "--hf-weka-dataset", osp.abspath(osp.expanduser(dataset_dir)),
+            "--unsafe-override",
+        ]
     elif dataset_alias:
         command += ["--public-dataset", dataset_alias]
     elif not raw:
         raise ValueError("AgentX public dataset alias is required when dataset_dir is absent.")
     if tokenizer_path:
-        command += ["--tokenizer", osp.expanduser(tokenizer_path)]
+        command += ["--tokenizer", osp.abspath(osp.expanduser(tokenizer_path))]
         if tokenizer_trust_remote_code:
             command += ["--tokenizer-trust-remote-code"]
     if api_key:
@@ -220,7 +247,9 @@ def build_agentx_command(
         if trace_limit is not None:
             command += ["--num-dataset-entries", str(trace_limit)]
     if extra_args:
-        command = _apply_extra_args(command, _split_extra_args(extra_args))
+        command, ignored = _apply_extra_args(command, _split_extra_args(extra_args))
+        if ignored_out is not None:
+            ignored_out.extend(ignored)
     return command
 
 
@@ -492,6 +521,7 @@ class AgentXTask(BaseTask):
             run_dir = osp.abspath(osp.join(self.work_dir, "performances", run_id))
             logs_dir = osp.abspath(osp.join(self.work_dir, "logs", run_id))
             default_artifact_dir = osp.abspath(osp.join(run_dir, "agentx_raw"))
+            ignored_extra: List[str] = []
             command = build_agentx_command(
                 harness["entry"], url=self.model_cfg.get("url") or self.args.get("url"),
                 model=self.model_cfg.get("model") or "", endpoint=self.model_cfg.get("endpoint"),
@@ -502,10 +532,20 @@ class AgentXTask(BaseTask):
                 api_key=api_key, extra_args=self.args.get("extra_args"), run_mode=run_mode,
                 duration=duration, trace_limit=trace_limit,
                 raw=bool(self.args.get("raw_mode")),
+                ignored_out=ignored_extra,
             )
-            # 结果收集以最终命令里的 --output-artifact-dir 为准（extra args 可覆盖默认值）。
+            ignored_names = list(dict.fromkeys(
+                name for name in map(_option_name, ignored_extra) if name
+            ))
+            if ignored_names:
+                # 同名参数以 AISBench 生成为准；日志只记选项名，避免把取值里的密钥再打一遍。
+                self.logger.warning(
+                    "AgentX extra args ignored because AISBench already generated them: "
+                    + " ".join(ignored_names)
+                )
+            # 结果收集以最终命令里的 --output-artifact-dir 为准（由 AISBench 按档位生成）。
             parameters = _argv_parameters(command)
-            artifact_dir = self._effective_artifact_dir(parameters)
+            artifact_dir = self._effective_artifact_dir(parameters, self.work_dir)
             if clear_existing:
                 # reuse 采用覆盖语义：不删除目录，只清理上一轮结果文件，避免旧结果被当成本轮产物。
                 self._clear_previous_results(run_dir, artifact_dir)
@@ -529,12 +569,15 @@ class AgentXTask(BaseTask):
                 "manifest_path": osp.join(run_dir, "manifest.json"),
                 "harness": harness, "dataset": dataset, "api_key": api_key,
                 "parameters": parameters, "secrets": secrets,
+                "ignored_extra_args": ignored_extra,
             }
             atomic_write_json(plan["plan_path"], self._redacted_plan(plan))
             self._adapter_log(
                 plan,
                 f"prepared run_id={run_id} concurrency={concurrency} "
-                f"command={' '.join(redact_command(command))}",
+                f"command={' '.join(redact_command(command))}"
+                + (f" ignored_extra_args={' '.join(ignored_names)}"
+                   if ignored_names else ""),
             )
             plans.append(plan)
         return plans
@@ -553,6 +596,7 @@ class AgentXTask(BaseTask):
             "concurrency": plan["concurrency"], "cooldown": plan["cooldown"],
             "duration": plan["duration"], "trace_limit": plan["trace_limit"],
             "argv": redact_command(plan["argv"]),
+            "ignored_extra_args": redact_command(plan.get("ignored_extra_args") or []),
             "env": public_env, "cwd": plan["cwd"], "run_dir": plan["run_dir"],
             "artifact_dir": plan["artifact_dir"],
             "summary_path": plan["summary_path"], "summary_csv_path": plan["summary_csv_path"],
@@ -563,15 +607,21 @@ class AgentXTask(BaseTask):
         }
 
     @staticmethod
-    def _effective_artifact_dir(parameters: Dict[str, Any]) -> str:
-        """结果收集用最终命令里的 ``--output-artifact-dir``（extra args 覆盖后以此为准）。"""
+    def _effective_artifact_dir(parameters: Dict[str, Any], cwd: Optional[str] = None) -> str:
+        """结果收集用最终命令里的 ``--output-artifact-dir``。
+
+        相对路径按 Harness 子进程的工作目录（``cwd``）解析，与上游实际写盘位置保持一致。
+        """
         value = parameters.get("--output-artifact-dir")
         if not isinstance(value, str) or not value.strip():
             raise RuntimeError(
                 "AGENTX_COMMAND_INVALID: --output-artifact-dir is missing from the "
                 "final agentx command."
             )
-        return osp.abspath(osp.expanduser(value.strip()))
+        value = osp.expanduser(value.strip())
+        if not osp.isabs(value):
+            value = osp.join(cwd or os.getcwd(), value)
+        return osp.abspath(value)
 
     @staticmethod
     def _clear_previous_results(run_dir: str, artifact_dir: str) -> None:
@@ -635,6 +685,7 @@ class AgentXTask(BaseTask):
         """raw 模式的溯源信息全部取自最终命令的 ``--public-dataset`` / ``--hf-weka-dataset``。
 
         已知公共别名映射到内置 registry（variant/repo/revision/expected_sha256）；
+        未注册别名只记 `registered=False`，不允许按官方语料计分。
         本地目录只记录路径，不做哈希校验（raw 是直通模式，不额外读盘）。
         两者都没有时保持 ``source='raw'``，benchmark 会因 dataset_provenance_unverified 判无效。
         """
@@ -656,9 +707,12 @@ class AgentXTask(BaseTask):
             variant, spec = registry.get(alias, (None, None))
             base.update({"source": "public", "alias": alias, "provenance_origin": "--public-dataset"})
             if spec is None:
-                base["registry_alias"] = alias
+                # 未注册别名没有可核对的 variant/repo/revision/hash，不能计入官方口径，
+                # 由 normalize_agentx_result 判 dataset_alias_unregistered。
+                base["registered"] = False
             else:
                 base.update({
+                    "registered": True,
                     "variant": variant, "registry_alias": spec["alias"],
                     "repo": spec["hf_repo"], "revision": spec["hf_revision"],
                     "expected_sha256": spec["sha256"].lower(),
@@ -868,8 +922,6 @@ class AgentXTask(BaseTask):
         invalid_reasons = [primary_reason] if primary_reason else []
         all_invalid_reasons = list(validity.get("all_invalid_reasons") or [])
         redacted_argv = redact_command(plan["argv"])
-        # scenario 允许被 extra args 覆盖，记录最终命令里的真实值。
-        scenario = _argv_parameters(redacted_argv).get("--scenario") or AGENTX_SCENARIO
         return {
             "schema_version": MANIFEST_SCHEMA_VERSION,
             "run_id": plan["run_id"],
@@ -886,18 +938,18 @@ class AgentXTask(BaseTask):
                 "benchmark_id": f"{identity.get('model_abbr')}/{identity.get('dataset_abbr')}",
                 "command": harness.get("command") or redacted_argv,
                 "command_note": (
-                    "duration/seed/warmup 未显式覆盖时沿用 agentx scenario preset 默认口径"
-                    if scenario == AGENTX_SCENARIO else
-                    f"scenario={scenario} 由 extra args 覆盖；AISBench 仅透传与记录，"
-                    "汇总/有效性口径仍按 agentx 场景假定"
+                    "scenario 由 agentx 入口决定（未显式传入时默认 agentx）；"
+                    "duration/seed/warmup 未显式配置时沿用 scenario preset 默认口径"
                 ),
                 "started_at": run.get("start_time"),
                 "ended_at": run.get("end_time"),
             },
-            # 实际执行的 agentx 最终生效参数；extra args 覆盖后的值以这里为准。
+            # 实际执行的 agentx 最终生效参数；extra args 中与 AISBench 生成项同名的片段
+            # 不会生效，完整记录在 ignored_extra_args 中。
             "agentx_command": {
                 "parameters": _argv_parameters(redacted_argv),
                 "extra_args": redact_command(_split_extra_args(self.args.get("extra_args"))),
+                "ignored_extra_args": redact_command(plan.get("ignored_extra_args") or []),
             },
             "dataset": {
                 "abbr": identity.get("dataset_abbr"),
@@ -953,7 +1005,8 @@ class AgentXTask(BaseTask):
                             return source[key]
             return None
 
-        # 以 extra args 覆盖后的最终生效 argv 推导，保证与 agentx_command.parameters 一致；
+        # 以最终生效 argv 推导，保证与 agentx_command.parameters 一致
+        # （extra args 只补充 AISBench 未生成的参数）；
         # argv 未显式给出时回退上游 summary 报告的实际值，再回退 preset 默认。
         parameters = _argv_parameters(plan["argv"])
 
@@ -994,6 +1047,8 @@ class AgentXTask(BaseTask):
             "benchmark_duration_s": duration,
             "warmup_requests_per_lane": warmup,
             "random_seed": seed,
+            # 记录最终 argv 的真实取值；AISBench 不注入 --scenario，未显式传入时
+            # agentx 入口默认按 agentx 运行，这里同步记录该默认口径。
             "scenario": parameters.get("--scenario") or AGENTX_SCENARIO,
             "trace_limit": plan.get("trace_limit"),
         }
@@ -1106,8 +1161,13 @@ class AgentXTask(BaseTask):
         except (ProcessLookupError, PermissionError):
             pass
 
-    def _drain_stdout(self, process: subprocess.Popen, log_file, secrets: List[str]) -> None:
-        """非阻塞读取已到达的 stdout，避免取消/超时时丢掉管道缓冲的日志尾部。"""
+    def _drain_stdout(self, process: subprocess.Popen, log_file, secrets: List[str],
+                      timeout: float = 1.0) -> None:
+        """有界排空已就绪的 stdout，避免取消/超时时丢掉管道缓冲的日志尾部。
+
+        ``select`` 只表示管道里有字节，不保证有完整一行；因此按字节块读取并设总时限，
+        不使用可能阻塞的 ``readline()``。
+        """
         stream = process.stdout
         if stream is None:
             return
@@ -1115,20 +1175,31 @@ class AgentXTask(BaseTask):
             fd = stream.fileno()
         except (OSError, ValueError):
             return
-        while True:
+        chunks: List[bytes] = []
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
             try:
                 ready, _, _ = select.select([fd], [], [], 0.1)
             except (OSError, ValueError):
-                return
+                break
             if not ready:
-                return
-            line = stream.readline()
-            if not line:
-                return
-            safe_line = _screen_line(redact_text(line, secrets))
-            log_file.write(safe_line)
-            log_file.flush()
-            self.logger.info("%s", safe_line.rstrip())
+                break
+            try:
+                chunk = os.read(fd, 65536)
+            except BlockingIOError:
+                continue
+            except OSError:
+                break
+            if not chunk:
+                break
+            chunks.append(chunk)
+        if not chunks:
+            return
+        text = _screen_line(redact_text(b"".join(chunks).decode("utf-8", errors="replace"), secrets))
+        log_file.write(text)
+        log_file.flush()
+        for line in text.splitlines():
+            self.logger.info("%s", line)
 
     @staticmethod
     def _terminate(process: subprocess.Popen) -> int:
