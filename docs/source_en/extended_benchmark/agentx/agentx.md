@@ -57,7 +57,7 @@ To complete the agentic inference performance benchmarking capability of AISBenc
    2) (Optional) Deploy the AgentX environment with Docker
 
    Refer to the "Quick Start → Run an existing image" section of the [Image Overview](https://github.com/AISBench/benchmark/blob/master/docker/OVERVIEW.en.md) to start the AgentX container (the AgentX image includes both AISBench and the AgentX environment).
-2. Prepare the model service: an OpenAI-compatible Chat Completions endpoint. Adjust the model context window based on the test corpus; it must be at least 256K tokens. When deploying with `vllm`, set `--max-model-len`>=262144, and it is recommended to explicitly enable `--enable-prefix-caching` and `--enable-prompt-tokens-details`.
+2. Prepare the model service: an OpenAI-compatible Chat Completions endpoint. Adjust the model context window based on the test corpus; it must be at least 256K tokens. When deploying with `vllm`, set `--max-model-len` >= 262144, and it is recommended to explicitly enable `--enable-prefix-caching` and `--enable-prompt-tokens-details`.
 3. Prepare the tokenizer: the model weight directory must exist; it is passed to AgentX as `--tokenizer`.
 4. Prepare the corpus: if `--agentx-dataset-path` is not specified, AgentX downloads the public corpus automatically; in offline environments, pass the directory containing the local `traces.jsonl`.
 
@@ -79,7 +79,7 @@ ais_bench --mode agentx \
   --work-dir ./agentx_smoke
 ```
 
-In `smoke` mode, if `--agentx-duration` / `--agentx-trace-limit` are not specified explicitly, it runs for 60 seconds with 4 traces by default. Smoke results are always marked `comparison_scope=smoke`.
+- In `smoke` mode, if `--agentx-duration` / `--agentx-trace-limit` are not specified explicitly, it runs for 60 seconds with 4 traces by default. Smoke results are always marked `comparison_scope=smoke`.
 
 #### 2.2.2 Formal run
 
@@ -100,23 +100,7 @@ ais_bench --mode agentx \
   --work-dir ./agentx_bench
 ```
 
-The example above uses the official public corpus (downloaded by AgentX). For offline or custom corpora, append `--agentx-dataset-path`; in that case the comparison scope of valid results is `internal_only`.
-
-After the run, the terminal prints the execution conclusion for each level and a summary table:
-
-```text
-AgentX run_id=agentx_256k_batchsize_1 concurrency=1 status=completed parse=success valid=True scope=official_agentx manifest=...
-AgentX run_id=agentx_256k_batchsize_4 concurrency=4 status=completed parse=success valid=True scope=official_agentx manifest=...
-```
-
-```text
-+---------+----------------------+---------------+-----------+-----------------+-----------------+
-| model   | dataset              |   concurrency | status    | benchmark_valid | comparison_scope|
-+---------+----------------------+---------------+-----------+-----------------+-----------------+
-| qwen3.8 | ..._256k              |             1 | completed | True            | official_agentx |
-| qwen3.8 | ..._256k              |             4 | completed | True            | official_agentx |
-+---------+----------------------+---------------+-----------+-----------------+-----------------+
-```
+- The example above uses the official public corpus (downloaded by AgentX). For offline or custom corpora, append `--agentx-dataset-path`; in that case the comparison scope of valid results is `internal_only`.
 
 #### 2.2.3 Advanced configuration
 
@@ -136,8 +120,7 @@ ais_bench --mode agentx \
   --work-dir ./agentx_bench
 ```
 
-`--agentx-env` can be repeated in `KEY=VALUE` format and only affects the AgentX subprocess.
-
+- `--agentx-env` can be repeated in `KEY=VALUE` format and only affects the AgentX subprocess.
 - `--cooldown` controls the wait between levels: 5 seconds by default for multiple levels, while for a single level it waits only when explicitly specified.
 - The local corpus specified by `--agentx-dataset-path` has its `traces.jsonl` sha256 checked against the officially registered value in non-smoke mode; a mismatch fails immediately. Smoke runs continue and record the mismatch.
 
@@ -149,7 +132,7 @@ ais_bench --mode agentx ... \
   --agentx-extra-arg '{ --max-context-length 204800 --random-seed 0 --scenario agentx }'
 ```
 
-Arguments already composed by AISBench take precedence (`--url`, `--model`, `--concurrency`, `--output-artifact-dir`, corpus source, etc.); same-name fragments in extra args (including their values) are ignored and recorded in `agentx_command.ignored_extra_args`. `--scenario` is determined by extra args, and when absent it is recorded as the entry-point default `agentx`.
+- Arguments already composed by AISBench take precedence (`--url`, `--model`, `--concurrency`, `--output-artifact-dir`, corpus source, etc.); same-name fragments in extra args (including their values) are ignored and recorded in `agentx_command.ignored_extra_args`. `--scenario` is determined by extra args, and when absent it is recorded as the entry-point default `agentx`.
 
 **Emit the execution plan only**
 
@@ -157,7 +140,7 @@ Arguments already composed by AISBench take precedence (`--url`, `--model`, `--c
 ais_bench --mode agentx ... --dry-run
 ```
 
-`--dry-run` still performs argument validation, corpus hash verification, and AgentX environment probing, but does not start AgentX or access the model service; it only writes the redacted `execution_plan.redacted.json`.
+- `--dry-run` still performs argument validation, corpus hash verification, and AgentX environment probing, but does not start AgentX or access the model service; it only writes the redacted `execution_plan.redacted.json`.
 
 **Rerun in the same directory**
 
@@ -165,7 +148,7 @@ ais_bench --mode agentx ... --dry-run
 ais_bench --mode agentx ... --reuse --work-dir ./agentx_bench
 ```
 
-`--reuse` reuses the existing directory and only cleans up `manifest.json` and `profile_export*` that will be regenerated in this run; other files are kept. Without `--reuse`, a non-empty artifact directory fails immediately, preventing the previous run's results from being mistaken for this run's artifacts.
+- `--reuse` reuses the existing directory and only cleans up `manifest.json` and `profile_export*` that will be regenerated in this run; other files are kept. Without `--reuse`, a non-empty artifact directory fails immediately, preventing the previous run's results from being mistaken for this run's artifacts.
 
 **Fully custom command (agentx\_raw)**
 
@@ -176,7 +159,7 @@ ais_bench --mode agentx_raw \
   --agentx-extra-arg '{ --scenario agentx --url http://127.0.0.1:8000 --endpoint /v1/chat/completions --model qwen3.8 --concurrency 8 --public-dataset semianalysis_cc_traces_weka_062126_256k --benchmark-duration 900 }'
 ```
 
-Extra args only need to contain the options after `profile`; `agentx profile` is prepended by AISBench automatically.
+- Extra args only need to contain the options after `profile`; `agentx profile` is prepended by AISBench automatically.
 
 ### 2.3 Launching via a configuration file
 
@@ -224,7 +207,7 @@ work_dir = "outputs/agentx/"
 summarizer = dict(attr="agentx", type=AgentXSummarizer)
 ```
 
-When both the configuration file and CLI arguments are present, the CLI fields with the same name take precedence over the configuration file, and run-control arguments such as `--work-dir`, `--reuse`, and `--dry-run` also take effect as usual. Arguments not passed on the command line retain the values from the configuration file.
+- When both the configuration file and CLI arguments are present, the CLI fields with the same name take precedence over the configuration file, and run-control arguments such as `--work-dir`, `--reuse`, and `--dry-run` also take effect as usual. Arguments not passed on the command line retain the values from the configuration file.
 
 ### 2.4 Execution results
 

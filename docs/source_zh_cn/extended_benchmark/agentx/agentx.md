@@ -57,7 +57,7 @@ AgentX是面向真实智能体负载的性能压测工具。它以 Weka 采集�
    2）（可选）使用 Docker 部署 AgentX 环境
 
    参考[镜像概览](https://github.com/AISBench/benchmark/blob/master/docker/OVERVIEW.zh.md)的“快速开始 → 运行已有镜像”章节启动 AgentX 容器（AgentX 镜像已内置 AISBench 和 AgentX 环境）。
-2. 准备模型服务：OpenAI 兼容的 Chat Completions 接口。推理模型上下文窗口根据测试语料调整，至少为256K tokens。使用`vllm`部署模型时，需要设置`--max-model-len`>=262144，建议显示开启--enable-prefix-caching、--enable-prompt-tokens-details。
+2. 准备模型服务：OpenAI 兼容的 Chat Completions 接口。推理模型上下文窗口根据测试语料调整，至少为256K tokens。使用`vllm`部署模型时，需要设置`--max-model-len` >= 262144，建议显示开启`--enable-prefix-caching`、`--enable-prompt-tokens-details`。
 3. 准备 tokenizer：模型权重目录必须存在，会作为 `--tokenizer` 传给 AgentX。
 4. 准备语料：不传 `--agentx-dataset-path` 时由 AgentX 自动下载公共语料；离线环境请传本地 `traces.jsonl` 所在目录。
 
@@ -79,7 +79,7 @@ ais_bench --mode agentx \
   --work-dir ./agentx_smoke
 ```
 
-`smoke` 模式下未显式指定 `--agentx-duration` / `--agentx-trace-limit` 时，默认运行 60 秒、发 4 条 trace。冒烟结果统一标记 `comparison_scope=smoke`。
+- `smoke` 模式下未显式指定 `--agentx-duration` / `--agentx-trace-limit` 时，默认运行 60 秒、发 4 条 trace。冒烟结果统一标记 `comparison_scope=smoke`。
 
 #### 2.2.2 正式运行
 
@@ -100,23 +100,7 @@ ais_bench --mode agentx \
   --work-dir ./agentx_bench
 ```
 
-上例使用官方公共语料（由 AgentX 下载）；如需离线或自定义语料，追加 `--agentx-dataset-path`，此时有效结果的口径为 `internal_only`。
-
-运行结束后终端会打印每个档位的执行结论与汇总表：
-
-```text
-AgentX run_id=agentx_256k_batchsize_1 concurrency=1 status=completed parse=success valid=True scope=official_agentx manifest=...
-AgentX run_id=agentx_256k_batchsize_4 concurrency=4 status=completed parse=success valid=True scope=official_agentx manifest=...
-```
-
-```text
-+---------+----------------------+---------------+-----------+-----------------+-----------------+
-| model   | dataset              |   concurrency | status    | benchmark_valid | comparison_scope|
-+---------+----------------------+---------------+-----------+-----------------+-----------------+
-| qwen3.8 | ..._256k              |             1 | completed | True            | official_agentx |
-| qwen3.8 | ..._256k              |             4 | completed | True            | official_agentx |
-+---------+----------------------+---------------+-----------+-----------------+-----------------+
-```
+- 上例使用官方公共语料（由 AgentX 下载）；如需离线或自定义语料，追加 `--agentx-dataset-path`，此时有效结果的口径为 `internal_only`。
 
 #### 2.2.3 高级配置
 
@@ -136,8 +120,7 @@ ais_bench --mode agentx \
   --work-dir ./agentx_bench
 ```
 
-`--agentx-env` 可重复，`KEY=VALUE` 格式，只作用于 AgentX 子进程。
-
+- `--agentx-env` 可重复，`KEY=VALUE` 格式，只作用于 AgentX 子进程。
 - `--cooldown` 控制档间等待：多档默认 5 秒，单档只有显式传入才等待。
 - `--agentx-dataset-path` 指定的本地语料会在非 smoke 模式下校验 `traces.jsonl` 的 sha256 与官方登记值，不一致直接失败；smoke 允许继续并记录不一致。
 
@@ -149,7 +132,7 @@ ais_bench --mode agentx ... \
   --agentx-extra-arg '{ --max-context-length 204800 --random-seed 0 --scenario agentx }'
 ```
 
-AISBench 已生成的参数优先级更高（`--url`、`--model`、`--concurrency`、`--output-artifact-dir`、语料来源等），extra args 里的同名片段（含取值）会被忽略并记录到 `agentx_command.ignored_extra_args`。`--scenario` 由 extra args 决定，未传入时按入口默认值 `agentx` 记录。
+- AISBench 已生成的参数优先级更高（`--url`、`--model`、`--concurrency`、`--output-artifact-dir`、语料来源等），extra args 里的同名片段（含取值）会被忽略并记录到 `agentx_command.ignored_extra_args`。`--scenario` 由 extra args 决定，未传入时按入口默认值 `agentx` 记录。
 
 **只出执行计划**
 
@@ -157,7 +140,7 @@ AISBench 已生成的参数优先级更高（`--url`、`--model`、`--concurrenc
 ais_bench --mode agentx ... --dry-run
 ```
 
-`--dry-run` 仍执行参数校验、语料哈希校验与 AgentX 环境探测，但不启动 AgentX、不访问模型服务，只写脱敏后的 `execution_plan.redacted.json`。
+- `--dry-run` 仍执行参数校验、语料哈希校验与 AgentX 环境探测，但不启动 AgentX、不访问模型服务，只写脱敏后的 `execution_plan.redacted.json`。
 
 **复跑同一目录**
 
@@ -165,7 +148,7 @@ ais_bench --mode agentx ... --dry-run
 ais_bench --mode agentx ... --reuse --work-dir ./agentx_bench
 ```
 
-`--reuse` 复用已有目录，仅清理本轮会重新生成的 `manifest.json` 与 `profile_export*`，其余文件保留；不加 `--reuse` 且产物目录非空时直接报错，避免把上一轮结果当成本轮产物。
+- `--reuse` 复用已有目录，仅清理本轮会重新生成的 `manifest.json` 与 `profile_export*`，其余文件保留；不加 `--reuse` 且产物目录非空时直接报错，避免把上一轮结果当成本轮产物。
 
 **完全自定义命令（agentx\_raw）**
 
@@ -176,7 +159,7 @@ ais_bench --mode agentx_raw \
   --agentx-extra-arg '{ --scenario agentx --url http://127.0.0.1:8000 --endpoint /v1/chat/completions --model qwen3.8 --concurrency 8 --public-dataset semianalysis_cc_traces_weka_062126_256k --benchmark-duration 900 }'
 ```
 
-extra args 只需写 `profile` 之后的选项，`agentx profile` 由 AISBench 自动拼接。
+- extra args 只需写 `profile` 之后的选项，`agentx profile` 由 AISBench 自动拼接。
 
 ### 2.3 配置文件启动
 
@@ -224,7 +207,7 @@ work_dir = "outputs/agentx/"
 summarizer = dict(attr="agentx", type=AgentXSummarizer)
 ```
 
-当配置文件和CLI参数同时存在时，传入的CLI同名字段优先级高于配置文件，`--work-dir`、`--reuse`、`--dry-run` 等运行控制参数也照常生效。未在命令行传入的参数保持配置文件中的值。
+- 当配置文件和CLI参数同时存在时，传入的CLI同名字段优先级高于配置文件，`--work-dir`、`--reuse`、`--dry-run` 等运行控制参数也照常生效。未在命令行传入的参数保持配置文件中的值。
 
 ### 2.4 执行结果
 
