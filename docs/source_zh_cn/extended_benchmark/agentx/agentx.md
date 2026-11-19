@@ -1,6 +1,6 @@
 # AgentX Weka Trace数据集性能测评
 
-本文介绍如何在 AISBench 中通过 `--mode agentx` 评测 AgentX Weka Trace数据集，覆盖简介、快速入门与注意事项。参数全量说明见 [命令行参数](../../base_tutorials/all_params/cli_args.md)。
+本文介绍如何在 AISBench 中评测 AgentX Weka Trace数据集，覆盖简介、快速入门与注意事项。参数全量说明见 [命令行参数](../../base_tutorials/all_params/cli_args.md)。
 
 ## 1. 简介
 

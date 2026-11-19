@@ -1,6 +1,6 @@
 # AgentX Weka Trace Dataset Performance Benchmarking
 
-This document describes how to benchmark the AgentX Weka Trace dataset in AISBench with `--mode agentx`, covering the introduction, quick start, and notes. For the full parameter reference, see [CLI arguments](../../base_tutorials/all_params/cli_args.md).
+This document describes how to benchmark the AgentX Weka Trace dataset in AISBench, covering the introduction, quick start, and notes. For the full parameter reference, see [CLI arguments](../../base_tutorials/all_params/cli_args.md).
 
 ## 1. Introduction
 
