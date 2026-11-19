@@ -465,8 +465,7 @@ class ArgumentParser():
         """
         parser = self.parser.add_argument_group('api_model_args')
         parser.add_argument('--path', type=str, default=None,
-                            help='Path override for all API model configs. In '
-                            '--mode agentx, it is the model/tokenizer path')
+                            help='Path override for all API model configs')
         parser.add_argument('--model-name', type=str, default=None,
                             help='Model name override. Written to the `model` or `model_name` '
                             'field depending on the model type. Named --model-name to avoid '

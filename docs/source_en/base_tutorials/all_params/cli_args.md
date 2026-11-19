@@ -10,14 +10,15 @@ ais_bench [OPTIONS]
 ```
 
 ### Parameter Description
-Based on the execution scenario, command line parameters are divided into five categories:
+Based on the execution scenario, command line parameters are divided into six categories:
 - Common Parameters
 - Accuracy Evaluation Parameters (effective only when `--mode` is set to `all`, `infer`, `eval`, or `viz`)
 - Performance Evaluation Parameters (effective only when `--mode` is set to `perf` or `perf_viz`)
 - Agent Evaluation Parameters (effective only when `--mode` is set to `agent` or `agent_viz`)
+- AgentX Evaluation Parameters (effective only when `--mode` is set to `agentx` or `agentx_raw`)
 - Random Synthetic Dataset Parameters (effective only when `--datasets` specifies a random synthetic dataset)
 
-`Accuracy Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"all", "infer", "eval", "viz"`. `Performance Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"perf", "perf_viz"`. `Agent Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"agent", "agent_viz"`. `Random Synthetic Dataset Parameters` take effect only when `--datasets` specifies a random synthetic dataset (such as `synthetic_gen_tokenid`, `synthetic_gen_string`). `Common Parameters` are not restricted by the task execution mode and can be specified in all modes.
+`Accuracy Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"all", "infer", "eval", "viz"`. `Performance Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"perf", "perf_viz"`. `Agent Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"agent", "agent_viz"`. `AgentX Evaluation Parameters` take effect only when the `--mode` parameter is specified as `"agentx", "agentx_raw"`. `Random Synthetic Dataset Parameters` take effect only when `--datasets` specifies a random synthetic dataset (such as `synthetic_gen_tokenid`, `synthetic_gen_string`). `Common Parameters` are not restricted by the task execution mode and can be specified in all modes.
 
 ### Common Parameters
 Applicable to all modes and can be used in combination with accuracy or performance parameters.
@@ -28,7 +29,7 @@ Applicable to all modes and can be used in combination with accuracy or performa
 | `--models` | Specifies the name of the model inference backend task (corresponding to a pre-implemented default model configuration file under the path `ais_bench/benchmark/configs/models`). Multiple task names are supported. For details, refer to 📚 [Supported Models](./models.md).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--models vllm_api_general`  |
 | `--datasets` | Specifies the name of the dataset task (corresponding to a pre-implemented default dataset configuration file under the path `ais_bench/benchmark/configs/datasets`). Multiple dataset names are supported. For details, refer to 📚 [Supported Dataset Types](../../get_started/datasets.md#supported-dataset-types).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--datasets gsm8k_gen`    |
 | `--summarizer` | Specifies the name of the result summary task (corresponding to a pre-implemented default configuration file under the path `ais_bench/benchmark/configs/summarizers`). For details, refer to 📚 [Supported Result Summary Tasks](./summarizer.md).<br> ⚠️ **Note**: This parameter is invalid when a custom configuration file path is specified. | `--summarizer medium`|
-| `--mode` or `-m` | Running mode, optional values: `all`, `infer`, `eval`, `viz`, `perf`, `perf_viz`, `agent`, `agent_viz`; default value is `all`.<br>For details, refer to 📚 [Running Mode Description](./mode.md). | `--mode infer`<br>`-m all`|
+| `--mode` or `-m` | Running mode, optional values: `all`, `infer`, `eval`, `viz`, `perf`, `perf_viz`, `agent`, `agent_viz`, `agentx`, `agentx_raw`; default value is `all`.<br>For details, refer to 📚 [Running Mode Description](./mode.md). | `--mode infer`<br>`-m all`|
 | `--reuse` or `-r`       | Specifies the timestamp in an existing working directory to continue execution and overwrite original results. Used in conjunction with the `--mode` parameter, it can resume interrupted inference, or perform accuracy calculation/visualization result printing based on existing inference results. If no parameter is added, the latest timestamp in the `--work-dir` is automatically selected. | `--reuse 20250126_144254`<br>`-r 20250126_144254` |
 | `--work-dir` or `-w`    | Specifies the evaluation working directory for saving output results. Default path: `outputs/default`.                                                                                                       | `--work-dir /path/to/work`<br>`-w /path/to/work` |
 | `--config-dir`          | Path to the folder where configuration files for `models`, `datasets`, and `summarizers` are stored. Default path: `ais_bench/benchmark/configs`.                                                          | `--config-dir /xxx/xxx`          |
@@ -139,6 +140,28 @@ These parameters override configuration fields of **random synthetic datasets**.
 | `--dataset-abbr` | Overrides the dataset `abbr` (unique identifier of the dataset in the evaluation task) | `--dataset-abbr my-synth` |
 
 > ⚠️ **Note**: `--tokenid-config-*` can be used only with `--datasets synthetic_gen_tokenid`, and `--string-config-*` only with `--datasets synthetic_gen_string`; a type mismatch fails before startup. Use `--request-count` to adjust the total number of requests of any random synthetic dataset.
+
+### AgentX Evaluation Parameters
+
+These parameters take effect only when `--mode agentx` or `--mode agentx_raw` is set. In `agentx` mode, AISBench composes the complete Harness command; `agentx_raw` only requires `--agentx-extra-arg`, and the complete command is described by that argument. For detailed usage, see 📚 [AgentX Weka Trace Dataset Performance Benchmarking](../../extended_benchmark/agentx/agentx.md).
+
+| Parameter | Description | Example |
+| ---- | ---- | ---- |
+| `--endpoint` | Chat Completions endpoint path, default `/v1/chat/completions` | `--endpoint /v1/chat/completions` |
+| `--agentx-dataset-variant` | Corpus version: `full` or `256k`; required in `agentx` mode, and no longer inferred from the model name | `--agentx-dataset-variant 256k` |
+| `--agentx-dataset-path` | Local Weka trace directory (containing `traces.jsonl`); if not specified, the public dataset downloaded by the Harness is used | `--agentx-dataset-path /data/cc-traces-256k` |
+| `--agentx-run-mode` | Run scope: `benchmark` keeps the official preset; `smoke` allows short runs whose results are not formal conclusions | `--agentx-run-mode smoke` |
+| `--agentx-duration` | Profiling duration in seconds, mapped to `--benchmark-duration`; benchmark requires >=900 (default 3600), smoke defaults to 60 | `--agentx-duration 900` |
+| `--agentx-trace-limit` | Limits the number of traces available for sending, mapped to `--num-dataset-entries`; available only in smoke mode, default 4 | `--agentx-trace-limit 8` |
+| `--agentx-python` | Path to the interpreter with `agentx-harness` installed | `--agentx-python /opt/venvs/agentx/bin/python` |
+| `--agentx-bin` | Path to the agentx executable; by default it is looked up in the same directory as `--agentx-python` | `--agentx-bin /opt/venvs/agentx/bin/agentx` |
+| `--agentx-env` | Extra environment variables passed to the Harness subprocess, in `KEY=VALUE` format | `--agentx-env VLLM_LOGGING_LEVEL=WARNING` |
+| `--agentx-extra-arg` | Raw arguments appended to the end of `agentx profile`; when they conflict with same-name arguments generated by AISBench, AISBench takes precedence; required in `agentx_raw` mode, where it must describe the complete command | `--agentx-extra-arg '{ --random-seed 0 }'` |
+
+> ⚠️ **Note**:
+> - `agentx` mode requires `--url`, `--model-name`, `--path`, and `--agentx-dataset-variant`.
+> - `agentx_raw` accepts only the four subprocess parameters `--agentx-python`, `--agentx-bin`, `--agentx-env`, and `--agentx-extra-arg`, plus run-control parameters such as `--work-dir`, `--reuse`, `--dry-run`, and `--debug`; `--batch-size`, `--url`, `--api-key`, `--agentx-duration`, `--agentx-run-mode`, etc. fail immediately.
+> - Wrap the whole value of `--agentx-extra-arg` in single quotes; otherwise fragments such as `--api-key=...` inside it are parsed as AISBench's own arguments and leave values missing.
 
 ## Configuration Constant File Parameters
 Some global constants are not restricted by task type, and it is recommended to keep their default values. If customization is required, edit the constant file: [`global_consts.py`](https://github.com/AISBench/benchmark/tree/master/ais_bench/benchmark/global_consts.py) for configuration.
