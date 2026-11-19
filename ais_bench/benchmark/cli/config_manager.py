@@ -1,5 +1,7 @@
+import copy
 import os
 import os.path as osp
+import re
 import inspect
 import json
 import tabulate
@@ -10,13 +12,19 @@ from ais_bench.benchmark.utils.logging.error_codes import TMAN_CODES
 from ais_bench.benchmark.utils.file import match_cfg_file
 from ais_bench.benchmark.utils.config.run import try_fill_in_custom_cfgs
 from ais_bench.benchmark.utils.logging.exceptions import CommandError, AISBenchConfigError
-from ais_bench.benchmark.cli.utils import fill_model_path_if_datasets_need, fill_test_range_use_num_prompts, recur_convert_config_type
+from ais_bench.benchmark.cli.utils import (
+    fill_model_path_if_datasets_need,
+    fill_test_range_use_num_prompts,
+    recur_convert_config_type,
+)
 from ais_bench.benchmark.utils.response_anomaly import ResponseAnomalyCoordinator
 from ais_bench.benchmark.utils.perf_manifest import MANIFEST_FILENAME
 from ais_bench.benchmark.cli.sweep import (
     _normalize_sweep_arg,
     expand_sweep_combinations,
 )
+from ais_bench.benchmark.tasks.custom_tasks.agentx_result import redact_text
+from ais_bench.benchmark.tasks.custom_tasks.agentx_spec import extra_arg_value, validate_agentx_args
 
 RESPONSE_ANOMALY_TOP_LOGPROBS = 20
 
@@ -128,6 +136,9 @@ class ConfigManager:
 
     def _expand_sweep_configs(self):
         """按 `--batch-size`/`--num-prompts` 展开多组合配置并落盘 manifest。"""
+        if self.args.mode in ('agentx', 'agentx_raw'):
+            # AgentX 不参与普通 perf 组合展开；多档并发由 AgentXTask 逐档串行执行。
+            return
         cli_args = self.cfg.get('cli_args') or {}
         result = expand_sweep_combinations(
             self.cfg.get('models') or [],
@@ -139,7 +150,7 @@ class ConfigManager:
         self.cfg['datasets'] = result.datasets
         if result.combinations:
             self.cfg['model_dataset_combinations'] = result.combinations
-        if result.sweep_cooldown_s:
+        if result.sweep_cooldown_s is not None:
             self.cfg['sweep_cooldown_s'] = result.sweep_cooldown_s
         if result.manifest is not None:
             self._write_manifest(result.manifest)
@@ -717,6 +728,14 @@ class ConfigManager:
         self.table.append(["--summarizer", s[0], os.path.abspath(s[1])])
 
     def _get_config_from_arg(self):
+        if self.args.mode in ('agentx', 'agentx_raw') and self.args.reuse and self.args.dry_run:
+            # reuse 要重跑并覆盖产物，dry-run 要求零写入；组合只会得到空 workflow 并静默退出。
+            raise AISBenchConfigError(
+                TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+                '--reuse cannot be combined with --dry-run in agentx/agentx_raw mode.'
+            )
+        if not self.args.config and self.args.mode in ('agentx', 'agentx_raw'):
+            return self._build_agentx_config_from_cli()
         if self.args.config:
             try:
                 config = Config.fromfile(self.args.config, format_python_code=False)
@@ -725,8 +744,12 @@ class ConfigManager:
             config = try_fill_in_custom_cfgs(config)
             CustomConfigChecker(config, self.args.config).check()
             config.merge_from_dict(dict(cli_args = vars(self.args)))
-            if config.get('models'):
+            if config.get('models') and self.args.mode not in ('agentx', 'agentx_raw'):
                 self._apply_cli_api_model_overrides(config['models'])
+            # AgentX 的模型/分词器目录统一放在 model 配置的 path 字段；
+            # 配置文件里没有该字段时，也允许用 --path / --trust-remote-code 注入。
+            if self.args.mode in ('agentx', 'agentx_raw'):
+                self._apply_agentx_cli_overrides(config)
             return config
 
         models = self._load_models_config()
@@ -742,6 +765,199 @@ class ConfigManager:
             ),
             format_python_code=False,
         )
+
+    def _build_agentx_config_from_cli(self):
+        """无配置文件时，按 ``--mode agentx/agentx_raw`` 的命令行参数构造内存配置。
+
+        只服务 AgentX：模型来自 ``--url/--endpoint/--model-name/--path``，
+        数据集参数来自 ``--batch-size/--agentx-*``。时长、warmup、seed 不下发，
+        保持 ``agentx`` 预设的榜单口径。``agentx_raw`` 只要求 ``--agentx-extra-arg``，
+        完整 Harness 命令由该参数描述。
+        """
+        args = self.args
+        models = []
+        datasets = []
+
+        if args.mode in ('agentx', 'agentx_raw'):
+            raw_mode = args.mode == 'agentx_raw'
+            if raw_mode:
+                if not args.agentx_extra_arg:
+                    raise AISBenchConfigError(
+                        TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+                        '--mode agentx_raw requires --agentx-extra-arg describing '
+                        'the whole agentx command.'
+                    )
+            else:
+                # --reuse 只影响产物目录（沿用已有时间戳目录并覆盖原结果），
+                # 仍按正常启动参数构造配置并重新执行 Harness。
+                missing = [
+                    flag for flag, value in (
+                        ('--url', args.url),
+                        ('--model-name', args.model_name),
+                        ('--path', args.path),
+                        ('--agentx-dataset-variant', args.agentx_dataset_variant),
+                    ) if not value
+                ]
+                if missing:
+                    raise AISBenchConfigError(
+                        TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+                        f"--mode agentx without a config file requires {', '.join(missing)}."
+                    )
+            # agentx 的并发档位用 --batch-size 表达（缺省 1），多档由 AgentXTask 逐档
+            # 串行执行，每档独立 Harness 进程和输出目录。
+            # agentx_raw 不接受 --batch-size（见 AGENTX_RAW_ALLOWED_DESTS），并发档位只能
+            # 按 extra args 里的 --concurrency 反推，缺省 1。
+            if raw_mode:
+                concurrency = 1
+                extra_concurrency = extra_arg_value(args.agentx_extra_arg, '--concurrency')
+                try:
+                    concurrency = int(extra_concurrency) if extra_concurrency else 1
+                except (TypeError, ValueError):
+                    concurrency = 1
+            else:
+                concurrency = args.batch_size if args.batch_size is not None else 1
+
+            model_cfg = dict(abbr=args.model_abbr or args.model_name or 'agentx-raw')
+            if args.model_name:
+                model_cfg['model'] = args.model_name
+            if args.url:
+                model_cfg['url'] = args.url
+            if args.api_key:
+                model_cfg['api_key'] = args.api_key
+            if args.path:
+                model_cfg['path'] = args.path
+            if args.trust_remote_code is not None:
+                model_cfg['trust_remote_code'] = args.trust_remote_code
+
+            if args.endpoint is not None:
+                model_cfg['endpoint'] = args.endpoint
+
+            dataset_args = dict(
+                concurrency=concurrency,
+                cooldown=args.cooldown,
+                run_mode=args.agentx_run_mode,
+                duration=args.agentx_duration,
+                trace_limit=args.agentx_trace_limit,
+                variant=args.agentx_dataset_variant,
+                dataset_path=args.agentx_dataset_path,
+                agentx_python=args.agentx_python,
+                agentx_bin=args.agentx_bin,
+                api_key=args.api_key,
+                extra_args=args.agentx_extra_arg,
+                env=self._parse_agentx_env(args.agentx_env),
+            )
+            # 去掉未显式指定的项，让任务侧走各自的默认值
+            dataset_args = {
+                key: value for key, value in dataset_args.items()
+                if value not in (None, [], {})
+            }
+            if raw_mode:
+                dataset_args['raw_mode'] = True
+
+            # 与配置文件路径共用同一套校验，避免两处规则漂移
+            try:
+                validate_agentx_args(model_cfg, dataset_args)
+            except (ValueError, FileNotFoundError) as exc:
+                raise AISBenchConfigError(
+                    TMAN_CODES.INVALID_ARG_VALUE_IN_CMD, str(exc)
+                ) from exc
+
+            models.append(model_cfg)
+            datasets.append(
+                dict(
+                    abbr=args.dataset_abbr or 'agentx-weka-trace',
+                    args=dataset_args,
+                )
+            )
+
+        return Config(
+            dict(
+                models=models,
+                datasets=datasets,
+                summarizer={},
+                cli_args=vars(args),
+            ),
+            format_python_code=False,
+        )
+
+    def _apply_agentx_cli_overrides(self, config):
+        """配置文件与纯 CLI 共用显式覆盖规则和启动前校验。
+
+        CLI 显式值覆盖配置值，未给的参数保持配置值；``cooldown`` 例外，只认
+        ``--cooldown``（缺省 None，由 ``resolve_cooldown`` 回落 5 秒）。
+        """
+        models = config.get('models') or []
+        datasets = config.get('datasets') or []
+        if len(models) != 1 or len(datasets) != 1:
+            raise AISBenchConfigError(
+                TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+                'AgentX requires exactly one model and one dataset per run.',
+            )
+        model = models[0]
+        for cli_name, field in (
+            ('model_name', 'model'), ('url', 'url'), ('path', 'path'),
+            ('endpoint', 'endpoint'),
+            ('api_key', 'api_key'), ('trust_remote_code', 'trust_remote_code'),
+            ('model_abbr', 'abbr'),
+        ):
+            value = getattr(self.args, cli_name, None)
+            if value is not None:
+                model[field] = value
+        if self.args.dataset_abbr is not None:
+            datasets[0]['abbr'] = self.args.dataset_abbr
+        dataset_args = dict(datasets[0].get('args') or {})
+        if self.args.mode == 'agentx_raw':
+            if not getattr(self.args, 'agentx_extra_arg', None):
+                raise AISBenchConfigError(
+                    TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+                    '--mode agentx_raw requires --agentx-extra-arg describing '
+                    'the whole agentx command.'
+                )
+            dataset_args['raw_mode'] = True
+        mapping = {
+            'batch_size': 'concurrency',
+            'agentx_run_mode': 'run_mode',
+            'agentx_duration': 'duration',
+            'agentx_trace_limit': 'trace_limit',
+            'agentx_dataset_variant': 'variant',
+            'agentx_dataset_path': 'dataset_path',
+            'agentx_python': 'agentx_python',
+            'agentx_bin': 'agentx_bin',
+            'api_key': 'api_key',
+        }
+        for cli_name, field in mapping.items():
+            value = getattr(self.args, cli_name, None)
+            if value is not None:
+                dataset_args[field] = value
+        # 配置文件里没有 cooldown 字段，任务间等待只由 --cooldown 决定；
+        # 未显式传入时写 None，最终由 resolve_cooldown 回落 5 秒。
+        dataset_args['cooldown'] = self.args.cooldown
+        if getattr(self.args, 'agentx_extra_arg', None):
+            dataset_args['extra_args'] = self.args.agentx_extra_arg
+        if getattr(self.args, 'agentx_env', None):
+            # 按键合并配置文件里的 env：CLI 同名键覆盖，未指定的键保留配置值
+            dataset_args['env'] = {
+                **(dataset_args.get('env') or {}),
+                **self._parse_agentx_env(self.args.agentx_env),
+            }
+        datasets[0]['args'] = dataset_args
+        try:
+            validate_agentx_args(model, dataset_args)
+        except (ValueError, FileNotFoundError) as exc:
+            raise AISBenchConfigError(TMAN_CODES.INVALID_ARG_VALUE_IN_CMD, str(exc)) from exc
+
+    @staticmethod
+    def _parse_agentx_env(items):
+        env = {}
+        for item in items or []:
+            key, sep, value = str(item).partition('=')
+            if not sep or not key:
+                raise AISBenchConfigError(
+                    TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+                    f"`--agentx-env` expects KEY=VALUE, got {item!r}."
+                )
+            env[key] = value
+        return env
 
     def _load_datasets_config(self):
         datasets = []
@@ -970,13 +1186,94 @@ class ConfigManager:
         for work in workflow:
             self.cfg = work.update_cfg(self.cfg)
 
+    @staticmethod
+    def _agentx_secret_key(key):
+        lowered = str(key).lower()
+        return any(word in lowered for word in (
+            'key', 'token', 'secret', 'password', 'credential', 'authorization',
+        ))
+
+    _AGENTX_SECRET_ARG_RE = re.compile(
+        r'(--[A-Za-z0-9_-]*(?:api[-_]?key|token|secret|password|credential|authorization)'
+        r'[A-Za-z0-9_-]*)(=|\s+)(\S+)',
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _redact_secret_argv_text(cls, text):
+        # 透传参数串（--agentx-extra-arg / 数据集 extra_args）里的敏感选项值同样要脱敏，
+        # 否则会以明文写进 configs/<时间戳>_<pid>.py 快照。
+        redacted = cls._AGENTX_SECRET_ARG_RE.sub(
+            lambda match: match.group(1) + match.group(2) + '<redacted>', str(text)
+        )
+        # --header/-H 里的 Authorization、X-Api-Key 等不命中上面的选项名规则，
+        # 复用 console 日志同一条 header 规则补齐。
+        return redact_text(redacted, [])
+
+    def _redact_agentx_snapshot(self, cfg):
+        cli_args = cfg.get('cli_args') or {}
+        if cli_args.get('api_key') is not None:
+            cli_args['api_key'] = '<redacted>'
+        if cli_args.get('agentx_extra_arg') is not None:
+            cli_args['agentx_extra_arg'] = self._redact_secret_argv_text(
+                cli_args['agentx_extra_arg']
+            )
+        if cli_args.get('agentx_env'):
+            redacted_items = []
+            for item in cli_args['agentx_env']:
+                key, sep, value = str(item).partition('=')
+                redacted_items.append(key + sep + ('<redacted>' if self._agentx_secret_key(key) else value))
+            cli_args['agentx_env'] = redacted_items
+        for model in cfg.get('models') or []:
+            if model.get('api_key') is not None:
+                model['api_key'] = '<redacted>'
+        for dataset in cfg.get('datasets') or []:
+            dataset_args = dataset.get('args') or {}
+            if dataset_args.get('api_key') is not None:
+                dataset_args['api_key'] = '<redacted>'
+            env = dataset_args.get('env') or {}
+            for key in env:
+                if self._agentx_secret_key(key):
+                    env[key] = '<redacted>'
+            if dataset_args.get('extra_args') is not None:
+                dataset_args['extra_args'] = self._redact_secret_argv_text(
+                    dataset_args['extra_args']
+                )
+
+    def _restore_agentx_secrets(self, original, restored):
+        original_cli = original.get('cli_args') or {}
+        restored_cli = restored.get('cli_args') or {}
+        if original_cli.get('api_key') is not None:
+            restored_cli['api_key'] = original_cli['api_key']
+        if original_cli.get('agentx_env') is not None:
+            restored_cli['agentx_env'] = original_cli['agentx_env']
+        if original_cli.get('agentx_extra_arg') is not None:
+            restored_cli['agentx_extra_arg'] = original_cli['agentx_extra_arg']
+        for source, target in zip(original.get('models') or [], restored.get('models') or []):
+            if source.get('api_key') is not None:
+                target['api_key'] = source['api_key']
+        for source, target in zip(original.get('datasets') or [], restored.get('datasets') or []):
+            source_args = source.get('args') or {}
+            target_args = target.get('args') or {}
+            if source_args.get('api_key') is not None:
+                target_args['api_key'] = source_args['api_key']
+            if source_args.get('env') is not None:
+                target_args['env'] = source_args['env']
+            if source_args.get('extra_args') is not None:
+                target_args['extra_args'] = source_args['extra_args']
+
     def _dump_and_reload_config(self):
         # dump config
         output_config_path = osp.join(self.cfg.work_dir, 'configs',
                                     f'{self.cfg_time_str}_{os.getpid()}.py')
 
-        recur_convert_config_type(self.cfg)
-        self.cfg.dump(output_config_path)
+        is_agentx = self.args.mode in ('agentx', 'agentx_raw')
+        original_cfg = copy.deepcopy(self.cfg) if is_agentx else None
+        dump_cfg = copy.deepcopy(self.cfg) if is_agentx else self.cfg
+        if is_agentx:
+            self._redact_agentx_snapshot(dump_cfg)
+        recur_convert_config_type(dump_cfg)
+        dump_cfg.dump(output_config_path)
         # eval nums set：仅做合法性校验；多档条数由各组合的 test_range 与 manifest 承载
         num_prompts = _normalize_sweep_arg(self.args.num_prompts)
         if isinstance(num_prompts, int) and num_prompts <= 0:
@@ -985,5 +1282,7 @@ class ConfigManager:
         # types cannot be serialized
         try:
             self.cfg = Config.fromfile(output_config_path, format_python_code=False)
+            if is_agentx:
+                self._restore_agentx_secrets(original_cfg, self.cfg)
         except BaseException as e:
             raise AISBenchConfigError(TMAN_CODES.INVAILD_SYNTAX_IN_CFG_CONTENT, f'Config file {output_config_path} contain invaild syntax: {e}')

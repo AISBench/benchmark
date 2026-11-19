@@ -1,0 +1,46 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ARG AGENTX_PYTHON=python3.12
+
+# 部分依赖（如 crick）在 aarch64 上没有预编译 wheel，需要本地编译。openEuler 基础镜像
+# 自带 gcc 与 binutils，Ubuntu 运行镜像都没有；且 Ubuntu 的 Python sysconfig 里 CC 是带
+# 三元组前缀的交叉工具链名（amd64: x86_64-linux-gnu-gcc，arm64: aarch64-linux-gnu-gcc），
+# 因此要装对应的 gcc-<triplet>-linux-gnu 包；编译器还需要 binutils 提供 as/ld。
+RUN if ! command -v gcc > /dev/null 2>&1; then \
+        if command -v apt-get > /dev/null 2>&1; then \
+            ARCH=$(uname -m) && \
+            case "${ARCH}" in \
+                x86_64) TRIPLET="x86_64-linux-gnu" ;; \
+                aarch64) TRIPLET="aarch64-linux-gnu" ;; \
+                *) echo "不支持的架构：${ARCH}" >&2; exit 1 ;; \
+            esac && \
+            apt-get update && \
+            apt-get install -y --no-install-recommends "gcc-${TRIPLET}" binutils && \
+            rm -rf /var/lib/apt/lists/*; \
+        elif command -v dnf > /dev/null 2>&1; then \
+            dnf install -y gcc binutils && \
+            dnf clean all; \
+        else \
+            echo "未找到可用的包管理器，无法安装 gcc" >&2; exit 1; \
+        fi; \
+    fi
+
+RUN case "${AGENTX_PYTHON}" in \
+        python3.11|python3.12) ;; \
+        *) echo "AGENTX_PYTHON must be python3.11 or python3.12" >&2; exit 1 ;; \
+    esac && \
+    ${AGENTX_PYTHON} -m venv /opt/venvs/agentx113 && \
+    /opt/venvs/agentx113/bin/python -m pip install --no-cache-dir \
+        -r /benchmark/requirements/agentx.txt \
+        -i https://repo.huaweicloud.com/repository/pypi/simple \
+        --trusted-host repo.huaweicloud.com \
+        --use-pep517 && \
+    /opt/venvs/agentx113/bin/python -m pip check && \
+    /opt/venvs/agentx113/bin/python -c "import importlib.metadata as m,sys; assert sys.version_info[:2] in ((3,11),(3,12),(3,13)); assert m.version('agentx-harness')=='1.0.13'; assert not any((d.metadata.get('Name') or '').lower()=='aiperf' for d in m.distributions())" && \
+    /opt/venvs/agentx113/bin/agentx --help > /dev/null && \
+    ${AGENTX_PYTHON} -c "import ais_bench,importlib.metadata as m; assert not any((d.metadata.get('Name') or '').lower()=='agentx-harness' for d in m.distributions())"
+
+ENV AISBENCH_AGENTX_PYTHON=/opt/venvs/agentx113/bin/python
+
+WORKDIR /benchmark
