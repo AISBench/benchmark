@@ -800,15 +800,21 @@ class TestAgentXTaskLifecycle(AgentXTaskTestBase):
         old_summary = artifact_dir / "profile_export_aiperf.json"
         old_summary.write_text("{}", encoding="utf-8")
         task = self._reuse_raw_task()
+        completed = {
+            "run": {
+                "status": "completed", "parse_status": "success",
+                "benchmark_valid": True, "comparison_scope": "internal_only",
+            },
+            "artifacts": {"harness_log": "agentx_stdout.log"},
+        }
         with mock.patch(
             "ais_bench.benchmark.tasks.custom_tasks.agentx_task.resolve_harness_python",
             return_value="python",
         ), mock.patch(
             "ais_bench.benchmark.tasks.custom_tasks.agentx_task.probe_harness_environment",
             return_value=self.harness_metadata(),
-        ):
-            plan = task._prepare()[0]
-        self.assertEqual(plan["artifact_dir"], osp.abspath(str(artifact_dir)))
+        ), mock.patch.object(task, "_execute_plan", return_value=completed):
+            task.run()
         self.assertTrue(artifact_dir.is_dir())
         self.assertTrue(keep.exists())
         self.assertFalse(old_summary.exists())

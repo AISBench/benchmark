@@ -509,20 +509,21 @@ class TestAgentXLifecycle(unittest.TestCase):
     def test_run_failure_is_raised_after_viz(self):
         events = []
 
-        class AgentXRun:
-            response_anomaly_coordinator = None
-
+        # 必须继承真实的 AgentXRun：WorkFlowExecutor 通过 isinstance 判断
+        # 是否延后抛错，普通伪类会让异常立即抛出、AgentXViz 不会执行。
+        class FailingAgentXRun(AgentXRun):
             def do_work(self, cfg):
                 events.append("run")
                 raise RuntimeError("harness failed")
 
-        class AgentXViz:
-            response_anomaly_coordinator = None
-
+        class RecordingAgentXViz(AgentXViz):
             def do_work(self, cfg):
                 events.append("viz")
 
-        executor = WorkFlowExecutor(ConfigDict({"work_dir": "unused"}), [AgentXRun(), AgentXViz()])
+        executor = WorkFlowExecutor(
+            ConfigDict({"work_dir": "unused"}),
+            [FailingAgentXRun(SimpleNamespace()), RecordingAgentXViz(SimpleNamespace())],
+        )
         with self.assertRaisesRegex(RuntimeError, "harness failed"):
             executor.execute()
         self.assertEqual(events, ["run", "viz"])
