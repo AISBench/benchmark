@@ -3,35 +3,34 @@ FROM ${BASE_IMAGE}
 
 ARG AGENTX_PYTHON=python3.12
 
-# 部分依赖（如 crick）在 aarch64 上没有预编译 wheel，需要本地编译。openEuler 基础镜像
-# 自带 gcc 与 binutils，Ubuntu 运行镜像都没有；且 Ubuntu 的 Python sysconfig 里 CC 是带
-# 三元组前缀的交叉工具链名（amd64: x86_64-linux-gnu-gcc，arm64: aarch64-linux-gnu-gcc），
-# 因此要装对应的 gcc-<triplet>-linux-gnu 包；编译器还需要 binutils 提供 as/ld。
-RUN if ! command -v gcc > /dev/null 2>&1; then \
-        if command -v apt-get > /dev/null 2>&1; then \
-            ARCH=$(uname -m) && \
-            case "${ARCH}" in \
-                x86_64) TRIPLET="x86_64-linux-gnu" ;; \
-                aarch64) TRIPLET="aarch64-linux-gnu" ;; \
-                *) echo "不支持的架构：${ARCH}" >&2; exit 1 ;; \
-            esac && \
-            apt-get update && \
-            apt-get install -y --no-install-recommends "gcc-${TRIPLET}" binutils && \
-            rm -rf /var/lib/apt/lists/*; \
-        elif command -v dnf > /dev/null 2>&1; then \
-            dnf install -y gcc binutils && \
-            dnf clean all; \
-        else \
-            echo "未找到可用的包管理器，无法安装 gcc" >&2; exit 1; \
-        fi; \
-    fi
+# 部分依赖（如 crick）没有预编译 wheel，需要本地编译；除编译器外还必须保证 Python
+# 头文件（Python.h）与 binutils：
+# - Ubuntu 运行镜像没有 gcc；直接装发行版原生 gcc 包即可，它会同时提供带三元组前缀
+#   的 gcc（amd64: x86_64-linux-gnu-gcc，arm64: aarch64-linux-gnu-gcc）。
+#   注意不能写 gcc-x86_64-linux-gnu：Ubuntu 的交叉包名是 gcc-x86-64-linux-gnu，
+#   而原生 gcc 已经满足本地编译需求。头文件由 ${AGENTX_PYTHON}-dev 提供。
+# - openEuler 基础镜像自带 gcc，但只装了 python3，没有 python3-devel，编译 C 扩展时
+#   会因缺 Python.h 失败；因此不能只在 gcc 缺失时才进 dnf 分支。
+RUN set -eu; \
+    if command -v apt-get > /dev/null 2>&1; then \
+        apt-get update; \
+        apt-get install -y --no-install-recommends gcc binutils "${AGENTX_PYTHON}-dev"; \
+        rm -rf /var/lib/apt/lists/*; \
+    elif command -v dnf > /dev/null 2>&1; then \
+        dnf install -y gcc binutils; \
+        dnf install -y "${AGENTX_PYTHON}-devel" || dnf install -y python3-devel; \
+        dnf clean all; \
+    else \
+        echo "未找到可用的包管理器，无法安装编译依赖" >&2; exit 1; \
+    fi; \
+    "${AGENTX_PYTHON}" -c "import sysconfig, os; p = os.path.join(sysconfig.get_paths()['include'], 'Python.h'); assert os.path.exists(p), f'Python.h not found: {p}'"
 
 RUN case "${AGENTX_PYTHON}" in \
         python3.11|python3.12) ;; \
         *) echo "AGENTX_PYTHON must be python3.11 or python3.12" >&2; exit 1 ;; \
     esac && \
     ${AGENTX_PYTHON} -m venv /opt/venvs/agentx113 && \
-    /opt/venvs/agentx113/bin/python -m pip install --no-cache-dir \
+    CC=gcc /opt/venvs/agentx113/bin/python -m pip install --no-cache-dir \
         -r /benchmark/requirements/agentx.txt \
         -i https://repo.huaweicloud.com/repository/pypi/simple \
         --trusted-host repo.huaweicloud.com \
