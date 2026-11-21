@@ -8,6 +8,8 @@ from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models import BaseAPIModel, APITemplateParser
 from ais_bench.benchmark.models.output import RequestOutput, Output
 from ais_bench.benchmark.openicl.icl_inferencer.output_handler.ppl_inferencer_output_handler import PPLRequestOutput
+from ais_bench.benchmark.utils.logging.error_codes import MODEL_CODES
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchValueError
 
 PromptType = Union[PromptList, str]
 
@@ -140,8 +142,20 @@ class VLLMCustomAPIChat(BaseAPIModel):
     async def get_request_body(
         self, input: PromptType, max_out_len: int, output: RequestOutput, **args
     ):
-        if max_out_len <= 0:
-            return ""
+        # max_out_len may arrive as a string from CSV-backed custom datasets, so
+        # coerce to int for the check instead of letting `str <= 0` raise TypeError.
+        try:
+            max_out_len_int = int(max_out_len)
+        except (TypeError, ValueError):
+            raise AISBenchValueError(
+                MODEL_CODES.INVALID_MAX_OUT_LEN,
+                f"max_out_len must be a positive integer, got {max_out_len!r}.",
+            )
+        if max_out_len_int <= 0:
+            raise AISBenchValueError(
+                MODEL_CODES.INVALID_MAX_OUT_LEN,
+                f"max_out_len must be a positive integer, got {max_out_len!r}.",
+            )
         if isinstance(input, str):
             messages = [{"role": "user", "content": input}]
         else:
