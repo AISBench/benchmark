@@ -12,7 +12,7 @@ from typing import Any, Callable, Sequence
 
 from . import __version__
 from .artifacts import ArtifactPaths, artifact_paths, sha256_file, validate_artifacts, write_json, write_jsonl
-from .errors import ArtifactValidationError, PromptRoundTripError
+from .errors import ArtifactValidationError, PromptRoundTripError, ScenarioValidationError
 from .generation import (
     CanonicalPrefix,
     CorpusTokenCache,
@@ -146,14 +146,15 @@ def _build_prompt_with_seed_retry(
     seed_length: int,
     random_seed: int,
     token_cache: CorpusTokenCache | None = None,
+    source_case_tokens: Sequence[int] | None = None,
 ):
     """构造 prompt；若 round-trip 失败则换一个唯一 seed 重试，最多 64 次。"""
-    logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s prefix_len=%d target_tokens=%d seed_length=%d random_seed=%d rotated_pool=%d", request_id, prefix_len, target_tokens, seed_length, random_seed, len(rotated_pool))
+    logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s prefix_len=%d target_tokens=%d seed_length=%d random_seed=%d rotated_pool=%d source_case=%s", request_id, prefix_len, target_tokens, seed_length, random_seed, len(rotated_pool), len(source_case_tokens) if source_case_tokens is not None else None)
     for attempt in range(64):
         try:
             result = build_prompt(
                 tokenizer, canonical, prefix_len, seeds[request_id], rotated_pool,
-                target_tokens, token_cache,
+                target_tokens, token_cache, source_case_tokens,
             )
             logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s attempt=%d ok", request_id, attempt)
             return result
@@ -302,6 +303,43 @@ def _build_request_seed_material(
     return request_ids, request_random_seeds, seeds
 
 
+def _source_case_tokens_by_group(
+    tokenizer: Any,
+    canonical: dict[str, CanonicalPrefix],
+    group_pools: dict[str, list[GSMRecord]],
+) -> dict[str, tuple[int, ...]]:
+    """Tokenize the single corpus case backing each group's canonical prefix.
+
+    ``corpus.suffix_mode=source_tail`` reuses this case's trailing tokens as the
+    natural suffix, so every prompt ends with the case's original ending
+    (typically a concrete task/question) instead of a mid-document truncation.
+    """
+    result: dict[str, tuple[int, ...]] = {}
+    for group, prefix in canonical.items():
+        if len(prefix.gsm_indices) != 1:
+            raise ScenarioValidationError(
+                f"corpus.suffix_mode=source_tail requires {group}'s canonical prefix to "
+                f"come from a single case, but it was built from {len(prefix.gsm_indices)} "
+                "records; select exactly one long corpus row (corpus.selection mode "
+                "'indices' or 'question_sha256' with a single value)"
+            )
+        line_index = prefix.gsm_indices[0]
+        record = next(
+            (item for item in group_pools[group] if item.line_index == line_index), None,
+        )
+        if record is None:
+            raise ArtifactValidationError(
+                f"cannot locate source case {line_index} for {group} suffix"
+            )
+        token_ids = tuple(tokenizer.encode(record.question, add_special_tokens=False))
+        result[group] = token_ids
+        logger.info(
+            "[prepare] source_case_tokens group=%s line_index=%d tokens=%d",
+            group, line_index, len(token_ids),
+        )
+    return result
+
+
 def _generate_request_plans(
     tokenizer: Any,
     canonical: dict[str, CanonicalPrefix],
@@ -318,6 +356,7 @@ def _generate_request_plans(
     safe_ids: list[int],
     seed_length: int,
     progress: Callable[[int, int], None] | None,
+    source_case_tokens: dict[str, tuple[int, ...]] | None = None,
 ) -> tuple[list[RequestPlan], CorpusTokenCache]:
     """Construct every prompt and its immutable request plan."""
     count = len(request_ids)
@@ -343,6 +382,7 @@ def _generate_request_plans(
             tokenizer, canonical[group], prefix_len, seeds, request_id,
             rotated_pool, input_lengths[index], safe_ids, seed_length,
             request_random_seeds[request_id], corpus_token_cache,
+            source_case_tokens.get(group) if source_case_tokens is not None else None,
         )
         seed_hash = hashlib.sha256(str(seeds[request_id]).encode()).hexdigest()
         plan = RequestPlan(
@@ -702,14 +742,20 @@ def prepare_scenario(
         group: group_pools[group] for group in sorted(set(groups))
     }
     logger.info(
-        "[prepare] max_by_group=%s group_sources sizes=%s",
+        "[prepare] max_by_group=%s group_sources sizes=%s suffix_mode=%s",
         max_by_group, {group: len(pool) for group, pool in group_sources.items()},
+        corpus_cfg.get("suffix_mode", "records"),
     )
     # 阶段6：加载 tokenizer，为每个组构造 canonical 前缀并选出边界安全的 seed token。
     tokenizer = (tokenizer_loader or _tokenizer_loader)(scenario)
     logger.info("[prepare] tokenizer=%s vocab_size=%d", f"{tokenizer.__class__.__module__}.{tokenizer.__class__.__qualname__}", len(tokenizer))
     canonical = build_canonical_prefixes(tokenizer, group_sources, max_by_group, scenario.block_size)
     logger.info("[prepare] canonical=%s", {group: {"sha256": item.sha256, "tokens": len(item.token_ids), "source_count": len(item.gsm_indices), "source_preview": item.gsm_indices[:5]} for group, item in canonical.items()})
+    source_case_tokens = (
+        _source_case_tokens_by_group(tokenizer, canonical, group_pools)
+        if corpus_cfg.get("suffix_mode") == "source_tail"
+        else None
+    )
     safe_ids = find_boundary_safe_token_ids(tokenizer, max(2, min(64, len(tokenizer))))
     logger.info("[prepare] safe_ids count=%d safe_ids=%s", len(safe_ids), safe_ids)
     # 阶段7：为每条请求生成唯一 seed，再按 shared_prefix + seed + 自然后缀拼 prompt。
@@ -719,7 +765,7 @@ def prepare_scenario(
     plans, corpus_token_cache = _generate_request_plans(
         tokenizer, canonical, group_pools, solve, groups, ranks, lanes,
         input_lengths, output_lengths, request_ids, request_random_seeds,
-        seeds, safe_ids, seed_length, progress,
+        seeds, safe_ids, seed_length, progress, source_case_tokens,
     )
     warm_watermarks = max_by_group if scenario.cache_mode == "warmup" else None
     logger.info("[prepare] warm_watermarks=%s", warm_watermarks)

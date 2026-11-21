@@ -11,7 +11,7 @@ AISBench Prefix Cache 插件用于生成变长与指定的prefix cache命中率�
 
 ```mermaid
 flowchart LR
-    C[GSM8K JSONL 语料] --> PR[prepare：离线生成数据集]
+    C[JSONL / Parquet 语料] --> PR[prepare：离线生成数据集]
     TK[Tokenizer] --> PR
     SC[Scenario 配置<br/>请求数量、输入/输出长度、目标命中率、<br/>Prefix Group、请求顺序、DP 数] --> PR
     PR --> D1[requests.jsonl / full.jsonl<br/>带可控公共前缀的请求]
@@ -45,7 +45,7 @@ flowchart LR
 1. **Python 3.10 或更高版本**。
 2. **可正常使用的 AISBench 仓库及依赖**。
 3. **与目标 vLLM 服务一致的 tokenizer**。tokenizer 不一致会造成 token 长度、Block 边界和理论命中率偏差。
-4. **JSONL 语料**。每个非空行必须是 JSON 对象，并包含 Scenario 中 `corpus.field` 指定的文本字段，默认是 GSM8K 数据集中的`question`，若想用gsm8k类似的语料，需要参考gsm8k的格式。
+4. **JSONL / Parquet 语料**。`corpus.path` 支持 JSONL（每个非空行必须是 JSON 对象）和 Parquet（按 `corpus.field` 列流式读取，行号从 0 开始），字段默认是 GSM8K 数据集中的`question`。该字段支持字符串、字符串列表或 `[{role, content}]` 消息列表；消息按 `role: content` 用空行拼接，再做空白折叠。Parquet 单元格若是 JSON 编码的消息数组/对象（MRCR 的 `prompt` 即如此），会自动解码。
 5. **正确的 Prefix Cache Block 大小**。`tokenizer.block_size` 必须与目标服务实际值一致。
 6. **在线** **`run`** **所需服务能力**：`/v1/completions`、`/metrics`、可选 `/reset_prefix_cache`；多 DP 时还需支持 `X-data-parallel-rank` 定向路由和带 `engine` 标签的分 DP 指标。
 
@@ -135,7 +135,7 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 | `run.output_dir`               | Prefix Cache 产物基础目录。                 |
 | `tokenizer.path`               | Tokenizer 路径，必须与目标 vLLM 服务一致。        |
 | `tokenizer.block_size`         | Prefix Cache Block 大小，必须与服务实际值一致。    |
-| `corpus.path` / `corpus.field` | GSM8K JSONL 语料路径和问题文本字段名。            |
+| `corpus.path` / `corpus.field` | 语料路径和文本字段名；路径支持 JSONL 或 Parquet，Parquet 按 `field` 列读取；字段值可为字符串、字符串列表或 `[{role, content}]` 消息列表，消息按 `role: content` 拼接。            |
 | `corpus.selection.mode`        | 语料选择模式；`random` 表示按种子确定性打乱。          |
 | `requests.count`               | 正式请求总数。                              |
 | `requests.input_length`        | 输入 token 长度规则；示例为固定 1024 token。      |
@@ -351,6 +351,8 @@ jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
 
 `analyze` 适用于历史结果复核、解析逻辑升级后的重算、外部压测流量分析和 CI 校验；成功的 `run` 已在线完成同样的差分分析，通常无需再次执行。
 
+快照还会解析 vLLM 投机推理指标 `vllm:spec_decode_num_{draft,accepted,emitted}_tokens[_total]`（以及可选的 `vllm:spec_decode_draft_acceptance_rate`、`vllm:spec_decode_efficiency`），写入 `runtime.metrics_baseline.spec_decode` 和 `runtime.metrics_after.spec_decode`。正式阶段的真实数据位于 `actual.spec_decode`：draft/accepted/emitted 均为两次快照的 Counter 差值，`global_draft_acceptance_rate = accepted/draft`，`global_efficiency = emitted/draft`，并按 DP 给出 `before`、`after`、`deltas`。指标缺失不会中断跑分，状态为 `unavailable`；部分 rank 缺失或计数回退分别为 `partial` / `counter_regressed`。
+
 ***
 
 ## Scenario 参数说明
@@ -371,8 +373,8 @@ jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
 | `tokenizer.revision`                                     | Tokenizer 的分支、tag 或 commit，用于固定版本；默认 `null`。                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `tokenizer.trust_remote_code`                            | 是否执行模型仓库的自定义 tokenizer 代码；默认 `false`，只应对可信仓库启用。                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `corpus`                                                 | 自然后缀语料配置。                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `corpus.path`                                            | JSONL 语料文件路径，例 `"./GSM8K.jsonl"`；语料格式需与 GSM8K 一致。                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `corpus.field`                                           | JSONL 中的问题文本字段名，默认 `"question"`；只使用该字段，不拼接标准答案。                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `corpus.path`                                            | 语料文件路径，支持 `.jsonl` 和 `.parquet` / `.pq`，例 `"./GSM8K.jsonl"` 或 `".../8needle_0.parquet"`。                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `corpus.field`                                           | 语料文本字段名，默认 `"question"`；只使用该字段，不拼接标准答案。值可为字符串、字符串列表或 `[{role, content}]` 消息列表；消息按 `role: content` 用空行拼接。                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `corpus.selection`                                       | 语料样本选择规则，默认 `{"mode": "random"}`。                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `corpus.selection.mode`                                  | 选择模式：`random`（按 `run.random_seed` 确定性打乱，例 `{"mode": "random"}`）、`indices`（零基行号，例 `{"mode": "indices", "values": [0, 15, 72]}`）、`question_sha256`（规范化 question 的 SHA-256，例 `{"mode": "question_sha256", "values": ["<64位SHA-256>"]}`）、`mixed`（先 `indices` 后 `question_sha256`，例 `{"mode": "mixed", "indices": [0, 15], "question_sha256": ["<SHA-256>"]}`）。                                                                                                                            |
 | `corpus.selection.values`                                | 非 mixed 模式的行号或哈希值列表，例 `[0, 15, 72]`；指定样本不足时按已选顺序循环复用。                                                                                                                                                                                                                                                                                                                                                                                                                                 |

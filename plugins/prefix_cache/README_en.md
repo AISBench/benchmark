@@ -13,7 +13,7 @@ See the [Scenario example](config_examples/scenario.example.json), [complete fie
 The environment must provide:
 
 - Python 3.10 or newer;
-- **A JSONL corpus**. Every non-empty line must be a JSON object containing the text field selected by `corpus.field`; the default is the `question` field of the GSM8K dataset. To use a GSM8K-like corpus, follow the GSM8K format.
+- **JSONL / Parquet corpus**. `corpus.path` accepts `.jsonl` (every non-empty line must be a JSON object) or `.parquet` / `.pq` (the `corpus.field` column is streamed; row indices start at 0). The field defaults to `question` from GSM8K. It may be a string, a list of strings, or a list of OpenAI-style messages (`[{"role": ..., "content": ...}]`); each message is rendered as `role: content`, joined by blank lines before whitespace normalization. A single message object is rendered the same way. If a parquet cell is a JSON-encoded message array/object (as MRCR's `prompt` is), it is decoded automatically.
 - For online `run`, a vLLM Completions service with Prefix Cache enabled.
 
 Dependencies are installed in one of two scenarios (see section 2):
@@ -76,7 +76,7 @@ cp ./plugins/prefix_cache/config_examples/scenario.example.json ./scenario.json
 Creates an editable Scenario. Check at least:
 
 - `tokenizer.path`: tokenizer matching vLLM;
-- `corpus.path`: local GSM8K JSONL;
+- `corpus.path`: local GSM8K JSONL or Parquet corpus;
 - `tokenizer.block_size`: the server Prefix Cache block size;
 - `service.dp_size`: target DP count when simulating cold multi-DP routing or creating a warmup plan;
 - `service.inference_url`, `metrics_url`, `reset_url`, and `model`: used by online `run`;
@@ -105,8 +105,8 @@ The Scenario uses a strict allowlist: unknown fields are rejected, and omitted f
 | `tokenizer.revision` | Tokenizer repository revision; `null` uses the default. |
 | `tokenizer.trust_remote_code` | Whether to trust custom Tokenizer code. |
 | `corpus` | Natural-suffix corpus configuration. |
-| `corpus.path` | Path to the JSONL corpus; the format must match GSM8K. |
-| `corpus.field` | JSONL field containing question text; defaults to `question`. |
+| `corpus.path` | Path to the JSONL or Parquet corpus; Parquet streams the `field` column and uses 0-based row indices. |
+| `corpus.field` | Corpus field name, defaults to `question`; accepts a string, a list of strings, or a `[{role, content}]` message list, with each message rendered as `role: content`. |
 | `corpus.selection` | Corpus sample-selection rule. |
 | `corpus.selection.mode` | Selection mode: `random` (deterministic shuffle by `run.random_seed`), `indices` (zero-based line numbers), `question_sha256` (SHA-256 of the normalized question), `mixed` (`indices` first, then `question_sha256`). |
 | `corpus.selection.values` | Index or hash list for a non-mixed mode; when fewer records are specified than required, the selected sequence is reused cyclically. |
@@ -303,7 +303,7 @@ Detailed logs are written to `log/<run_id_timestamp>.validate.log`; the terminal
 ais-bench-prefix-cache run --scenario ./scenario.json
 ```
 
-The end-to-end flow reads the Manifest produced by an explicit `prepare`, infers text/mm mode, validates timestamped artifacts, probes each DP, resets Prefix Cache (or records `ASSUME_EMPTY_CACHE`), performs per-Group × DP warmup in warmup mode, captures the formal baseline, runs AISBench `perf`, captures after metrics, calculates per-DP/global actual hit rates, and writes runtime data, actual/theoretical differences, and warnings to `result/<run_id>.analysis.json`. Warmup completes before baseline and is excluded from formal throughput, latency, and hit-rate statistics.
+The end-to-end flow reads the Manifest produced by an explicit `prepare`, infers text/mm mode, validates timestamped artifacts, probes each DP, resets Prefix Cache (or records `ASSUME_EMPTY_CACHE`), performs per-Group × DP warmup in warmup mode, captures the formal baseline, runs AISBench `perf`, captures after metrics, calculates per-DP/global actual hit rates plus the measured speculative-decoding acceptance rate/efficiency, and writes runtime data, actual/theoretical differences, and warnings to `result/<run_id>.analysis.json`. Warmup completes before baseline and is excluded from formal throughput, latency, and hit-rate statistics.
 
 Plugin flow logs go only to `output_dir_timestamp/log/<run_id_timestamp>.run.log`; they are not echoed to the CLI. When text mode completes, stdout prints an AISBench-style `[time] [ais_bench_prefix_cache] [INFO] Prefix Cache Results of task [run_id]:` heading, followed by a two-column `Prefix Cache Metric | Value` table containing the overall target, theoretical, and actual hit rates plus the absolute theory-versus-actual and theory-versus-target differences. A following `[INFO] Detailed analysis is available at: <path>` line identifies the complete analysis file under `result/`. In mm mode, stdout prints the AISBench multimodal task result as JSON and performance metrics are available through `report`. AISBench child stdout/stderr remains inherited and visible in the CLI. Logs include execution context, artifact reuse, probes, reset, every Group × DP warmup, baseline/after metrics, rendered AISBench config and command, KV polling, per-DP deltas, global hit rate, and warnings. Only prompt length and SHA-256 are logged; prompt text, API keys, Authorization headers, and raw request bodies are not.
 
@@ -455,6 +455,15 @@ Important nested fields include tokenizer metadata; request count and `*_length_
 Fixed fields include `schema_version`, `run_id`, `status`, requested/effective/theoretical hit rates, `trajectory` (`strategy`, `status`, `issues`), target differences (`target_difference_pp` currently equals absolute difference), `validation` (`status`, `target_reachable`, `warning_only`, `affects_exit_code`), `theory` (`input_tokens`, `hit_tokens`, `groups`, `dp`), and a `warnings` array. `TARGET_UNREACHABLE` carries the requested target and reachable bounds; `TARGET_DEVIATION` carries `difference_pp`; `TRAJECTORY_BEST_EFFORT` explains an infeasible smooth trajectory.
 
 Generation finishes with `status="prepared"`; `run` changes it to `"complete"`; offline `analyze` uses `"analyzed"`. Online runs add `runtime.metrics_baseline/metrics_after` (raw Prometheus and per-DP cumulative values), `actual`, theory/actual differences, and `validation.actual_status`. Warnings affect presentation only and not a successful exit code.
+
+`run`/`analyze` also parse vLLM speculative-decoding metrics: `vllm:spec_decode_num_{draft,accepted,emitted}_tokens[_total]`, plus the optional `vllm:spec_decode_draft_acceptance_rate` and `vllm:spec_decode_efficiency` gauges. Raw cumulative values are stored in `runtime.metrics_baseline.spec_decode` and `runtime.metrics_after.spec_decode`. The actual values for the formal window are stored in `actual.spec_decode`:
+
+- `global_draft_tokens` / `global_accepted_tokens` / `global_emitted_tokens`: counter deltas between the two snapshots;
+- `global_draft_acceptance_rate = accepted_delta / draft_delta`;
+- `global_efficiency = emitted_delta / draft_delta`;
+- `by_dp.<rank>`: `before`, `after`, `deltas`, and the rates above; `covered_ranks` / `missing_ranks` show which ranks contributed.
+
+If the metrics are absent, `status` is `"unavailable"` and the benchmark continues. Missing ranks or counter regressions are reported as `partial` / `counter_regressed`.
 
 During formal scoring, `run` polls `metrics_url` every `service.poll_interval_seconds` for KV usage. KV is an instantaneous gauge that may return to zero after scoring, so sampling must happen during the run. Samples are stored in `runtime.kv_cache_polling` with interval, count, per-DP peak/average/sample count, global peak/average, and detailed elapsed samples. These values are also copied to `actual.by_dp.*.kv_cache_usage_peak/avg` and global fields; `kv_cache_usage` remains the instantaneous after-snapshot value. Set the interval to 0 to disable polling; an individual failed sample is skipped without aborting the run.
 

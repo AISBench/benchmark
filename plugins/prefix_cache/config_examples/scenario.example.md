@@ -111,13 +111,25 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 }
 ```
 
+也可以直接读取 Parquet，无需先转成 JSONL。例如 MRCR 的 `8needle`：
+
+```json
+"corpus": {
+  "path": "/path/to/MRCR/8needle/8needle_0.parquet",
+  "field": "prompt",
+  "selection": {"mode": "random"}
+}
+```
+
+Parquet 按 `field` 列流式读取，行号从 0 开始；单元格若是 JSON 编码的消息数组/对象（MRCR 的 `prompt` 即如此），会自动解码，消息仍按 `role: content` 拼接。
+
 | 字段 | 必填 | 默认值 | 作用 |
 |---|---:|---|---|
-| `path` | 否 | `"./GSM8K.jsonl"` | GSM8K JSONL 路径，每个非空行必须是 JSON 对象。 |
-| `field` | 否 | `"question"` | 读取自然语言问题的字段，只使用该字段，不拼接标准答案。 |
+| `path` | 否 | `"./GSM8K.jsonl"` | JSONL 或 Parquet 语料路径；Parquet 按 `field` 列读取，行号从 0 开始。 |
+| `field` | 否 | `"question"` | 读取自然语言文本的字段，只使用该字段，不拼接标准答案。字段值可为字符串、字符串列表或 `[{role, content}]` 消息列表；消息按 `role: content` 用空行拼接。 |
 | `selection` | 否 | `{"mode":"random"}` | 为 canonical 前缀和自然后缀选择样本。 |
 
-问题文本会先去除首尾空白，并把连续空白折叠成一个空格。`question_sha256` 基于规范化后的 UTF-8 文本。
+问题文本（消息先按 `role: content` 拼接）会先去除首尾空白，并把连续空白折叠成一个空格。`question_sha256` 基于规范化后的 UTF-8 文本。
 
 ### 6.1 `selection.mode=random`
 
@@ -746,7 +758,7 @@ Manifest 顶层字段：
 | `run.run_id`、`run.output_dir` | 已追加 `_YYYYMMDD_HHMMSS` 的实际运行 ID 和输出目录。 |
 | `run.random_seed`、`run.overwrite` | 实际使用的全局随机种子和覆盖配置。 |
 | `tokenizer.path`、`revision`、`trust_remote_code`、`block_size` | tokenizer 加载配置和 Prefix Cache Block 大小。 |
-| `corpus.path`、`field`、`selection` | 语料绝对路径、问题字段及样本选择方式；`selection` 按所选 mode 包含 `indices`、`question_sha256` 等字段。 |
+| `corpus.path`、`field`、`selection` | 语料绝对路径（JSONL 或 Parquet）、问题字段及样本选择方式；`selection` 按所选 mode 包含 `indices`、`question_sha256` 等字段。 |
 | `requests.count`、`input_length`、`output_length` | 正式请求数及输入/输出长度生成配置；长度对象内部字段随 fixed、distribution 或 empirical 模式变化。 |
 | `prefix_cache.mode` | cold 或 warmup。 |
 | `prefix_cache.target_hit_rate`、`minimum_non_shared_length`、`seed_blocks` | 目标 token 命中率、最小非共享长度和 seed Block 数。 |
@@ -916,9 +928,30 @@ reset 无法执行但 `assume_empty_cache=true` 时还可能添加 `ASSUME_EMPTY
 | `*.by_dp.<rank>.queries` | 截止快照时该 DP 累计查询的 Prefix Cache token 数。 |
 | `*.by_dp.<rank>.hits` | 截止快照时该 DP 累计命中的 Prefix Cache token 数。 |
 | `*.by_dp.<rank>.kv_cache_usage` | 快照时刻该 DP 的 KV Cache 使用比例；范围通常为 0～1，1 表示 100%，不是累计 counter。 |
+| `*.spec_decode.available` | 本次快照是否解析到投机推理指标。 |
+| `*.spec_decode.metric_names` | 实际采用的投机推理 counter/gauge 名，例如 `draft_tokens`、`accepted_tokens`、`emitted_tokens`、`draft_acceptance_rate`、`efficiency`。 |
+| `*.spec_decode.by_dp.<rank>` | 截止快照时该 DP 的投机推理累计值；缺失的指标不会出现在该 rank 下。 |
 | `*.raw_prometheus` | 本次 `/metrics` 返回的完整原始文本，用于追溯指标标签、类型和未被插件消费的其他指标。 |
 
 正式值对 counter 使用差分：`actual queries = after queries - baseline queries`，`actual hits = after hits - baseline hits`。这样 precheck、warmup 或服务已有累计 counter 不会进入正式命中率。KV 使用率是瞬时 gauge，不做 after-baseline 相减；`actual.by_dp.*.kv_cache_usage` 直接取 after 快照。
+
+投机推理同样按 Counter 差值计算正式数据，写入 `actual.spec_decode`：
+
+| 字段 | 含义 |
+|---|---|
+| `status` | `ok`、`partial`、`counter_regressed`、`no_activity` 或 `unavailable`。 |
+| `reason` | 非 `ok` 时的原因说明。 |
+| `global_draft_tokens` | `after - baseline` 的 draft token 总数。 |
+| `global_accepted_tokens` | `after - baseline` 的 accepted token 总数。 |
+| `global_emitted_tokens` | `after - baseline` 的 emitted token 总数；旧版 vLLM 未暴露该指标时为 `null`。 |
+| `global_draft_acceptance_rate` | `global_accepted_tokens / global_draft_tokens`，即本次运行真实接受率。 |
+| `global_efficiency` | `global_emitted_tokens / global_draft_tokens`，即本次运行真实投机效率。 |
+| `covered_ranks` / `missing_ranks` | 参与全局汇总的 DP rank，以及缺失投机指标的 rank。 |
+| `by_dp.<rank>.before` / `after` | 该 rank 两次快照的原始累计值。 |
+| `by_dp.<rank>.deltas` | 该 rank 的 draft/accepted/emitted 差值。 |
+| `by_dp.<rank>.draft_acceptance_rate` / `efficiency` | 用该 rank 差值计算的真实速率。 |
+
+指标不存在时 `status="unavailable"`，不会中断跑分；部分 rank 缺失时为 `partial`；after 小于 before 时为 `counter_regressed`；本次没有 draft token 时为 `no_activity`。
 
 `runtime.kv_cache_polling` 仅在线 run 存在，表示 AISBench 正式运行期间的周期采样：
 

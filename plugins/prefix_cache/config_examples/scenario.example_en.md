@@ -87,10 +87,22 @@ With `block_size=16` and `seed_blocks=1`, each request contains a 16-token uniqu
 }
 ```
 
+Parquet can be read directly, without converting to JSONL. For MRCR `8needle`:
+
+```json
+"corpus": {
+  "path": "/path/to/MRCR/8needle/8needle_0.parquet",
+  "field": "prompt",
+  "selection": {"mode": "random"}
+}
+```
+
+Parquet streams the `field` column and uses 0-based row indices. If a cell is a JSON-encoded message array/object (as MRCR's `prompt` is), it is decoded automatically and messages are joined as `role: content`.
+
 | Field | Default | Purpose |
 |---|---|---|
-| `path` | `./GSM8K.jsonl` | GSM8K JSONL path; every non-empty line must be an object. |
-| `field` | `question` | Field containing natural-language text; standard answers are not concatenated. |
+| `path` | `./GSM8K.jsonl` | JSONL or Parquet corpus path; Parquet reads the `field` column and uses 0-based row indices. |
+| `field` | `question` | Field containing natural-language text; standard answers are not concatenated. The value may be a string, a list of strings, or a `[{role, content}]` message list; messages are joined as `role: content`. |
 | `selection` | `{"mode":"random"}` | Selects canonical-prefix and natural-suffix samples. |
 
 Questions are trimmed and consecutive whitespace is collapsed. `question_sha256` is computed from the normalized UTF-8 text.
@@ -545,7 +557,9 @@ Artifact metadata uses `name`, `path`, `rows` (JSONL only), `bytes`, and `sha256
 
 `runtime.phases` normally lists `precheck`, `reset`, optional `warmup`, `baseline`, `formal`, and `after`. `runtime.precheck` records success, recognized DP ranks, and matched metric names. `runtime.warmup[]` records Group, DP, success, and elapsed seconds. `runtime.aisbench_exit_code` is the child process code.
 
-`metrics_baseline` is captured after reset/warmup and before formal perf; `metrics_after` is captured afterward. Both include metric names, per-DP cumulative `queries`/`hits`, instantaneous `kv_cache_usage`, and raw Prometheus text. Formal counters use `after - baseline`; KV gauges are not subtracted.
+`metrics_baseline` is captured after reset/warmup and before formal perf; `metrics_after` is captured afterward. Both include metric names, per-DP cumulative `queries`/`hits`, instantaneous `kv_cache_usage`, structured `spec_decode` values, and raw Prometheus text. Formal counters use `after - baseline`; KV gauges are not subtracted.
+
+Speculative-decoding counters (`vllm:spec_decode_num_{draft,accepted,emitted}_tokens[_total]`) use the same delta treatment. `actual.spec_decode` contains `global_draft_tokens`, `global_accepted_tokens`, `global_emitted_tokens`, `global_draft_acceptance_rate = accepted/draft`, and `global_efficiency = emitted/draft`, plus `by_dp.<rank>.before/after/deltas` and per-rank rates. `status` is `ok`, `partial`, `counter_regressed`, `no_activity`, or `unavailable`; absent metrics never abort the run. Optional gauges `vllm:spec_decode_draft_acceptance_rate` and `vllm:spec_decode_efficiency` are stored in the snapshots but the actual rates are always recomputed from counter deltas.
 
 `runtime.kv_cache_polling` records interval, successful sample count, elapsed samples, per-DP average/peak/sample count, and global average/peak. `poll_interval_seconds=0` disables it; a failed sample is skipped.
 

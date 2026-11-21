@@ -13,7 +13,7 @@ The overall workflow: samples are selected from the GSM8K corpus according to th
 
 ```mermaid
 flowchart LR
-    C[GSM8K JSONL corpus] --> PR[prepare: offline dataset generation]
+    C[JSONL / Parquet corpus] --> PR[prepare: offline dataset generation]
     TK[Tokenizer] --> PR
     SC[Scenario configuration<br/>request count, input/output lengths, target hit rate,<br/>Prefix Groups, request ordering, DP size] --> PR
     PR --> D1[requests.jsonl / full.jsonl<br/>requests with controlled shared prefixes]
@@ -47,7 +47,7 @@ The plugin provides five subcommands:
 1. **Python 3.10 or later**.
 2. **An AISBench checkout whose dependencies can be imported**.
 3. **The same tokenizer as the target vLLM server**. A mismatch changes token counts, Block boundaries, and the theoretical hit rate.
-4. **A JSONL corpus**. Every non-empty line must be a JSON object containing the text field selected by `corpus.field`; the default is the `question` field of the GSM8K dataset. To use a GSM8K-like corpus, follow the GSM8K format.
+4. **A JSONL / Parquet corpus**. `corpus.path` accepts JSONL (every non-empty line must be a JSON object) or Parquet (the `corpus.field` column is streamed; row indices start at 0); the field defaults to the `question` field of the GSM8K dataset. The field may be a string, a list of strings, or a list of OpenAI-style messages (`[{"role": ..., "content": ...}]`); each message is rendered as `role: content`, joined by blank lines before whitespace normalization. If a parquet cell is a JSON-encoded message array/object (as MRCR's `prompt` is), it is decoded automatically.
 5. **The correct Prefix Cache Block size**. `tokenizer.block_size` must match the target server.
 6. **Service capabilities for online** **`run`**: `/v1/completions`, `/metrics`, optionally `/reset_prefix_cache`; multi-DP additionally requires `X-data-parallel-rank` routing and per-DP metrics with an `engine` label.
 
@@ -137,7 +137,7 @@ The meaning of each field in this example:
 | `run.output_dir` | Base directory for Prefix Cache artifacts. |
 | `tokenizer.path` | Tokenizer path; must match the target vLLM server. |
 | `tokenizer.block_size` | Prefix Cache Block size; must match the actual server value. |
-| `corpus.path` / `corpus.field` | Path to the GSM8K JSONL corpus and the question text field. |
+| `corpus.path` / `corpus.field` | Corpus path and text field name; the path may be JSONL or Parquet (Parquet reads the `field` column); the value may be a string, a list of strings, or a `[{role, content}]` message list, with each message rendered as `role: content`. |
 | `corpus.selection.mode` | Corpus selection mode; `random` shuffles deterministically by seed. |
 | `requests.count` | Total number of formal requests. |
 | `requests.input_length` | Input-token length rule; fixed at 1024 tokens in this example. |
@@ -353,6 +353,8 @@ jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
 
 `analyze` is intended for historical verification, reprocessing after parser changes, externally driven workloads, and CI checks; a successful `run` has already performed the same online delta analysis.
 
+Snapshots also parse vLLM speculative-decoding metrics `vllm:spec_decode_num_{draft,accepted,emitted}_tokens[_total]` (plus optional `vllm:spec_decode_draft_acceptance_rate` and `vllm:spec_decode_efficiency` gauges) into `runtime.metrics_baseline.spec_decode` and `runtime.metrics_after.spec_decode`. The formal-run values are in `actual.spec_decode`: draft/accepted/emitted are counter deltas between the snapshots, `global_draft_acceptance_rate = accepted/draft`, and `global_efficiency = emitted/draft`; per-DP `before`, `after`, and `deltas` are included. Absent metrics never abort the run (`status="unavailable"`); missing ranks and counter regressions are reported as `partial` / `counter_regressed`.
+
 ***
 
 ## Scenario Configuration
@@ -373,8 +375,8 @@ See the [complete Scenario field reference](https://github.com/AISBench/benchmar
 | `tokenizer.revision` | Tokenizer branch, tag, or commit used to pin a version; defaults to `null`. |
 | `tokenizer.trust_remote_code` | Whether to run custom tokenizer code from the model repository; defaults to `false`; enable only for trusted repositories. |
 | `corpus` | Natural-suffix corpus configuration. |
-| `corpus.path` | Path to the JSONL corpus, e.g. `"./GSM8K.jsonl"`; the format must match GSM8K. |
-| `corpus.field` | JSONL field containing question text, defaults to `"question"`; only this field is used and the standard answer is not concatenated. |
+| `corpus.path` | Corpus file path; supports `.jsonl` and `.parquet` / `.pq`, e.g. `"./GSM8K.jsonl"` or `".../8needle_0.parquet"`. |
+| `corpus.field` | Corpus text field, defaults to `"question"`; only this field is used and the standard answer is not concatenated. Accepts a string, a list of strings, or a `[{role, content}]` message list, with each message rendered as `role: content`. |
 | `corpus.selection` | Corpus sample-selection rule, defaults to `{"mode": "random"}`. |
 | `corpus.selection.mode` | Selection mode: `random` (deterministic shuffle by `run.random_seed`, e.g. `{"mode": "random"}`), `indices` (zero-based line numbers, e.g. `{"mode": "indices", "values": [0, 15, 72]}`), `question_sha256` (SHA-256 of the normalized question, e.g. `{"mode": "question_sha256", "values": ["<64-hex SHA-256>"]}`), `mixed` (`indices` first, then `question_sha256`, e.g. `{"mode": "mixed", "indices": [0, 15], "question_sha256": ["<SHA-256>"]}`). |
 | `corpus.selection.values` | Index or hash list for a non-mixed mode, e.g. `[0, 15, 72]`; when fewer records are specified than required, the selected sequence is reused cyclically. |
