@@ -92,10 +92,13 @@ class TritonCustomAPI(BaseAPIModel):
     async def parse_text_response(self, api_response:dict, output:Output):
         generated_text = api_response.get("text_output", "")
         output.content = generated_text
+        self._update_usage_from_details(api_response, output)
 
     async def parse_stream_response(self, api_response:dict, output:Output):
         generated_text = api_response.get("text_output", "")
         output.content += generated_text
+        # ``details.generated_tokens`` is cumulative across chunks.
+        self._update_usage_from_details(api_response, output)
 
 
 class TritonCustomAPIStream(TritonCustomAPI):
