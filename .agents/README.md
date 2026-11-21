@@ -12,6 +12,7 @@
 | [ascend-llm-release](skills/ascend-llm-release/SKILL.md) | 按资源归属核验并释放自有服务 | [释放技能](skills/ascend-llm-release/SKILL.md) |
 | [pr-checklist](skills/pr-checklist/SKILL.md) | PR 贡献规范、说明材料与复审记录检查，不重复质量门禁 | [快速开始](skills/pr-checklist/README.md) |
 | [ci-failure-triage](skills/ci-failure-triage/SKILL.md) | GitHub Actions 只读证据收集、CI 失败分类与最小复现建议 | [使用说明](skills/ci-failure-triage/README.md) |
+| [check-api-compat](skills/check-api-compat/SKILL.md) | 已有客户端协议适配的接口兼容性核查与证据分类 | [快速开始](skills/check-api-compat/README.md) |
 
 五个新版技能共用 [ascend_llm_cli](ascend_llm_cli/README.md)，通过 `deploy-eval-v2` 的公开 JSON 契约协作；架构见 [DESIGN](ascend_llm_cli/DESIGN.md)。稳定版 `ascend-llm-deploy-eval` 独立保留，不随新版任务迁移或改写历史产物。
 
