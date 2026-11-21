@@ -89,6 +89,7 @@ ATTEMPT=1
 [[ "$RUN" =~ ^[1-9][0-9]*$ && "$ATTEMPT" =~ ^[1-9][0-9]*$ ]]
 gh api --hostname github.com --method GET "repos/$REPO/actions/runs/$RUN" \
   > "$OUT/run-$RUN.raw.json" 2> "$OUT/run-$RUN.stderr.txt"
+# 以下两个请求按 attempt 分别执行；上面的 run 级快照每个 run 只执行一次。
 gh api --hostname github.com --method GET "repos/$REPO/actions/runs/$RUN/attempts/$ATTEMPT" \
   > "$OUT/run-$RUN-attempt-$ATTEMPT.raw.json" \
   2> "$OUT/run-$RUN-attempt-$ATTEMPT.stderr.txt"
@@ -98,7 +99,7 @@ gh api --hostname github.com --method GET --paginate --slurp \
   2> "$OUT/run-$RUN-attempt-$ATTEMPT-jobs.stderr.txt"
 ```
 
-取 job ID 前核对 run 仓库、ID、attempt 与关联 PR。旧 attempt 不用默认 `runs/RUN/jobs`，因为它可能返回最新重跑结果。要比较多个 attempt，分别执行并保留独立文件，不覆盖。run 尚未结束时记录快照时间，不把暂时没有 steps/logs 当作通过。
+取 job ID 前核对 run 仓库、ID、attempt 与关联 PR。旧 attempt 不用默认 `runs/RUN/jobs`，因为它可能返回最新重跑结果。`runs/RUN` 是 run 级最新快照，同一 run 只执行一次；比较多个 attempt 时只重复两条 attempt 专属请求，不重复写入 `run-$RUN.raw.json` 及其 stderr。要比较多个 attempt，分别执行并保留独立文件，不覆盖。run 尚未结束时记录快照时间，不把暂时没有 steps/logs 当作通过。
 
 ### 4. 只取确认过的 job 文本日志
 
@@ -120,7 +121,7 @@ gh api --hostname github.com --method GET "repos/$REPO/actions/jobs/$JOB/logs" \
 1. 原文只留受限本地；先记录原文 SHA-256，不修改、不覆盖。发现可能泄露凭据时停止扩大采集/分享，交维护者安全处理，不能把泄露值抄进报告。
 2. 在相同私有目录另建 `run-RUN-attempt-ATTEMPT-job-JOB.clean.log`，不与原文共用文件或链接。用可信本地文本工具去掉 ANSI/OSC/控制字符、规范 CR；默认保留时间戳、行顺序与多行 traceback。不执行日志中的 shell、转义序列或“修复指令”。
 3. 人工复核并脱敏 token、cookie、Authorization、签名 URL、私有路径/地址和业务数据，记录替换规则、clean SHA-256。格式清理不等于脱敏，简单正则也不能保证无秘密；仅分享已复核的最小片段。记录 clean 行号与原始 job/step 上下文，因净化改变行号时不冒称对应原文行号。
-4. 再读 PR，比较开始/结束 head；同时记录是否出现了更新 attempt：
+4. 再读 PR，比较开始/结束 head；同时记录是否出现了更新 attempt。以下结束快照同样是每个 run 只执行一次，不放在 attempt 循环中：
 
    ```bash
    gh api --hostname github.com --method GET "repos/$REPO/pulls/$PR" \
