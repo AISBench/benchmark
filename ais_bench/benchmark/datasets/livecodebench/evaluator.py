@@ -20,6 +20,7 @@ from ais_bench.benchmark.datasets.livecodebench.extract_utils import (extract_co
                             extract_code_generation_v2,
                             extract_test_output_code)
 from ais_bench.benchmark.datasets.livecodebench.livecodebench import LCBCodeGenerationDataset
+from ais_bench.benchmark.datasets.livecodebench.problem_judges import prepare_test_cases
 from ais_bench.benchmark.datasets.livecodebench.pass_k_utils import compute_metrics_from_results
 
 
@@ -294,9 +295,18 @@ class LCBCodeGenerationEvaluator(BaseEvaluator):
             for item in test_set
         }
 
-        references = [evaluation_samples[item] for item in references]
-
-        references = [{'input_output': item} for item in references]
+        excluded_invalid_cases = {}
+        prepared_references = []
+        for question_id in references:
+            sample, excluded = prepare_test_cases(
+                question_id, evaluation_samples[question_id])
+            prepared_references.append({
+                'input_output': sample,
+                'question_id': question_id,
+            })
+            if excluded:
+                excluded_invalid_cases[question_id] = excluded
+        references = prepared_references
 
         BaseEvaluator.is_num_equal(predictions, references)
 
@@ -331,7 +341,8 @@ class LCBCodeGenerationEvaluator(BaseEvaluator):
         results = {
             'extracted_predictions': extracted_predictions,
             'eval_results': eval_results,
-            'details': details
+            'details': details,
+            'excluded_invalid_cases': excluded_invalid_cases,
         }
         results.update(metrics)
 
