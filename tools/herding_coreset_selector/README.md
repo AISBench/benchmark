@@ -183,3 +183,11 @@ class MyDataset(EvalDatasetBase):
 然后在 `herding/eval_datasets/__init__.py` 中导入该适配器模块以完成注册，并在 `herding/__main__.py` 的 `SUPPORTED_DATASETS` 中增加对应名称。
 
 建议 `save_data_by_indices()` 保持原始数据格式不变，以便压缩结果可以直接用于后续 Benchmark 测评。
+
+## 回归测试
+
+在本工具目录运行以下命令。测试使用模拟的数据集与模型调用，不需要安装运行依赖或下载模型。
+
+```shell
+python -m unittest discover -s tests -v
+```

@@ -1,10 +1,8 @@
 import argparse
-from pathlib import Path
 
 
 DEFAULT_CORESET_RATIO = 0.2
 DEFAULT_OUTPUT_DIR = "./datasets"
-CORESET_METHOD = "herding"
 
 
 def _coreset_ratio(value: str) -> float:
@@ -19,7 +17,7 @@ def _coreset_ratio(value: str) -> float:
     return ratio
 
 
-def parse_args():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description=(
             "Select representative evaluation samples with RBF Kernel Herding "
@@ -29,7 +27,6 @@ def parse_args():
     parser.add_argument(
         "--eval-dataset",
         required=True,
-
         help="Evaluation dataset adapter to use.",
     )
     parser.add_argument(
@@ -63,51 +60,22 @@ def parse_args():
             f"Default: {DEFAULT_OUTPUT_DIR}."
         ),
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def _model_name(model_path: str) -> str:
-    normalized = model_path.rstrip("/\\")
-    name = Path(normalized).name
-    if not name:
-        raise ValueError(f"Unable to infer model name from model path: {model_path!r}")
-    return name
+def main(argv=None):
+    args = parse_args(argv)
 
+    # Keep help and argument errors independent of the selection workflow.
+    from herding.selection import run_selection
 
-def main():
-    args = parse_args()
-
-    # Heavy dependencies are imported only after CLI parsing, so
-    # `python -m herding --help` remains a lightweight, self-contained entry.
-    from herding import generate_coreset
-    from herding.eval_datasets import get_eval_dataset
-
-    output_dir = (
-        Path(args.output_dir)
-        / args.eval_dataset
-        / CORESET_METHOD
-        / _model_name(args.model_path)
-    )
-
-    eval_dataset = get_eval_dataset(
-        args.eval_dataset,
+    output_path = run_selection(
+        dataset_name=args.eval_dataset,
         dataset_path=args.dataset_path,
-        output_dir=str(output_dir),
-    )
-
-    indices = eval_dataset.load_indices()
-    if not indices:
-        raise ValueError("The evaluation dataset is empty; cannot generate a coreset.")
-
-    eval_dataset.save_data_by_indices(indices, "origin")
-    coreset_size = max(1, round(len(indices) * args.coreset_ratio))
-
-    selected_indices = generate_coreset(
-        coreset_size,
-        eval_dataset=eval_dataset,
         model_path=args.model_path,
+        coreset_ratio=args.coreset_ratio,
+        output_dir=args.output_dir,
     )
-    output_path = eval_dataset.save_data_by_indices(selected_indices, "coreset")
     print(f"output: {output_path}")
 
 
