@@ -88,7 +88,8 @@ gh api --paginate "repos/$repo/pulls/$pr/comments"
 ### 3.1 标题与提交信息
 
 - 标题按目标分支规范采用 `[type][scope]<subject>`；scope 可选，subject 不保留占位尖括号，应具体描述实际变更。
-- 类型从生效指南读取，不借用 vLLM 的类型或擅自新增必填 scope。示例：`[docs][agents] 添加 PR 规范检查技能`。
+- 建议 `]` 后接中文 `<subject>` 时不加空格，接英文 `<subject>` 时加一个空格。
+- 类型从生效指南读取，不借用 vLLM 的类型或擅自新增必填 scope。示例：`[feat][skills]添加 PR 规范检查技能`。
 - 已明确规范 Commit 格式时，检查 PR 内**每个**提交的 subject，而不只看最后一条；一个逻辑变更的说明是否清晰，只做提交材料层面的提示，不深入判定设计质量。
 - 现行规范要求 DCO 时，对每个提交检查 `Signed-off-by: Name <email>` trailer 是否存在、格式是否完整，列出缺失的 SHA；若要求仅来自未采纳提案，则只列提案预检，不据此判现行不符合。不把 GPG “Verified” 当作 DCO。
 - DCO 与 CLA 分别记录。签署行不证明身份真实性、授权或 CLA 完成；模板中的 CLA 声明只核对填写情况，实际 CLA 状态需独立证据。
@@ -123,7 +124,7 @@ gh api --paginate "repos/$repo/pulls/$pr/comments"
 - 不自动 Resolve 他人线程；由意见提出者或维护者确认闭环。普通评论或机器人反馈不冒充正式 Review，未核实身份不宣称已有维护者批准。
 - 修改后核对 PR 描述是否同步，旧结论只复用于未变化部分。
 - 如读取已有 CI/门禁状态，原样附带链接、状态和对应 head SHA；旧提交的绿灯不能证明当前提交通过，权限不足或未执行不是失败也不是通过。
-- 不计算覆盖率、不复刻 `large_pr` / `no_issue` / `no_review` / `review_opened` / `no_UT` 判定、不修改这些标签，不把它们混入规范评分。用户需要质量结论时转交已有门禁或单独代码评审任务。
+- 不计算覆盖率、不复刻 `large_pr` / `no_issue` / `no_review` / `review_opened` / `no_UT` / `no_template` 判定、不修改这些标签，不把它们混入规范评分。用户需要质量结论时转交已有门禁或单独代码评审任务。
 
 ## 5. 输出与权限
 
