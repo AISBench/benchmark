@@ -1,9 +1,10 @@
-from datasets import Dataset, load_dataset
+from datasets import load_dataset
 
 from ais_bench.benchmark.registry import LOAD_DATASET
 from ais_bench.benchmark.datasets.utils.datasets import get_data_path
 
 from ..base import BaseDataset
+from ._qa import _project_qa_test_split
 
 
 @LOAD_DATASET.register_module()
@@ -16,16 +17,4 @@ class LongBenchhotpotqaDataset(BaseDataset):
                                name=name,
                                data_dir=path,
                                trust_remote_code=True)
-        split = 'test'
-        raw_data = []
-        for i in range(len(dataset[split])):
-            question = dataset[split]['input'][i]
-            context = dataset[split]['context'][i]
-            answers = dataset[split]['answers'][i]
-            raw_data.append({
-                'input': question,
-                'context': context,
-                'answers': answers
-            })
-        dataset[split] = Dataset.from_list(raw_data)
-        return dataset
+        return _project_qa_test_split(dataset)
