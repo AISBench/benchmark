@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 from enum import Enum
 # for capturing the stdout
-from io import BytesIO, StringIO, TextIOWrapper
+from io import BytesIO, TextIOWrapper
 # used for testing the code that reads from input
 from unittest.mock import mock_open, patch
 import inspect
@@ -63,13 +63,26 @@ signal.signal(signal.SIGALRM, timeout_handler)
 # used to capture stdout as a list
 # from https://stackoverflow.com/a/16571630/6416660
 # alternative use redirect_stdout() from contextlib
+class _CapturedStdout(TextIOWrapper):
+    """Capture text and binary writes in their original order."""
+
+    def __init__(self):
+        super().__init__(BytesIO(), encoding='utf-8', write_through=True)
+
+    def getvalue(self):
+        self.flush()
+        return self.buffer.getvalue().decode('utf-8', errors='replace')
+
+    def close(self):
+        # Generated solutions may close stdout; keep the captured output readable.
+        pass
+
+
 class Capturing(list):
 
     def __enter__(self):
         self._stdout = sys.stdout
-        sys.stdout = self._stringio = StringIO()
-        # Make closing the StringIO a no-op
-        self._stringio.close = lambda x: 1
+        sys.stdout = self._stringio = _CapturedStdout()
         return self
 
     def __exit__(self, *args):
