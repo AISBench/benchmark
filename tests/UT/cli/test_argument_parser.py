@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 import sys
 from ais_bench.benchmark.cli.argument_parser import ArgumentParser
+from ais_bench.benchmark.utils.logging.exceptions import AISBenchConfigError
 
 
 class TestArgumentParser(unittest.TestCase):
@@ -37,7 +38,20 @@ class TestArgumentParser(unittest.TestCase):
         self.assertEqual(args.max_workers_per_gpu, 1)
         self.assertEqual(args.num_warmups, 1)
         self.assertIsNone(args.num_prompts)
+        self.assertIsNone(args.cooldown)
         self.assertIsNone(args.response_anomaly_payload_retention)
+
+    @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
+    def test_parse_args_cooldown(self, mock_get_current_time_str):
+        """--cooldown 对所有模式生效，缺省 None（实际默认 5 秒）"""
+        mock_get_current_time_str.return_value = "20230516_144254"
+        for value, expected in (("0", 0.0), ("2.5", 2.5)):
+            with self.subTest(value=value):
+                sys.argv = ['benchmark.py', '--cooldown', value]
+                self.assertEqual(ArgumentParser().parse_args().cooldown, expected)
+        sys.argv = ['benchmark.py', '--cooldown', '-1']
+        with self.assertRaises(AISBenchConfigError):
+            ArgumentParser().parse_args()
 
     @patch('ais_bench.benchmark.cli.argument_parser.get_current_time_str')
     def test_parse_args_response_anomaly_payload_retention(

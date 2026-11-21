@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "service_id",
+    "ownership",
+    "endpoint",
+    "model",
+    "bundle_sha256",
+    "runtime_sha256",
+    "health_time",
+    "health_evidence_ref",
+    "policy",
+    "deployment_summary",
+    "containers"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "task_id": {
+      "$ref": "#/$defs/id"
+    },
+    "service_id": {
+      "$ref": "#/$defs/id"
+    },
+    "ownership": {
+      "const": "owned"
+    },
+    "endpoint": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "bundle_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "runtime_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "health_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "health_evidence_ref": {
+      "type": "string",
+      "pattern": "^results/",
+      "maxLength": 512
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "idle_timeout_seconds",
+        "on_idle",
+        "on_failure"
+      ],
+      "properties": {
+        "idle_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "on_idle": {
+          "enum": [
+            "keep_service",
+            "release_owned"
+          ]
+        },
+        "on_failure": {
+          "const": "release_owned"
+        }
+      }
+    },
+    "deployment_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "container_groups"
+      ],
+      "properties": {
+        "container_groups": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "containers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "container_id"
+        ],
+        "properties": {
+          "container_id": {
+            "$ref": "#/$defs/digest"
+          },
+          "image_id": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "resources": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object"
+      }
+    },
+    "health_path": {
+      "type": "string",
+      "pattern": "^/[A-Za-z0-9_./-]*$",
+      "maxLength": 256
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

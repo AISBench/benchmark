@@ -1,3 +1,4 @@
+import math
 import sys
 import os
 from datetime import datetime
@@ -16,6 +17,8 @@ MAX_PRESSURE_TIME = 60 * 60 * 24  # 24 hours
 MAX_BATCH_SIZE = 100000
 MAX_REQUEST_COUNT = 2 ** 20
 MAX_REQUEST_SIZE = 2 ** 20
+# 相邻两个测试任务之间的默认等待秒数，供 --cooldown 使用
+SWEEP_COOLDOWN_SECONDS = 5
 
 logger = AISLogger()
 
@@ -199,6 +202,24 @@ validate_batch_size = create_int_validator(
     min_value=1,
     max_value=MAX_BATCH_SIZE,
 )
+
+
+def validate_cooldown(value):
+    """Validate the wait in seconds between consecutive benchmark tasks."""
+    try:
+        cooldown = float(value)
+    except (TypeError, ValueError):
+        raise AISBenchConfigError(
+            UTILS_CODES.INVALID_TYPE,
+            f"`--cooldown` must be a number of seconds, but got {value!r}",
+        )
+    if not math.isfinite(cooldown) or cooldown < 0:
+        raise AISBenchConfigError(
+            UTILS_CODES.ARGUMENT_TOO_SMALL,
+            f"`--cooldown` must be a non-negative finite number of seconds, but got {value!r}",
+        )
+    return cooldown
+
 
 validate_request_count = create_int_validator(
     param_name="--request-count",

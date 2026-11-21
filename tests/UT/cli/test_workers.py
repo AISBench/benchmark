@@ -139,7 +139,7 @@ class TestInfer:
         assert cfg['infer']['runner']['debug'] == True
 
     def test_update_cfg_skips_sweep_cooldown_without_sweep(self):
-        """老命令（配置无 sweep_cooldown_s）不向 runner 注入新参数"""
+        """配置无 sweep_cooldown_s 时不向 runner 注入该参数"""
         cfg = MockConfigDict({
             'models': [{'attr': 'service', 'abbr': 'test_model'}],
             'datasets': [{'abbr': 'test_dataset', 'infer_cfg': {'retriever': {}}}],
@@ -153,7 +153,7 @@ class TestInfer:
         assert 'sweep_cooldown_s' not in cfg['infer']['runner']
 
     def test_update_cfg_injects_sweep_cooldown_for_multi_sweep(self):
-        """多档 sweep 写入 sweep_cooldown_s 时才注入到 runner 配置"""
+        """配置写入 sweep_cooldown_s（--cooldown）时注入到 runner 配置"""
         cfg = MockConfigDict({
             'models': [{'attr': 'service', 'abbr': 'test_model'}],
             'datasets': [{'abbr': 'test_dataset', 'infer_cfg': {'retriever': {}}}],
@@ -166,6 +166,51 @@ class TestInfer:
             self.infer_worker.update_cfg(cfg)
 
         assert cfg['infer']['runner']['sweep_cooldown_s'] == 5
+
+    def test_update_cfg_skips_sweep_cooldown_for_incompatible_runner(self):
+        """自定义 runner 构造器不接受 sweep_cooldown_s 时跳过注入，避免 build TypeError"""
+        class CustomRunner:
+            def __init__(self, task, max_num_workers=1,
+                         max_workers_per_gpu=1, debug=False):
+                pass
+
+        cfg = MockConfigDict({
+            'models': [{'attr': 'service', 'abbr': 'test_model'}],
+            'datasets': [{'abbr': 'test_dataset', 'infer_cfg': {'retriever': {}}}],
+            'work_dir': '/test/workdir',
+            'infer': {
+                'partitioner': {},
+                'runner': {'type': CustomRunner},
+            },
+            'sweep_cooldown_s': 5,
+            'cli_args': MagicMock(debug=False),
+        })
+
+        with patch('os.path.join', return_value='/test/workdir/predictions/'):
+            self.infer_worker.update_cfg(cfg)
+
+        assert 'sweep_cooldown_s' not in cfg['infer']['runner']
+        # 其余注入不受影响
+        assert cfg['infer']['runner']['max_num_workers'] == 4
+
+    def test_update_cfg_injects_sweep_cooldown_for_string_runner_type(self):
+        """runner type 为字符串时经注册表解析后仍按签名判断注入"""
+        cfg = MockConfigDict({
+            'models': [{'attr': 'service', 'abbr': 'test_model'}],
+            'datasets': [{'abbr': 'test_dataset', 'infer_cfg': {'retriever': {}}}],
+            'work_dir': '/test/workdir',
+            'infer': {
+                'partitioner': {},
+                'runner': {'type': 'LocalRunner'},
+            },
+            'sweep_cooldown_s': 2.5,
+            'cli_args': MagicMock(debug=False),
+        })
+
+        with patch('os.path.join', return_value='/test/workdir/predictions/'):
+            self.infer_worker.update_cfg(cfg)
+
+        assert cfg['infer']['runner']['sweep_cooldown_s'] == 2.5
 
     @patch('ais_bench.benchmark.cli.workers.PARTITIONERS')
     @patch('ais_bench.benchmark.cli.workers.RUNNERS')

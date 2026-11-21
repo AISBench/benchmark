@@ -9,15 +9,16 @@ AISBench Benchmark 支持通过 [**命令行参数（CLI）**](#命令行参数
 ais_bench [OPTIONS]
 ```
 ### 参数说明
-根据执行场景，命令行参数分为五大类：
+根据执行场景，命令行参数分为六大类：
 
 - 公共参数
 - 精度测评参数（仅在 `--mode` 为 `all、infer、eval` 或 `viz` 时生效）
 - 性能测评参数（仅在 `--mode` 为 `perf` 或 `perf_viz` 时生效）
 - Agent 测评参数（仅在 `--mode` 为 `agent` 或 `agent_viz` 时生效）
+- AgentX 测评参数（仅在 `--mode` 为 `agentx` 或 `agentx_raw` 时生效）
 - 随机合成数据集参数（仅在 `--datasets` 指定随机合成数据集时生效）
 
-`精度测评参数`只有在`--mode`参数指定为`"all", "infer", "eval", "viz"`时生效，`性能测评参数`只有在`--mode`参数指定为`"perf", "perf_viz"`时生效，`Agent测评参数`只有在`--mode`参数指定为`"agent", "agent_viz"`时生效，`随机合成数据集参数`仅在 `--datasets` 指定随机合成数据集（如 `synthetic_gen_tokenid`、`synthetic_gen_string`）时生效，`公共参数`则不区分任务执行模式，在所有模式下均可指定。
+`精度测评参数`只有在`--mode`参数指定为`"all", "infer", "eval", "viz"`时生效，`性能测评参数`只有在`--mode`参数指定为`"perf", "perf_viz"`时生效，`Agent测评参数`只有在`--mode`参数指定为`"agent", "agent_viz"`时生效，`AgentX测评参数`只有在`--mode`参数指定为`"agentx", "agentx_raw"`时生效，`随机合成数据集参数`仅在 `--datasets` 指定随机合成数据集（如 `synthetic_gen_tokenid`、`synthetic_gen_string`）时生效，`公共参数`则不区分任务执行模式，在所有模式下均可指定。
 
 ### 公共参数
 适用于所有模式，可同时与精度或性能参数联合使用。
@@ -27,7 +28,7 @@ ais_bench [OPTIONS]
 | `--models`| 指定模型推理后端任务名称（对应 `ais_bench/benchmark/configs/models` 路径下一个已经实现的默认模型配置文件），支持传入多个任务名称。详情参考📚 [支持的模型](./models.md)。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--models vllm_api_general`  |
 | `--datasets`   | 指定数据集任务名称（对应 `ais_bench/benchmark/configs/datasets` 路径下一个已经实现的默认数据集配置文件），可传入多个。详情参考📚 [支持数据集类型](../../get_started/datasets.md#支持数据集类型)。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--datasets gsm8k_gen`    |
 | `--summarizer` | 指定结果总结任务名称（对应 `ais_bench/benchmark/configs/summarizers` 路径下一个已经实现的默认模型配置文件）。详情参考📚 [支持的结果汇总任务](./summarizer.md) 。<br> ⚠️注意：指定了自定义配置文件路径后此参数无效| `--summarizer medium`|
-| `--mode` 或 `-m`| 运行模式，可选：`all`、`infer`、`eval`、`viz`、`perf`、`perf_viz`、`agent`、`agent_viz`；默认 `all`。<br>详细请见 📚 [运行模式说明](./mode.md)。 | `--mode infer`<br>`-m all`|
+| `--mode` 或 `-m`| 运行模式，可选：`all`、`infer`、`eval`、`viz`、`perf`、`perf_viz`、`agent`、`agent_viz`、`agentx`、`agentx_raw`；默认 `all`。<br>详细请见 📚 [运行模式说明](./mode.md)。 | `--mode infer`<br>`-m all`|
 | `--reuse` 或 `-r`| 指定已有工作目录下的时间戳，继续执行并覆盖原有结果。结合`--mode`参数值，可用于推理中断续推，或基于已有推理结果执行精度计算、可视化结果打印。若不加参，则自动选取 `--work-dir` 下最新时间戳。| `--reuse 20250126_144254`<br>`-r 20250126_144254` |
 | `--work-dir` 或 `-w`     | 指定评测工作目录，用于保存输出结果。默认 `outputs/default`。| `--work-dir /path/to/work`<br>`-w /path/to/work` |
 | `--config-dir` | `models`，`datasets`和`summarizers`配置文件所在的文件夹路径，默认 `ais_bench/benchmark/configs`。    | `--config-dir /xxx/xxx`   |
@@ -37,6 +38,7 @@ ais_bench [OPTIONS]
 | `--merge-ds`   | 开启同类数据集合并推理（同一任务多数据集一起跑）。| `--merge-ds`|
 | `--num-prompts` | 指定数据集测评条数（按照数据集顺序选取），需传入正整数，超过数据集条数或默认情况下表示对全量数据集进行测评。支持传入多个值，空格分隔（与 `--batch-size` 一一对应）。 | `--num-prompts 500`<br>`--num-prompts 4 8 16` |
 | `--max-num-workers`   | 并行任务数，范围 `[1, CPU 核数]`，默认 `1`。在指定`--debug`时配置无效，所有任务串行执行。注意：性能测评场景下，并发数过高可能会导致不同进程出现资源抢占，导致测试结果失真。  | `--max-num-workers 2` |
+| `--cooldown` | 相邻两个测试任务之间的等待秒数，非负有限数，默认 `5`；设为 `0` 表示不等待。仅在 `--max-num-workers 1` 串行执行时生效，避免上一任务的排队请求污染下一任务。 | `--cooldown 5` |
 |`--num-warmups`|发送请求前预热次数，按照数据集顺序选取数据进行测试，大概num-warmups大于数据集条数时，会循环发送数据集中数据。默认 `1`；若设为0，则不预热。如果warmup阶段所有请求失败，后续推理任务将不会执行。| `--num-warmups 10` |
 | `--response-anomaly` | 开启推理响应异常检测，无需额外配置：命令行增加 `--response-anomaly` 即开启，不增加默认不开启。检测串行绑定在推理阶段内：推理结束后启动检测并等待其完成（专属状态面板打印最终结果后）才进入后续 Judge / Eval / 汇总流程；需服务返回 token id 与 top-k logprobs。仅支持 `all`、`infer`、`infer_judge` 普通生成链路，不支持性能模式与 Agent 测评模式。详细用法见 📚 [推理响应异常检测](../../advanced_tutorials/response_anomaly_detection.md)。 | `--response-anomaly` |
 | `--response-anomaly-payload-retention` | 异常检测完成后的 payload 保存模式：`all` 保存全部，`anomalies` 保存异常及检测失败/不可用 Case，`none` 不保存。默认 `anomalies`。 | `--response-anomaly-payload-retention anomalies` |
@@ -133,6 +135,28 @@ ais_bench [OPTIONS]
 | `--dataset-abbr` | 覆盖数据集 `abbr`（测评任务中数据集的唯一标识） | `--dataset-abbr my-synth` |
 
 > ⚠️ **注意**：`--tokenid-config-*` 只能在 `--datasets synthetic_gen_tokenid` 时生效，`--string-config-*` 只能在 `--datasets synthetic_gen_string` 时生效；类型不匹配时会在启动前报错，可使用 `--request-count` 调整任意随机合成数据集的请求总数。
+
+### AgentX 测评参数
+
+这些参数仅在 `--mode agentx` 或 `--mode agentx_raw` 时生效。`agentx` 由 AISBench 组装完整 Harness 命令；`agentx_raw` 只要求 `--agentx-extra-arg`，完整命令由该参数描述。详细用法见 📚 [AgentX Weka Trace数据集性能测评](../../extended_benchmark/agentx/agentx.md)。
+
+| 参数 | 说明 | 示例 |
+| ---- | ---- | ---- |
+| `--endpoint` | Chat Completions 端点路径，默认 `/v1/chat/completions` | `--endpoint /v1/chat/completions` |
+| `--agentx-dataset-variant` | 语料版本：`full` 或 `256k`；`agentx` 模式必填，不做模型名推断 | `--agentx-dataset-variant 256k` |
+| `--agentx-dataset-path` | 本地 Weka trace 目录（含 `traces.jsonl`）；不指定时使用公共数据集（由 Harness 下载） | `--agentx-dataset-path /data/cc-traces-256k` |
+| `--agentx-run-mode` | 运行口径：`benchmark` 保留官方 preset，`smoke` 允许短跑且结果不作为正式结论 | `--agentx-run-mode smoke` |
+| `--agentx-duration` | profiling 时长（秒），映射为 `--benchmark-duration`；benchmark 需 ≥900（缺省 3600），smoke 缺省 60 | `--agentx-duration 900` |
+| `--agentx-trace-limit` | 限制可用于发送的 trace 条数，映射为 `--num-dataset-entries`；仅在 smoke 模式可用，缺省 4 | `--agentx-trace-limit 8` |
+| `--agentx-python` | 安装了 `agentx-harness` 的解释器路径 | `--agentx-python /opt/venvs/agentx/bin/python` |
+| `--agentx-bin` | agentx 可执行文件路径；缺省按 `--agentx-python` 同目录查找 | `--agentx-bin /opt/venvs/agentx/bin/agentx` |
+| `--agentx-env` | 传给 Harness 子进程的额外环境变量，`KEY=VALUE` 格式 | `--agentx-env VLLM_LOGGING_LEVEL=WARNING` |
+| `--agentx-extra-arg` | 追加到 `agentx profile` 末尾的原始参数；当参数与 AISBench 生成的同名参数冲突时，AISBench优先；`agentx_raw` 模式必填且需描述完整命令 | `--agentx-extra-arg '{ --random-seed 0 }'` |
+
+> ⚠️ **注意**：
+> - `agentx` 模式必须提供 `--url`、`--model-name`、`--path`、`--agentx-dataset-variant`。
+> - `agentx_raw` 只接受 `--agentx-python`、`--agentx-bin`、`--agentx-env`、`--agentx-extra-arg` 四个子进程参数，以及 `--work-dir`、`--reuse`、`--dry-run`、`--debug` 等运行控制参数；`--batch-size`、`--url`、`--api-key`、`--agentx-duration`、`--agentx-run-mode` 等会直接报错。
+> - `--agentx-extra-arg` 的整段值建议用单引号包住，否则如果其中存在 `--api-key=...` 等类似参数会被解析成 AISBench 自己的参数导致取值缺失。
 
 ## 配置常量文件参数
 

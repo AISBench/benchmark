@@ -8,7 +8,7 @@
 | Item | Description |
 | --- | --- |
 | Default image registry | `ghcr.io/aisbench/aisbench_benchmark` |
-| Build script | `build_image.sh` |
+| Build script | `build_image.sh` (AgentX variant: `agentx/build_agentx.sh`) |
 | Supported OS | Ubuntu 22.04 / 24.04, openEuler 22.03 / 24.03 |
 | Supported Python | 3.10, 3.11, 3.12 |
 | Build strategy | Multi-stage build (builder → runtime) |
@@ -30,6 +30,7 @@ Image tag format:
 
 ```
 {hub_repo}:{TAG}-{OS}-{py_version}-{arch}
+{hub_repo}:{TAG}-{OS}-{py_version}-agentx-{arch}  # Optional variant with AgentX preinstalled
 ```
 
 Example: `ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-ubuntu22.04-py310-x86_64`
@@ -48,6 +49,7 @@ Where:
 | [Dockerfile.py312.ubuntu24.04](ubuntu/Dockerfile.py312.ubuntu24.04) | `ubuntu:24.04` | 3.12 | `docker/ubuntu/` |
 | [Dockerfile.py310.openeuler22.03](openeuler/Dockerfile.py310.openeuler22.03) | `openeuler/openeuler:22.03-lts` | 3.10 | `docker/openeuler/` |
 | [Dockerfile.py311.openeuler24.03](openeuler/Dockerfile.py311.openeuler24.03) | `openeuler/openeuler:24.03-lts` | 3.11 | `docker/openeuler/` |
+| [Dockerfile.agentx](agentx/Dockerfile.agentx) | Compatible AISBench image already built | Isolated Harness venv 3.11 / 3.12 | `docker/agentx/` |
 
 Dockerfile naming convention: `Dockerfile.{py_version}.{os}`
 
@@ -142,6 +144,9 @@ bash docker/build_image.sh --tag v3.1-20260522-master --use-cache 1
 
 # Specify a custom image registry
 bash docker/build_image.sh --tag v3.1-20260522-master --hub-repo docker.io/myuser/myimage
+
+# Build a separate image variant with AgentX preinstalled (build the standard image for the same TAG first)
+bash docker/agentx/build_agentx.sh --tag v3.1-20260522-master --os ubuntu24.04 --py-version py312
 ```
 
 ### Build Script Parameter Reference
@@ -157,6 +162,30 @@ bash docker/build_image.sh --tag v3.1-20260522-master --hub-repo docker.io/myuse
 | `--push` | No | `0` | Push to remote registry (1=yes) |
 | `--upload` | No | `0` | Upload to OBS bucket (1=yes) |
 | `--use-cache` | No | `0` | Use build cache (1=yes) |
+
+The AgentX variant is not built by `build_image.sh`; the standalone [agentx/build_agentx.sh](agentx/build_agentx.sh) creates the `-agentx` variant on top of an already-built standard image. Its parameters match this table (details below).
+
+### Running the AgentX-Preinstalled Image
+
+The `-agentx` variant preinstalls `agentx-harness==1.0.13` in the isolated `/opt/venvs/agentx113` environment. You do not need to install Harness in the AISBench Python environment or pass `--agentx-python`, `--agentx-bin`, or `--agentx-pythonpath`. Standard images and Python 3.10 images do not include this capability.
+
+```bash
+export AGENTX_IMAGE=ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-ubuntu24.04-py312-agentx-x86_64
+docker pull ${AGENTX_IMAGE}
+
+# Zero-installation dry run: create a redacted plan without contacting the server or downloading traces
+docker run --rm --network host -v /mnt/weight:/mnt/weight ${AGENTX_IMAGE} \
+  ais_bench --mode agentx --url http://127.0.0.1:8000 \
+  --model-name qwen3.8 --path /mnt/weight/Qwen3.8-27B-w8a8 --batch-size 1 --dry-run
+
+# Formal run: mount an output directory; use a fresh directory for each concurrency point
+docker run --rm --network host -v /mnt/weight:/mnt/weight \
+  -v "$PWD"/outputs:/benchmark/outputs ${AGENTX_IMAGE} \
+  ais_bench --mode agentx --url http://127.0.0.1:8000 \
+  --model-name qwen3.8 --path /mnt/weight/Qwen3.8-27B-w8a8 --batch-size 8
+```
+
+For releases, `docker/agentx/build_agentx.sh`'s `--push 1`, `--multi-arch 1`, and `--upload 1` behave exactly as they do for standard images. GHCR manifests and OBS archives include `-agentx` after `py_version`. An archive is named `ais_bench_benchmark_image_${TAG}-ubuntu24.04-py312-agentx-${arch}.tar.gz`.
 
 ### Custom Development
 

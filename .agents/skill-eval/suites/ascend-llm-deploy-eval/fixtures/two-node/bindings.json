@@ -1,0 +1,83 @@
+{
+  "nodes": {
+    "node_p": {
+      "host": "root@10.0.0.21",
+      "work_dir": "/work/eval",
+      "model_paths": {
+        "dsv4": "/mnt/models/demo-model"
+      },
+      "paths": {
+        "shell_rc": "/root/.bashrc",
+        "comm": "/etc/hixlep",
+        "proxy_program": "/opt/pd-proxy/proxy.py",
+        "reference_proxy": "/opt/pd-proxy/reference-proxy.py"
+      },
+      "mounts": [],
+      "benchmark": {
+        "datasets": {
+          "default": {
+            "path": "/data/eval.jsonl",
+            "input_column": "question",
+            "output_column": "answer"
+          }
+        }
+      },
+      "deployments": {
+        "pd-b": {
+          "network": {
+            "ip": "10.0.0.21",
+            "interface": "eth0"
+          },
+          "ports": {
+            "prefill": {
+              "http": 18000,
+              "kv": 18002,
+              "rpc": 18004,
+              "hccl": 18009
+            },
+            "proxy": {
+              "http": 18056
+            }
+          }
+        }
+      }
+    },
+    "node_q": {
+      "host": "root@10.0.0.22",
+      "work_dir": "/work/eval",
+      "model_paths": {
+        "dsv4": "/mnt/models/demo-model"
+      },
+      "paths": {
+        "shell_rc": "/root/.bashrc",
+        "comm": "/etc/hixlep"
+      },
+      "mounts": [],
+      "benchmark": {
+        "datasets": {
+          "default": {
+            "path": "/data/eval.jsonl",
+            "input_column": "question",
+            "output_column": "answer"
+          }
+        }
+      },
+      "deployments": {
+        "pd-b": {
+          "network": {
+            "ip": "10.0.0.22",
+            "interface": "eth0"
+          },
+          "ports": {
+            "decode": {
+              "http": 18000,
+              "kv": 18002,
+              "rpc": 18004,
+              "hccl": 18009
+            }
+          }
+        }
+      }
+    }
+  }
+}

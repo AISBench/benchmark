@@ -1,0 +1,35 @@
+{
+  "id": "C15",
+  "title": "容器脚本：特权基线、任务/模型挂载、全量绑定端口、无旧基线主机目录",
+  "dimension": "D4 生成物完整性与可审计性",
+  "weight": 6,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「每个部署的 runtime.container.privileged 必须显式填写」；references/container-baseline.md 规定容器基线；docs/compact-cli.md「不隐式追加旧基线主机目录」，端口「所有声明端口都必须绑定，生成器不临时改端口」。",
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-container.sh", "value": [
+      "docker info >/dev/null",
+      "if docker inspect 20261112-001-pd-a-node_a >/dev/null 2>&1; then echo \"Container already exists\"",
+      "--privileged=true",
+      "--net=host",
+      "--pid=host",
+      "--shm-size=500g",
+      "-v /work/eval/20261112-001:/work/eval/20261112-001 ",
+      "-v /mnt/models/demo-model:/mnt/models/demo-model:ro",
+      "--device /dev/davinci7",
+      "npu-smi info",
+      "command -v fuser",
+      "docker run --label \"bench.execution=$TOKEN\""
+    ]},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-container.sh", "value": "18000, 18002, 18004"},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-container.sh", "value": "18056"},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-container.sh", "value": "fuser /dev/davinci0"},
+    {"type": "text_not_contains", "path": "scripts/pd-a/node_a-container.sh", "value": [
+      "/root/host",
+      "/usr/local/sbin",
+      "/var/log/npu",
+      "/etc/hccl_rootinfo.json"
+    ]}
+  ]
+}
