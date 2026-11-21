@@ -107,6 +107,7 @@ class TestDefaultPerfMetricCalculator(unittest.TestCase):
         calculator.data_count = {}
         calculator.decode_latencies = {}
         calculator.success_count = {}
+        calculator.excluded_count = {}
         calculator.infer_time = {}
         calculator.result = {}
         calculator.convert_result = MagicMock(return_value={'converted_result': True})
@@ -126,6 +127,43 @@ class TestDefaultPerfMetricCalculator(unittest.TestCase):
         calculator.convert_result.assert_called_once()
 
     @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
+    def test_manage_request_excluded_from_total(self, mock_logger_class):
+        # 测试 manage_request（excluded）请求不统计到 Total Requests，
+        # 且 Failed = Total - Success（剔除 excluded 之后）
+        mock_logger = MagicMock()
+        mock_logger_class.return_value = mock_logger
+
+        # success 数组含 2 个真实成功 + 1 个真实失败 + 2 个 manage_request(excluded) 请求
+        perf_details = {
+            'id': ['req1', 'req2', 'req3', 'req4', 'req5'],
+            'start_time': [1000, 1001, 1002, 1003, 1004],
+            'end_time': [1100, 1105, 1110, 1115, 1120],
+            'success': [True, False, True, False, False],
+            'excluded': [False, False, False, True, True],
+            'itl': [[0.01, 0.02], [0.03, 0.04], [0.05, 0.06], [0.07, 0.08], [0.09, 0.10]],
+            'latency': [0.1, 0.2, 0.3, 0.4, 0.5],
+            'ttft': [0.05, 0.06, 0.07, 0.08, 0.09],
+            'tpot': [0.02, 0.03, 0.04, 0.05, 0.06],
+            'input_tokens': [10, 20, 30, 40, 50],
+            'output_tokens': [50, 60, 70, 80, 90],
+            'generate_tokens_speed': [100, 200, 300, 400, 500]
+        }
+
+        calculator = DefaultPerfMetricCalculator()
+        calculator._init_datas(perf_details, self.max_concurrency)
+
+        # Total Requests 排除 2 个 manage_request：3 个真实请求（2 成功 + 1 失败）
+        self.assertEqual(calculator.data_count['total'], 3)
+        self.assertEqual(calculator.success_count['total'], 2)
+        self.assertEqual(calculator.excluded_count['total'], 2)
+
+        # 验证 common metrics 中 Total/Failed/Success 一致性
+        calculator._calc_common_metrics()
+        self.assertEqual(calculator.common_metrics['Total Requests']['total'], 3)
+        self.assertEqual(calculator.common_metrics['Success Requests']['total'], 2)
+        self.assertEqual(calculator.common_metrics['Failed Requests']['total'], 1)
+
+    @patch('ais_bench.benchmark.calculators.base_perf_metric_calculator.AISLogger')
     def test_process_result_with_none_values(self, mock_logger_class):
         # 测试处理包含None值的结果
         mock_logger = MagicMock()
@@ -141,6 +179,7 @@ class TestDefaultPerfMetricCalculator(unittest.TestCase):
         calculator.data_count = {}
         calculator.decode_latencies = {}
         calculator.success_count = {}
+        calculator.excluded_count = {}
         calculator.infer_time = {}
         calculator.result = {}
         calculator.convert_result = MagicMock(return_value={'converted_result': True})

@@ -29,6 +29,9 @@ class Output:
         # 生成 token 的 logprobs 信息（仅配置了 logprobs=True 时才有数据）
         # 保留 vLLM 原始结构：[{token, logprob, bytes, top_logprobs: [...]}, ...]
         self.origin_logprobs: list = []
+        # Session identifier for session-aware concurrency mode. Empty in non-session mode.
+        # Set by GenInferencer.do_request from data["session_id"].
+        self.session_id: str = ""
 
     @abstractmethod
     def get_metrics(self) -> dict:

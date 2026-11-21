@@ -51,6 +51,7 @@ class StablePerfMetricCalculator(BasePerfMetricCalculator):
         self.data_count = {}
         self.decode_latencies = {}
         self.success_count = {}
+        self.excluded_count = {}
         self.empty_count = {}
         self.infer_time = {}
         self.metrics = {}
@@ -174,6 +175,11 @@ class StablePerfMetricCalculator(BasePerfMetricCalculator):
             if v is not None:
                 result[k] = [v[i] for i in id_list]
         self.data_count[stage_name] = len(result["success"])
+        # Excluded (manage_request) requests have no start/end time entries, so
+        # they never appear in the stable stage window -> excluded_count is 0.
+        self.excluded_count[stage_name] = 0
+        # data_count already excludes excluded (manage_request) requests.
+        self.data_count[stage_name] -= self.excluded_count[stage_name]
         self.decode_latencies[stage_name] = result["itl"]
         self.success_count[stage_name] = sum(result["success"])
         self.infer_time[stage_name] = self.stage_section[1] - self.stage_section[0]
