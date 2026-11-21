@@ -132,15 +132,14 @@ git push -u origin feature/your-feature-name
 
 ### 代码格式化工具
 
-建议使用以下工具进行代码格式化：
+仓库暂未提供统一的 Black/isort 配置，请仅对本次修改的文件执行，并显式指定行宽为 120（Black 默认为 88）；不要对整个仓库运行格式化工具：
 
 ```bash
-# 使用 black 进行代码格式化（如果项目配置了）
-black ais_bench/
-
-# 使用 isort 进行导入排序（如果项目配置了）
-isort ais_bench/
+black --line-length 120 path/to/changed_file.py
+isort --line-length 120 path/to/changed_file.py
 ```
+
+注意：`black` 与 `isort` 会就地改写文件，执行后请检查 diff，确认没有提交不相关的修改。
 
 ### 静态检查
 
@@ -299,6 +298,7 @@ Signed-off-by: Your Name <your.email@example.com>
 - `[type]`：提交类型，见下方类型说明
 - `[scope]`：影响范围（可选），如 models、datasets、docs 等
 - `<subject>`：简短的描述性标题
+- 各部分紧连书写，`]` 与 `<subject>` 之间不加空格
 
 ### 类型（Type）
 

@@ -132,15 +132,14 @@ Before submitting code, please ensure the code complies with the project's code 
 
 ### Code Formatting Tools
 
-It is recommended to use the following tools for code formatting:
+The repository does not currently provide a unified Black/isort configuration. Run the tools only on the files you changed and set the line width to 120 explicitly (Black defaults to 88); do not run formatters across the whole repository:
 
 ```bash
-# Use black for code formatting (if project is configured)
-black ais_bench/
-
-# Use isort for import sorting (if project is configured)
-isort ais_bench/
+black --line-length 120 path/to/changed_file.py
+isort --line-length 120 path/to/changed_file.py
 ```
+
+Note: `black` and `isort` rewrite files in place. Review the diff afterwards to make sure no unrelated changes are included.
 
 ### Static Checking
 
@@ -202,7 +201,21 @@ pytest tests/UT/test_example.py
 - **Test Naming**: Use `test_` prefix to name test functions
 - **Test Coverage**: New features should include corresponding test cases, target coverage not less than 80%
 
-For main-repository and `prefix_cache` plugin test commands, coverage thresholds, and PR Quality Gate rules, see the [pre-submission checks in CONTRIBUTING.md](https://github.com/AISBench/benchmark/blob/master/CONTRIBUTING.md#4-提交前自检).
+For full details see the [pre-submission checks in CONTRIBUTING.md](https://github.com/AISBench/benchmark/blob/master/CONTRIBUTING.md#4-提交前自检) (Chinese). Key checks for English readers:
+
+```bash
+# Unit tests; writes test_reports/test_summary.txt by default
+python3 tests/run_tests.py tests/UT -p 16
+
+# prefix_cache plugin tests (separate report directory)
+python3 tests/run_tests.py plugins/prefix_cache/tests \
+  --source-dirs plugins/prefix_cache/ais_bench_prefix_cache \
+  --output test_reports/prefix_cache
+```
+
+CI requires, for the main repository and the `prefix_cache` plugin separately: `test_summary.txt` must exist, 0 failed cases, Total coverage ≥ 80%, Line coverage ≥ 80%, Branch coverage ≥ 60%. Per-file coverage details are in `test_reports/htmlcov/index.html`.
+
+The `PR Quality Gate` additionally enforces: at most 1000 added lines (`large_pr`), a linked Issue (`no_issue`), at least one submitted review (`no_review`), all inline review threads resolved (`review_opened`), `tests/UT/` changes for Feature PRs or Bugfix PRs with more than 50 added lines (`no_UT`), and at least one PR Type option checked from the template (`no_template`). After fixing, push a new commit or comment `/pr_check` on the PR to re-run the gate.
 
 ## Issues
 
@@ -299,6 +312,7 @@ Where:
 - `[type]`: Commit type, see type descriptions below
 - `[scope]`: Affected scope (optional), such as models, datasets, docs, etc.
 - `<subject>`: Brief descriptive title
+- Write all parts together without spaces; no space between `]` and `<subject>`
 
 ### Types
 

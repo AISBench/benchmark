@@ -32,6 +32,10 @@ git checkout -b feature/add-model-backend upstream/master
 | Bug 修复 | `fix/<简短缺陷名>` |
 | 文档更新 | `docs/<简短文档名>` |
 | 代码重构 | `refactor/<简短重构名>` |
+| CI/CD 改动 | `ci/<简短改动名>` |
+| 性能优化 | `perf/<简短优化名>` |
+| 测试相关 | `test/<简短用例名>` |
+| 依赖更新 | `deps/<简短依赖名>` |
 
 完成修改与自检后，将贡献分支推送到自己的 Fork，然后向上游仓库发起 PR：
 
@@ -54,6 +58,7 @@ PR 标题和 Commit Message 使用以下格式：
 - `type`：变更类型，按下表选择。
 - `scope`：影响模块，可选。不填写时使用 `[type]<subject>`。
 - `subject`：简要说明实际变更，不要只写 `update`、`fix` 等笼统描述。`<subject>` 表示占位内容，实际标题不保留尖括号。
+- 各部分紧连书写，`]` 与 `<subject>` 之间不加空格。
 
 | Type | 含义 |
 | --- | --- |
@@ -72,12 +77,12 @@ PR 标题和 Commit Message 使用以下格式：
 示例：
 
 ```text
-[feat][models] 添加 MindIE 流式推理后端支持
-[fix][datasets] 修复 MBPP pass@k 计算的 task_id 聚合错误
-[docs][readme] 更新 Python 版本要求说明
-[test][calculators] 补充吞吐率计算器单元测试
-[ci/cd][ci] 更新单元测试工作流
-[dependency] 更新依赖版本约束
+[feat][models]添加 MindIE 流式推理后端支持
+[fix][datasets]修复 MBPP pass@k 计算的 task_id 聚合错误
+[docs][readme]更新 Python 版本要求说明
+[test][calculators]补充吞吐率计算器单元测试
+[ci/cd][ci]更新单元测试工作流
+[dependency]更新依赖版本约束
 ```
 
 一个 Commit 只完成一个逻辑变更。复杂变更应在 Commit 正文中说明动机与取舍。
@@ -120,7 +125,7 @@ Signed-off-by: Your Name <your.email@example.com>
 
 请保留类型选项的原始文案，自动打标签依赖模板匹配。**标题中的 `[feat]` 等前缀不能代替 PR Type 勾选项。**
 
-选择 CI/CD 或 Dependency 后，如果未出现对应的 `ci/cd` 或 `dependency` 标签，请联系维护者补充标签。
+勾选后，`Auto Label PR` 工作流会按模板文案自动添加对应标签（CI/CD → `ci/cd`，Dependency → `dependency`）。如果勾选后标签未出现，请联系维护者核对模板文案与 `auto_label_pr.yml` 的映射是否一致。
 
 ### 关联 Issue
 
@@ -172,6 +177,8 @@ Relates to #123
 python3 tests/run_tests.py tests/UT -p 16
 ```
 
+上述命令默认将测试报告写入 `test_reports/` 目录：`test_summary.txt` 汇总失败用例数与 Total/Line/Branch 覆盖率（即 CI 校验的四项指标），逐文件覆盖率明细见 `test_reports/htmlcov/index.html`；可通过 `--output` 修改输出目录。本地运行该命令即可在提交前自证是否达标。
+
 修改 `prefix_cache` 插件时，补充运行插件测试：
 
 ```bash
@@ -180,7 +187,7 @@ python3 tests/run_tests.py plugins/prefix_cache/tests \
   --output test_reports/prefix_cache
 ```
 
-CI 对master与 `prefix_cache` 插件分别检查以下指标，任一未达标即失败：
+CI 会分别对主仓库与 `prefix_cache` 插件检查以下指标，任一未达标即失败：
 
 | 检查项 | 要求 |
 | --- | --- |
@@ -203,6 +210,7 @@ PR 提交后，`PR Quality Gate` 检查以下内容：
 | `no_review` | 缺少已提交的正式 Review | 邀请审核人提交 Review |
 | `review_opened` | 存在未解决的行内检视意见 | 修改并回复，等待意见提出者或维护者确认闭环 |
 | `no_UT` | Feature，或新增行数 > 50 的 Bugfix，缺少 `tests/UT/` 下的文件新增或修改 | 补充对应单元测试 |
+| `no_template` | 未按模板勾选 PR 类型 | 在 PR 描述中勾选至少一个 PR Type 选项 |
 
 对于仅属于 Docs、CI/CD、Refactor、Perf、Dependency、Test-Cases、Other 的 PR，以及新增行数 ≤ 50 的 Bugfix PR，质量检查不强制要求 `tests/UT/` 变更。仍应根据实际行为变化补充必要测试，尤其是 Bug 的回归用例。
 
@@ -210,13 +218,14 @@ PR 提交后，`PR Quality Gate` 检查以下内容：
 
 ## 5. 配合 Review
 
-- 邀请相关审核人提交正式 Review，普通 PR 评论不能替代正式 Review。
+- 邀请相关审核人提交正式 Review，普通 PR 评论不能替代正式 Review。仓库暂未维护 CODEOWNERS 等模块负责人列表；选择审核人时可参考近期同模块已合入 PR 的 Reviewer，或在 PR 描述与评论中 @ 维护者请求指派，并在 Collaboration Info 中如实填写。
 - 逐条回复检视意见，说明修改结果或提供理由。
 - 行内意见应由提出者或维护者确认并 Resolve，请勿自行 Resolve 他人提出的意见。
 - 更新自己的贡献分支即可更新原 PR，无需因每次修改重新创建 PR。
 - 保持贡献分支与上游 `master` 同步，并解决合并冲突。
 - 查看 PR 的 Checks，修复单元测试、覆盖率和适用的冒烟测试失败。
-- 来自 Fork 的冒烟测试可能需要维护者批准后才执行。等待审批时可在 PR 中联系维护者。
+- 冒烟测试（`run_smoke_test_pr_and_daily.yml`）在自托管昇腾 Linux 环境上运行，仅当变更涉及 `ais_bench/benchmark/**`、`smoke_tests/**` 或 `plugins/prefix_cache/**` 时触发。该环境依赖专用硬件与审批，外部贡献者无法在本地复现，无需自行运行。
+- 来自 Fork 的冒烟测试需要维护者批准后才执行。等待审批或测试结果时可在 PR 中联系维护者。
 
 PR 合入前，必须通过质量检查及适用的 CI 检查，获得至少 1 位维护者批准，并闭环所有行内意见。
 
@@ -264,7 +273,7 @@ def calculate_total_tokens(token_counts: list[int]) -> int:
 ### 日志、异常与组件注册
 
 - 统一使用 `AISLogger` 输出日志。
-- 异常统一使用 `ais_bench.benchmark.utils.logging.exceptions` 中的自定义异常类。
+- 新增领域错误使用 `ais_bench.benchmark.utils.logging.exceptions` 中的自定义异常类；自定义异常必须提供 `error_codes` 中已注册的错误码，且不继承 `ValueError` 等内置异常类型。参数校验等语义明确的场景继续使用内置异常；将存量内置异常替换为自定义异常前，需先评估调用方 `except` 捕获的兼容性。
 - 新增组件必须通过对应注册器接入：
 
 | 组件 | 注册器 |
@@ -273,15 +282,18 @@ def calculate_total_tokens(token_counts: list[int]) -> int:
 | 数据集加载 | `@LOAD_DATASET.register_module()` |
 | 评估器 | `@ICL_EVALUATORS.register_module()` |
 | 推理器 | `@ICL_INFERENCERS.register_module()` |
+| 性能指标计算器 | `@PERF_METRIC_CALCULATORS.register_module()` |
+
+上表仅列常用组件，完整注册器列表（另含 `TASKS`、`RUNNERS`、`PARTITIONERS`、`CLIENTS` 等）见 `ais_bench/benchmark/registry.py`。
 
 ### 格式与语法自检
 
-使用 Black、isort 或仓库提供的 lint 工具检查本次修改的文件。以下命令中的路径请替换为实际文件：
+仓库暂未提供统一的 Black/isort 配置或 lint 脚本。Black 默认行宽为 88，与本指南的 120 字符建议不同，请仅对**本次修改的文件**执行，并显式指定行宽；不要对整个仓库运行格式化工具：
 
 ```bash
-black path/to/changed_file.py
-isort path/to/changed_file.py
+black --line-length 120 path/to/changed_file.py
+isort --line-length 120 path/to/changed_file.py
 python -m py_compile path/to/changed_file.py
 ```
 
-格式检查通过后，请再次检查 diff，确认没有提交不相关的修改。
+注意：`black` 与 `isort` 会就地改写文件。格式检查通过后，请再次检查 diff，确认没有提交不相关的修改。
