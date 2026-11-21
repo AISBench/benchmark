@@ -23,6 +23,34 @@ from ais_bench.benchmark.summarizers.perf_batch import (
 SYNTHETIC_TYPE = "ais_bench.benchmark.datasets.synthetic.SyntheticDataset"
 
 
+class TestReportPresentation(unittest.TestCase):
+    def test_basic_info_totals_exclude_failed_combinations(self):
+        rows = [
+            {"status": "success", "total_requests": 3, "duration_s": 0.12345},
+            {"status": "success", "total_requests": 4, "completed_requests": 0},
+            {"status": "fail", "total_requests": 100, "total_output_tokens": 200},
+        ]
+        first_combo = {"model_abbr": "fallback-model", "dataset_abbr": "synthetic"}
+
+        self.assertEqual(perf_batch._basic_info(rows, first_combo), [
+            ("模型", "Model", "—"),
+            ("模型任务", "Model Task", "fallback-model"),
+            ("数据集", "Dataset", "synthetic"),
+            ("总请求数", "Total Requests", "7"),
+            ("成功请求数", "Success Requests", "0"),
+            ("总测试时长 (s)", "Total Test Time (s)", "0.1235"),
+            ("输出 Token 总数", "Total Output Tokens", "—"),
+        ])
+
+    def test_run_summary_distinguishes_zero_from_missing_measurements(self):
+        row = {"failed_requests": 0, "e2el_avg_s": 2.125, "success_rate_text": "100%"}
+        summary = dict(perf_batch._run_summary(row))
+        self.assertEqual(summary["Failed Requests"], "0")
+        self.assertEqual(summary["Avg Latency (s)"], "2.125")
+        self.assertEqual(summary["Avg TTFT (ms)"], "—")
+        self.assertEqual(summary["Success Rate"], "100%")
+
+
 def _make_combo(index, batch_size, model_abbr, dataset_abbr="synthetic",
                 stream=True, ttft_valid=True, request_size=1024,
                 prefix_len=0, num_prompts=64):
