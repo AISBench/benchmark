@@ -1,7 +1,12 @@
+import base64
 import json
+import mimetypes
 import os
 import urllib
+from copy import deepcopy
+from pathlib import Path
 from typing import Dict, Optional, Union
+from urllib.request import url2pathname
 
 from ais_bench.benchmark.registry import MODELS
 from ais_bench.benchmark.utils.prompt import PromptList
@@ -137,6 +142,51 @@ class VLLMCustomAPIChat(BaseAPIModel):
             return None
         return self.lora_data_map.get(f"{data_id}")
 
+    def _inline_local_image(self, image_url: str) -> str:
+        """Convert an accessible local image URL to an inline data URL.
+
+        vLLM rejects ``file://`` URLs unless its server is started with
+        ``--allowed-local-media-path``. The benchmark client has already loaded
+        the dataset locally, so inline the image before sending the request and
+        avoid coupling the API server to the client's filesystem layout.
+        """
+        if not isinstance(image_url, str) or not image_url.startswith("file://"):
+            return image_url
+
+        parsed_url = urllib.parse.urlparse(image_url)
+        if parsed_url.netloc not in ("", "localhost"):
+            return image_url
+
+        image_path = Path(
+            url2pathname(f"{parsed_url.netloc}{parsed_url.path}")
+        ).resolve()
+        if not image_path.is_file():
+            self.logger.warning(
+                f"Local image does not exist, keeping original URL: {image_path}"
+            )
+            return image_url
+
+        mime_type = mimetypes.guess_type(image_path.name)[0] or "application/octet-stream"
+        encoded_image = base64.b64encode(image_path.read_bytes()).decode("ascii")
+        return f"data:{mime_type};base64,{encoded_image}"
+
+    def _inline_local_images(self, content):
+        if not isinstance(content, list):
+            return content
+
+        converted_content = deepcopy(content)
+        for part in converted_content:
+            if not isinstance(part, dict) or part.get("type") != "image_url":
+                continue
+            image_url = part.get("image_url")
+            if isinstance(image_url, dict):
+                url = image_url.get("url")
+                if isinstance(url, str):
+                    image_url["url"] = self._inline_local_image(url)
+            elif isinstance(image_url, str):
+                part["image_url"] = self._inline_local_image(image_url)
+        return converted_content
+
     async def get_request_body(
         self, input: PromptType, max_out_len: int, output: RequestOutput, **args
     ):
@@ -147,7 +197,7 @@ class VLLMCustomAPIChat(BaseAPIModel):
         else:
             messages = []
             for item in input:
-                msg = {"content": item["prompt"]}
+                msg = {"content": self._inline_local_images(item["prompt"])}
                 # Use hash table (dict) driven approach for role mapping
                 role = item.get("role", "")
                 msg["role"] = ROLE_MAP.get(role, role)  # Use original role if not in map
