@@ -480,7 +480,7 @@ The final CLI JSON contains `full`, `requests`, `manifest`, `analysis`, and `log
 
 Public prefixes are block-aligned, and cold mode is constrained by order, Groups, DP routing, and watermarks. The plugin selects the nearest reachable result and records requested, effective, theoretical, and the reason for any difference.
 
-If multiple Prefix Groups select the same first GSM8K sample, the plugin rotates Group samples first; only if all rotations collide does it use a deterministic Group marker fallback. Small corpora or duplicate indices therefore do not make `prepare` fail immediately.
+If multiple Prefix Groups select the same first GSM8K sample, the plugin rotates Group samples first; only if all rotations collide does it use a deterministic Group marker fallback. The fallback jointly encodes the marker and decoded corpus text instead of concatenating separately encoded token IDs. The result must contain at least the larger of the maximum shared prefix length and `block_size`; if too short, it doubles the source-token budget and rebuilds, for at most four attempts, updating source indices and hashes together. If the result remains too short, first blocks still collide, or round-trip validation fails, `prepare` raises an explicit `ArtifactValidationError` rather than silently shortening the prefix or bypassing validation. This fallback does not guarantee success for every tokenizer.
 
 ### Why is warmup excluded from formal statistics?
 

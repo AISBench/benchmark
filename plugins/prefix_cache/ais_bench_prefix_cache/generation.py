@@ -1445,13 +1445,31 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
         if selected is None:
             # Explicitly duplicated corpus selections can make every source rotation
             # identical. Add a deterministic group marker only in that collision case
-            # so one bad override cannot abort the whole dataset generation.
+            # and retain length, first-block uniqueness, and round-trip validation.
             logger.info("[gen] build_canonical_prefixes group=%s all rotations collide -> adding deterministic marker", group)
-            marker = tokenizer.encode(f"{group_position} prefix-cache-group-{group} ", add_special_tokens=False)
-            source_tokens, source_indices, source_hashes = _repeat_tokens(
-                source_records, tokenizer, max(max_lengths[group], block_size)
-            )
-            token_ids = marker + source_tokens
+            marker_text = f"{group_position} prefix-cache-group-{group} "
+            required_tokens = max(max_lengths[group], block_size)
+            source_target = required_tokens
+            for attempt in range(4):
+                source_tokens, source_indices, source_hashes = _repeat_tokens(
+                    source_records, tokenizer, source_target
+                )
+                # Joint encoding fixes subword merges at the marker/corpus seam,
+                # but can also contract seams between repeated corpus records.
+                source_text = tokenizer.decode(source_tokens, skip_special_tokens=False)
+                token_ids = tokenizer.encode(marker_text + source_text, add_special_tokens=False)
+                if len(token_ids) >= required_tokens:
+                    break
+                logger.info(
+                    "[gen] canonical fallback shortfall group=%s attempt=%d required=%d actual=%d source_target=%d",
+                    group, attempt + 1, required_tokens, len(token_ids), source_target,
+                )
+                source_target *= 2
+            else:
+                raise ArtifactValidationError(
+                    f"canonical prefix is too short for {group} after deterministic fallback: "
+                    f"required at least {required_tokens} tokens, actual {len(token_ids)} after 4 attempts"
+                )
             selected = token_ids, source_indices, source_hashes
             if tuple(token_ids[:block_size]) in first_blocks:
                 raise ArtifactValidationError(f"canonical prefixes collide in first block for {group} after deterministic fallback")
