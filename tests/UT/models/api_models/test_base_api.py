@@ -1,12 +1,20 @@
 import sys
 import json
 import asyncio
+from concurrent.futures import Future
+import multiprocessing as mp
+import time
 import unittest
 from unittest import mock
 from copy import deepcopy
 import requests
 
 from ais_bench.benchmark.models import BaseAPIModel, APITemplateParser
+from ais_bench.benchmark.models.api_models.base_api import (
+    AsyncPrefillLimiter,
+    PrefillLease,
+    SharedPrefillLimiter,
+)
 from ais_bench.benchmark.utils.prompt import PromptList
 from ais_bench.benchmark.models.output import Output
 from ais_bench.benchmark.utils.logging.exceptions import (
@@ -33,6 +41,40 @@ class MockResponse:
     def raise_for_status(self):
         if self.status_code >= 400:
             raise Exception(f"HTTP Error: {self.status_code}")
+
+
+def _make_stream_context(chunks=(), status=200, reason=""):
+    response = mock.MagicMock()
+    response.status = status
+    response.reason = reason
+
+    async def content():
+        for chunk in chunks:
+            yield chunk
+
+    response.content = content()
+    context = mock.MagicMock()
+    context.__aenter__ = mock.AsyncMock(return_value=response)
+    context.__aexit__ = mock.AsyncMock(return_value=None)
+    return context
+
+
+def _prefill_process_worker(shared_limiter, start_event, iterations):
+    if not start_event.wait(timeout=20):
+        return
+    for _ in range(iterations):
+        if not shared_limiter.semaphore.acquire(timeout=10):
+            raise RuntimeError("Timed out acquiring shared prefill permit")
+        with shared_limiter.inflight.get_lock():
+            shared_limiter.inflight.value += 1
+            shared_limiter.max_inflight.value = max(
+                shared_limiter.max_inflight.value,
+                shared_limiter.inflight.value,
+            )
+        time.sleep(0.01)
+        with shared_limiter.inflight.get_lock():
+            shared_limiter.inflight.value -= 1
+        shared_limiter.semaphore.release()
 
 
 class TestBaseAPIModel(unittest.TestCase):
@@ -348,6 +390,282 @@ class TestBaseAPIModel(unittest.TestCase):
         # 这些方法在子类中已经实现，所以不会抛出异常
         # 这里主要是测试基类的行为
         pass
+
+
+class TestPrefillConcurrency(unittest.TestCase):
+    def setUp(self):
+        class ConcreteAPIModel(BaseAPIModel):
+            def _get_url(self):
+                return self.base_url + "test"
+
+            async def get_request_body(self, input_data, max_out_len, output, **args):
+                return {"prompt": input_data, "max_tokens": max_out_len}
+
+            async def parse_stream_response(self, data, output):
+                output.text += data.get("chunk", "")
+
+        self.model_class = ConcreteAPIModel
+
+    def _make_model(self, retry=1):
+        model = self.model_class(
+            path="test-model",
+            stream=True,
+            retry=retry,
+            host_ip="127.0.0.1",
+            host_port=8000,
+        )
+        model.session = mock.MagicMock()
+        return model
+
+    def _assert_permit_available(self, shared_limiter):
+        self.assertEqual(shared_limiter.inflight.value, 0)
+        self.assertEqual(shared_limiter.waiting.value, 0)
+        self.assertTrue(shared_limiter.semaphore.acquire(timeout=0))
+        shared_limiter.semaphore.release()
+
+    def test_lease_release_is_idempotent(self):
+        async def run():
+            shared_limiter = SharedPrefillLimiter(1)
+            limiter = AsyncPrefillLimiter(shared_limiter)
+            lease = PrefillLease(shared_limiter)
+            try:
+                await limiter.acquire(lease)
+                self.assertTrue(lease.held)
+                self.assertEqual(shared_limiter.inflight.value, 1)
+                lease.release()
+                lease.release()
+                self._assert_permit_available(shared_limiter)
+                self.assertEqual(shared_limiter.max_inflight.value, 1)
+            finally:
+                limiter.close()
+
+        asyncio.run(run())
+
+    def test_cancelled_waiter_returns_late_acquisition(self):
+        class UncancellableFuture(Future):
+            def cancel(self):
+                return False
+
+        async def run():
+            shared_limiter = SharedPrefillLimiter(1)
+            limiter = AsyncPrefillLimiter(shared_limiter)
+            lease = PrefillLease(shared_limiter)
+            job = UncancellableFuture()
+            try:
+                with mock.patch.object(limiter.executor, "submit", return_value=job):
+                    task = asyncio.create_task(limiter.acquire(lease))
+                    await asyncio.sleep(0)
+                    self.assertEqual(shared_limiter.waiting.value, 1)
+                    task.cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await task
+
+                # Simulate the uncancellable thread acquiring after coroutine cancellation.
+                self.assertTrue(shared_limiter.semaphore.acquire(timeout=0))
+                job.set_result(True)
+                await asyncio.sleep(0)
+                self.assertFalse(lease.held)
+                self._assert_permit_available(shared_limiter)
+            finally:
+                limiter.close()
+
+        asyncio.run(run())
+
+    def test_stream_errors_and_empty_stream_release_permit(self):
+        async def run():
+            shared_limiter = SharedPrefillLimiter(1)
+            limiter = AsyncPrefillLimiter(shared_limiter)
+            model = self._make_model()
+            model.set_prefill_limiter(limiter)
+            cases = [
+                ("http_error", _make_stream_context(status=503, reason="Unavailable"), None, False),
+                ("empty_stream", _make_stream_context(), None, True),
+                (
+                    "invalid_json",
+                    _make_stream_context([b"data: invalid json\n\n"]),
+                    AISBenchValueError,
+                    False,
+                ),
+                ("connection_error", RuntimeError("connection failed"), RuntimeError, False),
+            ]
+            try:
+                for name, post_result, expected_error, expected_success in cases:
+                    with self.subTest(name=name):
+                        model.session.post.reset_mock()
+                        if isinstance(post_result, Exception):
+                            model.session.post.side_effect = post_result
+                        else:
+                            model.session.post.side_effect = None
+                            model.session.post.return_value = post_result
+                        output = Output()
+                        if expected_error is None:
+                            await model.stream_infer({}, output)
+                        else:
+                            with self.assertRaises(expected_error):
+                                await model.stream_infer({}, output)
+                        self.assertEqual(output.success, expected_success)
+                        self._assert_permit_available(shared_limiter)
+                        self.assertEqual(len(output.extra_perf_data["prefill_wait_time"]), 1)
+            finally:
+                limiter.close()
+
+        asyncio.run(run())
+
+    def test_parse_error_after_first_token_does_not_over_release(self):
+        async def run():
+            shared_limiter = SharedPrefillLimiter(1)
+            limiter = AsyncPrefillLimiter(shared_limiter)
+            model = self._make_model()
+            model.set_prefill_limiter(limiter)
+            model.session.post.return_value = _make_stream_context(
+                [b'data: {"chunk": "first"}\n\n']
+            )
+            model.parse_stream_response = mock.AsyncMock(
+                side_effect=RuntimeError("parse failed")
+            )
+            try:
+                with self.assertRaisesRegex(RuntimeError, "parse failed"):
+                    await model.stream_infer({}, Output())
+                self._assert_permit_available(shared_limiter)
+            finally:
+                limiter.close()
+
+        asyncio.run(run())
+
+    def test_cancellation_before_first_token_releases_permit(self):
+        async def run():
+            shared_limiter = SharedPrefillLimiter(1)
+            limiter = AsyncPrefillLimiter(shared_limiter)
+            model = self._make_model()
+            model.set_prefill_limiter(limiter)
+            response_started = asyncio.Event()
+            context = _make_stream_context()
+            response = context.__aenter__.return_value
+
+            async def content():
+                response_started.set()
+                await asyncio.Event().wait()
+                yield b""
+
+            response.content = content()
+            model.session.post.return_value = context
+            request_task = asyncio.create_task(model.stream_infer({}, Output()))
+            try:
+                await asyncio.wait_for(response_started.wait(), timeout=0.5)
+                self.assertEqual(shared_limiter.inflight.value, 1)
+                request_task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await request_task
+                self._assert_permit_available(shared_limiter)
+            finally:
+                if not request_task.done():
+                    request_task.cancel()
+                await asyncio.gather(request_task, return_exceptions=True)
+                limiter.close()
+
+        asyncio.run(run())
+
+    def test_permit_is_released_before_decode_finishes(self):
+        async def run():
+            shared_limiter = SharedPrefillLimiter(1)
+            limiter = AsyncPrefillLimiter(shared_limiter)
+            model = self._make_model()
+            model.set_prefill_limiter(limiter)
+            decode_continue = asyncio.Event()
+            context = _make_stream_context()
+            response = context.__aenter__.return_value
+
+            async def content():
+                yield b'data: {"chunk": "first"}\n\n'
+                await decode_continue.wait()
+                yield b"data: [DONE]\n\n"
+
+            response.content = content()
+            model.session.post.return_value = context
+            output = Output()
+            request_task = asyncio.create_task(model.stream_infer({}, output))
+            next_lease = PrefillLease(shared_limiter)
+            try:
+                for _ in range(100):
+                    if shared_limiter.max_inflight.value == 1 and shared_limiter.inflight.value == 0:
+                        break
+                    await asyncio.sleep(0.01)
+                else:
+                    self.fail("First-token permit was not released")
+
+                await asyncio.wait_for(limiter.acquire(next_lease), timeout=0.5)
+                self.assertFalse(request_task.done())
+                next_lease.release()
+                decode_continue.set()
+                await asyncio.wait_for(request_task, timeout=0.5)
+                self.assertEqual(output.text, "first")
+                self._assert_permit_available(shared_limiter)
+            finally:
+                decode_continue.set()
+                next_lease.release()
+                if not request_task.done():
+                    request_task.cancel()
+                await asyncio.gather(request_task, return_exceptions=True)
+                limiter.close()
+
+        asyncio.run(run())
+
+    def test_retry_acquires_a_new_lease_for_each_attempt(self):
+        async def run():
+            shared_limiter = SharedPrefillLimiter(1)
+            limiter = AsyncPrefillLimiter(shared_limiter)
+            model = self._make_model(retry=2)
+            model.set_prefill_limiter(limiter)
+            model.session.post.side_effect = [
+                RuntimeError("first attempt failed"),
+                _make_stream_context([
+                    b'data: {"chunk": "success"}\n\n',
+                    b"data: [DONE]\n\n",
+                ]),
+            ]
+            output = Output()
+            try:
+                await model.generate("test", 100, output, session=model.session)
+                self.assertTrue(output.success)
+                self.assertEqual(output.text, "success")
+                self.assertEqual(model.session.post.call_count, 2)
+                self.assertEqual(len(output.extra_perf_data["prefill_wait_time"]), 2)
+                self._assert_permit_available(shared_limiter)
+            finally:
+                limiter.close()
+
+        asyncio.run(run())
+
+    def test_multiprocess_workers_share_one_global_limit(self):
+        ctx = mp.get_context()
+        shared_limiter = SharedPrefillLimiter(2, ctx=ctx)
+        start_event = ctx.Event()
+        processes = [
+            ctx.Process(
+                target=_prefill_process_worker,
+                args=(shared_limiter, start_event, 20),
+            )
+            for _ in range(4)
+        ]
+        try:
+            for process in processes:
+                process.start()
+            start_event.set()
+            for process in processes:
+                process.join(timeout=30)
+            for process in processes:
+                self.assertFalse(process.is_alive())
+                self.assertEqual(process.exitcode, 0)
+            self.assertEqual(shared_limiter.max_inflight.value, 2)
+            self._assert_permit_available(shared_limiter)
+        finally:
+            start_event.set()
+            for process in processes:
+                if process.pid is None:
+                    continue
+                if process.is_alive():
+                    process.terminate()
+                process.join(timeout=5)
 
 
 class TestAPITemplateParser(unittest.TestCase):

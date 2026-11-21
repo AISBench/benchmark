@@ -20,6 +20,7 @@ import janus
 from tqdm import tqdm
 
 from ais_bench.benchmark.models.output import Output
+from ais_bench.benchmark.models.api_models.base_api import AsyncPrefillLimiter
 from ais_bench.benchmark.utils.core.valid_global_consts import get_request_time_out, get_max_chunk_size
 from ais_bench.benchmark.utils.config.message_constants import STATUS_REPORT_INTERVAL, MESSAGE_INFO, WAIT_FLAG, SYNC_MAIN_PROCESS_INTERVAL
 from ais_bench.benchmark.openicl.icl_inferencer.icl_base_inferencer import BaseInferencer
@@ -33,11 +34,19 @@ DEFAULT_DATA_FETCH_SIZE_FACTOR = 0.1 # default data fetch size factor is 0.1 of 
 
 
 class ApiInferencerConfig:
-    def __init__(self, global_index: mp.RawValue, global_lock: mp.Lock, use_timestamp: bool = False, total_data_count: int = 0):
+    def __init__(
+        self,
+        global_index: mp.RawValue,
+        global_lock: mp.Lock,
+        use_timestamp: bool = False,
+        total_data_count: int = 0,
+        prefill_limiter=None,
+    ):
         self.global_index = global_index
         self.global_lock = global_lock
         self.use_timestamp = use_timestamp
         self.total_data_count = total_data_count
+        self.prefill_limiter = prefill_limiter
 
     def to_dict(self):
         return {
@@ -45,6 +54,7 @@ class ApiInferencerConfig:
             "global_lock": self.global_lock,
             "use_timestamp": self.use_timestamp,
             "total_data_count": self.total_data_count,
+            "prefill_limiter": self.prefill_limiter,
         }
 
 class BaseApiInferencer(BaseInferencer):
@@ -81,6 +91,8 @@ class BaseApiInferencer(BaseInferencer):
         self._data_cache = []  # Thread-local cache for batch data
         self.total_data_count = 0
         self.use_timestamp = False
+        self.prefill_limiter = None
+        self.async_prefill_limiter = None
 
     def set_config(self, config: ApiInferencerConfig):
         for key, value in config.to_dict().items():
@@ -88,6 +100,19 @@ class BaseApiInferencer(BaseInferencer):
                 setattr(self, key, value)
             else:
                 self.logger.debug(f"Unknown config key: {key}, skip")
+        if self.prefill_limiter is not None and self.async_prefill_limiter is None:
+            if not hasattr(self.model, "set_prefill_limiter"):
+                raise AISBenchImplementationError(
+                    ICLI_CODES.UNKNOWN_ERROR,
+                    f"Model {type(self.model).__name__} does not support prefill_concurrency",
+                )
+            self.async_prefill_limiter = AsyncPrefillLimiter(self.prefill_limiter)
+            self.model.set_prefill_limiter(self.async_prefill_limiter)
+
+    def _close_prefill_limiter(self):
+        if self.async_prefill_limiter is not None:
+            self.async_prefill_limiter.close()
+            self.async_prefill_limiter = None
 
     def _monitor_status_thread(
         self,
@@ -187,6 +212,7 @@ class BaseApiInferencer(BaseInferencer):
                     pbar.update(1)
         finally:
             await session.close()
+            self._close_prefill_limiter()
 
         warmup_results = dict(
             success=0,
@@ -643,6 +669,7 @@ class BaseApiInferencer(BaseInferencer):
             janus_queue.close()
             loop.run_until_complete(janus_queue.wait_closed())
 
+            self._close_prefill_limiter()
             loop.close()
             self.logger.debug(f"Asyncio event loop closed")
 
