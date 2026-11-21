@@ -168,6 +168,11 @@ class Repo:
         out = self._run("rev-parse", "--verify", "--quiet", f"{rev}:{path}", allow_failure=True)
         return bool(out.strip())
 
+    def paths_at(self, rev: str) -> set[str]:
+        """Return all tracked paths at a revision with one git subprocess."""
+        out = self._run("ls-tree", "-r", "--name-only", "-z", rev)
+        return {path for path in out.split("\0") if path}
+
     def default_branch(self) -> str | None:
         out = self._run("symbolic-ref", "--short", "refs/remotes/origin/HEAD", allow_failure=True).strip()
         if out:
@@ -188,6 +193,12 @@ class Profile:
         self.template_path = self._find_template()
         self.template_options = self._read_template_options()
         self.label_map = self._read_label_map()
+        self._pr_quality_path = self._workflow("pr_quality_check.yml")
+        self._pr_quality_text = (
+            self._pr_quality_path.read_text(encoding="utf-8-sig", errors="replace")
+            if self._pr_quality_path
+            else ""
+        )
         self.size_limit = self._read_size_limit()
         self.ut_prefix = self._read_ut_prefix()
         self.bugfix_ut_threshold = self._read_bugfix_threshold()
@@ -255,30 +266,24 @@ class Profile:
         return mapping
 
     def _read_size_limit(self) -> int:
-        path = self._workflow("pr_quality_check.yml")
-        if path:
-            text = path.read_text(encoding="utf-8-sig", errors="replace")
-            match = re.search(r"if\s*\(\s*additions\s*>\s*(\d+)\s*\)", text)
+        if self._pr_quality_path:
+            match = re.search(r"if\s*\(\s*additions\s*>\s*(\d+)\s*\)", self._pr_quality_text)
             if match:
                 return int(match.group(1))
             self.warnings.append("size_limit_unreadable: 未解析到 additions 阈值，使用 1000")
         return 1000
 
     def _read_ut_prefix(self) -> str:
-        path = self._workflow("pr_quality_check.yml")
-        if path:
-            text = path.read_text(encoding="utf-8-sig", errors="replace")
-            match = re.search(r"UT_DIR_PREFIX\s*=\s*'([^']+)'", text)
+        if self._pr_quality_path:
+            match = re.search(r"UT_DIR_PREFIX\s*=\s*'([^']+)'", self._pr_quality_text)
             if match:
                 return match.group(1)
             self.warnings.append("ut_prefix_unreadable: 未解析到 UT_DIR_PREFIX，使用 tests/UT/")
         return "tests/UT/"
 
     def _read_bugfix_threshold(self) -> int:
-        path = self._workflow("pr_quality_check.yml")
-        if path:
-            text = path.read_text(encoding="utf-8-sig", errors="replace")
-            match = re.search(r"hasBugfix\s*&&\s*additions\s*>\s*(\d+)", text)
+        if self._pr_quality_path:
+            match = re.search(r"hasBugfix\s*&&\s*additions\s*>\s*(\d+)", self._pr_quality_text)
             if match:
                 return int(match.group(1))
             self.warnings.append("bugfix_threshold_unreadable: 未解析到 bugfix UT 阈值，使用 50")
@@ -394,8 +399,14 @@ def issue_numbers(text: str) -> list[int]:
     return sorted(set(numbers))
 
 
-def check_size(repo: Repo, profile: Profile, base: str, head: str) -> dict:
-    additions, deletions, binary = repo.numstat(base, head)
+def check_size(
+    repo: Repo,
+    profile: Profile,
+    base: str,
+    head: str,
+    stats: tuple[int, int, int] | None = None,
+) -> dict:
+    additions, deletions, binary = stats if stats is not None else repo.numstat(base, head)
     rows = {
         "additions": additions,
         "deletions": deletions,
@@ -436,8 +447,11 @@ def check_ut_changed(
     head: str,
     pr_type: str | None,
     additions: int,
+    changes: list[tuple[str, str]] | None = None,
 ) -> dict:
-    changed = [path for _, path in repo.changed_files(base, head)]
+    if changes is None:
+        changes = repo.changed_files(base, head)
+    changed = [path for _, path in changes]
     hits = [path for path in changed if path.startswith(profile.ut_prefix)]
     required = False
     reason = "PR 类型未触发 UT 要求"
@@ -535,13 +549,21 @@ def _counterpart(path: str, src_root: str, dst_root: str) -> str | None:
     return None
 
 
-def check_docs_parity(repo: Repo, profile: Profile, base: str, head: str) -> dict:
-    changes = repo.changed_files(base, head)
+def check_docs_parity(
+    repo: Repo,
+    profile: Profile,
+    base: str,
+    head: str,
+    changes: list[tuple[str, str]] | None = None,
+) -> dict:
+    if changes is None:
+        changes = repo.changed_files(base, head)
     doc_changes = [(s, p) for s, p in changes if p.startswith((DOCS_ZH_ROOT + "/", DOCS_EN_ROOT + "/"))]
     readme_changes = [p for _, p in changes if Path(p).name in (README_ZH, README_EN)]
     if not doc_changes and not readme_changes:
         return gate(NOT_APPLICABLE, reason="本次变更不涉及文档")
 
+    head_paths = repo.paths_at(head)
     missing: list[str] = []
     deleted_without_pair: list[str] = []
     for status, path in doc_changes:
@@ -549,10 +571,10 @@ def check_docs_parity(repo: Repo, profile: Profile, base: str, head: str) -> dic
         if pair is None:
             continue
         if status == "D":
-            if repo.exists_at(head, pair):
+            if pair in head_paths:
                 deleted_without_pair.append(f"{path} 删除但 {pair} 仍存在")
         else:
-            if not repo.exists_at(head, pair):
+            if pair not in head_paths:
                 missing.append(f"{path} 缺少对侧 {pair}")
 
     readme_unpaired: list[str] = []
@@ -568,7 +590,7 @@ def check_docs_parity(repo: Repo, profile: Profile, base: str, head: str) -> dic
         pure = Path(path)
         sibling_name = README_EN if pure.name == README_ZH else README_ZH
         sibling = (pure.parent / sibling_name).as_posix()
-        if not repo.exists_at(head, sibling):
+        if sibling not in head_paths:
             continue
         if sibling not in readme_changes:
             readme_unpaired.append(f"{path} 变更但 {sibling} 未同步")
@@ -604,20 +626,22 @@ def build_report(
     base: str,
     head: str,
 ) -> dict:
-    additions, _, _ = repo.numstat(base, head)
+    changes = repo.changed_files(base, head)
+    stats = repo.numstat(base, head)
+    additions, _, _ = stats
     body = read_body(args.pr_body_file)
 
     gates: dict[str, dict] = {}
-    gates["size"] = check_size(repo, profile, base, head)
+    gates["size"] = check_size(repo, profile, base, head, stats)
     gates["issue_link"] = check_issue_link(body, args.issue)
-    gates["ut_changed"] = check_ut_changed(repo, profile, base, head, args.pr_type, additions)
+    gates["ut_changed"] = check_ut_changed(repo, profile, base, head, args.pr_type, additions, changes)
     gates["dco"] = check_dco(repo, base, head)
     gates["title_format"] = check_title(args.title)
     gates["labels"] = check_labels(profile, body, args.pr_type)
-    gates["docs_parity"] = check_docs_parity(repo, profile, base, head)
+    gates["docs_parity"] = check_docs_parity(repo, profile, base, head, changes)
     doc_change_count = sum(
         1
-        for _, path in repo.changed_files(base, head)
+        for _, path in changes
         if path.startswith((DOCS_ZH_ROOT + "/", DOCS_EN_ROOT + "/"))
         or Path(path).name in (README_ZH, README_EN)
     )
@@ -651,6 +675,7 @@ def build_report(
 
     return {
         "schema": SCHEMA,
+        "changed_files": changes,
         "generated_at": utc_now(),
         "range": {
             "base": args.base,

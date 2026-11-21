@@ -209,14 +209,9 @@ def evaluate(report: dict, target_state: str) -> list[dict]:
     return blockers
 
 
-def changed_sources(repo_root: Path, base: str | None) -> list[str]:
-    try:
-        repo = gate_check.Repo(repo_root)
-        base_ref = base or repo.default_branch() or "master"
-        merge_base = repo.merge_base(base_ref, "HEAD")
-        return [path for status, path in repo.changed_files(merge_base, repo.rev("HEAD")) if status != "D"]
-    except gate_check.GateError:
-        return []
+def changed_sources(report: dict) -> list[str]:
+    """Return non-deleted source paths from the changes already collected by run_checks."""
+    return [path for status, path in report.get("changed_files", []) if status != "D"]
 
 
 def emit(payload: dict, fmt: str) -> None:
@@ -278,7 +273,7 @@ def do_action(args: argparse.Namespace, action: str, target_state: str) -> int:
         "dry_run": args.dry_run,
     }
     if action == "develop":
-        sources = [p for p in changed_sources(repo_root, args.base) if p.startswith("ais_bench/")]
+        sources = [p for p in changed_sources(report) if p.startswith("ais_bench/")]
         if sources:
             result["ut_suggestions"] = [
                 row

@@ -250,18 +250,19 @@ def write_ledger(git_dir: Path, payload: dict) -> Path:
     return path
 
 
-def current_facts(repo_root: Path) -> dict:
+def current_facts(repo_root: Path, *, head_only: bool = False) -> dict:
     def safe(*args: str) -> str | None:
         try:
             return git(repo_root, *args).strip() or None
         except LedgerError:
             return None
 
-    return {
-        "head_sha": safe("rev-parse", "HEAD"),
-        "branch": safe("rev-parse", "--abbrev-ref", "HEAD"),
-        "dirty": bool(safe("status", "--porcelain")),
-    }
+    facts = {"head_sha": safe("rev-parse", "HEAD")}
+    if head_only:
+        return facts
+    facts["branch"] = safe("rev-parse", "--abbrev-ref", "HEAD")
+    facts["dirty"] = bool(safe("status", "--porcelain"))
+    return facts
 
 
 def staleness(payload: dict, facts: dict) -> dict:
@@ -354,7 +355,7 @@ def cmd_set(args: argparse.Namespace) -> int:
         if args.repo:
             payload["repo"] = args.repo
         if args.head:
-            payload["head_sha"] = current_facts(repo_root).get("head_sha")
+            payload["head_sha"] = current_facts(repo_root, head_only=True).get("head_sha")
         for item in args.field or []:
             if "=" not in item:
                 raise LedgerError(f"--field expects key=value, got {item!r}", 2)
@@ -386,7 +387,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     git_dir = resolve_git_dir(repo_root)
     if args.status not in VERDICTS:
         raise LedgerError(f"status must be one of {', '.join(VERDICTS)}", 2)
-    facts = current_facts(repo_root)
+    facts = current_facts(repo_root, head_only=True)
     with Lock(git_dir, break_stale=args.break_lock):
         payload = _load_base(git_dir, repo_root, args)
         if facts.get("head_sha"):
