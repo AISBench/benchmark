@@ -144,6 +144,34 @@ ais_bench --models vllm_api_general_chat --datasets demo_gsm8k_gen_4_shot_cot_ch
 
 ---
 
+## 汇总指标
+
+开启检测后，检测统计会追加到既有的 summary 产物中（`summary/summary_<时间>.txt` / `.csv` / `.md`），便于 CI 直接取数。
+
+- 复用原有表结构 `dataset / version / metric / mode / <模型...>`，不新增列；
+- 新增行用 `mode=response_anomaly` 判别，`version` 固定为 `-`；
+- 指标行固定 **12 个**且顺序稳定：
+
+| metric | 含义 |
+| --- | --- |
+| `response_anomaly_total` | 检测记录总数（含 skipped / failed / unavailable） |
+| `response_anomaly_normal` | 判定正常的条数 |
+| `response_anomaly_rare_character` | 生僻字 |
+| `response_anomaly_garbled` | 乱码 |
+| `response_anomaly_repetition` | 重复 |
+| `response_anomaly_nan_value` | NaN Value |
+| `response_anomaly_skipped` / `_failed` / `_unavailable` / `_unknown` | 未完成检测的各类条数 |
+| `response_anomaly_count` | **判定为异常的条数**（仅统计 `completed`） |
+| `response_anomaly_rate` | **异常率 = count ÷ completed × 100**（百分比，保留两位；无 completed 时为 `-`） |
+
+口径说明：
+
+- 指标只统计当前 `predictions/` 中仍存在的 Case（按 `id` + `uuid` 匹配），同一工作目录内被重新推理的旧记录不会重复计数；
+- 未开启检测时不读取历史检测结果，原 summary 完全不变；
+- 结果缺失的模型列、以及无法计算的比率，一律填 `-`，不以 `0` 代替。
+
+---
+
 ## 断点续跑
 
 使用 `--reuse` 时，已有检测结果按 Case 的 `id` + `uuid` 双键匹配继承（`uuid` 变化说明该 Case 已重新推理，不会错挂旧结果）：

@@ -1,8 +1,10 @@
 import argparse
 import json
 from ais_bench.benchmark.cli.utils import (
+    SWEEP_COOLDOWN_SECONDS,
     get_current_time_str,
     validate_batch_size,
+    validate_cooldown,
     validate_max_workers,
     validate_max_workers_per_gpu,
     validate_num_prompts,
@@ -16,6 +18,14 @@ from ais_bench.benchmark.cli.utils import DEFAULT_PRESSURE_TIME
 
 
 class ArgumentParser():
+    # agentx_raw 的 agentx 命令完全由 --agentx-extra-arg 描述，因此除子进程定位/环境/
+    # 透传参数外，只保留 AISBench 自身的运行控制参数；其余参数一律拒绝，避免用户误以为
+    # --batch-size/--url/--agentx-run-mode 等仍会生效。
+    AGENTX_RAW_ALLOWED_DESTS = frozenset({
+        'help', 'mode', 'work_dir', 'reuse', 'dry_run', 'debug', 'summarizer', 'search',
+        'agentx_python', 'agentx_bin', 'agentx_env', 'agentx_extra_arg',
+    })
+
     def __init__(self):
         self.parser = argparse.ArgumentParser(description='Run a benchmark task')
         self.parser.add_argument('config', nargs='?', help='Benchmark config file path')
@@ -26,9 +36,12 @@ class ArgumentParser():
         self._agent_parser()
         self._api_model_parser()
         self._synthetic_dataset_parser()
+        self._agentx_parser()
 
     def parse_args(self):
         args = self.parser.parse_args()
+        if args.mode == 'agentx_raw':
+            self._validate_agentx_raw_args(args)
         # --batch-size / --num-prompts 使用 nargs='+'，单个取值也会变成列表。
         # 这里统一解包，保证单值场景下 args 与落盘 cli_args 的类型和旧版一致；
         # 多值（多档 sweep）仍保留列表。
@@ -40,6 +53,24 @@ class ArgumentParser():
         if args.dry_run:
             args.debug = True
         return args
+
+    def _validate_agentx_raw_args(self, args):
+        """拒绝 agentx_raw 下不会生效的参数，避免用户误以为它们仍会注入命令。"""
+        rejected = []
+        for action in self.parser._actions:
+            if not action.option_strings:
+                continue
+            if action.dest in self.AGENTX_RAW_ALLOWED_DESTS:
+                continue
+            if getattr(args, action.dest, None) == action.default:
+                continue
+            rejected.append(action.option_strings[-1])
+        if rejected:
+            self.parser.error(
+                '--mode agentx_raw only accepts --agentx-python/--agentx-bin/--agentx-env/'
+                '--agentx-extra-arg, plus AISBench lifecycle options --work-dir/--reuse/'
+                '--dry-run/--debug/--summarizer/--search; remove: ' + ' '.join(rejected)
+            )
 
     def _base_parser(self):
         """These args are all for the base configuration."""
@@ -74,10 +105,13 @@ class ArgumentParser():
             '-m',
             '--mode',
             help='Running mode. Choose "perf" for performance evaluation, "infer" to run inference only, '
-            '"eval" to evaluate existing inference results, or "viz" to visualize the results. '
+            '"eval" to evaluate existing inference results, "viz" to visualize the results, '
+            '"agentx" for AgentX session-trace performance, or "agentx_raw" to run a complete '
+            'agentx command supplied through --agentx-extra-arg '
+            '(AISBench generated options still take precedence) '
             'The default mode is "all", which runs all steps.',
             choices=['all', 'infer', 'eval', 'viz', 'perf', 'perf_viz', 'judge', 'infer_judge',
-                     'agent', 'agent_viz'],
+                     'agent', 'agent_viz', 'agentx', 'agentx_raw'],
             default='all',
             type=str
         )
@@ -123,6 +157,14 @@ class ArgumentParser():
             'It will only be used in the local runner.',
             type=validate_max_workers_per_gpu,
             default=1
+        )
+        parser.add_argument(
+            '--cooldown',
+            help='Seconds to wait between consecutive benchmark tasks. '
+            f'Multi-sweep runs default to {SWEEP_COOLDOWN_SECONDS}; a single run '
+            'waits only when this option is passed explicitly. Set 0 to disable.',
+            type=validate_cooldown,
+            default=None
         )
         parser.add_argument(
             '--num-prompts',
@@ -446,13 +488,7 @@ class ArgumentParser():
                             default=None,
                             help='Batch size override in the range (0, 100000]. '
                             'Accepts 1..N unique integers. Two or more values are '
-                            'only supported in --mode perf / --mode perf_viz, run '
-                            'one serial sweep per level, and additionally write '
-                            'combos_manifest.json and batch_perf_report.html (a '
-                            'single value produces no batch report). Total '
-                            'combinations (levels x models x datasets) must not '
-                            'exceed 200. Put the positional config before these '
-                            'values, or separate it with "--".')
+                            'only supported in --mode perf / --mode perf_viz / --mode agentx')
         parser.add_argument(
             '--trust-remote-code',
             action=argparse.BooleanOptionalAction,
@@ -503,3 +539,47 @@ class ArgumentParser():
         parser.add_argument('--dataset-abbr', type=str, default=None,
                             help='Dataset abbr override (no suffix is appended); '
                             'requires exactly one dataset')
+
+    def _agentx_parser(self):
+        """AgentX 专有参数：支持不写配置文件，直接由命令行发起 profile。"""
+        parser = self.parser.add_argument_group('agentx_args')
+        parser.add_argument('--endpoint', type=str, default=None,
+                            help='Chat Completions endpoint path appended to --url; '
+                                 'defaults to /v1/chat/completions')
+        parser.add_argument('--agentx-run-mode', choices=['benchmark', 'smoke'], default=None,
+                            help='Execution policy. benchmark preserves the official preset; '
+                            'smoke permits explicit short runs and is never benchmark-valid')
+        parser.add_argument('--agentx-duration', type=float, default=None,
+                            help='Profiling duration in seconds, mapped to '
+                            '--benchmark-duration; benchmark requires >= 900 and '
+                            'defaults to the agentx preset (3600), smoke defaults to 60')
+        parser.add_argument('--agentx-trace-limit', type=int, default=None,
+                            help='Smoke-only trace entry limit, mapped to '
+                            '--num-dataset-entries; defaults to 4 in smoke mode and is '
+                            'forbidden in benchmark mode')
+        parser.add_argument('--agentx-dataset-path', type=str, default=None,
+                            help='Local Weka trace directory (traces.jsonl). When omitted, '
+                            'the public dataset is downloaded by the harness')
+        parser.add_argument('--agentx-dataset-variant', choices=['full', '256k'], default=None,
+                            help='Required trace corpus variant in --mode agentx: full or 256k; '
+                                 'not required in --mode agentx_raw')
+        parser.add_argument('--agentx-python', type=str, default=None,
+                            help='Interpreter that has agentx-harness installed')
+        parser.add_argument('--agentx-bin', type=str, default=None,
+                            help='Explicit agentx executable; by default it is resolved '
+                            'next to --agentx-python')
+        parser.add_argument('--agentx-env', action='append', default=[], metavar='KEY=VALUE',
+                            help='Extra environment variable for the harness subprocess; '
+                            'repeatable')
+        parser.add_argument('--agentx-extra-arg', type=str, default=None, metavar='ARGS',
+                            help='Raw agentx options appended to the end of the composed '
+                            '`agentx profile` command; options already generated by AISBench '
+                            '(e.g. --concurrency/--output-artifact-dir) take precedence, '
+                            'and conflicting extra options are ignored and recorded in the '
+                            'manifest. Quote the whole value with SINGLE '
+                            'quotes so the shell passes it as one argument, e.g. '
+                            "--agentx-extra-arg '{ --max-context-length 204800 --random-seed 0 }'. "
+                            'Inner double quotes are allowed; if the value itself contains a '
+                            "single quote, close and reopen it as '\"'\"'. "
+                            'In --mode agentx_raw this option is required and must describe the '
+                            'whole agentx command ')

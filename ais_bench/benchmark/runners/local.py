@@ -57,7 +57,7 @@ class LocalRunner(BaseRunner):
                  debug: bool = False,
                  max_workers_per_gpu: int = 1,
                  keep_tmp_file: bool = False,
-                 sweep_cooldown_s: int = 0,
+                 sweep_cooldown_s: float = 0,
                  **kwargs):
         super().__init__(task=task, debug=debug)
         self.max_num_workers = max_num_workers
@@ -208,8 +208,8 @@ class LocalRunner(BaseRunner):
                 lock.release()
                 time.sleep(1)
 
-            # 每次 perf run（一个任务）之间休眠，仅串行生效，避免上一轮的
-            # in-flight 请求/连接残留污染下一次性能数据。
+            # 每次测试任务之间休眠，仅串行生效，避免上一轮的
+            # in-flight 请求/连接残留污染下一次测试数据。
             if index > 0 and self.sweep_cooldown_s and self.max_num_workers == 1:
                 self.logger.info(
                     f"Cooldown {self.sweep_cooldown_s}s before launching task "

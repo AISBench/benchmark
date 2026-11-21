@@ -1,0 +1,21 @@
+{
+  "id": "S03",
+  "title": "文档承诺的 CLI 形态与 run.py 实际参数一致（唯一入口、两种模式）",
+  "dimension": "D7 内容与格式规范",
+  "weight": 3,
+  "fixture": "base",
+  "adapter": {"type": "static"},
+  "why": "SKILL.md 把 --job-spec/--bindings/--run-dir/--mode 写成唯一执行入口；若脚本改名或去掉某个参数而文档不改，Agent 会照着文档调出错误命令。",
+  "expect": [
+    {"type": "cli_flags", "script": "scripts/run.py", "flags": ["--job-spec", "--bindings", "--run-dir", "--mode"]},
+    {"type": "text_contains", "path": "skill:scripts/run.py", "value": "choices=['FULL','scripts']"},
+    {"type": "text_contains", "path": "skill:SKILL.md", "value": [
+      "scripts/run.py",
+      "--job-spec",
+      "--bindings",
+      "--run-dir",
+      "--mode scripts",
+      "--mode FULL"
+    ]}
+  ]
+}

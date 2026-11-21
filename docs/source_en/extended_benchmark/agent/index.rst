@@ -7,3 +7,4 @@ agent evaluation benchmark
    swe_bench
    swe_bench_pro
    harbor_bench
+   terminal_bench_4

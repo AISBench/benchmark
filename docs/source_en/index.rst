@@ -67,6 +67,7 @@ To help you quickly get started with AISBench Benchmark Tool, we recommend learn
 
    extended_benchmark/lmm_generate/index
    extended_benchmark/agent/index
+   extended_benchmark/agentx/index
 
 .. toctree::
    :maxdepth: 2

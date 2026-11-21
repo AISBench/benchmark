@@ -1,0 +1,152 @@
+{
+  "schema_version": "3.0",
+  "job_id": "20261112-003",
+  "state": "ready",
+  "deployments": [
+    {
+      "id": "solo-p",
+      "topology": "colocated",
+      "model": {
+        "id": "dsv4",
+        "served_name": "demo-model"
+      },
+      "runtime": {
+        "image": "registry.example/vllm-ascend:verified-tag",
+        "container": {
+          "shm_size": "500g",
+          "privileged": true
+        }
+      },
+      "instances": [
+        {
+          "id": "mixed",
+          "role": "mixed",
+          "placement": {
+            "node": "node_p",
+            "devices": [0, 1, 2, 3, 4, 5, 6, 7]
+          },
+          "launch": {
+            "program": "vllm serve",
+            "args": {
+              "data-parallel-size": 8,
+              "tensor-parallel-size": 1,
+              "max-model-len": 65536,
+              "max-num-seqs": 64
+            },
+            "env": {
+              "VLLM_SERVER_DEV_MODE": "1"
+            },
+            "bootstrap": "source {{paths.shell_rc}}\n",
+            "preserve_reference": true
+          },
+          "ports": {
+            "http": 1
+          },
+          "checks": {
+            "health": "/health",
+            "prefix_cache_reset": "/reset_prefix_cache",
+            "metrics": "/metrics"
+          }
+        }
+      ],
+      "connections": {},
+      "endpoint": {
+        "instance": "mixed",
+        "port": "http"
+      }
+    },
+    {
+      "id": "solo-q",
+      "topology": "colocated",
+      "model": {
+        "id": "dsv4",
+        "served_name": "demo-model"
+      },
+      "runtime": {
+        "image": "registry.example/vllm-ascend:verified-tag",
+        "container": {
+          "shm_size": "500g",
+          "privileged": true
+        }
+      },
+      "instances": [
+        {
+          "id": "mixed",
+          "role": "mixed",
+          "placement": {
+            "node": "node_q",
+            "devices": [0, 1, 2, 3, 4, 5, 6, 7]
+          },
+          "launch": {
+            "program": "vllm serve",
+            "args": {
+              "data-parallel-size": 8,
+              "tensor-parallel-size": 1,
+              "max-model-len": 65536,
+              "max-num-seqs": 64
+            },
+            "env": {
+              "VLLM_SERVER_DEV_MODE": "1"
+            },
+            "bootstrap": "source {{paths.shell_rc}}\n",
+            "preserve_reference": true
+          },
+          "ports": {
+            "http": 1
+          },
+          "checks": {
+            "health": "/health",
+            "prefix_cache_reset": "/reset_prefix_cache",
+            "metrics": "/metrics"
+          }
+        }
+      ],
+      "connections": {},
+      "endpoint": {
+        "instance": "mixed",
+        "port": "http"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "c8",
+      "input_tokens": 4096,
+      "output_tokens": 512,
+      "concurrency": 8,
+      "dataset_id": "default"
+    }
+  ],
+  "cleanup": {
+    "after_case": "keep_service",
+    "task_end": "stop_container"
+  },
+  "unresolved": [],
+  "sub_tasks": [
+    {
+      "id": "p1",
+      "deployment_id": "solo-p",
+      "case_id": "c8"
+    },
+    {
+      "id": "q1",
+      "deployment_id": "solo-q",
+      "case_id": "c8"
+    }
+  ],
+  "stages": [
+    {
+      "id": "s1",
+      "branches": [
+        {
+          "id": "b1",
+          "sub_tasks": ["p1"]
+        },
+        {
+          "id": "b2",
+          "sub_tasks": ["q1"]
+        }
+      ]
+    }
+  ]
+}

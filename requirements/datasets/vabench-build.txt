@@ -1,0 +1,6 @@
+# Install before building insightface / Git wheels. Keep pkg_resources available.
+pip==25.2
+setuptools==80.9.0
+wheel==0.45.1
+numpy==1.26.4
+cython==3.1.4

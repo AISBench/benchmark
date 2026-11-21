@@ -1,0 +1,46 @@
+{
+  "id": "C16",
+  "title": "实例脚本：绑定值展开、显存设备选择、host/port 与 KV 参数由绑派生，代理按路由生成",
+  "dimension": "D4 生成物完整性与可审计性",
+  "weight": 6,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「确认后按这两份配置生成确定脚本」+docs/compact-cli.md「现场绑定」：模板替换只识别无空格 {{name}}，host/port/rpc/kv 均由 bindings 派生；reference 里不得残留占位符。",
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-prefill.sh", "value": [
+      "source /root/.bashrc",
+      "source /usr/local/Ascend/ascend-toolkit/set_env.sh",
+      "export ASCEND_LOCAL_COMM_RES_PATH=/etc/hixlep",
+      "export LD_PRELOAD=/usr/local/Ascend/ascend-toolkit/latest/lib64/libopapi_nn.so",
+      "export VLLM_SERVER_DEV_MODE=1",
+      "export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3",
+      "exec vllm serve /mnt/models/demo-model",
+      "--host 10.0.0.11",
+      "--port 18000",
+      "--served-model-name demo-model",
+      "--data-parallel-rpc-port 18004",
+      "--data-parallel-address 10.0.0.11"
+    ]},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-prefill.sh", "value": "\"kv_port\": \"18002\""},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-prefill.sh", "value": "\"engine_id\": \"prefill\""},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-prefill.sh", "value": "kv_role\": \"kv_producer\""},
+    {"type": "text_not_contains", "path": "scripts/pd-a/node_a-prefill.sh", "value": "{{"},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-decode.sh", "value": [
+      "export ASCEND_RT_VISIBLE_DEVICES=4,5,6,7",
+      "--port 18026",
+      "\"engine_id\": \"decode\"",
+      "kv_role\": \"kv_consumer\""
+    ]},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-proxy.sh", "value": [
+      "# @proxy-command",
+      "exec python3 /opt/pd-proxy/proxy.py --host 10.0.0.11 --port 18056",
+      "--prefiller-hosts 10.0.0.11",
+      "--prefiller-ports 18000",
+      "--decoder-hosts 10.0.0.11",
+      "--decoder-ports 18026"
+    ]},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-proxy.sh", "value": "http://10.0.0.11:18026/health"},
+    {"type": "text_contains", "path": "scripts/pd-a/node_a-start.sh", "value": "docker exec -d 20261112-001-pd-a-node_a bash -c 'echo $$ > /tmp/bench-node_a-prefill.pid"}
+  ]
+}
