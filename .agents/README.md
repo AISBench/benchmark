@@ -13,6 +13,7 @@
 | [pr-checklist](skills/pr-checklist/SKILL.md) | PR 贡献规范、说明材料与复审记录检查，不重复质量门禁 | [快速开始](skills/pr-checklist/README.md) |
 | [ci-failure-triage](skills/ci-failure-triage/SKILL.md) | GitHub Actions 只读证据收集、CI 失败分类与最小复现建议 | [使用说明](skills/ci-failure-triage/README.md) |
 | [check-api-compat](skills/check-api-compat/SKILL.md) | 已有客户端协议适配的接口兼容性核查与证据分类 | [快速开始](skills/check-api-compat/README.md) |
+| [aisbench-devflow](skills/aisbench-devflow/SKILL.md) | Issue 到 PR 的研发流程编排：本地门禁预检、合规 PR、CI 与检视闭环；只核验、不执行合入 | [快速开始](skills/aisbench-devflow/README.md) |
 
 五个新版技能共用 [ascend_llm_cli](ascend_llm_cli/README.md)，通过 `deploy-eval-v2` 的公开 JSON 契约协作；架构见 [DESIGN](ascend_llm_cli/DESIGN.md)。稳定版 `ascend-llm-deploy-eval` 独立保留，不随新版任务迁移或改写历史产物。
 
