@@ -108,7 +108,7 @@ git checkout -b feature/your-feature-name upstream/master
 
 ```bash
 git add .
-git commit -s -m "[feat] 添加新功能描述"
+git commit -s -m "[feat]添加新功能描述"
 ```
 
 4. **推送并创建 Pull Request**
@@ -266,7 +266,7 @@ AISBench 使用 [Developer Certificate of Origin (DCO)](https://developercertifi
 在提交信息中添加 `Signed-off-by` 行：
 
 ```bash
-git commit -s -m "[feat] 添加新功能"
+git commit -s -m "[feat]添加新功能"
 ```
 
 `-s` 参数会自动添加 `Signed-off-by` 行。
@@ -298,7 +298,7 @@ Signed-off-by: Your Name <your.email@example.com>
 - `[type]`：提交类型，见下方类型说明
 - `[scope]`：影响范围（可选），如 models、datasets、docs 等
 - `<subject>`：简短的描述性标题
-- 各部分紧连书写，`]` 与 `<subject>` 之间不加空格
+- 建议 `]` 后接中文 `<subject>` 时不加空格，接英文 `<subject>` 时加一个空格
 
 ### 类型（Type）
 

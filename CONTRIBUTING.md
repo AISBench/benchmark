@@ -58,7 +58,7 @@ PR 标题和 Commit Message 使用以下格式：
 - `type`：变更类型，按下表选择。
 - `scope`：影响模块，可选。不填写时使用 `[type]<subject>`。
 - `subject`：简要说明实际变更，不要只写 `update`、`fix` 等笼统描述。`<subject>` 表示占位内容，实际标题不保留尖括号。
-- 各部分紧连书写，`]` 与 `<subject>` 之间不加空格。
+- 建议 `]` 后接中文 `<subject>` 时不加空格，接英文 `<subject>` 时加一个空格。
 
 | Type | 含义 |
 | --- | --- |
@@ -94,7 +94,7 @@ AISBench 使用 [Developer Certificate of Origin (DCO)](https://developercertifi
 使用 `git commit -s` 自动添加签署行：
 
 ```bash
-git commit -s -m "[docs] 更新贡献指南"
+git commit -s -m "[docs]更新贡献指南"
 ```
 
 `-s` 使用 Git 中配置的姓名与邮箱，生成如下格式：

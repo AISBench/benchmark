@@ -312,7 +312,7 @@ Where:
 - `[type]`: Commit type, see type descriptions below
 - `[scope]`: Affected scope (optional), such as models, datasets, docs, etc.
 - `<subject>`: Brief descriptive title
-- Write all parts together without spaces; no space between `]` and `<subject>`
+- Use no space between `]` and a Chinese `<subject>`; use one space before an English `<subject>`
 
 ### Types
 
@@ -329,12 +329,12 @@ Where:
 ### Examples
 
 ```
-[feat][models]Add new model backend support
-[fix][datasets]Fix dataset loading error
-[docs][readme]Update installation instructions
-[test][calculators]Add performance calculator tests
-[ci/cd][ci]Update unit test workflow
-[dependency]Update dependency constraints
+[feat][models] Add new model backend support
+[fix][datasets] Fix dataset loading error
+[docs][readme] Update installation instructions
+[test][calculators] Add performance calculator tests
+[ci/cd][ci] Update unit test workflow
+[dependency] Update dependency constraints
 ```
 
 ## Code Quality
