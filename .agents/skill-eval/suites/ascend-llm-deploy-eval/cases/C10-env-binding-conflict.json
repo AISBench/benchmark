@@ -1,0 +1,17 @@
+{
+  "id": "C10",
+  "title": "参考脚本里写死的 HCCL_IF_IP 与现场绑定不一致时阻断",
+  "dimension": "D3 绑定保真与阻断",
+  "weight": 5,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「现场绑定差异必须展示原值、解析值及依据」「环境、KV 参数与绑定矛盾时阻塞并返回交互阶段」。IP 冲突若被静默覆盖，等于用户确认过的参数被偷换。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/deployments/0/instances/0/launch/env/HCCL_IF_IP", "value": "10.0.0.99"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Confirmed environment conflicts with binding: prefill.HCCL_IF_IP"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

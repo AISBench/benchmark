@@ -145,6 +145,19 @@ class TestAgentParamAdapterTranslate(unittest.TestCase):
         self.assertEqual(out["env"]["DSH_API_KEY"], "sk")
         self.assertEqual(out["kwargs"], {})
 
+    def test_dsh_minimal_env_mapping_is_distinct_from_dsh(self):
+        base = "https://api.deepseek.com/anthropic"
+        out = AgentParamAdapter.translate(
+            "dsh-minimal",
+            {"api_base": base, "api_key": "sk"},
+        )
+        self.assertEqual(out["env"]["DEEPSEEK_BASE_URL"], base)
+        self.assertEqual(out["env"]["DEEPSEEK_API_KEY"], "sk")
+        # the dsh CLI variables are not reused for the standalone runtime
+        self.assertNotIn("DSH_BASE_URL", out["env"])
+        self.assertNotIn("DSH_API_KEY", out["env"])
+        self.assertEqual(out["kwargs"], {})
+
     def test_fallback_for_unknown_agent(self):
         out = AgentParamAdapter.translate(
             "not-a-real-agent",

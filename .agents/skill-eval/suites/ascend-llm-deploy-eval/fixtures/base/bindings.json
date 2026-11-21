@@ -1,0 +1,57 @@
+{
+  "nodes": {
+    "node_a": {
+      "host": "root@10.0.0.11",
+      "work_dir": "/work/eval",
+      "model_paths": {
+        "dsv4": "/mnt/models/demo-model"
+      },
+      "paths": {
+        "shell_rc": "/root/.bashrc",
+        "ascend_env": "/usr/local/Ascend/ascend-toolkit/set_env.sh",
+        "atb_env": "/usr/local/Ascend/nnal/atb/set_env.sh",
+        "opapi": "/usr/local/Ascend/ascend-toolkit/latest/lib64/libopapi_nn.so",
+        "comm": "/etc/hixlep",
+        "proxy_program": "/opt/pd-proxy/proxy.py"
+      },
+      "mounts": [],
+      "benchmark": {
+        "datasets": {
+          "default": {
+            "path": "/data/eval.jsonl",
+            "input_column": "question",
+            "output_column": "answer"
+          },
+          "synthetic": {
+            "type": "aisbench_synthetic"
+          }
+        }
+      },
+      "deployments": {
+        "pd-a": {
+          "network": {
+            "ip": "10.0.0.11",
+            "interface": "eth0"
+          },
+          "ports": {
+            "prefill": {
+              "http": 18000,
+              "kv": 18002,
+              "rpc": 18004,
+              "hccl": 18009
+            },
+            "decode": {
+              "http": 18026,
+              "kv": 18028,
+              "rpc": 18030,
+              "hccl": 18039
+            },
+            "proxy": {
+              "http": 18056
+            }
+          }
+        }
+      }
+    }
+  }
+}

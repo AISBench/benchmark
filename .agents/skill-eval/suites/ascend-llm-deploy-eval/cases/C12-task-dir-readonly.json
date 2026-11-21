@@ -1,0 +1,19 @@
+{
+  "id": "C12",
+  "title": "把任务目录显式挂成只读时阻断",
+  "dimension": "D3 绑定保真与阻断",
+  "weight": 4,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "docs/compact-cli.md「同 target 的显式 source 必须与绑定路径一致，任务目录不能只读」。任务目录只读会让日志与结果写不进去，必须在生成期拦住。",
+  "patch": [
+    {"file": "bindings.json", "pointer": "/nodes/node_a/mounts", "value": [
+      {"source": "/work/eval/20261112-001", "target": "/work/eval/20261112-001", "read_only": true}
+    ]}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Explicit mount conflicts with task/model binding: /work/eval/20261112-001"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

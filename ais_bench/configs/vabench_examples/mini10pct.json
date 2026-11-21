@@ -1,0 +1,324 @@
+{
+  "name": "vabench_t2av_mini10pct_78",
+  "description": "Project-selected 78-prompt subset of the pinned 778, not an upstream official split.",
+  "count": 78,
+  "upstream_commit": "12b9617a900a9eca1691da6b7115ce3d58f53a16",
+  "source_778_sha256": "5baf7d3539107afdf9820f23e97c5b38ea1589123ee429753472478434b99ff5",
+  "selection_script_sha256": "afe11eb30f38f8f3d4f24ac2008f47ce42631459aeaad107ba37245fc125f114",
+  "dataset_manifest_sha256": "da723e70c31c23da2f241ebf03d83fcf17afb936f4ccf6ed7c6e55369314fb0e",
+  "method": "24 categories; easy 4/category, hard 2/category plus 10 largest hard categories; TF-IDF medoid then farthest-point, SHA256 idx ties.",
+  "entries": [
+    {
+      "idx": "press elevator button beep",
+      "category": "easy_Immediate_Event_Synchronization"
+    },
+    {
+      "idx": "clapping crowd cheers roaring",
+      "category": "easy_Immediate_Event_Synchronization"
+    },
+    {
+      "idx": "car alarm disrupts quiet night",
+      "category": "easy_Immediate_Event_Synchronization"
+    },
+    {
+      "idx": "microwave timer ends with ding",
+      "category": "easy_Immediate_Event_Synchronization"
+    },
+    {
+      "idx": "city apartment door unlocking",
+      "category": "easy_Indoor_Environment_and_Urban_Atmosphere"
+    },
+    {
+      "idx": "kitchen sounds sizzling chopping",
+      "category": "easy_Indoor_Environment_and_Urban_Atmosphere"
+    },
+    {
+      "idx": "kids splashing echoing pool fun",
+      "category": "easy_Indoor_Environment_and_Urban_Atmosphere"
+    },
+    {
+      "idx": "busy caf with chatter and coffee",
+      "category": "easy_Indoor_Environment_and_Urban_Atmosphere"
+    },
+    {
+      "idx": "crumpling tin foil sound",
+      "category": "easy_Physical_Interaction_and_Acoustic_Phenomena"
+    },
+    {
+      "idx": "morning dewdrop lands on spider web",
+      "category": "easy_Physical_Interaction_and_Acoustic_Phenomena"
+    },
+    {
+      "idx": "key inserted turned lock cylinder latch",
+      "category": "easy_Physical_Interaction_and_Acoustic_Phenomena"
+    },
+    {
+      "idx": "raindrops spattering window gradually heavy",
+      "category": "easy_Physical_Interaction_and_Acoustic_Phenomena"
+    },
+    {
+      "idx": "jellyfish hissing underwater",
+      "category": "easy_bioacoustics"
+    },
+    {
+      "idx": "kangaroo landing thud warning calls",
+      "category": "easy_bioacoustics"
+    },
+    {
+      "idx": "crickets chirping nonstop at night",
+      "category": "easy_bioacoustics"
+    },
+    {
+      "idx": "startled horse rearing on grassland",
+      "category": "easy_bioacoustics"
+    },
+    {
+      "idx": "tech talk podcast intro",
+      "category": "easy_human_language"
+    },
+    {
+      "idx": "goal game winner commentator excited shout",
+      "category": "easy_human_language"
+    },
+    {
+      "idx": "shanghai shenzhen stock exchanges drop",
+      "category": "easy_human_language"
+    },
+    {
+      "idx": "friends greeting on street",
+      "category": "easy_human_language"
+    },
+    {
+      "idx": "grateful elderly man bows tearfully",
+      "category": "easy_human_nonverbal"
+    },
+    {
+      "idx": "teenager spills drink nervously apologizes",
+      "category": "easy_human_nonverbal"
+    },
+    {
+      "idx": "lonely car driving at sunset",
+      "category": "easy_human_nonverbal"
+    },
+    {
+      "idx": "soccer player celebrates winning goal with",
+      "category": "easy_human_nonverbal"
+    },
+    {
+      "idx": "traditional chinese ensemble music with flute",
+      "category": "easy_music"
+    },
+    {
+      "idx": "loud trumpet fanfare",
+      "category": "easy_music"
+    },
+    {
+      "idx": "playing xylophone with mallet",
+      "category": "easy_music"
+    },
+    {
+      "idx": "violinist plays lyrical note with vibrato",
+      "category": "easy_music"
+    },
+    {
+      "idx": "night swamp sounds",
+      "category": "easy_natural_environment"
+    },
+    {
+      "idx": "wind howling through rocks",
+      "category": "easy_natural_environment"
+    },
+    {
+      "idx": "crunching leaves underfoot",
+      "category": "easy_natural_environment"
+    },
+    {
+      "idx": "waves crashing against rocks",
+      "category": "easy_natural_environment"
+    },
+    {
+      "idx": "finger sliding across light switches",
+      "category": "easy_strong_synchronization_and_rhythmic_movements"
+    },
+    {
+      "idx": "mechanical metronome ticking steadily",
+      "category": "easy_strong_synchronization_and_rhythmic_movements"
+    },
+    {
+      "idx": "calm breathing soft nasal rhythm",
+      "category": "easy_strong_synchronization_and_rhythmic_movements"
+    },
+    {
+      "idx": "impatient fingertip tapping on wood",
+      "category": "easy_strong_synchronization_and_rhythmic_movements"
+    },
+    {
+      "idx": "underwater breathing bubbles",
+      "category": "easy_subjective_feeling"
+    },
+    {
+      "idx": "startled heartbeat thunderstorm hiding",
+      "category": "easy_subjective_feeling"
+    },
+    {
+      "idx": "noise cancellation subway video",
+      "category": "easy_subjective_feeling"
+    },
+    {
+      "idx": "heavy breathing after intense climb",
+      "category": "easy_subjective_feeling"
+    },
+    {
+      "idx": "library closing sounds ambient",
+      "category": "hard_Exact_Time_Synchronization"
+    },
+    {
+      "idx": "noodles boiling slurping steam hissing",
+      "category": "hard_Exact_Time_Synchronization"
+    },
+    {
+      "idx": "old printer whirring ink scent steaming",
+      "category": "hard_Exact_Time_Synchronization"
+    },
+    {
+      "idx": "nightclub exit ambient transition",
+      "category": "hard_Indoor_Environment_and_Urban_Atmosphere"
+    },
+    {
+      "idx": "emergency room heartbeat breathing clock ticking",
+      "category": "hard_Indoor_Environment_and_Urban_Atmosphere"
+    },
+    {
+      "idx": "rock splitting mountain echoing",
+      "category": "hard_Physical_Interaction_and_Acoustic_Phenomena"
+    },
+    {
+      "idx": "industrial press machine malfunction sounds",
+      "category": "hard_Physical_Interaction_and_Acoustic_Phenomena"
+    },
+    {
+      "idx": "breathing vocal cords speech sound",
+      "category": "hard_Physical_Interaction_and_Acoustic_Phenomena"
+    },
+    {
+      "idx": "sound travels faster in water",
+      "category": "hard_Physics_knowledge_and_world_knowledge"
+    },
+    {
+      "idx": "high-frequency sounds inaudible to humans",
+      "category": "hard_Physics_knowledge_and_world_knowledge"
+    },
+    {
+      "idx": "magnetic attraction repulsion sound",
+      "category": "hard_Physics_knowledge_and_world_knowledge"
+    },
+    {
+      "idx": "caption a surreal sky where clouds",
+      "category": "hard_Virtual_Environment"
+    },
+    {
+      "idx": "musician reshapes matter with sound",
+      "category": "hard_Virtual_Environment"
+    },
+    {
+      "idx": "caption in the stillness of the",
+      "category": "hard_Virtual_Environment"
+    },
+    {
+      "idx": "train journey sounds from countryside to",
+      "category": "hard_complex_acoustic_scene"
+    },
+    {
+      "idx": "puppies barking parrots mimicking cats purring",
+      "category": "hard_complex_acoustic_scene"
+    },
+    {
+      "idx": "argument emotional escalation sounds",
+      "category": "hard_complex_acoustic_scene"
+    },
+    {
+      "idx": "emotional breakdown during argument",
+      "category": "hard_human_language"
+    },
+    {
+      "idx": "scottish accent storytelling",
+      "category": "hard_human_language"
+    },
+    {
+      "idx": "dreamlike voice reveals hidden trauma",
+      "category": "hard_human_language"
+    },
+    {
+      "idx": "wooden drawer slides creaking",
+      "category": "hard_invisible_sound_source"
+    },
+    {
+      "idx": "woman typing rhythmically in dim light",
+      "category": "hard_invisible_sound_source"
+    },
+    {
+      "idx": "she smiling while talking phone eyes",
+      "category": "hard_invisible_sound_source"
+    },
+    {
+      "idx": "swinging ride cymbal ghost notes dynamic",
+      "category": "hard_music"
+    },
+    {
+      "idx": "conductor s gestures control orchestra dynamics",
+      "category": "hard_music"
+    },
+    {
+      "idx": "wildfire soundscape from calm to chaos",
+      "category": "hard_natural_environment"
+    },
+    {
+      "idx": "ambient sound crossfading seasons",
+      "category": "hard_natural_environment"
+    },
+    {
+      "idx": "the final choice",
+      "category": "hard_nonverbal_human"
+    },
+    {
+      "idx": "coach feels boxer s pain",
+      "category": "hard_nonverbal_human"
+    },
+    {
+      "idx": "chase twist alley confrontation",
+      "category": "hard_nonverbal_human"
+    },
+    {
+      "idx": "faint smile hidden pain",
+      "category": "hard_sound_symbolism_and_metaphor"
+    },
+    {
+      "idx": "solemn gavel bang decisive moment",
+      "category": "hard_sound_symbolism_and_metaphor"
+    },
+    {
+      "idx": "approaching danger subtle growl",
+      "category": "hard_sound_symbolism_and_metaphor"
+    },
+    {
+      "idx": "rhythm begins jump rope steady rapid",
+      "category": "hard_strong_synchronization_and_rhythmic_movements"
+    },
+    {
+      "idx": "antique clock shop time approaches noon",
+      "category": "hard_strong_synchronization_and_rhythmic_movements"
+    },
+    {
+      "idx": "create bullet time auditory experience first-person",
+      "category": "hard_subjective_feeling"
+    },
+    {
+      "idx": "video person recalling memories closed eyes",
+      "category": "hard_subjective_feeling"
+    },
+    {
+      "idx": "video someone arriving new place but",
+      "category": "hard_subjective_feeling"
+    }
+  ]
+}

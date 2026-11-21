@@ -1,0 +1,16 @@
+# 运行产物与依赖，不入库
+.eval-work/
+.deps/
+.deps311/
+.upstream-tmp/
+.scratch/
+.tmp/
+.uvcache/
+__pycache__/
+*.pyc
+
+# 每次执行重新生成（含本机绝对路径），只提交 report.md / mutation.md
+reports/result.json
+
+# 被测 SKILL 用 tools/fetch_skill.py 按 commit 拉取
+upstream/

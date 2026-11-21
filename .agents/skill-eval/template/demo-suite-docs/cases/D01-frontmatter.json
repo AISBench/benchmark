@@ -1,0 +1,10 @@
+{
+  "id": "D01",
+  "title": "frontmatter 完整且 name 与目录名一致",
+  "dimension": "内容规范",
+  "weight": 1,
+  "why": "Agent 依据 frontmatter 的 name/description 决定是否加载；name 与目录不一致会让引用失效。",
+  "expect": [
+    {"type": "frontmatter", "path": "SKILL.md", "require": ["name", "description"], "name_equals_dir": true}
+  ]
+}

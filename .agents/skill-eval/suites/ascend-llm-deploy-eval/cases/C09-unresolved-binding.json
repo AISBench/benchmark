@@ -1,0 +1,17 @@
+{
+  "id": "C09",
+  "title": "未解析绑定 {{paths.missing}} 阻断生成",
+  "dimension": "D3 绑定保真与阻断",
+  "weight": 4,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "docs/compact-cli.md「匹配的绑定不存在时仍报 Unresolved binding」；SKILL.md「所有 unresolved bindings fail closed」。不能把未解析的占位符带进脚本或静默替换成空。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/deployments/0/instances/0/launch/bootstrap", "value": "source {{paths.shell_rc}}\nsource {{paths.missing}}\n"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Unresolved binding: paths.missing"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

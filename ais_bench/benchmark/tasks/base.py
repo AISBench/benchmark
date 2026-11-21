@@ -68,9 +68,22 @@ class BaseTask:
             self.logger.warning(f"One task only supports one model, but got {len(cfg['models'])} models, " +
                                 "only use the first model.")
         self.model_cfg = cfg["models"][0]
-        self.logger.debug(f"Model config: {self.model_cfg}")
+        model_log_cfg = copy.deepcopy(self.model_cfg)
+        if model_log_cfg.get("api_key") is not None:
+            model_log_cfg["api_key"] = "<redacted>"
+        self.logger.debug(f"Model config: {model_log_cfg}")
         self.dataset_cfgs = cfg["datasets"][0]
-        self.logger.debug(f"Dataset config: {self.dataset_cfgs}")
+        dataset_log_cfgs = copy.deepcopy(self.dataset_cfgs)
+        dataset_log_items = ([dataset_log_cfgs] if isinstance(dataset_log_cfgs, dict)
+                             else dataset_log_cfgs)
+        for dataset_cfg in dataset_log_items:
+            dataset_args = dataset_cfg.get("args") or {}
+            if dataset_args.get("api_key") is not None:
+                dataset_args["api_key"] = "<redacted>"
+            for key in (dataset_args.get("env") or {}):
+                if any(word in key.lower() for word in ("key", "token", "secret", "password")):
+                    dataset_args["env"][key] = "<redacted>"
+        self.logger.debug(f"Dataset config: {dataset_log_cfgs}")
         self.work_dir = cfg["work_dir"]
         self.logger.debug(f"Work directory: {self.work_dir}")
         self.cli_args = cfg["cli_args"]

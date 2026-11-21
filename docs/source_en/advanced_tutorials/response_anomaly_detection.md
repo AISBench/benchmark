@@ -144,6 +144,34 @@ Detection-specific logs are located at `<work_dir>/logs/response_anomaly/<model>
 
 ---
 
+## Summary Metrics
+
+With detection enabled, detection statistics are appended to the existing summary artifacts (`summary/summary_<time>.txt` / `.csv` / `.md`) so CI can consume them directly.
+
+- The existing table layout `dataset / version / metric / mode / <models...>` is reused; no column is added.
+- Added rows are identified by `mode=response_anomaly`, with `version` fixed to `-`.
+- Exactly **12 metric rows** are added, in a stable order:
+
+| metric | Meaning |
+| --- | --- |
+| `response_anomaly_total` | Total detection records (including skipped / failed / unavailable) |
+| `response_anomaly_normal` | Cases judged normal |
+| `response_anomaly_rare_character` | Rare characters |
+| `response_anomaly_garbled` | Garbled text |
+| `response_anomaly_repetition` | Repetition |
+| `response_anomaly_nan_value` | NaN values |
+| `response_anomaly_skipped` / `_failed` / `_unavailable` / `_unknown` | Cases whose detection did not complete |
+| `response_anomaly_count` | Number of **anomalous cases** (completed only) |
+| `response_anomaly_rate` | **Anomaly rate = count ÷ completed × 100** (percentage, two decimals; `-` when nothing completed) |
+
+Semantics:
+
+- Only cases still present in the current `predictions/` are counted (matched by `id` + `uuid`), so cases re-inferred inside the same work directory are not counted twice.
+- With detection disabled, no historical detection results are read and the original summary is unchanged.
+- Missing model columns and undefined rates are reported as `-`, never as `0`.
+
+---
+
 ## Resuming Runs
 
 When using `--reuse`, existing detection results are inherited by matching both the Case `id` and `uuid` (a changed `uuid` means the Case was re-inferred, so it never gets a stale result):

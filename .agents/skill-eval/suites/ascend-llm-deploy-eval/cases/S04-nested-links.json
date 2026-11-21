@@ -1,0 +1,14 @@
+{
+  "id": "S04",
+  "title": "嵌套文档的相对链接按文档自身目录解析",
+  "dimension": "D7 内容与格式规范",
+  "weight": 4,
+  "fixture": "base",
+  "adapter": {"type": "static"},
+  "why": "references/ 与 docs/ 里的 ../examples/、../docs/ 是相对**该文档所在目录**的。按 skill 根目录解析会把这类链接误判成断链（这正是本用例要钉住的回归点）。",
+  "expect": [
+    {"type": "relative_links_exist", "path": "references/container-baseline.md"},
+    {"type": "relative_links_exist", "path": "docs/compact-cli.md"},
+    {"type": "relative_links_exist", "path": "references/job-spec-review.md"}
+  ]
+}

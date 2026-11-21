@@ -4,6 +4,7 @@ import os.path as osp
 import copy
 import shutil
 import json
+import inspect
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -11,7 +12,7 @@ from typing import Any, NamedTuple
 
 from mmengine.config import ConfigDict
 
-from ais_bench.benchmark.registry import PARTITIONERS, RUNNERS, build_from_cfg
+from ais_bench.benchmark.registry import PARTITIONERS, RUNNERS, TASKS, build_from_cfg
 from ais_bench.benchmark.utils.config.run import get_config_type
 from ais_bench.benchmark.utils.logging.logger import AISLogger
 from ais_bench.benchmark.utils.logging.exceptions import PredictionInvalidException
@@ -30,6 +31,31 @@ from ais_bench.benchmark.utils.response_anomaly import (
 )
 
 logger = AISLogger()
+
+
+def _runner_accepts_sweep_cooldown(runner_type) -> bool:
+    """检查 runner 构造器是否接受 ``sweep_cooldown_s`` 参数。
+
+    自定义 runner 的 ``__init__`` 可能既没有该形参也没有 ``**kwargs``，
+    无差别注入会在 ``RUNNERS.build`` 时抛 TypeError，因此先按签名判断。
+    """
+    if runner_type is None:
+        # 未指定 runner 时默认落到 LocalRunner，其构造器接受该参数
+        return True
+    if isinstance(runner_type, str):
+        runner_type = RUNNERS.get(runner_type)
+    if not isinstance(runner_type, type):
+        return False
+    try:
+        params = inspect.signature(runner_type.__init__).parameters
+    except (TypeError, ValueError):
+        return False
+    if 'sweep_cooldown_s' in params:
+        return True
+    return any(
+        param.kind is inspect.Parameter.VAR_KEYWORD
+        for param in params.values()
+    )
 
 
 class _URLSnapshotEntry(NamedTuple):
@@ -102,8 +128,10 @@ class Infer(BaseWorker):
             runner_cfg['max_num_workers'] = self.args.max_num_workers
             runner_cfg['max_workers_per_gpu'] = self.args.max_workers_per_gpu
             runner_cfg['debug'] = self.args.debug or cfg.cli_args.debug
-            # 仅多档 sweep 会在配置里写入该键；老命令/自定义 runner 不注入新参数
-            if 'sweep_cooldown_s' in cfg:
+            # --cooldown 写入配置后注入 runner，控制相邻任务之间的等待；
+            # 构造器不接受该参数的自定义 runner 跳过注入，避免 build 时 TypeError
+            if 'sweep_cooldown_s' in cfg and _runner_accepts_sweep_cooldown(
+                    runner_cfg.get('type')):
                 runner_cfg['sweep_cooldown_s'] = cfg['sweep_cooldown_s']
 
         if cfg.get('infer'):
@@ -640,10 +668,20 @@ class AccViz(BaseWorker):
             summarizer.summarize(time_str=self.args.cfg_time_str)
 
     def _cfg_pre_process(self, cfg: ConfigDict) -> None:
-        for i, dataset in enumerate(cfg.datasets):
+        storage_abbrs = {}
+        for dataset in cfg.datasets:
             if dataset.get("judge_infer_cfg"):
-                cfg.datasets[i]["abbr"] = f'{cfg.datasets[i]["abbr"]}-{cfg.datasets[i]["judge_infer_cfg"]["judge_model"]["abbr"]}'
-                cfg.datasets[i].pop("judge_infer_cfg")
+                inference_abbr = dataset["abbr"]
+                dataset["abbr"] = (
+                    f'{inference_abbr}-{dataset["judge_infer_cfg"]["judge_model"]["abbr"]}'
+                )
+                storage_abbrs[dataset["abbr"]] = inference_abbr
+                dataset.pop("judge_infer_cfg")
+        # Judge datasets are renamed for display, while their inference
+        # artifacts stay under the original abbreviation. Keep this idempotent:
+        # a second pass sees no judge_infer_cfg and must not wipe the mapping.
+        if storage_abbrs:
+            cfg["response_anomaly_dataset_storage_abbrs"] = storage_abbrs
         return cfg
 
 
@@ -925,6 +963,65 @@ class AgentEval(BaseWorker):
             dataset["args"] = dargs
 
 
+class AgentXRun(BaseWorker):
+    """Worker for AgentX performance runs (mode=agentx).
+
+    AgentX is a closed-loop session-tree workload, so it bypasses the built-in
+    dataset -> inferencer pipeline entirely: a single :class:`AgentXTask`
+    launches the upstream ``agentx-harness`` CLI as a subprocess.
+    """
+
+    TASK_TYPE = (
+        "ais_bench.benchmark.tasks.custom_tasks.agentx_task.AgentXTask"
+    )
+
+    def update_cfg(self, cfg: ConfigDict) -> ConfigDict:
+        # AgentX 在任务内按并发档位逐档串行执行，无需普通任务分区器。
+        return cfg
+
+    def do_work(self, cfg: ConfigDict):
+        logger.info("Starting AgentX performance task...")
+        task = TASKS.build(dict(cfg=cfg, type=self.TASK_TYPE))
+        if self.args.dry_run:
+            task.dry_run()
+            logger.info("AgentX dry-run completed; no Harness process was started.")
+            return
+        task.run()
+        logger.info("AgentX performance task completed.")
+
+
+class AgentXViz(BaseWorker):
+    """校验 AgentX 各档位汇总结果并刷新档位 summary 日志。"""
+
+    def update_cfg(self, cfg: ConfigDict) -> ConfigDict:
+        from ais_bench.benchmark.summarizers import AgentXSummarizer
+
+        summarizer_cfg = dict(cfg.get("summarizer") or {})
+        if summarizer_cfg.get("attr") != "agentx" or not summarizer_cfg.get("type"):
+            summarizer_cfg = {}
+        # drop keys owned by other summarizer families so they are never passed
+        # as unexpected kwargs to AgentXSummarizer
+        for key in (
+            "attr",
+            "calculator",
+            "dataset_abbrs",
+            "summary_groups",
+            "prompt_db",
+            "config",
+        ):
+            summarizer_cfg.pop(key, None)
+        summarizer_cfg.setdefault("type", get_config_type(AgentXSummarizer))
+        cfg["summarizer"] = summarizer_cfg
+        return cfg
+
+    def do_work(self, cfg: ConfigDict):
+        summarizer_cfg = cfg.get("summarizer", {})
+        summarizer_cfg["config"] = cfg
+        summarizer = build_from_cfg(summarizer_cfg)
+        # 各档位表格已在 AgentXRun 内即时打印，这里只做校验和 summary 刷新。
+        summarizer.summarize(print_table=False)
+
+
 WORK_FLOW = dict(
     all=[Infer, JudgeInfer, Eval, AccViz],
     infer=[Infer],
@@ -936,6 +1033,9 @@ WORK_FLOW = dict(
     perf_viz=[PerfViz],
     agent=[AgentEval, AccViz],
     agent_viz=[AccViz],
+    agentx=[AgentXRun, AgentXViz],
+    # agentx_raw 复用同一套执行/汇总流程，仅命令来源不同（全部由 extra args 描述）。
+    agentx_raw=[AgentXRun, AgentXViz],
 )
 
 
@@ -946,7 +1046,20 @@ class WorkFlowExecutor:
         self.response_anomaly_coordinator = ResponseAnomalyCoordinator()
 
     def execute(self) -> None:
+        deferred_agentx_error = None
         for worker in self.workflow:
             worker.response_anomaly_coordinator = self.response_anomaly_coordinator
             cfg = copy.deepcopy(self.cfg)
-            worker.do_work(cfg)
+            try:
+                worker.do_work(cfg)
+            except Exception as exc:
+                # Harness 失败时仍让 AgentXViz 汇总 partial/failed 结果，最后再
+                # 传播原始错误，保证自动化退出码非零且报告不丢失。
+                if isinstance(worker, AgentXRun):
+                    deferred_agentx_error = exc
+                    continue
+                if deferred_agentx_error is not None:
+                    raise deferred_agentx_error from exc
+                raise
+        if deferred_agentx_error is not None:
+            raise deferred_agentx_error

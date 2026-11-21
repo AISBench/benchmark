@@ -48,6 +48,11 @@ class BaseInferencer:
         self.response_anomaly_payload_storage = self.model_cfg.pop(
             "response_anomaly_payload_storage", None
         )
+        self.response_anomaly_enabled = bool(
+            (self.model_cfg.get('generation_kwargs') or {}).get(
+                'response_anomaly_enabled', False
+            )
+        )
         self.batch_size = int(batch_size) if batch_size else 1
 
         if self.batch_size < 1 or self.batch_size > MAX_BATCH_SIZE:

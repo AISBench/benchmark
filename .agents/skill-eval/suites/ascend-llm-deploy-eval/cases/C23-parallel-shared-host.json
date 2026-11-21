@@ -1,0 +1,17 @@
+{
+  "id": "C23",
+  "title": "两个节点槽位绑定同一台主机（别名）时阻断",
+  "dimension": "D6 并行与阶段",
+  "weight": 3,
+  "fixture": "multi",
+  "mode": "scripts",
+  "why": "docs/compact-cli.md「Generation checks both node IDs and identical bound hosts, ignoring SSH usernames. Normalize DNS/IP aliases…」。改成不同 slot 但同 host 是典型的伪隔离。",
+  "patch": [
+    {"file": "bindings.json", "pointer": "/nodes/node_q/host", "value": "root@10.0.0.21"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Parallel branches share a bound host"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}
