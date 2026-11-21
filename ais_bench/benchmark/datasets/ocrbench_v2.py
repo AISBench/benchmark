@@ -21,7 +21,6 @@ from apted.helpers import Tree
 from apted import APTED, Config
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import ipdb
 from collections import deque
 import math
 from zss import simple_distance, Node
@@ -374,10 +373,10 @@ def vqa_evaluation_case_sensitive(predict, answers):
         for j in range(len(answers)):
             if isinstance(answers[j], (int, float)):
                 answers[j] = str(answers[j])
-            try:
-                answer = answers[j].strip().replace("\n"," ")
-            except:
-                ipdb.set_trace()
+            # Coerce non-string answers (np.int64/np.float32/None/bytes that pandas
+            # reads) to str so they still participate in scoring instead of being
+            # silently dropped — consistent with the int/float branch above.
+            answer = str(answers[j]).strip().replace("\n", " ")
             predict = predict.strip().replace("\n"," ")
             if len(answer.split()) < 5:
                 if answer in predict:
@@ -452,10 +451,9 @@ def cn_vqa_evaluation(predict, answers):
         for j in range(len(answers)):
             if isinstance(answers[j], (int, float)):
                 answers[j] = str(answers[j])
-            try:
-                answer = answers[j].lower().strip().replace("\n"," ").replace(" ", "")
-            except:
-                ipdb.set_trace()
+            # Coerce non-string answers (np.int64/np.float32/None/bytes) to str so
+            # they participate in scoring instead of being silently dropped.
+            answer = str(answers[j]).lower().strip().replace("\n", " ").replace(" ", "")
             if isinstance(predict, (int, float)):
                 predict = str(predict)
             predict = predict.lower().strip().replace("\n"," ").replace(" ", "")
@@ -702,10 +700,9 @@ def vqa_evaluation(predict, answers):
         for j in range(len(answers)):
             if isinstance(answers[j], (int, float)):
                 answers[j] = str(answers[j])
-            try:
-                answer = answers[j].lower().strip().replace("\n"," ")
-            except:
-                ipdb.set_trace()
+            # Coerce non-string answers (np.int64/np.float32/None/bytes) to str so
+            # they participate in scoring instead of being silently dropped.
+            answer = str(answers[j]).lower().strip().replace("\n", " ")
             if isinstance(predict, (int, float)):
                 predict = str(predict)
             predict = predict.lower().strip().replace("\n"," ")
@@ -1735,7 +1732,8 @@ def spotting_evaluation(prediction_list, img_metas):
     res_submit_list = []
     for item in prediction_list:
         if len(item) != 5:
-            ipdb.set_trace()
+            logger.warning(f"Skip malformed spotting item (expect 5 fields, got {len(item)}): {item!r}")
+            continue
         x1, y1, x2, y2, rec = item
         if x1 >= x2 or y1 >= y2:
             continue
