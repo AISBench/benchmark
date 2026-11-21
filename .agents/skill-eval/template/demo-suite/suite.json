@@ -1,0 +1,21 @@
+{
+  "name": "demo-port-planner",
+  "version": "0.1.0",
+  "skill": {
+    "name": "demo-port-planner",
+    "repo": "local/template",
+    "path": "template/demo-skill",
+    "ref": "n/a",
+    "commit": "",
+    "local_dir": "../demo-skill"
+  },
+  "adapter": {
+    "type": "command",
+    "workdir": "{skill_dir}",
+    "command": ["{python}", "scripts/check.py", "--plan", "{job_spec}"],
+    "env": {}
+  },
+  "limits": [
+    "这是一个最小样例，只用来演示「换一个 SKILL 需要改什么」，不代表真实业务 SKILL 的测评深度。"
+  ]
+}

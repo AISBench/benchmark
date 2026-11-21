@@ -14,8 +14,10 @@ _SUMMARIZER_CLASS_MODULES: dict[str, str] = {
     "DefaultSubjectiveSummarizer": "ais_bench.benchmark.summarizers.default_subjective",
     "DefaultPerfSummarizer": "ais_bench.benchmark.summarizers.default_perf",
     "VBenchSummarizer": "ais_bench.benchmark.summarizers.vbench",
+    "VABenchSummarizer": "ais_bench.benchmark.summarizers.vabench",
     "SWEBenchSummarizer": "ais_bench.benchmark.summarizers.swebench",
     "HarborSummarizer": "ais_bench.benchmark.summarizers.harbor",
+    "AgentXSummarizer": "ais_bench.benchmark.summarizers.agentx",
     "SWEBenchProSummarizer": "ais_bench.benchmark.summarizers.swebench_pro",
     "OneIGSummarizer": "ais_bench.benchmark.summarizers.oneig",
 }

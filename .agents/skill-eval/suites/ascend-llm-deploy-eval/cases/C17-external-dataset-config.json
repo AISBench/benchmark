@@ -1,0 +1,40 @@
+{
+  "id": "C17",
+  "title": "外部数据集生成 CustomDataset 配置，端点/负载/重试语义与 job_spec 对齐",
+  "dimension": "D5 AISBench 测试语义",
+  "weight": 5,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "docs/compact-cli.md「默认生成 VLLMCustomAPI 配置：外部文件使用 CustomDataset」「直接调用 ais_bench CONFIG --mode perf --work-dir ... --num-prompts ... --num-warmups ...，不加 debug」；retry=1 表示工具内部零重试。",
+  "expect": [
+    {"type": "exit_code", "value": 0},
+    {"type": "text_contains", "path": "scripts/tests/t-16.config.py", "value": [
+      "from ais_bench.benchmark.models import VLLMCustomAPI",
+      "CustomDataset",
+      "path='/data/eval.jsonl'",
+      "meta_path=\"\"",
+      "input_columns=['question']",
+      "output_column='answer'",
+      "attr='service'",
+      "model='demo-model'",
+      "path='/mnt/models/demo-model'",
+      "host_ip='10.0.0.11'",
+      "host_port=18056",
+      "url='http://10.0.0.11:18056/'",
+      "batch_size=16",
+      "max_out_len=1024",
+      "stream=True",
+      "request_rate=0",
+      "retry=1"
+    ]},
+    {"type": "text_contains", "path": "scripts/tests/t-16.sh", "value": [
+      "--mode perf",
+      "--work-dir \"$OUT/outputs\"",
+      "--num-prompts 64",
+      "--num-warmups 1",
+      "ais_bench /work/eval/20261112-001/scripts/tests/t-16.config.py"
+    ]},
+    {"type": "text_not_contains", "path": "scripts/tests/t-16.sh", "value": "--debug"},
+    {"type": "text_not_contains", "path": "scripts/tests/t-16.config.py", "value": "SyntheticDataset"}
+  ]
+}

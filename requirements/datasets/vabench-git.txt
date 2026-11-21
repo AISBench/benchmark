@@ -1,0 +1,6 @@
+# Install only AFTER vabench.txt, with --no-deps --no-build-isolation.
+# These commits, rather than their shared package version numbers, identify code.
+imagebind @ git+https://github.com/facebookresearch/ImageBind.git@53680b02d7e37b19b124fa37bae4b6c98c38f5be
+pytorchvideo @ git+https://github.com/facebookresearch/pytorchvideo.git@2ac6ed361309cb25144636ad82dd8bd6a4970e0c
+# CLIP was unpinned in the supplied instructions; fixed here for reproducibility.
+clip @ git+https://github.com/openai/CLIP.git@d05afc436d78f1c48dc0dbf8e5980a9d471f35f6

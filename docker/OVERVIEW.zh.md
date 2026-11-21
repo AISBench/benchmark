@@ -8,7 +8,7 @@
 | 项目 | 说明 |
 | --- | --- |
 | 默认镜像仓库 | `ghcr.io/aisbench/aisbench_benchmark` |
-| 构建脚本 | `build_image.sh` |
+| 构建脚本 | `build_image.sh`（AgentX 变体同时提供 `agentx/build_agentx.sh`） |
 | 支持的 OS | Ubuntu 22.04 / 24.04, openEuler 22.03 / 24.03 |
 | 支持的 Python | 3.10, 3.11, 3.12 |
 | 构建方式 | 多阶段构建（builder → runtime） |
@@ -30,6 +30,7 @@ AISBench Benchmark 是基于 [OpenCompass](https://github.com/open-compass/openc
 
 ```
 {hub_repo}:{TAG}-{OS}-{py_version}-{arch}
+{hub_repo}:{TAG}-{OS}-{py_version}-agentx-{arch}  # 预集成 AgentX 的可选变体
 ```
 
 例如：`ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-ubuntu22.04-py310-x86_64`
@@ -47,6 +48,7 @@ AISBench Benchmark 是基于 [OpenCompass](https://github.com/open-compass/openc
 | [Dockerfile.py312.ubuntu24.04](ubuntu/Dockerfile.py312.ubuntu24.04) | `ubuntu:24.04` | 3.12 | `docker/ubuntu/` |
 | [Dockerfile.py310.openeuler22.03](openeuler/Dockerfile.py310.openeuler22.03) | `openeuler/openeuler:22.03-lts` | 3.10 | `docker/openeuler/` |
 | [Dockerfile.py311.openeuler24.03](openeuler/Dockerfile.py311.openeuler24.03) | `openeuler/openeuler:24.03-lts` | 3.11 | `docker/openeuler/` |
+| [Dockerfile.agentx](agentx/Dockerfile.agentx) | 已构建的兼容 AISBench 镜像 | 独立 Harness venv 3.11 / 3.12 | `docker/agentx/` |
 
 Dockerfile 命名规则：`Dockerfile.{py_version}.{os}`
 
@@ -128,6 +130,9 @@ bash docker/build_image.sh --tag v3.1-20260522-master --use-cache 1
 
 # 指定自定义镜像仓库
 bash docker/build_image.sh --tag v3.1-20260522-master --hub-repo docker.io/myuser/myimage
+
+# 构建预集成 AgentX 的独立镜像变体（先构建同 TAG 的普通镜像）
+bash docker/agentx/build_agentx.sh --tag v3.1-20260522-master --os ubuntu24.04 --py-version py312
 ```
 
 ### 构建脚本参数一览
@@ -143,6 +148,30 @@ bash docker/build_image.sh --tag v3.1-20260522-master --hub-repo docker.io/myuse
 | `--push` | 否 | `0` | 是否推送到远程仓库（1=是） |
 | `--upload` | 否 | `0` | 是否上传到 OBS 桶（1=是） |
 | `--use-cache` | 否 | `0` | 是否使用缓存构建（1=是） |
+
+AgentX 变体不通过 `build_image.sh` 构建，而是由独立的 [agentx/build_agentx.sh](agentx/build_agentx.sh) 在已构建的普通镜像之上创建 `-agentx` 变体；其参数与该表基本一致（详见下文）。
+
+### 运行预集成 AgentX 镜像
+
+`-agentx` 变体在独立 `/opt/venvs/agentx113` 环境预装 `agentx-harness==1.0.13`，无需在 AISBench 主环境安装 Harness，也无需传 `--agentx-python`、`--agentx-bin` 或 `--agentx-pythonpath`。普通镜像及 Python 3.10 镜像不包含该能力。
+
+```bash
+export AGENTX_IMAGE=ghcr.io/aisbench/aisbench_benchmark:v3.1-20260522-master-ubuntu24.04-py312-agentx-x86_64
+docker pull ${AGENTX_IMAGE}
+
+# 零安装 dry-run：只生成脱敏执行计划，不访问推理服务、不下载 Trace
+docker run --rm --network host -v /mnt/weight:/mnt/weight ${AGENTX_IMAGE} \
+  ais_bench --mode agentx --url http://127.0.0.1:8000 \
+  --model-name qwen3.8 --path /mnt/weight/Qwen3.8-27B-w8a8 --batch-size 1 --dry-run
+
+# 正式运行：挂载输出目录；每个并发点使用全新输出目录
+docker run --rm --network host -v /mnt/weight:/mnt/weight \
+  -v "$PWD"/outputs:/benchmark/outputs ${AGENTX_IMAGE} \
+  ais_bench --mode agentx --url http://127.0.0.1:8000 \
+  --model-name qwen3.8 --path /mnt/weight/Qwen3.8-27B-w8a8 --batch-size 8
+```
+
+`docker/agentx/build_agentx.sh` 发布时 `--push 1`、`--multi-arch 1` 和 `--upload 1` 的含义与普通镜像一致，GHCR manifest 和 OBS 离线包名称均在 `py_version` 后带 `-agentx`。离线包示例为 `ais_bench_benchmark_image_${TAG}-ubuntu24.04-py312-agentx-${arch}.tar.gz`。
 
 ### 二次开发
 

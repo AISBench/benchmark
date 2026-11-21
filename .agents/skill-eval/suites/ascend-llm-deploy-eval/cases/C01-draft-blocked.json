@@ -1,0 +1,18 @@
+{
+  "id": "C01",
+  "title": "draft 任务拒绝生成可执行脚本，且不留半成品",
+  "dimension": "D1 契约与状态机",
+  "weight": 5,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「交互规划与执行分开……确认后按这两份配置生成确定脚本」；draft 表示审阅未闭环，必须 fail-closed。docs/compact-cli.md：生成失败不留下半成品。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/state", "value": "draft"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Resolve draft before generating executable scripts"},
+    {"type": "dir_absent", "value": "{run_dir}"},
+    {"type": "no_temp_leftover"}
+  ]
+}

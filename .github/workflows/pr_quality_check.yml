@@ -6,6 +6,15 @@ name: PR Quality Check (PR 合入质量看护)
 # - issue_comment.created             ：在 PR 评论中输入 /pr_check（可附说明）手动触发重检
 # - workflow_dispatch                 ：管理员可手动触发以便回溯校验（非自动触发）
 #
+# 检查项（任意一项不通过都会阻断合入）：
+#   1. 超大 PR（新增代码 > 1000 行）
+#   2. 必须关联 Issue
+#   3. 必须至少包含一条已提交的检视意见
+#   4. 所有行内检视意见必须闭环
+#   5. feature / bugfix 类型 PR 必须包含 tests/UT 变更
+#   6. PR 描述必须按 .github/pull_request_template.md 勾选 PR 类型
+#      （PR 模板只在网页端预填，API 创建的 PR 可绕过，故在此做服务端校验）
+#
 # 阻断合入的原理（请管理员在仓库 Settings -> Branches 中配置）：
 #   1. 本 workflow 中的 Job 名 "PR Quality Gate" 即为一条 status check。
 #   2. 任意一项检查不通过时，本 Job 调用 core.setFailed() 失败，status check 为 failure。
@@ -58,7 +67,8 @@ jobs:
               { name: 'no_issue',      color: 'd73a4a', description: 'PR 未关联任何 Issue，合入前必须关联 Issue' },
               { name: 'no_review',     color: 'd73a4a', description: 'PR 未包含任何检视意见，合入前必须包含检视意见' },
               { name: 'review_opened', color: 'd73a4a', description: 'PR 中存在未闭环的检视意见，所有检视意见必须闭环后才能合入' },
-              { name: 'no_UT',         color: 'd73a4a', description: 'feature / bugfix 类型 PR 缺少 tests/UT 下的单元测试新增或修改' }
+              { name: 'no_UT',         color: 'd73a4a', description: 'feature / bugfix 类型 PR 缺少 tests/UT 下的单元测试新增或修改' },
+              { name: 'no_template',   color: 'd73a4a', description: 'PR 描述未按模板勾选 PR 类型' }
             ];
             for (const label of labels) {
               try {
@@ -78,7 +88,7 @@ jobs:
               }
             }
 
-      - name: 执行 PR 合入质量五项检查
+      - name: 执行 PR 合入质量六项检查
         uses: actions/github-script@v7
         with:
           script: |
@@ -151,7 +161,7 @@ jobs:
             }
             console.log(`[信息] PR 共变更 ${changedFiles.length} 个文件`);
 
-            const FAILURE_LABELS = ['large_pr', 'no_issue', 'no_review', 'review_opened', 'no_UT'];
+            const FAILURE_LABELS = ['large_pr', 'no_issue', 'no_review', 'review_opened', 'no_UT', 'no_template'];
             const failures = [];
             const failureMessages = [];
 
@@ -236,6 +246,18 @@ jobs:
               console.log('[检查 5] 跳过（无需强制 UT）');
             }
 
+            // ===== 检查 6：PR 描述必须按模板勾选 PR 类型 =====
+            // PR 模板只在网页端预填，通过 API 创建的 PR（AI 助手、`gh pr create` 等）可以完全不填；
+            // Auto Label PR 又依赖模板中的 PR 类型勾选，勾选缺失即说明 PR 描述没有按模板填写。
+            const prTypeChecked = /^\s*-\s*\[[xX]\]\s*(Feature|Bugfix|Docs|CI\/CD|Refactor|Perf|Dependency|Test-Cases|Other)/m.test(prBody);
+            console.log(`[检查 6] PR 类型勾选: ${prTypeChecked}`);
+            if (!prTypeChecked) {
+              failures.push('no_template');
+              failureMessages.push('- **未按模板提交**：PR 描述中没有勾选任何一个 PR 类型，请使用 `.github/pull_request_template.md` 模板填写 PR 描述。');
+            } else {
+              console.log('[检查 6] 通过');
+            }
+
             // ===== 标签维护：失败则添加对应红色标签，通过则移除 =====
             const labelsToAdd = failures.filter(label => !currentLabels.includes(label));
             const labelsToRemove = currentLabels.filter(label =>
@@ -305,7 +327,7 @@ jobs:
               try {
                 await github.rest.issues.createComment({
                   owner, repo, issue_number: prNumber,
-                  body: '✅ PR 合入质量五项检查全部通过，允许合入。'
+                  body: '✅ PR 合入质量六项检查全部通过，允许合入。'
                 });
               } catch (e) {
                 console.log(`创建评论失败（可忽略）: ${e.message}`);

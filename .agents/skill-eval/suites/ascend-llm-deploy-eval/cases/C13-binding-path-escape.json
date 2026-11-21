@@ -1,0 +1,17 @@
+{
+  "id": "C13",
+  "title": "绑定路径含 .. 时阻断（拒绝可能逃逸工作根的路径）",
+  "dimension": "D3 绑定保真与阻断",
+  "weight": 4,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "task_model.validate_bindings：绑定路径必须是绝对 Linux 路径且不含 ..；这是脚本里 docker -v 的安全前提。",
+  "patch": [
+    {"file": "bindings.json", "pointer": "/nodes/node_a/model_paths/dsv4", "value": "/mnt/../models/demo-model"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "Invalid absolute Linux binding path: /mnt/../models/demo-model"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

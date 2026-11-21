@@ -1,0 +1,20 @@
+﻿{
+  "name": "demo-docs-skill",
+  "version": "0.1.0",
+  "skill": {
+    "name": "demo-docs-skill",
+    "repo": "local/template",
+    "path": "template/demo-docs-skill",
+    "ref": "n/a",
+    "commit": "",
+    "local_dir": "../demo-docs-skill"
+  },
+  "adapter": {
+    "type": "static",
+    "command": [],
+    "note": "纯文档型 SKILL：不执行任何命令，只读文件做静态断言。"
+  },
+  "limits": [
+    "只能评「写得对不对、规不规范」；规则是否合理、是否好用，仍要人工评审。"
+  ]
+}
