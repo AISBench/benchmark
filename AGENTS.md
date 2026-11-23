@@ -8,6 +8,7 @@
 
 ## 贡献流程技能（向本仓库提交代码时）
 - 提交 PR 前/复审时 → skills/pr-checklist/SKILL.md
+- PR、分支差异或本地变更的证据驱动代码检视 → .agents/skills/evidence-pr-review/SKILL.md
 - CI 失败排查 → skills/ci-failure-triage/SKILL.md
 - 客户端协议适配兼容性疑问 → skills/check-api-compat/SKILL.md
 - Issue→PR→CI→检视 全流程编排 → skills/aisbench-devflow/SKILL.md
