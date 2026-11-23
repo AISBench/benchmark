@@ -1,4 +1,0 @@
-interface:
-  display_name: "证据驱动代码检视"
-  short_description: "围绕工程约束构造最小反例，执行验证并输出可追溯的检视结论"
-  default_prompt: "请使用 $evidence-pr-review 检视当前变更，结合需求和调用上下文提取工程约束，验证高风险问题并给出有证据的结论。"
