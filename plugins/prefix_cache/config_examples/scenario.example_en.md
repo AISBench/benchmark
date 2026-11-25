@@ -93,17 +93,19 @@ Parquet can be read directly, without converting to JSONL. For MRCR `8needle`:
 "corpus": {
   "path": "/path/to/MRCR/8needle/8needle_0.parquet",
   "field": "prompt",
-  "selection": {"mode": "random"}
+  "selection": {"mode": "indices", "values": [0]},
+  "suffix_mode": "source_tail"
 }
 ```
 
-Parquet streams the `field` column and uses 0-based row indices. If a cell is a JSON-encoded message array/object (as MRCR's `prompt` is), it is decoded automatically and messages are joined as `role: content`.
+Parquet streams the `field` column and uses 0-based row indices. If a cell is a JSON-encoded message array/object (as MRCR's `prompt` is), it is decoded automatically and messages are joined as `role: content`. `source_tail` uses the ending of the corpus case backing the canonical prefix as the natural suffix, preserving the case's original ending. Each group's prefix must come from one case long enough to cover prefix+suffix, so this example pins one row with `indices`; the group-marker fallback used for first-Block collisions is not supported.
 
 | Field | Default | Purpose |
 |---|---|---|
 | `path` | `./GSM8K.jsonl` | JSONL or Parquet corpus path; Parquet reads the `field` column and uses 0-based row indices. |
 | `field` | `question` | Field containing natural-language text; standard answers are not concatenated. The value may be a string, a list of strings, or a `[{role, content}]` message list; messages are joined as `role: content`. |
 | `selection` | `{"mode":"random"}` | Selects canonical-prefix and natural-suffix samples. |
+| `suffix_mode` | `records` | Natural-suffix source: `records` rotates through selected corpus records; `source_tail` uses the ending of the case backing each canonical prefix and requires one case per group that covers prefix+suffix, without the marker fallback. |
 
 Questions are trimmed and consecutive whitespace is collapsed. `question_sha256` is computed from the normalized UTF-8 text.
 

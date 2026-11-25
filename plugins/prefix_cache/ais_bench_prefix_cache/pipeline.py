@@ -316,6 +316,12 @@ def _source_case_tokens_by_group(
     """
     result: dict[str, tuple[int, ...]] = {}
     for group, prefix in canonical.items():
+        if prefix.marker_tokens:
+            raise ScenarioValidationError(
+                f"corpus.suffix_mode=source_tail is incompatible with {group}'s "
+                "deterministic group-marker fallback: the canonical prefix no longer "
+                "starts at the source case's first token; select a distinct source case per group"
+            )
         if len(prefix.gsm_indices) != 1:
             raise ScenarioValidationError(
                 f"corpus.suffix_mode=source_tail requires {group}'s canonical prefix to "
@@ -332,6 +338,11 @@ def _source_case_tokens_by_group(
                 f"cannot locate source case {line_index} for {group} suffix"
             )
         token_ids = tuple(tokenizer.encode(record.question, add_special_tokens=False))
+        overlap = min(len(prefix.token_ids), len(token_ids))
+        if prefix.token_ids[:overlap] != token_ids[:overlap]:
+            raise ArtifactValidationError(
+                f"canonical prefix for {group} does not start with source case {line_index}"
+            )
         result[group] = token_ids
         logger.info(
             "[prepare] source_case_tokens group=%s line_index=%d tokens=%d",

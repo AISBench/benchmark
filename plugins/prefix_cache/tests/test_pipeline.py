@@ -6,10 +6,17 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ais_bench_prefix_cache.artifacts import artifact_paths, read_jsonl, sha256_file, validate_artifacts
-from ais_bench_prefix_cache.pipeline import _apply_group_length_overrides, _length_summary, inspect_scenario, prepare_scenario
-from ais_bench_prefix_cache.errors import ArtifactValidationError
+from ais_bench_prefix_cache.pipeline import (
+    _apply_group_length_overrides,
+    _length_summary,
+    _source_case_tokens_by_group,
+    inspect_scenario,
+    prepare_scenario,
+)
+from ais_bench_prefix_cache.errors import ArtifactValidationError, ScenarioValidationError
+from ais_bench_prefix_cache.generation import CanonicalPrefix, GSMRecord, build_canonical_prefixes
 from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
-from tests.test_core import scenario_dict
+from tests.test_core import pa, pq, scenario_dict
 
 
 class FakeTokenizer:
@@ -238,6 +245,65 @@ class PipelineTest(unittest.TestCase):
             rows = [row for row in read_jsonl(paths.full) if row["group_id"] == "group-0"]
             self.assertTrue(all(row["actual_input_tokens"] == 80 for row in rows))
             self.assertTrue(any(len(set(row["gsm_indices"])) >= 2 for row in rows))
+
+class SourceTailPipelineTest(unittest.TestCase):
+    def test_source_tail_requires_exactly_one_record(self):
+        records = [GSMRecord(0, "alpha", "hash-0"), GSMRecord(1, "beta", "hash-1")]
+        tokens = tuple(FakeTokenizer().encode(records[0].question))
+        canonical = CanonicalPrefix("g0", records[0].question, tokens, "sha", (0, 1), ("hash-0", "hash-1"))
+        with self.assertRaisesRegex(ScenarioValidationError, "exactly one"):
+            _source_case_tokens_by_group(FakeTokenizer(), {"g0": canonical}, {"g0": records})
+
+    def test_source_tail_rejects_group_marker_fallback(self):
+        record = GSMRecord(0, "same question", "hash")
+        canonical = build_canonical_prefixes(
+            FakeTokenizer(),
+            {"g0": [record], "g1": [record]},
+            {"g0": 8, "g1": 8},
+            4,
+        )
+        self.assertGreater(canonical["g1"].marker_tokens, 0)
+        with self.assertRaisesRegex(ScenarioValidationError, "group-marker fallback"):
+            _source_case_tokens_by_group(FakeTokenizer(), canonical, {"g0": [record], "g1": [record]})
+
+    @unittest.skipUnless(pq is not None, "pyarrow is required")
+    def test_parquet_source_tail_complete_prepare(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            payload = "abcdefghijklmnopqrstuvwxyz0123456789" * 3
+            corpus = root / "mrcr.parquet"
+            pq.write_table(
+                pa.table({"prompt": [json.dumps([{"role": "user", "content": payload}])]}),
+                corpus,
+            )
+            data = scenario_dict(root, mode="warmup", dp_size=1)
+            data["corpus"] = {
+                "path": "mrcr.parquet",
+                "field": "prompt",
+                "selection": {"mode": "indices", "values": [0]},
+                "suffix_mode": "source_tail",
+            }
+            data["requests"]["count"] = 4
+            data["requests"]["input_length"] = {"mode": "fixed", "value": 32}
+            data["requests"]["output_length"] = {"mode": "fixed", "value": 2}
+            data["prefix_cache"]["groups"]["count"] = 1
+            data["prefix_cache"]["target_hit_rate"] = 0.5
+            data["prefix_cache"]["seed_blocks"] = 1
+            scenario = root / "scenario.json"
+            scenario.write_text(json.dumps(data), encoding="utf-8")
+
+            paths = prepare_scenario(scenario, tokenizer_loader=lambda _: FakeTokenizer())
+            rows = read_jsonl(paths.full)
+            source_text = f"user: {payload}"
+            self.assertEqual(len(rows), 4)
+            for row in rows:
+                self.assertEqual(row["actual_input_tokens"], 32)
+                self.assertEqual(row["gsm_indices"], [0])
+                self.assertGreater(row["natural_suffix_tokens"], 0)
+                self.assertTrue(
+                    row["question"].endswith(source_text[-row["natural_suffix_tokens"]:]),
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

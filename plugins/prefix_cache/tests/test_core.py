@@ -11,7 +11,7 @@ try:
 except ImportError:  # pragma: no cover - exercised only without the optional parser
     pa = pq = None
 
-from ais_bench_prefix_cache.errors import ScenarioValidationError
+from ais_bench_prefix_cache.errors import ArtifactValidationError, ScenarioValidationError
 from ais_bench_prefix_cache.generation import (
     RequestPlan,
     _prefix_trajectory_issues,
@@ -23,9 +23,11 @@ from ais_bench_prefix_cache.generation import (
     build_canonical_prefixes,
     build_input_lengths,
     build_output_lengths,
+    build_prompt,
     build_unique_seed,
     build_unique_seed_tokens,
     find_boundary_safe_token_ids,
+    CanonicalPrefix,
     GSMRecord,
     load_gsm8k,
     order_indices,
@@ -333,6 +335,18 @@ class CoreTest(unittest.TestCase):
             ):
                 load_gsm8k(corpus, field="prompt")
 
+    @unittest.skipUnless(pq is not None, "pyarrow is required")
+    def test_load_gsm8k_parquet_malformed_json_warns_with_row(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "mrcr.parquet"
+            malformed = '[{"role": "user", "content": "broken"'
+            pq.write_table(pa.table({"prompt": [malformed]}), corpus)
+            with self.assertLogs("ais_bench_prefix_cache.generation", level="WARNING") as logs:
+                records = load_gsm8k(corpus, field="prompt")
+            self.assertEqual(records[0].question, malformed)
+            self.assertIn("row 0", "\n".join(logs.output))
+            self.assertIn("malformed", "\n".join(logs.output))
+
     def test_canonical_collision_uses_group_fallback(self):
         class CharTokenizer:
             def encode(self, text, add_special_tokens=False):
@@ -351,6 +365,7 @@ class CoreTest(unittest.TestCase):
         self.assertNotEqual(
             canonical["group-0"].token_ids[:4], canonical["group-1"].token_ids[:4]
         )
+        self.assertGreater(canonical["group-1"].marker_tokens, 0)
 
     def test_seed_capacity_is_rejected_during_scenario_validation(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -708,6 +723,51 @@ class CoreTest(unittest.TestCase):
                 for prefixes in itertools.product(*candidates)
             )
             self.assertEqual(abs(result.effective_hit_tokens - target_tokens), best_error)
+
+
+class SourceTailPromptTest(unittest.TestCase):
+    class CharTokenizer:
+        def encode(self, text, add_special_tokens=False):
+            return [ord(char) for char in text]
+
+        def decode(self, token_ids, skip_special_tokens=False):
+            return "".join(chr(token_id) for token_id in token_ids)
+
+    def setUp(self):
+        self.tokenizer = self.CharTokenizer()
+        self.record = GSMRecord(0, "abcdefgh", "hash")
+        self.case_tokens = tuple(self.tokenizer.encode(self.record.question))
+        self.canonical = CanonicalPrefix(
+            "g0", self.record.question, self.case_tokens, "sha", (0,), ("hash",),
+        )
+
+    def test_source_tail_exact_boundary_keeps_original_ending(self):
+        text, actual, indices, hashes = build_prompt(
+            self.tokenizer, self.canonical, 6, (ord("Z"),), [self.record], 9,
+            source_case_tokens=self.case_tokens,
+        )
+        self.assertEqual(text, "abcdefZgh")
+        self.assertEqual(len(actual), 9)
+        self.assertEqual(text[-2:], self.record.question[-2:])
+        self.assertEqual(indices, (0,))
+        self.assertEqual(hashes, ("hash",))
+
+    def test_source_tail_rejects_prefix_suffix_overlap(self):
+        with self.assertRaisesRegex(ArtifactValidationError, "requires the source case to cover"):
+            build_prompt(
+                self.tokenizer, self.canonical, 6, (ord("Z"),), [self.record], 10,
+                source_case_tokens=self.case_tokens,
+            )
+
+    def test_source_tail_zero_suffix_has_no_source(self):
+        text, actual, indices, hashes = build_prompt(
+            self.tokenizer, self.canonical, 7, (ord("Z"),), [self.record], 8,
+            source_case_tokens=self.case_tokens,
+        )
+        self.assertEqual(text, "abcdefgZ")
+        self.assertEqual(len(actual), 8)
+        self.assertEqual(indices, ())
+        self.assertEqual(hashes, ())
 
 
 if __name__ == "__main__":

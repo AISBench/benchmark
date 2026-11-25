@@ -117,17 +117,19 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 "corpus": {
   "path": "/path/to/MRCR/8needle/8needle_0.parquet",
   "field": "prompt",
-  "selection": {"mode": "random"}
+  "selection": {"mode": "indices", "values": [0]},
+  "suffix_mode": "source_tail"
 }
 ```
 
-Parquet 按 `field` 列流式读取，行号从 0 开始；单元格若是 JSON 编码的消息数组/对象（MRCR 的 `prompt` 即如此），会自动解码，消息仍按 `role: content` 拼接。
+Parquet 按 `field` 列流式读取，行号从 0 开始；单元格若是 JSON 编码的消息数组/对象（MRCR 的 `prompt` 即如此），会自动解码，消息仍按 `role: content` 拼接。`source_tail` 取 canonical 前缀来源语料的尾部作为自然后缀，使 prompt 保留该语料的原始结尾；它要求每组前缀来自单条足够长、可覆盖 prefix+suffix 的语料，因此示例用 `indices` 固定一行，且不支持组首 Block 冲突时的 marker 兜底。
 
 | 字段 | 必填 | 默认值 | 作用 |
 |---|---:|---|---|
 | `path` | 否 | `"./GSM8K.jsonl"` | JSONL 或 Parquet 语料路径；Parquet 按 `field` 列读取，行号从 0 开始。 |
 | `field` | 否 | `"question"` | 读取自然语言文本的字段，只使用该字段，不拼接标准答案。字段值可为字符串、字符串列表或 `[{role, content}]` 消息列表；消息按 `role: content` 用空行拼接。 |
 | `selection` | 否 | `{"mode":"random"}` | 为 canonical 前缀和自然后缀选择样本。 |
+| `suffix_mode` | 否 | `"records"` | 自然后缀来源：`records` 按所选语料轮转；`source_tail` 取 canonical 前缀来源语料的尾部，要求每组前缀来自单条足够长、可覆盖 prefix+suffix 的语料，且不能使用 marker 兜底。 |
 
 问题文本（消息先按 `role: content` 拼接）会先去除首尾空白，并把连续空白折叠成一个空格。`question_sha256` 基于规范化后的 UTF-8 文本。
 

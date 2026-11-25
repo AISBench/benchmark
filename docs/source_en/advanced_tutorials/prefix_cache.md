@@ -377,6 +377,7 @@ See the [complete Scenario field reference](https://github.com/AISBench/benchmar
 | `corpus` | Natural-suffix corpus configuration. |
 | `corpus.path` | Corpus file path; supports `.jsonl` and `.parquet` / `.pq`, e.g. `"./GSM8K.jsonl"` or `".../8needle_0.parquet"`. |
 | `corpus.field` | Corpus text field, defaults to `"question"`; only this field is used and the standard answer is not concatenated. Accepts a string, a list of strings, or a `[{role, content}]` message list, with each message rendered as `role: content`. |
+| `corpus.suffix_mode` | Natural-suffix source, defaults to `"records"` (rotate through selected records); `"source_tail"` uses the ending of the case backing each canonical prefix and requires one case per group that covers prefix+suffix, without the marker fallback for first-Block collisions. |
 | `corpus.selection` | Corpus sample-selection rule, defaults to `{"mode": "random"}`. |
 | `corpus.selection.mode` | Selection mode: `random` (deterministic shuffle by `run.random_seed`, e.g. `{"mode": "random"}`), `indices` (zero-based line numbers, e.g. `{"mode": "indices", "values": [0, 15, 72]}`), `question_sha256` (SHA-256 of the normalized question, e.g. `{"mode": "question_sha256", "values": ["<64-hex SHA-256>"]}`), `mixed` (`indices` first, then `question_sha256`, e.g. `{"mode": "mixed", "indices": [0, 15], "question_sha256": ["<SHA-256>"]}`). |
 | `corpus.selection.values` | Index or hash list for a non-mixed mode, e.g. `[0, 15, 72]`; when fewer records are specified than required, the selected sequence is reused cyclically. |

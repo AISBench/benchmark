@@ -117,6 +117,7 @@ Scenario 采用严格白名单，未列出的字段会被拒绝；省略的字�
 | `corpus` | 自然后缀语料配置。 |
 | `corpus.path` | JSONL 或 Parquet 语料文件路径；Parquet 按 `field` 列流式读取，行号从 0 开始。 |
 | `corpus.field` | 语料字段名，默认 `question`；值可为字符串、字符串列表或 `[{role, content}]` 消息列表；消息按 `role: content` 用空行拼接后统一折叠空白。 |
+| `corpus.suffix_mode` | 自然后缀来源，默认 `records`（按所选语料轮转）；`source_tail` 取 canonical 前缀来源语料的尾部，要求每组前缀来自单条足够长、可覆盖 prefix+suffix 的语料，且不能使用 marker 兜底。 |
 | `corpus.selection` | 语料样本选择规则。 |
 | `corpus.selection.mode` | 选择模式：`random`（按 `run.random_seed` 确定性打乱）、`indices`（按零基行号选择）、`question_sha256`（按规范化 question 的 SHA-256 选择）、`mixed`（先加入 `indices`，再加入 `question_sha256`）。 |
 | `corpus.selection.values` | 非 mixed 模式的行号或哈希值列表；指定样本不足时按已选顺序循环复用。 |

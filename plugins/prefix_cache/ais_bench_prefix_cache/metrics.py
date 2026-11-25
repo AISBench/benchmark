@@ -102,7 +102,7 @@ def _parse_spec_decode(
     dp_size: int,
     mapping: dict[str, int],
 ) -> tuple[SpecDecodeSnapshot | None, str | None]:
-    """解析投机推理指标；缺失或无法定位 rank 时返回错误说明而不影响主流程。"""
+    """解析投机推理指标；单个坏样本跳过并报告，不丢弃其他 rank。"""
     selected = {
         logical: next((name for name in aliases if name in samples), None)
         for logical, aliases in _SPEC_ALIASES.items()
@@ -110,35 +110,39 @@ def _parse_spec_decode(
     selected = {logical: name for logical, name in selected.items() if name is not None}
     if not selected:
         return None, None
-    try:
-        by_rank: dict[int, dict[str, float]] = {}
-        for logical, name in selected.items():
-            for labels, value in samples[name]:
+    errors: list[str] = []
+    by_rank: dict[int, dict[str, float]] = {}
+    for logical, name in selected.items():
+        for labels, value in samples[name]:
+            try:
                 rank = _rank(labels, dp_size, mapping)
                 if rank < 0 or rank >= dp_size:
                     raise RuntimeCapabilityError(f"metric contains out-of-range DP rank {rank}")
-                row = by_rank.setdefault(rank, {})
-                if logical in row:
-                    # 多组标签（例如多个 model_name）同时暴露同一指标时，Counter
-                    # 求和才是总工作量；Gauge 保留最后一个采样值。
-                    if logical in _SPEC_COUNTERS:
-                        logger.warning(
-                            "[metrics] duplicate speculative metric %s for DP rank %d; summing values",
-                            logical, rank,
-                        )
-                        row[logical] += value
-                    else:
-                        logger.warning(
-                            "[metrics] duplicate speculative metric %s for DP rank %d; keeping last value",
-                            logical, rank,
-                        )
-                        row[logical] = value
+            except RuntimeCapabilityError as exc:
+                logger.warning("[metrics] speculative metric sample skipped: %s", exc)
+                errors.append(f"{name} sample skipped: {exc}")
+                continue
+            row = by_rank.setdefault(rank, {})
+            if logical in row:
+                # 多组标签（例如多个 model_name）同时暴露同一指标时，Counter
+                # 求和才是总工作量；Gauge 保留最后一个采样值。
+                if logical in _SPEC_COUNTERS:
+                    logger.warning(
+                        "[metrics] duplicate speculative metric %s for DP rank %d; summing values",
+                        logical, rank,
+                    )
+                    row[logical] += value
                 else:
+                    logger.warning(
+                        "[metrics] duplicate speculative metric %s for DP rank %d; keeping last value",
+                        logical, rank,
+                    )
                     row[logical] = value
-    except RuntimeCapabilityError as exc:
-        logger.warning("[metrics] parse_spec_decode skipped reason=%s", exc)
-        return None, str(exc)
-    return SpecDecodeSnapshot(by_rank, selected), None
+            else:
+                row[logical] = value
+    if not by_rank:
+        return None, "; ".join(errors) or "no usable speculative-decoding metric samples"
+    return SpecDecodeSnapshot(by_rank, selected), "; ".join(errors) or None
 
 
 def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | None = None) -> MetricSnapshot:
@@ -309,6 +313,11 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
     )
     by_rank: dict[int, dict[str, Any]] = {}
     issues: list[str] = []
+    if before.spec_decode_error:
+        issues.append(f"baseline snapshot: {before.spec_decode_error}")
+    if after.spec_decode_error:
+        issues.append(f"after snapshot: {after.spec_decode_error}")
+    has_parse_error = bool(issues)
     has_regression = False
     has_missing_metric = False
     for rank in ranks:
@@ -326,19 +335,31 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
                 regressed.append(name)
                 continue
             deltas[name] = _json_number(delta)
-        if regressed:
-            status = "counter_regressed"
-            has_regression = True
-            issues.append(f"DP rank {rank}: counter regressed ({', '.join(regressed)})")
-        elif missing:
-            status = "missing_metric"
-            has_missing_metric = True
-            issues.append(f"DP rank {rank}: missing counters ({', '.join(missing)})")
-        else:
-            status = "ok"
         draft = deltas.get("draft_tokens")
         accepted = deltas.get("accepted_tokens")
         emitted = deltas.get("emitted_tokens")
+        invalid: list[str] = []
+        if not regressed:
+            if draft is not None and accepted is not None and accepted > draft:
+                invalid.append("accepted_tokens exceeds draft_tokens")
+            if accepted is not None and emitted is not None and emitted < accepted:
+                invalid.append("emitted_tokens is less than accepted_tokens")
+        if missing:
+            has_missing_metric = True
+            issues.append(f"DP rank {rank}: missing counters ({', '.join(missing)})")
+        if regressed:
+            has_regression = True
+            issues.append(f"DP rank {rank}: counter regressed ({', '.join(regressed)})")
+        if invalid:
+            has_regression = True
+            issues.append(f"DP rank {rank}: invalid counter relationship ({'; '.join(invalid)})")
+        if regressed or invalid:
+            status = "counter_regressed"
+        elif missing:
+            status = "missing_metric"
+        else:
+            status = "ok"
+        rates_available = status in {"ok", "missing_metric"}
         by_rank[rank] = {
             "status": status,
             "before": {
@@ -352,27 +373,35 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
                 if name in new
             },
             "deltas": deltas,
-            "draft_acceptance_rate": accepted / draft if status == "ok" and draft else None,
-            "efficiency": emitted / draft if status == "ok" and draft else None,
+            "draft_acceptance_rate": accepted / draft if rates_available and accepted is not None and draft else None,
+            "efficiency": emitted / draft if rates_available and emitted is not None and draft else None,
         }
-    covered_ranks = tuple(rank for rank in ranks if by_rank[rank]["status"] == "ok")
-    complete = [by_rank[rank] for rank in covered_ranks]
-    if complete:
-        draft_total: int | None = sum(int(row["deltas"]["draft_tokens"]) for row in complete)
-        accepted_total: int | None = sum(int(row["deltas"]["accepted_tokens"]) for row in complete)
-        emitted_total: int | None = sum(int(row["deltas"]["emitted_tokens"]) for row in complete)
-    else:
-        draft_total = accepted_total = emitted_total = None
-    acceptance_rate = (
-        accepted_total / draft_total
-        if accepted_total is not None and draft_total
-        else None
+    covered_ranks = tuple(
+        rank for rank in ranks
+        if by_rank[rank]["status"] in {"ok", "missing_metric"}
+        and by_rank[rank]["deltas"]
     )
-    efficiency = (
-        emitted_total / draft_total
-        if emitted_total is not None and draft_total
-        else None
-    )
+    covered = [by_rank[rank] for rank in covered_ranks]
+    totals: dict[str, int | None] = {}
+    for name in _SPEC_COUNTERS:
+        values = [int(row["deltas"][name]) for row in covered if name in row["deltas"]]
+        totals[name] = sum(values) if values else None
+    draft_total = totals["draft_tokens"]
+    accepted_total = totals["accepted_tokens"]
+    emitted_total = totals["emitted_tokens"]
+
+    def _paired_rate(numerator: str) -> float | None:
+        paired = [
+            row["deltas"] for row in covered
+            if "draft_tokens" in row["deltas"] and numerator in row["deltas"]
+        ]
+        paired_draft = sum(int(row["draft_tokens"]) for row in paired)
+        if not paired or paired_draft <= 0:
+            return None
+        return sum(int(row[numerator]) for row in paired) / paired_draft
+
+    acceptance_rate = _paired_rate("accepted_tokens")
+    efficiency = _paired_rate("emitted_tokens")
     if missing_ranks:
         issues.append(
             "no speculative-decoding metrics for DP ranks: "
@@ -384,7 +413,7 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
     elif has_regression:
         status = "counter_regressed"
         reason = "; ".join(issues)
-    elif has_missing_metric or missing_ranks:
+    elif has_missing_metric or missing_ranks or has_parse_error:
         status = "partial"
         reason = "; ".join(issues)
     elif not draft_total:

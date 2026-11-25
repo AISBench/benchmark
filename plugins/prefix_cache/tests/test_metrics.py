@@ -140,6 +140,96 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(actual.global_draft_tokens, 200)
         self.assertAlmostEqual(actual.global_draft_acceptance_rate, 0.7)
 
+    def test_speculative_decoding_missing_counter_keeps_available_rates(self):
+        after_spec = SPEC_AFTER.replace(
+            'vllm:spec_decode_num_emitted_tokens_total{engine="engine_1"} 400\n', "",
+        )
+        before = parse_metrics(BASE + SPEC_BASE, 2)
+        after = parse_metrics(AFTER + after_spec, 2)
+        actual = diff_spec_decode(before, after)
+        self.assertEqual(actual.status, "partial")
+        self.assertEqual(actual.covered_ranks, (0, 1))
+        self.assertEqual(actual.global_draft_tokens, 500)
+        self.assertEqual(actual.global_accepted_tokens, 300)
+        self.assertEqual(actual.global_emitted_tokens, 180)
+        self.assertAlmostEqual(actual.global_draft_acceptance_rate, 0.6)
+        self.assertAlmostEqual(actual.global_efficiency, 0.9)
+        self.assertAlmostEqual(actual.by_rank[0]["efficiency"], 0.9)
+        self.assertAlmostEqual(actual.by_rank[1]["draft_acceptance_rate"], 160 / 300)
+        self.assertIsNone(actual.by_rank[1]["efficiency"])
+
+    def test_speculative_decoding_missing_accepted_uses_paired_global_rate(self):
+        after_spec = SPEC_AFTER.replace(
+            'vllm:spec_decode_num_accepted_tokens_total{engine="engine_1"} 260\n', "",
+        )
+        before = parse_metrics(BASE + SPEC_BASE, 2)
+        after = parse_metrics(AFTER + after_spec, 2)
+        actual = diff_spec_decode(before, after)
+        self.assertEqual(actual.status, "partial")
+        self.assertEqual(actual.global_draft_tokens, 500)
+        self.assertEqual(actual.global_accepted_tokens, 140)
+        self.assertEqual(actual.global_emitted_tokens, 430)
+        self.assertAlmostEqual(actual.global_draft_acceptance_rate, 0.7)
+        self.assertAlmostEqual(actual.global_efficiency, 0.86)
+        self.assertIsNone(actual.by_rank[1]["draft_acceptance_rate"])
+        self.assertAlmostEqual(actual.by_rank[1]["efficiency"], 250 / 300)
+
+    def test_speculative_decoding_invalid_counter_relationships(self):
+        prefix = "\n".join([
+            'vllm:prefix_cache_queries{engine="engine_0"} 10',
+            'vllm:prefix_cache_hits{engine="engine_0"} 5',
+            "",
+        ])
+        before = parse_metrics(prefix + _spec_metrics("engine_0", 100, 60, 80, 0.6, 0.8), 1)
+        for values, expected_reason in (
+            ((110, 120, 130), "accepted_tokens exceeds draft_tokens"),
+            ((110, 70, 85), "emitted_tokens is less than accepted_tokens"),
+        ):
+            with self.subTest(expected_reason=expected_reason):
+                after_spec = _spec_metrics("engine_0", *values, 0.6, 0.8)
+                actual = diff_spec_decode(before, parse_metrics(prefix + after_spec, 1))
+                self.assertEqual(actual.status, "counter_regressed")
+                self.assertEqual(actual.by_rank[0]["status"], "counter_regressed")
+                self.assertIn(expected_reason, actual.reason)
+                self.assertEqual(actual.covered_ranks, ())
+                self.assertIsNone(actual.global_draft_tokens)
+
+    def test_speculative_decoding_efficiency_above_one_is_valid(self):
+        prefix = "\n".join([
+            'vllm:prefix_cache_queries{engine="engine_0"} 10',
+            'vllm:prefix_cache_hits{engine="engine_0"} 5',
+            "",
+        ])
+        before = parse_metrics(prefix + _spec_metrics("engine_0", 100, 60, 80, 0.6, 0.8), 1)
+        after = parse_metrics(prefix + _spec_metrics("engine_0", 110, 67, 140, 0.7, 6.0), 1)
+        actual = diff_spec_decode(before, after)
+        self.assertEqual(actual.status, "ok")
+        self.assertAlmostEqual(actual.global_draft_acceptance_rate, 0.7)
+        self.assertEqual(actual.global_efficiency, 6)
+
+    def test_bad_spec_sample_does_not_discard_valid_rank(self):
+        text = "\n".join([
+            'vllm:prefix_cache_queries{engine="engine_0"} 10',
+            'vllm:prefix_cache_hits{engine="engine_0"} 5',
+            _spec_metrics("engine_0", 100, 60, 80, 0.6, 0.8),
+            'vllm:spec_decode_num_draft_tokens_total{engine="node-x"} 999',
+            "",
+        ])
+        before = parse_metrics(text, 1)
+        self.assertIsNotNone(before.spec_decode)
+        self.assertEqual(before.spec_decode.by_rank[0]["draft_tokens"], 100)
+        self.assertIn("sample skipped", before.spec_decode_error)
+        after_text = text.replace(
+            _spec_metrics("engine_0", 100, 60, 80, 0.6, 0.8),
+            _spec_metrics("engine_0", 110, 70, 100, 0.7, 1.0),
+        )
+        actual = diff_spec_decode(before, parse_metrics(after_text, 1))
+        self.assertEqual(actual.status, "partial")
+        self.assertEqual(actual.covered_ranks, (0,))
+        self.assertEqual(actual.global_draft_tokens, 10)
+        self.assertEqual(actual.global_accepted_tokens, 10)
+        self.assertIn("sample skipped", actual.reason)
+
     def test_speculative_decoding_counter_regression_is_reported(self):
         regressed = _spec_metrics("engine_0", 50, 40, 60, 0.8, 1.2)
         before = parse_metrics(BASE + SPEC_BASE, 2)

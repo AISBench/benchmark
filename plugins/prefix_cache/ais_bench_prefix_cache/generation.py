@@ -59,6 +59,7 @@ class CanonicalPrefix:
     sha256: str                    # 前缀指纹
     gsm_indices: tuple[int, ...]   # 来源语料行号
     gsm_hashes: tuple[str, ...]    # 来源语料 hash
+    marker_tokens: int = 0         # 首个语料前的确定性 group marker 长度
 
 
 @dataclass(frozen=True)
@@ -175,11 +176,12 @@ _PARQUET_SUFFIXES = frozenset({".parquet", ".pq"})
 _PARQUET_BATCH_SIZE = 16
 
 
-def _decode_parquet_cell(value: Any) -> Any:
+def _decode_parquet_cell(value: Any, location: str = "parquet cell") -> Any:
     """解码 parquet 中以字符串存储的 JSON 数组/对象。
 
     MRCR 的 ``prompt`` 列在 parquet 中是 JSON 字符串；若不解析，消息结构会被
     当成普通 JSON 文本拼进语料，``role`` 和 ``content`` 都无法按字段处理。
+    非法 JSON 保留为普通文本，但必须记录带行号的告警，避免静默损坏 MRCR。
     """
     if not isinstance(value, str):
         return value
@@ -188,7 +190,12 @@ def _decode_parquet_cell(value: Any) -> Any:
         return value
     try:
         decoded = json.loads(value)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        logger.warning(
+            "[gen] %s looks like JSON but is malformed (%s at char %d); "
+            "preserving it as plain text",
+            location, exc.msg, exc.pos,
+        )
         return value
     return decoded if isinstance(decoded, (list, dict)) else value
 
@@ -212,9 +219,12 @@ def _parquet_field_values(path: Path, field: str) -> Iterable[Any]:
             f"parquet corpus {path} has no field {field!r}; "
             f"available fields: {', '.join(available)}"
         )
+    row_index = 0
     for batch in parquet.iter_batches(columns=[field], batch_size=_PARQUET_BATCH_SIZE):
         for value in batch.column(0).to_pylist():
-            yield _decode_parquet_cell(value)
+            location = f"{path} row {row_index}"
+            row_index += 1
+            yield _decode_parquet_cell(value, location)
 
 
 def load_gsm8k(path: Path, field: str = "question") -> list[GSMRecord]:
@@ -1556,6 +1566,7 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
         if not source_records:
             raise ArtifactValidationError(f"canonical prefix source is empty for {group}")
         selected: tuple[list[int], tuple[int, ...], tuple[str, ...]] | None = None
+        marker_tokens = 0
         # 尝试不同旋转起点，找到首个 block 不与其他组冲突的版本。
         for offset in range(len(source_records)):
             rotated = source_records[offset:] + source_records[:offset]
@@ -1572,6 +1583,7 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
             # so one bad override cannot abort the whole dataset generation.
             logger.info("[gen] build_canonical_prefixes group=%s all rotations collide -> adding deterministic marker", group)
             marker = tokenizer.encode(f"{group_position} prefix-cache-group-{group} ", add_special_tokens=False)
+            marker_tokens = len(marker)
             source_tokens, source_indices, source_hashes = _repeat_tokens(
                 source_records, tokenizer, max(max_lengths[group], block_size)
             )
@@ -1588,7 +1600,10 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
         if actual[:max_lengths[group]] != token_ids[:max_lengths[group]]:
             raise ArtifactValidationError(f"canonical prefix does not round-trip for {group}")
         digest = hashlib.sha256(bytes(str(token_ids), "utf-8")).hexdigest()
-        result[group] = CanonicalPrefix(group, text, tuple(token_ids), digest, indices, hashes)
+        result[group] = CanonicalPrefix(
+            group, text, tuple(token_ids), digest, indices, hashes,
+            marker_tokens=marker_tokens,
+        )
         logger.info("[gen] build_canonical_prefixes group=%s tokens=%d text_len=%d sha256=%s source_count=%d source_preview=%s (first 5)", group, len(token_ids), len(text), digest, len(indices), indices[:5])
     return result
 
@@ -1619,6 +1634,11 @@ def build_prompt(
     if suffix_len < 0:
         raise ArtifactValidationError("prefix and seed exceed target input length")
     if source_case_tokens is not None:
+        if canonical.marker_tokens:
+            raise ArtifactValidationError(
+                "corpus.suffix_mode=source_tail cannot use a canonical prefix "
+                "with a deterministic group marker; select a distinct source case per group"
+            )
         case_len = len(source_case_tokens)
         if shared_prefix_tokens + suffix_len > case_len:
             raise ArtifactValidationError(
@@ -1627,8 +1647,8 @@ def build_prompt(
                 f"the selected case has only {case_len} tokens"
             )
         suffix = list(source_case_tokens[case_len - suffix_len:]) if suffix_len else []
-        indices = canonical.gsm_indices[:1]
-        hashes = canonical.gsm_hashes[:1]
+        indices = canonical.gsm_indices[:1] if suffix_len else ()
+        hashes = canonical.gsm_hashes[:1] if suffix_len else ()
         logger.info("[gen] build_prompt source_tail case_len=%d suffix_len=%d suffix_source=%s", case_len, len(suffix), indices[:1])
     else:
         suffix, indices, hashes = _repeat_tokens(suffix_records, tokenizer, suffix_len, token_cache) if suffix_len else ([], (), ())

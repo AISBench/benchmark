@@ -107,6 +107,7 @@ The Scenario uses a strict allowlist: unknown fields are rejected, and omitted f
 | `corpus` | Natural-suffix corpus configuration. |
 | `corpus.path` | Path to the JSONL or Parquet corpus; Parquet streams the `field` column and uses 0-based row indices. |
 | `corpus.field` | Corpus field name, defaults to `question`; accepts a string, a list of strings, or a `[{role, content}]` message list, with each message rendered as `role: content`. |
+| `corpus.suffix_mode` | Natural-suffix source, defaults to `records` (rotate through selected records); `source_tail` uses the ending of the case backing each canonical prefix and requires one case per group that covers prefix+suffix, without the marker fallback. |
 | `corpus.selection` | Corpus sample-selection rule. |
 | `corpus.selection.mode` | Selection mode: `random` (deterministic shuffle by `run.random_seed`), `indices` (zero-based line numbers), `question_sha256` (SHA-256 of the normalized question), `mixed` (`indices` first, then `question_sha256`). |
 | `corpus.selection.values` | Index or hash list for a non-mixed mode; when fewer records are specified than required, the selected sequence is reused cyclically. |
