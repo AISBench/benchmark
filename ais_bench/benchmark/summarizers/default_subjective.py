@@ -227,7 +227,7 @@ class DefaultSubjectiveSummarizer:
                         for metric in group_metrics:
                             for dataset_abbr in sg['subsets']:
                                 scores.setdefault(metric, {})[dataset_abbr + '@' + metric] = parsed_results[model_abbr][dataset_abbr][metric]
-                                eval_modes.append(dataset_eval_mode.get(sg['subsets'][0], 'unknown'))
+                                eval_modes.append(dataset_eval_mode.get(dataset_abbr, 'unknown'))
                     else:
                         group_metrics = [default_metric]
                         for dataset_abbr in sg['subsets']:

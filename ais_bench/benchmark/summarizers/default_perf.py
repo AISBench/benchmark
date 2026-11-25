@@ -455,8 +455,13 @@ class DefaultPerfSummarizer:
                 )
 
                 if osp.exists(rps_distribution_plot_file_path):
-                    post_time_list = np.array(details_perf_datas["start_time"]) - min(details_perf_datas["start_time"])
-                    add_actual_rps_to_chart(rps_distribution_plot_file_path, post_time_list)
+                    start_times = details_perf_datas["start_time"]
+                    if not start_times:
+                        self.logger.warning("Empty start_time in perf data; skip RPS distribution chart post-processing.")
+                    else:
+                        start_times = np.asarray(start_times, dtype=float)
+                        post_time_list = start_times - np.min(start_times)
+                        add_actual_rps_to_chart(rps_distribution_plot_file_path, post_time_list)
 
                 # Generate visualization HTML file
                 plot_file_path = osp.join(
