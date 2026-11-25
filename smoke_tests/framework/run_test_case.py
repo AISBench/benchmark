@@ -6,6 +6,7 @@ import re
 import traceback
 import time
 import shutil
+import signal
 from typing import List, Dict, Any, Tuple, Optional, Union
 
 import yaml
@@ -47,6 +48,7 @@ def get_test_case_config(test_case_yml):
         metric="metric.json",
         metric_check_rule=None,
         timeout=3,
+        clean_timeout=2,
         rank_size=1,
         yml_path=test_case_yml
     )
@@ -66,6 +68,34 @@ def get_test_case_config(test_case_yml):
     safe_add(config.get("case_name", test_case_yml))
     config["case_tags"] = set(sorted(case_tags))
     return config
+
+
+def _stop_process(process):
+    """Terminate the session's process group on POSIX and always reap its leader."""
+    try:
+        if os.name == "posix":
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        else:
+            process.terminate()
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            pass
+    finally:
+        try:
+            if os.name == "posix":
+                # The leader may have exited while descendants ignored SIGTERM.
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            elif process.poll() is None:
+                process.kill()
+        finally:
+            process.wait()
 
 
 def exec_script_file(
@@ -96,52 +126,36 @@ def exec_script_file(
     else:
         raise RunCaseException(f"Unsupported script type: {script_path}")
 
-    process:subprocess.Popen = None
+    log_handle = None
     try:
-        # 处理日志重定向
-        stdout_dest = subprocess.DEVNULL
-        stderr_dest = subprocess.DEVNULL
         if log_file:
-            stdout_dest = open(log_file, 'w')
-            stderr_dest = subprocess.STDOUT
+            log_handle = open(log_file, 'w')
 
-        # 创建子进程执行命令
         process = subprocess.Popen(
             args,
-            stdout=stdout_dest,
-            stderr=stderr_dest,
-            text=True
+            stdout=log_handle if log_handle is not None else subprocess.DEVNULL,
+            stderr=subprocess.STDOUT if log_handle is not None else subprocess.DEVNULL,
+            text=True,
+            start_new_session=(os.name == "posix"),
         )
-
         try:
-            if timeout_minutes is not None:
-                # 有超时设置
-                process.wait(timeout=timeout_minutes * 60)
-            else:
-                # 无超时设置
-                process.wait()
-
+            process.wait(timeout=None if timeout_minutes is None else timeout_minutes * 60)
             return process.returncode
-
         except (KeyboardInterrupt, subprocess.TimeoutExpired) as ex:
-            # 超时处理 - 先尝试终止
-            process.terminate()
             try:
-                # 等待3秒正常退出
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                # 如果3秒后还没退出，强制杀死
-                process.kill()
-            finally:
-                if timeout_minutes and isinstance(ex, subprocess.TimeoutExpired):
-                    raise RunCaseException(f"Timeout after {timeout_minutes} minutes for script: {script_path}")
-    except Exception as e:
-        print(e)
-        raise RunCaseException(f"Error executing script {script_path}: {str(e)}")
+                _stop_process(process)
+            except Exception as stop_error:
+                log(f"Failed to stop script {script_path}: {stop_error}")
+            if isinstance(ex, KeyboardInterrupt):
+                raise
+            raise RunCaseException(f"Timeout after {timeout_minutes} minutes for script: {script_path}") from ex
+    except RunCaseException:
+        raise
+    except Exception as ex:
+        raise RunCaseException(f"Error executing script {script_path}: {ex}") from ex
     finally:
-        # 确保文件句柄关闭
-        if log_file and stdout_dest != subprocess.DEVNULL:
-            stdout_dest.close()
+        if log_handle is not None:
+            log_handle.close()
 
 
 def pre_processing(config, test_case_workspace_path, res_path):
@@ -150,10 +164,18 @@ def pre_processing(config, test_case_workspace_path, res_path):
 
 def post_processing(config, test_case_workspace_path):
     # 调用clean.sh
-    clean_script = config.get("script", {}).get("clean", "clean.sh")
-    clean_script_path = os.path.join(test_case_workspace_path, clean_script)
-    if os.path.exists(clean_script_path):
-        exec_script_file(clean_script_path)
+    try:
+        clean_script = config.get("script", {}).get("clean", "clean.sh")
+        clean_script_path = os.path.join(test_case_workspace_path, clean_script)
+        if os.path.exists(clean_script_path):
+            timeout = config.get("clean_timeout", 2)
+            ret_code = exec_script_file(clean_script_path, timeout_minutes=2 if timeout is None else timeout)
+            if ret_code != 0:
+                raise CleanCaseException(f"Clean script failed with exit code {ret_code}: {clean_script_path}")
+    except CleanCaseException:
+        raise
+    except Exception as ex:
+        raise CleanCaseException(f"Error cleaning case in {test_case_workspace_path}: {ex}") from ex
 
 
 def record_and_analysis_metric(config, test_case_workspace_path, result_record):
@@ -339,9 +361,11 @@ def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
                                         timeout_minutes=config.get("timeout", 3)
                                         )
             if ret_code != 0:
-                result_log_info = "Last 2 rows in result.log: \n```\n" + str('\n'.join(get_last_lines(log_path))) + "\n```"
-                error_info = f"run script path failed. {run_script_path}\n{result_log_info}"
-                gather_logs(test_case_workspace_path, workspace_path)
+                error_info = f"run script path failed. {run_script_path}"
+                try:
+                    error_info += "\nLast 2 rows in result.log: \n```\n" + '\n'.join(get_last_lines(log_path)) + "\n```"
+                except Exception as ex:
+                    error_info += f"\nUnable to read result.log: {ex}"
                 raise RunCaseException(error_info)
             # 记录&分析结果
             record_and_analysis_metric(config, test_case_workspace_path, result_record)
@@ -349,25 +373,28 @@ def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
             result_record["success"] = False
             result_record["message"] = str(ex)
             log(f"\033[1;31m", f"[{config.get('case_name')}] has ERROR:", str(ex), "\033[0m", print_enable=False)
-            gather_logs(test_case_workspace_path, workspace_path)
         except KeyboardInterrupt:
             result_record["success"] = False
             result_record["message"] = "Has been interrupted"
             log(f"\033[1;31m", f"[{config.get('case_name')}] has been interrupted.\033[0m", print_enable=False)
-            gather_logs(test_case_workspace_path, workspace_path)
+            raise
         else:
             result_record["success"] = True
             result_record["message"] = ""
             result_record["execution_time"] = time.perf_counter() - start_time
-
-
-        # 后处理
-        try:
-            post_processing(config, test_case_workspace_path)
-        except CleanCaseException as ex:
-            log(f"\033[5;33m", f"[{config.get('case_name')}] has WARRING:", str(ex), "\033[0m", print_enable=False)
     except Exception as ex:
         log(f"\033[5;31m", f"[{config.get('case_name')}] has ERROR:", str(ex), "\033[0m", print_enable=False)
+    finally:
+        try:
+            if not result_record["success"]:
+                gather_logs(test_case_workspace_path, workspace_path)
+        except Exception as ex:
+            log(f"Failed to gather logs for [{config.get('case_name')}]: {ex}", print_enable=False)
+        finally:
+            try:
+                post_processing(config, test_case_workspace_path)
+            except CleanCaseException as ex:
+                log(f"\033[5;33m", f"[{config.get('case_name')}] has WARRING:", str(ex), "\033[0m", print_enable=False)
 
     return config.get("case_type"), config.get("case_name"), result_record
 

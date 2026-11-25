@@ -150,6 +150,28 @@ def get_test_cases_from_path(test_case_path: str):
                 yield path
 
 
+def get_max_parallel():
+    """Keep the historical default; allow tuning without editing the runner."""
+    try:
+        value = int(os.environ.get('SMOKE_MAX_PARALLEL', '50'))
+    except ValueError as ex:
+        raise ValueError('SMOKE_MAX_PARALLEL must be a positive integer') from ex
+    if value < 1:
+        raise ValueError('SMOKE_MAX_PARALLEL must be a positive integer')
+    return value
+
+
+def append_case_log(log_file):
+    """Preserve full logs without loading an entire case log into memory."""
+    with open(log_file, errors='replace') as case_f:
+        while True:
+            chunk = case_f.read(64 * 1024)
+            if not chunk:
+                break
+            log(chunk, end='', print_enable=False)
+    log('', print_enable=False)
+
+
 def execute_test_cases(execute_config_list:list[dict] , test_case_result = None):
     """
     执行测试用例的主入口函数
@@ -206,6 +228,9 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
             return
 
         executor = process_tree[group_id]['executor']
+        # Snapshot live pool workers at cancellation time, not during startup.
+        workers = getattr(executor, '_processes', None) or {}
+        pids = {worker.pid for worker in list(workers.values()) if worker.pid}
 
         try:
             # 立即关闭执行器，取消所有未开始的任务
@@ -214,12 +239,14 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
             log(f"\033[33m关闭执行器失败: {str(e)}\033[0m")
 
         # 终止工作进程及其子进程
-        for pid in process_tree[group_id]['processes']:
+        for pid in pids:
             try:
                 parent = psutil.Process(pid)
+                # Keep descendant handles before the shell exits/reparents them.
+                children = parent.children(recursive=True)
 
                 # 1. 递归终止所有子进程
-                for child in parent.children(recursive=True):
+                for child in children:
                     try:
                         child.terminate()
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -234,7 +261,7 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                 # 3. 统一等待所有进程退出
                 try:
                     _, alive = psutil.wait_procs(
-                        [parent] + parent.children(recursive=True),
+                        [parent] + children,
                         timeout=1.0
                     )
                 except Exception:
@@ -271,7 +298,8 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
     spinner_pulse = itertools.cycle(get_spinner_frames("pulse"))
     spinner_ripple = itertools.cycle(get_spinner_frames("ripple"))
 
-    MAXIMUM_CONCURRENCY_NUM = 50 # 设置最大并行度
+    MAXIMUM_CONCURRENCY_NUM = get_max_parallel()
+    interactive = sys.stderr.isatty()
 
     total_start_time = time.perf_counter()
 
@@ -302,7 +330,7 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 futures = {}
                 group_id = f"rank_{rank}"
-                process_tree[group_id] = {'executor': executor, 'processes': set()}
+                process_tree[group_id] = {'executor': executor}
 
                 stop_spinner = threading.Event()
 
@@ -312,12 +340,12 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                     desc="",
                     dynamic_ncols=True,  # 自适应宽度
                     bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
-                    leave=False
+                    leave=False,
+                    disable=not interactive
                 )
 
                 def update_spinner_animation():
-                    while not stop_spinner.is_set():
-                        time.sleep(0.1)
+                    while not stop_spinner.wait(1.0):
                         try:
                             spinner_info = (
                                                f"| {next(spinner_clock)}"
@@ -328,7 +356,7 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                                             f"Rank Group {rank}"
                                             f" | Success: {rank_info['success']}"
                                             f" | Failed: {rank_info['failed']}"
-                                            f" | 进程数：{len(process_tree[group_id]['processes'])}"
+                                            f" | 并行上限：{max_workers}"
                                             f" | "
                                             )
                             mem_usage = psutil.virtual_memory().percent
@@ -340,7 +368,8 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
 
                 # 启动旋转动画
                 spinner_thread = threading.Thread(target=update_spinner_animation, daemon=True)
-                spinner_thread.start()
+                if interactive:
+                    spinner_thread.start()
 
                 for config in group_configs:
                     # 获取用例工作目录
@@ -366,24 +395,6 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
 
                     futures[future] = config
 
-                start_time = time.perf_counter()
-                while len(executor._processes) < max_workers:
-                    if time.perf_counter() - start_time > 3.0:
-                        log(f"\033[33m警告: rank组 {rank} 工作进程初始化超时\033[0m")
-                        break
-                    time.sleep(0.1)
-
-                # 获取工作进程PID
-                for worker in executor._processes.values():
-                    try:
-                        pid = worker.pid
-                        if pid:  # 确保pid有效
-                            process_tree[group_id]['processes'].add(pid)
-                    except AttributeError as e:  # worker可能尚未完全初始化
-                        pass
-                    except Exception as e:
-                        log(f"\033[33m获取工作进程PID失败: {str(e)}\033[0m")
-
                 try:
                     # 7. 处理完成的任务
                     for future in as_completed(futures):
@@ -404,16 +415,12 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                                 curr_list.append(case_name)
                             # 8. 将日志内容追加到主日志文件
                             log_file = result.get('log_file_path', '')
-                            result_details = ""
                             if log_file and os.path.exists(log_file):
-                                # 追加详细日志内容
-                                with open(log_file, 'r') as case_f:
-                                    result_details = case_f.read()
                                 log(f"\n\n{'=' * 80}\n", print_enable=False)
                                 log(f"Test Case: {case_name} running...", print_enable=False)
                                 log(f"{'=' * 40}\n", print_enable=False)
 
-                                log(result_details, print_enable=False)
+                                append_case_log(log_file)
 
                                 # 在主日志中添加分隔标识
                                 log(f"{'=' * 40}", print_enable=False)
@@ -470,17 +477,17 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                     raise e
                 finally:
                     stop_spinner.set()
-                    spinner_thread.join(timeout=0.5)
+                    if interactive:
+                        spinner_thread.join(timeout=0.5)
 
                     # 确保进度条总是关闭
                     pbar.close()
 
-            # 11. 当前rank组执行完成后等待
+            # The pool context already joined workers; no arbitrary cooldown.
+            process_tree.pop(group_id, None)
             time_period = time.perf_counter() - current_start_time
             log(f"本轮耗时: {time_period:.6f}秒")
             log(f"\n\033[34mCompleted rank group {rank} - (Finished) \033[1;32mSuccess:{rank_info['success']}\033[0m | \033[1;31mFailed {rank_info['failed']}\033[0m", flush=True)
-            if time_period > 3:
-                time.sleep(3)  # 给系统时间释放资源
 
     except KeyboardInterrupt as e:
         result_container['interrupted'] = True

@@ -194,6 +194,10 @@ python tests/run_tests.py -p 4 # 4个进程
 pytest tests/UT/test_example.py
 ```
 
+冒烟框架的轻量回归可运行 `python3 -m pytest tests/UT/smoke_tests -q`，不需要模型或昇腾硬件。
+依赖缓存、强制重装及并发/超时参数见 [冒烟说明](../../../smoke_tests/README.md)。
+完整冒烟仍需专用 runner；不要把轻量测试结果当作整套性能实测。
+
 ### 编写测试
 
 - **单元测试**：测试单个函数或类的功能

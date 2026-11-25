@@ -129,6 +129,15 @@ get_git_info() {
         return 1
     fi
 
+    # CI logs do not need terminal borders or per-line Python width calculations.
+    if [[ ! -t 1 ]]; then
+        printf 'Git repository: %s\n' "$target_dir"
+        git -C "$target_dir" remote get-url origin 2>/dev/null || true
+        git -C "$target_dir" rev-parse --abbrev-ref HEAD
+        git -C "$target_dir" log --oneline --no-decorate --color=never -3
+        return $?
+    fi
+
     # 获取origin远程URL（如果存在）
     origin_url=$(git -C "$target_dir" remote get-url origin 2>/dev/null)
     if [ $? -ne 0 ]; then
@@ -434,6 +443,11 @@ check_git_updates() {
         if ! git -C "$SCRIPT_DIR" merge-base --is-ancestor "$REMOTE_COMMIT" "$LOCAL_COMMIT"; then
             echo -e "[WARNING] 当前git项目(${GIT_NAME})的commit历史中不包含远程最新的commit。本地commit: $LOCAL_COMMIT, 远程commit: $REMOTE_COMMIT"
             echo -e "[WARNING] 建议运行 'git pull $REMOTE $BRANCH' 更新项目后再执行脚本。"
+
+            if [[ ! -t 0 ]]; then
+                echo "[INFO] 非交互环境不更新待测代码，继续执行。"
+                return 0
+            fi
 
             # 询问用户是否立即更新，直到得到有效输入或超时
             local start_time=$(date +%s)

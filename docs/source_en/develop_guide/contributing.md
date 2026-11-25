@@ -194,6 +194,11 @@ python tests/run_tests.py -p 4 # 4 processes
 pytest tests/UT/test_example.py
 ```
 
+Run lightweight smoke-framework regressions with `python3 -m pytest tests/UT/smoke_tests -q`;
+no models or Ascend hardware are required. See the [smoke guide](../../../smoke_tests/README.md)
+for dependency caching, forced setup, concurrency and timeout controls. Full smoke runs still need
+the dedicated runner; lightweight tests do not establish full-suite performance.
+
 ### Writing Tests
 
 - **Unit Tests**: Test functionality of single functions or classes

@@ -356,14 +356,17 @@ declare -g SERVICE_STOPPED_CHECK=false
 
 # 启动检查函数
 check_service_ready() {
-    # 添加首次检查前的短暂延迟（避免立即请求时服务还未开始启动）
-    sleep 0.5
-
-    local max_checks=10
-    local check_interval=3
+    local timeout=${SMOKE_SERVICE_READY_TIMEOUT:-30}
+    if [[ ! "$timeout" =~ ^[1-9][0-9]*$ ]]; then
+        echo "[ERROR] SMOKE_SERVICE_READY_TIMEOUT must be a positive integer"
+        return 1
+    fi
+    local deadline=$((SECONDS + timeout))
     local checks_done=0
-    export no_proxy=$no_proxy,$AISBENCH_SMOKE_SERVICE_IP
-    while [ $checks_done -lt $max_checks ]; do
+    local remaining request_timeout response
+    export no_proxy="${no_proxy:+$no_proxy,}$AISBENCH_SMOKE_SERVICE_IP"
+    # Probe immediately; each request and the overall wait have finite budgets.
+    while ((SECONDS < deadline)); do
         # 1. 检查进程是否存活
         if ! ps -p $VIRTUAL_SERVICE_PID >/dev/null; then
             echo "[ERROR] 进程异常终止"
@@ -371,16 +374,20 @@ check_service_ready() {
         fi
 
         # 2. 服务健康检查
-        local response=$(curl "http://$AISBENCH_SMOKE_SERVICE_IP:$AISBENCH_SMOKE_SERVICE_PORT/active_connections")
-        if [[ "$response" =~ \"active_connections\":\"[0-9]+:[[:space:]]*[0-9]+\" ]]; then
+        remaining=$((deadline - SECONDS))
+        ((remaining > 0)) || break
+        request_timeout=$((remaining < 2 ? remaining : 2))
+        response=$(curl --silent --fail --connect-timeout 1 --max-time "$request_timeout" \
+            "http://$AISBENCH_SMOKE_SERVICE_IP:$AISBENCH_SMOKE_SERVICE_PORT/active_connections")
+        if [[ $? -eq 0 && "$response" =~ \"active_connections\":[[:space:]]*\"[0-9]+:[[:space:]]*[0-9]+\" ]]; then
             SERVICE_STATUS=0
             echo "[SUCCESS] 服务已就绪"
             return 0
         fi
         
-        echo "等待服务启动($((checks_done+1))/$max_checks)..."
-        sleep $check_interval
         checks_done=$((checks_done + 1))
+        echo "等待服务启动(第 $checks_done 次探测)..."
+        ((SECONDS < deadline)) && sleep 0.2
     done
     
     echo "[ERROR] 服务启动超时"

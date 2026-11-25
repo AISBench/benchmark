@@ -91,7 +91,7 @@ done
 # 设置环境变量
 PYTHONPATH=$PROJECT_PATH:$PYTHONPATH
 WORKSPACE_PATH=$PROJECT_WORKSPACE_PATH
-python $PROJECT_TEST_PY_SCRIPT \
+"${AISBENCH_SMOKE_PYTHON:-python}" "$PROJECT_TEST_PY_SCRIPT" \
           --project_path $PROJECT_PATH \
           --test-case $TEST_CASE_PATH \
           --case-tags $TEST_CASE_TAGS \
