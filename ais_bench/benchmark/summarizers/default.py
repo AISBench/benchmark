@@ -210,7 +210,7 @@ class DefaultSummarizer:
                             else:
                                 scores.setdefault(metric, {})[dataset_abbr + '@' + metric] = \
                                 parsed_results[model_abbr][dataset_abbr][metric]
-                                eval_modes.append(dataset_eval_mode.get(sg['subsets'][0], 'unknown'))
+                                eval_modes.append(dataset_eval_mode.get(dataset_abbr, 'unknown'))
                 result = {}
                 for metric in scores:
                     if default_metric == 'standard_deviation':
