@@ -3,6 +3,10 @@
 
 Use --force or AISBENCH_SMOKE_FORCE_INSTALL=1 to reinstall. Only local
 requirements includes are cacheable; remote includes still install normally.
+Stamps live outside the checkout in the user cache (XDG_CACHE_HOME or the
+platform default); AISBENCH_SMOKE_CACHE_DIR overrides that directory. Cache
+paths resolving inside the repository are rejected because git clean removes
+them. AISBENCH_SMOKE_SETUP_LOCK_TIMEOUT bounds lock waiting (default 120s).
 The lock coordinates this helper across repositories sharing one interpreter;
 external pip/conda changes must not run concurrently with smoke setup.
 """
@@ -10,10 +14,12 @@ external pip/conda changes must not run concurrently with smoke setup.
 import argparse
 import ast
 from contextlib import contextmanager
+import errno
 import hashlib
 from importlib import metadata
 import importlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -48,9 +54,36 @@ def environment_identity():
             'version': sys.version}
 
 
+def cache_root(repo=None):
+    """Select a persistent user cache, never a git-cleanable checkout path."""
+    configured = os.environ.get('AISBENCH_SMOKE_CACHE_DIR')
+    if configured is not None:
+        if not configured.strip():
+            raise ValueError('AISBENCH_SMOKE_CACHE_DIR must not be empty')
+        root = Path(configured)
+    else:
+        xdg = os.environ.get('XDG_CACHE_HOME')
+        if xdg:
+            base = Path(xdg)
+        elif os.name == 'nt':
+            base = Path(os.environ.get('LOCALAPPDATA') or Path.home() / 'AppData/Local')
+        elif sys.platform == 'darwin':
+            base = Path.home() / 'Library/Caches'
+        else:
+            base = Path.home() / '.cache'
+        root = base / 'aisbench/smoke/dependencies'
+    root = root.expanduser().resolve()
+    if repo is not None and root.is_relative_to(Path(repo).resolve()):
+        raise ValueError('smoke cache must be outside the repository: ' + str(root))
+    return root
+
+
+def cache_scope(repo, identity):
+    return digest({'repo': str(Path(repo).resolve()), 'python': identity})
+
+
 def cache_path(repo, identity):
-    scope = digest({'repo': str(repo.resolve()), 'python': identity})
-    return repo / 'smoke_tests' / '.cache' / 'dependencies' / (scope + '.json')
+    return cache_root(repo) / (cache_scope(repo, identity) + '.json')
 
 
 def input_fingerprint(repo):
@@ -91,10 +124,10 @@ def input_fingerprint(repo):
                 continue
             names = shlex.split(match.group(1), comments=True)
             if len(names) != 1:
-                raise ValueError('unsupported requirements include: ' + line)
+                raise ValueError('unsupported requirements include; cache bypassed')
             name = os.path.expandvars(names[0])
             if '://' in name or '${' in name:
-                raise ValueError('non-local/unresolved requirements include: ' + name)
+                raise ValueError('non-local/unresolved requirements include; cache bypassed')
             requirements(path.parent / name)
 
     for name in REQUIREMENTS:
@@ -113,8 +146,9 @@ def input_fingerprint(repo):
 
 
 def installed_state(repo):
-    """Return None on incomplete metadata or a non-editable/wrong root install."""
-    records, root_found = [], False
+    """Hash real installs; ignore only the matching in-tree editable duplicate."""
+    repo = Path(repo).resolve()
+    records, source_duplicates, editable_versions = [], [], set()
     importlib.invalidate_caches()
     try:
         for dist in metadata.distributions():
@@ -123,25 +157,45 @@ def installed_state(repo):
             if not info or not name or not version:
                 return None
             direct_url = dist.read_text('direct_url.json')
-            if re.sub(r'[-_.]+', '-', name).lower() == 'ais-bench-benchmark' and direct_url:
-                # Editable installs can also expose source .egg-info with no
-                # direct_url. Require at least one real editable-install proof.
+            project = re.sub(r'[-_.]+', '-', name).lower() == 'ais-bench-benchmark'
+            if project and direct_url:
+                # Source egg-info alone is not proof of an installed editable.
                 direct = json.loads(direct_url)
                 if (direct.get('url') != repo.as_uri()
                         or direct.get('dir_info', {}).get('editable') is not True):
                     return None
-                root_found = True
-            records.append((name.lower(), version, str(Path(dist.locate_file('')).resolve()),
-                            info, direct_url or ''))
+                editable_versions.add(version)
+            record = (name.lower(), version, str(Path(dist.locate_file('')).resolve()),
+                      info, direct_url or '')
+            # PathDistribution exposes its metadata directory as _path. If a
+            # provider cannot prove this is source-root egg-info, hash it
+            # normally, including project installs in an in-tree virtualenv.
+            location = getattr(dist, '_path', None)
+            if project and not direct_url and location is not None:
+                location = Path(location).resolve()
+                if (location.name.endswith('.egg-info') and location.is_relative_to(repo)
+                        and record[2] == str(repo)):
+                    source_duplicates.append(record)
+                    continue
+            records.append(record)
+        if not editable_versions:
+            return None
+        # git clean can delete generated source metadata without changing the
+        # installed dist-info. A different source version is not a duplicate.
+        records.extend(record for record in source_duplicates
+                       if record[1] not in editable_versions)
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
         return None
-    return digest(sorted(records)) if root_found else None
+    return digest(sorted(records))
 
 
 @contextmanager
 def environment_lock(identity):
     # Common to all worktrees for this interpreter; do not unlink lock files:
     # waiters must continue locking the same inode after another process exits.
+    timeout = float(os.environ.get('AISBENCH_SMOKE_SETUP_LOCK_TIMEOUT', '120'))
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError('AISBENCH_SMOKE_SETUP_LOCK_TIMEOUT must be positive finite seconds')
     path = Path(tempfile.gettempdir()) / ('aisbench-smoke-' + digest(identity) + '.lock')
     with path.open('a+b') as lock:
         if os.name == 'nt':
@@ -149,20 +203,41 @@ def environment_lock(identity):
             if lock.tell() == 0:
                 lock.write(b'\0')
                 lock.flush()
-            lock.seek(0)
-            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
-            try:
-                yield
-            finally:
+
+            def acquire():
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+
+            def release():
                 lock.seek(0)
                 msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
         else:
             import fcntl
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
+
+            def acquire():
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            def release():
                 fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                acquire()
+                break
+            except OSError as error:
+                if error.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    raise
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError('smoke setup lock timed out after {:.2f}s: {}; '
+                                       'adjust AISBENCH_SMOKE_SETUP_LOCK_TIMEOUT'.format(
+                                           timeout, path)) from error
+                time.sleep(min(0.1, remaining))
+        try:
+            yield
+        finally:
+            release()
 
 
 def install(repo):
@@ -198,37 +273,61 @@ def write_stamp(path, stamp):
 
 
 def prepare(repo, force=False):
-    repo = Path(repo).resolve()
-    identity = environment_identity()
-    path = cache_path(repo, identity)
-    with environment_lock(identity):
-        try:
-            fingerprint = input_fingerprint(repo)
-        except ValueError as error:
-            print('[dependencies] cache disabled:', error, flush=True)
-            fingerprint = None
-        except (OSError, SyntaxError):
+    started = time.monotonic()
+    try:
+        repo = Path(repo).resolve()
+        identity = environment_identity()
+        path = cache_path(repo, identity)
+        print('[dependencies] cache path: ' + str(path), flush=True)
+        with environment_lock(identity):
+            try:
+                fingerprint = input_fingerprint(repo)
+            except ValueError as error:
+                print('[dependencies] cache disabled:', error, flush=True)
+                fingerprint = None
+            except (OSError, SyntaxError):
+                path.unlink(missing_ok=True)
+                raise
+            try:
+                stamp = json.loads(path.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                stamp = None
+            state = installed_state(repo)
+            expected = {'schema': 1, 'inputs': fingerprint, 'installed': state}
+            if not force and fingerprint and state and stamp == expected:
+                print('[dependencies] cache hit: setup inputs and installed metadata match; '
+                      'skipping all five pip stages', flush=True)
+                return True
+            if force:
+                reason = 'forced reinstall'
+            elif not fingerprint:
+                reason = 'uncacheable setup inputs'
+            elif not state:
+                reason = 'installed metadata incomplete or editable install unverified'
+            elif stamp is None:
+                reason = 'no readable successful stamp'
+            elif not isinstance(stamp, dict) or stamp.get('schema') != 1:
+                reason = 'unsupported stamp schema'
+            elif stamp.get('inputs') != fingerprint:
+                reason = 'setup inputs changed'
+            elif stamp.get('installed') != state:
+                reason = 'installed distributions changed'
+            else:
+                reason = 'invalid successful stamp'
+            # Remove even an old stamp before any potentially partial install.
             path.unlink(missing_ok=True)
-            raise
-        try:
-            stamp = json.loads(path.read_text(encoding='utf-8'))
-        except (OSError, ValueError):
-            stamp = None
-        state = installed_state(repo)
-        expected = {'schema': 1, 'inputs': fingerprint, 'installed': state}
-        if not force and fingerprint and state and stamp == expected:
-            print('[dependencies] cache hit; skipping all five pip stages', flush=True)
-            return True
-        # Remove even an old successful stamp before any potentially partial install.
-        path.unlink(missing_ok=True)
-        print('[dependencies] installing all five pip stages', flush=True)
-        install(repo)
-        state = installed_state(repo)
-        if fingerprint and state and input_fingerprint(repo) == fingerprint:
-            write_stamp(path, {'schema': 1, 'inputs': fingerprint, 'installed': state})
-        else:
-            print('[dependencies] no stamp: inputs changed or metadata incomplete', flush=True)
-        return False
+            print('[dependencies] cache miss: ' + reason + '; installing all five pip stages',
+                  flush=True)
+            install(repo)
+            state = installed_state(repo)
+            if fingerprint and state and input_fingerprint(repo) == fingerprint:
+                write_stamp(path, {'schema': 1, 'inputs': fingerprint, 'installed': state})
+            else:
+                print('[dependencies] no stamp: inputs changed or metadata incomplete', flush=True)
+            return False
+    finally:
+        print('[dependencies] total setup time: {:.2f}s'.format(time.monotonic() - started),
+              flush=True)
 
 
 def main():
