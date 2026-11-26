@@ -30,6 +30,8 @@ _ColdLaneLayout = tuple[
 ]
 _COLD_BEAM_WIDTH = 256
 _COLD_BEAM_TRANSITION_LIMIT = 2_000_000
+_BOUNDARY_REPAIR_WINDOW = 32
+_BOUNDARY_REPAIR_ATTEMPTS = 64
 
 
 class TokenizerLike(Protocol):
@@ -59,6 +61,7 @@ class CanonicalPrefix:
     sha256: str                    # 前缀指纹
     gsm_indices: tuple[int, ...]   # 来源语料行号
     gsm_hashes: tuple[str, ...]    # 来源语料 hash
+    boundary_repairs: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -86,9 +89,16 @@ class RequestPlan:
     watermark_before: int = 0      # 模拟：请求到达前缓存水位
     theoretical_hit_tokens: int = 0  # 模拟：理论命中 token 数
     watermark_after: int = 0       # 模拟：请求后缓存水位
+    suffix_padding_tokens: int = 0
+    boundary_repairs: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        row = asdict(self)
+        if not self.boundary_repairs:
+            row.pop("boundary_repairs")
+        if not self.suffix_padding_tokens:
+            row.pop("suffix_padding_tokens")
+        return row
 
 
 @dataclass(frozen=True)
@@ -1419,7 +1429,109 @@ def _repeat_tokens(
     raise ArtifactValidationError("cannot build tokens from empty GSM8K records")
 
 
-def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, Sequence[GSMRecord]], max_lengths: dict[str, int], block_size: int) -> dict[str, CanonicalPrefix]:
+def _round_trip_tokens(tokenizer: TokenizerLike, tokens: Sequence[int]) -> tuple[str, bool]:
+    """Check token identity, including valid literal U+FFFD in source text."""
+    text = tokenizer.decode(tokens, skip_special_tokens=False)
+    return text, tokenizer.encode(text, add_special_tokens=False) == list(tokens)
+
+
+def _boundary_repair_candidates(
+    body: list[int], safe_ids: Sequence[int],
+) -> Iterable[tuple[list[int], int, int, int]]:
+    """Yield deterministic, length-preserving edge replacements lazily."""
+    padding_ids = list(dict.fromkeys(safe_ids))[:4]
+    for removed in range(1, min(_BOUNDARY_REPAIR_WINDOW, len(body)) + 1):
+        for head in [0, removed, *range(1, removed)]:
+            tail = removed - head
+            retained = body[head:len(body) - tail] if tail else body[head:]
+            for padding_id in padding_ids:
+                yield [padding_id] * head + retained + [padding_id] * tail, head, tail, padding_id
+
+
+def _repair_token_segment(
+    tokenizer: TokenizerLike,
+    frozen_prefix: Sequence[int],
+    segment: Sequence[int],
+    safe_ids: Sequence[int],
+    region: str,
+) -> tuple[list[int], str, dict[str, Any]]:
+    """Repair only segment edges under a fixed trial budget.
+
+    A previous canonical cut may leave continuation-byte tokens at the next
+    segment's start, so both edges are considered. The frozen prefix and total
+    token count never change. Every candidate is checked in its full context.
+    """
+    prefix = list(frozen_prefix)
+    body = list(segment)
+    attempts = 0
+    candidates = itertools.islice(_boundary_repair_candidates(body, safe_ids), _BOUNDARY_REPAIR_ATTEMPTS)
+    for attempts, (repaired, head, tail, padding_id) in enumerate(candidates, 1):
+        text, stable = _round_trip_tokens(tokenizer, prefix + repaired)
+        if stable:
+            detail = {
+                "region": region,
+                "start_token": len(prefix),
+                "end_token": len(prefix) + len(body),
+                "removed_head_tokens": head,
+                "removed_tail_tokens": tail,
+                "padding_tokens": head + tail,
+                "padding_token_id": padding_id,
+                "attempts": attempts,
+            }
+            logger.info(
+                "[gen] boundary repair region=%s start=%d end=%d "
+                "removed_head=%d removed_tail=%d padding=%d attempts=%d",
+                region, len(prefix), len(prefix) + len(body),
+                head, tail, head + tail, attempts,
+            )
+            return repaired, text, detail
+    raise ArtifactValidationError(
+        f"unable to repair {region} token boundary at {len(prefix) + len(body)} "
+        f"without changing fixed prefix/length; attempts={attempts}, "
+        f"window={_BOUNDARY_REPAIR_WINDOW}"
+    )
+
+
+def _repair_canonical_boundaries(
+    tokenizer: TokenizerLike,
+    tokens: list[int],
+    boundaries: Sequence[int],
+    safe_ids: Sequence[int] | None,
+    group: str,
+) -> tuple[list[int], str, tuple[dict[str, Any], ...]]:
+    """Freeze verified cuts in ascending order on a single group master."""
+    repaired = list(tokens)
+    previous = 0
+    repairs = []
+    text = ""
+    for boundary in sorted(set(boundaries) | {len(tokens)}):
+        if not 0 <= boundary <= len(tokens):
+            raise ArtifactValidationError(f"invalid canonical prefix boundary {boundary} for {group}")
+        if not boundary:
+            continue
+        text, stable = _round_trip_tokens(tokenizer, repaired[:boundary])
+        if not stable:
+            if safe_ids is None:
+                safe_ids = find_boundary_safe_token_ids(tokenizer, 2)
+            segment, text, detail = _repair_token_segment(
+                tokenizer, repaired[:previous], repaired[previous:boundary],
+                safe_ids, f"canonical:{group}",
+            )
+            repaired[previous:boundary] = segment
+            repairs.append(detail)
+        previous = boundary
+    return repaired, text, tuple(repairs)
+
+
+def build_canonical_prefixes(
+    tokenizer: TokenizerLike,
+    group_sources: dict[str, Sequence[GSMRecord]],
+    max_lengths: dict[str, int],
+    block_size: int,
+    *,
+    prefix_lengths: dict[str, Sequence[int]] | None = None,
+    safe_ids: Sequence[int] | None = None,
+) -> dict[str, CanonicalPrefix]:
     """为每个 Prefix Group 构造 canonical 前缀（语料重复拼接至组内最大共享长度）。
 
     各组的首个 block 必须互不相同，否则无法区分组；冲突时用确定性组标记兜底。
@@ -1431,15 +1543,22 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
         source_records = list(group_sources[group])
         if not source_records:
             raise ArtifactValidationError(f"canonical prefix source is empty for {group}")
-        selected: tuple[list[int], tuple[int, ...], tuple[str, ...]] | None = None
+        selected: tuple[list[int], tuple[int, ...], tuple[str, ...], str] | None = None
+        boundaries = list(prefix_lengths[group]) if prefix_lengths is not None else [max_lengths[group]]
+        boundaries.append(block_size)
+        repairs: tuple[dict[str, Any], ...] = ()
         # 尝试不同旋转起点，找到首个 block 不与其他组冲突的版本。
         for offset in range(len(source_records)):
             rotated = source_records[offset:] + source_records[:offset]
             candidate_tokens, candidate_indices, candidate_hashes = _repeat_tokens(
                 rotated, tokenizer, max(max_lengths[group], block_size)
             )
+            candidate_tokens, candidate_text, candidate_repairs = _repair_canonical_boundaries(
+                tokenizer, candidate_tokens, boundaries, safe_ids, group,
+            )
             if tuple(candidate_tokens[:block_size]) not in first_blocks:
-                selected = candidate_tokens, candidate_indices, candidate_hashes
+                selected = candidate_tokens, candidate_indices, candidate_hashes, candidate_text
+                repairs = candidate_repairs
                 logger.info("[gen] build_canonical_prefixes group=%s accepted rotation offset=%d", group, offset)
                 break
         if selected is None:
@@ -1452,19 +1571,18 @@ def build_canonical_prefixes(tokenizer: TokenizerLike, group_sources: dict[str, 
                 source_records, tokenizer, max(max_lengths[group], block_size)
             )
             token_ids = marker + source_tokens
-            selected = token_ids, source_indices, source_hashes
+            token_ids, text, repairs = _repair_canonical_boundaries(
+                tokenizer, token_ids, boundaries, safe_ids, group,
+            )
+            selected = token_ids, source_indices, source_hashes, text
             if tuple(token_ids[:block_size]) in first_blocks:
                 raise ArtifactValidationError(f"canonical prefixes collide in first block for {group} after deterministic fallback")
-        token_ids, indices, hashes = selected
+        token_ids, indices, hashes, text = selected
         first_block = tuple(token_ids[:block_size])
         first_blocks.add(first_block)
-        text = tokenizer.decode(token_ids, skip_special_tokens=False)
-        actual = tokenizer.encode(text, add_special_tokens=False)
-        # 校验前缀 decode/re-encode 后不变（round-trip 安全）。
-        if actual[:max_lengths[group]] != token_ids[:max_lengths[group]]:
-            raise ArtifactValidationError(f"canonical prefix does not round-trip for {group}")
+        # All requested cuts and the complete master were already validated.
         digest = hashlib.sha256(bytes(str(token_ids), "utf-8")).hexdigest()
-        result[group] = CanonicalPrefix(group, text, tuple(token_ids), digest, indices, hashes)
+        result[group] = CanonicalPrefix(group, text, tuple(token_ids), digest, indices, hashes, repairs)
         logger.info("[gen] build_canonical_prefixes group=%s tokens=%d text_len=%d sha256=%s source_count=%d source_preview=%s (first 5)", group, len(token_ids), len(text), digest, len(indices), indices[:5])
     return result
 
@@ -1477,6 +1595,9 @@ def build_prompt(
     suffix_records: Sequence[GSMRecord],
     target_tokens: int,
     token_cache: CorpusTokenCache | None = None,
+    *,
+    safe_ids: Sequence[int] | None = None,
+    boundary_repairs: list[dict[str, Any]] | None = None,
 ) -> tuple[str, tuple[int, ...], tuple[int, ...], tuple[str, ...]]:
     """按 共享前缀 + 唯一seed + 自然后缀 拼接出目标长度的 prompt 文本。
 
@@ -1494,5 +1615,17 @@ def build_prompt(
     actual = tokenizer.encode(text, add_special_tokens=False)
     logger.info("[gen] build_prompt group=%s expected_tokens=%d actual_tokens=%d text_len=%d suffix_indices=%d", canonical.group_id, len(expected), len(actual), len(text), len(indices))
     if actual != expected:
-        raise PromptRoundTripError("prompt token layout changed after decode/re-encode")
+        fixed = list(canonical.token_ids[:shared_prefix_tokens]) + list(seed)
+        # Keep the existing seed retry for a prefix/seed junction failure.
+        # A stable fixed part lets us repair a bad suffix without changing seed.
+        if not suffix or not _round_trip_tokens(tokenizer, fixed)[1]:
+            raise PromptRoundTripError("prompt token layout changed after decode/re-encode")
+        if safe_ids is None:
+            safe_ids = find_boundary_safe_token_ids(tokenizer, 2)
+        repaired, text, detail = _repair_token_segment(
+            tokenizer, fixed, suffix, safe_ids, "suffix",
+        )
+        actual = fixed + repaired
+        if boundary_repairs is not None:
+            boundary_repairs.append(detail)
     return text, tuple(actual), indices, hashes
