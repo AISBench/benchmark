@@ -195,8 +195,10 @@ pytest tests/UT/test_example.py
 ```
 
 冒烟框架的轻量回归可运行 `python3 -m pytest tests/UT/smoke_tests -q`，不需要模型或昇腾硬件。
-依赖缓存、强制重装及并发/超时参数见 [冒烟说明](../../../smoke_tests/README.md)。
-完整冒烟仍需专用 runner；不要把轻量测试结果当作整套性能实测。
+持久依赖缓存、快速/完整负载切换、逐用例计时及并发/超时参数见 [冒烟说明](../../../smoke_tests/README.md)。
+PR 默认快速功能负载，日构建/手动运行默认完整负载；`AISBENCH_SMOKE_FAST=0` 可恢复原始配置。
+快速负载缩小部分数据覆盖，不能将其提速等同于相同负载下的性能提升。
+完整冒烟仍需专用 runner；对比时核对同一提交、runner、模式和冷/热缓存，不把轻量测试当作整套性能实测。
 
 ### 编写测试
 

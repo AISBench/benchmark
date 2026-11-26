@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import tempfile
 from collections import defaultdict
 from run_log import log
 
@@ -43,12 +44,20 @@ class TaskScheduler:
     
     def save_data(self):
         """保存历史执行时间数据到文件"""
+        temporary = None
         try:
-            with open(self.data_file, 'w') as f:
-                # 使用标准dict保存数据
-                json.dump(dict(self.historical_times), f, indent=2)
+            directory = os.path.dirname(os.path.abspath(self.data_file))
+            os.makedirs(directory, exist_ok=True)
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=directory,
+                                             prefix='smoke-history-', delete=False) as stream:
+                temporary = stream.name
+                json.dump(dict(self.historical_times), stream, indent=2)
+            os.replace(temporary, self.data_file)
         except Exception as e:
             log(f"保存历史时间数据失败: {str(e)}")
+        finally:
+            if temporary and os.path.exists(temporary):
+                os.unlink(temporary)
     
     def get_estimated_time(self, case_name: str):
         """

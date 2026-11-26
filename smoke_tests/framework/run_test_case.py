@@ -337,6 +337,9 @@ def gather_logs(test_case_workspace_path, workspace_path):
 
 
 def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
+    start_time = time.perf_counter()
+    # Do not use the inherited process-local Logger lock in pool workers.
+    print(f"[case-start] {config.get('case_name', 'unknown')} pid={os.getpid()}", flush=True)
     result_record = dict(
         case_name=config.get("case_name", config.get("yml_path", "default")), success=False, message="未执行",
         metric_key=get_metric_key(test_case_workspace_path),
@@ -355,7 +358,6 @@ def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
             result_record["log_file_path"] = log_path
             if not os.path.exists(run_script_path):
                 raise RunCaseException(f"run script path not exists. {run_script_path}")
-            start_time = time.perf_counter()
             ret_code = exec_script_file(run_script_path,
                                         log_file=log_path,
                                         timeout_minutes=config.get("timeout", 3)
@@ -381,8 +383,9 @@ def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
         else:
             result_record["success"] = True
             result_record["message"] = ""
-            result_record["execution_time"] = time.perf_counter() - start_time
     except Exception as ex:
+        result_record['success'] = False
+        result_record['message'] = str(ex)
         log(f"\033[5;31m", f"[{config.get('case_name')}] has ERROR:", str(ex), "\033[0m", print_enable=False)
     finally:
         try:
@@ -395,6 +398,9 @@ def run_test_case(config, test_case_workspace_path, res_path, workspace_path):
                 post_processing(config, test_case_workspace_path)
             except CleanCaseException as ex:
                 log(f"\033[5;33m", f"[{config.get('case_name')}] has WARRING:", str(ex), "\033[0m", print_enable=False)
+            finally:
+                # Include errors and cleanup: this is the worker's full occupied time.
+                result_record['execution_time'] = time.perf_counter() - start_time
 
     return config.get("case_type"), config.get("case_name"), result_record
 

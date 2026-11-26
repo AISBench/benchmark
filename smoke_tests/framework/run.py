@@ -25,6 +25,7 @@ from utils import (WorkspaceChange, print_json, change_all_target_key_to_target_
                    have_common_same_key_values, find_all_values, get_spinner_frames)
 from create_excel import create_excel
 from schedule_task import TaskScheduler
+from smoke_timing import CaseTimings, unfinished_names
 
 
 def parse_args():
@@ -203,8 +204,15 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
 
     # 设置用例执行顺序相关逻辑
     # 创建调度器实例
-    schedule_file = os.path.join(res_path, "others", "execute_time_record.json")
+    schedule_file = os.environ.get('AISBENCH_SMOKE_HISTORY_PATH') or os.path.join(
+        res_path, 'others', 'execute_time_record.json')
     scheduler = TaskScheduler(schedule_file)
+    timings = CaseTimings(workspace_path, len(execute_config_list),
+                          fast=os.environ.get('AISBENCH_SMOKE_FAST') == '1')
+    if test_case_result.get('unexpected'):
+        timings.error('case-discovery')
+        log('[timing] case discovery errors prevent a successful suite', flush=True)
+    log(f"[timing] case records: {timings.path}; history: {schedule_file}", flush=True)
 
     # 排序逻辑：rank_size -> case_tags (此处case_tags排序无意义, 因为是按照rank_size进行并行执行用例, 所有相同的rank一起执行, 无先后顺序)
     execute_test_cases_config_list = sorted(
@@ -345,8 +353,14 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                 )
 
                 def update_spinner_animation():
-                    while not stop_spinner.wait(1.0):
+                    while not stop_spinner.wait(1.0 if interactive else 30.0):
                         try:
+                            if not interactive:
+                                done = sum(future.done() for future in futures)
+                                log(f"[progress] rank={rank} finished={done}/{group_count} "
+                                    f"unfinished(including queued)=[{unfinished_names(futures)}]",
+                                    flush=True)
+                                continue
                             spinner_info = (
                                                f"| {next(spinner_clock)}"
                                                f" {next(spinner_pulse)}"
@@ -368,8 +382,6 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
 
                 # 启动旋转动画
                 spinner_thread = threading.Thread(target=update_spinner_animation, daemon=True)
-                if interactive:
-                    spinner_thread.start()
 
                 for config in group_configs:
                     # 获取用例工作目录
@@ -395,13 +407,24 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
 
                     futures[future] = config
 
+                # Start after pool workers have been submitted/forked, not before.
+                spinner_thread.start()
+                processed = 0
                 try:
                     # 7. 处理完成的任务
                     for future in as_completed(futures):
                         config = futures[future]
                         case_name = config.get('case_name', 'unknown')
+                        recorded = False
                         try:
                             case_type, case_name, result = future.result()
+                            duration = timings.record(config, result)
+                            recorded = True
+                            processed += 1
+                            elapsed = f'{duration:.3f}s' if duration is not None else 'unknown'
+                            status = 'PASS' if result.get('success') else 'FAILED'
+                            log(f"[case-result] {processed}/{group_count} {status} "
+                                f"{case_name} elapsed={elapsed}", flush=True)
                             # 从执行中列表移除完成的任务
                             if case_name in cases_record["running_cases"]:
                                 cases_record["running_cases"].remove(case_name)
@@ -445,6 +468,12 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                             update_metrics(test_case_result[case_type], result.get("metric_key", []), result)
 
                         except Exception as e:
+                            timings.error(case_name)
+                            if not recorded:
+                                timings.record(config, {'success': False})
+                                processed += 1
+                            log(f"[case-result] {processed}/{group_count} ERROR {case_name} "
+                                f"type={type(e).__name__}", flush=True)
                             log(f"\033[5;31mError processing {case_name}: {str(e)}\033[0m", flush=True, print_enable=False)
 
                         finally:
@@ -477,8 +506,7 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                     raise e
                 finally:
                     stop_spinner.set()
-                    if interactive:
-                        spinner_thread.join(timeout=0.5)
+                    spinner_thread.join(timeout=0.5)
 
                     # 确保进度条总是关闭
                     pbar.close()
@@ -494,6 +522,7 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
         # 捕获全局中断异常
         log(f"\n\033[1;31m[本轮中断] 本轮测试执行被用户终止\033[0m", flush=True)
     except Exception as e:
+        timings.error('suite')
         log(f"\033[1;31m[本轮错误] 处理任务时发生意外错误: {str(e)}\033[0m", flush=True)
     else:
         log("\n\033[36m[本轮完成] 本轮所有测试用例均完成执行\033[0m", flush=True)
@@ -513,7 +542,11 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
         except Exception as e:
             log(f"\033[33m保存调度数据失败: {str(e)}\033[0m")
 
-        log(f"共计耗时: {(time.perf_counter() - total_start_time):.6f}秒")
+        elapsed_s = time.perf_counter() - total_start_time
+        timings.finish(elapsed_s, interrupted=result_container['interrupted'])
+        for index, row in enumerate(timings.slowest(), 1):
+            log(f"[slowest] {index} {row['case_name']} elapsed={row['elapsed_s']:.3f}s", flush=True)
+        log(f"共计耗时: {elapsed_s:.6f}秒")
         log(f"\nTest Execution Finished at {time.ctime()}\n")
     return result_container['record'], result_container['interrupted']
 

@@ -129,6 +129,21 @@ class CaseLifecycleTest(unittest.TestCase):
             gather.assert_called_once()
             clean.assert_called_once()
 
+    def test_case_duration_includes_cleanup_for_success_and_failure(self):
+        for code in (0, 7):
+            with self.subTest(code=code), \
+                    mock.patch.object(self.case.os.path, 'exists', return_value=True), \
+                    mock.patch.object(self.case, 'exec_script_file', return_value=code), \
+                    mock.patch.object(self.case, 'record_and_analysis_metric'), \
+                    mock.patch.object(self.case, 'get_last_lines', return_value=[]), \
+                    mock.patch.object(self.case, 'gather_logs'), \
+                    mock.patch.object(self.case, 'post_processing') as clean, \
+                    mock.patch.object(self.case.time, 'perf_counter', side_effect=[10, 15]):
+                result = self.case.run_test_case({}, 'test-case/group/case', 'res', 'workspace')[2]
+            clean.assert_called_once()
+            self.assertEqual(result['execution_time'], 5)
+            self.assertEqual(result['success'], code == 0)
+
     @unittest.skipUnless(os.name == "posix", "POSIX process groups required")
     def test_real_timeout_and_interrupt_kill_stubborn_descendant(self):
         real_wait = subprocess.Popen.wait

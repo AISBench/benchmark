@@ -10,41 +10,76 @@ AISBench Smoke 是一个用于 AISBench 基准测试的自动化测试框架，�
 
 ## 重复执行与资源控制 / Repeat runs and resource controls
 
-用例集合、标签、rank 分组及默认并发 50 保持不变；本优化不以少跑用例换取提速。
-`run_steps.sh` 使用同一解释器安装依赖、运行框架和启动 simulator。首次运行保留原有五步 pip 安装；
-仅当依赖输入、解释器、仓库路径和已安装包元数据都未改变时跳过安装。
-缓存保存在 `smoke_tests/.cache/dependencies/`，与每次新建的 `RunWorkspace/` 分离。
-安装失败立即退出，不留下成功标记；元数据不完整、外部 pip 约束/requirements 配置会禁用缓存。
-同一解释器的 setup 使用文件锁串行执行；不要同时在同一环境运行其他 pip/conda 命令。
+用例名称、标签、rank 分组及默认并发 50 保持不变。**快速模式缩小部分普通功能用例的数据覆盖，
+不等价于原负载的性能回归**；完整负载可通过 `AISBENCH_SMOKE_FAST=0` 恢复。
+
+`run_steps.sh` 使用同一解释器安装依赖、运行框架和启动 simulator。首次迁移/依赖变化时仍执行五步 pip；
+仅当依赖输入、解释器、仓库路径和已安装包元数据匹配时跳过安装。
+缓存已移到 checkout 工作区外：Linux 默认 `${XDG_CACHE_HOME:-$HOME/.cache}/aisbench/smoke/dependencies/`；
+Windows 默认 `%LOCALAPPDATA%/aisbench/smoke/dependencies/`，macOS 默认 `~/Library/Caches/aisbench/smoke/dependencies/`。
+`AISBENCH_SMOKE_CACHE_DIR` 可覆盖；位于仓库内的路径（包括符号链接）会被拒绝，避免被 `git clean -ffdx` 删除。
+source `.egg-info` 副本被 checkout 清理不再造成假失效，但真实已安装包变化仍失效。
+安装失败不留成功标记，外部 pip 约束/requirements 配置会禁用缓存；日志会显示缓存位置、命中/失效原因和 setup 耗时。
+setup 按解释器加锁，默认最多等 120 秒；不要同时在同一环境执行其他 pip/conda。
+LPT 历史默认也保存在该持久目录，并按 fast/full 模式隔离；只记录成功用例，长用例优先执行。
+自定义 `AISBENCH_SMOKE_HISTORY_PATH` 或直接调用框架时，请自行按模式选择不同历史文件。
 
 | 配置 | 默认值 / 行为 |
 | --- | --- |
 | `AISBENCH_SMOKE_PYTHON` | `python3`；可指定虚拟环境 Python（在入口处解析为绝对路径） |
 | `AISBENCH_SMOKE_FORCE_INSTALL=1` | 强制重装；也可执行 `python3 smoke_tests/scripts/prepare_env.py --force` |
+| `AISBENCH_SMOKE_CACHE_DIR` | checkout 外的缓存目录；默认见上文 |
+| `AISBENCH_SMOKE_SETUP_LOCK_TIMEOUT` | 最多等锁 `120` 秒，必须为正有限数 |
+| `AISBENCH_SMOKE_HISTORY_PATH` | 默认由入口选择持久历史；可覆盖为独立绝对路径 |
+| `AISBENCH_SMOKE_FAST` | 入口默认 `1`；CI 的 PR 默认 `1`，日构建/手动默认 `0`；仓库同名 Variable 可覆盖 |
 | `SMOKE_CHECK_UPDATES` | 交互终端默认 `1`；CI/非交互默认 `0`；显式 `0`/`1` 覆盖 |
 | `SMOKE_MAX_PARALLEL` | `50`，正整数；不要未经测量就提高并发 |
 | `SMOKE_SERVICE_READY_TIMEOUT` | `30` 秒，正整数；立即探测，单次 HTTP 请求最多 2 秒 |
 | `case.yml: clean_timeout` | `2` 分钟；清理失败记警告，保留原用例结果 |
 
-非 TTY 不再启动进度动画和终端排版子进程；日志分块汇总，不截断。rank 组结束不再额外休眠 3 秒。
-POSIX 超时/中断终止脚本进程组并回收主进程；自行 `setsid` 脱离的进程和 Windows Job Object 不在此保证内。
+快速模式仅标记 11 个普通 OpenAI 兼容性能链路配置：输出上限不超过 32（显式逐样本长度仍优先），
+其中三个 GSM8K 配置从最多 100 条变为 20 条，CEval 取固定前 3 科、每科最多 20 条。
+只有 simulator 收到精确模型标记 `aisbench-smoke-functional/qwen` 且启用 fast 时，才为该请求使用
+非零短延迟（TTFT/E2EL 5ms，TPOT 系数 1ms）；不改全局 YAML 或其他请求。
+**压力、高并发、中断/续推、稳态重算、非 OpenAI 后端及原有断言均保持原样。**
+真实服务或需要完整数据/时延覆盖时必须使用 `AISBENCH_SMOKE_FAST=0`。
 
-The same case selection and default concurrency are retained. Successful dependency setup is cached only
-when repository inputs, Python identity, and installed distribution metadata match. External pip constraints
-bypass the cache; use `AISBENCH_SMOKE_FORCE_INSTALL=1` to force setup. A per-interpreter lock coordinates setup
-(not external pip/conda). Noninteractive runs skip remote update checks by default, keep complete streamed
-logs, and avoid progress animations and the three-second group cooldown. The table above lists controls.
-POSIX timeout handling terminates the script process group; descendants creating separate sessions are excluded.
+非 TTY 不启动动画，但每 30 秒输出未完成名单（含排队任务），每条用例输出 start/result 和耗时。
+用例耗时包括失败路径和 cleanup；结束时输出 `[slowest]` 前 10 条。
+`case_timings.jsonl` 逐条落盘，CI 尝试在失败/取消后也上传，并且只检查当前 run/attempt 的结果。
+缺失、未完成或失败的结果不会再被 `Final Check` 当成通过。
+日志仍完整分块汇总，rank 组无额外 3 秒冷却。
+POSIX 组清理不保证覆盖自行 `setsid` 脱离的后代；Windows 不保证 Job Object 级递归清理。
+
+Case names/default concurrency are retained, **not identical data coverage in fast mode**. Eleven ordinary
+OpenAI-compatible performance-chain configs opt into short responses/delays; four dataset configs reduce
+samples (CEval: first three subjects). Dedicated pressure, concurrency, interrupt/reuse, stable-stage and
+non-OpenAI cases, assertions and YAML remain unchanged. Use `AISBENCH_SMOKE_FAST=0` for original workloads
+or real external services. PR CI defaults to fast; schedule/manual defaults to full; the repository Variable
+`AISBENCH_SMOKE_FAST` overrides the choice. Verify the `[profile]` line rather than assuming a mode.
+Cache and mode-specific LPT history now live outside checkout; paths inside the repo are rejected.
+The first migrated run is cold; a second run on the same runner/environment should report a cache hit
+unless inputs/installed metadata changed. Lock wait is bounded (120 seconds by default).
+CI prints per-case wall times including cleanup, a 30-second unfinished-task heartbeat, and the slowest ten;
+`case_timings.jsonl` preserves partial evidence. Missing/incomplete results fail instead of claiming success.
 
 轻量回归测试 / Lightweight regression tests (no models, NPU, real pip installs or external services):
 
 ```bash
-python3 -m pip install PyYAML psutil tqdm xlwt pytest
+python3 -m pip install -r requirements/test.txt mmengine-lite
 python3 -m pytest tests/UT/smoke_tests -q
 ```
 
-实际提速需在同一冒烟机比较冷/热启动的 setup 耗时与完整 suite 墙钟，不能由少量 mock 测试推算百分比。
-Measure cold/warm setup and full-suite wall time on the same smoke runner before reporting a speedup.
+### CI 对照 / CI comparison
+
+1. 记录 runner 名、head SHA、`[profile]`、`[dependencies]` 命中状态；首次迁移一般是冷安装。
+2. 同提交、同 runner 分别运行 fast=0/1；不要混用冷/热缓存比较。必要时设置仓库 Variable 后重跑，
+   并检查实际 `[profile]` 输出确认生效。
+3. 分开记录 Checkout、setup、`共计耗时` 和整个 `Run Smoke Cases`，查看 `[slowest]`，
+   不把代理重试或审批/排队算作代码提速。快速模式包含减少测试负载，必须单独说明。
+
+Use the same commit/runner/cache condition, verify the logged mode, compare checkout/setup/suite separately,
+and disclose the reduced functional workload. Do not infer suite speedup from mock tests or token-delay ratios.
 
 ## 🛠️ TODOs
 

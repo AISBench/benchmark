@@ -52,7 +52,7 @@ class TestRunnerEfficiency(unittest.TestCase):
             runner.append_case_log('case.log')
         self.assertEqual(log.call_args_list[0].args[0], content)
 
-    def run_suite(self, interrupted=False):
+    def run_suite(self, interrupted=False, discovery_error=False):
         config = dict(case_name='one', case_type='benchmark', rank_size=3,
                       case_tags={'short'}, yml_path='/test-case/group/one/case.yml')
         executor = Mock()
@@ -67,28 +67,43 @@ class TestRunnerEfficiency(unittest.TestCase):
         executor.submit.return_value = future
         parent, child = Mock(), Mock()
         parent.children.return_value = [child]
-        results = {}
+        results = {'unexpected': {'bad/case.yml': {'success': False}}} if discovery_error else {}
         with patch.dict(os.environ, {'RESOURCE_PATH': '/resource', 'WORKSPACE_PATH': '/workspace',
                                      'SMOKE_MAX_PARALLEL': '7'}), \
                 patch.object(runner, 'ProcessPoolExecutor', return_value=executor) as pool, \
-                patch.object(runner, 'TaskScheduler'), patch.object(runner, 'log'), \
+                patch.object(runner, 'TaskScheduler'), patch.object(runner, 'log') as output, \
+                patch.object(runner, 'CaseTimings') as timings, \
                 patch.object(runner, 'tqdm'), patch.object(runner.sys, 'stderr', io.StringIO()), \
                 patch.object(runner.time, 'perf_counter', side_effect=[0, 0, 10, 10]), \
                 patch.object(runner.time, 'sleep') as sleep, \
                 patch.object(runner.threading, 'Thread') as thread, \
                 patch.object(runner.psutil, 'Process', return_value=parent), \
                 patch.object(runner.psutil, 'wait_procs', return_value=([], [child])) as wait:
+            timings.return_value.record.return_value = 1.23
+            timings.return_value.slowest.return_value = []
             record, was_interrupted = runner.execute_test_cases([config], results)
+            self.latest_output = output
+            self.latest_timings = timings.return_value
         return record, was_interrupted, pool, sleep, thread, parent, child, wait
 
-    def test_normal_suite_has_no_cooldown_spinner_or_startup_pid_polling(self):
+    def test_normal_suite_has_bounded_heartbeat_but_no_cooldown_or_pid_polling(self):
         record, interrupted, pool, sleep, thread, parent, _, _ = self.run_suite()
         self.assertFalse(interrupted)
         self.assertEqual(record['finished_cases']['success'], ['one'])
         pool.assert_called_once_with(max_workers=1)
         sleep.assert_not_called()
-        thread.return_value.start.assert_not_called()
+        thread.return_value.start.assert_called_once()
+        thread.return_value.join.assert_called_once_with(timeout=0.5)
+        self.assertTrue(any('[case-result] 1/1 PASS one elapsed=1.230s' in str(call)
+                            for call in self.latest_output.call_args_list))
+        self.latest_timings.finish.assert_called_once_with(10, interrupted=False)
         parent.terminate.assert_not_called()  # no stale PID cleanup after normal pool shutdown
+
+    def test_discovery_errors_are_not_hidden_by_successful_valid_cases(self):
+        record, interrupted, *_ = self.run_suite(discovery_error=True)
+        self.assertFalse(interrupted)
+        self.assertEqual(record['finished_cases']['success'], ['one'])
+        self.latest_timings.error.assert_called_once_with('case-discovery')
 
     def test_cancellation_waits_for_descendants_collected_before_reparenting(self):
         _, interrupted, _, _, _, parent, child, wait = self.run_suite(interrupted=True)

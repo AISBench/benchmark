@@ -11,7 +11,13 @@ COMPARE_REMOTE_BRANCH="master"  # 可选，默认使用scripts/git_utils.sh:COMP
 # 常量路径设置
 PROJECT_PATH=$(realpath `dirname $0`/..)
 SCRIPTS_PATH=$(realpath `dirname $0`)
-export PROJECT_WORKSPACE_PATH=$PROJECT_PATH/RunWorkspace/`date "+%Y-%m-%d_%H-%M-%S"`
+: "${PROJECT_WORKSPACE_PATH:=$PROJECT_PATH/RunWorkspace/$(date '+%Y-%m-%d_%H-%M-%S')}"
+export PROJECT_WORKSPACE_PATH
+export AISBENCH_SMOKE_FAST="${AISBENCH_SMOKE_FAST:-1}"
+case "$AISBENCH_SMOKE_FAST" in
+    0|1) ;;
+    *) echo '[ERROR] AISBENCH_SMOKE_FAST must be 0 or 1'; exit 1 ;;
+esac
 
 MODEL_PATH=$PROJECT_PATH/resource/model
 CREDENTIALS_PATH=$PROJECT_PATH/resource/credentials
@@ -141,6 +147,19 @@ export AISBENCH_SMOKE_PYTHON="${AISBENCH_SMOKE_PYTHON:-python3}"
 AISBENCH_SMOKE_PYTHON=$("$AISBENCH_SMOKE_PYTHON" -c 'import os, sys; print(os.path.abspath(sys.executable))') || exit $ret_failed
 export PATH="${AISBENCH_SMOKE_PYTHON%/*}:$PATH"
 "$AISBENCH_SMOKE_PYTHON" "$SCRIPTS_PATH/prepare_env.py" --repo "$REPO_PATH" || exit $ret_failed
+if [ -z "${AISBENCH_SMOKE_HISTORY_PATH:-}" ]; then
+    AISBENCH_SMOKE_HISTORY_PATH=$("$AISBENCH_SMOKE_PYTHON" -c '
+import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from prepare_env import cache_path, environment_identity
+path = cache_path(Path(sys.argv[2]), environment_identity())
+print(path.with_name("history-" + path.stem + "-fast" + os.environ["AISBENCH_SMOKE_FAST"] + ".json"))
+' "$SCRIPTS_PATH" "$REPO_PATH") || exit $ret_failed
+fi
+export AISBENCH_SMOKE_HISTORY_PATH
+echo "[profile] AISBENCH_SMOKE_FAST=$AISBENCH_SMOKE_FAST (0 restores original workloads)"
+echo "[timing] persistent history: $AISBENCH_SMOKE_HISTORY_PATH"
 cd "$REPO_PATH" || exit $ret_failed
 
 ## 数据集放置

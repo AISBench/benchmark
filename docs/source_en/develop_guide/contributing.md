@@ -196,8 +196,10 @@ pytest tests/UT/test_example.py
 
 Run lightweight smoke-framework regressions with `python3 -m pytest tests/UT/smoke_tests -q`;
 no models or Ascend hardware are required. See the [smoke guide](../../../smoke_tests/README.md)
-for dependency caching, forced setup, concurrency and timeout controls. Full smoke runs still need
-the dedicated runner; lightweight tests do not establish full-suite performance.
+for persistent caching, fast/full workloads, per-case timing, concurrency and timeout controls.
+PR CI defaults to reduced functional workloads; scheduled/manual CI defaults to full. Set
+`AISBENCH_SMOKE_FAST=0` for original workloads. Compare the same commit/runner/mode/cache condition,
+and disclose reduced data coverage. Full smoke still needs the dedicated runner; unit tests do not establish suite speedup.
 
 ### Writing Tests
 
