@@ -32,6 +32,26 @@ cp -r ${CUR_DIR}/ais_bench_configs/*  ${AIS_BENCH_CODE_CONFIGS_DIR}/
     echo "models[0]['path'] = '${AISBENCH_SMOKE_MODEL_PATH}'"
 } >> "${AIS_BENCH_CODE_CONFIGS_DIR}/models/vllm_api/${CASE_NAME}.py"
 
+# 快速模式：完整 ShareGPT 文件需整份加载并逐轮分词（约 5 分钟），而本用例
+# 只取 1 条会话；用等价的 1 条两轮会话代替，协议与产物校验不变。
+if [ "${AISBENCH_SMOKE_FAST:-0}" = "1" ]; then
+    SHAREGPT_FIXTURE="${CASE_OUTPUT_PATH}/sharegpt_smoke_fixture.json"
+    cat > "${SHAREGPT_FIXTURE}" <<'SMOKE_SHAREGPT_JSON'
+[
+  {
+    "id": "smoke-0",
+    "conversations": [
+      {"from": "human", "value": "Summarize why unit tests matter in one sentence."},
+      {"from": "gpt", "value": "They catch regressions early and record expected behavior."},
+      {"from": "human", "value": "Restate that for a new teammate."},
+      {"from": "gpt", "value": "They catch regressions early and document intent."}
+    ]
+  }
+]
+SMOKE_SHAREGPT_JSON
+    echo "sharegpt_datasets[0]['path'] = '${SHAREGPT_FIXTURE}'" >> "${DATASET_TARGET_DIR}/${CASE_NAME}.py"
+fi
+
 # 启动用例
 echo -e "\033[1;32m[1/1]\033[0m Test case - ${CASE_NAME}"
 

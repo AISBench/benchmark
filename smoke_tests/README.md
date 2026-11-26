@@ -52,6 +52,9 @@ LPT 历史默认也保存在该持久目录，并按 fast/full 模式隔离；�
 - **pressure_dataset_ceval**：CEval 由全部 52 科裁剪到前 3 科、每科 20 条。
   该用例的耗时几乎全在“每个数据集各重算一次性能结果并重绘图表”，52 科会重复约 52 次；
   压力发送窗口仍由 `--pressure-time` 控制。
+- **sharegpt 多轮性能用例**：数据集指向运行期生成的 1 条两轮会话。
+  `ShareGPTDataset.load` 会整份加载并逐轮分词 ShareGPT 文件（本机实测约 5 分钟），
+  而该用例 `test_range` 本来就只取 1 条会话；请求数、协议与产物校验不变。
 
 实测分解见 `[slowest]` 与各用例 `tmplog.txt`；这些裁剪都会降低覆盖，需要用完整负载复核时设为 0。
 
@@ -67,8 +70,10 @@ OpenAI-compatible performance-chain configs opt into short responses/delays; fou
 samples (CEval: first three subjects). The eight judge cases additionally cap the judge model at 16 output
 tokens (it only needs an A/B verdict, while 512 tokens cost ~5 s per judge request against the simulator),
 and `pressure_dataset_ceval` keeps three CEval subjects instead of 52 because performance results and charts
-are regenerated once per dataset. Dedicated concurrency, interrupt/reuse, stable-stage and non-OpenAI cases,
-assertions and YAML remain unchanged. Use `AISBENCH_SMOKE_FAST=0` for original workloads
+are regenerated once per dataset. The sharegpt multi-turn case points at a generated single two-turn
+conversation: `ShareGPTDataset.load` loads and tokenizes the whole ShareGPT file (~5 minutes on the smoke
+runner) while `test_range` already selected one conversation. Dedicated concurrency, interrupt/reuse, stable-stage
+and non-OpenAI cases, assertions and YAML remain unchanged. Use `AISBENCH_SMOKE_FAST=0` for original workloads
 or real external services. PR CI defaults to fast; schedule/manual defaults to full; the repository Variable
 `AISBENCH_SMOKE_FAST` overrides the choice. Verify the `[profile]` line rather than assuming a mode.
 Cache and mode-specific LPT history now live outside checkout; paths inside the repo are rejected.

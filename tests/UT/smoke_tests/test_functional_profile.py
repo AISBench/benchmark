@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import call, patch
 
@@ -37,6 +38,8 @@ DATA_CASES = (
 PRESSURE_CEVAL = (CASES / 'run_server_pressure/diff_dataset_kinds/pressure_dataset_ceval'
                   '/ais_bench_configs/datasets/ceval/pressure_dataset_ceval.py')
 JUDGE_CASES = tuple(sorted((CASES / 'run_server_accuracy/judge_model').glob('*/run.sh')))
+SHAREGPT_RUN = (CASES / 'run_server_performance/stream_apis'
+                '/perf_vllm_api_stream_chat_multiturn_sharegpt/run.sh')
 
 
 def config_path(group, case, kind='models', backend='vllm_api'):
@@ -261,6 +264,29 @@ class FunctionalConfigTest(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual("['judge_model']['max_out_len'] = 16" in result.stdout,
                                      expected, (path.parent.name, fast, result.stdout))
+
+    def test_sharegpt_fast_fixture_replaces_only_the_dataset_path(self):
+        text = SHAREGPT_RUN.read_text(encoding='utf-8')
+        self.assertIn('"${AISBENCH_SMOKE_FAST:-0}" = "1"', text)
+        marker = "<<'SMOKE_SHAREGPT_JSON'"
+        start = text.index(marker)
+        body = text[text.index('\n', start) + 1:]
+        payload = body[:body.index('\nSMOKE_SHAREGPT_JSON')]
+        conversations = json.loads(payload)[0]['conversations']
+        self.assertGreaterEqual(len(conversations), 2)
+        self.assertEqual(len(conversations) % 2, 0)
+        self.assertEqual(conversations[0]['from'], 'human')
+        self.assertTrue(all(set(turn) == {'from', 'value'} for turn in conversations))
+        # The hook appends after the copied config, so the later assignment wins.
+        with tempfile.TemporaryDirectory() as root:
+            config = Path(root) / 'case.py'
+            config.write_text("sharegpt_datasets[0]['path'] = 'big.json'\n", encoding='utf-8')
+            with config.open('a', encoding='utf-8') as stream:
+                stream.write("sharegpt_datasets[0]['path'] = '/tmp/fixture.json'\n")
+            namespace = {'sharegpt_datasets': [{'reader_cfg': {'test_range': '[0:1]'}}]}
+            exec(compile(config.read_text(encoding='utf-8'), str(config), 'exec'), namespace)
+            self.assertEqual(namespace['sharegpt_datasets'][0]['path'], '/tmp/fixture.json')
+            self.assertEqual(namespace['sharegpt_datasets'][0]['reader_cfg']['test_range'], '[0:1]')
 
     def test_protected_models_keep_full_workloads_with_fast_enabled(self):
         roots = (PERF / 'high_concurrency', PERF / 'run_with_reuse',
