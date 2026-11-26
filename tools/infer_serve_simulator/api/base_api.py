@@ -19,12 +19,17 @@ def load_yaml_config():
         return yaml.safe_load(file)
 
 class BaseAPI(ABC):
-    def __init__(self):
+    def __init__(self, request_model=None):
         self.config = load_yaml_config()
         self.ttft = self.config['stream_latency']['ttft']
         self.tpot = self.config['stream_latency']['tpot']
         self.e2el = self.config['text_latency']['e2el']
         self.random_conf = self.config['random_dataset']
+        # Only OpenAI handlers pass the request model. Keep YAML and all
+        # unmarked requests unchanged, even when fast smoke is enabled.
+        if (os.environ.get('AISBENCH_SMOKE_FAST') == '1'
+                and request_model == 'aisbench-smoke-functional/qwen'):
+            self.ttft, self.tpot, self.e2el = 0.005, 0.001, 0.005
 
     @abstractmethod
     def generate_text(self):
