@@ -44,6 +44,17 @@ LPT 历史默认也保存在该持久目录，并按 fast/full 模式隔离；�
 **压力、高并发、中断/续推、稳态重算、非 OpenAI 后端及原有断言均保持原样。**
 真实服务或需要完整数据/时延覆盖时必须使用 `AISBENCH_SMOKE_FAST=0`。
 
+另有两处只影响关键路径的快速模式约束：
+
+- **judge 用例**：裁判模型 `max_out_len` 由 512 降到 16。判分模板只要求输出 `A`/`B`，
+  而模拟服务按 token 流式延时，512 上限使每个判分请求约 5 秒，是当前最长的用例。
+  8 条 judge 用例的产物断言不变。
+- **pressure_dataset_ceval**：CEval 由全部 52 科裁剪到前 3 科、每科 20 条。
+  该用例的耗时几乎全在“每个数据集各重算一次性能结果并重绘图表”，52 科会重复约 52 次；
+  压力发送窗口仍由 `--pressure-time` 控制。
+
+实测分解见 `[slowest]` 与各用例 `tmplog.txt`；这些裁剪都会降低覆盖，需要用完整负载复核时设为 0。
+
 非 TTY 不启动动画，但每 30 秒输出未完成名单（含排队任务），每条用例输出 start/result 和耗时。
 用例耗时包括失败路径和 cleanup；结束时输出 `[slowest]` 前 10 条。
 `case_timings.jsonl` 逐条落盘，CI 尝试在失败/取消后也上传，并且只检查当前 run/attempt 的结果。
@@ -53,8 +64,11 @@ POSIX 组清理不保证覆盖自行 `setsid` 脱离的后代；Windows 不保�
 
 Case names/default concurrency are retained, **not identical data coverage in fast mode**. Eleven ordinary
 OpenAI-compatible performance-chain configs opt into short responses/delays; four dataset configs reduce
-samples (CEval: first three subjects). Dedicated pressure, concurrency, interrupt/reuse, stable-stage and
-non-OpenAI cases, assertions and YAML remain unchanged. Use `AISBENCH_SMOKE_FAST=0` for original workloads
+samples (CEval: first three subjects). The eight judge cases additionally cap the judge model at 16 output
+tokens (it only needs an A/B verdict, while 512 tokens cost ~5 s per judge request against the simulator),
+and `pressure_dataset_ceval` keeps three CEval subjects instead of 52 because performance results and charts
+are regenerated once per dataset. Dedicated concurrency, interrupt/reuse, stable-stage and non-OpenAI cases,
+assertions and YAML remain unchanged. Use `AISBENCH_SMOKE_FAST=0` for original workloads
 or real external services. PR CI defaults to fast; schedule/manual defaults to full; the repository Variable
 `AISBENCH_SMOKE_FAST` overrides the choice. Verify the `[profile]` line rather than assuming a mode.
 Cache and mode-specific LPT history now live outside checkout; paths inside the repo are rejected.

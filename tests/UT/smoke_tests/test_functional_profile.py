@@ -5,6 +5,8 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import unittest
 from unittest.mock import call, patch
@@ -32,6 +34,9 @@ DATA_CASES = (
     ('stream_apis', 'perf_vllm_api_stream_chat_gsm8k', 'gsm8k', 'gsm8k_datasets'),
     ('stream_apis', 'pref_vllm_api_general_stream_gsm8k', 'gsm8k', 'gsm8k_datasets'),
 )
+PRESSURE_CEVAL = (CASES / 'run_server_pressure/diff_dataset_kinds/pressure_dataset_ceval'
+                  '/ais_bench_configs/datasets/ceval/pressure_dataset_ceval.py')
+JUDGE_CASES = tuple(sorted((CASES / 'run_server_accuracy/judge_model').glob('*/run.sh')))
 
 
 def config_path(group, case, kind='models', backend='vllm_api'):
@@ -207,6 +212,7 @@ class FunctionalConfigTest(unittest.TestCase):
         allowed = {config_path(group, case) for group, cases in MODEL_CASES.items() for case in cases}
         allowed.update(config_path(group, case, 'datasets', dataset)
                        for group, case, dataset, _ in DATA_CASES)
+        allowed.add(PRESSURE_CEVAL)
         switched = set()
         for path in CASES.rglob('*.py'):
             if 'ais_bench_configs' not in path.parts:
@@ -217,6 +223,44 @@ class FunctionalConfigTest(unittest.TestCase):
         # Protect reuse/interrupt, pressure, high concurrency, optional capabilities,
         # and non-OpenAI models/datasets, not just the explicitly selected subtrees.
         self.assertEqual(switched, allowed)
+
+    def test_pressure_ceval_subject_cap_only_applies_in_fast_mode(self):
+        for fast in (None, '0', '1', 'true'):
+            with self.subTest(fast=fast):
+                subjects = [dict(name=f'subject-{i}', reader_cfg={}) for i in range(52)]
+                result = execute_config(PRESSURE_CEVAL, fast, ceval_datasets=subjects)['ceval_datasets']
+                if fast == '1':
+                    self.assertEqual(len(result), 3)
+                    self.assertEqual([row['name'] for row in result],
+                                     ['subject-0', 'subject-1', 'subject-2'])
+                    self.assertEqual([row['reader_cfg']['test_range'] for row in result],
+                                     ['[0:20]'] * 3)
+                else:
+                    self.assertEqual(len(result), 52)
+                    self.assertEqual(result[0]['reader_cfg']['test_range'], '[0:10]')
+                    self.assertNotIn('test_range', result[1]['reader_cfg'])
+
+    @unittest.skipUnless(shutil.which('bash'), 'requires Bash')
+    def test_judge_run_scripts_cap_output_only_in_fast_mode(self):
+        self.assertEqual(len(JUDGE_CASES), 8)
+        for path in JUDGE_CASES:
+            lines = path.read_text(encoding='utf-8').splitlines()
+            start = next(index for index, line in enumerate(lines)
+                         if line.strip().startswith('if [') and 'AISBENCH_SMOKE_FAST' in line)
+            block = lines[start:start + 4]
+            self.assertEqual(block[-1].strip(), 'fi', path)
+            self.assertIn('max_out_len', block[2], path)
+            for fast, expected in ((None, False), ('0', False), ('1', True)):
+                with self.subTest(path=path.parent.name, fast=fast):
+                    environment = dict(os.environ)
+                    environment.pop('AISBENCH_SMOKE_FAST', None)
+                    if fast is not None:
+                        environment['AISBENCH_SMOKE_FAST'] = fast
+                    result = subprocess.run(['bash', '-c', '\n'.join(block)], text=True,
+                                            capture_output=True, env=environment, timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual("['judge_model']['max_out_len'] = 16" in result.stdout,
+                                     expected, (path.parent.name, fast, result.stdout))
 
     def test_protected_models_keep_full_workloads_with_fast_enabled(self):
         roots = (PERF / 'high_concurrency', PERF / 'run_with_reuse',

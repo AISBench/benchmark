@@ -38,6 +38,10 @@ do
         echo "aime2025_datasets[0]['judge_infer_cfg']['judge_model']['host_ip'] = '${AISBENCH_SMOKE_SERVICE_IP}'"
         echo "aime2025_datasets[0]['judge_infer_cfg']['judge_model']['host_port'] = ${AISBENCH_SMOKE_SERVICE_PORT}"
         echo "aime2025_datasets[0]['judge_infer_cfg']['judge_model']['path'] = '${AISBENCH_SMOKE_MODEL_PATH}'"
+        if [ "${AISBENCH_SMOKE_FAST:-0}" = "1" ]; then
+            # 裁判只需输出 A/B；512 token 的流式输出在本模拟服务下约 5 秒/请求。
+            echo "aime2025_datasets[0]['judge_infer_cfg']['judge_model']['max_out_len'] = 16"
+        fi
     } >> "${dataset_config_path}"
 done
 
