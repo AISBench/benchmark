@@ -77,6 +77,20 @@ class SmokeWorkflowTest(unittest.TestCase):
         self.assertIn('-r requirements/test.txt', run_step['run'])
         self.assertIn('Flask', (ROOT / 'requirements/test.txt').read_text(encoding='utf-8'))
 
+    def test_scheduled_smoke_forces_full_workload_before_execution(self):
+        step = STEPS['Force full workload for scheduled smoke']
+        self.assertEqual(step['if'], "github.event_name == 'schedule'")
+        self.assertLess(list(STEPS).index(step['name']), list(STEPS).index('Run Smoke Cases'))
+        with tempfile.TemporaryDirectory() as root:
+            environment_file = Path(root) / 'github-env'
+            environment_file.write_text('AISBENCH_SMOKE_FAST=1\n', encoding='utf-8')
+            result = subprocess.run(['bash', '-e', '-c', step['run']], text=True,
+                                    capture_output=True, timeout=5,
+                                    env=dict(os.environ, GITHUB_ENV=str(environment_file)))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(environment_file.read_text(encoding='utf-8').splitlines()[-1],
+                             'AISBENCH_SMOKE_FAST=0')
+
     def test_diagnostics_are_attempt_scoped_and_uploaded_on_failure(self):
         job = WORKFLOW['jobs']['run_smoke_test_cases']
         workspace = job['env']['PROJECT_WORKSPACE_PATH']

@@ -16,8 +16,8 @@ concurrency:
 
 env:
   PY310_VERSION: 3.10.19
-  # PRs use functional workloads; scheduled/manual runs retain full coverage.
-  # Repository variable 0/1 permits a same-commit controlled comparison.
+  # PRs use functional workloads; manual runs retain full coverage by default.
+  # Repository variable 0/1 permits PR/manual comparisons, never scheduled runs.
   AISBENCH_SMOKE_FAST: ${{ vars.AISBENCH_SMOKE_FAST || (github.event_name == 'pull_request' && '1' || '0') }}
 
 jobs:
@@ -30,6 +30,10 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
+
+      - name: Force full workload for scheduled smoke
+        if: github.event_name == 'schedule'
+        run: echo "AISBENCH_SMOKE_FAST=0" >> "$GITHUB_ENV"
 
       - name: Run Smoke Cases
         id: run_cases  # 增加ID，用于后续判断

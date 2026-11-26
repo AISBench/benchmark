@@ -31,7 +31,7 @@ LPT 历史默认也保存在该持久目录，并按 fast/full 模式隔离；�
 | `AISBENCH_SMOKE_CACHE_DIR` | checkout 外的缓存目录；默认见上文 |
 | `AISBENCH_SMOKE_SETUP_LOCK_TIMEOUT` | 最多等锁 `120` 秒，必须为正有限数 |
 | `AISBENCH_SMOKE_HISTORY_PATH` | 默认由入口选择持久历史；可覆盖为独立绝对路径 |
-| `AISBENCH_SMOKE_FAST` | 入口默认 `1`；CI 的 PR 默认 `1`，日构建/手动默认 `0`；仓库同名 Variable 可覆盖 |
+| `AISBENCH_SMOKE_FAST` | 入口默认 `1`；PR CI 默认 `1`；**日构建强制 `0`**；手动 CI 默认 `0`；仓库 Variable 仅覆盖 PR/手动选择 |
 | `SMOKE_CHECK_UPDATES` | 交互终端默认 `1`；CI/非交互默认 `0`；显式 `0`/`1` 覆盖 |
 | `SMOKE_MAX_PARALLEL` | `50`，正整数；不要未经测量就提高并发 |
 | `SMOKE_SERVICE_READY_TIMEOUT` | `30` 秒，正整数；立即探测，单次 HTTP 请求最多 2 秒 |
@@ -74,8 +74,9 @@ are regenerated once per dataset. The sharegpt multi-turn case points at a gener
 conversation: `ShareGPTDataset.load` loads and tokenizes the whole ShareGPT file (~5 minutes on the smoke
 runner) while `test_range` already selected one conversation. Dedicated concurrency, interrupt/reuse, stable-stage
 and non-OpenAI cases, assertions and YAML remain unchanged. Use `AISBENCH_SMOKE_FAST=0` for original workloads
-or real external services. PR CI defaults to fast; schedule/manual defaults to full; the repository Variable
-`AISBENCH_SMOKE_FAST` overrides the choice. Verify the `[profile]` line rather than assuming a mode.
+or real external services. PR CI defaults to fast; scheduled CI always forces full coverage; manual CI defaults
+to full. The repository Variable `AISBENCH_SMOKE_FAST` can override PR/manual runs, but not scheduled runs.
+Verify the `[profile]` line rather than assuming a mode.
 Cache and mode-specific LPT history now live outside checkout; paths inside the repo are rejected.
 The first migrated run is cold; a second run on the same runner/environment should report a cache hit
 unless inputs/installed metadata changed. Lock wait is bounded (120 seconds by default).
@@ -92,8 +93,8 @@ python3 -m pytest tests/UT/smoke_tests -q
 ### CI 对照 / CI comparison
 
 1. 记录 runner 名、head SHA、`[profile]`、`[dependencies]` 命中状态；首次迁移一般是冷安装。
-2. 同提交、同 runner 分别运行 fast=0/1；不要混用冷/热缓存比较。必要时设置仓库 Variable 后重跑，
-   并检查实际 `[profile]` 输出确认生效。
+2. 同提交、同 runner 分别运行 fast=0/1；不要混用冷/热缓存比较。必要时设置仓库 Variable 后重跑 PR/手动任务，
+   并检查实际 `[profile]` 输出确认生效；日构建固定为完整负载，不受该 Variable 影响。
 3. 分开记录 Checkout、setup、`共计耗时` 和整个 `Run Smoke Cases`，查看 `[slowest]`，
    不把代理重试或审批/排队算作代码提速。快速模式包含减少测试负载，必须单独说明。
 
