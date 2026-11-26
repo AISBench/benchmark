@@ -49,7 +49,10 @@ if [ "${AISBENCH_SMOKE_FAST:-0}" = "1" ]; then
   }
 ]
 SMOKE_SHAREGPT_JSON
-    echo "sharegpt_datasets[0]['path'] = '${SHAREGPT_FIXTURE}'" >> "${DATASET_TARGET_DIR}/${CASE_NAME}.py"
+    {
+        echo ""
+        echo "sharegpt_datasets[0]['path'] = '${SHAREGPT_FIXTURE}'"
+    } >> "${DATASET_TARGET_DIR}/${CASE_NAME}.py"
 fi
 
 # 启动用例

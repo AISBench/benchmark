@@ -277,16 +277,37 @@ class FunctionalConfigTest(unittest.TestCase):
         self.assertEqual(len(conversations) % 2, 0)
         self.assertEqual(conversations[0]['from'], 'human')
         self.assertTrue(all(set(turn) == {'from', 'value'} for turn in conversations))
-        # The hook appends after the copied config, so the later assignment wins.
+
+    @unittest.skipUnless(shutil.which('bash'), 'requires Bash')
+    def test_sharegpt_hook_appends_to_config_without_trailing_newline(self):
+        lines = SHAREGPT_RUN.read_text(encoding='utf-8').splitlines()
+        start = next(index for index, line in enumerate(lines)
+                     if line.strip().startswith('if [') and 'AISBENCH_SMOKE_FAST' in line)
+        end = next(index for index in range(start + 1, len(lines)) if lines[index].strip() == 'fi')
+        block = '\n'.join(lines[start:end + 1])
         with tempfile.TemporaryDirectory() as root:
-            config = Path(root) / 'case.py'
-            config.write_text("sharegpt_datasets[0]['path'] = 'big.json'\n", encoding='utf-8')
-            with config.open('a', encoding='utf-8') as stream:
-                stream.write("sharegpt_datasets[0]['path'] = '/tmp/fixture.json'\n")
+            case_output = Path(root) / 'output'
+            case_output.mkdir()
+            target = Path(root) / 'configs'
+            target.mkdir()
+            # The copied config has no trailing newline; appending blindly broke line 7.
+            (target / 'sharegpt.py').write_text(
+                "sharegpt_datasets[0]['reader_cfg']['test_range'] = '[0:1]'", encoding='utf-8')
+            result = subprocess.run(
+                ['bash', '-c', block], text=True, capture_output=True, timeout=10,
+                env=dict(os.environ, AISBENCH_SMOKE_FAST='1',
+                         CASE_OUTPUT_PATH=str(case_output),
+                         DATASET_TARGET_DIR=str(target),
+                         CASE_NAME='sharegpt'))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            written = (target / 'sharegpt.py').read_text(encoding='utf-8')
+            ast.parse(written)
             namespace = {'sharegpt_datasets': [{'reader_cfg': {'test_range': '[0:1]'}}]}
-            exec(compile(config.read_text(encoding='utf-8'), str(config), 'exec'), namespace)
-            self.assertEqual(namespace['sharegpt_datasets'][0]['path'], '/tmp/fixture.json')
+            exec(compile(written, 'sharegpt.py', 'exec'), namespace)
+            self.assertEqual(namespace['sharegpt_datasets'][0]['path'],
+                             str(case_output / 'sharegpt_smoke_fixture.json'))
             self.assertEqual(namespace['sharegpt_datasets'][0]['reader_cfg']['test_range'], '[0:1]')
+            self.assertTrue((case_output / 'sharegpt_smoke_fixture.json').is_file())
 
     def test_protected_models_keep_full_workloads_with_fast_enabled(self):
         roots = (PERF / 'high_concurrency', PERF / 'run_with_reuse',
