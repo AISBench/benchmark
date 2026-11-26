@@ -694,11 +694,27 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
         pairing_warnings=pairing_warnings,
         multi_combo=is_multi,
     )
+    for warning in warnings:
+        logger.warning(warning)
+
+    # 单档（未使用多值 --batch-size/--num-prompts）：不做组合反查与按单元重建，
+    # 保持配置原有形态，等价于 sweep 引入前的流程；单值覆盖已在上面应用。
+    if not is_multi:
+        if batch_arg is not None:
+            for model_cfg in base_models:
+                model_cfg["batch_size"] = batch_arg
+        return SweepResult(
+            models=base_models,
+            datasets=base_datasets,
+            combinations=[],
+            manifest=None,
+            sweep_cooldown_s=cooldown if explicit_cooldown else None,
+        )
 
     units = _build_sweep_units(base_models, base_datasets, combinations)
 
     total_combos = len(pairs) * len(units)
-    if is_multi and total_combos > MAX_SWEEP_COMBOS:
+    if total_combos > MAX_SWEEP_COMBOS:
         raise AISBenchConfigError(
             TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
             f"Sweep expands to {total_combos} combos ({len(pairs)} batch-size value(s) x "
@@ -716,11 +732,11 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
             if batch_size is not None:
                 model_copy["batch_size"] = batch_size
             base_model_abbr = model_copy.get("abbr")
-            if is_multi and base_model_abbr:
+            if base_model_abbr:
                 model_copy["abbr"] = _append_batch_suffix(base_model_abbr, batch_size)
 
             dataset_copy = copy.deepcopy(dataset_cfg)
-            if is_multi and num_prompts is not None and not test_range_set:
+            if num_prompts is not None and not test_range_set:
                 reader_cfg = dataset_copy.get("reader_cfg")
                 if not isinstance(reader_cfg, dict):
                     reader_cfg = {}
@@ -774,50 +790,34 @@ def expand_sweep_combinations(models: List[dict], datasets: List[dict],
     # 展开后仍需保证每个组合的输出路径唯一：同一 (模型 abbr, 数据集 abbr) 只允许
     # 出现一次，否则 performances/<model>/<dataset>.json 会互相覆盖。
     # 多模型/多数据集笛卡尔积下同一 abbr 会在不同组合中重复出现，属正常情况。
-    # 仅多组合展开时检查：单档路径下同名数据集 abbr 会被 _merge_datasets 合并成
-    # 同一个任务、写入同一份结果文件，属既有合法行为。
-    if is_multi:
-        post_errors: List[str] = []
-        seen_outputs = {}
-        for combo_index, (model_copy, dataset_copy) in enumerate(
-                zip(combo_models, combo_datasets)):
-            output_key = (model_copy.get("abbr"), dataset_copy.get("abbr"))
-            if output_key in seen_outputs:
-                post_errors.append(
-                    f"Duplicate combo output path: model abbr '{output_key[0]}' and dataset "
-                    f"abbr '{output_key[1]}' appear in both combo "
-                    f"#{seen_outputs[output_key] + 1} and combo #{combo_index + 1}"
-                )
-            else:
-                seen_outputs[output_key] = combo_index
-        if post_errors:
-            raise AISBenchConfigError(
-                TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
-                "Sweep combo abbr conflict after expansion:\n"
-                + "\n".join(f"  - {error}" for error in post_errors),
+    # 单档路径已在上面提前返回（同名 abbr 的数据集由 _merge_datasets 合并，属既有行为）。
+    post_errors: List[str] = []
+    seen_outputs = {}
+    for combo_index, (model_copy, dataset_copy) in enumerate(
+            zip(combo_models, combo_datasets)):
+        output_key = (model_copy.get("abbr"), dataset_copy.get("abbr"))
+        if output_key in seen_outputs:
+            post_errors.append(
+                f"Duplicate combo output path: model abbr '{output_key[0]}' and dataset "
+                f"abbr '{output_key[1]}' appear in both combo "
+                f"#{seen_outputs[output_key] + 1} and combo #{combo_index + 1}"
             )
+        else:
+            seen_outputs[output_key] = combo_index
+    if post_errors:
+        raise AISBenchConfigError(
+            TMAN_CODES.INVALID_ARG_VALUE_IN_CMD,
+            "Sweep combo abbr conflict after expansion:\n"
+            + "\n".join(f"  - {error}" for error in post_errors),
+        )
 
-    for warning in warnings:
-        logger.warning(warning)
-
-    if is_multi and cli_args.get("max_num_workers", 1) > 1 and cli_args.get("mode") == "perf":
+    if cli_args.get("max_num_workers", 1) > 1 and cli_args.get("mode") == "perf":
         logger.warning(
             "Detected %d sweep combos with --max-num-workers=%s > 1: multiple tasks will "
             "hit the same service concurrently and the perf data may pollute each other; "
             "keep it serial (--max-num-workers 1)",
             len(specs),
             cli_args.get("max_num_workers"),
-        )
-
-    if not is_multi:
-        # 单值等价路径：不产生 model_dataset_combinations / manifest；
-        # 未显式给 --cooldown 时也不产生冷却字段（保持历史行为）
-        return SweepResult(
-            models=combo_models,
-            datasets=combo_datasets,
-            combinations=[],
-            manifest=None,
-            sweep_cooldown_s=cooldown if explicit_cooldown else None,
         )
 
     combinations = [
