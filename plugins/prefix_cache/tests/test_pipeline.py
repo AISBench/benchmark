@@ -9,6 +9,7 @@ from ais_bench_prefix_cache.artifacts import artifact_paths, read_jsonl, sha256_
 from ais_bench_prefix_cache.pipeline import _apply_group_length_overrides, _length_summary, inspect_scenario, prepare_scenario
 from ais_bench_prefix_cache.errors import ArtifactValidationError
 from ais_bench_prefix_cache.scenario import load_scenario, with_execution_timestamp
+from tests.support import BoundaryMergeTokenizer
 from tests.test_core import scenario_dict
 
 
@@ -35,6 +36,26 @@ def write_case(root: Path, mode: str = "cold") -> Path:
 
 
 class PipelineTest(unittest.TestCase):
+    def test_prepare_duplicate_corpus_groups_with_boundary_merging_tokenizer(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "gsm.jsonl").write_text(json.dumps({"question": "same question"}) + "\n", encoding="utf-8")
+            data = scenario_dict(root, mode="warmup", dp_size=1)
+            data["requests"]["count"] = 6
+            data["requests"]["input_length"]["value"] = 128
+            data["prefix_cache"]["target_hit_rate"] = 0.9
+            data["prefix_cache"]["groups"]["count"] = 3
+            scenario = root / "scenario.json"
+            scenario.write_text(json.dumps(data), encoding="utf-8")
+            tokenizer = BoundaryMergeTokenizer()
+            paths = prepare_scenario(scenario, tokenizer_loader=lambda _: tokenizer)
+            rows = read_jsonl(paths.full)
+            self.assertEqual(len(rows), 6)
+            self.assertTrue(all(len(tokenizer.encode(row["question"])) == 128 for row in rows))
+            self.assertTrue(validate_artifacts(paths.manifest)["ok"])
+            manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["divergence"]["collision_status"], "pass")
+
     def test_four_artifacts_and_minimal_requests(self):
         with tempfile.TemporaryDirectory() as folder:
             scenario = write_case(Path(folder))
@@ -238,6 +259,7 @@ class PipelineTest(unittest.TestCase):
             rows = [row for row in read_jsonl(paths.full) if row["group_id"] == "group-0"]
             self.assertTrue(all(row["actual_input_tokens"] == 80 for row in rows))
             self.assertTrue(any(len(set(row["gsm_indices"])) >= 2 for row in rows))
+
 
 if __name__ == "__main__":
     unittest.main()
