@@ -32,6 +32,7 @@ _COLD_BEAM_WIDTH = 256
 _COLD_BEAM_TRANSITION_LIMIT = 2_000_000
 _BOUNDARY_REPAIR_WINDOW = 32
 _BOUNDARY_REPAIR_ATTEMPTS = 64
+_BOUNDARY_REPAIR_CORE_EDGE = 3
 
 
 class TokenizerLike(Protocol):
@@ -1435,17 +1436,38 @@ def _round_trip_tokens(tokenizer: TokenizerLike, tokens: Sequence[int]) -> tuple
     return text, tokenizer.encode(text, add_special_tokens=False) == list(tokens)
 
 
+def _boundary_repair_shapes(max_removed: int) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """Partition edge-replacement (head, tail) pairs into core UTF-8 shapes and wider cuts."""
+    core: list[tuple[int, int]] = []
+    extended: list[tuple[int, int]] = []
+    for removed in range(1, max_removed + 1):
+        for head in [0, removed, *range(1, removed)]:
+            tail = removed - head
+            if head <= _BOUNDARY_REPAIR_CORE_EDGE and tail <= _BOUNDARY_REPAIR_CORE_EDGE:
+                core.append((head, tail))
+            else:
+                extended.append((head, tail))
+    return core, extended
+
+
 def _boundary_repair_candidates(
     body: list[int], safe_ids: Sequence[int],
 ) -> Iterable[tuple[list[int], int, int, int]]:
     """Yield deterministic, length-preserving edge replacements lazily."""
     padding_ids = list(dict.fromkeys(safe_ids))[:4]
-    for removed in range(1, min(_BOUNDARY_REPAIR_WINDOW, len(body)) + 1):
-        for head in [0, removed, *range(1, removed)]:
-            tail = removed - head
-            retained = body[head:len(body) - tail] if tail else body[head:]
-            for padding_id in padding_ids:
-                yield [padding_id] * head + retained + [padding_id] * tail, head, tail, padding_id
+    max_removed = min(_BOUNDARY_REPAIR_WINDOW, len(body))
+    core, extended = _boundary_repair_shapes(max_removed)
+    seen: set[tuple[int, ...]] = set()
+    for shapes in (core, extended):
+        for padding_id in padding_ids:
+            for head, tail in shapes:
+                retained = body[head:len(body) - tail] if tail else body[head:]
+                candidate = [padding_id] * head + retained + [padding_id] * tail
+                key = tuple(candidate)
+                if key in seen:
+                    continue
+                seen.add(key)
+                yield candidate, head, tail, padding_id
 
 
 def _repair_token_segment(
@@ -1454,6 +1476,8 @@ def _repair_token_segment(
     segment: Sequence[int],
     safe_ids: Sequence[int],
     region: str,
+    *,
+    error_cls: type[ArtifactValidationError] = ArtifactValidationError,
 ) -> tuple[list[int], str, dict[str, Any]]:
     """Repair only segment edges under a fixed trial budget.
 
@@ -1461,6 +1485,8 @@ def _repair_token_segment(
     segment's start, so both edges are considered. The frozen prefix and total
     token count never change. Every candidate is checked in its full context.
     """
+    if not list(dict.fromkeys(safe_ids)):
+        raise ArtifactValidationError(f"boundary repair for {region} requires at least one boundary-safe token")
     prefix = list(frozen_prefix)
     body = list(segment)
     attempts = 0
@@ -1485,7 +1511,7 @@ def _repair_token_segment(
                 head, tail, head + tail, attempts,
             )
             return repaired, text, detail
-    raise ArtifactValidationError(
+    raise error_cls(
         f"unable to repair {region} token boundary at {len(prefix) + len(body)} "
         f"without changing fixed prefix/length; attempts={attempts}, "
         f"window={_BOUNDARY_REPAIR_WINDOW}"
@@ -1624,6 +1650,7 @@ def build_prompt(
             safe_ids = find_boundary_safe_token_ids(tokenizer, 2)
         repaired, text, detail = _repair_token_segment(
             tokenizer, fixed, suffix, safe_ids, "suffix",
+            error_cls=PromptRoundTripError,
         )
         actual = fixed + repaired
         if boundary_repairs is not None:
