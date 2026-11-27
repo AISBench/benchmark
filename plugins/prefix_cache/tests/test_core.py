@@ -5,7 +5,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from ais_bench_prefix_cache.errors import ScenarioValidationError
+try:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+except ImportError:  # pragma: no cover - exercised only without the optional parser
+    pa = pq = None
+
+from ais_bench_prefix_cache.errors import ArtifactValidationError, ScenarioValidationError
 from ais_bench_prefix_cache.generation import (
     RequestPlan,
     _prefix_trajectory_issues,
@@ -17,9 +23,11 @@ from ais_bench_prefix_cache.generation import (
     build_canonical_prefixes,
     build_input_lengths,
     build_output_lengths,
+    build_prompt,
     build_unique_seed,
     build_unique_seed_tokens,
     find_boundary_safe_token_ids,
+    CanonicalPrefix,
     GSMRecord,
     load_gsm8k,
     order_indices,
@@ -217,6 +225,128 @@ class CoreTest(unittest.TestCase):
             )
             self.assertEqual([row.line_index for row in selected], [1, 1, 1])
 
+    def test_load_gsm8k_accepts_strings_messages_and_lists(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.jsonl"
+            rows = [
+                {"prompt": "  alpha \n beta  "},
+                {"prompt": ["gamma", "delta"]},
+                {
+                    "prompt": [
+                        {"role": "user", "content": "epsilon"},
+                        {"role": "assistant", "content": "zeta"},
+                    ]
+                },
+                {"prompt": {"role": "user", "content": "eta"}},
+                {"prompt": {"content": "theta"}},
+            ]
+            corpus.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+            records = load_gsm8k(corpus, field="prompt")
+            self.assertEqual(
+                [record.question for record in records],
+                [
+                    "alpha beta",
+                    "gamma delta",
+                    "user: epsilon assistant: zeta",
+                    "user: eta",
+                    "theta",
+                ],
+            )
+
+    def test_load_gsm8k_rejects_unsupported_field_items(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.jsonl"
+            corpus.write_text(
+                json.dumps({"question": [123]}) + "\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(
+                ScenarioValidationError, "corpus field list items"
+            ):
+                load_gsm8k(corpus)
+
+    @unittest.skipUnless(pq is not None, "pyarrow is required")
+    def test_load_gsm8k_reads_parquet_and_decodes_json_messages(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.parquet"
+            pq.write_table(
+                pa.table(
+                    {
+                        "question": ["  alpha \n beta  ", "gamma"],
+                        "prompt": [
+                            json.dumps(
+                                [
+                                    {"role": "user", "content": "epsilon"},
+                                    {"role": "assistant", "content": "zeta"},
+                                ]
+                            ),
+                            json.dumps({"role": "user", "content": "eta"}),
+                        ],
+                    }
+                ),
+                corpus,
+            )
+            self.assertEqual(
+                [record.question for record in load_gsm8k(corpus)],
+                ["alpha beta", "gamma"],
+            )
+            records = load_gsm8k(corpus, field="prompt")
+            self.assertEqual(
+                [record.question for record in records],
+                ["user: epsilon assistant: zeta", "user: eta"],
+            )
+            self.assertEqual([record.line_index for record in records], [0, 1])
+
+    @unittest.skipUnless(pq is not None, "pyarrow is required")
+    def test_load_gsm8k_reads_native_parquet_message_lists(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.parquet"
+            pq.write_table(
+                pa.table(
+                    {
+                        "prompt": [
+                            [{"role": "user", "content": "epsilon"}],
+                            [
+                                {"role": "user", "content": "eta"},
+                                {"role": "assistant", "content": "theta"},
+                            ],
+                        ]
+                    }
+                ),
+                corpus,
+            )
+            self.assertEqual(
+                [
+                    record.question
+                    for record in load_gsm8k(corpus, field="prompt")
+                ],
+                ["user: epsilon", "user: eta assistant: theta"],
+            )
+
+    @unittest.skipUnless(pq is not None, "pyarrow is required")
+    def test_load_gsm8k_parquet_reports_available_fields(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "corpus.parquet"
+            pq.write_table(pa.table({"question": ["alpha"]}), corpus)
+            with self.assertRaisesRegex(
+                ScenarioValidationError, "available fields: question"
+            ):
+                load_gsm8k(corpus, field="prompt")
+
+    @unittest.skipUnless(pq is not None, "pyarrow is required")
+    def test_load_gsm8k_parquet_malformed_json_warns_with_row(self):
+        with tempfile.TemporaryDirectory() as folder:
+            corpus = Path(folder) / "mrcr.parquet"
+            malformed = '[{"role": "user", "content": "broken"'
+            pq.write_table(pa.table({"prompt": [malformed]}), corpus)
+            with self.assertLogs("ais_bench_prefix_cache.generation", level="WARNING") as logs:
+                records = load_gsm8k(corpus, field="prompt")
+            self.assertEqual(records[0].question, malformed)
+            self.assertIn("row 0", "\n".join(logs.output))
+            self.assertIn("malformed", "\n".join(logs.output))
+
     def test_canonical_collision_uses_group_fallback(self):
         class CharTokenizer:
             def encode(self, text, add_special_tokens=False):
@@ -235,6 +365,7 @@ class CoreTest(unittest.TestCase):
         self.assertNotEqual(
             canonical["group-0"].token_ids[:4], canonical["group-1"].token_ids[:4]
         )
+        self.assertGreater(canonical["group-1"].marker_tokens, 0)
 
     def test_seed_capacity_is_rejected_during_scenario_validation(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -592,6 +723,51 @@ class CoreTest(unittest.TestCase):
                 for prefixes in itertools.product(*candidates)
             )
             self.assertEqual(abs(result.effective_hit_tokens - target_tokens), best_error)
+
+
+class SourceTailPromptTest(unittest.TestCase):
+    class CharTokenizer:
+        def encode(self, text, add_special_tokens=False):
+            return [ord(char) for char in text]
+
+        def decode(self, token_ids, skip_special_tokens=False):
+            return "".join(chr(token_id) for token_id in token_ids)
+
+    def setUp(self):
+        self.tokenizer = self.CharTokenizer()
+        self.record = GSMRecord(0, "abcdefgh", "hash")
+        self.case_tokens = tuple(self.tokenizer.encode(self.record.question))
+        self.canonical = CanonicalPrefix(
+            "g0", self.record.question, self.case_tokens, "sha", (0,), ("hash",),
+        )
+
+    def test_source_tail_exact_boundary_keeps_original_ending(self):
+        text, actual, indices, hashes = build_prompt(
+            self.tokenizer, self.canonical, 6, (ord("Z"),), [self.record], 9,
+            source_case_tokens=self.case_tokens,
+        )
+        self.assertEqual(text, "abcdefZgh")
+        self.assertEqual(len(actual), 9)
+        self.assertEqual(text[-2:], self.record.question[-2:])
+        self.assertEqual(indices, (0,))
+        self.assertEqual(hashes, ("hash",))
+
+    def test_source_tail_rejects_prefix_suffix_overlap(self):
+        with self.assertRaisesRegex(ArtifactValidationError, "requires the source case to cover"):
+            build_prompt(
+                self.tokenizer, self.canonical, 6, (ord("Z"),), [self.record], 10,
+                source_case_tokens=self.case_tokens,
+            )
+
+    def test_source_tail_zero_suffix_has_no_source(self):
+        text, actual, indices, hashes = build_prompt(
+            self.tokenizer, self.canonical, 7, (ord("Z"),), [self.record], 8,
+            source_case_tokens=self.case_tokens,
+        )
+        self.assertEqual(text, "abcdefgZ")
+        self.assertEqual(len(actual), 8)
+        self.assertEqual(indices, ())
+        self.assertEqual(hashes, ())
 
 
 if __name__ == "__main__":
