@@ -459,12 +459,13 @@ Generation finishes with `status="prepared"`; `run` changes it to `"complete"`; 
 
 `run`/`analyze` also parse vLLM speculative-decoding metrics: `vllm:spec_decode_num_{draft,accepted,emitted}_tokens[_total]`, plus the optional `vllm:spec_decode_draft_acceptance_rate` and `vllm:spec_decode_efficiency` gauges. Raw cumulative values are stored in `runtime.metrics_baseline.spec_decode` and `runtime.metrics_after.spec_decode`. The actual values for the formal window are stored in `actual.spec_decode`:
 
-- `global_draft_tokens` / `global_accepted_tokens` / `global_emitted_tokens`: counter deltas between the two snapshots;
+- `global_draft_tokens` / `global_accepted_tokens` / `global_emitted_tokens` / `global_drafts`: counter deltas between the two snapshots;
 - `global_draft_acceptance_rate = accepted_delta / draft_delta`;
-- `global_efficiency = emitted_delta / draft_delta`;
+- `global_mean_acceptance_length = 1 + accepted_delta / drafts_delta`;
+- `global_efficiency = emitted_delta / draft_delta` (derived as `(accepted_delta + drafts_delta) / draft_delta` when `emitted_tokens` is absent);
 - `by_dp.<rank>`: `before`, `after`, `deltas`, and the rates above; `covered_ranks` / `missing_ranks` show which ranks contributed.
 
-If the metrics are absent, `status` is `"unavailable"` and the benchmark continues. Missing ranks or counter regressions are reported as `partial` / `counter_regressed`.
+`drafts` and `emitted_tokens` are optional counters; when missing they are reported in `by_dp.<rank>.missing_optional` and do not downgrade `status` to `partial`. If the metrics are absent, `status` is `"unavailable"` and the benchmark continues. Missing required counters or counter regressions are reported as `partial` / `counter_regressed`.
 
 During formal scoring, `run` polls `metrics_url` every `service.poll_interval_seconds` for KV usage. KV is an instantaneous gauge that may return to zero after scoring, so sampling must happen during the run. Samples are stored in `runtime.kv_cache_polling` with interval, count, per-DP peak/average/sample count, global peak/average, and detailed elapsed samples. These values are also copied to `actual.by_dp.*.kv_cache_usage_peak/avg` and global fields; `kv_cache_usage` remains the instantaneous after-snapshot value. Set the interval to 0 to disable polling; an individual failed sample is skipped without aborting the run.
 

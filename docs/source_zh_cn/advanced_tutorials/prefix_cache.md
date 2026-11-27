@@ -351,7 +351,7 @@ jq -r '.runtime.metrics_after.raw_prometheus' "$ANALYSIS" > after.prom
 
 `analyze` 适用于历史结果复核、解析逻辑升级后的重算、外部压测流量分析和 CI 校验；成功的 `run` 已在线完成同样的差分分析，通常无需再次执行。
 
-快照还会解析 vLLM 投机推理指标 `vllm:spec_decode_num_{draft,accepted,emitted}_tokens[_total]`（以及可选的 `vllm:spec_decode_draft_acceptance_rate`、`vllm:spec_decode_efficiency`），写入 `runtime.metrics_baseline.spec_decode` 和 `runtime.metrics_after.spec_decode`。正式阶段的真实数据位于 `actual.spec_decode`：draft/accepted/emitted 均为两次快照的 Counter 差值，`global_draft_acceptance_rate = accepted/draft`，`global_efficiency = emitted/draft`，并按 DP 给出 `before`、`after`、`deltas`。指标缺失不会中断跑分，状态为 `unavailable`；部分 rank 缺失或计数回退分别为 `partial` / `counter_regressed`。
+快照还会解析 vLLM 投机推理指标 `vllm:spec_decode_num_drafts[_total]`、`vllm:spec_decode_num_{draft,accepted,emitted}_tokens[_total]`（以及可选的 `vllm:spec_decode_draft_acceptance_rate`、`vllm:spec_decode_efficiency`），写入 `runtime.metrics_baseline.spec_decode` 和 `runtime.metrics_after.spec_decode`。正式阶段的真实数据位于 `actual.spec_decode`：各 counter 均为两次快照的差值，`global_draft_acceptance_rate = accepted/draft_tokens`，`global_mean_acceptance_length = 1 + accepted/drafts`，`global_efficiency = emitted/draft_tokens`（emitted 缺失时按 `(accepted + drafts)/draft_tokens` 推导），并按 DP 给出 `before`、`after`、`deltas`。只有 `draft_tokens`/`accepted_tokens` 是必需 counter；`drafts`/`emitted_tokens` 缺失只写入 `missing_optional`，不会降级 status。指标缺失不会中断跑分，状态为 `unavailable`；必需指标缺失或计数回退分别为 `partial` / `counter_regressed`。
 
 ***
 

@@ -58,6 +58,8 @@ class ActualSpecDecodeMetrics:
     reason: str | None = None
     covered_ranks: tuple[int, ...] = ()
     missing_ranks: tuple[int, ...] = ()
+    global_drafts: int | None = None
+    global_mean_acceptance_length: float | None = None
 
 
 # Prometheus 文本行的样本正则：metric_name{labels} value
@@ -73,13 +75,17 @@ _ALIASES = {
 # vLLM 投机推理（speculative decoding）指标别名。Counter 在不同版本中可能带
 # `_total` 后缀，也可能不带；按优先级取第一个出现的。
 _SPEC_ALIASES = {
+    "drafts": ("vllm:spec_decode_num_drafts_total", "vllm:spec_decode_num_drafts"),
     "draft_tokens": ("vllm:spec_decode_num_draft_tokens_total", "vllm:spec_decode_num_draft_tokens"),
     "accepted_tokens": ("vllm:spec_decode_num_accepted_tokens_total", "vllm:spec_decode_num_accepted_tokens"),
     "emitted_tokens": ("vllm:spec_decode_num_emitted_tokens_total", "vllm:spec_decode_num_emitted_tokens"),
     "draft_acceptance_rate": ("vllm:spec_decode_draft_acceptance_rate",),
     "efficiency": ("vllm:spec_decode_efficiency",),
 }
-_SPEC_COUNTERS = ("draft_tokens", "accepted_tokens", "emitted_tokens")
+_SPEC_COUNTERS = ("drafts", "draft_tokens", "accepted_tokens", "emitted_tokens")
+# vLLM 0.30 的 Prometheus 指标只有 drafts/draft_tokens/accepted_tokens；
+# emitted_tokens 是旧版 vLLM 的别名，部分服务端不会暴露，不能作为必需 counter。
+_SPEC_REQUIRED_COUNTERS = ("draft_tokens", "accepted_tokens")
 
 
 def _rank(labels: dict[str, str], dp_size: int, mapping: dict[str, int]) -> int:
@@ -281,10 +287,13 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
     """用两次快照求差得到本次运行的投机推理真实数据。
 
     指标缺失时返回 ``status="unavailable"``，不会让主基准流程失败；部分 rank
-    缺失或计数回退时分别标记为 ``partial`` / ``counter_regressed``。
-    真正速率一律用 Counter 差值计算，而不是直接采用 Gauge：
+    缺失必需 counter 或计数回退时分别标记为 ``partial`` / ``counter_regressed``。
+    ``drafts`` 和 ``emitted_tokens`` 是可选 counter：缺失只影响长度/效率推导，
+    不会把 rank 判为 ``partial``。真正速率一律用 Counter 差值计算：
     ``acceptance = accepted_delta / draft_delta``，
-    ``efficiency = emitted_delta / draft_delta``。
+    ``mean_acceptance_length = 1 + accepted_delta / drafts_delta``，
+    ``efficiency = emitted_delta / draft_delta``；emitted 缺失时按
+    ``(accepted_delta + drafts_delta) / draft_delta`` 推导。
     """
     logger.info(
         "[metrics] diff_spec_decode start before_ranks=%s after_ranks=%s",
@@ -324,11 +333,15 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
         old = before_rows.get(rank, {})
         new = after_rows.get(rank, {})
         deltas: dict[str, float | int] = {}
-        missing: list[str] = []
+        missing_required: list[str] = []
+        missing_optional: list[str] = []
         regressed: list[str] = []
         for name in _SPEC_COUNTERS:
             if name not in old or name not in new:
-                missing.append(name)
+                if name in _SPEC_REQUIRED_COUNTERS:
+                    missing_required.append(name)
+                else:
+                    missing_optional.append(name)
                 continue
             delta = new[name] - old[name]
             if delta < 0:
@@ -338,15 +351,26 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
         draft = deltas.get("draft_tokens")
         accepted = deltas.get("accepted_tokens")
         emitted = deltas.get("emitted_tokens")
+        drafts = deltas.get("drafts")
         invalid: list[str] = []
         if not regressed:
             if draft is not None and accepted is not None and accepted > draft:
                 invalid.append("accepted_tokens exceeds draft_tokens")
             if accepted is not None and emitted is not None and emitted < accepted:
                 invalid.append("emitted_tokens is less than accepted_tokens")
-        if missing:
+        if missing_required:
             has_missing_metric = True
-            issues.append(f"DP rank {rank}: missing counters ({', '.join(missing)})")
+            issues.append(
+                f"DP rank {rank}: missing required counters "
+                f"({', '.join(missing_required)})"
+            )
+        if missing_optional:
+            # 可选 counter（drafts/emitted_tokens）缺失只影响长度/效率推导，
+            # 不影响接受率，也不把 rank 降级为 partial。
+            issues.append(
+                f"DP rank {rank}: missing optional counters "
+                f"({', '.join(missing_optional)})"
+            )
         if regressed:
             has_regression = True
             issues.append(f"DP rank {rank}: counter regressed ({', '.join(regressed)})")
@@ -355,12 +379,19 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
             issues.append(f"DP rank {rank}: invalid counter relationship ({'; '.join(invalid)})")
         if regressed or invalid:
             status = "counter_regressed"
-        elif missing:
+        elif missing_required:
             status = "missing_metric"
         else:
             status = "ok"
         rates_available = status in {"ok", "missing_metric"}
-        by_rank[rank] = {
+        if emitted is not None and draft:
+            efficiency = emitted / draft
+        elif accepted is not None and drafts is not None and draft:
+            # emitted 缺失时按旧版语义推导：每步 1 个 bonus token + 接受的草稿。
+            efficiency = (accepted + drafts) / draft
+        else:
+            efficiency = None
+        row: dict[str, Any] = {
             "status": status,
             "before": {
                 name: _json_number(old[name])
@@ -373,9 +404,21 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
                 if name in new
             },
             "deltas": deltas,
-            "draft_acceptance_rate": accepted / draft if rates_available and accepted is not None and draft else None,
-            "efficiency": emitted / draft if rates_available and emitted is not None and draft else None,
+            "draft_acceptance_rate": (
+                accepted / draft
+                if rates_available and accepted is not None and draft
+                else None
+            ),
+            "mean_acceptance_length": (
+                1 + accepted / drafts
+                if rates_available and accepted is not None and drafts
+                else None
+            ),
+            "efficiency": efficiency,
         }
+        if missing_optional:
+            row["missing_optional"] = missing_optional
+        by_rank[rank] = row
     covered_ranks = tuple(
         rank for rank in ranks
         if by_rank[rank]["status"] in {"ok", "missing_metric"}
@@ -389,19 +432,39 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
     draft_total = totals["draft_tokens"]
     accepted_total = totals["accepted_tokens"]
     emitted_total = totals["emitted_tokens"]
+    drafts_total = totals["drafts"]
 
-    def _paired_rate(numerator: str) -> float | None:
+    def _paired_ratio(numerator: str, denominator: str) -> float | None:
         paired = [
             row["deltas"] for row in covered
-            if "draft_tokens" in row["deltas"] and numerator in row["deltas"]
+            if numerator in row["deltas"] and denominator in row["deltas"]
         ]
-        paired_draft = sum(int(row["draft_tokens"]) for row in paired)
-        if not paired or paired_draft <= 0:
+        paired_den = sum(int(row[denominator]) for row in paired)
+        if not paired or paired_den <= 0:
             return None
-        return sum(int(row[numerator]) for row in paired) / paired_draft
+        return sum(int(row[numerator]) for row in paired) / paired_den
 
-    acceptance_rate = _paired_rate("accepted_tokens")
-    efficiency = _paired_rate("emitted_tokens")
+    def _paired_sum_ratio(numerators: tuple[str, ...], denominator: str) -> float | None:
+        paired = [
+            row["deltas"] for row in covered
+            if all(name in row["deltas"] for name in (*numerators, denominator))
+        ]
+        paired_den = sum(int(row[denominator]) for row in paired)
+        if not paired or paired_den <= 0:
+            return None
+        return sum(
+            sum(int(row[name]) for name in numerators) for row in paired
+        ) / paired_den
+
+    acceptance_rate = _paired_ratio("accepted_tokens", "draft_tokens")
+    mean_acceptance_length = _paired_ratio("accepted_tokens", "drafts")
+    if mean_acceptance_length is not None:
+        mean_acceptance_length += 1
+    efficiency = _paired_ratio("emitted_tokens", "draft_tokens")
+    if efficiency is None:
+        # 没有 emitted counter 时按旧版语义推导：
+        # emitted = accepted + bonus(每次 draft 一个)。
+        efficiency = _paired_sum_ratio(("accepted_tokens", "drafts"), "draft_tokens")
     if missing_ranks:
         issues.append(
             "no speculative-decoding metrics for DP ranks: "
@@ -433,14 +496,18 @@ def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpe
         reason=reason,
         covered_ranks=covered_ranks,
         missing_ranks=missing_ranks,
+        global_drafts=drafts_total,
+        global_mean_acceptance_length=mean_acceptance_length,
     )
     logger.info(
-        "[metrics] diff_spec_decode complete status=%s draft=%s accepted=%s emitted=%s acceptance_rate=%s efficiency=%s covered_ranks=%s missing_ranks=%s reason=%s",
+        "[metrics] diff_spec_decode complete status=%s draft=%s accepted=%s emitted=%s drafts=%s acceptance_rate=%s mean_acceptance_length=%s efficiency=%s covered_ranks=%s missing_ranks=%s reason=%s",
         result.status,
         result.global_draft_tokens,
         result.global_accepted_tokens,
         result.global_emitted_tokens,
+        result.global_drafts,
         result.global_draft_acceptance_rate,
+        result.global_mean_acceptance_length,
         result.global_efficiency,
         result.covered_ranks,
         result.missing_ranks,
@@ -457,6 +524,8 @@ def spec_decode_to_dict(actual: ActualSpecDecodeMetrics) -> dict[str, Any]:
         "global_draft_tokens": actual.global_draft_tokens,
         "global_accepted_tokens": actual.global_accepted_tokens,
         "global_emitted_tokens": actual.global_emitted_tokens,
+        "global_drafts": actual.global_drafts,
+        "global_mean_acceptance_length": actual.global_mean_acceptance_length,
         "global_draft_acceptance_rate": actual.global_draft_acceptance_rate,
         "global_efficiency": actual.global_efficiency,
         "covered_ranks": list(actual.covered_ranks),

@@ -507,12 +507,13 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 
 `run`/`analyze` 同时解析 vLLM 投机推理（speculative decoding）指标：`vllm:spec_decode_num_{draft,accepted,emitted}_tokens[_total]`，以及可选的 `vllm:spec_decode_draft_acceptance_rate`、`vllm:spec_decode_efficiency`。baseline 与 after 的原始累计值分别写入 `runtime.metrics_baseline.spec_decode` 和 `runtime.metrics_after.spec_decode`；正式阶段的"真正数据"写入 `actual.spec_decode`：
 
-- `global_draft_tokens` / `global_accepted_tokens` / `global_emitted_tokens`：两次快照 Counter 的差值；
+- `global_draft_tokens` / `global_accepted_tokens` / `global_emitted_tokens` / `global_drafts`：两次快照 Counter 的差值；
 - `global_draft_acceptance_rate = accepted_delta / draft_delta`；
-- `global_efficiency = emitted_delta / draft_delta`；
+- `global_mean_acceptance_length = 1 + accepted_delta / drafts_delta`；
+- `global_efficiency = emitted_delta / draft_delta`（emitted 缺失时按 `(accepted_delta + drafts_delta) / draft_delta` 推导）；
 - `by_dp.<rank>`：该 rank 的 `before`、`after`、`deltas` 及上述速率；`covered_ranks` / `missing_ranks` 标明参与汇总的 rank。
 
-指标不存在时 `status="unavailable"`，不会中断基准流程；部分 rank 缺失或 Counter 回退分别标记为 `partial` / `counter_regressed`。
+`drafts` 与 `emitted_tokens` 是可选 counter，缺失时写入 `by_dp.<rank>.missing_optional`，不会把状态降级为 `partial`。指标不存在时 `status="unavailable"`，不会中断基准流程；缺失必需 counter 或 Counter 回退分别标记为 `partial` / `counter_regressed`。
 
 `run` 在正式跑分期间按 `service.poll_interval_seconds` 周期轮询 `metrics_url` 采样 KV 用量（kv 是瞬时 gauge，跑分结束后会归零，必须在跑分期间采样），结果写入 `runtime.kv_cache_polling`：`interval_seconds`、`count`、`summary`（每 DP 的 `peak`/`avg`/`sample_count` 及 `global_peak`/`global_avg`）与逐样本明细 `samples`（`elapsed_seconds` + 每 DP 用量）。同时把峰值/均值合并进 `actual`：`actual.by_dp.*.kv_cache_usage_peak`、`kv_cache_usage_avg`、`actual.global_kv_cache_usage_peak`、`global_kv_cache_usage_avg`；`actual.by_dp.*.kv_cache_usage` 仍为 after 快照的瞬时值。`poll_interval_seconds` 设为 0 可关闭轮询；单次抓取失败只跳过该样本，不中断跑分。
 

@@ -945,15 +945,18 @@ reset 无法执行但 `assume_empty_cache=true` 时还可能添加 `ASSUME_EMPTY
 | `reason` | 非 `ok` 时的原因说明。 |
 | `global_draft_tokens` | `after - baseline` 的 draft token 总数。 |
 | `global_accepted_tokens` | `after - baseline` 的 accepted token 总数。 |
-| `global_emitted_tokens` | `after - baseline` 的 emitted token 总数；旧版 vLLM 未暴露该指标时为 `null`。 |
+| `global_drafts` | `after - baseline` 的 draft/verify 轮数；服务未暴露 `num_drafts` 时为 `null`。 |
+| `global_mean_acceptance_length` | `1 + global_accepted_tokens / global_drafts`，即平均接受长度；drafts 缺失时为 `null`。 |
+| `global_emitted_tokens` | `after - baseline` 的 emitted token 总数；vLLM 0.30 / DSpark 未暴露该指标时为 `null`。 |
 | `global_draft_acceptance_rate` | `global_accepted_tokens / global_draft_tokens`，即本次运行真实接受率。 |
-| `global_efficiency` | `global_emitted_tokens / global_draft_tokens`，即本次运行真实投机效率。 |
+| `global_efficiency` | `emitted / draft_tokens`；emitted 缺失时按 `(accepted + drafts) / draft_tokens` 推导。 |
 | `covered_ranks` / `missing_ranks` | 参与全局汇总的 DP rank，以及缺失投机指标的 rank。 |
 | `by_dp.<rank>.before` / `after` | 该 rank 两次快照的原始累计值。 |
-| `by_dp.<rank>.deltas` | 该 rank 的 draft/accepted/emitted 差值。 |
-| `by_dp.<rank>.draft_acceptance_rate` / `efficiency` | 用该 rank 差值计算的真实速率。 |
+| `by_dp.<rank>.deltas` | 该 rank 的 drafts/draft/accepted/emitted 差值（缺失的可选指标不出现）。 |
+| `by_dp.<rank>.draft_acceptance_rate` / `mean_acceptance_length` / `efficiency` | 用该 rank 差值计算的真实速率与长度。 |
+| `by_dp.<rank>.missing_optional` | 该 rank 缺失的可选 counter（如 `emitted_tokens`），不影响 status 与接受率汇总。 |
 
-指标不存在时 `status="unavailable"`，不会中断跑分；部分 rank 缺失时为 `partial`；after 小于 before 时为 `counter_regressed`；本次没有 draft token 时为 `no_activity`。
+指标不存在时 `status="unavailable"`，不会中断跑分；缺失必需 counter（`draft_tokens`、`accepted_tokens`）的 rank 或缺失 rank 时为 `partial`；after 小于 before 时为 `counter_regressed`；本次没有 draft token 时为 `no_activity`。`drafts` / `emitted_tokens` 是可选 counter，缺失只影响平均长度/效率推导，不会降级 status。
 
 `runtime.kv_cache_polling` 仅在线 run 存在，表示 AISBench 正式运行期间的周期采样：
 

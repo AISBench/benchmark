@@ -52,6 +52,15 @@ def _spec_metrics(
     ])
 
 
+def _dspark_spec_metrics(engine: str, drafts: int, draft: int, accepted: int) -> str:
+    """DSpark-style metrics: drafts + draft/accepted tokens, no emitted_tokens."""
+    return "\n".join([
+        f'vllm:spec_decode_num_drafts_total{{engine="{engine}"}} {drafts}',
+        f'vllm:spec_decode_num_draft_tokens_total{{engine="{engine}"}} {draft}',
+        f'vllm:spec_decode_num_accepted_tokens_total{{engine="{engine}"}} {accepted}',
+    ])
+
+
 SPEC_BASE_RANK0 = _spec_metrics("engine_0", 100, 60, 80, 0.6, 0.8)
 SPEC_BASE_RANK1 = _spec_metrics("engine_1", 200, 100, 150, 0.5, 0.75)
 SPEC_AFTER_RANK0 = _spec_metrics("engine_0", 300, 200, 260, 0.7, 0.9)
@@ -140,23 +149,62 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(actual.global_draft_tokens, 200)
         self.assertAlmostEqual(actual.global_draft_acceptance_rate, 0.7)
 
-    def test_speculative_decoding_missing_counter_keeps_available_rates(self):
+    def test_speculative_decoding_missing_optional_counter_keeps_status_ok(self):
         after_spec = SPEC_AFTER.replace(
             'vllm:spec_decode_num_emitted_tokens_total{engine="engine_1"} 400\n', "",
         )
         before = parse_metrics(BASE + SPEC_BASE, 2)
         after = parse_metrics(AFTER + after_spec, 2)
         actual = diff_spec_decode(before, after)
-        self.assertEqual(actual.status, "partial")
+        self.assertEqual(actual.status, "ok")
+        self.assertIsNone(actual.reason)
         self.assertEqual(actual.covered_ranks, (0, 1))
         self.assertEqual(actual.global_draft_tokens, 500)
         self.assertEqual(actual.global_accepted_tokens, 300)
         self.assertEqual(actual.global_emitted_tokens, 180)
         self.assertAlmostEqual(actual.global_draft_acceptance_rate, 0.6)
         self.assertAlmostEqual(actual.global_efficiency, 0.9)
-        self.assertAlmostEqual(actual.by_rank[0]["efficiency"], 0.9)
+        self.assertEqual(actual.by_rank[0]["missing_optional"], ["drafts"])
+        self.assertEqual(
+            actual.by_rank[1]["missing_optional"], ["drafts", "emitted_tokens"],
+        )
+        self.assertIsNone(actual.global_drafts)
+        self.assertIsNone(actual.global_mean_acceptance_length)
         self.assertAlmostEqual(actual.by_rank[1]["draft_acceptance_rate"], 160 / 300)
         self.assertIsNone(actual.by_rank[1]["efficiency"])
+
+    def test_dspark_metrics_without_emitted_tokens(self):
+        before = parse_metrics(
+            BASE
+            + _dspark_spec_metrics("engine_0", 50, 350, 200)
+            + "\n"
+            + _dspark_spec_metrics("engine_1", 50, 350, 180),
+            2,
+        )
+        after = parse_metrics(
+            AFTER
+            + _dspark_spec_metrics("engine_0", 150, 1050, 600)
+            + "\n"
+            + _dspark_spec_metrics("engine_1", 150, 1050, 540),
+            2,
+        )
+        actual = diff_spec_decode(before, after)
+        self.assertEqual(actual.status, "ok")
+        self.assertEqual(actual.covered_ranks, (0, 1))
+        self.assertEqual(actual.global_drafts, 200)
+        self.assertEqual(actual.global_draft_tokens, 1400)
+        self.assertEqual(actual.global_accepted_tokens, 760)
+        self.assertAlmostEqual(actual.global_draft_acceptance_rate, 760 / 1400)
+        self.assertAlmostEqual(actual.global_mean_acceptance_length, 4.8)
+        self.assertIsNone(actual.global_emitted_tokens)
+        self.assertAlmostEqual(actual.global_efficiency, (760 + 200) / 1400)
+        self.assertEqual(actual.by_rank[0]["missing_optional"], ["emitted_tokens"])
+        self.assertAlmostEqual(actual.by_rank[0]["mean_acceptance_length"], 5.0)
+        self.assertAlmostEqual(actual.by_rank[0]["efficiency"], (400 + 100) / 700)
+        self.assertAlmostEqual(actual.by_rank[1]["mean_acceptance_length"], 4.6)
+        serialized = spec_decode_to_dict(actual)
+        self.assertEqual(serialized["global_drafts"], 200)
+        self.assertAlmostEqual(serialized["global_mean_acceptance_length"], 4.8)
 
     def test_speculative_decoding_missing_accepted_uses_paired_global_rate(self):
         after_spec = SPEC_AFTER.replace(
