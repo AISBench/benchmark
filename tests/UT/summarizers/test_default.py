@@ -798,6 +798,61 @@ class TestDefaultSummarizer(unittest.TestCase):
                 break
         self.assertTrue(found, "表格中应该包含准确率值")
 
+    @patch('ais_bench.benchmark.summarizers.default.model_abbr_from_cfg_used_in_summarizer')
+    @patch('ais_bench.benchmark.summarizers.default.AISLogger')
+    def test_calculate_group_metrics_mixed_eval_mode_for_non_default_metric(self, mock_ais_logger, mock_model_abbr_from_cfg_used):
+        """非默认指标分支应按各子集 eval_mode 汇总，异构时 group mode 为 mixed（回归 #713 Bug2）。"""
+        mock_model_abbr_from_cfg_used.return_value = "test_model"
+        mock_ais_logger.return_value = MagicMock()
+        if 'path' not in self.config:
+            self.config['path'] = './test_path'
+
+        raw_results = {"test_model": {}}
+        parsed_results = {
+            "test_model": {
+                "test_ds": {"score": 0.8, "accuracy": 0.7},
+                "test_ds2": {"score": 0.6, "accuracy": 0.5},
+            }
+        }
+        dataset_metrics = {"test_ds": ["score", "accuracy"], "test_ds2": ["score", "accuracy"]}
+        # 两子集 eval_mode 不同 → group mode 应为 mixed
+        dataset_eval_mode = {"test_ds": "gen", "test_ds2": "ppl"}
+
+        summary_group = {"name": "group_mix", "subsets": ["test_ds", "test_ds2"]}
+        summarizer = DefaultSummarizer(self.config, summary_groups=[summary_group])
+        summarizer.model_abbrs = ["test_model"]
+        _, _, _, dataset_eval_mode = summarizer._calculate_group_metrics(
+            raw_results, parsed_results, dataset_metrics, dataset_eval_mode)
+
+        self.assertEqual(dataset_eval_mode["group_mix"], "mixed")
+
+    @patch('ais_bench.benchmark.summarizers.default.model_abbr_from_cfg_used_in_summarizer')
+    @patch('ais_bench.benchmark.summarizers.default.AISLogger')
+    def test_calculate_group_metrics_same_eval_mode_for_non_default_metric(self, mock_ais_logger, mock_model_abbr_from_cfg_used):
+        """两子集 eval_mode 相同时，group mode 应为该 mode（回归 #713 Bug2）。"""
+        mock_model_abbr_from_cfg_used.return_value = "test_model"
+        mock_ais_logger.return_value = MagicMock()
+        if 'path' not in self.config:
+            self.config['path'] = './test_path'
+
+        raw_results = {"test_model": {}}
+        parsed_results = {
+            "test_model": {
+                "test_ds": {"score": 0.8, "accuracy": 0.7},
+                "test_ds2": {"score": 0.6, "accuracy": 0.5},
+            }
+        }
+        dataset_metrics = {"test_ds": ["score", "accuracy"], "test_ds2": ["score", "accuracy"]}
+        dataset_eval_mode = {"test_ds": "gen", "test_ds2": "gen"}
+
+        summary_group = {"name": "group_same", "subsets": ["test_ds", "test_ds2"]}
+        summarizer = DefaultSummarizer(self.config, summary_groups=[summary_group])
+        summarizer.model_abbrs = ["test_model"]
+        _, _, _, dataset_eval_mode = summarizer._calculate_group_metrics(
+            raw_results, parsed_results, dataset_metrics, dataset_eval_mode)
+
+        self.assertEqual(dataset_eval_mode["group_same"], "gen")
+
 
 if __name__ == "__main__":
     unittest.main()
