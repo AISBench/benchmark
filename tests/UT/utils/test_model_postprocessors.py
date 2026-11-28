@@ -20,8 +20,9 @@ sys.modules['ais_bench.benchmark.utils.postprocess.postprocessors.xfinder.extrac
 sys.modules['ais_bench.benchmark.utils.postprocess.postprocessors.xfinder.xfinder_utils'] = mock_xfinder_utils
 
 # Now import after patching
-from ais_bench.benchmark.utils import model_postprocessors as mp
 from ais_bench.benchmark.registry import TEXT_POSTPROCESSORS
+from ais_bench.benchmark.utils import model_postprocessors as mp
+from ais_bench.benchmark.utils.postprocess import model_postprocessors as current_mp
 
 
 class TestModelPostprocessors(unittest.TestCase):
@@ -45,6 +46,27 @@ class TestModelPostprocessors(unittest.TestCase):
         """Deprecated module should expose the current public API."""
         self.assertTrue(hasattr(mp, "extract_non_reasoning_content"))
         self.assertTrue(callable(mp.extract_non_reasoning_content))
+
+    def test_deprecated_module_reexports_same_function(self):
+        """Deprecated module should re-export the function object, not copy it."""
+        self.assertIs(
+            mp.extract_non_reasoning_content,
+            current_mp.extract_non_reasoning_content,
+        )
+
+    def test_registry_single_source_after_deprecated_reload(self):
+        """Reloading the deprecated module must not register a second implementation."""
+        import importlib
+
+        importlib.reload(mp)
+        self.assertIs(
+            mp.extract_non_reasoning_content,
+            current_mp.extract_non_reasoning_content,
+        )
+        self.assertIs(
+            TEXT_POSTPROCESSORS.module_dict['extract-non-reasoning-content'],
+            current_mp.extract_non_reasoning_content,
+        )
 
     def test_extract_non_reasoning_content_only_end_token(self):
         """Test extract_non_reasoning_content with only end token."""
