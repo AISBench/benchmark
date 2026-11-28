@@ -11,7 +11,13 @@ COMPARE_REMOTE_BRANCH="master"  # 可选，默认使用scripts/git_utils.sh:COMP
 # 常量路径设置
 PROJECT_PATH=$(realpath `dirname $0`/..)
 SCRIPTS_PATH=$(realpath `dirname $0`)
-export PROJECT_WORKSPACE_PATH=$PROJECT_PATH/RunWorkspace/`date "+%Y-%m-%d_%H-%M-%S"`
+: "${PROJECT_WORKSPACE_PATH:=$PROJECT_PATH/RunWorkspace/$(date '+%Y-%m-%d_%H-%M-%S')}"
+export PROJECT_WORKSPACE_PATH
+export AISBENCH_SMOKE_FAST="${AISBENCH_SMOKE_FAST:-1}"
+case "$AISBENCH_SMOKE_FAST" in
+    0|1) ;;
+    *) echo '[ERROR] AISBENCH_SMOKE_FAST must be 0 or 1'; exit 1 ;;
+esac
 
 MODEL_PATH=$PROJECT_PATH/resource/model
 CREDENTIALS_PATH=$PROJECT_PATH/resource/credentials
@@ -37,7 +43,22 @@ register_cleanup_functions trap_service_cleanup trap_git_remote_cleanup trap_log
 init_logging $PROJECT_WORKSPACE_PATH # 创建日志目录
 
 # --- 检查 AISBench_Smoke 项目是否最新 ---
-check_git_updates "$SCRIPTS_PATH" "$COMPARE_REMOTE" "$COMPARE_REMOTE_BRANCH" "$COMPARE_REMOTE_HTTPS" || exit $ret_failed
+# Remote checks remain the interactive default, not an unattended/CI prerequisite.
+if [ "${SMOKE_CHECK_UPDATES+x}" = x ]; then
+    case "$SMOKE_CHECK_UPDATES" in
+        0|1) check_updates=$SMOKE_CHECK_UPDATES ;;
+        *) echo "[ERROR] SMOKE_CHECK_UPDATES must be 0 or 1"; exit $ret_failed ;;
+    esac
+elif [ -t 0 ] && [ -t "$ORIG_STDOUT_FD" ] && [ -z "${CI:-}" ]; then
+    check_updates=1
+else
+    check_updates=0
+fi
+if [ "$check_updates" = 1 ]; then
+    check_git_updates "$SCRIPTS_PATH" "$COMPARE_REMOTE" "$COMPARE_REMOTE_BRANCH" "$COMPARE_REMOTE_HTTPS" || exit $ret_failed
+else
+    echo "[INFO] Skipping remote update check (SMOKE_CHECK_UPDATES=1 to enable)"
+fi
 
 # 初始化参数数组和clone标志
 declare -a filtered_args=()
@@ -119,14 +140,27 @@ if [ $in_self -eq 1 ]; then
     exit $ret_failed
 fi
 
-pip3 install -r $PROJECT_PATH/requirements.txt
-
-# install benchmark
-REPO_PATH=${PROJECT_PATH}/../
-cd ${REPO_PATH}
-pip3 install -e ./ --use-pep517
-pip3 install -r requirements/extra.txt
-pip3 install -r requirements/datasets/bfcl_dependencies.txt --no-deps
+# Keep dependency setup persistent across RunWorkspace instances. Override the
+# interpreter with AISBENCH_SMOKE_PYTHON, or force via AISBENCH_SMOKE_FORCE_INSTALL=1.
+REPO_PATH=$(realpath "${PROJECT_PATH}/..")
+export AISBENCH_SMOKE_PYTHON="${AISBENCH_SMOKE_PYTHON:-python3}"
+AISBENCH_SMOKE_PYTHON=$("$AISBENCH_SMOKE_PYTHON" -c 'import os, sys; print(os.path.abspath(sys.executable))') || exit $ret_failed
+export PATH="${AISBENCH_SMOKE_PYTHON%/*}:$PATH"
+"$AISBENCH_SMOKE_PYTHON" "$SCRIPTS_PATH/prepare_env.py" --repo "$REPO_PATH" || exit $ret_failed
+if [ -z "${AISBENCH_SMOKE_HISTORY_PATH:-}" ]; then
+    AISBENCH_SMOKE_HISTORY_PATH=$("$AISBENCH_SMOKE_PYTHON" -c '
+import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from prepare_env import cache_path, environment_identity
+path = cache_path(Path(sys.argv[2]), environment_identity())
+print(path.with_name("history-" + path.stem + "-fast" + os.environ["AISBENCH_SMOKE_FAST"] + ".json"))
+' "$SCRIPTS_PATH" "$REPO_PATH") || exit $ret_failed
+fi
+export AISBENCH_SMOKE_HISTORY_PATH
+echo "[profile] AISBENCH_SMOKE_FAST=$AISBENCH_SMOKE_FAST (0 restores original workloads)"
+echo "[timing] persistent history: $AISBENCH_SMOKE_HISTORY_PATH"
+cd "$REPO_PATH" || exit $ret_failed
 
 ## 数据集放置
 target_directory="$REPO_PATH/ais_bench/datasets"
@@ -154,7 +188,7 @@ if [ $clone_flag -eq 1 ]; then
         echo -e "[INFO] 使用模型软链接: $LINK_MODEL_PATH"
 
         # 创建软链接
-        create_symlink "$LINK_REPO_PATH" "$MODEL_PATH/$REPO_NAME" || exit $ret_failed
+        create_symlink "$LINK_MODEL_PATH" "$MODEL_PATH/$REPO_NAME" || exit $ret_failed
 
         # 验证软链接路径
         validate_path "$MODEL_PATH/$REPO_NAME" "模型软链接路径" || exit $ret_failed
@@ -172,7 +206,6 @@ export AISBENCH_SMOKE_MODEL_PATH="$MODEL_PATH/$REPO_NAME"
 
 # ====== 动态端口分配与管理 ======
 cd ${REPO_PATH}/tools/infer_serve_simulator || exit $ret_failed
-pip3 install -r requirements.txt
 
 export AISBENCH_SMOKE_SERVICE_IP=$(hostname -I | awk '{print $1}')
 
@@ -228,6 +261,7 @@ cd ${REPO_PATH}/tools/infer_serve_simulator
 # 后台启动服务（记录PID）
 nohup bash launch_service.sh &> launch_service.log &
 VIRTUAL_SERVICE_PID=$!
+SERVICE_STATUS=0  # Own the starting service too, so failed readiness is cleaned up.
 echo -e "Virtual service PID: $VIRTUAL_SERVICE_PID"
 
 export AISBENCH_SMOKE_SERVICE_PORT=$current_port

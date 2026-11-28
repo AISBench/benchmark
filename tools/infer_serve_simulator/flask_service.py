@@ -36,7 +36,7 @@ def get_active_connections(): # 获取当前服务进程下的连接数
 @app.route('/v1/chat/completions', methods=['POST'])
 def openai_chat_api_general(): # 处理服务的主函数
     req_data = request.get_json()
-    api = OpenAIChatAPI() # 实例化OpenAIChatAPI 类
+    api = OpenAIChatAPI(request_model=req_data.get('model')) # 每个请求独立选择延迟配置
     if not req_data.get("stream", False): # 非流式场景的处理
         return api.generate_text(req_data)
     return api.generate_stream(req_data)
@@ -45,7 +45,7 @@ def openai_chat_api_general(): # 处理服务的主函数
 @app.route('/v1/completions', methods=['POST'])
 def openai_api_general(): # 处理服务的主函数
     req_data = request.get_json()
-    api = OpenAIAPI() # 实例化OpenAIAPI 类
+    api = OpenAIAPI(request_model=req_data.get('model')) # 每个请求独立选择延迟配置
     if not req_data.get("stream", False): # 非流式场景的处理
         return api.generate_text(req_data)
     return api.generate_stream(req_data)

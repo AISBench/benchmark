@@ -25,6 +25,7 @@ from utils import (WorkspaceChange, print_json, change_all_target_key_to_target_
                    have_common_same_key_values, find_all_values, get_spinner_frames)
 from create_excel import create_excel
 from schedule_task import TaskScheduler
+from smoke_timing import CaseTimings, unfinished_names
 
 
 def parse_args():
@@ -150,6 +151,28 @@ def get_test_cases_from_path(test_case_path: str):
                 yield path
 
 
+def get_max_parallel():
+    """Keep the historical default; allow tuning without editing the runner."""
+    try:
+        value = int(os.environ.get('SMOKE_MAX_PARALLEL', '50'))
+    except ValueError as ex:
+        raise ValueError('SMOKE_MAX_PARALLEL must be a positive integer') from ex
+    if value < 1:
+        raise ValueError('SMOKE_MAX_PARALLEL must be a positive integer')
+    return value
+
+
+def append_case_log(log_file):
+    """Preserve full logs without loading an entire case log into memory."""
+    with open(log_file, errors='replace') as case_f:
+        while True:
+            chunk = case_f.read(64 * 1024)
+            if not chunk:
+                break
+            log(chunk, end='', print_enable=False)
+    log('', print_enable=False)
+
+
 def execute_test_cases(execute_config_list:list[dict] , test_case_result = None):
     """
     执行测试用例的主入口函数
@@ -181,8 +204,15 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
 
     # 设置用例执行顺序相关逻辑
     # 创建调度器实例
-    schedule_file = os.path.join(res_path, "others", "execute_time_record.json")
+    schedule_file = os.environ.get('AISBENCH_SMOKE_HISTORY_PATH') or os.path.join(
+        res_path, 'others', 'execute_time_record.json')
     scheduler = TaskScheduler(schedule_file)
+    timings = CaseTimings(workspace_path, len(execute_config_list),
+                          fast=os.environ.get('AISBENCH_SMOKE_FAST') == '1')
+    if test_case_result.get('unexpected'):
+        timings.error('case-discovery')
+        log('[timing] case discovery errors prevent a successful suite', flush=True)
+    log(f"[timing] case records: {timings.path}; history: {schedule_file}", flush=True)
 
     # 排序逻辑：rank_size -> case_tags (此处case_tags排序无意义, 因为是按照rank_size进行并行执行用例, 所有相同的rank一起执行, 无先后顺序)
     execute_test_cases_config_list = sorted(
@@ -206,6 +236,9 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
             return
 
         executor = process_tree[group_id]['executor']
+        # Snapshot live pool workers at cancellation time, not during startup.
+        workers = getattr(executor, '_processes', None) or {}
+        pids = {worker.pid for worker in list(workers.values()) if worker.pid}
 
         try:
             # 立即关闭执行器，取消所有未开始的任务
@@ -214,12 +247,14 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
             log(f"\033[33m关闭执行器失败: {str(e)}\033[0m")
 
         # 终止工作进程及其子进程
-        for pid in process_tree[group_id]['processes']:
+        for pid in pids:
             try:
                 parent = psutil.Process(pid)
+                # Keep descendant handles before the shell exits/reparents them.
+                children = parent.children(recursive=True)
 
                 # 1. 递归终止所有子进程
-                for child in parent.children(recursive=True):
+                for child in children:
                     try:
                         child.terminate()
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -234,7 +269,7 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                 # 3. 统一等待所有进程退出
                 try:
                     _, alive = psutil.wait_procs(
-                        [parent] + parent.children(recursive=True),
+                        [parent] + children,
                         timeout=1.0
                     )
                 except Exception:
@@ -271,7 +306,8 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
     spinner_pulse = itertools.cycle(get_spinner_frames("pulse"))
     spinner_ripple = itertools.cycle(get_spinner_frames("ripple"))
 
-    MAXIMUM_CONCURRENCY_NUM = 50 # 设置最大并行度
+    MAXIMUM_CONCURRENCY_NUM = get_max_parallel()
+    interactive = sys.stderr.isatty()
 
     total_start_time = time.perf_counter()
 
@@ -302,7 +338,7 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 futures = {}
                 group_id = f"rank_{rank}"
-                process_tree[group_id] = {'executor': executor, 'processes': set()}
+                process_tree[group_id] = {'executor': executor}
 
                 stop_spinner = threading.Event()
 
@@ -312,13 +348,19 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                     desc="",
                     dynamic_ncols=True,  # 自适应宽度
                     bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
-                    leave=False
+                    leave=False,
+                    disable=not interactive
                 )
 
                 def update_spinner_animation():
-                    while not stop_spinner.is_set():
-                        time.sleep(0.1)
+                    while not stop_spinner.wait(1.0 if interactive else 30.0):
                         try:
+                            if not interactive:
+                                done = sum(future.done() for future in futures)
+                                log(f"[progress] rank={rank} finished={done}/{group_count} "
+                                    f"unfinished(including queued)=[{unfinished_names(futures)}]",
+                                    flush=True)
+                                continue
                             spinner_info = (
                                                f"| {next(spinner_clock)}"
                                                f" {next(spinner_pulse)}"
@@ -328,7 +370,7 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                                             f"Rank Group {rank}"
                                             f" | Success: {rank_info['success']}"
                                             f" | Failed: {rank_info['failed']}"
-                                            f" | 进程数：{len(process_tree[group_id]['processes'])}"
+                                            f" | 并行上限：{max_workers}"
                                             f" | "
                                             )
                             mem_usage = psutil.virtual_memory().percent
@@ -340,7 +382,6 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
 
                 # 启动旋转动画
                 spinner_thread = threading.Thread(target=update_spinner_animation, daemon=True)
-                spinner_thread.start()
 
                 for config in group_configs:
                     # 获取用例工作目录
@@ -366,31 +407,24 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
 
                     futures[future] = config
 
-                start_time = time.perf_counter()
-                while len(executor._processes) < max_workers:
-                    if time.perf_counter() - start_time > 3.0:
-                        log(f"\033[33m警告: rank组 {rank} 工作进程初始化超时\033[0m")
-                        break
-                    time.sleep(0.1)
-
-                # 获取工作进程PID
-                for worker in executor._processes.values():
-                    try:
-                        pid = worker.pid
-                        if pid:  # 确保pid有效
-                            process_tree[group_id]['processes'].add(pid)
-                    except AttributeError as e:  # worker可能尚未完全初始化
-                        pass
-                    except Exception as e:
-                        log(f"\033[33m获取工作进程PID失败: {str(e)}\033[0m")
-
+                # Start after pool workers have been submitted/forked, not before.
+                spinner_thread.start()
+                processed = 0
                 try:
                     # 7. 处理完成的任务
                     for future in as_completed(futures):
                         config = futures[future]
                         case_name = config.get('case_name', 'unknown')
+                        recorded = False
                         try:
                             case_type, case_name, result = future.result()
+                            duration = timings.record(config, result)
+                            recorded = True
+                            processed += 1
+                            elapsed = f'{duration:.3f}s' if duration is not None else 'unknown'
+                            status = 'PASS' if result.get('success') else 'FAILED'
+                            log(f"[case-result] {processed}/{group_count} {status} "
+                                f"{case_name} elapsed={elapsed}", flush=True)
                             # 从执行中列表移除完成的任务
                             if case_name in cases_record["running_cases"]:
                                 cases_record["running_cases"].remove(case_name)
@@ -404,16 +438,12 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                                 curr_list.append(case_name)
                             # 8. 将日志内容追加到主日志文件
                             log_file = result.get('log_file_path', '')
-                            result_details = ""
                             if log_file and os.path.exists(log_file):
-                                # 追加详细日志内容
-                                with open(log_file, 'r') as case_f:
-                                    result_details = case_f.read()
                                 log(f"\n\n{'=' * 80}\n", print_enable=False)
                                 log(f"Test Case: {case_name} running...", print_enable=False)
                                 log(f"{'=' * 40}\n", print_enable=False)
 
-                                log(result_details, print_enable=False)
+                                append_case_log(log_file)
 
                                 # 在主日志中添加分隔标识
                                 log(f"{'=' * 40}", print_enable=False)
@@ -438,6 +468,12 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                             update_metrics(test_case_result[case_type], result.get("metric_key", []), result)
 
                         except Exception as e:
+                            timings.error(case_name)
+                            if not recorded:
+                                timings.record(config, {'success': False})
+                                processed += 1
+                            log(f"[case-result] {processed}/{group_count} ERROR {case_name} "
+                                f"type={type(e).__name__}", flush=True)
                             log(f"\033[5;31mError processing {case_name}: {str(e)}\033[0m", flush=True, print_enable=False)
 
                         finally:
@@ -475,18 +511,18 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
                     # 确保进度条总是关闭
                     pbar.close()
 
-            # 11. 当前rank组执行完成后等待
+            # The pool context already joined workers; no arbitrary cooldown.
+            process_tree.pop(group_id, None)
             time_period = time.perf_counter() - current_start_time
             log(f"本轮耗时: {time_period:.6f}秒")
             log(f"\n\033[34mCompleted rank group {rank} - (Finished) \033[1;32mSuccess:{rank_info['success']}\033[0m | \033[1;31mFailed {rank_info['failed']}\033[0m", flush=True)
-            if time_period > 3:
-                time.sleep(3)  # 给系统时间释放资源
 
     except KeyboardInterrupt as e:
         result_container['interrupted'] = True
         # 捕获全局中断异常
         log(f"\n\033[1;31m[本轮中断] 本轮测试执行被用户终止\033[0m", flush=True)
     except Exception as e:
+        timings.error('suite')
         log(f"\033[1;31m[本轮错误] 处理任务时发生意外错误: {str(e)}\033[0m", flush=True)
     else:
         log("\n\033[36m[本轮完成] 本轮所有测试用例均完成执行\033[0m", flush=True)
@@ -506,7 +542,11 @@ def execute_test_cases(execute_config_list:list[dict] , test_case_result = None)
         except Exception as e:
             log(f"\033[33m保存调度数据失败: {str(e)}\033[0m")
 
-        log(f"共计耗时: {(time.perf_counter() - total_start_time):.6f}秒")
+        elapsed_s = time.perf_counter() - total_start_time
+        timings.finish(elapsed_s, interrupted=result_container['interrupted'])
+        for index, row in enumerate(timings.slowest(), 1):
+            log(f"[slowest] {index} {row['case_name']} elapsed={row['elapsed_s']:.3f}s", flush=True)
+        log(f"共计耗时: {elapsed_s:.6f}秒")
         log(f"\nTest Execution Finished at {time.ctime()}\n")
     return result_container['record'], result_container['interrupted']
 

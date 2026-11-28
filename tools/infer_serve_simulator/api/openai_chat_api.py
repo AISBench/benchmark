@@ -3,8 +3,8 @@ from api.base_api import BaseAPI
 from flask import Flask, jsonify, request, Response
 
 class OpenAIChatAPI(BaseAPI):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, request_model=None):
+        super().__init__(request_model=request_model)
 
     def generate_text(self, req_data):
         # 非流式场景的处理

@@ -13,3 +13,4 @@ output/
 **/execute_time_record.json
 **/*.html
 .vscode
+.cache/

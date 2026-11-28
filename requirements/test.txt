@@ -5,3 +5,10 @@ pytest-xdist>=3.0.0
 pytest-html>=3.0.0
 pytest-mock>=3.10.0
 coverage>=7.0.0
+
+# Model-free smoke framework and simulator regressions
+PyYAML
+psutil
+tqdm
+xlwt
+Flask

@@ -37,7 +37,7 @@ jobs:
           pip3 install -e plugins/prefix_cache --no-deps -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com --use-pep517
       - name: Run Test
         run: |
-          pip3 install pytest pytest-cov pytest-xdist -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
+          pip3 install -r requirements/test.txt -i https://repo.huaweicloud.com/repository/pypi/simple --trusted-host repo.huaweicloud.com
           python3 tests/run_tests.py tests/UT -p 16
 
       - name: Run Prefix Cache Test
