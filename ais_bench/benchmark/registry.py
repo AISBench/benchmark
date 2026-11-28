@@ -6,6 +6,10 @@ from typing import Callable, List, Optional, Type, Union
 from mmengine.registry import METRICS as MMENGINE_METRICS
 from mmengine.registry import Registry as OriginalRegistry
 
+from ais_bench.benchmark.utils.logging.logger import AISLogger
+
+logger = AISLogger()
+
 
 def load_class(class_path):
     """动态加载类路径并返回类对象"""
@@ -53,12 +57,27 @@ def get_plugin_locations(module_dir):
         for entry_point in entry_points().select(group='ais_bench.benchmark_plugins'):
             try:
                 pkg = entry_point.load()
-                if _submodule_exists(pkg, module_dir):
-                    locations.append(f'{pkg.__name__}.{module_dir}')
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load AISBench plugin entry point '%s' (%s): %s; "
+                    "modules provided by this plugin will be unavailable. "
+                    "Re-run with --debug for the full traceback.",
+                    entry_point.name, entry_point.value, exc,
+                )
+                logger.debug(
+                    "AISBench plugin entry point load failed", exc_info=True)
                 continue
-    except Exception:
-        pass
+            if _submodule_exists(pkg, module_dir):
+                locations.append(f'{pkg.__name__}.{module_dir}')
+            else:
+                logger.debug(
+                    "AISBench plugin '%s' has no submodule '%s', skipped.",
+                    pkg.__name__, module_dir,
+                )
+    except Exception as exc:
+        logger.warning(
+            "Failed to discover AISBench plugin entry points: %s; "
+            "plugin modules may be unavailable.", exc, exc_info=True)
     return locations
 
 

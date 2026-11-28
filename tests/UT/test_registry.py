@@ -84,6 +84,8 @@ class TestRegistry(unittest.TestCase):
             missing_entry_point.load.return_value = SimpleNamespace(
                 __name__='missing_plugin', __path__=[str(missing_root)])
             broken_entry_point = MagicMock()
+            broken_entry_point.name = 'broken_plugin'
+            broken_entry_point.value = 'broken_plugin_pkg:register'
             broken_entry_point.load.side_effect = RuntimeError('broken plugin')
             mock_entry_points.return_value.select.return_value = [
                 valid_entry_point,
@@ -91,8 +93,11 @@ class TestRegistry(unittest.TestCase):
                 broken_entry_point,
             ]
 
-            with patch('builtins.__import__') as mock_import:
-                locations = get_plugin_locations('models')
+            # assertLogs must enter before __import__ is patched, otherwise its
+            # own lazy import is captured by the mock.
+            with self.assertLogs('ais_bench', level='WARNING') as log_ctx:  # noqa: SIM117
+                with patch('builtins.__import__') as mock_import:
+                    locations = get_plugin_locations('models')
 
         self.assertEqual(locations, ['valid_plugin.models'])
         mock_entry_points.return_value.select.assert_called_once_with(
@@ -101,14 +106,43 @@ class TestRegistry(unittest.TestCase):
         missing_entry_point.load.assert_called_once_with()
         broken_entry_point.load.assert_called_once_with()
         mock_import.assert_not_called()
+        broken_logs = [line for line in log_ctx.output if 'broken_plugin' in line]
+        self.assertTrue(broken_logs)
+        self.assertTrue(any('broken_plugin_pkg:register' in line for line in broken_logs))
+        self.assertTrue(any('broken plugin' in line for line in broken_logs))
+        self.assertTrue(any('unavailable' in line for line in broken_logs))
 
     @patch('ais_bench.benchmark.registry.entry_points',
            side_effect=RuntimeError('metadata unavailable'))
     def test_get_plugin_locations_handles_discovery_failure(
             self, mock_entry_points):
         """A metadata discovery failure does not break registry creation."""
-        self.assertEqual(get_plugin_locations('models'), [])
+        with self.assertLogs('ais_bench', level='WARNING') as log_ctx:
+            self.assertEqual(get_plugin_locations('models'), [])
         mock_entry_points.assert_called_once_with()
+        self.assertTrue(
+            any('metadata unavailable' in line for line in log_ctx.output))
+
+    @patch('ais_bench.benchmark.registry.entry_points')
+    def test_get_plugin_locations_logs_missing_submodule_at_debug(
+            self, mock_entry_points):
+        """A discovered plugin without the target submodule is logged at debug."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            plugin_root = root / 'plugin_without_models'
+            plugin_root.mkdir()
+            entry_point = MagicMock()
+            entry_point.load.return_value = SimpleNamespace(
+                __name__='plugin_without_models', __path__=[str(plugin_root)])
+            mock_entry_points.return_value.select.return_value = [entry_point]
+
+            with self.assertLogs('ais_bench', level='DEBUG') as log_ctx:
+                locations = get_plugin_locations('models')
+
+        self.assertEqual(locations, [])
+        self.assertTrue(any(
+            'plugin_without_models' in line and 'models' in line
+            for line in log_ctx.output))
 
     def test_registry_register_module(self):
         """Test Registry register_module method."""
