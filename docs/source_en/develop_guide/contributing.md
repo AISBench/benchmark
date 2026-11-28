@@ -2,6 +2,8 @@
 
 Thank you for your interest in the AISBench evaluation tool! We welcome all forms of contributions, including but not limited to code, documentation, issue reports, and suggestions.
 
+The root [CONTRIBUTING.md](https://github.com/AISBench/benchmark/blob/master/CONTRIBUTING.md) is the canonical contribution guide. This page provides English explanations, environment setup, and component development resources. PR requirements, commit conventions, and quality checks follow that guide; keep both localized guides synchronized when updating these rules.
+
 ## Table of Contents
 
 - [Task Board](#task-board)
@@ -25,8 +27,8 @@ Thank you for your interest in the AISBench evaluation tool! We welcome all form
 We use GitHub Issues to track tasks and issues. Before starting to contribute, we recommend:
 
 1. Check existing [Issues](https://github.com/AISBench/benchmark/issues) to understand current work priorities
-2. For new features or major changes, it is recommended to create an Issue for discussion first
-3. For bug fixes, you can directly submit a Pull Request
+2. Discuss new features or major changes in an Issue and reach agreement before implementation
+3. Every PR must reference an Issue; bug fixes require a corresponding Issue first
 
 ## License
 
@@ -47,9 +49,11 @@ All contributors must ensure:
 2. **Clone Repository**:
 
 ```bash
-git clone https://github.com/AISBench/benchmark.git
+git clone https://github.com/YOUR_GITHUB_ID/benchmark.git
 cd benchmark/
 ```
+
+External contributors should first fork the repository and replace `YOUR_GITHUB_ID` with their GitHub username.
 
 3. **Create Development Environment** (recommended to use Conda):
 
@@ -93,9 +97,9 @@ AISBench adopts a registry-based plugin architecture:
 1. **Create Branch**:
 
 ```bash
-git checkout -b feature/your-feature-name
-# or
-git checkout -b fix/your-bug-fix
+git remote add upstream https://github.com/AISBench/benchmark.git
+git fetch upstream
+git checkout -b feature/your-feature-name upstream/master
 ```
 
 2. **Develop**: Write code, add tests, update documentation
@@ -104,10 +108,16 @@ git checkout -b fix/your-bug-fix
 
 ```bash
 git add .
-git commit -m "feat: Add new feature description"
+git commit -s -m "[feat] Add new feature description"
 ```
 
 4. **Push and Create Pull Request**
+
+Push your contribution branch to your fork and open a PR targeting `AISBench/benchmark` on `master`:
+
+```bash
+git push -u origin feature/your-feature-name
+```
 
 ## Code Checking (Linting)
 
@@ -122,15 +132,14 @@ Before submitting code, please ensure the code complies with the project's code 
 
 ### Code Formatting Tools
 
-It is recommended to use the following tools for code formatting:
+The repository does not currently provide a unified Black/isort configuration. Run the tools only on the files you changed and set the line width to 120 explicitly (Black defaults to 88); do not run formatters across the whole repository:
 
 ```bash
-# Use black for code formatting (if project is configured)
-black ais_bench/
-
-# Use isort for import sorting (if project is configured)
-isort ais_bench/
+black --line-length 120 path/to/changed_file.py
+isort --line-length 120 path/to/changed_file.py
 ```
+
+Note: `black` and `isort` rewrite files in place. Review the diff afterwards to make sure no unrelated changes are included.
 
 ### Static Checking
 
@@ -158,7 +167,7 @@ Project documentation is located in the `docs/` directory:
 
 ### Updating Documentation
 
-- When adding new features, please synchronously update related documentation
+- When adding new features, update the related documentation in both `docs/source_zh_cn/` and `docs/source_en/`
 - When modifying APIs, please update corresponding documentation
 - When adding dataset or model configurations, please provide README.md instructions
 
@@ -191,6 +200,22 @@ pytest tests/UT/test_example.py
 - **Integration Tests**: Test interactions between multiple components
 - **Test Naming**: Use `test_` prefix to name test functions
 - **Test Coverage**: New features should include corresponding test cases, target coverage not less than 80%
+
+For full details see the [pre-submission checks in CONTRIBUTING.md](https://github.com/AISBench/benchmark/blob/master/CONTRIBUTING.md#4-提交前自检) (Chinese). Key checks for English readers:
+
+```bash
+# Unit tests; writes test_reports/test_summary.txt by default
+python3 tests/run_tests.py tests/UT -p 16
+
+# prefix_cache plugin tests (separate report directory)
+python3 tests/run_tests.py plugins/prefix_cache/tests \
+  --source-dirs plugins/prefix_cache/ais_bench_prefix_cache \
+  --output test_reports/prefix_cache
+```
+
+CI requires, for the main repository and the `prefix_cache` plugin separately: `test_summary.txt` must exist, 0 failed cases, Total coverage ≥ 80%, Line coverage ≥ 80%, Branch coverage ≥ 60%. Per-file coverage details are in `test_reports/htmlcov/index.html`.
+
+The `PR Quality Gate` additionally enforces: at most 1000 added lines (`large_pr`), a linked Issue (`no_issue`), at least one submitted review (`no_review`), all inline review threads resolved (`review_opened`), `tests/UT/` changes for Feature PRs or Bugfix PRs with more than 50 added lines (`no_UT`), and at least one PR Type option checked from the template (`no_template`). After fixing, push a new commit or comment `/pr_check` on the PR to re-run the gate.
 
 ## Issues
 
@@ -228,11 +253,12 @@ When proposing feature requests, please explain:
 
 2. **PR Description**:
    - Clearly describe the purpose and changes of the PR
-   - If it resolves an Issue, please use the `Fixes #123` format to associate
+   - Complete the repository [PR template](https://github.com/AISBench/benchmark/blob/master/.github/pull_request_template.md), preserve all sections and the original PR Type option text, and check only applicable completed items
+   - Every PR must reference an Issue: use `Fixes #123` when resolving it or `Relates to #123` when it is related
    - Provide test results or screenshots (if applicable)
 
 3. **Code Review**:
-   - Keep PR size moderate for easy review
+   - Keep each PR focused on one independent change with no more than 1000 added lines
    - Respond to review comments promptly
    - Make modifications based on feedback
 
@@ -241,7 +267,9 @@ When proposing feature requests, please explain:
 1. **Automated Checks**: CI checks will automatically run after PR creation
 2. **Code Review**: Maintainers will review the code
 3. **Modification Feedback**: Make modifications based on review comments
-4. **Merge**: After review passes, maintainers will merge the PR
+4. **Merge**: Maintainers merge after quality checks and applicable CI pass, at least one maintainer approves, and all inline review threads are resolved
+
+Ordinary comments do not replace a formal Review. Inline threads should be confirmed and resolved by the reviewer or a maintainer. See the [Review workflow in CONTRIBUTING.md](https://github.com/AISBench/benchmark/blob/master/CONTRIBUTING.md#5-配合-review) for the complete process.
 
 ## DCO and Signed-off-by
 
@@ -252,7 +280,7 @@ AISBench uses the [Developer Certificate of Origin (DCO)](https://developercerti
 Add a `Signed-off-by` line to the commit message:
 
 ```bash
-git commit -s -m "feat: Add new feature"
+git commit -s -m "[feat] Add new feature"
 ```
 
 The `-s` parameter will automatically add the `Signed-off-by` line.
@@ -284,6 +312,7 @@ Where:
 - `[type]`: Commit type, see type descriptions below
 - `[scope]`: Affected scope (optional), such as models, datasets, docs, etc.
 - `<subject>`: Brief descriptive title
+- Use no space between `]` and a Chinese `<subject>`; use one space before an English `<subject>`
 
 ### Types
 
@@ -293,16 +322,19 @@ Where:
 - `[style]`: Code format adjustment (does not affect functionality)
 - `[refactor]`: Code refactoring
 - `[test]`: Test related
-- `[chore]`: Build process or auxiliary tool changes
+- `[ci/cd]`: CI/CD changes
 - `[perf]`: Performance optimization
+- `[dependency]`: Dependency updates
 
 ### Examples
 
 ```
-[feat][models]Add new model backend support
-[fix][datasets]Fix dataset loading error
-[docs][readme]Update installation instructions
-[test][calculators]Add performance calculator tests
+[feat][models] Add new model backend support
+[fix][datasets] Fix dataset loading error
+[docs][readme] Update installation instructions
+[test][calculators] Add performance calculator tests
+[ci/cd][ci] Update unit test workflow
+[dependency] Update dependency constraints
 ```
 
 ## Code Quality

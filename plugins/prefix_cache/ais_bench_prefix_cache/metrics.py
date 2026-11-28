@@ -20,11 +20,20 @@ class RankMetrics:
 
 
 @dataclass(frozen=True)
+class SpecDecodeSnapshot:
+    """某一时刻抓取的投机推理累计指标（各 rank 的原始计数值）。"""
+    by_rank: dict[int, dict[str, float]]
+    metric_names: dict[str, str]   # 逻辑名 -> 实际 Prometheus 指标名
+
+
+@dataclass(frozen=True)
 class MetricSnapshot:
     """某一时刻抓取的指标快照（各 rank 的累计计数）。"""
     by_rank: dict[int, RankMetrics]
     metric_names: dict[str, str]   # 逻辑名 -> 实际 Prometheus 指标名
     raw_text: str = ""             # 原始 Prometheus 文本
+    spec_decode: SpecDecodeSnapshot | None = None
+    spec_decode_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -34,6 +43,23 @@ class ActualMetrics:
     global_queries: int
     global_hits: int
     global_hit_rate: float | None
+
+
+@dataclass(frozen=True)
+class ActualSpecDecodeMetrics:
+    """两次快照求差后得到的"本次运行"真实投机推理统计。"""
+    by_rank: dict[int, dict[str, Any]]
+    global_draft_tokens: int | None
+    global_accepted_tokens: int | None
+    global_emitted_tokens: int | None
+    global_draft_acceptance_rate: float | None
+    global_efficiency: float | None
+    status: str                    # ok / partial / counter_regressed / no_activity / unavailable
+    reason: str | None = None
+    covered_ranks: tuple[int, ...] = ()
+    missing_ranks: tuple[int, ...] = ()
+    global_drafts: int | None = None
+    global_mean_acceptance_length: float | None = None
 
 
 # Prometheus 文本行的样本正则：metric_name{labels} value
@@ -46,6 +72,20 @@ _ALIASES = {
     "hits": ("vllm:prefix_cache_hits", "vllm:prefix_cache_hits_total", "vllm:gpu_prefix_cache_hits", "vllm:gpu_prefix_cache_hits_total"),
     "kv": ("vllm:kv_cache_usage_perc", "vllm:gpu_cache_usage_perc"),
 }
+# vLLM 投机推理（speculative decoding）指标别名。Counter 在不同版本中可能带
+# `_total` 后缀，也可能不带；按优先级取第一个出现的。
+_SPEC_ALIASES = {
+    "drafts": ("vllm:spec_decode_num_drafts_total", "vllm:spec_decode_num_drafts"),
+    "draft_tokens": ("vllm:spec_decode_num_draft_tokens_total", "vllm:spec_decode_num_draft_tokens"),
+    "accepted_tokens": ("vllm:spec_decode_num_accepted_tokens_total", "vllm:spec_decode_num_accepted_tokens"),
+    "emitted_tokens": ("vllm:spec_decode_num_emitted_tokens_total", "vllm:spec_decode_num_emitted_tokens"),
+    "draft_acceptance_rate": ("vllm:spec_decode_draft_acceptance_rate",),
+    "efficiency": ("vllm:spec_decode_efficiency",),
+}
+_SPEC_COUNTERS = ("drafts", "draft_tokens", "accepted_tokens", "emitted_tokens")
+# vLLM 0.30 的 Prometheus 指标只有 drafts/draft_tokens/accepted_tokens；
+# emitted_tokens 是旧版 vLLM 的别名，部分服务端不会暴露，不能作为必需 counter。
+_SPEC_REQUIRED_COUNTERS = ("draft_tokens", "accepted_tokens")
 
 
 def _rank(labels: dict[str, str], dp_size: int, mapping: dict[str, int]) -> int:
@@ -61,6 +101,54 @@ def _rank(labels: dict[str, str], dp_size: int, mapping: dict[str, int]) -> int:
     if not match:
         raise RuntimeCapabilityError(f"cannot map engine label to DP rank: {value}")
     return int(match.group(1))
+
+
+def _parse_spec_decode(
+    samples: dict[str, list[tuple[dict[str, str], float]]],
+    dp_size: int,
+    mapping: dict[str, int],
+) -> tuple[SpecDecodeSnapshot | None, str | None]:
+    """解析投机推理指标；单个坏样本跳过并报告，不丢弃其他 rank。"""
+    selected = {
+        logical: next((name for name in aliases if name in samples), None)
+        for logical, aliases in _SPEC_ALIASES.items()
+    }
+    selected = {logical: name for logical, name in selected.items() if name is not None}
+    if not selected:
+        return None, None
+    errors: list[str] = []
+    by_rank: dict[int, dict[str, float]] = {}
+    for logical, name in selected.items():
+        for labels, value in samples[name]:
+            try:
+                rank = _rank(labels, dp_size, mapping)
+                if rank < 0 or rank >= dp_size:
+                    raise RuntimeCapabilityError(f"metric contains out-of-range DP rank {rank}")
+            except RuntimeCapabilityError as exc:
+                logger.warning("[metrics] speculative metric sample skipped: %s", exc)
+                errors.append(f"{name} sample skipped: {exc}")
+                continue
+            row = by_rank.setdefault(rank, {})
+            if logical in row:
+                # 多组标签（例如多个 model_name）同时暴露同一指标时，Counter
+                # 求和才是总工作量；Gauge 保留最后一个采样值。
+                if logical in _SPEC_COUNTERS:
+                    logger.warning(
+                        "[metrics] duplicate speculative metric %s for DP rank %d; summing values",
+                        logical, rank,
+                    )
+                    row[logical] += value
+                else:
+                    logger.warning(
+                        "[metrics] duplicate speculative metric %s for DP rank %d; keeping last value",
+                        logical, rank,
+                    )
+                    row[logical] = value
+            else:
+                row[logical] = value
+    if not by_rank:
+        return None, "; ".join(errors) or "no usable speculative-decoding metric samples"
+    return SpecDecodeSnapshot(by_rank, selected), "; ".join(errors) or None
 
 
 def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | None = None) -> MetricSnapshot:
@@ -120,8 +208,9 @@ def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | No
         if hits > queries:
             raise RuntimeCapabilityError(f"Prefix Cache hits exceed queries for DP rank {rank}")
         by_rank[rank] = RankMetrics(queries, hits, row.get("kv"))
+    spec_decode, spec_decode_error = _parse_spec_decode(samples, dp_size, mapping)
     logger.info(
-        "[metrics] parse_metrics complete by_dp=%s",
+        "[metrics] parse_metrics complete by_dp=%s spec_decode=%s",
         {
             str(rank): {
                 "queries": row.queries,
@@ -130,8 +219,9 @@ def parse_metrics(text: str, dp_size: int, engine_label_map: dict[str, int] | No
             }
             for rank, row in by_rank.items()
         },
+        None if spec_decode is None else {"metric_names": spec_decode.metric_names, "by_dp": spec_decode.by_rank},
     )
-    return MetricSnapshot(by_rank, selected, text)
+    return MetricSnapshot(by_rank, selected, text, spec_decode, spec_decode_error)
 
 
 def diff_metrics(before: MetricSnapshot, after: MetricSnapshot) -> ActualMetrics:
@@ -188,6 +278,262 @@ def metrics_to_dict(actual: ActualMetrics) -> dict[str, Any]:
     }
 
 
+def _json_number(value: float) -> float | int:
+    """整数计数写成 JSON 整数，Gauge 保持浮点。"""
+    return int(value) if float(value).is_integer() else value
+
+
+def diff_spec_decode(before: MetricSnapshot, after: MetricSnapshot) -> ActualSpecDecodeMetrics:
+    """用两次快照求差得到本次运行的投机推理真实数据。
+
+    指标缺失时返回 ``status="unavailable"``，不会让主基准流程失败；部分 rank
+    缺失必需 counter 或计数回退时分别标记为 ``partial`` / ``counter_regressed``。
+    ``drafts`` 和 ``emitted_tokens`` 是可选 counter：缺失只影响长度/效率推导，
+    不会把 rank 判为 ``partial``。真正速率一律用 Counter 差值计算：
+    ``acceptance = accepted_delta / draft_delta``，
+    ``mean_acceptance_length = 1 + accepted_delta / drafts_delta``，
+    ``efficiency = emitted_delta / draft_delta``；emitted 缺失时按
+    ``(accepted_delta + drafts_delta) / draft_delta`` 推导。
+    """
+    logger.info(
+        "[metrics] diff_spec_decode start before_ranks=%s after_ranks=%s",
+        sorted(before.spec_decode.by_rank) if before.spec_decode else None,
+        sorted(after.spec_decode.by_rank) if after.spec_decode else None,
+    )
+    if before.spec_decode is None or after.spec_decode is None:
+        reasons: list[str] = []
+        if before.spec_decode is None:
+            reasons.append(before.spec_decode_error or "baseline snapshot has no speculative-decoding metrics")
+        if after.spec_decode is None:
+            reasons.append(after.spec_decode_error or "after snapshot has no speculative-decoding metrics")
+        result = ActualSpecDecodeMetrics(
+            {}, None, None, None, None, None, "unavailable", "; ".join(reasons),
+        )
+        logger.info("[metrics] diff_spec_decode unavailable reason=%s", result.reason)
+        return result
+
+    before_rows = before.spec_decode.by_rank
+    after_rows = after.spec_decode.by_rank
+    ranks = sorted(set(before_rows) | set(after_rows))
+    expected_ranks = sorted(set(before.by_rank) & set(after.by_rank))
+    missing_ranks = tuple(
+        rank for rank in expected_ranks
+        if rank not in before_rows or rank not in after_rows
+    )
+    by_rank: dict[int, dict[str, Any]] = {}
+    issues: list[str] = []
+    if before.spec_decode_error:
+        issues.append(f"baseline snapshot: {before.spec_decode_error}")
+    if after.spec_decode_error:
+        issues.append(f"after snapshot: {after.spec_decode_error}")
+    has_parse_error = bool(issues)
+    has_regression = False
+    has_missing_metric = False
+    for rank in ranks:
+        old = before_rows.get(rank, {})
+        new = after_rows.get(rank, {})
+        deltas: dict[str, float | int] = {}
+        missing_required: list[str] = []
+        missing_optional: list[str] = []
+        regressed: list[str] = []
+        for name in _SPEC_COUNTERS:
+            if name not in old or name not in new:
+                if name in _SPEC_REQUIRED_COUNTERS:
+                    missing_required.append(name)
+                else:
+                    missing_optional.append(name)
+                continue
+            delta = new[name] - old[name]
+            if delta < 0:
+                regressed.append(name)
+                continue
+            deltas[name] = _json_number(delta)
+        draft = deltas.get("draft_tokens")
+        accepted = deltas.get("accepted_tokens")
+        emitted = deltas.get("emitted_tokens")
+        drafts = deltas.get("drafts")
+        invalid: list[str] = []
+        if not regressed:
+            if draft is not None and accepted is not None and accepted > draft:
+                invalid.append("accepted_tokens exceeds draft_tokens")
+            if accepted is not None and emitted is not None and emitted < accepted:
+                invalid.append("emitted_tokens is less than accepted_tokens")
+        if missing_required:
+            has_missing_metric = True
+            issues.append(
+                f"DP rank {rank}: missing required counters "
+                f"({', '.join(missing_required)})"
+            )
+        if missing_optional:
+            # 可选 counter（drafts/emitted_tokens）缺失只影响长度/效率推导，
+            # 不影响接受率，也不把 rank 降级为 partial。
+            issues.append(
+                f"DP rank {rank}: missing optional counters "
+                f"({', '.join(missing_optional)})"
+            )
+        if regressed:
+            has_regression = True
+            issues.append(f"DP rank {rank}: counter regressed ({', '.join(regressed)})")
+        if invalid:
+            has_regression = True
+            issues.append(f"DP rank {rank}: invalid counter relationship ({'; '.join(invalid)})")
+        if regressed or invalid:
+            status = "counter_regressed"
+        elif missing_required:
+            status = "missing_metric"
+        else:
+            status = "ok"
+        rates_available = status in {"ok", "missing_metric"}
+        if emitted is not None and draft:
+            efficiency = emitted / draft
+        elif accepted is not None and drafts is not None and draft:
+            # emitted 缺失时按旧版语义推导：每步 1 个 bonus token + 接受的草稿。
+            efficiency = (accepted + drafts) / draft
+        else:
+            efficiency = None
+        row: dict[str, Any] = {
+            "status": status,
+            "before": {
+                name: _json_number(old[name])
+                for name in (*_SPEC_COUNTERS, "draft_acceptance_rate", "efficiency")
+                if name in old
+            },
+            "after": {
+                name: _json_number(new[name])
+                for name in (*_SPEC_COUNTERS, "draft_acceptance_rate", "efficiency")
+                if name in new
+            },
+            "deltas": deltas,
+            "draft_acceptance_rate": (
+                accepted / draft
+                if rates_available and accepted is not None and draft
+                else None
+            ),
+            "mean_acceptance_length": (
+                1 + accepted / drafts
+                if rates_available and accepted is not None and drafts
+                else None
+            ),
+            "efficiency": efficiency,
+        }
+        if missing_optional:
+            row["missing_optional"] = missing_optional
+        by_rank[rank] = row
+    covered_ranks = tuple(
+        rank for rank in ranks
+        if by_rank[rank]["status"] in {"ok", "missing_metric"}
+        and by_rank[rank]["deltas"]
+    )
+    covered = [by_rank[rank] for rank in covered_ranks]
+    totals: dict[str, int | None] = {}
+    for name in _SPEC_COUNTERS:
+        values = [int(row["deltas"][name]) for row in covered if name in row["deltas"]]
+        totals[name] = sum(values) if values else None
+    draft_total = totals["draft_tokens"]
+    accepted_total = totals["accepted_tokens"]
+    emitted_total = totals["emitted_tokens"]
+    drafts_total = totals["drafts"]
+
+    def _paired_ratio(numerator: str, denominator: str) -> float | None:
+        paired = [
+            row["deltas"] for row in covered
+            if numerator in row["deltas"] and denominator in row["deltas"]
+        ]
+        paired_den = sum(int(row[denominator]) for row in paired)
+        if not paired or paired_den <= 0:
+            return None
+        return sum(int(row[numerator]) for row in paired) / paired_den
+
+    def _paired_sum_ratio(numerators: tuple[str, ...], denominator: str) -> float | None:
+        paired = [
+            row["deltas"] for row in covered
+            if all(name in row["deltas"] for name in (*numerators, denominator))
+        ]
+        paired_den = sum(int(row[denominator]) for row in paired)
+        if not paired or paired_den <= 0:
+            return None
+        return sum(
+            sum(int(row[name]) for name in numerators) for row in paired
+        ) / paired_den
+
+    acceptance_rate = _paired_ratio("accepted_tokens", "draft_tokens")
+    mean_acceptance_length = _paired_ratio("accepted_tokens", "drafts")
+    if mean_acceptance_length is not None:
+        mean_acceptance_length += 1
+    efficiency = _paired_ratio("emitted_tokens", "draft_tokens")
+    if efficiency is None:
+        # 没有 emitted counter 时按旧版语义推导：
+        # emitted = accepted + bonus(每次 draft 一个)。
+        efficiency = _paired_sum_ratio(("accepted_tokens", "drafts"), "draft_tokens")
+    if missing_ranks:
+        issues.append(
+            "no speculative-decoding metrics for DP ranks: "
+            + ", ".join(map(str, missing_ranks))
+        )
+    if not by_rank:
+        status = "unavailable"
+        reason = "no speculative-decoding metrics in either snapshot"
+    elif has_regression:
+        status = "counter_regressed"
+        reason = "; ".join(issues)
+    elif has_missing_metric or missing_ranks or has_parse_error:
+        status = "partial"
+        reason = "; ".join(issues)
+    elif not draft_total:
+        status = "no_activity"
+        reason = "no draft tokens were observed during this run"
+    else:
+        status = "ok"
+        reason = None
+    result = ActualSpecDecodeMetrics(
+        by_rank=by_rank,
+        global_draft_tokens=draft_total,
+        global_accepted_tokens=accepted_total,
+        global_emitted_tokens=emitted_total,
+        global_draft_acceptance_rate=acceptance_rate,
+        global_efficiency=efficiency,
+        status=status,
+        reason=reason,
+        covered_ranks=covered_ranks,
+        missing_ranks=missing_ranks,
+        global_drafts=drafts_total,
+        global_mean_acceptance_length=mean_acceptance_length,
+    )
+    logger.info(
+        "[metrics] diff_spec_decode complete status=%s draft=%s accepted=%s emitted=%s drafts=%s acceptance_rate=%s mean_acceptance_length=%s efficiency=%s covered_ranks=%s missing_ranks=%s reason=%s",
+        result.status,
+        result.global_draft_tokens,
+        result.global_accepted_tokens,
+        result.global_emitted_tokens,
+        result.global_drafts,
+        result.global_draft_acceptance_rate,
+        result.global_mean_acceptance_length,
+        result.global_efficiency,
+        result.covered_ranks,
+        result.missing_ranks,
+        result.reason,
+    )
+    return result
+
+
+def spec_decode_to_dict(actual: ActualSpecDecodeMetrics) -> dict[str, Any]:
+    """把投机推理真实数据序列化为 analysis.json 中的 actual.spec_decode。"""
+    return {
+        "status": actual.status,
+        "reason": actual.reason,
+        "global_draft_tokens": actual.global_draft_tokens,
+        "global_accepted_tokens": actual.global_accepted_tokens,
+        "global_emitted_tokens": actual.global_emitted_tokens,
+        "global_drafts": actual.global_drafts,
+        "global_mean_acceptance_length": actual.global_mean_acceptance_length,
+        "global_draft_acceptance_rate": actual.global_draft_acceptance_rate,
+        "global_efficiency": actual.global_efficiency,
+        "covered_ranks": list(actual.covered_ranks),
+        "missing_ranks": list(actual.missing_ranks),
+        "by_dp": {str(rank): row for rank, row in actual.by_rank.items()},
+    }
+
+
 def summarize_kv_usage(samples: list[dict[int, float | None]]) -> dict[str, Any]:
     """聚合跑分期间轮询得到的 KV 用量样本。
 
@@ -232,10 +578,28 @@ def snapshot_to_dict(snapshot: MetricSnapshot, include_raw: bool = True) -> dict
     }
     if include_raw:
         result["raw_prometheus"] = snapshot.raw_text
+    if snapshot.spec_decode is None:
+        result["spec_decode"] = {
+            "available": False,
+            "reason": snapshot.spec_decode_error,
+        }
+    else:
+        result["spec_decode"] = {
+            "available": True,
+            "metric_names": snapshot.spec_decode.metric_names,
+            "by_dp": {
+                str(rank): {
+                    name: _json_number(value)
+                    for name, value in row.items()
+                }
+                for rank, row in snapshot.spec_decode.by_rank.items()
+            },
+        }
     logger.info(
-        "[metrics] snapshot_to_dict ranks=%s include_raw=%s raw_bytes=%d",
+        "[metrics] snapshot_to_dict ranks=%s include_raw=%s raw_bytes=%d spec_decode_available=%s",
         sorted(snapshot.by_rank),
         include_raw,
         len(snapshot.raw_text.encode("utf-8")) if include_raw else 0,
+        snapshot.spec_decode is not None,
     )
     return result

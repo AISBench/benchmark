@@ -1,0 +1,13 @@
+{
+  "id": "D03",
+  "title": "关键约定仍在正文里（防止被删改）",
+  "dimension": "内容规范",
+  "weight": 1,
+  "why": "「必须带 frontmatter」「规则要可判定」这类硬约定被删掉后，SKILL 会退化成泛泛而谈。",
+  "expect": [
+    {"type": "text_contains", "path": "skill:SKILL.md", "value": [
+      "必须带 YAML frontmatter",
+      "可判定"
+    ]}
+  ]
+}

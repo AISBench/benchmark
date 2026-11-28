@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "destination",
+        "deployment",
+        "bindings"
+      ],
+      "properties": {
+        "stage": {
+          "const": "deploy"
+        },
+        "destination": {
+          "type": "string",
+          "minLength": 1
+        },
+        "deployment": {
+          "$ref": "deploy-plan.schema.json"
+        },
+        "bindings": {
+          "$ref": "deploy-bindings.schema.json"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "destination",
+        "task_id",
+        "cases",
+        "tester"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "service"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "endpoint"
+                ]
+              },
+              {
+                "required": [
+                  "model"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "endpoint",
+            "model"
+          ],
+          "not": {
+            "required": [
+              "service"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "stage": {
+          "const": "eval"
+        },
+        "destination": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+        },
+        "service": {
+          "type": "object",
+          "required": [
+            "endpoint",
+            "model"
+          ],
+          "properties": {
+            "endpoint": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            },
+            "service_id": {
+              "type": "string"
+            }
+          }
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "cases": {
+          "$ref": "external-eval-plan.schema.json#/properties/cases"
+        },
+        "tester": {
+          "$ref": "eval-bindings.schema.json#/$defs/tester"
+        },
+        "policy": {
+          "$ref": "external-eval-plan.schema.json#/properties/policy"
+        },
+        "health_path": {
+          "type": "string",
+          "pattern": "^/[A-Za-z0-9_./-]*$",
+          "maxLength": 256
+        }
+      }
+    }
+  ]
+}

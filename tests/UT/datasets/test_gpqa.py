@@ -69,6 +69,12 @@ class TestGPQA(unittest.TestCase):
         self.assertIn('answer', detail)
         self.assertIn('correct', detail)
 
+    def test_postprocess_dollar_prefixed_final_answer(self):
+        cases = ("Answer: $C", "Answer: A\nAnswer: $C$")
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertEqual(GPQA_Simple_Eval_postprocess(text), "C")
+
     def test_postprocess_no_match(self):
         result = GPQA_Simple_Eval_postprocess("This has no answer pattern")
         self.assertIsNone(result)

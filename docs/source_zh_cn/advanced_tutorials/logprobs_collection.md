@@ -93,7 +93,10 @@ sequenceDiagram
 |------|------|------|
 | `input_tokens` | Int | 输入 token 数量 |
 | `output_tokens` | Int | 输出 token 数量 |
-| `origin_logprobs` | List[Dict\|None] | token logprobs 信息列表，未开启时该字段不落盘 |
+| `origin_logprobs` | List[Dict\|None] | token logprobs 信息列表，未开启时该字段不落盘；开启响应异常检测时不落盘，改由 `logprobs_omitted` 标记 |
+| `logprobs_omitted` | Bool | 仅在「开启响应异常检测」时出现并置为 `true`，用于区分“没有 logprobs”和“为节省磁盘未落盘” |
+
+> **说明**：开启[推理响应异常检测](response_anomaly_detection.md)（`--response-anomaly`）后，逐 token 概率由检测的 `response_anomaly_payload` 采集与压缩归档，因此不再重复写入 predictions，以避免预测文件体积膨胀。该行为由检测开关决定：**只要开关打开，predictions 中就不再包含 `origin_logprobs`**，与检测最终是否成功无关。若该后端未返回 token id、导致检测只能标记为 `skipped`，请关闭异常检测单独采集 logprobs。
 
 ### 性能评测场景
 

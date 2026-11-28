@@ -16,7 +16,16 @@ from urllib.parse import urlsplit, urlunsplit
 
 from .artifacts import artifact_paths, validate_artifacts, write_json
 from .errors import PrefixCacheError, RuntimeCapabilityError
-from .metrics import MetricSnapshot, diff_metrics, metrics_to_dict, parse_metrics, snapshot_to_dict, summarize_kv_usage
+from .metrics import (
+    MetricSnapshot,
+    diff_metrics,
+    diff_spec_decode,
+    metrics_to_dict,
+    parse_metrics,
+    snapshot_to_dict,
+    spec_decode_to_dict,
+    summarize_kv_usage,
+)
 from .pipeline import prepare_scenario
 from .scenario import Scenario, load_scenario, new_execution_timestamp, with_execution_timestamp
 
@@ -85,6 +94,15 @@ def _snapshot_summary(snapshot: MetricSnapshot) -> dict[str, Any]:
                 "kv_cache_usage": row.kv_cache_usage,
             }
             for rank, row in snapshot.by_rank.items()
+        },
+        "spec_decode": {
+            "available": snapshot.spec_decode is not None,
+            "metric_names": (
+                snapshot.spec_decode.metric_names
+                if snapshot.spec_decode is not None
+                else {}
+            ),
+            "reason": snapshot.spec_decode_error,
         },
     }
 
@@ -201,7 +219,17 @@ class VLLMClient:
             logger.info("[runtime] phase=precheck probe rank=%d routed=%s", rank, self.scenario.dp_size > 1)
             self.send_completion(f"prefix-cache-capability-probe-{rank}", 1, rank if self.scenario.dp_size > 1 else None)
         snapshot = self.snapshot()
-        result = {"ok": True, "ranks": sorted(snapshot.by_rank), "metric_names": snapshot.metric_names}
+        result = {
+            "ok": True,
+            "ranks": sorted(snapshot.by_rank),
+            "metric_names": snapshot.metric_names,
+            "spec_decode_available": snapshot.spec_decode is not None,
+            "spec_decode_metric_names": (
+                snapshot.spec_decode.metric_names
+                if snapshot.spec_decode is not None
+                else {}
+            ),
+        }
         logger.info("[runtime] phase=precheck complete result=%s", result)
         return result
 
@@ -567,6 +595,10 @@ def run_scenario(
     logger.info("[runtime] phase=after complete summary=%s", _snapshot_summary(after))
     actual = diff_metrics(baseline, after)
     actual_dict = metrics_to_dict(actual)
+    # 投机推理：baseline/after 两份原始计数已写入 runtime.metrics_*，
+    # 这里再计算本次运行的 Counter 差值与真实接受率/效率。
+    actual_spec_decode = diff_spec_decode(baseline, after)
+    actual_dict["spec_decode"] = spec_decode_to_dict(actual_spec_decode)
     logger.info("[runtime] actual_metrics delta=%s", actual_dict)
     # 跑分期间轮询采样的 KV 用量：峰值/均值合并进 actual，原始样本留在 runtime 供审计。
     kv_summary = summarize_kv_usage([row for _, row in kv_samples])
@@ -648,6 +680,10 @@ def analyze_snapshots(manifest_path: Path | str, baseline_path: Path | str, afte
     baseline = parse_metrics(Path(baseline_path).read_text(encoding="utf-8"), int(service["dp_size"]), service.get("engine_label_map"))
     after = parse_metrics(Path(after_path).read_text(encoding="utf-8"), int(service["dp_size"]), service.get("engine_label_map"))
     actual = diff_metrics(baseline, after)
+    actual_dict = metrics_to_dict(actual)
+    actual_dict["spec_decode"] = spec_decode_to_dict(
+        diff_spec_decode(baseline, after)
+    )
     analysis_path = manifest_file.parent / manifest["artifacts"]["analysis"]["name"]
     analysis = _read_json(analysis_path)
     theory_rate = float(analysis["theoretical_hit_rate"])
@@ -665,7 +701,7 @@ def analyze_snapshots(manifest_path: Path | str, baseline_path: Path | str, afte
             "metrics_baseline": snapshot_to_dict(baseline),
             "metrics_after": snapshot_to_dict(after),
         },
-        "actual": metrics_to_dict(actual),
+        "actual": actual_dict,
         "theory_actual_difference_pp": difference_pp,
         "theory_actual_signed_difference_pp": signed_difference_pp,
         "theory_actual_absolute_difference_pp": difference_pp,

@@ -182,6 +182,8 @@ def do_setup():
             parse_requirements('requirements/runtime.txt'),
             'agent':
             parse_requirements('requirements/agent.txt'),
+            # agentx-harness 必须装在独立 venv/Conda（见 requirements/agentx.txt），
+            # 不提供 extra，避免 pip install .[agentx] 把它装进主环境。
             'full':
             parse_requirements('requirements/extra.txt') +
             parse_requirements('requirements/api.txt') +

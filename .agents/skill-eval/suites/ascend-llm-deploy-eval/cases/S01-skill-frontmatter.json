@@ -1,0 +1,12 @@
+{
+  "id": "S01",
+  "title": "SKILL.md 前置元数据完整，name 与目录名一致",
+  "dimension": "D7 内容与格式规范",
+  "weight": 3,
+  "fixture": "base",
+  "adapter": {"type": "static"},
+  "why": "SKILL 被 Agent 加载依赖 YAML frontmatter 的 name/description；name 与目录名不一致会导致引用失效。这是「写得对不对」的最低门槛。",
+  "expect": [
+    {"type": "frontmatter", "path": "SKILL.md", "require": ["name", "description"], "name_equals_dir": true}
+  ]
+}

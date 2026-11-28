@@ -1,0 +1,18 @@
+{
+  "id": "C03",
+  "title": "accuracy 模式明确拒绝且不回退成性能测试",
+  "dimension": "D1 契约与状态机",
+  "weight": 4,
+  "fixture": "base",
+  "mode": "scripts",
+  "why": "SKILL.md「case.mode=perf 使用原生 AISBench；accuracy 仅预留接口，当前拒绝执行，不回退成性能测试」。静默降级会让用户以为测了精度。",
+  "patch": [
+    {"file": "job_spec.json", "pointer": "/cases/0/mode", "value": "accuracy"}
+  ],
+  "expect": [
+    {"type": "exit_code", "value": 1},
+    {"type": "stderr_contains", "value": "AISBench test mode 'accuracy' is reserved but not implemented"},
+    {"type": "stderr_contains", "value": "no perf fallback"},
+    {"type": "dir_absent", "value": "{run_dir}"}
+  ]
+}

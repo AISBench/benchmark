@@ -108,7 +108,8 @@ class GPQASimpleEvalDataset(BaseDataset):
 
 @TEXT_POSTPROCESSORS.register_module()
 def GPQA_Simple_Eval_postprocess(text: str) -> str:
-    ANSWER_PATTERN = r'(?i)ANSWER\s*:\s*([A-D])'
+    """Extract the last GPQA choice, including optional dollar delimiters."""
+    ANSWER_PATTERN = r'(?i)ANSWER\s*:\s*\$?([A-D])\$?'
     matches = re.findall(ANSWER_PATTERN, text)
     
     if matches:

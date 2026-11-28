@@ -10,11 +10,12 @@ from unittest.mock import patch
 
 from ais_bench_prefix_cache.artifacts import artifact_paths
 from ais_bench_prefix_cache.config import _manifest, build_dataset_config, build_model_config
-from ais_bench_prefix_cache.metrics import MetricSnapshot, RankMetrics
+from ais_bench_prefix_cache.metrics import MetricSnapshot, RankMetrics, SpecDecodeSnapshot
 from ais_bench_prefix_cache.runtime import (
     _expand_aisbench_extra_args,
     _safe_command,
     _safe_url,
+    analyze_snapshots,
     render_aisbench_config,
     run_aisbench_with_polling,
     run_scenario,
@@ -285,11 +286,25 @@ class RuntimeIntegrationTest(unittest.TestCase):
                 {0: RankMetrics(10, 5), 1: RankMetrics(20, 10)},
                 {"queries": "q", "hits": "h"},
                 "before",
+                SpecDecodeSnapshot(
+                    {
+                        0: {"draft_tokens": 100, "accepted_tokens": 60, "emitted_tokens": 80},
+                        1: {"draft_tokens": 200, "accepted_tokens": 100, "emitted_tokens": 150},
+                    },
+                    {"draft_tokens": "d", "accepted_tokens": "a", "emitted_tokens": "e"},
+                ),
             )
             after = MetricSnapshot(
                 {0: RankMetrics(20, 10), 1: RankMetrics(40, 20)},
                 {"queries": "q", "hits": "h"},
                 "after",
+                SpecDecodeSnapshot(
+                    {
+                        0: {"draft_tokens": 300, "accepted_tokens": 200, "emitted_tokens": 260},
+                        1: {"draft_tokens": 500, "accepted_tokens": 260, "emitted_tokens": 400},
+                    },
+                    {"draft_tokens": "d", "accepted_tokens": "a", "emitted_tokens": "e"},
+                ),
             )
 
             class FakeClient:
@@ -330,6 +345,24 @@ class RuntimeIntegrationTest(unittest.TestCase):
             prepare.assert_called_once()
             self.assertEqual(result["status"], "complete")
             self.assertEqual(result["actual"]["global_hit_rate"], 0.5)
+            self.assertEqual(result["actual"]["spec_decode"]["status"], "ok")
+            self.assertEqual(
+                result["actual"]["spec_decode"]["global_draft_tokens"], 500
+            )
+            self.assertAlmostEqual(
+                result["actual"]["spec_decode"]["global_draft_acceptance_rate"],
+                0.6,
+            )
+            self.assertAlmostEqual(
+                result["actual"]["spec_decode"]["global_efficiency"], 0.86
+            )
+            self.assertTrue(
+                result["runtime"]["metrics_baseline"]["spec_decode"]["available"]
+            )
+            self.assertEqual(
+                result["runtime"]["metrics_baseline"]["spec_decode"]["by_dp"]["0"]["draft_tokens"],
+                100,
+            )
             self.assertEqual(result["runtime"]["kv_cache_polling"]["count"], 0)
             self.assertIn("global_kv_cache_usage_peak", result["actual"])
             self.assertTrue(paths.analysis.is_file())
@@ -375,6 +408,72 @@ class RuntimeIntegrationTest(unittest.TestCase):
         self.assertEqual(returncode, 0)
         self.assertEqual([list(row.values())[0] for _, row in samples], [0.5, 0.8, 0.4])
         self.assertEqual(popen_kwargs, {"env": {}})
+
+    def test_analyze_snapshots_recomputes_speculative_decoding(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            manifest_path = root / "manifest.json"
+            analysis_path = root / "analysis.json"
+            baseline_path = root / "baseline.prom"
+            after_path = root / "after.prom"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "effective_config": {
+                            "service": {"dp_size": 1, "engine_label_map": {}},
+                            "validation": {"actual_warning_pp": 5},
+                        },
+                        "artifacts": {"analysis": {"name": "analysis.json"}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            analysis_path.write_text(
+                json.dumps(
+                    {
+                        "theoretical_hit_rate": 0.5,
+                        "warnings": [],
+                        "validation": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            baseline_path.write_text(
+                "\n".join([
+                    'vllm:prefix_cache_queries{engine="0"} 100',
+                    'vllm:prefix_cache_hits{engine="0"} 50',
+                    'vllm:spec_decode_num_draft_tokens_total{engine="0"} 100',
+                    'vllm:spec_decode_num_accepted_tokens_total{engine="0"} 60',
+                    'vllm:spec_decode_num_emitted_tokens_total{engine="0"} 80',
+                ]),
+                encoding="utf-8",
+            )
+            after_path.write_text(
+                "\n".join([
+                    'vllm:prefix_cache_queries{engine="0"} 300',
+                    'vllm:prefix_cache_hits{engine="0"} 250',
+                    'vllm:spec_decode_num_draft_tokens_total{engine="0"} 300',
+                    'vllm:spec_decode_num_accepted_tokens_total{engine="0"} 200',
+                    'vllm:spec_decode_num_emitted_tokens_total{engine="0"} 260',
+                ]),
+                encoding="utf-8",
+            )
+            with patch("ais_bench_prefix_cache.runtime.validate_artifacts"):
+                result = analyze_snapshots(
+                    manifest_path, baseline_path, after_path
+                )
+            self.assertEqual(result["status"], "analyzed")
+            spec = result["actual"]["spec_decode"]
+            self.assertEqual(spec["status"], "ok")
+            self.assertEqual(spec["global_draft_tokens"], 200)
+            self.assertEqual(spec["global_accepted_tokens"], 140)
+            self.assertEqual(spec["global_emitted_tokens"], 180)
+            self.assertAlmostEqual(spec["global_draft_acceptance_rate"], 0.7)
+            self.assertAlmostEqual(spec["global_efficiency"], 0.9)
+            self.assertEqual(
+                result["runtime"]["metrics_after"]["spec_decode"]["by_dp"]["0"]["draft_tokens"],
+                300,
+            )
 
 
 if __name__ == "__main__":
