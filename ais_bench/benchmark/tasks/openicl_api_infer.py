@@ -1,4 +1,5 @@
 import argparse
+import copy
 import os
 import sys
 import threading
@@ -102,14 +103,45 @@ class OpenICLApiInferTask(BaseTask):
                 pass
         self.warmup_size = self.cli_args.get("num_warmups", 1)
         self.task_mode = self.cli_args.get("mode", "infer") if not self.pressure else "pressure"
+        # ===== session-aware concurrency config =====
+        # When session_aware=True, in-flight concurrency is governed by
+        # session_concurrency (max parallel sessions) instead of batch_size.
+        # batch_size falls back to janus queue capacity only. Multi-process
+        # is disabled (see _get_workers_num) to preserve in-session order.
+        self.session_aware = self.model_cfg.get("session_aware", False)
+        self.session_concurrency = self.model_cfg.get(
+            "session_concurrency", self.concurrency
+        )
+        self.pass_agent_hint = self.model_cfg.get("pass_agent_hint", False)
+        # These three are inferencer-only switches, NOT model parameters.
+        # We still need them present in the dumped task config (self.cfg) so the
+        # inference subprocess (which reloads config from the param file) can read
+        # session_aware/session_concurrency/pass_agent_hint. So pop them only from
+        # a LOCAL deepcopy used for model/inferencer construction -- NOT from
+        # self.model_cfg, which aliases self.cfg["models"][0] and is what gets
+        # dumped. (Popping the aliased dict before dump lost the switches and made
+        # the subprocess read session_aware=False / pass_agent_hint=False.)
+        self.model_cfg = copy.deepcopy(self.model_cfg)
+        for _key in ("session_aware", "session_concurrency", "pass_agent_hint"):
+            self.model_cfg.pop(_key, None)
         self.inferencer_cfg = self.dataset_cfgs[0]["infer_cfg"]["inferencer"]
         self.inferencer_cfg["model_cfg"] = self.model_cfg
         self.inferencer_cfg["pressure_time"] = self.pressure_time
         self.inferencer_cfg["mode"] = self.task_mode
         self.inferencer_cfg["batch_size"] = self.model_cfg.get("batch_size", 1)
+        self.inferencer_cfg["session_aware"] = self.session_aware
+        self.inferencer_cfg["session_concurrency"] = self.session_concurrency
+        self.inferencer_cfg["pass_agent_hint"] = self.pass_agent_hint
         self.inferencer_cfg["output_json_filepath"] = self.work_dir
         self.logger.debug(f"Inferencer config: {self.inferencer_cfg}")
         # Control switch for async tasks within process
+        if self.session_aware:
+            self.logger.info(
+                f"[session-aware] enabled, session_concurrency={self.session_concurrency}, "
+                f"pass_agent_hint={self.pass_agent_hint}, "
+                f"batch_size(janus capacity)={self.inferencer_cfg['batch_size']}, "
+                f"multi-process disabled"
+            )
         self.stop_evt = Event()
         self.stop_evt.set()
         self.repeat = self.model_cfg["generation_kwargs"].get("num_return_sequences", 1)
@@ -136,6 +168,9 @@ class OpenICLApiInferTask(BaseTask):
         Returns:
             int: Number of worker processes
         """
+        if self.session_aware:
+            self.logger.info("[session-aware] force single worker process to preserve in-session order")
+            return 1
         if isinstance(WORKERS_NUM, int):
             if WORKERS_NUM > 0:
                 return min(WORKERS_NUM, MAX_WORKERS_NUM)
@@ -505,8 +540,11 @@ class OpenICLApiInferTask(BaseTask):
         message_shms = {}
         # Message queue collecting per-process request state; polled periodically
 
+        processes = []
+        pb_thread = None
+        token_thread = None
+        pb = None
         try:
-            processes = []
             if self.debug:
                 message_shm = create_message_share_memory()
                 message_shms[os.getpid()] = message_shm
@@ -582,8 +620,10 @@ class OpenICLApiInferTask(BaseTask):
             # Wait for all subprocesses to finish, timeout 1 minute and force terminate
             self.logger.warning(f"Keyboard interrupt!!! Task [{task_abbr_from_cfg(self.cfg)}] will be terminated")
             self.stop_evt.set()
-            pb_thread.join()
-            pb.set_message_flag(1)
+            if pb_thread is not None:
+                pb_thread.join()
+            if pb is not None:
+                pb.set_message_flag(1)
             if processes:
                 for p in processes:
                     p.join(timeout=TASK_WAIT_TIME)
@@ -597,9 +637,12 @@ class OpenICLApiInferTask(BaseTask):
                         p.join(timeout=TASK_WAIT_TIME)
         finally:
             self.stop_evt.set()
-            pb_thread.join()
-            pb.set_message_flag(1)
-            token_thread.join()
+            if pb_thread is not None:
+                pb_thread.join()
+            if pb is not None:
+                pb.set_message_flag(1)
+            if token_thread is not None:
+                token_thread.join()
             for pid, shm in message_shms.items():
                 self._cleanup_shms(shm)
             self._cleanup_shms(dataset_shm)

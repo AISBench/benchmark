@@ -113,6 +113,17 @@ class DatasetReader:
         else:
             return None
 
+    def get_session_id(self):
+        """Return the session_id column if declared in input_columns.
+
+        Symmetric to ``get_timestamp``. The dataset config must list
+        ``session_id`` in ``reader_cfg['input_columns']`` for this to hit;
+        otherwise None is returned and the inferencer falls back to the
+        non-session-aware path.
+        """
+        if "session_id" in self.input_columns and "session_id" in self.dataset['test'].features:
+            return self.dataset['test']['session_id']
+        return None
 
 def load_partial_dataset(
         dataset: Dataset,

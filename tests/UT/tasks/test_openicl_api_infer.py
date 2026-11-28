@@ -109,6 +109,7 @@ class TestOpenICLApiInferTask(unittest.TestCase):
         task.pressure_time = task.cli_args.get("pressure_time")
         task.warmup_size = task.cli_args.get("num_warmups", 1)
         task.task_mode = task.cli_args.get("mode", "infer") if not task.pressure else "pressure"
+        task.session_aware = task.model_cfg.get("session_aware", False)
         task.inferencer_cfg = task.dataset_cfgs[0]["infer_cfg"]["inferencer"]
         task.inferencer_cfg["model_cfg"] = task.model_cfg
         task.inferencer_cfg["pressure_time"] = task.pressure_time
