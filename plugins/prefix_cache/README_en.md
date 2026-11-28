@@ -401,7 +401,9 @@ Full audit data contains these fixed fields:
 | `max_tokens` | Maximum output tokens. |
 | `shared_prefix_tokens` | Shared-prefix tokens used by this request. |
 | `seed_tokens` | Globally unique seed length. |
-| `natural_suffix_tokens` | GSM8K natural suffix after the seed. |
+| `natural_suffix_tokens` | Retained natural-corpus tokens after the seed, excluding boundary-repair padding. |
+| `suffix_padding_tokens` | Optional safe-padding count for suffix repair; omitted when zero. |
+| `boundary_repairs` | Optional prefix/suffix boundary repairs affecting this request; omitted when empty. |
 | `question` | Final complete prompt. |
 | `answer` | AISBench-compatible placeholder, currently `"none"`. |
 | `gsm_indices` | Zero-based GSM8K rows used for the natural suffix. |
@@ -426,6 +428,10 @@ Minimal input rows always write `question`, then `answer`, and optionally the th
 - `max_tokens` or `output_tokens`: optional maximum output length.
 
 `full.jsonl` always retains `max_tokens`. Routing and audit fields remain there and do not pollute the generic request format.
+
+Generation retains full token round-trip validation. If a token cut breaks the byte sequence of an emoji, Chinese character, or similar text, bounded repair replaces unstable segment edges with equal-length safe padding. Group canonical prefixes are repaired once at every requested cut, freezing already verified shorter prefixes; requests never repair shared prefixes independently. Suffix repair preserves the prefix, seed, and total input length. Stable prompts retain the original fast path. Each failing boundary permits at most 64 candidates and replacement of at most 32 tokens across both segment edges. Failure raises an error instead of bypassing validation or relaxing lengths.
+
+Each `boundary_repairs` entry contains `region` (`suffix` or `canonical:<group_id>`), zero-based half-open `start_token`/`end_token`, `removed_head_tokens`, `removed_tail_tokens`, `padding_tokens`, `padding_token_id`, and `attempts`. Canonical repairs also appear in Manifest `groups.<group_id>.boundary_repairs`. Corpus indices/hashes identify source samples before repair; artificial padding is not attributed to those samples. Input length equals `shared_prefix_tokens + seed_tokens + natural_suffix_tokens + suffix_padding_tokens`, treating omitted padding as zero. Clear stale service caches and warm up using the new master before measuring repaired data.
 
 ### `<run_id>.manifest.json`
 

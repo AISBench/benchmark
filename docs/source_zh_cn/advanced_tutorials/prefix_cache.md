@@ -511,7 +511,9 @@ outputs/gsm8k-prefix-cache-60_20260825_123456/
 | `max_tokens`                    | 该请求允许生成的最大 token 数。                             |
 | `shared_prefix_tokens`          | 可复用公共前缀的 token 数。                               |
 | `seed_tokens`                   | 全局唯一 seed 的 token 数。                            |
-| `natural_suffix_tokens`         | 自然后缀的 token 数。                                  |
+| `natural_suffix_tokens`         | 保留的自然语料后缀 token 数，不含边界修补填充。 |
+| `suffix_padding_tokens`         | 可选；后缀边界修补的安全填充 token 数，零时省略。 |
+| `boundary_repairs`              | 可选；片段修补区域、范围、两端移除数、填充 token 及尝试次数。Group 母版修补还记录在 Manifest 的 `groups.<group_id>.boundary_repairs` 中。 |
 | `question`                      | 公共前缀、seed 和后缀组成的完整 Prompt。                      |
 | `answer`                        | AISBench 参考答案。                                  |
 | `gsm_indices`                   | 自然后缀使用的 GSM8K 零基行号。                             |

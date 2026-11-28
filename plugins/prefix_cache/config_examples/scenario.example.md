@@ -699,7 +699,9 @@ JSONL 文件没有包裹数组，必须逐行解析；JSON 文件是一个完整
 | `max_tokens` | integer | 最大输出 token 数。 |
 | `shared_prefix_tokens` | integer | 求解器为该请求选择的公共前缀长度。 |
 | `seed_tokens` | integer | 全局唯一 seed 的 token 数。 |
-| `natural_suffix_tokens` | integer | seed 后 GSM8K 自然后缀的 token 数。 |
+| `natural_suffix_tokens` | integer | seed 后保留的自然语料 token 数，不含边界修补填充。 |
+| `suffix_padding_tokens` | integer，可选 | 后缀边界安全填充数，零时省略；输入总长度仍保持配置值。 |
+| `boundary_repairs` | array，可选 | 修补记录；无修补时省略。 |
 | `question` | string | 最终完整 prompt。 |
 | `answer` | string | 当前固定为 `"none"`。 |
 | `gsm_indices` | array[integer] | 本请求自然后缀使用的 GSM8K 零基行号。 |
@@ -813,6 +815,8 @@ Manifest 顶层字段：
 | `target_absolute_difference_pp` | 上述差值的绝对值。 |
 
 ### 16.5 `groups.<group_id>`
+
+可选 `boundary_repairs` 记录 Group 统一母版修补，所有请求的共享前缀都从修补后的同一母版截取。每项含 `region`、`start_token`、`end_token`（零基左闭右开）、`removed_head_tokens`、`removed_tail_tokens`、`padding_tokens`、`padding_token_id`、`attempts`。full 行的同名字段还可包含 `region="suffix"` 的后缀修补。每个失败边界最多 64 次尝试、调整两端共最多 32 个 token，必须保持长度并通过完整 token round-trip。`gsm_indices`/hash 是修补前来源，填充通过修补记录区分。完整输入长度为公共前缀、seed、自然后缀及可选 `suffix_padding_tokens` 之和；不新增 Scenario 配置项。
 
 - `canonical_prefix_sha256`、`canonical_prefix_tokens`：canonical 前缀指纹和总 token 数；
 - `max_shared_prefix_tokens`：该组正式请求使用的最大公共前缀长度；

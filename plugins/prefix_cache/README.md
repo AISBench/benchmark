@@ -432,7 +432,9 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 | `max_tokens` | 最大输出 token 数。 |
 | `shared_prefix_tokens` | 本请求使用的公共前缀 token 数。 |
 | `seed_tokens` | 全局唯一 seed 的 token 数。 |
-| `natural_suffix_tokens` | seed 后 GSM8K 自然后缀的 token 数。 |
+| `natural_suffix_tokens` | seed 后保留的自然语料 token 数，不包含边界修补填充。 |
+| `suffix_padding_tokens` | 可选；后缀边界修补使用的安全填充 token 数，零时省略。 |
+| `boundary_repairs` | 可选；本请求涉及的公共前缀及后缀边界修补记录，无修补时省略。 |
 | `question` | 最终完整 prompt。 |
 | `answer` | AISBench 兼容占位值，当前固定为 `"none"`。 |
 | `gsm_indices` | 本请求自然后缀使用的 GSM8K 零基行号。 |
@@ -457,6 +459,12 @@ ais-bench-prefix-cache run --scenario ./scenario.json
 - `max_tokens` 或 `output_tokens`：可选；值为该请求最大输出 token 数。默认 `output_key=null`，两者都不写。
 
 `full.jsonl` 始终保留 `max_tokens`。DP 路由等字段也只存在于 full 文件，不污染通用请求格式。
+
+生成时保留完整 token round-trip 校验。若按 token 截断切开 emoji、中文等字符的字节序列，会在固定预算内修补片段两端，并用安全 token 等长填充。公共前缀按 Group 在所有实际使用的长度处统一修补母版，固定已确认的短前缀；每条请求使用同一母版，不能自行修改公共前缀。后缀修补保留公共前缀、seed 和输入总长度，正常请求保持原快速路径。每个失败边界最多尝试 64 个候选，最多调整片段两端共 32 个 token；完整上下文校验不通过则明确报错，不跳过校验或放宽长度。
+
+`boundary_repairs` 每项包含 `region`（`suffix` 或 `canonical:<group_id>`）、`start_token`/`end_token`（零基、左闭右开范围）、`removed_head_tokens`、`removed_tail_tokens`、`padding_tokens`、`padding_token_id` 和 `attempts`。Group 母版的修补还记录在 Manifest 的 `groups.<group_id>.boundary_repairs` 中。语料索引/hash 指向修补前的来源样本，不代表人工填充来自该样本。输入长度满足 `shared_prefix_tokens + seed_tokens + natural_suffix_tokens + suffix_padding_tokens`，缺省填充数按零处理。
+
+修补后的最终命中量仍按原水位模型核验；复用服务时应清理旧缓存，warmup 场景使用新母版重新预热。
 
 ### `<run_id>.manifest.json`
 

@@ -501,6 +501,8 @@ Each row writes `question`, then `answer`, then the optional `max_tokens`/`outpu
 | `dp_rank`, `lane_sequence` | Cold target DP and lane sequence; null when not applicable. |
 | `target_input_tokens`, `actual_input_tokens`, `max_tokens` | Configured/retokenized input and output lengths. |
 | `shared_prefix_tokens`, `seed_tokens`, `natural_suffix_tokens` | Three prompt components. |
+| `suffix_padding_tokens` | Optional suffix repair padding, excluded from `natural_suffix_tokens`; omitted when zero. |
+| `boundary_repairs` | Optional repairs affecting the shared prefix or suffix; omitted when empty. |
 | `question`, `answer` | Final prompt and AISBench placeholder (`none`). |
 | `gsm_indices`, `gsm_hashes` | Natural-suffix corpus rows and normalized-question hashes. |
 | `canonical_prefix_sha256`, `seed_sha256` | Group prefix and unique-seed fingerprints. |
@@ -510,6 +512,8 @@ Each row writes `question`, then `answer`, then the optional `max_tokens`/`outpu
 | `divergence_block_sha256`, `divergence_unique`, `collision_status` | Difference fingerprint, uniqueness check, and collision result. |
 
 ## 16. Complete Manifest fields
+
+Optional `groups.<group_id>.boundary_repairs` records repairs to the single Group master shared by all requests. Entries contain `region`, zero-based half-open `start_token`/`end_token`, `removed_head_tokens`, `removed_tail_tokens`, `padding_tokens`, `padding_token_id`, and `attempts`. The same field in a full row may also contain `region="suffix"` repairs. Each failing boundary has at most 64 attempts and may replace up to 32 tokens across both segment edges, preserving length and passing full token round-trip validation. Corpus row/hash provenance refers to source material before repair, not artificial padding. Input length equals shared prefix + seed + natural suffix + optional suffix padding. No new Scenario settings are required.
 
 | Field | Meaning |
 |---|---|

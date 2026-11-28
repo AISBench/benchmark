@@ -147,6 +147,7 @@ def _build_prompt_with_seed_retry(
     random_seed: int,
     token_cache: CorpusTokenCache | None = None,
     source_case_tokens: Sequence[int] | None = None,
+    boundary_repairs: list[dict[str, Any]] | None = None,
 ):
     """构造 prompt；若 round-trip 失败则换一个唯一 seed 重试，最多 64 次。"""
     logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s prefix_len=%d target_tokens=%d seed_length=%d random_seed=%d rotated_pool=%d source_case=%s", request_id, prefix_len, target_tokens, seed_length, random_seed, len(rotated_pool), len(source_case_tokens) if source_case_tokens is not None else None)
@@ -155,6 +156,7 @@ def _build_prompt_with_seed_retry(
             result = build_prompt(
                 tokenizer, canonical, prefix_len, seeds[request_id], rotated_pool,
                 target_tokens, token_cache, source_case_tokens,
+                safe_ids=safe_ids, boundary_repairs=boundary_repairs,
             )
             logger.info("[prepare] _build_prompt_with_seed_retry request_id=%s attempt=%d ok", request_id, attempt)
             return result
@@ -389,19 +391,27 @@ def _generate_request_plans(
             "[prepare] build plan index=%d request_id=%s group=%s occurrence=%d prefix_len=%d pool_size=%d rotation_offset=%d",
             index, request_id, group, occurrence, prefix_len, len(pool), rotation_offset,
         )
+        repairs = [
+            dict(detail) for detail in canonical[group].boundary_repairs
+            if detail["start_token"] < prefix_len
+        ]
         text, tokens, suffix_indices, suffix_hashes = _build_prompt_with_seed_retry(
             tokenizer, canonical[group], prefix_len, seeds, request_id,
             rotated_pool, input_lengths[index], safe_ids, seed_length,
             request_random_seeds[request_id], corpus_token_cache,
-            source_case_tokens.get(group) if source_case_tokens is not None else None,
+            source_case_tokens=source_case_tokens.get(group) if source_case_tokens is not None else None,
+            boundary_repairs=repairs,
         )
+        suffix_padding = sum(detail["padding_tokens"] for detail in repairs if detail["region"] == "suffix")
         seed_hash = hashlib.sha256(str(seeds[request_id]).encode()).hexdigest()
         plan = RequestPlan(
             request_id, index, group, occurrence, ranks[index], lanes[index],
             input_lengths[index], len(tokens), output_lengths[index], prefix_len,
-            seed_length, len(tokens) - prefix_len - seed_length, text, "none",
+            seed_length, len(tokens) - prefix_len - seed_length - suffix_padding, text, "none",
             suffix_indices, suffix_hashes, canonical[group].sha256, seed_hash,
             request_random_seed=request_random_seeds[request_id],
+            suffix_padding_tokens=suffix_padding,
+            boundary_repairs=tuple(repairs),
         )
         plans.append(plan)
         logger.info(
@@ -623,6 +633,7 @@ def _build_prepared_manifest(
                 "reachable_min": solve.group_reachability[group]["min_reachable_rate"],
                 "reachable_max": solve.group_reachability[group]["max_reachable_rate"],
                 "theoretical_hit_rate": theory.group_stats[group]["hit_rate"],
+                **({"boundary_repairs": list(item.boundary_repairs)} if item.boundary_repairs else {}),
             }
             for group, item in canonical.items()
         },
@@ -748,7 +759,10 @@ def prepare_scenario(
         solve.effective_hit_rate, solve.min_reachable_rate, solve.max_reachable_rate,
         solve.target_reachable, solve.adjusted, solve.reason,
     )
-    max_by_group = {group: max((prefix for prefix, current in zip(solve.shared_prefix_tokens, groups) if current == group), default=0) for group in sorted(set(groups))}
+    prefix_lengths: dict[str, set[int]] = {}
+    for group, prefix in zip(groups, solve.shared_prefix_tokens):
+        prefix_lengths.setdefault(group, set()).add(prefix)
+    max_by_group = {group: max(lengths) for group, lengths in prefix_lengths.items()}
     group_sources: dict[str, Sequence[GSMRecord]] = {
         group: group_pools[group] for group in sorted(set(groups))
     }
@@ -760,14 +774,18 @@ def prepare_scenario(
     # 阶段6：加载 tokenizer，为每个组构造 canonical 前缀并选出边界安全的 seed token。
     tokenizer = (tokenizer_loader or _tokenizer_loader)(scenario)
     logger.info("[prepare] tokenizer=%s vocab_size=%d", f"{tokenizer.__class__.__module__}.{tokenizer.__class__.__qualname__}", len(tokenizer))
-    canonical = build_canonical_prefixes(tokenizer, group_sources, max_by_group, scenario.block_size)
-    logger.info("[prepare] canonical=%s", {group: {"sha256": item.sha256, "tokens": len(item.token_ids), "source_count": len(item.gsm_indices), "source_preview": item.gsm_indices[:5]} for group, item in canonical.items()})
+    safe_ids = find_boundary_safe_token_ids(tokenizer, max(2, min(64, len(tokenizer))))
+    canonical = build_canonical_prefixes(
+        tokenizer, group_sources, max_by_group, scenario.block_size,
+        prefix_lengths={group: sorted(lengths) for group, lengths in prefix_lengths.items()},
+        safe_ids=safe_ids,
+    )
+    logger.info("[prepare] canonical=%s", {group: {"sha256": item.sha256, "tokens": len(item.token_ids), "source_count": len(item.gsm_indices), "source_preview": item.gsm_indices[:5], "boundary_repairs": len(item.boundary_repairs)} for group, item in canonical.items()})
     source_case_tokens = (
         _source_case_tokens_by_group(tokenizer, canonical, group_pools)
         if corpus_cfg.get("suffix_mode") == "source_tail"
         else None
     )
-    safe_ids = find_boundary_safe_token_ids(tokenizer, max(2, min(64, len(tokenizer))))
     logger.info("[prepare] safe_ids count=%d safe_ids=%s", len(safe_ids), safe_ids)
     # 阶段7：为每条请求生成唯一 seed，再按 shared_prefix + seed + 自然后缀拼 prompt。
     request_ids, request_random_seeds, seeds = _build_request_seed_material(

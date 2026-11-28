@@ -513,7 +513,9 @@ The plaintext `service.api_key` is not stored in the Manifest; only `api_key_con
 | `max_tokens` | Maximum tokens allowed for this response. |
 | `shared_prefix_tokens` | Number of reusable shared-prefix tokens. |
 | `seed_tokens` | Number of globally unique seed tokens. |
-| `natural_suffix_tokens` | Number of natural-suffix tokens. |
+| `natural_suffix_tokens` | Retained natural-suffix tokens, excluding boundary-repair padding. |
+| `suffix_padding_tokens` | Optional safe-padding count for suffix boundary repair; omitted when zero. |
+| `boundary_repairs` | Optional repair regions/ranges, removed edge counts, padding token, and attempt count. Group master repairs also appear in Manifest `groups.<group_id>.boundary_repairs`. |
 | `question` | Complete Prompt composed of prefix, seed, and suffix. |
 | `answer` | AISBench reference answer. |
 | `gsm_indices` | Zero-based GSM8K rows used by the natural suffix. |
