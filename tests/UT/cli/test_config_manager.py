@@ -157,6 +157,7 @@ class TestConfigManager(unittest.TestCase):
         self.args.path = None
         self.args.model_name = None
         self.args.request_rate = None
+        self.args.prefill_concurrency = None
         self.args.retry = None
         self.args.api_key = None
         self.args.host_ip = None
@@ -480,6 +481,16 @@ class TestConfigManager(unittest.TestCase):
 
         self.assertEqual(model['url'], 'http://example.com/v1')
         self.assertNotIn('api_key', model)
+
+    def test_apply_cli_api_model_overrides_adds_prefill_concurrency(self):
+        """prefill_concurrency 默认关闭，CLI 可将其加入已有模型配置"""
+        self.args.prefill_concurrency = 8
+        config_manager = ConfigManager(self.args)
+        model = {'type': VLLMCustomAPI, 'stream': True}
+
+        config_manager._apply_cli_api_model_overrides([model])
+
+        self.assertEqual(model['prefill_concurrency'], 8)
 
     def test_apply_cli_api_model_overrides_generation_kwargs(self):
         """--generation-kwargs 整体替换配置中的 generation_kwargs"""
@@ -887,6 +898,65 @@ class TestConfigManager(unittest.TestCase):
         mock_update_workflow.assert_called_once_with(mock_workflow)
         mock_dump_reload.assert_called_once()
         self.assertEqual(result, config_manager.cfg)
+
+    @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._update_and_init_work_dir')
+    @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._get_config_from_arg')
+    def test_load_config_rejects_schedule_conflict_before_task_setup(
+        self, mock_get_config, mock_update_work_dir
+    ):
+        mock_get_config.return_value = {
+            'models': [{
+                'abbr': 'vllm-api-stream-chat',
+                'stream': True,
+                'prefill_concurrency': 4,
+                'request_rate': 4,
+            }],
+            'datasets': [],
+        }
+        config_manager = ConfigManager(self.args)
+
+        with self.assertRaisesRegex(
+            AISBenchConfigError,
+            'prefill_concurrency=4 conflicts with request_rate/traffic_cfg',
+        ):
+            config_manager.load_config([])
+
+        mock_update_work_dir.assert_not_called()
+
+    @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._init_response_anomaly_config')
+    @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._update_and_init_work_dir')
+    @mock.patch('ais_bench.benchmark.cli.config_manager.ConfigManager._get_config_from_arg')
+    def test_load_config_revalidates_schedule_after_sweep_overrides(
+        self, mock_get_config, mock_update_work_dir, mock_init_anomaly
+    ):
+        mock_get_config.return_value = {
+            'models': [{
+                'abbr': 'vllm-api-stream-chat',
+                'stream': True,
+                'use_timestamp': False,
+                'prefill_concurrency': 4,
+                'request_rate': 0,
+            }],
+            'datasets': [],
+        }
+        config_manager = ConfigManager(self.args)
+
+        def enable_timestamp_override():
+            config_manager.cfg['models'][0]['use_timestamp'] = True
+
+        with mock.patch.object(
+            config_manager,
+            '_expand_sweep_configs',
+            side_effect=enable_timestamp_override,
+        ):
+            with self.assertRaisesRegex(
+                AISBenchConfigError,
+                'use_timestamp=True conflicts with prefill_concurrency=4',
+            ):
+                config_manager.load_config([])
+
+        mock_update_work_dir.assert_called_once()
+        mock_init_anomaly.assert_called_once()
 
     def _service_model(self, **overrides):
         """A service model that passes the response anomaly whitelist and

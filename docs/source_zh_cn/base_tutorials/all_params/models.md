@@ -40,6 +40,7 @@ models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.c
         model="",        # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
         stream=False,    # 是否为流式接口
         request_rate = 0,           # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
+        prefill_concurrency=0,      # 全局 Prefill 并发上限，仅在 stream=True 时生效，0 表示关闭
         use_timestamp=False,        # 是否按数据集中 timestamp 调度请求，适用于含 timestamp 的数据集（如 Mooncake Trace）
         retry = 2,                  # 每个请求最大重试次数
         api_key="",                 # 自定义API key，默认是空字符串
@@ -69,7 +70,8 @@ models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.c
 | `model_name` | String | 仅适用于 Triton 服务，拼接为 endpoint 的 URI `/v2/models/{modelname}/{infer、generate、generate_stream}`，应与部署时名称一致 |
 | `stream` | Boolean | API模型推理接口类型，默认为False，表示非流式接口，当为True时表示流式接口（具体请参考🔗[服务化推理后端](#服务化推理后端)）|
 | `request_rate` | Float | 请求发送速率（单位：秒），每隔 `1/request_rate` 秒发送一个请求；压测场景下表示每秒新增的服务端连接数；若小于 0.1 表示不限制请求发送速率。合法范围：[0, 64000]。当`traffic_cfg`项配置启用时，该项功能可能被覆盖 （具体原因请参考 🔗 [请求速率(RPS)分布控制及可视化说明中的参数解读章节](../../advanced_tutorials/rps_distribution.md#参数解读)）|
-| `use_timestamp` | Boolean | 是否按数据集中 timestamp 调度请求。为 True 且数据集中包含 timestamp 时，按 timestamp 发送请求，此时 **request_rate** 与 **traffic_cfg** 不参与调度；为 False 时按 request_rate/traffic_cfg 调度。默认 False。适用于含 timestamp 的数据集（如 Mooncake Trace）。|
+| `prefill_concurrency` | Int | 全局 Prefill 并发上限，限制所有 worker 中“已发送 HTTP 请求但尚未收到首 Token”的请求总数。仅在 `stream=True` 时生效，默认 `0` 表示关闭；Decode 阶段不占用许可。每次重试独立获取许可，许可等待时间记录在 `prefill_wait_time` 中。 |
+| `use_timestamp` | Boolean | 是否按数据集中 timestamp 调度请求。为 True 且数据集中包含 timestamp 时，按 timestamp 发送请求；为 False 时按其他已配置模式调度。默认 False。适用于含 timestamp 的数据集（如 Mooncake Trace）。|
 | `traffic_cfg` | Dict | 请求发送速率波动控制参数（具体使用说明请参考 🔗 [请求速率(RPS)分布控制及可视化说明](../../advanced_tutorials/rps_distribution.md)），不填写此项默认不启用该功能。 |
 | `retry` | Int | 连接服务端失败后的最大重试次数。合法范围：[0, 1000] |
 | `api_key` | String | 自定义API key，默认是空字符串。仅支持 `VLLMCustomAPI` 和 `VLLMCustomAPIChat` 模型类型。 |
@@ -87,7 +89,8 @@ models = [ # 相当于自定义配置文件中通过 `from ais_bench.benchmark.c
 - 响应异常检测当前仅支持基于 vLLM Chat API 的 `vllm_api_general_chat`、`vllm_api_stream_chat` 和 `vllm_api_stream_chat_multiturn` 模型配置，其他模型后端暂不支持。
 - `request_rate` 受硬件性能影响，可通过增加  📚 [WORKERS_NUM](./cli_args.md#配置常量文件参数) 提高并发能力。
 - `request_rate` 功能可能被`traffic_cfg`项覆盖，具体原因请参考 🔗 [请求速率(RPS)分布控制及可视化说明中的参数解读章节](../../advanced_tutorials/rps_distribution.md#参数解读)。
-- 当数据集含 timestamp 且模型配置中 **use_timestamp** 为 True 时，请求按 timestamp 发送，**request_rate** 与 **traffic_cfg** 将被忽略。
+- 调度模式优先级为 **use_timestamp > prefill_concurrency > request_rate/traffic_cfg**，但多种模式同时启用会直接报配置错误，不会静默忽略低优先级配置。
+- `prefill_concurrency` 必须为非负整数；大于 `batch_size` 时仅告警，实际请求并发仍受 `batch_size` 限制。
 - 使用响应异常检测（`--response-anomaly`）时，服务端必须返回 token id 与 top-k logprobs；启用检测后 AISBench 会自动在推理请求中补充 `logprobs=True` 与固定的 `top_logprobs=20`，服务响应缺少这些字段的 Case 检测结果标记为 `skipped`。详细用法请参考 [推理响应异常检测](../../advanced_tutorials/response_anomaly_detection.md)。
 - `batch_size` 设置过大可能导致 CPU 占用过高，请根据硬件条件合理配置。
 - 服务化推理评测 API 默认使用的服务地址为 `localhost:8080`。实际使用时需根据实际部署修改为服务化后端的 IP 和端口。
