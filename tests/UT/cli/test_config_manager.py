@@ -1642,6 +1642,29 @@ class TestExpandSweepCombinations(unittest.TestCase):
         self.assertEqual([d["abbr"] for d in result.datasets], ["aime2024", "aime2024"])
         self.assertIsNone(result.manifest)
 
+    def test_single_sweep_preserves_duplicate_dataset_abbr_with_combinations(self):
+        """单档 + 显式配对：同名 abbr 的多条数据集（LLM-judge 的 SC/PQ）不得被覆盖丢失"""
+        dataset_sc = self._dataset(abbr="gedit")
+        dataset_sc["judge_metric"] = "SC"
+        dataset_pq = self._dataset(abbr="gedit")
+        dataset_pq["judge_metric"] = "PQ"
+        model = self._model(abbr="edit")
+
+        result = expand_sweep_combinations(
+            [model], [dataset_sc, dataset_pq],
+            self._args(batch_size=8),
+            combinations=[
+                dict(models=[model], datasets=[dataset_sc, dataset_pq]),
+            ],
+        )
+
+        self.assertEqual(result.combinations, [])
+        self.assertEqual(
+            [dataset["judge_metric"] for dataset in result.datasets], ["SC", "PQ"]
+        )
+        # 单值 `--batch-size` 仍需覆盖到模型
+        self.assertEqual(result.models[0]["batch_size"], 8)
+
     def test_duplicate_dataset_abbr_rejected_in_multi_sweep(self):
         """多组合展开时同名 abbr 会导致输出路径冲突，V03 必须拦截"""
         datasets = [self._dataset(abbr="aime2024"), self._dataset(abbr="aime2024")]
