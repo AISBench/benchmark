@@ -38,3 +38,7 @@ git clone https://huggingface.co/datasets/livecodebench/code_generation_lite
 |livecodebench_0_shot_chat_v4_v5|code_generation_lite数据集的生成式任务，与DeepSeek-R1测评使用数据集一致：LiveCodeBench(2024-08 – 2025-01)|pass@1|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.livecodebench.livecodebench_0_shot_chat_v4_v5 import LCB_datasets as datasets`|[livecodebench_0_shot_chat_v4_v5.py](livecodebench_0_shot_chat_v4_v5.py)|
 |livecodebench_0_shot_chat_v4_v5_v6|code_generation_lite数据集的生成式任务, 与DeepSeek-V3.1和DeepSeek-V3.2测评使用数据集一致：LiveCodeBench(2024-08 – 2025-05)|pass@1|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.livecodebench.livecodebench_0_shot_chat_v4_v5_v6 import LCB_datasets as datasets`|[livecodebench_0_shot_chat_v4_v5_v6.py](livecodebench_0_shot_chat_v4_v5_v6.py)|
 |livecodebench_0_shot_chat_v6|code_generation_lite数据集的生成式任务, 与Qwen3测评使用数据集一致：LiveCodeBench(2025-05)|pass@1|0-shot|对话格式|`from ais_bench.benchmark.configs.datasets.livecodebench.livecodebench_0_shot_chat_v6 import LCB_datasets as datasets`|[livecodebench_0_shot_chat_v6.py](livecodebench_0_shot_chat_v6.py)|
+
+## 判题规则修正
+
+代码生成评测对 `abc392_f` 排除违反原题输入约束的测试（排除序号记录在结果的 `excluded_invalid_cases` 中）；对 `abc397_d`、`arc191_c`、`arc195_c` 按题目规则验证输出；对 `3763` 按绝对误差 `1e-5` 判定。其他题仍使用原有比较规则。修正后的 pass@1 可能与旧版本同名数据集的历史结果不同，比较成绩时请注明 AISBench 版本与判题规则。
